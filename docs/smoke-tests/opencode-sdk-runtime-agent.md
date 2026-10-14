@@ -6,9 +6,9 @@ Verify a fresh planner spawn against a real `opencode serve` reaches `session.id
 
 ## How agent selection works (current)
 
-- `OpenCodeSdkAgentService.spawn()` calls `client.app.agents()` to fetch the live agent list.
-- `selectAgent()` filters subagents, prefers the built-in `'build'`, falls back to the first remaining primary, throws if none.
-- `composeSystemPrompt()` appends the chatroom role's system prompt to the chosen agent's `prompt` field, joined by the `# Chatroom Role & Instructions (Important)` separator, and sends it as `body.system` on `session.promptAsync`.
+- `OpenCodeSdkAgentService.spawn()` calls `client.agent.list()` to fetch the live agent list.
+- `selectAgent()` filters subagents and hidden maintenance agents, prefers the built-in `'build'`, falls back to the first remaining primary, throws if none.
+- Agent, model, and tool permissions are set on the V2 session at creation time. The chatroom role system prompt is delivered through `session.instructions.entry.put(...)`, which OpenCode appends after the agent's own system prompt.
 
 ## Pre-reqs
 
@@ -45,10 +45,10 @@ ALL of the following must hold:
 
 ## Fail signatures
 
-- `Agent not found: "<name>"` — selection picked an agent the server doesn't have. Re-check `client.app.agents()` response and `selectAgent` logic.
+- `Agent not found: "<name>"` — selection picked an agent the server doesn't have. Re-check `client.agent.list()` response and `selectAgent` logic.
 - `role:<role> spawn-error] No usable opencode agent available` — server returned an empty (or all-subagent) list. Check the operator's `opencode` config.
-- `role:<role> spawn-error] app.agents timed out after 10000ms` — server is unresponsive on `/agent`. Check serve health.
-- Generic, role-agnostic reply with no `Agent not found` errors — system-prompt composition reached the model but the role context didn't take. Inspect `composeSystemPrompt` output.
+- `role:<role> spawn-error] agent.list timed out after 10000ms` — server is unresponsive on `/agent`. Check serve health.
+- Generic, role-agnostic reply with no `Agent not found` errors — the role instruction entry reached the model but the role context didn't take. Inspect the `session.instructions.entry.put` call and its `value`.
 
 ## What this smoke test does NOT cover
 

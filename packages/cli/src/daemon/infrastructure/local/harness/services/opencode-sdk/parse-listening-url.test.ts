@@ -28,6 +28,12 @@ describe('waitForListeningUrl', () => {
       const match = line.match(LISTENING_URL_RE);
       expect(match?.[1]).toBe('http://127.0.0.1:5678');
     });
+
+    it('matches the V2 listening line without the opencode prefix', () => {
+      const line = 'server listening on http://127.0.0.1:4096';
+      const match = line.match(LISTENING_URL_RE);
+      expect(match?.[1]).toBe('http://127.0.0.1:4096');
+    });
   });
 
   describe('waitForListeningUrl', () => {
@@ -38,7 +44,18 @@ describe('waitForListeningUrl', () => {
         'data',
         Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
       );
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
+      await expect(promise).resolves.toEqual({ url: 'http://127.0.0.1:5678' });
+    });
+
+    it('resolves with the password when the V2 password line follows', async () => {
+      const child = makeFakeChild();
+      const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
+      child.stderr!.emit('data', Buffer.from('server listening on http://127.0.0.1:4096\n'));
+      child.stderr!.emit('data', Buffer.from('server password sup3r-s3cret\n'));
+      await expect(promise).resolves.toEqual({
+        url: 'http://127.0.0.1:4096',
+        password: 'sup3r-s3cret',
+      });
     });
 
     it('resolves when stderr emits the listening line', async () => {
@@ -48,7 +65,7 @@ describe('waitForListeningUrl', () => {
         'data',
         Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
       );
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
+      await expect(promise).resolves.toEqual({ url: 'http://127.0.0.1:5678' });
     });
 
     it('ignores unrelated URLs and resolves on the real listening line', async () => {
@@ -62,7 +79,7 @@ describe('waitForListeningUrl', () => {
         'data',
         Buffer.from('opencode server listening on http://127.0.0.1:5678\n')
       );
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
+      await expect(promise).resolves.toEqual({ url: 'http://127.0.0.1:5678' });
     });
 
     it('handles URL line split across chunks', async () => {
@@ -70,7 +87,7 @@ describe('waitForListeningUrl', () => {
       const promise = waitForListeningUrl(child, { timeoutMs: 5000 });
       child.stdout!.emit('data', Buffer.from('opencode server listening on http://127.0.0.'));
       child.stdout!.emit('data', Buffer.from('1:5678\n'));
-      await expect(promise).resolves.toBe('http://127.0.0.1:5678');
+      await expect(promise).resolves.toEqual({ url: 'http://127.0.0.1:5678' });
     });
 
     it('rejects with code and signal when child exits during startup', async () => {

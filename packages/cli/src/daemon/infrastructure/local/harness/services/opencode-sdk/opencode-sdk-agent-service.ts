@@ -1,11 +1,19 @@
 /**
- * OpenCodeSdkAgentService — concrete RemoteAgentService using the OpenCode SDK.
+ * OpenCodeSdkAgentService — concrete RemoteAgentService using the OpenCode V2 client.
  *
  * @see ../HARNESS_GUIDE.md — end-to-end guide for implementing a new harness
  *
- * Uses @opencode-ai/sdk for session-based integration with OpenCode.
- * Spawns a local OpenCode server via child process, connects via SDK client,
+ * Uses @opencode/client for session-based integration with OpenCode V2.
+ * Spawns a local OpenCode server via child process, connects via the client,
  * and manages session lifecycle with the remote agent runtime.
+ *
+ * V2 notes:
+ *   - Agent, model, and tool permissions are session-scoped and set at create
+ *     time (or via switchAgent/switchModel) rather than on the prompt body.
+ *   - The chatroom role system prompt is delivered as a session instruction
+ *     entry, which OpenCode appends after the agent's own system prompt.
+ *   - Tool restrictions are expressed as permission rules (`subagent`,
+ *     `question`, `external_directory` → deny).
  *
  * Extends BaseCLIAgentService which handles shared boilerplate:
  * process registry, stop/isAlive/getTrackedProcesses/untrack, and
@@ -14,14 +22,15 @@
 
 import type { ChildProcess } from 'node:child_process';
 
-import { createOpencodeClient } from '@opencode-ai/sdk';
+import { OpenCode } from '@opencode/client';
+import type { AgentInfo, ModelRef, OpenCodeClient, PermissionRule } from '@opencode/client';
 
 import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { requireHarnessModel } from '../require-harness-model.js';
 import { withTimeout } from '../with-timeout.js';
-import { composeSystemPrompt } from './compose-system-prompt.js';
+import { ensureLocation } from './ensure-location.js';
 import { fetchOpencodeProviderModelCatalog } from './opencode-model-catalog.js';
-import { waitForListeningUrl } from './parse-listening-url.js';
+import { serverAuthHeaders, waitForListeningUrl } from './parse-listening-url.js';
 import { isInfoLine, parseModelId, parseOpencodeSpawnModel } from './pure.js';
 import { selectAgent } from './select-agent.js';
 import {
@@ -34,13 +43,13 @@ import {
   type SessionMetadata,
   type SessionMetadataStore,
 } from './session-metadata-store.js';
-import type { TurnCompletionResult } from '../turn-completion.js';
-import { StderrLineBuffer } from './stderr-line-buffer.js';
-import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
 import {
   createHarnessActivityEmitter,
   type HarnessActivityEmitter,
 } from '../../../../../services/service-interfaces.js';
+import type { TurnCompletionResult } from '../turn-completion.js';
+import { StderrLineBuffer } from './stderr-line-buffer.js';
+import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
 import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
 import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
@@ -50,51 +59,33 @@ export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
 
 const SERVE_STARTUP_TIMEOUT_MS = 10000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
-const PROMPT_ASYNC_TIMEOUT_MS = 60_000;
+const PROMPT_TIMEOUT_MS = 60_000;
 const SESSION_ABORT_TIMEOUT_MS = 5_000;
 const AGENTS_LIST_TIMEOUT_MS = 10_000;
 
-type OpencodeClient = ReturnType<typeof createOpencodeClient>;
-
-interface DisabledToolsPromptBody {
-  agent: string;
-  system?: string;
-  parts: [{ type: 'text'; text: string }];
-  model?: Exclude<ReturnType<typeof parseModelId>, undefined>;
-  variant?: string;
-  tools: {
-    task: false;
-    question: false;
-    external_directory: false;
-  };
-}
+/** Instruction-entry key for the chatroom role overlay. */
+const CHATROOM_INSTRUCTION_KEY = 'chatroom-role';
 
 /**
- * Builds prompt body for v1 createOpencodeClient session.promptAsync.
- * Variant is passed on the body at runtime; v1 SDK types omit it but the server accepts it
- * (v2 API types document variant on promptAsync).
+ * Session permissions that mirror the V1 disabled-tools behaviour.
+ * OpenCode V2 expresses tool restrictions as ordered permission rules; the
+ * action names differ from V1 (`task` → `subagent`, `question`/`external_directory` unchanged).
  */
-// fallow-ignore-next-line complexity
-function buildDisabledToolsPromptBody(args: {
-  agentName: string;
-  prompt: string;
-  composedSystem?: string | undefined;
-  model: string;
-}): DisabledToolsPromptBody {
-  const model = requireHarnessModel(args.model, 'opencode-sdk prompt');
+const DISABLED_TOOL_PERMISSIONS: readonly PermissionRule[] = [
+  { action: 'subagent', resource: '*', effect: 'deny' },
+  { action: 'question', resource: '*', effect: 'deny' },
+  { action: 'external_directory', resource: '*', effect: 'deny' },
+];
+
+/** Parse the chatroom `provider/model[variant]` string into a V2 ModelRef. */
+function toModelRef(model: string): ModelRef | undefined {
   const parsed = parseOpencodeSpawnModel(model);
-  const modelParts = parseModelId(parsed.model);
+  const parts = parseModelId(parsed.model);
+  if (!parts) return undefined;
   return {
-    agent: args.agentName,
-    ...(args.composedSystem ? { system: args.composedSystem } : {}),
-    parts: [{ type: 'text', text: args.prompt }],
-    ...(modelParts ? { model: modelParts } : {}),
+    providerID: parts.providerID,
+    id: parts.modelID,
     ...(parsed.variant ? { variant: parsed.variant } : {}),
-    tools: {
-      task: false,
-      question: false,
-      external_directory: false,
-    },
   };
 }
 
@@ -148,15 +139,15 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     const meta = this.sessionStore.findByPid(pid);
     if (meta) {
       try {
-        const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+        const client = this.makeClient(meta.baseUrl, meta.password);
         await withTimeout(
-          client.session.abort({ path: { id: meta.sessionId } }),
+          client.session.interrupt({ sessionID: meta.sessionId }),
           SESSION_ABORT_TIMEOUT_MS,
-          'session.abort'
+          'session.interrupt'
         );
       } catch (err) {
         console.warn(
-          `[opencode-sdk] session.abort for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
+          `[opencode-sdk] session.interrupt for pid=${pid} sessionId=${meta.sessionId} failed (continuing with SIGTERM):`,
           err instanceof Error ? err.message : err
         );
       }
@@ -169,7 +160,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   private spawnServeProcess(workingDir: string, resolvedConvexUrl: string): ChildProcess {
     const childProcess = this.deps.spawn(
       OPENCODE_COMMAND,
-      ['serve', '--print-logs', '--log-level', 'WARN'],
+      ['serve', '--print-logs', '--log-level', 'warn'],
       {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -191,11 +182,23 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     context: SpawnContext;
     agentName: string;
     model: string | undefined;
+    workingDir: string;
     deferredSystemPrompt?: string | undefined;
     pid: number;
     baseUrl: string;
+    password?: string | undefined;
   }): SessionMetadata {
-    const { sessionId, context, agentName, model, deferredSystemPrompt, pid, baseUrl } = args;
+    const {
+      sessionId,
+      context,
+      agentName,
+      model,
+      workingDir,
+      deferredSystemPrompt,
+      pid,
+      baseUrl,
+      password,
+    } = args;
     return {
       sessionId,
       machineId: context.machineId,
@@ -203,10 +206,12 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       role: context.role,
       agentName,
       ...(model ? { model } : {}),
+      workingDir,
       ...(deferredSystemPrompt ? { deferredSystemPrompt } : {}),
       pid,
       createdAt: new Date().toISOString(),
       baseUrl,
+      ...(password ? { password } : {}),
     };
   }
 
@@ -279,6 +284,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     context: SpawnContext;
     forwarder: SessionEventForwarderHandle | undefined;
     baseUrl: string;
+    password: string | undefined;
     agentName: string;
     model: string | undefined;
     workingDir: string;
@@ -296,8 +302,10 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       context,
       forwarder,
       baseUrl,
+      password,
       agentName,
       model,
+      workingDir,
       logLineCallbacks,
       deferredSystemPrompt,
     } = args;
@@ -312,9 +320,11 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         context,
         agentName,
         model,
+        workingDir,
         deferredSystemPrompt,
         pid,
         baseUrl,
+        password,
       })
     );
 
@@ -415,6 +425,11 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     };
   }
 
+  private makeClient(baseUrl: string, password?: string | undefined): OpenCodeClient {
+    const headers = serverAuthHeaders(password);
+    return OpenCode.make({ baseUrl, ...(headers ? { headers } : {}) });
+  }
+
   private async startServeAndClient(
     workingDir: string,
     resolvedConvexUrl: string
@@ -422,7 +437,8 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     childProcess: ChildProcess;
     pid: number;
     baseUrl: string;
-    client: OpencodeClient;
+    password: string | undefined;
+    client: OpenCodeClient;
   }> {
     const childProcess = this.spawnServeProcess(workingDir, resolvedConvexUrl);
     const pid = childProcess.pid;
@@ -430,37 +446,56 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       throw new Error('Failed to spawn opencode serve process');
     }
 
-    const baseUrl = await waitForListeningUrl(childProcess, {
+    const { url, password } = await waitForListeningUrl(childProcess, {
       timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
     }).catch((err) => {
       childProcess.kill();
       throw err;
     });
 
-    return { childProcess, pid, baseUrl, client: createOpencodeClient({ baseUrl }) };
+    return { childProcess, pid, baseUrl: url, password, client: this.makeClient(url, password) };
   }
 
-  private async listAvailableAgents(client: OpencodeClient) {
+  private async listAvailableAgents(
+    client: OpenCodeClient,
+    workingDir: string
+  ): Promise<AgentInfo[]> {
+    await ensureLocation(client, workingDir);
     const agentsResponse = await withTimeout(
-      client.app.agents(),
+      client.agent.list({ location: { directory: workingDir } }),
       AGENTS_LIST_TIMEOUT_MS,
-      'app.agents'
+      'agent.list'
     );
     return agentsResponse.data ?? [];
   }
 
-  private async promptSessionAsync(
-    client: OpencodeClient,
+  /** Submit a prompt and return once the server has accepted it. */
+  private async promptSession(
+    client: OpenCodeClient,
     sessionId: string,
-    body: DisabledToolsPromptBody
+    text: string
   ): Promise<void> {
     await withTimeout(
-      client.session.promptAsync({
-        path: { id: sessionId },
-        body,
+      client.session.prompt({ sessionID: sessionId, text }),
+      PROMPT_TIMEOUT_MS,
+      'session.prompt'
+    );
+  }
+
+  /** Set (or replace) the chatroom role instruction entry on a session. */
+  private async setSystemInstruction(
+    client: OpenCodeClient,
+    sessionId: string,
+    system: string
+  ): Promise<void> {
+    await withTimeout(
+      client.session.instructions.entry.put({
+        sessionID: sessionId,
+        key: CHATROOM_INSTRUCTION_KEY,
+        value: system,
       }),
-      PROMPT_ASYNC_TIMEOUT_MS,
-      'session.promptAsync'
+      SESSION_CREATE_TIMEOUT_MS,
+      'session.instructions.entry.put'
     );
   }
 
@@ -487,9 +522,12 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
   private async startFreshSessionOnServe(args: {
     pid: number;
     baseUrl: string;
+    password?: string | undefined;
     context: SpawnContext;
     agentName: string;
     model: string;
+    /** Spawn working directory; passed as `location` so the fresh session matches the primary path. */
+    workingDir: string | undefined;
     prompt: string;
     oldSessionId?: string | undefined;
   }): Promise<void> {
@@ -498,17 +536,26 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     existingForwarder?.stop();
     this.forwarders.delete(args.pid);
 
-    const client = createOpencodeClient({ baseUrl: args.baseUrl });
+    const client = this.makeClient(args.baseUrl, args.password);
 
+    const fallbackModel = toModelRef(model);
     const sessionCreateResult = await withTimeout(
-      client.session.create({ body: {} }),
+      client.session.create({
+        agent: args.agentName,
+        ...(fallbackModel ? { model: fallbackModel } : {}),
+        permissions: DISABLED_TOOL_PERMISSIONS,
+        // Constraint: must match the primary spawn() path. Without `location`, OpenCode
+        // resolves the session against the server's default directory, not the workspace.
+        // Legacy metadata written before workingDir was persisted has no value here.
+        ...(args.workingDir ? { location: { directory: args.workingDir } } : {}),
+      }),
       SESSION_CREATE_TIMEOUT_MS,
       'session.create'
     );
-    if (!sessionCreateResult.data?.id) {
+    if (!sessionCreateResult.id) {
       throw new Error('Failed to create session during resume fallback');
     }
-    const newSessionId = sessionCreateResult.data.id;
+    const newSessionId = sessionCreateResult.id;
 
     const { emitLogLine } = this.createLogLineEmitter();
     const pidOutputCallbacks = this.outputCallbacksByPid.get(args.pid) ?? [];
@@ -556,26 +603,21 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       pid: args.pid,
       createdAt: new Date().toISOString(),
       baseUrl: args.baseUrl,
+      ...(args.password ? { password: args.password } : {}),
     });
 
     activityEmitter.beginTurn();
-    await this.promptSessionAsync(
-      client,
-      newSessionId,
-      buildDisabledToolsPromptBody({
-        agentName: args.agentName,
-        prompt: args.prompt,
-        model,
-      })
-    );
+    await this.promptSession(client, newSessionId, args.prompt);
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const { prompt, systemPrompt, context } = options;
     const model = requireHarnessModel(options.model, 'opencode-sdk spawn');
     const deferInitialTurn = options.deferInitialTurn ?? false;
+    // Whitespace-only overlays are treated as absent (mirrors the V1 composer).
+    const roleSystem = systemPrompt.trim().length > 0 ? systemPrompt : undefined;
 
-    const { childProcess, pid, baseUrl, client } = await this.startServeAndClient(
+    const { childProcess, pid, baseUrl, password, client } = await this.startServeAndClient(
       options.workingDir,
       options.resolvedConvexUrl
     );
@@ -589,17 +631,31 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     const { assistantTextCallbacks, emitAssistantText } = this.createAssistantTextEmitter();
     const outputCallbacks: (() => void)[] = [];
     try {
+      // Discover what agents this opencode server actually exposes. We select
+      // against the runtime list rather than hard-coding names because the agent
+      // set is user-configurable and the server caches its registry at startup.
+      const availableAgents = await this.listAvailableAgents(client, options.workingDir);
+      const selected = selectAgent(availableAgents);
+      agentName = selected.id;
+
+      // V2 session-scoped selection: agent, model, and tool permissions.
+      const modelRef = toModelRef(model);
       const sessionCreateResult = await withTimeout(
-        client.session.create({ body: {} }),
+        client.session.create({
+          agent: selected.id,
+          ...(modelRef ? { model: modelRef } : {}),
+          permissions: DISABLED_TOOL_PERMISSIONS,
+          location: { directory: options.workingDir },
+        }),
         SESSION_CREATE_TIMEOUT_MS,
         'session.create'
       );
 
-      if (!sessionCreateResult.data?.id) {
+      if (!sessionCreateResult.id) {
         throw new Error('Failed to create session');
       }
 
-      sessionId = sessionCreateResult.data.id;
+      sessionId = sessionCreateResult.id;
 
       forwarder = this.createSessionForwarder(
         client as SessionEventForwarderClient,
@@ -611,30 +667,14 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
         activityEmitter
       );
 
-      // Discover what agents this opencode server actually exposes. We compose
-      // against the runtime list rather than hard-coding names because (a) the
-      // server caches its registry at startup, so client.config.update is a no-op
-      // for runtime registration, and (b) the agent set is user-configurable.
-      const availableAgents = await this.listAvailableAgents(client);
-      const selected = selectAgent(availableAgents);
-      agentName = selected.name;
-      const composedSystem = composeSystemPrompt(selected.prompt, systemPrompt);
       if (deferInitialTurn) {
-        deferredSystemPrompt = composedSystem;
-      }
-
-      if (!deferInitialTurn) {
+        deferredSystemPrompt = roleSystem;
+      } else {
         activityEmitter.beginTurn();
-        await this.promptSessionAsync(
-          client,
-          sessionId,
-          buildDisabledToolsPromptBody({
-            agentName: selected.name,
-            prompt,
-            composedSystem,
-            model,
-          })
-        );
+        if (roleSystem) {
+          await this.setSystemInstruction(client, sessionId, roleSystem);
+        }
+        await this.promptSession(client, sessionId, prompt);
       }
     } catch (err) {
       // Surface a human-readable, role-prefixed reason to the daemon log before
@@ -657,6 +697,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       context,
       forwarder,
       baseUrl,
+      password,
       agentName,
       model,
       workingDir: options.workingDir,
@@ -683,7 +724,7 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     const activityEmitter = this.activityEmittersByPid.get(pid);
     activityEmitter?.beginTurn();
 
-    const client = createOpencodeClient({ baseUrl: meta.baseUrl });
+    const client = this.makeClient(meta.baseUrl, meta.password);
     const model = requireHarnessModel(meta.model, 'opencode-sdk resumeTurn');
     const deferredSystem = meta.deferredSystemPrompt;
     const context: SpawnContext = {
@@ -693,16 +734,10 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     };
 
     try {
-      await this.promptSessionAsync(
-        client,
-        meta.sessionId,
-        buildDisabledToolsPromptBody({
-          agentName: meta.agentName,
-          prompt,
-          composedSystem: deferredSystem,
-          model,
-        })
-      );
+      if (deferredSystem) {
+        await this.setSystemInstruction(client, meta.sessionId, deferredSystem);
+      }
+      await this.promptSession(client, meta.sessionId, prompt);
       if (deferredSystem) {
         this.sessionStore.upsert({ ...meta, deferredSystemPrompt: undefined });
       }
@@ -711,9 +746,11 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
       await this.startFreshSessionOnServe({
         pid,
         baseUrl: meta.baseUrl,
+        password: meta.password,
         context,
         agentName: meta.agentName,
         model,
+        workingDir: meta.workingDir,
         prompt,
         oldSessionId: meta.sessionId,
       });

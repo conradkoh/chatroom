@@ -1,27 +1,27 @@
-import type { Agent } from '@opencode-ai/sdk';
+import type { AgentInfo } from '@opencode/client';
 
 /**
  * Selects an opencode agent from the provided list of available agents.
  *
- * Subagents are filtered out because they are designed to be invoked from a
- * parent agent, not driven directly by external callers.
+ * Subagents and hidden maintenance agents are filtered out because they are not
+ * meant to be driven directly by external callers.
  *
  * The 'build' agent is preferred because it is opencode's canonical generalist
  * base agent — chatroom roles compose on top of it. Role-specific selection is
- * intentionally out of scope; chatroom role behaviour comes from the system prompt
- * composition (see composeSystemPrompt).
+ * intentionally out of scope; chatroom role behaviour comes from the session
+ * instruction entry (see the agent service).
  *
- * @param agents - The list of all agents returned by client.app.agents()
- * @returns The selected Agent (never a subagent)
- * @throws If no non-subagent agents are available
+ * @param agents - The list of agents returned by client.agent.list()
+ * @returns The selected AgentInfo (never a subagent or hidden agent)
+ * @throws If no usable primary agents are available
  */
-export function selectAgent(agents: readonly Agent[]): Agent {
-  const primaries = agents.filter((a) => a.mode !== 'subagent');
+export function selectAgent(agents: readonly AgentInfo[]): AgentInfo {
+  const primaries = agents.filter((a) => a.mode !== 'subagent' && a.hidden !== true);
 
   if (primaries.length === 0) {
     throw new Error('No usable opencode agent available (server returned 0 non-subagent agents)');
   }
 
-  const buildAgent = primaries.find((a) => a.name === 'build');
+  const buildAgent = primaries.find((a) => a.id === 'build' || a.name === 'build');
   return buildAgent ?? primaries[0];
 }

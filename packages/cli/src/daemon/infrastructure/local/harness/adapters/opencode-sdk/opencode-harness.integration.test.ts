@@ -92,10 +92,10 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
     expect(modelIds).toContain('deepseek-v4-flash');
   });
 
-  it('lists agents', async () => {
+  it('lists agents by id, including the built-in build agent', async () => {
     const agents = await harness.listAgents();
-    // There may be zero custom agents — just confirm the call succeeds
-    expect(Array.isArray(agents)).toBe(true);
+    // Published names must be the V2 agent ids that switchAgent/prompt accept.
+    expect(agents.map((a) => a.name)).toContain(AGENT);
   });
 
   // ── Session + prompt ───────────────────────────────────────────────────────
@@ -115,10 +115,9 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
         const extracted = extractChunk(event);
         if (extracted) chunks.push(extracted.content);
 
-        // Only treat session.idle/ready as "done" after the prompt has been
-        // sent — the initial session.idle fires before any prompt and would
-        // resolve the promise prematurely otherwise.
-        if (promptSent && (event.type === 'session.idle' || event.type === 'session.ready')) {
+        // Only treat the execution terminal as "done" after the prompt has been
+        // sent — an initial terminal event could otherwise resolve prematurely.
+        if (promptSent && event.type === 'session.execution.succeeded') {
           unsub();
           resolve();
         }
@@ -179,7 +178,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
       return new Promise<void>((resolve) => {
         let promptSent = false;
         const unsub = session.onEvent((ev) => {
-          if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+          if (promptSent && ev.type === 'session.execution.succeeded') {
             unsub();
             resolve();
           }
@@ -208,12 +207,13 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
     const subscribeCallsForTest = h._debugSubscribeCount() - subscribeBefore;
     console.log(`[repro-test-1] subscribe calls during test: ${subscribeCallsForTest}`);
 
-    // EXPECTED TO FAIL on current code: current code opens ≥3 subscribe calls
-    // (1 harness-level + 1 per session × 2 = 3).
-    expect(subscribeCallsForTest).toBe(1);
+    // The harness owns exactly one SSE subscription for its lifetime. The single
+    // fiber may already have been forked (and its subscribe counted) by an
+    // earlier test, so this window sees 0 or 1 — never one per session.
+    expect(subscribeCallsForTest).toBeLessThanOrEqual(1);
   });
 
-  it('streams text deltas via SSE only — no events arrive after session.idle', async () => {
+  it('streams text deltas via SSE only — no events arrive after session.execution.succeeded', async () => {
     const session = await harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE });
 
     const deltaEventsWithTimestamp: { type: string; ts: number }[] = [];
@@ -224,15 +224,15 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
       const unsub = session.onEvent((ev) => {
         const ts = Date.now();
 
-        if (ev.type === 'message.part.delta' || ev.type === 'message.part.updated') {
+        if (ev.type === 'session.text.delta' || ev.type === 'session.reasoning.delta') {
           deltaEventsWithTimestamp.push({ type: ev.type, ts });
         }
 
-        if (ev.type === 'session.idle' || ev.type === 'session.ready') {
+        if (ev.type === 'session.execution.succeeded') {
           if (firstIdleTs === null) firstIdleTs = ts;
         }
 
-        if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+        if (promptSent && ev.type === 'session.execution.succeeded') {
           unsub();
           resolve();
         }
@@ -269,7 +269,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
     expect(deltaEventsWithTimestamp.length).toBeGreaterThan(0);
 
     // EXPECTED TO FAIL on current code: duplicate SSE streams deliver delta events
-    // after session.idle due to interleaved delivery from two independent subscribers.
+    // after session.execution.succeeded due to interleaved delivery from two independent subscribers.
     const lateEvents = deltaEventsWithTimestamp.filter(
       (e) => firstIdleTs !== null && e.ts > firstIdleTs
     );
@@ -292,7 +292,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
           existing.push(extracted.content);
           chunksByMessage.set(extracted.messageId, existing);
         }
-        if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+        if (promptSent && ev.type === 'session.execution.succeeded') {
           unsub();
           resolve();
         }
@@ -329,7 +329,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
 
   // ── Phase 6: idle → finalize ordering ─────────────────────────────────────
   //
-  // Verifies the constraint: no delta/content events arrive AFTER session.idle.
+  // Verifies the constraint: no delta/content events arrive AFTER session.execution.succeeded.
   // This is a harness-only ordering test.
   //
   // A full backend-integrated e2e (turn becomes status='complete' with
@@ -337,7 +337,7 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
   // which is out of scope for this file. The idle-handler unit tests
   // (idle-handler.test.ts) cover the finalizeAssistantTurn call path.
 
-  it('session.idle arrives exactly once, and no delta events arrive after it', async () => {
+  it('session.execution.succeeded arrives exactly once, and no delta events arrive after it', async () => {
     const session = await harness.newSession({ agent: AGENT, model: TEST_MODEL_OPENCODE });
 
     const deltaTimestamps: number[] = [];
@@ -349,16 +349,16 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
       const unsub = session.onEvent((ev) => {
         const ts = Date.now();
 
-        if (ev.type === 'message.part.delta' || ev.type === 'message.part.updated') {
+        if (ev.type === 'session.text.delta' || ev.type === 'session.reasoning.delta') {
           deltaTimestamps.push(ts);
         }
 
-        if (ev.type === 'session.idle') {
+        if (ev.type === 'session.execution.succeeded') {
           idleCount++;
           if (firstIdleTs === null) firstIdleTs = ts;
         }
 
-        if (promptSent && (ev.type === 'session.idle' || ev.type === 'session.ready')) {
+        if (promptSent && ev.type === 'session.execution.succeeded') {
           unsub();
           resolve();
         }
@@ -392,10 +392,10 @@ describe.skipIf(SKIP)('OpenCode SDK harness integration', { timeout: 120_000 }, 
     // Must have received at least one streaming event
     expect(deltaTimestamps.length).toBeGreaterThan(0);
 
-    // session.idle must have fired exactly once (single-subscriber, no duplicates)
+    // session.execution.succeeded must have fired exactly once (single-subscriber, no duplicates)
     expect(idleCount).toBe(1);
 
-    // Ordering guarantee: all delta events precede session.idle
+    // Ordering guarantee: all delta events precede session.execution.succeeded
     const lateDeltas = deltaTimestamps.filter((ts) => firstIdleTs !== null && ts > firstIdleTs);
     console.log(`[phase6] late delta events after idle: ${lateDeltas.length}`);
     expect(lateDeltas).toHaveLength(0);

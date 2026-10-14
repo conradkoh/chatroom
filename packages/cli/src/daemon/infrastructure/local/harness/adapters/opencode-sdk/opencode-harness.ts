@@ -1,12 +1,12 @@
 /**
- * OpencodeSdkHarness — BoundHarness implementation for the opencode SDK.
+ * OpencodeSdkHarness — BoundHarness implementation for the opencode V2 client.
  *
  * Lifecycle:
  *   1. `startOpencodeSdkHarness()` spawns `opencode serve --print-logs`,
  *      waits for the listening URL, and returns a BoundHarness.
- *   2. `newSession()` creates a new SDK session and returns an OpencodeSdkSession.
+ *   2. `newSession()` creates a new session and returns an OpencodeSdkSession.
  *   3. `resumeSession()` returns an OpencodeSdkSession for an existing session ID.
- *   4. `models()` reads providers/models from the running SDK server.
+ *   4. `models()` reads models from the running server.
  *   5. `isAlive()` checks the child process.
  *   6. `close()` sends SIGTERM and cleans up.
  *
@@ -14,10 +14,10 @@
  *   A single Effect fiber (`_sseFiber`) owns the SSE event loop.
  *   It is forked lazily when the first session listener is registered, and
  *   interrupted when the last listener unregisters or the harness is closed.
- *   The inner loop is a plain async while-loop (not Effect.callback) to avoid
- *   interaction issues between Effect's fiber scheduler and async iterator stepping.
- *   Events are dispatched to sessions via `session._receiveEvent()`, which pushes
- *   into each session's SseEventBuffer for async consumer delivery.
+ *   V2 exposes events as a plain AsyncIterable from `client.event.subscribe()`
+ *   (no `{ stream }` envelope). The inner loop is a plain async while-loop
+ *   (not Effect.callback) to avoid interaction issues between Effect's fiber
+ *   scheduler and async iterator stepping.
  */
 
 // fallow-ignore-file code-duplication
@@ -25,8 +25,8 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 
-import { createOpencodeClient } from '@opencode-ai/sdk';
-import type { OpencodeClient, Event as SdkEvent, GlobalEvent } from '@opencode-ai/sdk';
+import { OpenCode } from '@opencode/client';
+import type { OpenCodeClient, OpenCodeEvent } from '@opencode/client';
 import { Effect, Fiber } from 'effect';
 
 import { OpencodeSdkSession } from './opencode-session.js';
@@ -44,24 +44,25 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
+import { ensureLocation } from '../../services/opencode-sdk/ensure-location.js';
 import {
+  groupModelsByProvider,
   mapOpencodeProviderModelOptions,
-  type OpencodeCatalogModel,
 } from '../../services/opencode-sdk/opencode-model-catalog.js';
-import { waitForListeningUrl } from '../../services/opencode-sdk/parse-listening-url.js';
+import {
+  serverAuthHeaders,
+  waitForListeningUrl,
+} from '../../services/opencode-sdk/parse-listening-url.js';
 import { requireHarnessModel } from '../../services/require-harness-model.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Extract sessionID from a raw opencode event payload. */
-function harnessEventSessionId(event: SdkEvent): string | undefined {
-  const p = event.properties;
-  if (!p) return undefined;
-  if ('sessionID' in p && typeof p.sessionID === 'string') return p.sessionID;
-  if ('part' in p && p.part && typeof p.part === 'object' && 'sessionID' in p.part) {
-    return (p.part as { sessionID: string }).sessionID;
-  }
-  return undefined;
+/** Extract sessionID from a raw opencode V2 event (`data.sessionID`). */
+function harnessEventSessionId(event: OpenCodeEvent): string | undefined {
+  const data = event.data as Record<string, unknown> | undefined;
+  if (!data || typeof data !== 'object') return undefined;
+  const sid = data.sessionID;
+  return typeof sid === 'string' ? sid : undefined;
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -76,8 +77,8 @@ export interface OpencodeSdkHarnessOptions {
   readonly baseUrl: string;
   /** Working directory for the harness process. */
   readonly cwd: string;
-  /** OpenCode SDK client instance, already connected to a running server. */
-  readonly client: OpencodeClient;
+  /** OpenCode client instance, already connected to a running server. */
+  readonly client: OpenCodeClient;
   /** Child process reference (for isAlive / close). */
   readonly process: ChildProcess;
 }
@@ -88,14 +89,14 @@ export class OpencodeSdkHarness implements BoundHarness {
   readonly type = 'opencode-sdk' as const;
   readonly displayName = 'OpenCode (SDK)';
 
-  private readonly client: OpencodeClient;
+  private readonly client: OpenCodeClient;
   private readonly childProcess: ChildProcess;
   readonly cwd: string;
   private readonly baseUrl: string;
   private closed = false;
 
   // ── SSE fan-out ─────────────────────────────────────────────────────────────
-  /** Sessions listening for events from this harness, keyed by opencodeSessionId. */
+  /** Sessions listening for events from this harness, keyed by sessionId. */
   private readonly sessionListeners = new Map<string, OpencodeSdkSession>();
 
   /**
@@ -122,53 +123,51 @@ export class OpencodeSdkHarness implements BoundHarness {
     this.baseUrl = options.baseUrl;
   }
 
-  /** List available models via the opencode provider list. */
+  /** List available models via the V2 model list. */
   async models(): Promise<readonly ModelInfo[]> {
-    const result = await this.client.provider.list();
-    const providers = result.data?.all ?? [];
+    const result = await this.client.model.list({ location: { directory: this.cwd } });
+    const models = result.data ?? [];
 
-    const models: ModelInfo[] = [];
-    for (const provider of providers) {
-      for (const [key, model] of Object.entries(provider.models ?? {})) {
-        models.push({
-          id: key, // e.g. "openai/gpt-4"
-          name: model.name,
-          provider: provider.name,
-        });
-      }
-    }
-    return models;
+    return models
+      .filter((model) => model.enabled !== false)
+      .map((model) => ({
+        id: `${model.providerID}/${model.modelID}`,
+        name: model.name,
+        provider: model.providerID,
+      }));
   }
 
   /** List agents configured in this opencode workspace. */
   async listAgents(): Promise<readonly PublishedAgent[]> {
-    const result = await this.client.config.get();
-    const agentMap = result.data?.agent ?? {};
+    const result = await this.client.agent.list({ location: { directory: this.cwd } });
+    const agents = result.data ?? [];
 
-    return Object.entries(agentMap)
-      .filter(([, cfg]) => cfg !== undefined && cfg.disable !== true)
-      .map(([name, cfg]) => ({
-        name,
-        mode: (cfg?.mode as PublishedAgent['mode']) ?? 'all',
-        ...(cfg?.description ? { description: cfg.description } : {}),
+    return agents
+      .filter((agent) => agent.hidden !== true)
+      .map((agent) => ({
+        // V2 switchAgent/prompt take the agent id, not the display name.
+        name: agent.id,
+        mode: (agent.mode as PublishedAgent['mode']) ?? 'all',
+        ...(agent.description ? { description: agent.description } : {}),
       }));
   }
 
-  /** List connected providers and their models. */
+  /** List providers with their enabled models. */
   async listProviders(): Promise<readonly PublishedProvider[]> {
-    const result = await this.client.provider.list();
-    const all = result.data?.all ?? [];
-    const connected = new Set(result.data?.connected ?? []);
+    const [providersResult, modelsResult] = await Promise.all([
+      this.client.provider.list({ location: { directory: this.cwd } }),
+      this.client.model.list({ location: { directory: this.cwd } }),
+    ]);
+    const providers = providersResult.data ?? [];
+    const modelsByProvider = groupModelsByProvider(modelsResult.data ?? []);
 
-    return all
-      .filter((p) => connected.has(p.id))
-      .map((p) => ({
-        providerID: p.id,
-        name: p.name,
-        models: mapOpencodeProviderModelOptions(
-          (p.models ?? {}) as Record<string, OpencodeCatalogModel>
-        ),
-      }));
+    return providers
+      .map((provider) => ({
+        providerID: provider.id,
+        name: provider.name,
+        models: mapOpencodeProviderModelOptions(modelsByProvider.get(provider.id) ?? []),
+      }))
+      .filter((provider) => provider.models.length > 0);
   }
 
   /** Create a new SDK session. */
@@ -177,15 +176,11 @@ export class OpencodeSdkHarness implements BoundHarness {
     requireHarnessModel(config.model, 'opencode-sdk newSession');
 
     const created = await this.client.session.create({
-      body: {
-        ...(config.title ? { title: config.title } : {}),
-      },
-      query: {
-        directory: this.cwd,
-      },
+      ...(config.title ? { title: config.title } : {}),
+      location: { directory: this.cwd },
     });
 
-    const sessionId = created.data?.id;
+    const sessionId = created.id;
     if (!sessionId) {
       throw new Error('Failed to create session: no session ID returned');
     }
@@ -193,10 +188,8 @@ export class OpencodeSdkHarness implements BoundHarness {
     // Fetch the session title from the harness (it auto-generates one)
     let sessionTitle = config.title ?? '';
     try {
-      const sessionInfo = await this.client.session.get({
-        path: { id: sessionId },
-      });
-      sessionTitle = sessionInfo.data?.title ?? sessionTitle;
+      const sessionInfo = await this.client.session.get({ sessionID: sessionId });
+      sessionTitle = sessionInfo.title ?? sessionTitle;
     } catch {
       // Non-fatal — fall back to the requested title or empty string
     }
@@ -212,7 +205,7 @@ export class OpencodeSdkHarness implements BoundHarness {
     return session;
   }
 
-  /** Resume an existing SDK session by its harness session ID. */
+  /** Resume an existing session by its session ID. */
   async resumeSession(
     sessionId: OpenCodeSessionId,
     _options?: ResumeHarnessSessionOptions
@@ -222,10 +215,8 @@ export class OpencodeSdkHarness implements BoundHarness {
     // Verify the session still exists
     let sessionTitle = '';
     try {
-      const sessionInfo = await this.client.session.get({
-        path: { id: sessionId },
-      });
-      sessionTitle = sessionInfo.data?.title ?? '';
+      const sessionInfo = await this.client.session.get({ sessionID: sessionId });
+      sessionTitle = sessionInfo.title ?? '';
     } catch {
       throw new Error(`Session ${sessionId} not found on the harness`);
     }
@@ -279,22 +270,9 @@ export class OpencodeSdkHarness implements BoundHarness {
   // ── Effect SSE program ───────────────────────────────────────────────────────
 
   /**
-   * Builds the Effect program that manages the single SSE subscription.
-   *
-   * Wraps a plain async while-loop in Effect.callback so it can be managed
-   * as an interruptible Fiber. The inner loop uses direct iterator.next()
-   * calls (not for-await) to avoid interaction issues between Effect's
-   * fiber scheduler and JavaScript's async iterator protocol.
-   *
-   * On stream end or error, reconnects immediately (no backoff) to minimize
-   * the window where events could be missed during reconnection.
+   * Route one raw V2 event to the session that owns it.
    */
-  /**
-   * Drain a single SSE subscription stream, dispatching events to sessions.
-   * Returns when the stream ends, errors, or the harness is closed/interrupted.
-   */
-  private processEventLine(globalEvent: unknown): void {
-    const raw = (globalEvent as GlobalEvent).payload as SdkEvent;
+  private processEventLine(raw: OpenCodeEvent): void {
     try {
       this._routeEvent(raw);
     } catch (e) {
@@ -303,13 +281,13 @@ export class OpencodeSdkHarness implements BoundHarness {
   }
 
   private async drainEventStream(
-    stream: AsyncIterable<unknown>,
+    stream: AsyncIterable<OpenCodeEvent>,
     interrupted: () => boolean
   ): Promise<void> {
     const iterator = stream[Symbol.asyncIterator]();
     try {
       while (!interrupted() && !this.closed) {
-        let next: IteratorResult<unknown>;
+        let next: IteratorResult<OpenCodeEvent>;
         try {
           next = await iterator.next();
         } catch {
@@ -325,23 +303,6 @@ export class OpencodeSdkHarness implements BoundHarness {
       } catch (error) {
         console.warn('[opencode-harness] SSE iterator cleanup error:', error);
       }
-    }
-  }
-
-  private async subscribeAndRetry(
-    abortSignal: AbortSignal,
-    interrupted: () => boolean
-  ): Promise<{ result: unknown } | null> {
-    this._subscribeCallCount++;
-    try {
-      const result = await this.client.global.event({ signal: abortSignal } as never);
-      return { result };
-    } catch {
-      if (!interrupted() && !this.closed) {
-        console.warn('[opencode-harness] SSE subscribe error');
-        return null;
-      }
-      return null;
     }
   }
 
@@ -368,7 +329,7 @@ export class OpencodeSdkHarness implements BoundHarness {
   ): Promise<void> {
     while (this._sseShouldContinue(state)) {
       try {
-        const stream = await this._sseSubscribeUntilStream(state);
+        const stream = this._sseSubscribeUntilStream(state);
         if (stream) {
           await this.drainEventStream(stream, () => state.interrupted);
         }
@@ -390,36 +351,25 @@ export class OpencodeSdkHarness implements BoundHarness {
     }
   }
 
-  private async _sseSubscribeUntilStream(state: {
+  private _sseSubscribeUntilStream(state: {
     interrupted: boolean;
     abortController: AbortController | null;
-  }): Promise<AsyncIterable<unknown> | null> {
+  }): AsyncIterable<OpenCodeEvent> | null {
     state.abortController = new AbortController();
-    const subscribed = await this.subscribeAndRetry(
-      state.abortController.signal,
-      () => state.interrupted
-    );
-
-    if (!subscribed) {
-      await this._sseSleepIfActive(500, state);
+    this._subscribeCallCount++;
+    try {
+      return this.client.event.subscribe({ signal: state.abortController.signal });
+    } catch {
+      console.warn('[opencode-harness] SSE subscribe error');
       return null;
     }
-
-    const result = subscribed.result as
-      { stream?: AsyncIterable<unknown> | undefined } | null | undefined;
-    if (!result?.stream) {
-      await this._sseSleepIfActive(100, state);
-      return null;
-    }
-
-    return result.stream;
   }
 
   /** Fetch the current title of a session directly from the OpenCode API. */
   async fetchSessionTitle(opencodeSessionId: string): Promise<string | undefined> {
     try {
-      const info = await this.client.session.get({ path: { id: opencodeSessionId } });
-      return info.data?.title ?? undefined;
+      const info = await this.client.session.get({ sessionID: opencodeSessionId });
+      return info.title ?? undefined;
     } catch {
       return undefined;
     }
@@ -457,7 +407,7 @@ export class OpencodeSdkHarness implements BoundHarness {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  private _routeEvent(raw: SdkEvent): void {
+  private _routeEvent(raw: OpenCodeEvent): void {
     const sid = harnessEventSessionId(raw);
     if (sid) {
       const session = this.sessionListeners.get(sid);
@@ -486,7 +436,7 @@ export class OpencodeSdkHarness implements BoundHarness {
  * client, and return a BoundHarness.
  */
 export const startOpencodeSdkHarness: BoundHarnessFactory = async (config) => {
-  const childProcess = spawn(OPENCODE_COMMAND, ['serve', '--print-logs', '--log-level', 'WARN'], {
+  const childProcess = spawn(OPENCODE_COMMAND, ['serve', '--print-logs', '--log-level', 'warn'], {
     cwd: config.workingDir,
     stdio: ['pipe', 'pipe', 'pipe'],
     shell: false,
@@ -498,14 +448,16 @@ export const startOpencodeSdkHarness: BoundHarnessFactory = async (config) => {
   }
 
   try {
-    const baseUrl = await waitForListeningUrl(childProcess, {
+    const { url, password } = await waitForListeningUrl(childProcess, {
       timeoutMs: SERVE_STARTUP_TIMEOUT_MS,
     });
 
-    const client = createOpencodeClient({ baseUrl });
+    const headers = serverAuthHeaders(password);
+    const client = OpenCode.make({ baseUrl: url, ...(headers ? { headers } : {}) });
+    await ensureLocation(client, config.workingDir);
 
     return new OpencodeSdkHarness({
-      baseUrl,
+      baseUrl: url,
       cwd: config.workingDir,
       client: client,
       process: childProcess,

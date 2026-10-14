@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -7,10 +7,16 @@ export interface SessionMetadata {
   machineId: string;
   chatroomId: string;
   role: string;
-  /** OpenCode agent name used for session.promptAsync (required for resumeTurn). */
+  /** OpenCode agent id selected at spawn (required for session re-creation fallback). */
   agentName: string;
   /** Model id string passed at spawn, if any (e.g. provider/model). */
   model?: string | undefined;
+  /**
+   * Working directory the session was spawned in. Persisted so the resume fallback
+   * can recreate the session in the same OpenCode location after a daemon restart.
+   * Absent on metadata written by older versions.
+   */
+  workingDir?: string | undefined;
   /** Composed system prompt deferred until first resumeTurn (idle native spawn). */
   deferredSystemPrompt?: string | undefined;
   /** Display title synced from the harness (e.g. opencode session title). */
@@ -18,6 +24,8 @@ export interface SessionMetadata {
   pid: number;
   createdAt: string;
   baseUrl: string;
+  /** Basic-auth password for the spawned `opencode serve`, when printed. */
+  password?: string | undefined;
 }
 
 export interface SessionMetadataStore {
@@ -67,13 +75,20 @@ export class FileSessionMetadataStore implements SessionMetadataStore {
     return {};
   }
 
+  /**
+   * Persists all sessions. The file holds the plaintext server password, so it is
+   * owner-only (0600) and its directory is owner-only (0700).
+   * Constraint: `mode` only applies on creation, so chmodSync also tightens files
+   * written by older versions with 0644.
+   */
   private save(sessions: SessionRecord): void {
     try {
       const dir = dirname(this.filePath);
       if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
+        mkdirSync(dir, { recursive: true, mode: 0o700 });
       }
-      writeFileSync(this.filePath, JSON.stringify(sessions, null, 2));
+      writeFileSync(this.filePath, JSON.stringify(sessions, null, 2), { mode: 0o600 });
+      chmodSync(this.filePath, 0o600);
     } catch {
       // Ignore errors for now
     }

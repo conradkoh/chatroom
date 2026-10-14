@@ -2040,11 +2040,6 @@
         "count": 2
       }
     },
-    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/compose-system-prompt.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-sdk-agent-service.ts": {
       "crap_high": {
         "count": 3

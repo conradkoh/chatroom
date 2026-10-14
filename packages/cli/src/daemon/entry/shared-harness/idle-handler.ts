@@ -75,7 +75,26 @@ export const handleSessionIdleEffect = (
                 ...(config.model ? { model: config.model } : {}),
               }),
             catch: (e) => e,
-          });
+          }).pipe(
+            // A rejected turn must not stall the queue: recover here so the message is still
+            // marked processed below. A deterministic failure would otherwise be retried forever.
+            Effect.catch((err) =>
+              Effect.sync(() => {
+                console.warn(
+                  `[harness] Queued message ${next.seq} for session ${rowId} failed; marking processed so the queue advances:`,
+                  err instanceof Error ? err.message : String(err)
+                );
+                handle.currentTurn = null;
+              }).pipe(
+                Effect.flatMap(() =>
+                  Effect.tryPromise({
+                    try: () => sessionRepository.setGenerating(rowId, false),
+                    catch: (e) => e,
+                  }).pipe(Effect.ignore)
+                )
+              )
+            )
+          );
         }),
         Effect.flatMap(() =>
           Effect.tryPromise({

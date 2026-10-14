@@ -50,19 +50,24 @@ export interface SessionEventForwarderHandle {
   armTurnEnd(): void;
 }
 
+/**
+ * OpenCode V2 event envelope. Unlike V1, the payload lives under `data` (there is
+ * no `properties` field) and session-scoped events always carry `data.sessionID`.
+ */
 interface OpenCodeEvent {
   type: string;
-  properties?: Record<string, unknown> | undefined;
+  data?: Record<string, unknown> | undefined;
 }
 
 /**
  * Minimal client surface needed by the forwarder. Structurally compatible with
- * the real `OpencodeClient.event` subset, plus loose enough that tests can
- * supply a fake without satisfying the full SDK type.
+ * the real `@opencode/client` `event` subset — `subscribe()` returns an
+ * AsyncIterable of V2Event directly (no `{ stream }` envelope), and is loose
+ * enough that tests can supply a fake without satisfying the full client type.
  */
 export interface SessionEventForwarderClient {
   event: {
-    subscribe: (options?: unknown) => Promise<{ stream: AsyncGenerator<OpenCodeEvent> }>;
+    subscribe: (options?: unknown) => AsyncIterable<OpenCodeEvent>;
   };
 }
 
@@ -77,44 +82,18 @@ function formatLogLine(
 const RECENT_LOG_LINE_CAP = 20;
 const DEFAULT_SESSION_RETRY_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** Extract the session id from a V2 event's `data` block. */
 function eventSessionId(event: OpenCodeEvent): string | undefined {
-  const p = event.properties;
-  if (!p || typeof p !== 'object') return undefined;
-
-  const direct = sessionIdFromDirect(p);
-  if (direct !== undefined) return direct;
-
-  const fromPart = sessionIdFromPart(p);
-  if (fromPart !== undefined) return fromPart;
-
-  return sessionIdFromInfoBlock(p);
+  const data = event.data;
+  if (!data || typeof data !== 'object') return undefined;
+  const sid = data.sessionID;
+  return typeof sid === 'string' ? sid : undefined;
 }
 
-function sessionIdFromDirect(p: Record<string, unknown>): string | undefined {
-  if ('sessionID' in p && typeof p.sessionID === 'string') return p.sessionID;
-  return undefined;
-}
-
-function sessionIdFromPart(p: Record<string, unknown>): string | undefined {
-  if ('part' in p && p.part && typeof p.part === 'object') {
-    return (p.part as { sessionID?: string | undefined }).sessionID;
-  }
-  return undefined;
-}
-
-function sessionIdFromInfoBlock(p: Record<string, unknown>): string | undefined {
-  if ('info' in p && p.info && typeof p.info === 'object') {
-    return sessionIdFromInfo(p.info as Record<string, unknown>);
-  }
-  return undefined;
-}
-
-function sessionIdFromInfo(info: Record<string, unknown>): string | undefined {
-  const id = info.id;
-  if (typeof id === 'string') return id;
-  const sid = info.sessionID;
-  if (typeof sid === 'string') return sid;
-  return undefined;
+/** Collect the terminal provider error from an event payload, if any. */
+function asStructuredError(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  return value as Record<string, unknown>;
 }
 
 export function startSessionEventForwarder(
@@ -130,7 +109,14 @@ export function startSessionEventForwarder(
   let terminalAbortRequested = false;
   let activeTurnCompletion = createTurnCompletion();
   const turnResultCallbacks: ((result: TurnCompletionResult) => void)[] = [];
+  /** Dedup key `${toolCallId}:${state}` → payload already logged. */
   const seenToolStates = new Map<string, string>();
+  /** Tool call id → tool name, learned from session.tool.input.started. */
+  const toolNames = new Map<string, string>();
+  /** Tool call id → input object, learned from session.tool.called. */
+  const toolInputs = new Map<string, unknown>();
+  /** Tool call id → start timestamp (ms), for duration reporting. */
+  const toolStartTimes = new Map<string, number>();
   let lastStatus: string | undefined;
   const agentEndCallbacks: (() => void)[] = [];
   const recentLogLines: string[] = [];
@@ -154,16 +140,14 @@ export function startSessionEventForwarder(
   function semanticSourceForLogKind(kind: string): string | undefined {
     switch (kind) {
       case 'text':
-        return 'opencode.message.part.updated.text';
+        return 'opencode.session.text.delta';
       case 'thinking':
-        return 'opencode.message.part.updated.reasoning';
-      case 'file':
-        return 'opencode.file.edited';
+        return 'opencode.session.reasoning.delta';
       case 'compacted':
-        return 'opencode.session.compacted';
+        return 'opencode.session.compaction.ended';
       default:
         if (kind.startsWith('tool:')) {
-          return 'opencode.message.part.updated.tool';
+          return 'opencode.session.tool';
         }
         return undefined;
     }
@@ -171,11 +155,7 @@ export function startSessionEventForwarder(
 
   function isAgentActivityKind(kind: string): boolean {
     return (
-      kind === 'text' ||
-      kind === 'thinking' ||
-      kind === 'file' ||
-      kind === 'compacted' ||
-      kind.startsWith('tool:')
+      kind === 'text' || kind === 'thinking' || kind === 'compacted' || kind.startsWith('tool:')
     );
   }
 
@@ -252,175 +232,132 @@ export function startSessionEventForwarder(
     lastStatus = undefined;
   }
 
-  function resolvePartContent(
-    delta: string | undefined,
-    text: string | undefined
-  ): string | undefined {
-    return delta !== undefined && delta !== '' ? delta : text;
-  }
+  // ── Event handlers ──────────────────────────────────────────────────────────
 
-  function resolveToolState(
-    props: { state?: string | undefined },
-    part: { state?: { status?: string | undefined } | undefined }
-  ): string {
-    if (typeof props?.state === 'string') return props.state;
-    if (typeof part.state?.status === 'string') return part.state.status;
-    return 'started';
-  }
-
-  function formatCompletedToolPayload(
-    part: {
-      state?:
-        | {
-            input?: unknown | undefined;
-            time?: { start?: number | undefined; end?: number | undefined } | undefined;
-          }
-        | undefined;
-      tool?: string | undefined;
-    },
-    state: string
-  ): string {
-    const start = part.state?.time?.start;
-    const end = part.state?.time?.end;
-    if (state !== 'completed' || start === undefined || end === undefined) {
-      return state;
+  function handleTextDelta(data: { delta?: unknown; sessionID?: unknown }): void {
+    const delta = data.delta;
+    if (typeof delta === 'string' && delta.length > 0) {
+      options.onAssistantText?.(delta);
+      logLine(target, 'text', delta);
     }
-    const duration = ((end - start) / 1000).toFixed(1);
+  }
+
+  function handleReasoningDelta(data: { delta?: unknown }): void {
+    const delta = data.delta;
+    if (typeof delta === 'string' && delta.length > 0) logLine(target, 'thinking', delta);
+  }
+
+  function handleToolInputStarted(data: { id?: unknown; name?: unknown }): number | undefined {
+    const id = data.id;
+    const name = data.name;
+    if (typeof id !== 'string' || typeof name !== 'string') return undefined;
+    toolNames.set(id, name);
+    const startedAt = Date.now();
+    toolStartTimes.set(id, startedAt);
+    return startedAt;
+  }
+
+  function formatDurationPayload(state: string, startedAt: number | undefined): string {
+    if (startedAt === undefined || state === 'running') return state;
+    const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
     return `${state} (${duration}s)`;
   }
 
-  async function handleTextPartUpdate(
-    props: { delta?: string | undefined },
-    part: { text?: string | undefined }
-  ): Promise<void> {
-    const chunk = resolvePartContent(props?.delta, part.text);
-    if (chunk) {
-      options.onAssistantText?.(chunk);
-      logLine(target, 'text', chunk);
-    }
-  }
+  function logToolState(id: string, name: string, state: string, input: unknown): void {
+    const seenKey = `${id}:${state}`;
+    if (seenToolStates.has(seenKey)) return;
 
-  async function handleReasoningPartUpdate(
-    props: { delta?: string | undefined },
-    part: { text?: string | undefined }
-  ): Promise<void> {
-    const chunk = resolvePartContent(props?.delta, part.text);
-    if (chunk) logLine(target, 'thinking', chunk);
-  }
+    const base = formatDurationPayload(state, toolStartTimes.get(id));
+    const payload = input === undefined ? base : appendToolInputToPayload(base, input, name);
+    seenToolStates.set(seenKey, payload);
+    logLine(target, `tool: ${name}`, payload);
 
-  async function handlePartUpdated(props: {
-    part?:
-      | {
-          type?: string | undefined;
-          tool?: string | undefined;
-          text?: string | undefined;
-          sessionID?: string | undefined;
-          state?:
-            | {
-                status?: string | undefined;
-                input?: unknown | undefined;
-                time?: { start?: number | undefined; end?: number | undefined } | undefined;
-              }
-            | undefined;
-          callID?: string | undefined;
-        }
-      | undefined;
-    delta?: string | undefined;
-    state?: string | undefined;
-  }): Promise<void> {
-    const part = props.part;
-    const partType = part?.type;
-    if (!part || !partType) return;
-
-    const dispatch: Record<string, () => Promise<void>> = {
-      text: () => handleTextPartUpdate(props, part),
-      reasoning: () => handleReasoningPartUpdate(props, part),
-      tool: () => (part.tool ? handleToolPart(part, props, seenToolStates) : Promise.resolve()),
-    };
-    await dispatch[partType]?.();
-  }
-
-  async function handleToolPart(
-    part: {
-      type?: string | undefined;
-      tool?: string | undefined;
-      state?:
-        | {
-            status?: string | undefined;
-            input?: unknown | undefined;
-            time?: { start?: number | undefined; end?: number | undefined } | undefined;
-          }
-        | undefined;
-      callID?: string | undefined;
-    },
-    props: { state?: string | undefined },
-    toolStates: Map<string, string>
-  ): Promise<void> {
-    const state = resolveToolState(props, part);
-
-    const payload = buildToolPayload(part, state);
-    const callID = part.callID ?? 'unknown';
-    const seenKey = `${callID}:${state}`;
-
-    if (!toolStates.has(seenKey)) {
-      toolStates.set(seenKey, payload);
-      logLine(target, 'tool: ' + (part.tool as string), payload);
-    }
     if (state === 'completed' || state === 'error') {
-      toolStates.delete(seenKey);
+      seenToolStates.delete(seenKey);
+      toolStartTimes.delete(id);
+      toolInputs.delete(id);
     }
   }
 
-  function buildToolPayload(
-    part: {
-      state?:
-        | {
-            input?: unknown | undefined;
-            time?: { start?: number | undefined; end?: number | undefined } | undefined;
-          }
-        | undefined;
-      tool?: string | undefined;
-    },
-    state: string
-  ): string {
-    const basePayload = formatCompletedToolPayload(part, state);
-    if (!part.state?.input) return basePayload;
-    return appendToolInputToPayload(basePayload, part.state.input, part.tool as string);
+  function handleToolCalled(data: { id?: unknown; input?: unknown }): void {
+    const id = data.id;
+    if (typeof id !== 'string') return;
+    const name = toolNames.get(id) ?? 'unknown';
+    const input = data.input;
+    toolInputs.set(id, input);
+    if (!toolStartTimes.has(id)) toolStartTimes.set(id, Date.now());
+    logToolState(id, name, 'running', input);
   }
 
-  function formatFilePayload(props: {
-    file?: string | undefined;
-    action?: string | undefined;
-    kind?: string | undefined;
-  }): string | undefined {
-    const { file, action, kind } = props;
-    const label = action ?? kind;
-    if (!label) return file;
-    return `${file} (${label})`;
+  function handleToolTerminal(data: { id?: unknown }, state: 'completed' | 'error'): void {
+    const id = data.id;
+    if (typeof id !== 'string') return;
+    const name = toolNames.get(id) ?? 'unknown';
+    logToolState(id, name, state, toolInputs.get(id));
   }
 
-  async function handleFileEdited(props: {
-    file?: string | undefined;
-    action?: string | undefined;
-    kind?: string | undefined;
-  }): Promise<void> {
-    logLine(target, 'file', formatFilePayload(props));
+  function formatErrorName(err: Record<string, unknown> | undefined): string {
+    if (!err) return 'unknown';
+    const name = typeof err.type === 'string' ? err.type : err.name;
+    const message = typeof err.message === 'string' ? err.message : undefined;
+    if (!name) return message ?? String(err);
+    return message ? `${name}: ${message}` : String(name);
   }
 
-  async function handleSessionIdle(): Promise<void> {
+  function handleSessionError(data: { error?: unknown }): void {
+    emitActivity('failure', 'opencode.session.error');
+    const err = asStructuredError(data.error);
+    logLine(errorTarget, 'error', formatErrorName(err));
+    if (isTerminalProviderError(err)) {
+      abortTerminalProviderError();
+    }
+  }
+
+  function handleSessionIdle(): void {
     clearRetryIdleTimeout();
     if (terminalAbortRequested) return;
     emitAgentEnd();
   }
 
-  async function handleSessionCompacted(): Promise<void> {
-    logLine(target, 'compacted');
+  /**
+   * A single user prompt runs as one "execution". `session.execution.succeeded`
+   * is the authoritative end-of-turn signal in OpenCode V2 (V1's `session.idle`
+   * is not emitted for ordinary turns).
+   */
+  function handleExecutionSucceeded(): void {
+    clearRetryIdleTimeout();
+    if (terminalAbortRequested) return;
+    emitAgentEnd();
   }
 
-  async function handleSessionStatus(props: {
-    status?: { type?: string | undefined } | undefined;
-  }): Promise<void> {
-    const raw = props?.status?.type;
+  function handleExecutionFailed(data: { error?: unknown }): void {
+    handleSessionError(data);
+    if (terminalAbortRequested) return;
+    clearRetryIdleTimeout();
+    emitAgentEnd('execution_failed', 'failed');
+  }
+
+  function handleExecutionInterrupted(): void {
+    clearRetryIdleTimeout();
+    if (terminalAbortRequested) return;
+    emitActivity('failure', 'opencode.session.execution.interrupted');
+    emitAgentEnd('execution_interrupted', 'failed');
+  }
+
+  /**
+   * A scheduled retry carries the provider error. Log it for classification and
+   * start the retry-idle timeout so a stuck retry still ends the turn.
+   */
+  function handleRetryScheduled(data: { error?: unknown }): void {
+    if (terminalAbortRequested) return;
+    handleSessionError(data);
+    if (terminalAbortRequested) return;
+    emitActivity('waiting', 'opencode.session.retry.scheduled');
+    scheduleRetryIdleTimeout();
+  }
+
+  function handleSessionStatus(data: { status?: { type?: string | undefined } | undefined }): void {
+    const raw = data.status?.type;
     const parsed = parseOpenCodeSessionStatus(raw);
 
     if (parsed === null) {
@@ -450,7 +387,7 @@ export function startSessionEventForwarder(
         clearRetryIdleTimeout();
         // OpenCode sometimes emits session.status idle without a separate session.idle
         // event. Without this, nativeTurnPhase never resets and pending tasks stay stuck.
-        await handleSessionIdle();
+        handleSessionIdle();
         return;
       }
       case 'busy': {
@@ -464,59 +401,29 @@ export function startSessionEventForwarder(
     }
   }
 
-  async function handleSessionError(props: {
-    error?:
-      | { name?: string | undefined; data?: { message?: string | undefined } | undefined }
-      | undefined;
-    tool?: string | undefined;
-    command?: string | undefined;
-  }): Promise<void> {
-    emitActivity('failure', 'opencode.session.error');
-    const err = props?.error;
-    const errMsg = formatErrorName(err);
-    const context = formatErrorContext(props);
-    const payload = context ? `${errMsg} ${context}` : errMsg;
-    logLine(errorTarget, 'error', payload);
-    if (isTerminalProviderError(err)) {
-      abortTerminalProviderError();
-    }
-  }
-
-  function formatErrorName(
-    err:
-      { name?: string | undefined; data?: { message?: string | undefined } | undefined } | undefined
-  ): string {
-    if (!err?.name) return String(err ?? 'unknown');
-    const detail = err?.data?.message;
-    return detail ? `${err.name}: ${detail}` : err.name;
-  }
-
-  function formatErrorContext(props: {
-    tool?: string | undefined;
-    command?: string | undefined;
-  }): string | undefined {
-    if (props?.tool) return `[tool: ${props.tool}]`;
-    if (props?.command) return `[command: ${props.command}]`;
-    return undefined;
-  }
-
-  const eventHandlers: Record<string, (props: Record<string, unknown>) => Promise<void>> = {
-    'message.part.updated': (props) =>
-      handlePartUpdated(props as Parameters<typeof handlePartUpdated>[0]),
-    'file.edited': (props) => handleFileEdited(props as Parameters<typeof handleFileEdited>[0]),
+  const eventHandlers: Record<string, (data: Record<string, unknown>) => void | Promise<void>> = {
+    'session.text.delta': (data) => handleTextDelta(data),
+    'session.reasoning.delta': (data) => handleReasoningDelta(data),
+    'session.tool.input.started': (data) => {
+      handleToolInputStarted(data);
+    },
+    'session.tool.called': (data) => handleToolCalled(data),
+    'session.tool.success': (data) => handleToolTerminal(data, 'completed'),
+    'session.tool.failed': (data) => handleToolTerminal(data, 'error'),
+    'session.compaction.ended': () => logLine(target, 'compacted'),
+    'session.compaction.failed': (data) => handleSessionError(data),
+    'session.execution.succeeded': () => handleExecutionSucceeded(),
+    'session.execution.failed': (data) => handleExecutionFailed(data),
+    'session.execution.interrupted': () => handleExecutionInterrupted(),
+    'session.retry.scheduled': (data) => handleRetryScheduled(data),
     'session.idle': () => handleSessionIdle(),
-    'session.compacted': () => handleSessionCompacted(),
-    'session.status': (props) =>
-      handleSessionStatus(props as Parameters<typeof handleSessionStatus>[0]),
-    'session.error': (props) =>
-      handleSessionError(props as Parameters<typeof handleSessionError>[0]),
+    'session.status': (data) =>
+      handleSessionStatus(data as { status?: { type?: string | undefined } | undefined }),
   };
-
-  const knownEventTypes = new Set(Object.keys(eventHandlers));
 
   async function handleEvent(event: OpenCodeEvent): Promise<void> {
     const eventSession = eventSessionId(event);
-    if (!shouldProcessEvent(event, eventSession)) return;
+    if (!shouldProcessEvent(eventSession)) return;
 
     emitActivity('transport', `opencode.event.${event.type}`);
 
@@ -527,42 +434,37 @@ export function startSessionEventForwarder(
 
     const handler = eventHandlers[event.type];
     if (handler) {
-      await handler(event.properties ?? {});
+      await handler(event.data ?? {});
     }
   }
 
-  function shouldProcessEvent(event: OpenCodeEvent, eventSession: string | undefined): boolean {
+  function shouldProcessEvent(eventSession: string | undefined): boolean {
     if (eventSession) return eventSession === options.sessionId;
-    if (
-      event.type === 'session.idle' ||
-      event.type === 'session.status' ||
-      event.type === 'session.error'
-    ) {
-      return false;
-    }
-    return knownEventTypes.has(event.type);
+    // V2 session-scoped events always carry data.sessionID; anything without one
+    // cannot be attributed to this session and is dropped.
+    return false;
   }
 
-  async function drainStreamEvents(stream: AsyncGenerator<OpenCodeEvent>): Promise<void> {
-    for await (const event of stream) {
-      if (cancelled) {
-        await stream.return?.(undefined);
-        break;
+  async function drainStreamEvents(stream: AsyncIterable<OpenCodeEvent>): Promise<void> {
+    const iterator = stream[Symbol.asyncIterator]();
+    try {
+      while (!cancelled) {
+        const next = await iterator.next();
+        if (next.done) break;
+        await handleEvent(next.value);
       }
-      await handleEvent(event);
+    } finally {
+      try {
+        await iterator.return?.();
+      } catch {
+        // Ignore iterator cleanup failures.
+      }
     }
   }
 
   async function run() {
     try {
-      const result = await client.event.subscribe();
-      const stream = result.stream;
-
-      if (cancelled) {
-        await stream.return?.(undefined);
-        return;
-      }
-
+      const stream = client.event.subscribe();
       await drainStreamEvents(stream);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

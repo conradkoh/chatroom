@@ -39,6 +39,11 @@ minimumReleaseAgeExclude:
   - '@cursor/sdk-linux-arm64'
   - '@cursor/sdk-linux-x64'
   - '@cursor/sdk-win32-x64'
+  # @opencode/* — V2 OpenCode client stack. Published in lockstep; pinned exactly
+  # to match the installed `opencode` (V2) server. See the opencode-sdk harness.
+  - '@opencode/client'
+  - '@opencode/schema'
+  - '@opencode/protocol'
 
 allowBuilds:
   '@google/genai': false

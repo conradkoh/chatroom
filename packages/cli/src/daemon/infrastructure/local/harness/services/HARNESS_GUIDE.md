@@ -299,7 +299,7 @@ override async stop(pid: number): Promise<void> {
 }
 ```
 
-See `cursor-sdk-agent-service.ts` and `opencode-sdk-agent-service.ts` (session abort + forwarder stop).
+See `cursor-sdk-agent-service.ts` and `opencode-sdk-agent-service.ts` (session interrupt + forwarder stop).
 
 ### 4.6 Server + client variant (`opencode-sdk`)
 
@@ -309,7 +309,7 @@ Some SDKs expect a local server:
 2. Parse listening URL from stdout (`waitForListeningUrl`)
 3. Create SDK client pointed at that URL
 4. Create session, send prompt, forward events via `SessionEventForwarder`
-5. Track session metadata by PID for `stop()` to call `session.abort`
+5. Track session metadata by PID for `stop()` to call `session.interrupt`
 
 The spawned server PID is the tracked PID (no separate keeper needed).
 
@@ -414,7 +414,7 @@ When a new `agent.requestStart` arrives for the same chatroom+role, the daemon t
 | Harness        | Tracked PID              | Process model                       | `stop()` behavior                                                                                         | requestStart behavior                                             | Persisted orphan                       |
 | -------------- | ------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------- |
 | `opencode`     | Direct `opencode` child  | Single-shot CLI, detached PG        | Base: SIGTERM/SIGKILL group                                                                               | idempotent when live; restart uses `doStop` → base stop           | `stopPersistedProcess` → base stop     |
-| `opencode-sdk` | `opencode serve` server  | SDK client in-process + server PG   | Override: forwarder stop → `session.abort` → base stop; removes session metadata                          | idempotent when live; restart uses `doStop` → override stop       | `stopPersistedProcess` → override stop |
+| `opencode-sdk` | `opencode serve` server  | SDK client in-process + server PG   | Override: forwarder stop → `session.interrupt` → base stop; removes session metadata                      | idempotent when live; restart uses `doStop` → override stop       | `stopPersistedProcess` → override stop |
 | `pi`           | Direct `pi` child        | Long-lived RPC, stdin resume        | Base group kill; `untrack` clears `childProcesses`                                                        | idempotent when live; restart uses `doStop` → base stop + untrack | `stopPersistedProcess` → base stop     |
 | `cursor`       | Direct `agent` child     | Single-shot CLI                     | Base group kill                                                                                           | idempotent when live; restart uses `doStop` → base stop           | `stopPersistedProcess` → base stop     |
 | `cursor-sdk`   | Keeper `node -e …` child | SDK in-process + keeper PG          | Override: abort resume wait → `run.cancel` → `agent.close` (skipped when `preserveForResume`) → base stop | `doStop` → override stop                                          | `stopPersistedProcess` → override stop |
