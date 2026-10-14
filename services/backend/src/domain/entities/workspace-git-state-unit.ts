@@ -73,9 +73,8 @@ export type WorkspaceGitStateUnit = Infer<typeof workspaceGitStateUnitValidator>
 
 /**
  * The per-unit table that stores each git unit. `satisfies` makes a new unit kind fail to compile
- * until it is given a table. Nothing reads or writes these tables yet.
+ * until it is given a table.
  */
-// fallow-ignore-next-line unused-export
 export const WORKSPACE_GIT_UNIT_TABLE = {
   head: 'chatroom_workspaceGitHead',
   worktree: 'chatroom_workspaceGitWorktree',
