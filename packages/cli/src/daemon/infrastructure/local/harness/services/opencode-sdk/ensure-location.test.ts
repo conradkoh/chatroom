@@ -153,6 +153,20 @@ describe('ensureLocation', () => {
     expect(agentList).toHaveBeenCalledTimes(1);
   });
 
+  it('returns at the cap when location.get hangs instead of blocking startup', async () => {
+    vi.useFakeTimers();
+    const { client, agentList } = makeClient({
+      locationGet: () => new Promise<unknown>(() => {}),
+    });
+
+    const done = ensureLocation(client, '/work/repo');
+    await vi.advanceTimersByTimeAsync(3_100);
+    await done;
+
+    // The cap was spent inside location.get, so no readiness probes run.
+    expect(agentList).not.toHaveBeenCalled();
+  });
+
   it('is best-effort: swallows probe errors and ends polling immediately', async () => {
     const { client, agentList } = makeClient({
       agentList: () => Promise.reject(new Error('boom')),

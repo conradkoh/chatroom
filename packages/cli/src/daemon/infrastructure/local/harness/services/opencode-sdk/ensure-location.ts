@@ -1,5 +1,7 @@
 import type { OpenCodeClient } from '@opencode/client';
 
+import { withTimeout } from '../with-timeout.js';
+
 /** Delay between readiness probes. */
 const WARMUP_POLL_INTERVAL_MS = 150;
 /**
@@ -22,23 +24,32 @@ const WARMUP_CAP_MS = 3_000;
  *   2. polls `agent.list` and `provider.list` until their combined ids stay
  *      unchanged for ~1s, or until a ~3s cap elapses.
  *
- * Guarantee: best-effort and never throws. On return the catalogue has been
- * stable for about a second, but a slow load can still finish after the cap.
- * Callers must still treat an empty or partial result as possible. A failing or
- * hung probe ends the wait immediately, so this never blocks startup past the cap.
+ * Guarantee: best-effort and never throws, and never waits past the ~3s cap,
+ * even if `location.get` or a probe hangs. On return the catalogue has been
+ * stable for about a second unless the cap ended the wait first. Callers must
+ * still treat an empty or partial result as possible. A failing probe ends the
+ * wait immediately.
  */
 export async function ensureLocation(client: OpenCodeClient, directory: string): Promise<void> {
+  const deadline = Date.now() + WARMUP_CAP_MS;
   try {
-    await client.location.get({ location: { directory } });
+    await withTimeout(
+      client.location.get({ location: { directory } }),
+      WARMUP_CAP_MS,
+      'location.get'
+    );
   } catch {
     // Non-fatal: the readiness poll below and the caller's own query still run.
   }
-  await waitForStableCatalogue(client, directory);
+  await waitForStableCatalogue(client, directory, deadline);
 }
 
 /** Poll the location's catalogue until it has been unchanged for WARMUP_STABLE_WINDOW_MS. */
-async function waitForStableCatalogue(client: OpenCodeClient, directory: string): Promise<void> {
-  const deadline = Date.now() + WARMUP_CAP_MS;
+async function waitForStableCatalogue(
+  client: OpenCodeClient,
+  directory: string,
+  deadline: number
+): Promise<void> {
   const stability: StabilityState = { key: null, stableSince: 0 };
   while (Date.now() < deadline) {
     const key = await readCatalogueKey(client, directory, deadline - Date.now()).catch(() => null);
