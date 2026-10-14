@@ -12,8 +12,7 @@ import {
   resolveBashCommandForLog,
 } from '../agent-log-format.js';
 import { NativeStreamAdapterBase } from '../native-stream-adapter-base.js';
-
-type MessageEndEvent = Extract<AgentSessionEvent, { type: 'message_end' }>;
+import { assistantErrorOf, type MessageEndEvent } from './assistant-error.js';
 
 export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
@@ -96,10 +95,7 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
   private recordAssistantOutcome(event: MessageEndEvent): void {
     const message = event.message;
     if (message.role !== 'assistant') return;
-    this.lastAssistantError =
-      message.stopReason === 'error'
-        ? (message.errorMessage ?? 'unknown provider error')
-        : undefined;
+    this.lastAssistantError = assistantErrorOf(event);
     if (this.lastAssistantError === undefined) return;
     this.writeLine(
       formatAgentLogLine(this.logPrefix, 'run-error', `assistant error: ${this.lastAssistantError}`)
