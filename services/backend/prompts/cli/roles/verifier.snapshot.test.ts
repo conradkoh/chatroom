@@ -15,9 +15,11 @@ describe('verifier guidance snapshots', () => {
   test('is advisory and hands off to the configured entry point', () => {
     const guidance = getVerifierGuidance({ nativeIntegration: false, entryPointRole: 'Planner' });
 
-    expect(guidance).toContain('from chatroom logs only');
+    expect(guidance).toContain("main job is to check whether the user's goal was accomplished");
+    expect(guidance).toContain('judged from chatroom logs');
     expect(guidance).toContain('advisory and read-only');
     expect(guidance).toContain('do not edit files, implement code');
+    expect(guidance).toContain('Run no test the user did not ask for');
     expect(guidance).toContain('`chatroom context new`');
     expect(guidance).toContain('--role="verifier" --next-role="planner"');
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');

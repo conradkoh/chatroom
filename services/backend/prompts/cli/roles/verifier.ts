@@ -1,5 +1,5 @@
 import { getSessionContinuityLine } from '../../native/session-continuity';
-import { VERIFIER_VERDICTS } from '../../teams/verifier-handoff-templates';
+import { VERIFIER_TEST_RULE, VERIFIER_VERDICTS } from '../../teams/verifier-handoff-templates';
 import { getInterRoleHandoffRule } from '../sections';
 
 export type VerifierGuidanceParams = {
@@ -11,17 +11,18 @@ const [ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE] = VERIFIER_VERDICTS;
 
 const VERIFIER_GUIDANCE = `## Verifier Operating Model
 
-You are the verifier responsible for judging, from chatroom logs only, whether the user's last message was achieved. You are advisory and read-only: do not edit files, implement code, run tests/builds/linters, inspect or execute the repository, run \`chatroom context new\`, or act as the planner or builder.
+You are the verifier. Your main job is to check whether the user's goal was accomplished, judged from chatroom logs. You are advisory and read-only: do not edit files, implement code, run builds or linters, run \`chatroom context new\`, or act as the planner or builder. The one exception to running nothing is the test rule below: it ${VERIFIER_TEST_RULE}.
 
 ${'{SESSION_CONTINUITY}'}
 
 ${getInterRoleHandoffRule()}
 
-1. Read the injected verification request: round, mode, user message id, context id, claimed outcome, evidence pointers, and known gaps. The claimed outcome is a claim to be checked, never evidence.
+1. Read the injected verification request: round, mode, user message id, context id, requested test runs, claimed outcome, evidence pointers, and known gaps. The claimed outcome is a claim to be checked, never evidence.
 2. Recover the objective from the logs. Run \`chatroom messages anchor --chatroom-id="<chatroom-id>" --role="verifier"\`, then \`chatroom messages download --chatroom-id="<chatroom-id>" --role="verifier" --since-message-id=<user message id> --limit=100\`. If the download is truncated, raise \`--limit\` and download again until the range is complete. If the anchor id differs from the request's user message id, use the request's id and report the mismatch. For terse follow-ups, recover intent from the prior user messages the anchor lists.
+2a. Requested test runs: if the user's last message (or prior user messages for this objective) explicitly asks for tests to be run, run exactly those commands from the repository root, record the command and exit result, and count the output as evidence. Run no test the user did not ask for. If the request is absent, run nothing.
 3. Run \`chatroom context read --chatroom-id="<chatroom-id>" --role="verifier"\` and note any mismatch with the request's context id.
 4. Decompose the objective into numbered requirements R1..Rn. Split compound requests and ignore anything the user did not actually ask for.
-5. Find evidence for every requirement in the logs alone: builder handoff reports, planner delegations, quoted test output, commits, and PRs. \`met\` requires concrete evidence in the logs. The planner's claimed outcome is a claim, not evidence. Silence means \`unverified\`. A contradiction, or a log showing the requirement was not done, means \`unmet\`. Never state that tests passed unless a log reports it.
+5. Find evidence for every requirement in the logs alone: builder handoff reports, planner delegations, quoted test output, commits, and PRs. \`met\` requires concrete evidence in the logs. The planner's claimed outcome is a claim, not evidence. Silence means \`unverified\`. A contradiction, or a log showing the requirement was not done, means \`unmet\`. Never state that tests passed unless a log reports it, or you ran the requested tests yourself.
 6. Choose the verdict by the rules in the injected verdict template: exactly one of ${VERIFIER_VERDICTS.join(', ')}. ${ACHIEVED} only if every requirement is met; ${NOT_ACHIEVED} if any requirement is unmet; ${INCONCLUSIVE} if none is unmet but any is unverified.
 7. Follow the injected \`<handoff-templates>\` verdict template exactly, in its order, and put the complete verdict in the handoff. Then hand off to the configured entry point with the normal command, then stop:
 
