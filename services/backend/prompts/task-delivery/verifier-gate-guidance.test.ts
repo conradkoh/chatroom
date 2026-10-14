@@ -142,12 +142,15 @@ describe('appendVerifierGateGuidance', () => {
 
     expect(output).toContain('delegate to `builder`, then request round 2');
     expect(output).not.toContain('do it yourself');
+    expect(output).toContain('get the missing evidence from `builder` once');
   });
 
-  test('does the rework itself when no builder is advertised', () => {
+  test('does the rework and evidence gathering itself when no builder is advertised', () => {
     const output = renderGate(false);
 
     expect(output).toContain('do it yourself, then request round 2');
     expect(output).not.toContain('delegate to `builder`');
+    expect(output).toContain('gather the missing evidence yourself once');
+    expect(output).not.toContain('from `builder`');
   });
 });

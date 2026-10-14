@@ -44,15 +44,18 @@ export function shouldIncludeVerifierGate(params: {
 /**
  * Appends the `<verifier-gate>` block to the task-delivery lines.
  *
- * `hasBuilder` selects the `NOT_ACHIEVED` rework step: a team with a builder
- * delegates the rework, while a team without one (solo) does it itself. Only
- * that clause differs between the two renderings.
+ * `hasBuilder` selects the builder-dependent clauses: a team with a builder
+ * delegates the rework and asks the builder for missing evidence, while a team
+ * without one (solo) acts itself. Only those clauses differ between renderings.
  */
 export function appendVerifierGateGuidance(
   lines: string[],
   options: { hasBuilder: boolean }
 ): void {
   const reworkClause = options.hasBuilder ? ', delegate to `builder`' : ' and do it yourself';
+  const inconclusiveClause = options.hasBuilder
+    ? 'get the missing evidence from `builder` once'
+    : 'gather the missing evidence yourself once';
 
   lines.push(
     '',
@@ -62,7 +65,7 @@ export function appendVerifierGateGuidance(
     "1. Send the request with the `verifier` template in `<handoff-templates>` (round 1). Include the user's last message id, the context id, the mode, your claimed outcome, and evidence pointers (builder handoff ids, commits, test results quoted in the logs).",
     `2. \`${ACHIEVED}\`: deliver to \`user\` and cite the verdict message id in the report (Summary or Proof of Completion).`,
     `3. \`${NOT_ACHIEVED}\`: treat "Missing or unmet" as rework${reworkClause}, then request round 2.`,
-    `4. \`${INCONCLUSIVE}\`: get the missing evidence from \`builder\` once, or deliver with the gaps disclosed.`,
+    `4. \`${INCONCLUSIVE}\`: ${inconclusiveClause}, or deliver with the gaps disclosed.`,
     `5. Maximum ${VERIFIER_MAX_ROUNDS} verification rounds per user message. After round ${VERIFIER_MAX_ROUNDS}, deliver and list unmet items as unresolved/action required.`,
     "6. Ignore a verdict whose user message id is not the user's current last message.",
     '7. If the verifier is unavailable (you are re-woken by the user or any non-verifier task while a request has no verdict), deliver with `Verifier review: UNAVAILABLE (<reason>)` plus your own requirement-by-requirement self-check. Do not re-request for the same user message.',
