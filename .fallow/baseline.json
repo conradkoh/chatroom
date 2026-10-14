@@ -327,7 +327,6 @@
     "packages/cli/src/daemon/infrastructure/local/harness/services/index.ts:CopilotAgentService",
     "packages/cli/src/daemon/infrastructure/local/harness/services/index.ts:registerHarness",
     "packages/cli/src/daemon/infrastructure/local/harness/services/native-spawn-presence.ts:NATIVE_TOKEN_ACTIVITY_THROTTLE_MS",
-    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/compose-system-prompt.ts:CHATROOM_PROMPT_SEPARATOR",
     "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-session-events.ts:OPENCODE_SESSION_EVENT_TYPES",
     "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/parse-listening-url.ts:LISTENING_URL_RE",
     "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/session-metadata-store.ts:InMemorySessionMetadataStore",
