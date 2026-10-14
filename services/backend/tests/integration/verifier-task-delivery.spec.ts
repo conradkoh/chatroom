@@ -1,10 +1,12 @@
 /**
- * Planner verifier gate — Integration Tests
+ * Entry-point verifier gate — Integration Tests
  *
  * End-to-end `getTaskDeliveryPrompt` coverage for the verifier gate: an
- * entry-point planner in `code` and `code:enhanced` modes is told to obtain a
+ * entry-point role in `code` and `code:enhanced` modes is told to obtain a
  * `verifier` review before delivering to the user, while `chat` mode and the
- * verifier's own return delivery are exempt.
+ * verifier's own return delivery are exempt. Covers both the duo planner
+ * (rework delegates to `builder`) and the solo entry point (rework is done by
+ * the entry point itself).
  *
  * The gate is prompt policy only; the inlined `<handoff-templates>` advertise
  * the verifier capability regardless of mode, so the chat case asserts only the
@@ -14,37 +16,45 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { setupPlannerWorkspaceForSession } from './harness-fixtures';
+import { setupPlannerWorkspaceForSession, setupSoloWorkspaceForSession } from './harness-fixtures';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { joinParticipant } from '../helpers/integration';
 
 /** Advertise `verifier` as a configured duo capability for this chatroom. */
-async function addVerifierToTeamRoles(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+async function addVerifierToDuoTeamRoles(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+  await addTeamRoles(chatroomId, ['planner', 'builder', 'verifier']);
+}
+
+/** Advertise `verifier` as a configured solo capability (no builder) for this chatroom. */
+async function addVerifierToSoloTeamRoles(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+  await addTeamRoles(chatroomId, ['solo', 'verifier']);
+}
+
+async function addTeamRoles(chatroomId: Id<'chatroom_rooms'>, roles: string[]): Promise<void> {
   await t.run(async (ctx) => {
     const room = await ctx.db.get('chatroom_rooms', chatroomId);
     if (!room) return;
-    const roles = new Set(room.teamRoles ?? []);
-    roles.add('planner');
-    roles.add('builder');
-    roles.add('verifier');
-    await ctx.db.patch(chatroomId, { teamRoles: [...roles] });
+    const next = new Set(room.teamRoles ?? []);
+    for (const role of roles) next.add(role);
+    await ctx.db.patch(chatroomId, { teamRoles: [...next] });
   });
 }
 
-async function createPlannerTaskFromUserMessage(
+async function createEntryPointTaskFromUserMessage(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   content: string,
-  conversationMode: 'chat' | 'code' | 'code:enhanced'
+  conversationMode: 'chat' | 'code' | 'code:enhanced',
+  targetRole: 'planner' | 'solo'
 ): Promise<{ messageId: Id<'chatroom_messages'>; taskId: Id<'chatroom_tasks'> }> {
   const messageId = await t.mutation(api.messages.sendMessage, {
     sessionId,
     chatroomId,
     senderRole: 'user',
     content,
-    targetRole: 'planner',
+    targetRole,
     type: 'message',
     conversationMode,
   });
@@ -61,16 +71,17 @@ async function createPlannerTaskFromUserMessage(
   return { messageId, taskId: task._id };
 }
 
-async function getPlannerDeliveryPrompt(
+async function getDeliveryPrompt(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
+  role: 'planner' | 'solo',
   taskId: Id<'chatroom_tasks'>,
   messageId: Id<'chatroom_messages'>
 ): Promise<string> {
   const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
     sessionId,
     chatroomId,
-    role: 'planner',
+    role,
     taskId,
     messageId,
     convexUrl: 'http://127.0.0.1:3210',
@@ -78,26 +89,28 @@ async function getPlannerDeliveryPrompt(
   return fullCliOutput;
 }
 
-describe('getTaskDeliveryPrompt — planner verifier gate', () => {
+describe('getTaskDeliveryPrompt — duo planner verifier gate', () => {
   test.each([['code' as const], ['code:enhanced' as const]])(
     'entry-point planner in %s mode is told to obtain a verifier review',
     async (conversationMode) => {
       const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession(
         `verifier-gate-${conversationMode.replace(':', '-')}`
       );
-      await addVerifierToTeamRoles(chatroomId);
+      await addVerifierToDuoTeamRoles(chatroomId);
       await joinParticipant(sessionId, chatroomId, 'planner');
 
-      const { messageId, taskId } = await createPlannerTaskFromUserMessage(
+      const { messageId, taskId } = await createEntryPointTaskFromUserMessage(
         sessionId,
         chatroomId,
         'Add dark mode to settings',
-        conversationMode
+        conversationMode,
+        'planner'
       );
 
-      const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
+      const output = await getDeliveryPrompt(sessionId, chatroomId, 'planner', taskId, messageId);
 
       expect(output).toContain('<verifier-gate>');
+      expect(output).toContain('delegate to `builder`, then request round 2');
       expect(output).toContain('### Handoff to `verifier`');
       expect(output).toContain('--next-role="verifier"');
     }
@@ -105,17 +118,18 @@ describe('getTaskDeliveryPrompt — planner verifier gate', () => {
 
   test('Chat mode omits the verifier gate', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('verifier-gate-chat');
-    await addVerifierToTeamRoles(chatroomId);
+    await addVerifierToDuoTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
-    const { messageId, taskId } = await createPlannerTaskFromUserMessage(
+    const { messageId, taskId } = await createEntryPointTaskFromUserMessage(
       sessionId,
       chatroomId,
       'Keep this conversational',
-      'chat'
+      'chat',
+      'planner'
     );
 
-    const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
+    const output = await getDeliveryPrompt(sessionId, chatroomId, 'planner', taskId, messageId);
 
     expect(output).toContain('<chat-mode>');
     expect(output).not.toContain('<verifier-gate>');
@@ -123,15 +137,16 @@ describe('getTaskDeliveryPrompt — planner verifier gate', () => {
 
   test('verifier return delivery hands back to planner without the gate', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('verifier-gate-return');
-    await addVerifierToTeamRoles(chatroomId);
+    await addVerifierToDuoTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'verifier');
 
-    const { taskId } = await createPlannerTaskFromUserMessage(
+    const { taskId } = await createEntryPointTaskFromUserMessage(
       sessionId,
       chatroomId,
       'Ship the feature',
-      'code'
+      'code',
+      'planner'
     );
     await t.run(async (ctx) => {
       await ctx.db.patch('chatroom_tasks', taskId, { status: 'in_progress' });
@@ -169,5 +184,53 @@ describe('getTaskDeliveryPrompt — planner verifier gate', () => {
 
     expect(fullCliOutput).toContain('### Handoff to `planner`');
     expect(fullCliOutput).not.toContain('<verifier-gate>');
+  });
+});
+
+describe('getTaskDeliveryPrompt — solo entry-point verifier gate', () => {
+  test.each([['code' as const], ['code:enhanced' as const]])(
+    'solo entry point in %s mode is told to obtain a verifier review and rework itself',
+    async (conversationMode) => {
+      const { sessionId, chatroomId } = await setupSoloWorkspaceForSession(
+        `solo-verifier-gate-${conversationMode.replace(':', '-')}`
+      );
+      await addVerifierToSoloTeamRoles(chatroomId);
+      await joinParticipant(sessionId, chatroomId, 'solo');
+
+      const { messageId, taskId } = await createEntryPointTaskFromUserMessage(
+        sessionId,
+        chatroomId,
+        'Ship the solo feature',
+        conversationMode,
+        'solo'
+      );
+
+      const output = await getDeliveryPrompt(sessionId, chatroomId, 'solo', taskId, messageId);
+
+      expect(output).toContain('<verifier-gate>');
+      expect(output).toContain('do it yourself, then request round 2');
+      expect(output).not.toContain('delegate to `builder`');
+      expect(output).toContain('### Handoff to `verifier`');
+      expect(output).toContain('--next-role="verifier"');
+    }
+  );
+
+  test('solo Chat mode omits the verifier gate', async () => {
+    const { sessionId, chatroomId } = await setupSoloWorkspaceForSession('solo-verifier-gate-chat');
+    await addVerifierToSoloTeamRoles(chatroomId);
+    await joinParticipant(sessionId, chatroomId, 'solo');
+
+    const { messageId, taskId } = await createEntryPointTaskFromUserMessage(
+      sessionId,
+      chatroomId,
+      'Keep this conversational',
+      'chat',
+      'solo'
+    );
+
+    const output = await getDeliveryPrompt(sessionId, chatroomId, 'solo', taskId, messageId);
+
+    expect(output).toContain('<chat-mode>');
+    expect(output).not.toContain('<verifier-gate>');
   });
 });
