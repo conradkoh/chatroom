@@ -101,7 +101,6 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
         ? (message.errorMessage ?? 'unknown provider error')
         : undefined;
     if (this.lastAssistantError === undefined) return;
-    this.notifyFailure('pi-sdk.message_end.error');
     this.writeLine(
       formatAgentLogLine(this.logPrefix, 'run-error', `assistant error: ${this.lastAssistantError}`)
     );
@@ -123,7 +122,10 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
 
   private settleRun(source: string): void {
     if (this.lastAssistantError !== undefined) {
-      this.completeTurn({ status: 'failed', source, error: this.lastAssistantError });
+      // Failure activity is emitted only for the terminal outcome. A retried error that later
+      // succeeds never reaches here, and a failure that loses the first-wins race emits nothing.
+      const error = this.lastAssistantError;
+      if (this.completeTurn({ status: 'failed', source, error })) this.notifyFailure(source);
     } else {
       this.completeTurn({ status: 'completed', source });
     }

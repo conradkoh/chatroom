@@ -201,7 +201,7 @@ describe('PiSdkStreamAdapter provider errors', () => {
     expect(onLogLine).toHaveBeenCalledWith(
       `${LOG_PREFIX} run-error] assistant error: provider 400: bad model`
     );
-    expect(signalKinds(signals)).toContain('failure');
+    expect(signalKinds(signals)).not.toContain('failure');
   });
 
   it('uses a fallback message when the error carries no errorMessage', () => {
@@ -246,5 +246,29 @@ describe('PiSdkStreamAdapter provider errors', () => {
     adapter.settleResolvedPrompt();
 
     expect(adapter.turnCompletion.value).toMatchObject({ status: 'failed' });
+  });
+});
+
+describe('PiSdkStreamAdapter failure activity', () => {
+  it('emits no failure activity when a retried provider error is followed by success', () => {
+    const { adapter, signals } = createAdapter();
+    adapter.handleEvent(assistantMessageEndEvent('error', 'overloaded'));
+    adapter.handleEvent(agentEndEvent(true));
+    adapter.handleEvent(assistantMessageEndEvent('stop'));
+    adapter.handleEvent(agentEndEvent(false));
+
+    expect(adapter.turnCompletion.value).toMatchObject({ status: 'completed' });
+    expect(signals.filter((s) => s.kind === 'failure')).toHaveLength(0);
+  });
+
+  it('emits exactly one failure activity for a terminal failure, sourced at agent_end', () => {
+    const { adapter, signals } = createAdapter();
+    adapter.handleEvent(assistantMessageEndEvent('error', 'provider 400: bad model'));
+    adapter.handleEvent(agentEndEvent());
+    adapter.settleResolvedPrompt();
+
+    const failures = signals.filter((s) => s.kind === 'failure');
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.source).toBe('pi-sdk.agent_end');
   });
 });
