@@ -31,7 +31,6 @@ const MOCK_MESSAGE = {
   senderRole: 'user',
   targetRole: null as string | null,
   chatroomId: TEST_CHATROOM_ID,
-  taskStatus: null as string | null,
 };
 
 function createMockDeps(overrides?: Partial<MessagesDeps>): MessagesDeps {
@@ -133,6 +132,26 @@ describe('listBySenderRole', () => {
       const output = getAllLogOutput();
       expect(output).toContain('Messages from user');
       expect(output).toContain('Hello world');
+    });
+
+    it('ignores a legacy taskStatus payload — Type prints with no status suffix', async () => {
+      const legacyMessage = {
+        ...MOCK_MESSAGE,
+        type: 'message',
+        taskStatus: 'pending',
+      };
+      const deps = createMockDeps({
+        backend: {
+          mutation: vi.fn().mockResolvedValue(undefined),
+          query: vi.fn().mockResolvedValue([legacyMessage]),
+        },
+      });
+
+      await listBySenderRole(TEST_CHATROOM_ID, listBySenderRoleOptions(), deps);
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(logSpy.mock.calls).toContainEqual(['   Type: message']);
+      expect(getAllLogOutput()).not.toContain('(pending)');
     });
   });
 
