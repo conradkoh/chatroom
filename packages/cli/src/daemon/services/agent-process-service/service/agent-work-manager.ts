@@ -55,6 +55,12 @@ import { runNativeInjectionEffect } from '../../task-service/service/native-task
 /** Starts allowed for one uncovered-turn restart: the first attempt plus two retries. */
 const MAX_RESPAWN_START_ATTEMPTS = 3;
 
+/** Nudge sends allowed for one uncovered turn end: the first try plus two retries, then escalate. */
+const MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS = 3;
+
+/** Delay before retrying a nudge whose delivery mutex was busy, to let the holder release it. */
+const UNCOVERED_NUDGE_RETRY_MS = 250;
+
 interface RespawnStartRequest {
   readonly chatroomId: string;
   readonly role: string;
@@ -524,30 +530,39 @@ export class AgentWorkManager {
   private scheduleUncoveredAction(
     event: AgentTurnEndedEvent,
     task: { taskId: string },
-    action: 'nudge' | 'restart-session'
+    action: 'nudge' | 'restart-session',
+    attempt = 0,
+    delayMs = 0
   ): void {
     setTimeout(() => {
       if (this.disposed) return;
       const run =
         action === 'nudge'
-          ? this.sendUncoveredNudge(event, task)
+          ? this.sendUncoveredNudge(event, task, attempt)
           : this.restartSessionForUncoveredTask(event, task);
       void run.catch((error: unknown) => {
         console.error(
           `[NativeDelivery:uncovered-action-error] action=${action} chatroom=${event.chatroomId} role=${event.role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
         );
       });
-    }, 0);
+    }, delayMs);
   }
 
   /**
    * Sends the single nudge for this (task, session). Commits to the ladder only after the
-   * send succeeds. Drops silently (commits nothing) when the delivery mutex is busy or a
-   * re-check fails. The next turn end re-evaluates.
+   * send succeeds.
+   *
+   * A nudge is never dropped: a busy delivery mutex is retried a bounded number of times,
+   * and the terminal branch escalates through the ladder (restart, then park). The remaining
+   * skip reasons mean the nudge target is not valid right now and each re-enters the ladder
+   * on a guaranteed future event — a turn end (`turn_not_idle`), recovery completion
+   * (`recovery_in_progress`, `slot_not_running`, session/pid change), or a new agent start
+   * (`stop_requested`, `task_not_active`, `task_not_in_inbox`) — so they return.
    */
   private async sendUncoveredNudge(
     event: AgentTurnEndedEvent,
-    task: { taskId: string }
+    task: { taskId: string },
+    attempt = 0
   ): Promise<void> {
     const { chatroomId, role } = event;
     const sessionKey = sessionKeyFor(event.pid, event.slot.harnessSessionId);
@@ -556,6 +571,13 @@ export class AgentWorkManager {
       console.log(
         `[NativeDelivery:uncovered-nudge-skipped] chatroom=${chatroomId} role=${role} task=${task.taskId} reason=delivery_busy`
       );
+      // Nothing is committed on a busy mutex, so retry the same step a bounded number of
+      // times before escalating; otherwise the task stays active with no pending trigger.
+      if (attempt + 1 < MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS) {
+        this.scheduleUncoveredAction(event, task, 'nudge', attempt + 1, UNCOVERED_NUDGE_RETRY_MS);
+        return;
+      }
+      await this.escalateUndeliverableNudge(event, task, sessionKey);
       return;
     }
     const generation = deliveryState.getGeneration(chatroomId, role);
@@ -579,8 +601,6 @@ export class AgentWorkManager {
         console.error(
           `[NativeDelivery:uncovered-nudge] chatroom=${chatroomId} role=${role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
         );
-        // The nudge could not be sent, so escalate without a nudge: restart when the ladder
-        // budget allows, otherwise park (the task service records redelivery_exhausted first).
         await this.escalateUndeliverableNudge(event, task, sessionKey);
         return;
       }
@@ -635,6 +655,18 @@ export class AgentWorkManager {
       console.error(
         `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} error=missing_agent_config`
       );
+      // The restart budget is committed before this side effect, so the ladder cannot retry the
+      // restart. Record the terminal step and park, instead of leaving the task active with no
+      // pending restart (which the periodic reconcile cannot recover: it dedups an active task).
+      const sessionKey = sessionKeyFor(event.pid, event.slot.harnessSessionId);
+      await this.deps.taskService.decideUncoveredTurnEnd({
+        chatroomId,
+        role,
+        taskId: task.taskId,
+        sessionKey,
+        nudgeUnavailable: true,
+      });
+      this.applyParkAction(event);
       return;
     }
     const startInput: EnsureAgentProcessInput = {

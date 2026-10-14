@@ -1494,5 +1494,111 @@ describe('AgentWorkManager', () => {
       expect(scheduleRoleDelivery).not.toHaveBeenCalled();
       service.dispose();
     });
+
+    test('a throwing nudge with the restart budget spent parks: no restart, active state cleared', async () => {
+      const runSerializedForAgent = vi.fn();
+      const decideUncoveredTurnEnd = vi.fn(async (args: { nudgeUnavailable?: boolean }) =>
+        args.nudgeUnavailable ? { action: 'park' as const } : { action: 'nudge' as const }
+      );
+      const service = createService({
+        runSerializedForAgent,
+        agentConfig: restartConfig,
+        getSlot: runningSlot,
+        decideUncoveredTurnEnd,
+        resumeTurnForSlot: vi.fn(async () => {
+          throw new Error('send failed');
+        }),
+        initialTasks: [pendingTask('task-1')],
+      });
+      const scheduleRoleDelivery = vi.spyOn(service as never, 'scheduleRoleDelivery');
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(completedTurnEvent() as never);
+      await vi.waitFor(() =>
+        expect(
+          service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })
+        ).toBeUndefined()
+      );
+
+      expect(decideUncoveredTurnEnd).toHaveBeenLastCalledWith(
+        expect.objectContaining({ nudgeUnavailable: true, sessionKey: '42:sess-1' })
+      );
+      expect(runSerializedForAgent).not.toHaveBeenCalled();
+      // Park action: the task service recorded redelivery_exhausted, then delivery is scheduled.
+      expect(scheduleRoleDelivery).toHaveBeenCalledWith('room-1', 'builder');
+      service.dispose();
+    });
+
+    test('a restart without agent config parks instead of leaving the task active', async () => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const runSerializedForAgent = vi.fn();
+      const decideUncoveredTurnEnd = vi.fn(async (args: { nudgeUnavailable?: boolean }) =>
+        args.nudgeUnavailable ? { action: 'park' as const } : { action: 'restart-session' as const }
+      );
+      const service = createService({
+        runSerializedForAgent,
+        getSlot: () => ({ state: 'running', pid: 42, harnessSessionId: 'sess-1' }),
+        decideUncoveredTurnEnd,
+        initialTasks: [pendingTask('task-1')],
+      });
+      const scheduleRoleDelivery = vi.spyOn(service as never, 'scheduleRoleDelivery');
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(completedTurnEvent() as never);
+      await vi.waitFor(() =>
+        expect(
+          service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })
+        ).toBeUndefined()
+      );
+
+      expect(errors).toHaveBeenCalledWith(expect.stringContaining('error=missing_agent_config'));
+      expect(decideUncoveredTurnEnd).toHaveBeenLastCalledWith(
+        expect.objectContaining({ nudgeUnavailable: true, sessionKey: '42:sess-1' })
+      );
+      expect(runSerializedForAgent).not.toHaveBeenCalled();
+      expect(scheduleRoleDelivery).toHaveBeenCalledWith('room-1', 'builder');
+      errors.mockRestore();
+      service.dispose();
+    });
+
+    test('a busy delivery mutex retries the nudge a bounded number of times, then escalates', async () => {
+      vi.useFakeTimers();
+      try {
+        const decideUncoveredTurnEnd = vi.fn(async (args: { nudgeUnavailable?: boolean }) =>
+          args.nudgeUnavailable ? { action: 'park' as const } : { action: 'nudge' as const }
+        );
+        const resumeTurnForSlot = vi.fn(async () => undefined);
+        const confirmNudgeSent = vi.fn();
+        const service = createService({
+          initialTasks: [pendingTask('task-1')],
+          resumeTurnForSlot,
+          confirmNudgeSent,
+          decideUncoveredTurnEnd,
+          getSlot: runningSlot,
+        });
+        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+        const deliveryState = getRoleDeliveryState();
+        expect(deliveryState.tryAcquireDelivery('room-1', 'builder')).toBe(true);
+        try {
+          await service.handleAgentTurnEnded(completedTurnEvent() as never);
+          await vi.advanceTimersByTimeAsync(1_000);
+        } finally {
+          deliveryState.releaseDelivery('room-1', 'builder');
+        }
+
+        expect(resumeTurnForSlot).not.toHaveBeenCalled();
+        expect(confirmNudgeSent).not.toHaveBeenCalled();
+        // After the bounded retries the ladder escalates rather than dropping silently.
+        expect(decideUncoveredTurnEnd).toHaveBeenLastCalledWith(
+          expect.objectContaining({ nudgeUnavailable: true, sessionKey: '42:sess-1' })
+        );
+        expect(
+          service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })
+        ).toBeUndefined();
+        service.dispose();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
