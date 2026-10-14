@@ -7,6 +7,7 @@ import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
 import { getResearcherGuidance } from './researcher';
 import { getUiuxEngineerGuidance } from './uiux-engineer';
+import { getVerifierGuidance } from './verifier';
 import { getSoloGuidanceFromContext } from '../../teams/solo/prompts/fromContext';
 import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../types/cli';
 import type { SelectorContext } from '../../types/sections';
@@ -55,6 +56,11 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
     }),
   researcher: (ctx) =>
     getResearcherGuidance({
+      nativeIntegration: ctx.nativeIntegration,
+      entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
+    }),
+  verifier: (ctx) =>
+    getVerifierGuidance({
       nativeIntegration: ctx.nativeIntegration,
       entryPointRole: ctx.teamConfig?.entryPoint ?? 'planner',
     }),

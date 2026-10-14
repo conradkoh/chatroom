@@ -7,6 +7,7 @@ import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
 import { getResearcherGuidance } from './researcher';
 import { getUiuxEngineerGuidance } from './uiux-engineer';
+import { getVerifierGuidance } from './verifier';
 
 type RoleSpecificGuidanceParams = {
   role: string;
@@ -27,6 +28,8 @@ const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams)
     getArchitectGuidance({ entryPointRole, nativeIntegration }),
   researcher: ({ entryPointRole, nativeIntegration }) =>
     getResearcherGuidance({ entryPointRole, nativeIntegration }),
+  verifier: ({ entryPointRole, nativeIntegration }) =>
+    getVerifierGuidance({ entryPointRole, nativeIntegration }),
   'uiux-engineer': ({ entryPointRole, nativeIntegration }) =>
     getUiuxEngineerGuidance({ entryPointRole, nativeIntegration }),
 };
