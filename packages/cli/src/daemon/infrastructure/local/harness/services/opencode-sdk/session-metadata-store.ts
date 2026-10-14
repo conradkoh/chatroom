@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -69,13 +69,20 @@ export class FileSessionMetadataStore implements SessionMetadataStore {
     return {};
   }
 
+  /**
+   * Persists all sessions. The file holds the plaintext server password, so it is
+   * owner-only (0600) and its directory is owner-only (0700).
+   * Constraint: `mode` only applies on creation, so chmodSync also tightens files
+   * written by older versions with 0644.
+   */
   private save(sessions: SessionRecord): void {
     try {
       const dir = dirname(this.filePath);
       if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
+        mkdirSync(dir, { recursive: true, mode: 0o700 });
       }
-      writeFileSync(this.filePath, JSON.stringify(sessions, null, 2));
+      writeFileSync(this.filePath, JSON.stringify(sessions, null, 2), { mode: 0o600 });
+      chmodSync(this.filePath, 0o600);
     } catch {
       // Ignore errors for now
     }

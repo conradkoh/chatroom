@@ -1,4 +1,4 @@
-import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
+import { chmodSync, statSync, writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -142,6 +142,34 @@ describe('FileSessionMetadataStore', () => {
       store.upsert(SAMPLE_META);
       store.remove('sess-1');
       expect(store.get('sess-1')).toBeUndefined();
+    });
+  });
+
+  describe('file permissions', () => {
+    // The file stores the plaintext server password, so it must be owner-only.
+    const modeOf = (path: string) => statSync(path).mode & 0o777;
+
+    it('writes the file with mode 0600', () => {
+      const store = new FileSessionMetadataStore(tmpFile);
+      store.upsert(SAMPLE_META);
+      expect(modeOf(tmpFile)).toBe(0o600);
+    });
+
+    it('creates the parent directory with mode 0700', () => {
+      const dir = join(tmpDir, `private-${Date.now()}`);
+      const store = new FileSessionMetadataStore(join(dir, 'sessions.json'));
+      store.upsert(SAMPLE_META);
+      expect(modeOf(dir)).toBe(0o700);
+    });
+
+    it('tightens a pre-existing 0644 file to 0600 on the next save', () => {
+      writeFileSync(tmpFile, JSON.stringify({}));
+      chmodSync(tmpFile, 0o644);
+      expect(modeOf(tmpFile)).toBe(0o644);
+
+      const store = new FileSessionMetadataStore(tmpFile);
+      store.upsert(SAMPLE_META);
+      expect(modeOf(tmpFile)).toBe(0o600);
     });
   });
 
