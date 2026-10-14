@@ -21,6 +21,23 @@ function executionFailureMessage(error: { type?: string; message?: string } | un
   return error?.message || error?.type || 'Session execution failed';
 }
 
+/**
+ * Error that rejects the in-flight turn for a failed or interrupted execution.
+ * Returns null for every other event, which does not reject a turn.
+ */
+function turnRejectionFor(raw: OpenCodeEvent): Error | null {
+  switch (raw.type) {
+    case 'session.execution.failed':
+      return new Error(executionFailureMessage(raw.data.error));
+    case 'session.execution.interrupted': {
+      const reason = raw.data.reason ? `: ${raw.data.reason}` : '';
+      return new Error(`Session execution was interrupted${reason}`);
+    }
+    default:
+      return null;
+  }
+}
+
 export interface OpencodeSdkSessionOptions {
   /** The shared HTTP client from the parent harness. */
   readonly client: OpenCodeClient;
@@ -240,16 +257,23 @@ export class OpencodeSdkSession implements DirectHarnessSession {
    */
   private _settleTurn(raw: OpenCodeEvent): void {
     if (raw.type === 'session.execution.succeeded' || raw.type === 'session.idle') {
-      this._turnDoneResolve?.();
-    } else if (raw.type === 'session.execution.failed') {
-      this._turnDoneReject?.(new Error(executionFailureMessage(raw.data.error)));
-    } else if (raw.type === 'session.execution.interrupted') {
-      const reason = raw.data.reason ? `: ${raw.data.reason}` : '';
-      this._turnDoneReject?.(new Error(`Session execution was interrupted${reason}`));
+      this._resolveTurn();
     } else {
-      return;
+      const rejection = turnRejectionFor(raw);
+      if (!rejection) return;
+      this._rejectTurn(rejection);
     }
     this._turnDoneResolve = null;
     this._turnDoneReject = null;
+  }
+
+  /** Resolves the in-flight prompt(), if one is pending. */
+  private _resolveTurn(): void {
+    this._turnDoneResolve?.();
+  }
+
+  /** Rejects the in-flight prompt() with the execution error, if one is pending. */
+  private _rejectTurn(error: Error): void {
+    this._turnDoneReject?.(error);
   }
 }
