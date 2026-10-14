@@ -1,5 +1,5 @@
 // fallow-ignore-file unused-file
-// Temporary: these modules are wired in by the next slice, feat(agent-work-manager): nudge once and park.
+// Temporary: this module is wired in by the next slice, feat(agent-work-manager): nudge once and park.
 // That commit removes this suppression.
 /**
  * Prompt sent once per session when a completed turn ends without a handoff for the task.

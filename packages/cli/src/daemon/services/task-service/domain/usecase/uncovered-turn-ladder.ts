@@ -1,6 +1,3 @@
-// fallow-ignore-file unused-file
-// Temporary: these modules are wired in by the next slice, feat(agent-work-manager): nudge once and park.
-// That commit removes this suppression.
 /**
  * Ladder for a completed agent turn that ends without a handoff covering the task
  * ("uncovered turn end"). Per (task, session) the ladder is: nudge once, then
@@ -12,6 +9,9 @@
  * - The restart budget is per task and is never reset by a new session key.
  * - This module holds no state. The caller stores the entry.
  */
+// Temporary: the completed-turn ladder in feat(agent-work-manager) (slice 4) consumes this
+// export. That commit removes this suppression.
+// fallow-ignore-next-line unused-export
 export const MAX_SESSION_RESTARTS_PER_TASK = 1;
 
 const FRESH_ENTRY: UncoveredTurnLadderEntry = { sessionRestarts: 0 };

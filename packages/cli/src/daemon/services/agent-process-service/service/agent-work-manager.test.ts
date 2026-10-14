@@ -21,9 +21,7 @@ function createService(
     readonly releaseTaskAfterTurnFailure?: (
       args: Record<string, string>
     ) => Promise<{ released: boolean; status: 'pending'; updatedAt: number }>;
-    readonly recordUncoveredTurnEnd?: (
-      args: Record<string, string>
-    ) => Promise<{ exceeded: boolean }>;
+    readonly recordTurnFailure?: (args: Record<string, string>) => Promise<{ exceeded: boolean }>;
     readonly isRedeliveryExhausted?: () => boolean;
     readonly clearRedeliveryTracking?: () => void;
     readonly forgetStaleTask?: ReturnType<typeof vi.fn>;
@@ -100,7 +98,7 @@ function createService(
         options.recoverInFlightTasks ?? (async () => ({ released: 0, skipped: 0 })),
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
-      recordUncoveredTurnEnd: options.recordUncoveredTurnEnd ?? (async () => ({ exceeded: false })),
+      recordTurnFailure: options.recordTurnFailure ?? (async () => ({ exceeded: false })),
       isRedeliveryExhausted: options.isRedeliveryExhausted ?? (() => false),
       clearRedeliveryTracking: options.clearRedeliveryTracking ?? (() => undefined),
       explainNativeDeliveryBlock: () => null,
@@ -215,11 +213,11 @@ describe('AgentWorkManager', () => {
   test('stops releasing and parks the task once the redelivery cap is reached', async () => {
     const releaseTaskAfterTurnFailure = vi.fn();
     let attempts = 0;
-    const recordUncoveredTurnEnd = vi.fn(async () => {
+    const recordTurnFailure = vi.fn(async () => {
       attempts += 1;
       return { exceeded: attempts >= 3 };
     });
-    const service = createService({ releaseTaskAfterTurnFailure, recordUncoveredTurnEnd });
+    const service = createService({ releaseTaskAfterTurnFailure, recordTurnFailure });
     const turnEvent = {
       chatroomId: 'room-1',
       role: 'builder',
@@ -249,7 +247,7 @@ describe('AgentWorkManager', () => {
     let attempts = 0;
     const service = createService({
       releaseTaskAfterTurnFailure,
-      recordUncoveredTurnEnd: async () => ({ exceeded: ++attempts >= 3 }),
+      recordTurnFailure: async () => ({ exceeded: ++attempts >= 3 }),
     });
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
     await service.handleAgentTurnEnded(failedTurnEvent() as never);

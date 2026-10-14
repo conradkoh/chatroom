@@ -158,9 +158,9 @@ describe('TaskService.recoverInFlightTasks', () => {
       handoffRepository: repository,
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'exhausted' };
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
 
     await expect(service.recoverInFlightTasks({ mode: 'automatic' })).resolves.toEqual({
       released: 1,
@@ -188,9 +188,9 @@ describe('TaskService.recoverInFlightTasks', () => {
       handoffRepository: repository,
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'covered' };
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
     expect(service.isRedeliveryExhausted(exhaustedArgs)).toBe(true);
 
     await expect(
@@ -405,9 +405,9 @@ describe('TaskService inbox consumption', () => {
 
     await service.startTaskInbox();
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordUncoveredTurnEnd(args);
-    await service.recordUncoveredTurnEnd(args);
-    await service.recordUncoveredTurnEnd(args);
+    await service.recordTurnFailure(args);
+    await service.recordTurnFailure(args);
+    await service.recordTurnFailure(args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     service.forgetStaleTask(args);
@@ -587,9 +587,9 @@ describe('TaskService inbox consumption', () => {
       },
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'exhausted' };
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
-    await service.recordUncoveredTurnEnd(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
+    await service.recordTurnFailure(exhaustedArgs);
 
     await service.startTaskInbox();
 
@@ -907,10 +907,10 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     const service = trackerService(mutation);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
 
-    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
-    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
     expect(service.isRedeliveryExhausted(args)).toBe(false);
-    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: true });
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     // At the cap: failure recorded exactly once, further turns stay exhausted.
@@ -919,7 +919,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     );
     expect(recordCalls).toHaveLength(1);
     expect(recordCalls[0][1]).toMatchObject({ taskId: 'task-1', reason: 'redelivery_exhausted' });
-    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: true });
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
     expect(
       mutation.mock.calls.filter(
         ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
@@ -931,14 +931,14 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     const mutation = vi.fn().mockResolvedValue({ recorded: true });
     const service = trackerService(mutation);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordUncoveredTurnEnd(args);
-    await service.recordUncoveredTurnEnd(args);
-    await service.recordUncoveredTurnEnd(args);
+    await service.recordTurnFailure(args);
+    await service.recordTurnFailure(args);
+    await service.recordTurnFailure(args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     service.clearRedeliveryTracking({ chatroomId: 'room-1', role: 'builder' });
     expect(service.isRedeliveryExhausted(args)).toBe(false);
-    expect(await service.recordUncoveredTurnEnd(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
   });
 
   test('a completed inbox event clears tracking for the task', async () => {
@@ -963,13 +963,171 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
       .mockResolvedValueOnce([event]); // bootstrap pending events
     const service = trackerService(mutation, query);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordUncoveredTurnEnd(args);
-    await service.recordUncoveredTurnEnd(args);
-    await service.recordUncoveredTurnEnd(args);
+    await service.recordTurnFailure(args);
+    await service.recordTurnFailure(args);
+    await service.recordTurnFailure(args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     await service.startTaskInbox();
     expect(service.isRedeliveryExhausted(args)).toBe(false);
     service.stopTaskInbox();
+  });
+
+  const redeliveryExhaustedWrites = (mutation: ReturnType<typeof vi.fn>) =>
+    mutation.mock.calls.filter(
+      ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+    );
+
+  test('ladder: nudge, restart, then nudge again for a new session, then park once', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+      action: 'nudge',
+    });
+    service.confirmNudgeSent({ ...args, sessionKey: '1:a' });
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+      action: 'restart-session',
+    });
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '2:b' })).toEqual({
+      action: 'nudge',
+    });
+    service.confirmNudgeSent({ ...args, sessionKey: '2:b' });
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '2:b' })).toEqual({
+      action: 'park',
+    });
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+    expect(redeliveryExhaustedWrites(mutation)).toHaveLength(1);
+
+    // Further decisions stay parked and do not write the failure again.
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '3:c' })).toEqual({
+      action: 'park',
+    });
+    expect(redeliveryExhaustedWrites(mutation)).toHaveLength(1);
+  });
+
+  test('ladder: nudge unavailable with no entry restarts the session, never nudges', async () => {
+    const service = trackerService(vi.fn().mockResolvedValue({ recorded: true }));
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+    expect(
+      await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a', nudgeUnavailable: true })
+    ).toEqual({ action: 'restart-session' });
+  });
+
+  test('ladder: a decision clears the failure counter, so one later failure does not park', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+    await service.recordTurnFailure(args);
+    await service.recordTurnFailure(args);
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+      action: 'nudge',
+    });
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    expect(redeliveryExhaustedWrites(mutation)).toHaveLength(0);
+  });
+
+  test('ladder: failures do not change the nudge state, and three failures park via the failure path', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+    service.confirmNudgeSent({ ...args, sessionKey: '1:a' });
+    await service.recordTurnFailure(args);
+    await service.recordTurnFailure(args);
+    // The nudge key survived the failures: the same session restarts rather than nudging.
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+      action: 'restart-session',
+    });
+
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+    expect(redeliveryExhaustedWrites(mutation)).toHaveLength(1);
+  });
+
+  test('resetTurnTracking clears the ladder and failure counter but keeps the parked marker', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const counted = { chatroomId: 'room-1', role: 'builder', taskId: 'counted' };
+    const nudged = { chatroomId: 'room-1', role: 'builder', taskId: 'nudged' };
+    const parked = { chatroomId: 'room-1', role: 'builder', taskId: 'parked' };
+
+    await service.recordTurnFailure(counted);
+    await service.recordTurnFailure(counted);
+    service.resetTurnTracking(counted);
+    expect(await service.recordTurnFailure(counted)).toEqual({ exceeded: false });
+
+    service.confirmNudgeSent({ ...nudged, sessionKey: '1:a' });
+    service.resetTurnTracking(nudged);
+    expect(await service.decideUncoveredTurnEnd({ ...nudged, sessionKey: '1:a' })).toEqual({
+      action: 'nudge',
+    });
+
+    await service.recordTurnFailure(parked);
+    await service.recordTurnFailure(parked);
+    await service.recordTurnFailure(parked);
+    service.resetTurnTracking(parked);
+    expect(service.isRedeliveryExhausted(parked)).toBe(true);
+  });
+
+  test('clearRedeliveryTracking clears the ladder and parked marker for that role only', async () => {
+    const service = trackerService(vi.fn().mockResolvedValue({ recorded: true }));
+    const builderNudged = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+    const builderParked = { chatroomId: 'room-1', role: 'builder', taskId: 'task-2' };
+    const plannerNudged = { chatroomId: 'room-1', role: 'planner', taskId: 'task-3' };
+
+    service.confirmNudgeSent({ ...builderNudged, sessionKey: '1:a' });
+    await service.recordTurnFailure(builderParked);
+    await service.recordTurnFailure(builderParked);
+    await service.recordTurnFailure(builderParked);
+    service.confirmNudgeSent({ ...plannerNudged, sessionKey: '1:a' });
+
+    service.clearRedeliveryTracking({ chatroomId: 'room-1', role: 'builder' });
+
+    expect(await service.decideUncoveredTurnEnd({ ...builderNudged, sessionKey: '1:a' })).toEqual({
+      action: 'nudge',
+    });
+    expect(service.isRedeliveryExhausted(builderParked)).toBe(false);
+    expect(await service.decideUncoveredTurnEnd({ ...plannerNudged, sessionKey: '1:a' })).toEqual({
+      action: 'restart-session',
+    });
+  });
+
+  test('a daemon-authored pending TaskUpdated does not clear the ladder', async () => {
+    const task = backendRow();
+    const released = { ...task, status: 'pending', updatedAt: 2_000 };
+    const event = {
+      _id: 'event-1',
+      machineId: 'machine-1',
+      chatroomId: 'room-1',
+      taskId: 'task-1',
+      role: 'builder',
+      eventType: WorkspaceTaskInboxEventType.TaskUpdated,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 2_000,
+      task: released,
+    } as never;
+    const mutation = vi.fn(async () => ({ processed: true }));
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce([]) // bootstrap status feed
+      .mockResolvedValueOnce([]) // automatic recovery status feed
+      .mockResolvedValueOnce([event]); // bootstrap pending events
+    const service = trackerService(mutation, query);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+    service.confirmNudgeSent({ ...args, sessionKey: '1:a' });
+
+    await service.startTaskInbox();
+    service.stopTaskInbox();
+
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+      action: 'restart-session',
+    });
   });
 });

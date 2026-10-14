@@ -135,7 +135,10 @@ export class AgentWorkManager {
       releaseTaskAfterTurnFailure: deps.taskService.releaseTaskAfterTurnFailure,
       recordDeliveryFailure: deps.taskService.recordDeliveryFailure,
       clearDeliveryFailure: deps.taskService.clearDeliveryFailure,
-      recordUncoveredTurnEnd: deps.taskService.recordUncoveredTurnEnd,
+      recordTurnFailure: deps.taskService.recordTurnFailure,
+      decideUncoveredTurnEnd: deps.taskService.decideUncoveredTurnEnd,
+      confirmNudgeSent: deps.taskService.confirmNudgeSent,
+      resetTurnTracking: deps.taskService.resetTurnTracking,
       isRedeliveryExhausted: deps.taskService.isRedeliveryExhausted,
       clearRedeliveryTracking: deps.taskService.clearRedeliveryTracking,
       forgetStaleTask: deps.taskService.forgetStaleTask,
@@ -323,13 +326,13 @@ export class AgentWorkManager {
    * Returns the outcome so each call site applies its own disposition
    * (`exceeded` keeps the task parked; a release failure holds the slot).
    */
-  private async recoverTaskAfterUncoveredTurnEnd(
+  private async recoverTaskAfterTurnFailure(
     event: AgentTurnEndedEvent,
     activeTask: { taskId: string },
     phase: 'turn-failed' | 'turn-ended'
   ): Promise<'released' | 'exceeded' | 'recovery-failed'> {
     const { chatroomId, role } = event;
-    const { exceeded } = await this.deps.taskService.recordUncoveredTurnEnd({
+    const { exceeded } = await this.deps.taskService.recordTurnFailure({
       chatroomId,
       role,
       taskId: activeTask.taskId,
@@ -366,11 +369,7 @@ export class AgentWorkManager {
         // Plan V2: a failed turn without a covering handoff counts toward the
         // consecutive-attempt cap; at the cap the release is skipped and the
         // task is parked with a user-visible delivery failure.
-        const recovery = await this.recoverTaskAfterUncoveredTurnEnd(
-          event,
-          activeTask,
-          'turn-failed'
-        );
+        const recovery = await this.recoverTaskAfterTurnFailure(event, activeTask, 'turn-failed');
         if (recovery === 'exceeded') {
           this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
           return { kind: 'release-slot' };
@@ -422,11 +421,7 @@ export class AgentWorkManager {
         // delivery failure was recorded once by the task service, and the
         // delivery decision skips the task until fresh task activity or a
         // user-initiated agent restart resets the cycle.
-        const recovery = await this.recoverTaskAfterUncoveredTurnEnd(
-          event,
-          activeTask,
-          'turn-ended'
-        );
+        const recovery = await this.recoverTaskAfterTurnFailure(event, activeTask, 'turn-ended');
         if (recovery === 'recovery-failed') {
           return { kind: 'hold-slot', reason: 'task-recovery-failed' };
         }

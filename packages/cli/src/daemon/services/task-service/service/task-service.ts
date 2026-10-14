@@ -27,6 +27,13 @@ import {
 } from '../../../infrastructure/inbox/task-inbox-state.js';
 import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
 import {
+  decideUncoveredTurnEnd as decideLadderStep,
+  withNudgeSent,
+  withSessionRestart,
+  type UncoveredTurnDecision,
+  type UncoveredTurnLadderEntry,
+} from '../domain/usecase/uncovered-turn-ladder.js';
+import {
   mapPendingTaskInboxRows,
   createConvexNativeTaskDeliveryGateway,
 } from '../infrastructure/adapters/convex-native-task-delivery-gateway.js';
@@ -175,27 +182,28 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   let bootstrapRecoveryTimer: ReturnType<typeof setTimeout> | undefined;
   let bootstrapRecoveryPromise: Promise<void> | undefined;
 
-  // Plan V2: consecutive uncovered turn ends per (chatroom, role, taskId).
-  // In-memory on purpose — a daemon restart re-bounds the cycle (the bootstrap
-  // sweep re-delivers once and the counter rebuilds). Reset only on fresh task
-  // activity (task_assigned / completed / deleted) or a user-initiated agent
-  // restart (user.start); daemon-authored transitions (release, claim) emit
-  // task_updated events and deliberately do NOT reset the counter.
-  const REDIVERY_ATTEMPT_CAP = 3;
-  const turnEndAttemptCounts = new Map<string, number>();
+  // Turn-end tracking, per (chatroom, role, taskId). In-memory on purpose: a daemon
+  // restart re-bounds the cycle. Two independent budgets:
+  //  - turnFailureCounts: provider failures (failed / timed_out / aborted turns).
+  //    Park after TURN_FAILURE_RETRY_CAP consecutive failures.
+  //  - uncoveredLadder: completed turns that end without a covering handoff.
+  //    Nudge once per session, then restart the session once, then park.
+  // Parking is the same for both: the key enters redeliveryExhaustedKeys and the
+  // backend records 'redelivery_exhausted' once.
+  // Reset on fresh task activity (task_assigned / completed / deleted) and on
+  // user.start. Daemon-authored transitions (release, claim) do NOT reset anything.
+  const TURN_FAILURE_RETRY_CAP = 3;
+  const turnFailureCounts = new Map<string, number>();
+  const uncoveredLadder = new Map<string, UncoveredTurnLadderEntry>();
   const redeliveryExhaustedKeys = new Set<string>();
   const redeliveryKey = (chatroomId: string, role: string, taskId: string): string =>
     `${chatroomId}:${role.toLowerCase()}:${taskId}`;
-  const recordUncoveredTurnEnd = async (args: {
-    chatroomId: string;
-    role: string;
-    taskId: string;
-  }): Promise<{ exceeded: boolean }> => {
+
+  const parkTask = async (
+    args: { chatroomId: string; role: string; taskId: string },
+    attempts?: number
+  ): Promise<void> => {
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
-    if (redeliveryExhaustedKeys.has(key)) return { exceeded: true };
-    const attempts = (turnEndAttemptCounts.get(key) ?? 0) + 1;
-    turnEndAttemptCounts.set(key, attempts);
-    if (attempts < REDIVERY_ATTEMPT_CAP) return { exceeded: false };
     redeliveryExhaustedKeys.add(key);
     try {
       await gateway.recordDeliveryFailure({
@@ -209,11 +217,72 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         `[TaskService] redelivery-exhausted failure record failed chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+    const attemptsSuffix = attempts === undefined ? '' : ` attempts=${attempts}`;
     console.log(
-      `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} attempts=${attempts} — release/redelivery stopped; agent restart (user.start) resets`
+      `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}${attemptsSuffix} — release/redelivery stopped; agent restart (user.start) resets`
     );
+  };
+
+  /** A provider failure: release and redeliver, park after TURN_FAILURE_RETRY_CAP. Unchanged behaviour. */
+  const recordTurnFailure = async (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<{ exceeded: boolean }> => {
+    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
+    if (redeliveryExhaustedKeys.has(key)) return { exceeded: true };
+    const attempts = (turnFailureCounts.get(key) ?? 0) + 1;
+    turnFailureCounts.set(key, attempts);
+    if (attempts < TURN_FAILURE_RETRY_CAP) return { exceeded: false };
+    await parkTask(args, attempts);
     return { exceeded: true };
   };
+
+  /**
+   * A completed turn with no covering handoff. Returns the next ladder step.
+   * Does not commit a nudge: confirmNudgeSent does that after the nudge is delivered.
+   * Restart and park are committed here, before any side effect.
+   * A covered or completed turn is not a failure, so it also clears the failure counter.
+   */
+  const decideUncoveredTurnEnd = async (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+    sessionKey: string;
+    nudgeUnavailable?: boolean;
+  }): Promise<UncoveredTurnDecision> => {
+    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
+    if (redeliveryExhaustedKeys.has(key)) return { action: 'park' };
+    turnFailureCounts.delete(key);
+    const entry = uncoveredLadder.get(key);
+    const decision = decideLadderStep(entry, args.sessionKey, {
+      nudgeUnavailable: args.nudgeUnavailable ?? false,
+    });
+    if (decision.action === 'restart-session') {
+      uncoveredLadder.set(key, withSessionRestart(entry));
+    } else if (decision.action === 'park') {
+      await parkTask(args);
+    }
+    return decision;
+  };
+
+  const confirmNudgeSent = (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+    sessionKey: string;
+  }): void => {
+    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
+    uncoveredLadder.set(key, withNudgeSent(uncoveredLadder.get(key), args.sessionKey));
+  };
+
+  /** Covered (handoff-backed) end: clear the ladder entry and the failure counter. Parked marker is kept. */
+  const resetTurnTracking = (args: { chatroomId: string; role: string; taskId: string }): void => {
+    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
+    turnFailureCounts.delete(key);
+    uncoveredLadder.delete(key);
+  };
+
   const isRedeliveryExhausted = (args: {
     chatroomId: string;
     role: string;
@@ -226,7 +295,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     taskId: string
   ): void => {
     const key = redeliveryKey(chatroomId, role, taskId);
-    turnEndAttemptCounts.delete(key);
+    turnFailureCounts.delete(key);
+    uncoveredLadder.delete(key);
     redeliveryExhaustedKeys.delete(key);
   };
   const forgetStaleTask = ({
@@ -271,8 +341,11 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   /** Clears exhausted/redelivery tracking for a whole role (user-initiated agent restart). */
   const clearRoleRedeliveryTracking = (chatroomId: string, role: string): void => {
     const prefix = `${chatroomId}:${role.toLowerCase()}:`;
-    for (const key of [...turnEndAttemptCounts.keys()]) {
-      if (key.startsWith(prefix)) turnEndAttemptCounts.delete(key);
+    for (const key of [...turnFailureCounts.keys()]) {
+      if (key.startsWith(prefix)) turnFailureCounts.delete(key);
+    }
+    for (const key of [...uncoveredLadder.keys()]) {
+      if (key.startsWith(prefix)) uncoveredLadder.delete(key);
     }
     for (const key of [...redeliveryExhaustedKeys]) {
       if (key.startsWith(prefix)) redeliveryExhaustedKeys.delete(key);
@@ -757,7 +830,10 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         taskId,
         ...(expectedReason ? { expectedReason } : {}),
       }),
-    recordUncoveredTurnEnd,
+    recordTurnFailure,
+    decideUncoveredTurnEnd,
+    confirmNudgeSent,
+    resetTurnTracking,
     isRedeliveryExhausted,
     clearRedeliveryTracking: ({ chatroomId, role }) => {
       clearRoleRedeliveryTracking(chatroomId, role);
