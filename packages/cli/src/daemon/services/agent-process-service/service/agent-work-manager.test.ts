@@ -1428,4 +1428,71 @@ describe('AgentWorkManager', () => {
     expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
     service.dispose();
   });
+
+  describe('an undeliverable nudge never leaves the task stuck', () => {
+    test('a throwing nudge with restart budget left schedules a restart, not a park', async () => {
+      const calls: string[] = [];
+      const runSerializedForAgent = vi.fn(async (_key: unknown, _opts: unknown, operation: any) =>
+        operation(
+          {
+            stopAgent: async (input: { reason: string; pid: number }) => {
+              calls.push(`stop:${input.reason}:${input.pid}`);
+              return { success: true };
+            },
+            startAgent: async (input: { reason: string; wantResume: boolean }) => {
+              calls.push(`start:${input.reason}:${input.wantResume}`);
+              return { success: true };
+            },
+          },
+          { signal: new AbortController().signal }
+        )
+      );
+      const decideUncoveredTurnEnd = vi.fn(async (args: { nudgeUnavailable?: boolean }) =>
+        args.nudgeUnavailable
+          ? { action: 'restart-session' as const }
+          : { action: 'nudge' as const }
+      );
+      const service = createService({
+        runSerializedForAgent,
+        agentConfig: restartConfig,
+        getSlot: runningSlot,
+        decideUncoveredTurnEnd,
+        resumeTurnForSlot: vi.fn(async () => {
+          throw new Error('send failed');
+        }),
+        initialTasks: [pendingTask('task-1')],
+      });
+      const internals = service as unknown as {
+        prepareRoleRecovery(args: unknown): Promise<void>;
+        recoverStoppedRole(args: unknown): Promise<{ released: number }>;
+      };
+      vi.spyOn(internals, 'prepareRoleRecovery').mockImplementation(async () => {
+        calls.push('prepare');
+      });
+      vi.spyOn(internals, 'recoverStoppedRole').mockImplementation(async () => {
+        calls.push('recover');
+        return { released: 1 };
+      });
+      const scheduleRoleDelivery = vi.spyOn(service as never, 'scheduleRoleDelivery');
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(completedTurnEvent() as never);
+      await vi.waitFor(() =>
+        expect(calls).toEqual([
+          'prepare',
+          'stop:daemon.respawn:42',
+          'recover',
+          'start:daemon.respawn:false',
+        ])
+      );
+      await flushTimers();
+
+      expect(decideUncoveredTurnEnd).toHaveBeenLastCalledWith(
+        expect.objectContaining({ nudgeUnavailable: true, sessionKey: '42:sess-1' })
+      );
+      // The restart path replaces the session instead of re-delivering into it.
+      expect(scheduleRoleDelivery).not.toHaveBeenCalled();
+      service.dispose();
+    });
+  });
 });

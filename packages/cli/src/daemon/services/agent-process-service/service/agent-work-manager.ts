@@ -579,21 +579,38 @@ export class AgentWorkManager {
         console.error(
           `[NativeDelivery:uncovered-nudge] chatroom=${chatroomId} role=${role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
         );
-        // The nudge could not be sent, so escalate without a nudge. In this slice every
-        // non-nudge decision runs the park action.
-        await this.deps.taskService.decideUncoveredTurnEnd({
-          chatroomId,
-          role,
-          taskId: task.taskId,
-          sessionKey,
-          nudgeUnavailable: true,
-        });
-        this.applyParkAction(event);
+        // The nudge could not be sent, so escalate without a nudge: restart when the ladder
+        // budget allows, otherwise park (the task service records redelivery_exhausted first).
+        await this.escalateUndeliverableNudge(event, task, sessionKey);
         return;
       }
       this.deps.taskService.confirmNudgeSent({ chatroomId, role, taskId: task.taskId, sessionKey });
     } finally {
       deliveryState.releaseDelivery(chatroomId, role, generation);
+    }
+  }
+
+  /**
+   * A nudge that could not be sent must not leave the task active with no pending trigger.
+   * Escalates through the ladder: schedule the restart when the budget allows, otherwise run
+   * the park action (the task service records redelivery_exhausted before it runs).
+   */
+  private async escalateUndeliverableNudge(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string },
+    sessionKey: string
+  ): Promise<void> {
+    const decision = await this.deps.taskService.decideUncoveredTurnEnd({
+      chatroomId: event.chatroomId,
+      role: event.role,
+      taskId: task.taskId,
+      sessionKey,
+      nudgeUnavailable: true,
+    });
+    if (decision.action === 'restart-session') {
+      this.scheduleUncoveredAction(event, task, 'restart-session');
+    } else {
+      this.applyParkAction(event);
     }
   }
 
