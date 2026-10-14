@@ -143,8 +143,6 @@ export function startSessionEventForwarder(
         return 'opencode.session.text.delta';
       case 'thinking':
         return 'opencode.session.reasoning.delta';
-      case 'file':
-        return 'opencode.filesystem.changed';
       case 'compacted':
         return 'opencode.session.compaction.ended';
       default:
@@ -157,11 +155,7 @@ export function startSessionEventForwarder(
 
   function isAgentActivityKind(kind: string): boolean {
     return (
-      kind === 'text' ||
-      kind === 'thinking' ||
-      kind === 'file' ||
-      kind === 'compacted' ||
-      kind.startsWith('tool:')
+      kind === 'text' || kind === 'thinking' || kind === 'compacted' || kind.startsWith('tool:')
     );
   }
 
