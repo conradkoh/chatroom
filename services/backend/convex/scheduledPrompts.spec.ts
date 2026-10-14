@@ -3,11 +3,13 @@
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { getInboxCommandsForMachine } from '../tests/helpers/machine-command-inbox';
+import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
 async function createTestSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
@@ -23,6 +25,108 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
     teamRoles: ['planner', 'builder'],
     teamEntryPoint: 'planner',
   });
+}
+
+async function registerPrimaryWorkspace(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+    sessionId,
+    chatroomId,
+    machineId,
+    workingDir,
+    hostname: 'test-host',
+    registeredBy: 'planner',
+  });
+  await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+    sessionId,
+    chatroomId,
+    workspaceId,
+  });
+  return workspaceId;
+}
+
+async function saveRoleConfig(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  workspaceId: Id<'chatroom_workspaces'>,
+  machineId: string,
+  role: string
+): Promise<void> {
+  await t.mutation(api.agents.saveConfig, {
+    sessionId,
+    chatroomId,
+    workspaceId,
+    role,
+    machineId,
+    agentHarness: 'opencode',
+    model: TEST_MODEL_OPENCODE,
+    workingDir: '/tmp/test',
+  });
+}
+
+/**
+ * Registers a machine + primary workspace, saves config for every role, and
+ * projects the given status for each role. Defaults to `offline` (wakeable).
+ */
+async function setupWakeableAgents(args: {
+  sessionId: SessionId;
+  chatroomId: Id<'chatroom_rooms'>;
+  machineId: string;
+  roles: string[];
+  statuses?: Record<string, 'offline' | 'waiting' | 'working' | 'error' | 'stopping'> | undefined;
+}): Promise<Id<'chatroom_workspaces'>> {
+  const { sessionId, chatroomId, machineId, roles } = args;
+  await t.mutation(api.machines.register, {
+    sessionId,
+    machineId,
+    hostname: 'test-host',
+    os: 'linux',
+    availableHarnesses: ['opencode'],
+  });
+  const workspaceId = await registerPrimaryWorkspace(sessionId, chatroomId, machineId, '/tmp/test');
+  for (const role of roles) {
+    await saveRoleConfig(sessionId, chatroomId, workspaceId, machineId, role);
+  }
+  await t.run(async (ctx) => {
+    for (const role of roles) {
+      await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+        chatroomId,
+        role,
+        roleKind: 'persistent',
+        status: args.statuses?.[role] ?? 'offline',
+        machineId,
+        workspaceId,
+        projectedAt: Date.now(),
+      });
+    }
+  });
+  return workspaceId;
+}
+
+async function seedOverduePrompt(
+  chatroomId: Id<'chatroom_rooms'>,
+  userId: Id<'users'>,
+  prompt = 'scheduled message'
+): Promise<Id<'chatroom_scheduledPrompts'>> {
+  const now = Date.now();
+  return await t.run(async (ctx) =>
+    ctx.db.insert('chatroom_scheduledPrompts', {
+      chatroomId,
+      prompt,
+      scheduleKind: 'interval',
+      intervalMinutes: 30,
+      disabledReason: undefined,
+      isRunnable: true,
+      nextRunAt: now - 1000, // overdue
+      createdBy: userId,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
 }
 
 describe('scheduled prompts', () => {
@@ -378,5 +482,171 @@ describe('scheduled prompts', () => {
         .collect();
     });
     expect(messages).toHaveLength(0);
+  });
+
+  test('fireOne wakes offline agents when a scheduled prompt fires', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-wake-offline');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'sp-wake-offline-machine';
+      await setupWakeableAgents({
+        sessionId,
+        chatroomId,
+        machineId,
+        roles: ['planner', 'builder'],
+      });
+      const id = await seedOverduePrompt(chatroomId, userId);
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      // The wake call is scheduled — it only runs once the scheduler advances.
+      expect((await getInboxCommandsForMachine(machineId, 'agent.requestStart')).length).toBe(0);
+
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts.map((row) => row.command)).toHaveLength(2);
+      expect(starts.map((row) => row.command)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'agent.requestStart',
+            chatroomId,
+            role: 'planner',
+            model: TEST_MODEL_OPENCODE,
+            workingDir: '/tmp/test',
+          }),
+          expect.objectContaining({
+            type: 'agent.requestStart',
+            chatroomId,
+            role: 'builder',
+            model: TEST_MODEL_OPENCODE,
+            workingDir: '/tmp/test',
+          }),
+        ])
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('fireOne does not restart a role already running in the primary workspace', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-wake-running-skip');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'sp-wake-running-skip-machine';
+      await setupWakeableAgents({
+        sessionId,
+        chatroomId,
+        machineId,
+        roles: ['planner', 'builder'],
+        statuses: { planner: 'waiting' },
+      });
+      const id = await seedOverduePrompt(chatroomId, userId);
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts.map((row) => row.command)).toHaveLength(1);
+      expect(starts[0]?.command).toMatchObject({ role: 'builder' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('fireOne on a non-active chatroom queues no agent starts and disables the prompt', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-wake-inactive');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'sp-wake-inactive-machine';
+      await setupWakeableAgents({
+        sessionId,
+        chatroomId,
+        machineId,
+        roles: ['planner', 'builder'],
+      });
+      const id = await seedOverduePrompt(chatroomId, userId);
+
+      // Mark the chatroom completed (the only non-active status).
+      await t.run(async (ctx) => {
+        await ctx.db.patch('chatroom_rooms', chatroomId, { status: 'completed' });
+      });
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts).toHaveLength(0);
+
+      const row = await t.run(async (ctx) =>
+        ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+      );
+      expect(row!.isRunnable).toBe(false);
+      expect(row!.nextRunAt).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('fireOne does not wake agents when the send is not ok', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-wake-send-failed');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'sp-wake-send-failed-machine';
+      await setupWakeableAgents({
+        sessionId,
+        chatroomId,
+        machineId,
+        roles: ['planner', 'builder'],
+      });
+      // Whitespace-only prompt: sendAutomatedUserMessage rejects it (empty_content).
+      const id = await seedOverduePrompt(chatroomId, userId, '   ');
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts).toHaveLength(0);
+
+      const row = await t.run(async (ctx) =>
+        ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+      );
+      expect(row!.lastRunAt).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('runDue → fireOne end-to-end wakes offline agents', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-run-due-wake-e2e');
+      const chatroomId = await createChatroom(sessionId);
+      const machineId = 'sp-run-due-wake-e2e-machine';
+      await setupWakeableAgents({
+        sessionId,
+        chatroomId,
+        machineId,
+        roles: ['planner', 'builder'],
+      });
+      await seedOverduePrompt(chatroomId, userId);
+
+      // Drive the real cron entry point, not fireOne directly.
+      await t.mutation(api.scheduledPrompts.runDue as any, {});
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const starts = await getInboxCommandsForMachine(machineId, 'agent.requestStart');
+      expect(starts.map((row) => row.command)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'agent.requestStart', chatroomId, role: 'planner' }),
+          expect.objectContaining({ type: 'agent.requestStart', chatroomId, role: 'builder' }),
+        ])
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
