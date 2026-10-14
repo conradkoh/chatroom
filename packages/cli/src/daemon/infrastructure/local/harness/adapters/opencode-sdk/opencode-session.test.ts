@@ -291,9 +291,9 @@ describe('OpencodeSdkSession', () => {
     const session = createSession();
     session.onEvent(() => {});
 
-    await expect(session.prompt({ parts: [{ type: 'text', text: 'hi' }] })).rejects.toThrow(
-      'submit failed'
-    );
+    await expect(
+      session.prompt({ agent: 'build', parts: [{ type: 'text', text: 'hi' }] })
+    ).rejects.toThrow('submit failed');
     expect(vi.getTimerCount()).toBe(0);
 
     await vi.advanceTimersByTimeAsync(300_001);
