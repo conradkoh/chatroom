@@ -8,7 +8,7 @@ import {
 import { t } from '../test.setup';
 import { createTestSession } from '../tests/helpers/integration';
 
-test('linkMessageToTask writes taskId and taskStatus to the read model', async () => {
+test('linkMessageToTask writes taskId to the read model', async () => {
   await createTestSession('read-model-task-link');
   await t.run(async (ctx) => {
     const owner = (await ctx.db.query('users').first())!;
@@ -43,6 +43,6 @@ test('linkMessageToTask writes taskId and taskStatus to the read model', async (
       .first();
 
     expect(readModel?.taskId).toBe(taskId);
-    expect(readModel?.taskStatus).toBe('pending');
+    expect(readModel?.taskStatus).toBeUndefined();
   });
 });

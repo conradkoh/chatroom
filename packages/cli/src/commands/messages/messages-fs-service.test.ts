@@ -13,7 +13,6 @@ const sampleMsg = {
 const fullMsg = {
   ...sampleMsg,
   targetRole: 'builder',
-  taskStatus: 'completed',
 };
 
 describe('messageFilename', () => {

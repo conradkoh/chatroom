@@ -45,7 +45,6 @@ type MessageItem = {
   content: string;
   senderRole: string;
   targetRole: string | null;
-  taskStatus: string | null;
 };
 
 // ─── Domain errors ─────────────────────────────────────────────────────────
@@ -73,12 +72,6 @@ async function createDefaultDeps(): Promise<MessagesDeps> {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
-
-/** Format status badges for a message */
-function formatBadges(message: MessageItem): string {
-  const status = message.taskStatus ? ` (${message.taskStatus})` : '';
-  return `${status}`;
-}
 
 /** Log message content, truncated or full based on the option */
 function logMessageContent(content: string, full: boolean): void {
@@ -132,11 +125,10 @@ export const listBySenderRoleEffect = (
 
       for (const message of messages) {
         const timestamp = new Date(message._creationTime).toLocaleString();
-        const badges = formatBadges(message);
 
         console.log(`\n🔹 ID: ${message._id}`);
         console.log(`   Time: ${timestamp}`);
-        console.log(`   Type: ${message.type}${badges}`);
+        console.log(`   Type: ${message.type}`);
         if (message.targetRole) {
           console.log(`   Target: ${message.targetRole}`);
         }
@@ -185,14 +177,13 @@ export const listSinceMessageEffect = (
       for (const message of messages) {
         const timestamp = new Date(message._creationTime).toLocaleString();
         const roleIndicator = message.senderRole.toLowerCase() === 'user' ? '👤' : '🤖';
-        const badges = formatBadges(message);
 
         console.log(
           `\n${roleIndicator} ${message.senderRole}${message.targetRole ? ` → ${message.targetRole}` : ''}`
         );
         console.log(`   ID: ${message._id}`);
         console.log(`   Time: ${timestamp}`);
-        console.log(`   Type: ${message.type}${badges}`);
+        console.log(`   Type: ${message.type}`);
 
         logMessageContent(message.content, options.full ?? false);
       }

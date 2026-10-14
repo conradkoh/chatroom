@@ -47,7 +47,6 @@ import { createTask as createTaskUsecase } from '../src/domain/usecase/task/crea
 import { deleteUserMessageOrTask as deleteUserMessageOrTaskUsecase } from '../src/domain/usecase/task/delete-user-message-or-task';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
-import { type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
 import { requestSyncOnHandoffToUser } from '../src/domain/usecase/workspace/request-sync-on-handoff-to-user';
 
@@ -150,32 +149,12 @@ async function enrichMessageAttachments(
 }
 
 /**
- * Enriches an array of chatroom messages with task status and attachments.
+ * Enriches an array of chatroom messages with attachments.
  * Used by the messageList module.
  */
 export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
-  // Batch task lookups: collect unique taskIds, fetch in parallel
-  const uniqueTaskIds = [...new Set(messages.flatMap((m) => (m.taskId != null ? [m.taskId] : [])))];
-  const taskMap = new Map<string, { status: string } | null>();
-  const taskResults = await Promise.all(
-    uniqueTaskIds.map(async (id) => {
-      const task = await ctx.db.get('chatroom_tasks', id);
-      return [id.toString(), task ? { status: task.status } : null] as const;
-    })
-  );
-  for (const [id, task] of taskResults) {
-    taskMap.set(id, task);
-  }
-
   const enrichedMessages = await Promise.all(
     messages.map(async (message) => {
-      // Use batched task lookup
-      let taskStatus: TaskStatus | undefined;
-      if (message.taskId) {
-        const task = taskMap.get(message.taskId.toString());
-        taskStatus = task?.status as TaskStatus | undefined;
-      }
-
       // Resolve attachments (shared helper)
       const attachments = await enrichMessageAttachments(ctx, message);
 
@@ -183,7 +162,6 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
 
       return {
         ...message,
-        ...(taskStatus && { taskStatus }),
         ...attachments,
         ...(enhancerOriginalContent && { enhancerOriginalContent }),
       };
@@ -1516,22 +1494,6 @@ export const getTaskDeliveryPrompt = query({
 // SENDER ROLE BASED QUERIES - For user-centric pagination
 // =============================================================================
 
-/** Enriches a message with its task status when a task is linked. */
-async function withTaskStatus<T extends { taskId?: Id<'chatroom_tasks'> | null | undefined }>(
-  ctx: QueryCtx,
-  message: T
-): Promise<T & { taskStatus?: TaskStatus | undefined }> {
-  let taskStatus: TaskStatus | undefined;
-  if (message.taskId) {
-    const task = await ctx.db.get('chatroom_tasks', message.taskId);
-    taskStatus = task?.status;
-  }
-  return {
-    ...message,
-    ...(taskStatus && { taskStatus }),
-  };
-}
-
 /** Returns messages filtered by sender role in descending order. */
 export const listBySenderRole = query({
   args: {
@@ -1590,10 +1552,7 @@ export const getLastUserMessage = query({
       return { last: null, prior: [] };
     }
 
-    const last = await withTaskStatus(ctx, userMessages[0]);
-    const prior = await Promise.all(userMessages.slice(1).map((m) => withTaskStatus(ctx, m)));
-
-    return { last, prior };
+    return { last: userMessages[0], prior: userMessages.slice(1) };
   },
 });
 
@@ -1700,7 +1659,6 @@ export const getContextForRole = query({
             const headers = headerRows;
             const docs: Doc<'chatroom_messages'>[] = [];
             for (const header of headers) {
-              if (header.taskStatus === 'pending' || header.taskStatus === 'acknowledged') continue;
               const message = await ctx.db.get('chatroom_messages', header.messageId);
               if (message) docs.push(message);
             }
@@ -1753,16 +1711,9 @@ export const getContextForRole = query({
     // Enrich messages with task information
     const enrichedMessages = await Promise.all(
       contextMessages.map(async (message) => {
-        let taskStatus: TaskStatus | undefined;
-        let taskContent: string | undefined;
-        // Get task status and content for this message
-        if (message.taskId) {
-          const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          if (task) {
-            taskStatus = task.status;
-            taskContent = task.content;
-          }
-        }
+        const task = message.taskId ? await ctx.db.get('chatroom_tasks', message.taskId) : null;
+        // Agents discover pending/acknowledged tasks only through get-next-task, not context read.
+        if (task && (task.status === 'pending' || task.status === 'acknowledged')) return null;
 
         const attachments = await enrichMessageAttachments(ctx, message);
 
@@ -1774,21 +1725,18 @@ export const getContextForRole = query({
           content: message.content,
           type: message.type,
           taskId: message.taskId?.toString(),
-          taskStatus,
-          taskContent,
+          task: task
+            ? { _id: task._id.toString(), status: task.status, content: task.content }
+            : undefined,
           ...attachments,
         };
       })
     );
 
-    // Filter out messages with pending/acknowledged tasks — agents should only
-    // discover these through get-next-task, not context read
-    const filteredMessages = enrichedMessages.filter((msg) => {
-      if (msg.taskStatus === 'pending' || msg.taskStatus === 'acknowledged') {
-        return false;
-      }
-      return true;
-    });
+    // Pending/acknowledged task messages were dropped above (see the inline skip).
+    const filteredMessages = enrichedMessages.filter(
+      (msg): msg is NonNullable<typeof msg> => msg !== null
+    );
 
     // Count pending tasks for this role
     const pendingTasks = await ctx.db
