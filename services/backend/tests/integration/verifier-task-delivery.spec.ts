@@ -2,15 +2,14 @@
  * Entry-point verifier gate — Integration Tests
  *
  * End-to-end `getTaskDeliveryPrompt` coverage for the verifier gate: an
- * entry-point role in `code` and `code:enhanced` modes is told to obtain a
- * `verifier` review before delivering to the user, while `chat` mode and the
- * verifier's own return delivery are exempt. Covers both the duo planner
- * (rework delegates to `builder`) and the solo entry point (rework is done by
- * the entry point itself).
+ * entry-point role is told to obtain a `verifier` review before delivering to
+ * the user in every conversation mode (including `chat`), gated only on whether
+ * the task involved code changes. The verifier's own return delivery is exempt.
+ * Covers both the duo planner (rework delegates to `builder`) and the solo
+ * entry point (rework is done by the entry point itself).
  *
  * The gate is prompt policy only; the inlined `<handoff-templates>` advertise
- * the verifier capability regardless of mode, so the chat case asserts only the
- * gate's absence, not the template's.
+ * the verifier capability regardless of mode.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -116,7 +115,7 @@ describe('getTaskDeliveryPrompt — duo planner verifier gate', () => {
     }
   );
 
-  test('Chat mode omits the verifier gate', async () => {
+  test('Chat mode also includes the verifier gate', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('verifier-gate-chat');
     await addVerifierToDuoTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
@@ -132,7 +131,8 @@ describe('getTaskDeliveryPrompt — duo planner verifier gate', () => {
     const output = await getDeliveryPrompt(sessionId, chatroomId, 'planner', taskId, messageId);
 
     expect(output).toContain('<chat-mode>');
-    expect(output).not.toContain('<verifier-gate>');
+    expect(output).toContain('<verifier-gate>');
+    expect(output).toContain('If this task involved code changes');
   });
 
   test('verifier return delivery hands back to planner without the gate', async () => {
@@ -215,7 +215,7 @@ describe('getTaskDeliveryPrompt — solo entry-point verifier gate', () => {
     }
   );
 
-  test('solo Chat mode omits the verifier gate', async () => {
+  test('solo Chat mode also includes the verifier gate', async () => {
     const { sessionId, chatroomId } = await setupSoloWorkspaceForSession('solo-verifier-gate-chat');
     await addVerifierToSoloTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'solo');
@@ -231,6 +231,7 @@ describe('getTaskDeliveryPrompt — solo entry-point verifier gate', () => {
     const output = await getDeliveryPrompt(sessionId, chatroomId, 'solo', taskId, messageId);
 
     expect(output).toContain('<chat-mode>');
-    expect(output).not.toContain('<verifier-gate>');
+    expect(output).toContain('<verifier-gate>');
+    expect(output).toContain('If this task involved code changes');
   });
 });

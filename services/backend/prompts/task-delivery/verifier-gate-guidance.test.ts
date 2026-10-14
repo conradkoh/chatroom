@@ -10,29 +10,20 @@ const SOLO_TARGETS_WITH_VERIFIER = ['architect', 'verifier', 'uiux-engineer', 'u
 const TARGETS_WITHOUT_VERIFIER = ['architect', 'builder', 'user'] as const;
 
 describe('shouldIncludeVerifierGate', () => {
-  test.each([
-    ['code mode', { conversationMode: 'code' as const }],
-    ['code:enhanced mode', { conversationMode: 'code:enhanced' as const }],
-    ['legacy undefined mode', { conversationMode: undefined }],
-  ])('includes the gate for an entry-point role in %s', (_label, overrides) => {
+  test('includes the gate for an entry-point role with verifier advertised', () => {
     expect(
       shouldIncludeVerifierGate({
         isEntryPoint: true,
         availableHandoffTargets: TARGETS_WITH_VERIFIER,
-        ...overrides,
       })
     ).toBe(true);
   });
 
-  test.each([
-    ['chat mode', { conversationMode: 'chat' as const }],
-    ['a non-entry-point role', { isEntryPoint: false, conversationMode: 'code' as const }],
-  ])('excludes the gate for %s', (_label, overrides) => {
+  test('excludes the gate for a non-entry-point role', () => {
     expect(
       shouldIncludeVerifierGate({
-        isEntryPoint: true,
+        isEntryPoint: false,
         availableHandoffTargets: TARGETS_WITH_VERIFIER,
-        ...overrides,
       })
     ).toBe(false);
   });
@@ -41,7 +32,6 @@ describe('shouldIncludeVerifierGate', () => {
     expect(
       shouldIncludeVerifierGate({
         isEntryPoint: true,
-        conversationMode: 'code',
         availableHandoffTargets: TARGETS_WITHOUT_VERIFIER,
       })
     ).toBe(false);
@@ -51,40 +41,24 @@ describe('shouldIncludeVerifierGate', () => {
     expect(
       shouldIncludeVerifierGate({
         isEntryPoint: true,
-        conversationMode: 'code',
         availableHandoffTargets: ['Verifier'],
       })
     ).toBe(true);
   });
 
-  test.each([['code' as const], ['code:enhanced' as const]])(
-    'includes the gate for a solo entry point in %s',
-    (conversationMode) => {
-      expect(
-        shouldIncludeVerifierGate({
-          isEntryPoint: true,
-          conversationMode,
-          availableHandoffTargets: SOLO_TARGETS_WITH_VERIFIER,
-        })
-      ).toBe(true);
-    }
-  );
-
-  test('excludes the gate for a solo entry point in chat mode', () => {
+  test('includes the gate for a solo entry point with verifier advertised', () => {
     expect(
       shouldIncludeVerifierGate({
         isEntryPoint: true,
-        conversationMode: 'chat',
         availableHandoffTargets: SOLO_TARGETS_WITH_VERIFIER,
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   test('excludes the gate for a solo entry point without a verifier target', () => {
     expect(
       shouldIncludeVerifierGate({
         isEntryPoint: true,
-        conversationMode: 'code',
         availableHandoffTargets: ['architect', 'uiux-engineer', 'user'],
       })
     ).toBe(false);
@@ -103,10 +77,19 @@ describe('appendVerifierGateGuidance', () => {
 
     expect(output).toContain('<verifier-gate>');
     expect(output).toContain('</verifier-gate>');
-    expect(output).toContain('## Verifier Gate (required in code and code:enhanced modes)');
+    expect(output).toContain('## Verifier Gate');
+    expect(output).toContain('If this task involved code changes');
     expect(output).toContain('Requested test runs');
     // The leading blank line keeps the block visually separated from neighbours.
     expect(output.startsWith('existing line\n\n<verifier-gate>')).toBe(true);
+  });
+
+  test('states the generic code-change rule with no mode restriction', () => {
+    const output = renderGate();
+
+    expect(output).toContain('If this task involved code changes');
+    expect(output).not.toContain('This does not apply to Chat mode');
+    expect(output).not.toContain('required in code and code:enhanced');
   });
 
   test('names every verdict token from VERIFIER_VERDICTS', () => {
@@ -122,10 +105,6 @@ describe('appendVerifierGateGuidance', () => {
 
     expect(output).toContain('Maximum 2 verification rounds per user message');
     expect(output).toContain('After round 2, deliver');
-  });
-
-  test('states the chat exemption', () => {
-    expect(renderGate()).toContain('This does not apply to Chat mode');
   });
 
   test('states the stale-verdict rule', () => {

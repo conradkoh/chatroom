@@ -177,14 +177,15 @@ describe('appendTaskDeliveryHandoffSections — verifier gate', () => {
     }
   );
 
-  test('Chat mode omits the verifier gate', () => {
+  test('Chat mode also includes the verifier gate', () => {
     const output = renderWithVerifierTarget({
       conversationMode: 'chat',
       message: { _id: 'user-msg', senderRole: 'user' },
     });
 
     expect(output).toContain('<chat-mode>');
-    expect(output).not.toContain('<verifier-gate>');
+    expect(output).toContain('<verifier-gate>');
+    expect(output).toContain('If this task involved code changes');
   });
 
   test('builder role omits the verifier gate', () => {
@@ -246,12 +247,13 @@ describe('appendTaskDeliveryHandoffSections — solo verifier gate', () => {
     }
   );
 
-  test('solo entry point in Chat mode omits the gate', () => {
+  test('solo entry point in Chat mode also includes the gate', () => {
     const output = renderSolo({
       conversationMode: 'chat',
       message: { _id: 'user-msg', senderRole: 'user' },
     });
 
-    expect(output).not.toContain('<verifier-gate>');
+    expect(output).toContain('<verifier-gate>');
+    expect(output).toContain('If this task involved code changes');
   });
 });

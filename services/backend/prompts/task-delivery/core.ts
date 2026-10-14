@@ -184,7 +184,6 @@ export function appendTaskDeliveryHandoffSections(
   if (
     shouldIncludeVerifierGate({
       isEntryPoint: params.isEntryPoint,
-      conversationMode: params.conversationMode,
       availableHandoffTargets: activeHandoffTargets,
     })
   ) {
