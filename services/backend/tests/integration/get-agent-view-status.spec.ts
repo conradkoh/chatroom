@@ -204,12 +204,13 @@ describe('getAgentViewStatus — stale roles', () => {
       teamStructureId: 'solo@1',
     });
     const result = await query(room);
-    expect(result!.agents).toHaveLength(4);
+    expect(result!.agents).toHaveLength(5);
     expect(result!.agents.map((a) => a.role)).toEqual([
       'solo',
       'architect',
       'triage',
       'uiux-engineer',
+      'verifier',
     ]);
   });
 });

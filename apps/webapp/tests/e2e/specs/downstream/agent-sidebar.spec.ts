@@ -33,9 +33,9 @@ const CANONICAL_TEAMS = [
   {
     teamId: 'solo',
     teamStructureId: 'solo@1',
-    roles: ['solo', 'architect', 'triage', 'uiux-engineer'],
+    roles: ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
     permanentRoles: ['solo'],
-    ephemeralRoles: ['architect', 'triage', 'uiux-engineer'],
+    ephemeralRoles: ['architect', 'triage', 'uiux-engineer', 'verifier'],
   },
 ] as const;
 

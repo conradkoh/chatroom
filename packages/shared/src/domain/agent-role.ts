@@ -61,7 +61,10 @@ const roleMetadata = {
   },
   verifier: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
-    teams: [{ teamId: 'duo', order: 45 }],
+    teams: [
+      { teamId: 'duo', order: 45 },
+      { teamId: 'solo', order: 45 },
+    ],
   },
 } as const satisfies Record<string, AgentRoleMetadata>;
 

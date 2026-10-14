@@ -38,7 +38,7 @@ const pinnedTeamFacts = [
   {
     teamId: 'solo',
     permanentRoles: ['solo'],
-    ephemeralRoles: ['architect', 'triage', 'uiux-engineer'],
+    ephemeralRoles: ['architect', 'triage', 'uiux-engineer', 'verifier'],
   },
 ] as const;
 

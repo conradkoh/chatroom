@@ -29,7 +29,7 @@ describe('team presets', () => {
     });
     expect(TEAM_PRESETS.solo).toMatchObject({
       name: 'Solo',
-      roles: ['solo', 'architect', 'triage', 'uiux-engineer'],
+      roles: ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
       entryPoint: 'solo',
     });
     expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');

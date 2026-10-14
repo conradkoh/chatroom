@@ -22,7 +22,7 @@ describe('team commands', () => {
       'duo — Duo (planner, architect, researcher, triage, uiux-engineer, verifier, builder) entry: planner'
     );
     expect(log.mock.calls.join('\n')).toContain(
-      'solo — Solo (solo, architect, triage, uiux-engineer) entry: solo'
+      'solo — Solo (solo, architect, triage, uiux-engineer, verifier) entry: solo'
     );
     log.mockRestore();
   });

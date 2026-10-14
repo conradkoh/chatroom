@@ -20,6 +20,7 @@ const expectedRoles = {
     { role: 'architect', lifecycle: 'ephemeral', optional: true },
     { role: 'triage', lifecycle: 'ephemeral', optional: true },
     { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
+    { role: 'verifier', lifecycle: 'ephemeral', optional: true },
   ],
 } as const;
 

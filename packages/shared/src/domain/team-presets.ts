@@ -60,7 +60,7 @@ export const TEAM_PRESETS = {
     structureId: TEAM_STRUCTURE_IDS.solo,
     name: 'Solo',
     description:
-      'A single agent working independently, with optional ephemeral architect, triage, and uiux-engineer roles',
+      'A single agent working independently, with optional ephemeral architect, triage, uiux-engineer, and verifier roles',
     roles: getBuiltinRolesForTeam('solo'),
     entryPoint: 'solo',
   },
