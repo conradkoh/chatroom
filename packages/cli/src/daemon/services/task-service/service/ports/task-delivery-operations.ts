@@ -3,6 +3,7 @@ import type {
   AssignedTask,
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
+import type { UncoveredTurnDecision } from '../../domain/usecase/uncovered-turn-ladder.js';
 
 /**
  * Delivery-side task operations shared by the full `TaskService` and the
@@ -23,12 +24,29 @@ export interface TaskDeliveryOperations {
     taskId: string,
     expectedReason?: TaskDeliveryFailureReason
   ): Promise<boolean>;
-  /** Plan V2: counts an uncovered turn end; `exceeded` stops release/redelivery. */
-  recordUncoveredTurnEnd(args: {
+  /** Counts a provider failure; `exceeded` stops release/redelivery. */
+  recordTurnFailure(args: {
     chatroomId: string;
     role: string;
     taskId: string;
   }): Promise<{ exceeded: boolean }>;
+  /** Next ladder step for a completed turn with no covering handoff. Parks when exhausted. */
+  decideUncoveredTurnEnd(args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+    sessionKey: string;
+    nudgeUnavailable?: boolean;
+  }): Promise<UncoveredTurnDecision>;
+  /** Records that a nudge was delivered in this session. */
+  confirmNudgeSent(args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+    sessionKey: string;
+  }): void;
+  /** Clears ladder and failure counters after a covered turn end. The parked marker is kept. */
+  resetTurnTracking(args: { chatroomId: string; role: string; taskId: string }): void;
   isRedeliveryExhausted(args: { chatroomId: string; role: string; taskId: string }): boolean;
   clearRedeliveryTracking(args: { chatroomId: string; role: string }): void;
   /** Evicts a task proven absent from the authoritative backend. */

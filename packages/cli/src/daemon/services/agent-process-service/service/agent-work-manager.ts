@@ -1,16 +1,24 @@
 // fallow-ignore-file complexity
 
-import { AgentStopReasonEnum } from '@workspace/backend/src/domain/entities/agent.js';
+import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
+import {
+  AgentStopReasonEnum,
+  DaemonStartReasonCode,
+} from '@workspace/backend/src/domain/entities/agent.js';
 import { WorkspaceTaskInboxEventType } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { Effect } from 'effect';
 
+import type { SerializedAgentOperations } from './agent-process-manager-service.js';
+import type { EnsureAgentProcessInput } from './ports/agent-process-lifecycle.js';
+import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
 import {
   buildAgentLifecycleRevisionKey,
   buildAgentStatusFact,
   type AgentLifecycleFact,
 } from '../../../domain/entities/agent-lifecycle-fact.js';
 import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
-import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
+import { ACTIVE_TASK_STATUSES, type AssignedTask } from '../../../domain/entities/assigned-task.js';
+import { isSlotRunning, isTurnPhaseIdle } from '../../../domain/usecase/check-agent-slot.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
 import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
@@ -28,6 +36,7 @@ import {
   explainNativeDeliveryBlock,
   isNativeHarness,
 } from '../../task-service/domain/usecase/native-task-injector-logic.js';
+import { buildUncoveredTurnNudgePrompt } from '../../task-service/domain/usecase/uncovered-turn-nudge.js';
 import type {
   TaskServiceDeliveryConfirmation,
   TaskServiceNotification,
@@ -42,6 +51,37 @@ import {
 import type { TaskDeliveryService } from '../../task-service/service/native-delivery/task-delivery-service.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from '../../task-service/service/native-task-injector.js';
+
+/** Starts allowed for one uncovered-turn restart: the first attempt plus two retries. */
+const MAX_RESPAWN_START_ATTEMPTS = 3;
+
+/** Nudge sends allowed for one uncovered turn end: the first try plus two retries, then escalate. */
+const MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS = 3;
+
+/** Delay before retrying a nudge whose delivery mutex was busy, to let the holder release it. */
+const UNCOVERED_NUDGE_RETRY_MS = 250;
+
+interface RespawnStartRequest {
+  readonly chatroomId: string;
+  readonly role: string;
+  readonly workingDir: string;
+  readonly startInput: EnsureAgentProcessInput;
+}
+
+/** A respawn whose start failed and still has retries left. */
+interface PendingRespawnStart {
+  /** Identifies this restart intent. A retry runs only while the same intent is pending. */
+  readonly restartId: number;
+  readonly request: RespawnStartRequest;
+  /** Start calls made so far, including the first attempt inside the restart. */
+  attempts: number;
+  timer?: ReturnType<typeof setTimeout> | undefined;
+}
+
+type RespawnStartOutcome =
+  | { readonly kind: 'started' }
+  | { readonly kind: 'start-failed'; readonly error: string }
+  | { readonly kind: 'skipped'; readonly reason: string };
 
 export type AgentWorkPass =
   | 'inbox-event'
@@ -81,6 +121,10 @@ type RoleRecoveryGate = {
 const recoveryKey = (chatroomId: string, role: string): string =>
   `${chatroomId}:${role.toLowerCase()}`;
 
+/** Identifies one harness session of one agent process. A new key re-arms the uncovered-turn nudge. */
+const sessionKeyFor = (pid: number, harnessSessionId: string | undefined): string =>
+  `${pid}:${harnessSessionId ?? 'none'}`;
+
 /**
  * Per-daemon native delivery application service.
  *
@@ -104,6 +148,9 @@ export class AgentWorkManager {
   private readonly nativeTaskDeliveryQueue: NativeTaskDeliveryQueue;
   private readonly deliveryTaskService: TaskDeliveryService;
   private readonly recoveryGates = new Map<string, RoleRecoveryGate>();
+  /** Respawn starts that failed and still have retries, per role. Cleared on success, exhaustion, or cancellation. */
+  private readonly respawnStartRetries = new Map<string, PendingRespawnStart>();
+  private respawnRestartSeq = 0;
   private disposed = false;
 
   constructor(private readonly deps: AgentWorkManagerDependencies) {
@@ -135,7 +182,10 @@ export class AgentWorkManager {
       releaseTaskAfterTurnFailure: deps.taskService.releaseTaskAfterTurnFailure,
       recordDeliveryFailure: deps.taskService.recordDeliveryFailure,
       clearDeliveryFailure: deps.taskService.clearDeliveryFailure,
-      recordUncoveredTurnEnd: deps.taskService.recordUncoveredTurnEnd,
+      recordTurnFailure: deps.taskService.recordTurnFailure,
+      decideUncoveredTurnEnd: deps.taskService.decideUncoveredTurnEnd,
+      confirmNudgeSent: deps.taskService.confirmNudgeSent,
+      resetTurnTracking: deps.taskService.resetTurnTracking,
       isRedeliveryExhausted: deps.taskService.isRedeliveryExhausted,
       clearRedeliveryTracking: deps.taskService.clearRedeliveryTracking,
       forgetStaleTask: deps.taskService.forgetStaleTask,
@@ -174,6 +224,11 @@ export class AgentWorkManager {
   }
 
   async handleAgentStarted(event: AgentStartedEvent): Promise<void> {
+    // A start for this role means the agent is running again, so any pending respawn retry is moot.
+    this.cancelRespawnStart(
+      recoveryKey(event.chatroomId, event.role),
+      `agent_started:${event.reason ?? 'unknown'}`
+    );
     await this.waitForRoleRecovery(event.chatroomId, event.role);
     // A new agent process/session cannot still be executing the task recorded
     // by the previous process. Clear the local dedup marker before the first
@@ -323,13 +378,13 @@ export class AgentWorkManager {
    * Returns the outcome so each call site applies its own disposition
    * (`exceeded` keeps the task parked; a release failure holds the slot).
    */
-  private async recoverTaskAfterUncoveredTurnEnd(
+  private async recoverTaskAfterTurnFailure(
     event: AgentTurnEndedEvent,
     activeTask: { taskId: string },
     phase: 'turn-failed' | 'turn-ended'
   ): Promise<'released' | 'exceeded' | 'recovery-failed'> {
     const { chatroomId, role } = event;
-    const { exceeded } = await this.deps.taskService.recordUncoveredTurnEnd({
+    const { exceeded } = await this.deps.taskService.recordTurnFailure({
       chatroomId,
       role,
       taskId: activeTask.taskId,
@@ -366,11 +421,7 @@ export class AgentWorkManager {
         // Plan V2: a failed turn without a covering handoff counts toward the
         // consecutive-attempt cap; at the cap the release is skipped and the
         // task is parked with a user-visible delivery failure.
-        const recovery = await this.recoverTaskAfterUncoveredTurnEnd(
-          event,
-          activeTask,
-          'turn-failed'
-        );
+        const recovery = await this.recoverTaskAfterTurnFailure(event, activeTask, 'turn-failed');
         if (recovery === 'exceeded') {
           this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
           return { kind: 'release-slot' };
@@ -407,34 +458,59 @@ export class AgentWorkManager {
       }
       return { kind: 'release-slot' };
     }
-    // A completed turn without a durable handoff must release its active task.
-    // This replaces the backend agent.exited release while keeping the decision
-    // scoped to the task owned by this daemon/session.
+    // A completed turn without a covering handoff is never released to pending here.
+    // The ladder nudges once per session, then parks the task (see decideUncoveredTurnEnd).
     const activeTask = this.deps.agentTaskState.get({
       chatroomId: event.chatroomId,
       role: event.role,
     });
     if (activeTask) {
       const handoff = await this.deps.taskService.getLatestHandoff(event.chatroomId, event.role);
-      if (!handoff?.taskIds.includes(activeTask.taskId)) {
-        // Plan V2: consecutive uncovered turn ends are capped. At the cap the
-        // task stays in its backend status (no release), a `redelivery_exhausted`
-        // delivery failure was recorded once by the task service, and the
-        // delivery decision skips the task until fresh task activity or a
-        // user-initiated agent restart resets the cycle.
-        const recovery = await this.recoverTaskAfterUncoveredTurnEnd(
-          event,
-          activeTask,
-          'turn-ended'
-        );
-        if (recovery === 'recovery-failed') {
-          return { kind: 'hold-slot', reason: 'task-recovery-failed' };
+      const covered = handoff?.taskIds.includes(activeTask.taskId) ?? false;
+      if (covered) {
+        this.deps.taskService.resetTurnTracking({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          taskId: activeTask.taskId,
+        });
+      } else {
+        const decision = await this.deps.taskService.decideUncoveredTurnEnd({
+          chatroomId: event.chatroomId,
+          role: event.role,
+          taskId: activeTask.taskId,
+          sessionKey: sessionKeyFor(event.pid, event.slot.harnessSessionId),
+        });
+        if (decision.action === 'nudge') {
+          // Keep agentTaskState: it blocks redelivery while the nudge is pending.
+          await this.enqueueTurnEndedWaitingFact(event);
+          this.scheduleUncoveredAction(event, activeTask, 'nudge');
+          return { kind: 'release-slot' };
         }
+        if (decision.action === 'restart-session') {
+          // Keep agentTaskState: prepareRoleRecovery clears it inside the restart.
+          await this.enqueueTurnEndedWaitingFact(event);
+          this.scheduleUncoveredAction(event, activeTask, 'restart-session');
+          return { kind: 'release-slot' };
+        }
+        // 'park'
+        await this.enqueueTurnEndedWaitingFact(event);
+        this.applyParkAction(event);
+        return { kind: 'release-slot' };
       }
     }
-    // Clear after the durable handoff check/release so the next reconcile can
-    // deliver the task when needed.
+    // Covered, or no active task: clear, then continue with the waiting fact and delivery.
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
+    await this.enqueueTurnEndedWaitingFact(event);
+    // The manager invokes this handler while the agent's lifecycle operation
+    // is still serialized. Schedule delivery for the next turn of the event
+    // loop so it cannot attempt to inject while that operation still owns the
+    // per-agent boundary.
+    this.scheduleRoleDelivery(event.chatroomId, event.role);
+    return { kind: 'release-slot' };
+  }
+
+  /** Persists the 'waiting' status fact for a finished turn. Failures are logged, never thrown. */
+  private async enqueueTurnEndedWaitingFact(event: AgentTurnEndedEvent): Promise<void> {
     try {
       await this.deps.lifecycleOutbox.enqueue(
         buildAgentStatusFact({
@@ -448,12 +524,353 @@ export class AgentWorkManager {
         `[NativeDelivery:turn-ended-outbox-error] chatroom=${event.chatroomId} role=${event.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
     }
-    // The manager invokes this handler while the agent's lifecycle operation
-    // is still serialized. Schedule delivery for the next turn of the event
-    // loop so it cannot attempt to inject while that operation still owns the
-    // per-agent boundary.
+  }
+
+  /** Out-of-band, same discipline as scheduleRoleDelivery: run after the handler returns. */
+  private scheduleUncoveredAction(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string },
+    action: 'nudge' | 'restart-session',
+    attempt = 0,
+    delayMs = 0
+  ): void {
+    setTimeout(() => {
+      if (this.disposed) return;
+      const run =
+        action === 'nudge'
+          ? this.sendUncoveredNudge(event, task, attempt)
+          : this.restartSessionForUncoveredTask(event, task);
+      void run.catch((error: unknown) => {
+        console.error(
+          `[NativeDelivery:uncovered-action-error] action=${action} chatroom=${event.chatroomId} role=${event.role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+        );
+      });
+    }, delayMs);
+  }
+
+  /**
+   * Sends the single nudge for this (task, session). Commits to the ladder only after the
+   * send succeeds.
+   *
+   * A nudge is never dropped: a busy delivery mutex is retried a bounded number of times,
+   * and the terminal branch escalates through the ladder (restart, then park). The remaining
+   * skip reasons mean the nudge target is not valid right now and each re-enters the ladder
+   * on a guaranteed future event — a turn end (`turn_not_idle`), recovery completion
+   * (`recovery_in_progress`, `slot_not_running`, session/pid change), or a new agent start
+   * (`stop_requested`, `task_not_active`, `task_not_in_inbox`) — so they return.
+   */
+  private async sendUncoveredNudge(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string },
+    attempt = 0
+  ): Promise<void> {
+    const { chatroomId, role } = event;
+    const sessionKey = sessionKeyFor(event.pid, event.slot.harnessSessionId);
+    const deliveryState = getRoleDeliveryState();
+    if (!deliveryState.tryAcquireDelivery(chatroomId, role)) {
+      console.log(
+        `[NativeDelivery:uncovered-nudge-skipped] chatroom=${chatroomId} role=${role} task=${task.taskId} reason=delivery_busy`
+      );
+      // Nothing is committed on a busy mutex, so retry the same step a bounded number of
+      // times before escalating; otherwise the task stays active with no pending trigger.
+      if (attempt + 1 < MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS) {
+        this.scheduleUncoveredAction(event, task, 'nudge', attempt + 1, UNCOVERED_NUDGE_RETRY_MS);
+        return;
+      }
+      await this.escalateUndeliverableNudge(event, task, sessionKey);
+      return;
+    }
+    const generation = deliveryState.getGeneration(chatroomId, role);
+    try {
+      const skipReason = this.uncoveredNudgeSkipReason(event, task);
+      if (skipReason) {
+        console.log(
+          `[NativeDelivery:uncovered-nudge-skipped] chatroom=${chatroomId} role=${role} task=${task.taskId} reason=${skipReason}`
+        );
+        return;
+      }
+      try {
+        await Effect.runPromise(
+          this.deps.agentMgr.resumeTurnForSlot({
+            chatroomId,
+            role,
+            prompt: buildUncoveredTurnNudgePrompt({ taskId: task.taskId }),
+          })
+        );
+      } catch (error) {
+        console.error(
+          `[NativeDelivery:uncovered-nudge] chatroom=${chatroomId} role=${role} task=${task.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+        );
+        await this.escalateUndeliverableNudge(event, task, sessionKey);
+        return;
+      }
+      this.deps.taskService.confirmNudgeSent({ chatroomId, role, taskId: task.taskId, sessionKey });
+    } finally {
+      deliveryState.releaseDelivery(chatroomId, role, generation);
+    }
+  }
+
+  /**
+   * A nudge that could not be sent must not leave the task active with no pending trigger.
+   * Escalates through the ladder: schedule the restart when the budget allows, otherwise run
+   * the park action (the task service records redelivery_exhausted before it runs).
+   */
+  private async escalateUndeliverableNudge(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string },
+    sessionKey: string
+  ): Promise<void> {
+    const decision = await this.deps.taskService.decideUncoveredTurnEnd({
+      chatroomId: event.chatroomId,
+      role: event.role,
+      taskId: task.taskId,
+      sessionKey,
+      nudgeUnavailable: true,
+    });
+    if (decision.action === 'restart-session') {
+      this.scheduleUncoveredAction(event, task, 'restart-session');
+    } else {
+      this.applyParkAction(event);
+    }
+  }
+
+  /**
+   * Replaces the unanswered session with a fresh one, then lets the agent-started
+   * reconcile redeliver the task. Composes the same public pieces as the user restart
+   * path: prepare (closes the gate) → stop → recover (releases the task, reopens the gate)
+   * → start. Runs out of band, never inside handleAgentTurnEnded. A failure is logged and
+   * retried through the recovery gate. It never re-runs the ladder.
+   */
+  private async restartSessionForUncoveredTask(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string }
+  ): Promise<void> {
+    const { chatroomId, role, pid } = event;
+    const config = this.deps.configurationService.get(chatroomId, role);
+    const slot = this.deps.agentMgr.getSlot(chatroomId, role);
+    const harness = config?.agentHarness ?? slot?.harness;
+    const model = config?.model ?? slot?.model;
+    const workingDir = config?.workingDir ?? slot?.workingDir;
+    if (!harness || !model || !workingDir) {
+      console.error(
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} error=missing_agent_config`
+      );
+      // The restart budget is committed before this side effect, so the ladder cannot retry the
+      // restart. Record the terminal step and park, instead of leaving the task active with no
+      // pending restart (which the periodic reconcile cannot recover: it dedups an active task).
+      const sessionKey = sessionKeyFor(event.pid, event.slot.harnessSessionId);
+      await this.deps.taskService.decideUncoveredTurnEnd({
+        chatroomId,
+        role,
+        taskId: task.taskId,
+        sessionKey,
+        nudgeUnavailable: true,
+      });
+      this.applyParkAction(event);
+      return;
+    }
+    const startInput: EnsureAgentProcessInput = {
+      chatroomId,
+      role,
+      agentHarness: harness as AgentHarness,
+      model,
+      workingDir,
+      reason: DaemonStartReasonCode.RESPAWN,
+      wantResume: false,
+    };
+
+    let outcome: RespawnStartOutcome;
+    try {
+      outcome = await this.deps.runSerializedForAgent(
+        { chatroomId, role, workingDir },
+        { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
+        async (ops, context): Promise<RespawnStartOutcome> => {
+          const current = this.deps.agentMgr.getSlot(chatroomId, role);
+          if (
+            this.deps.agentMgr.isStopRequested(chatroomId, role) ||
+            current?.pid !== pid ||
+            current?.harnessSessionId !== event.slot.harnessSessionId
+          ) {
+            console.log(
+              `[NativeDelivery:uncovered-restart-stale] chatroom=${chatroomId} role=${role} task=${task.taskId}`
+            );
+            return { kind: 'skipped', reason: 'stale_slot' };
+          }
+          await this.prepareRoleRecovery({ chatroomId, role });
+          await ops.stopAgent(
+            { chatroomId, role, reason: AgentStopReasonEnum['daemon.respawn'], pid, workingDir },
+            context.signal
+          );
+          await this.recoverStoppedRole({ chatroomId, role, mode: 'automatic' });
+          return this.attemptRespawnStart(ops, startInput, context.signal);
+        }
+      );
+    } catch (error) {
+      // Prepare, stop, or recover failed: the gate is still held, so retry the recovery.
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} error=${message}`
+      );
+      if (this.recoveryGates.has(recoveryKey(chatroomId, role))) {
+        this.scheduleRecoveryRetry(chatroomId, role);
+      }
+      return;
+    }
+
+    if (outcome.kind === 'start-failed') {
+      console.error(
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} attempt=1 of ${MAX_RESPAWN_START_ATTEMPTS} error=${outcome.error}`
+      );
+      this.beginRespawnStartRetries({ chatroomId, role, workingDir, startInput });
+    }
+  }
+
+  /** One start call inside a serialized section. Reports the result instead of throwing, so a failed start stays retryable. */
+  private async attemptRespawnStart(
+    ops: SerializedAgentOperations,
+    startInput: EnsureAgentProcessInput,
+    signal: AbortSignal
+  ): Promise<RespawnStartOutcome> {
+    try {
+      const started = await ops.startAgent(startInput, signal);
+      return started.success
+        ? { kind: 'started' }
+        : { kind: 'start-failed', error: started.error ?? 'start_rejected' };
+    } catch (error) {
+      return {
+        kind: 'start-failed',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /** Records a failed respawn start and arms the first retry. The ladder is not re-run. */
+  private beginRespawnStartRetries(request: RespawnStartRequest): void {
+    if (this.disposed) return;
+    const key = recoveryKey(request.chatroomId, request.role);
+    this.cancelRespawnStart(key, 'superseded_by_new_restart');
+    this.respawnRestartSeq += 1;
+    const pending: PendingRespawnStart = {
+      restartId: this.respawnRestartSeq,
+      request,
+      attempts: 1,
+    };
+    this.respawnStartRetries.set(key, pending);
+    this.armRespawnStartRetry(key, pending);
+  }
+
+  private armRespawnStartRetry(key: string, pending: PendingRespawnStart): void {
+    if (this.disposed) return;
+    // Same backoff shape as scheduleRecoveryRetry: the first retry waits 1s.
+    const delay = Math.min(30_000, 1_000 * 2 ** (pending.attempts - 1));
+    pending.timer = setTimeout(() => {
+      pending.timer = undefined;
+      void this.retryRespawnStart(key, pending.restartId).catch((error: unknown) => {
+        console.error(
+          `[NativeDelivery:uncovered-restart-error] chatroom=${pending.request.chatroomId} role=${pending.request.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+        );
+      });
+    }, delay);
+  }
+
+  /** Retries only the start step. Re-checks that the same restart intent is still pending. */
+  private async retryRespawnStart(key: string, restartId: number): Promise<void> {
+    const pending = this.respawnStartRetries.get(key);
+    if (!pending || pending.restartId !== restartId || this.disposed) return;
+    const { chatroomId, role, workingDir, startInput } = pending.request;
+    if (this.deps.agentMgr.isStopRequested(chatroomId, role)) {
+      this.cancelRespawnStart(key, 'stop_requested');
+      return;
+    }
+    const slot = this.deps.agentMgr.getSlot(chatroomId, role);
+    if (slot && isSlotRunning(slot.state)) {
+      this.cancelRespawnStart(key, 'agent_already_running');
+      return;
+    }
+
+    const outcome = await this.deps.runSerializedForAgent(
+      { chatroomId, role, workingDir },
+      { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
+      async (ops, context): Promise<RespawnStartOutcome> => {
+        // Re-check under the serialized section: the intent may have changed while queued.
+        if (this.respawnStartRetries.get(key)?.restartId !== restartId) {
+          return { kind: 'skipped', reason: 'superseded' };
+        }
+        if (this.deps.agentMgr.isStopRequested(chatroomId, role)) {
+          return { kind: 'skipped', reason: 'stop_requested' };
+        }
+        const current = this.deps.agentMgr.getSlot(chatroomId, role);
+        if (current && isSlotRunning(current.state)) {
+          return { kind: 'skipped', reason: 'agent_already_running' };
+        }
+        return this.attemptRespawnStart(ops, startInput, context.signal);
+      }
+    );
+
+    if (outcome.kind === 'skipped') {
+      this.cancelRespawnStart(key, outcome.reason);
+      return;
+    }
+    const current = this.respawnStartRetries.get(key);
+    if (current?.restartId !== restartId) return;
+    if (outcome.kind === 'started') {
+      this.cancelRespawnStart(key, 'started');
+      return;
+    }
+    current.attempts += 1;
+    if (current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
+      this.respawnStartRetries.delete(key);
+      console.error(
+        `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${chatroomId} role=${role} attempts=${current.attempts} error=${outcome.error}`
+      );
+      return;
+    }
+    console.error(
+      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} attempt=${current.attempts} of ${MAX_RESPAWN_START_ATTEMPTS} error=${outcome.error}`
+    );
+    this.armRespawnStartRetry(key, current);
+  }
+
+  /** Stops a pending respawn retry and logs why. A no-op when nothing is pending. */
+  private cancelRespawnStart(key: string, reason: string): void {
+    const pending = this.respawnStartRetries.get(key);
+    if (!pending) return;
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.timer = undefined;
+    this.respawnStartRetries.delete(key);
+    if (reason === 'started') return;
+    console.log(
+      `[NativeDelivery:uncovered-restart-cancelled] chatroom=${pending.request.chatroomId} role=${pending.request.role} attempts=${pending.attempts} reason=${reason}`
+    );
+  }
+
+  /** Re-validates the nudge target under the delivery mutex. Returns the reason to skip, or undefined. */
+  private uncoveredNudgeSkipReason(
+    event: AgentTurnEndedEvent,
+    task: { taskId: string }
+  ): string | undefined {
+    const { chatroomId, role } = event;
+    const slot = this.deps.agentMgr.getSlot(chatroomId, role);
+    if (!slot || !isSlotRunning(slot.state)) return 'slot_not_running';
+    if (slot.pid !== event.pid) return 'pid_changed';
+    if (slot.harnessSessionId !== event.slot.harnessSessionId) return 'session_changed';
+    if (!isTurnPhaseIdle(slot.nativeTurnPhase ?? 'idle')) return 'turn_not_idle';
+    if (this.deps.agentMgr.isStopRequested(chatroomId, role)) return 'stop_requested';
+    if (this.recoveryGates.has(recoveryKey(chatroomId, role))) return 'recovery_in_progress';
+    if (this.deps.agentTaskState.get({ chatroomId, role })?.taskId !== task.taskId) {
+      return 'task_not_active';
+    }
+    const current = this.deps.taskInboxState.getForRole(chatroomId, role, task.taskId);
+    if (!current || !(ACTIVE_TASK_STATUSES as readonly string[]).includes(current.status)) {
+      return 'task_not_in_inbox';
+    }
+    return undefined;
+  }
+
+  /** Park action: clear the active task, then let the normal delivery decision run. */
+  private applyParkAction(event: AgentTurnEndedEvent): void {
+    this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
     this.scheduleRoleDelivery(event.chatroomId, event.role);
-    return { kind: 'release-slot' };
   }
 
   private scheduleRoleDelivery(chatroomId: string, role: string): void {
@@ -470,6 +887,11 @@ export class AgentWorkManager {
 
   dispose(): void {
     this.disposed = true;
+    for (const pending of this.respawnStartRetries.values()) {
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.timer = undefined;
+    }
+    this.respawnStartRetries.clear();
     for (const gate of this.recoveryGates.values()) {
       if (gate.retryTimer) clearTimeout(gate.retryTimer);
       gate.retryTimer = undefined;
