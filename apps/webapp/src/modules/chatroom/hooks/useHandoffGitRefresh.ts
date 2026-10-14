@@ -43,8 +43,8 @@ function shouldRefreshOnHandoff(
  * When the user receives a handoff-to-user in this chatroom, request git refresh
  * for all active workspaces so WorkspaceBottomBar reflects current branch/diff.
  *
- * Complements backend requestSyncOnHandoffToUser (daemon path) with a webapp
- * requestGitRefresh trigger (same as manual refresh button).
+ * This is the sole handoff-triggered git refresh; it uses the same
+ * `requestGitRefresh` path as the manual refresh button.
  */
 export function useHandoffGitRefresh(
   chatroomId: string,

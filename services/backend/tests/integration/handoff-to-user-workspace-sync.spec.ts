@@ -1,9 +1,9 @@
 /**
  * Handoff-to-user workspace sync — Integration Tests
  *
- * Verifies that a handoff to `user` enqueues a `daemon.gitRefresh` event for
- * every active workspace in the chatroom, while a handoff to a team role
- * (e.g. builder) does not, and soft-deleted workspaces are excluded.
+ * A handoff to `user` no longer enqueues `daemon.gitRefresh` for the chatroom's
+ * workspaces. The webapp triggers refresh through `machines.requestGitRefresh`
+ * instead, which this spec also pins.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -40,7 +40,7 @@ async function registerChatroomWorkspace(
 }
 
 describe('Handoff-to-user workspace sync', () => {
-  test('handoff-to-user enqueues gitRefresh per active workspace; handoff-to-builder does not', async () => {
+  test('handoff-to-user enqueues no gitRefresh for any workspace', async () => {
     const { sessionId } = await createTestSession('handoff-sync-user-1');
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'planner');
@@ -64,10 +64,8 @@ describe('Handoff-to-user workspace sync', () => {
       content: 'Handing work to builder.',
     });
     expect(builderHandoff.success).toBe(true);
-    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-1')).toHaveLength(ws1Baseline);
-    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-2')).toHaveLength(ws2Baseline);
 
-    // Handoff to user must enqueue gitRefresh for every active workspace
+    // Handoff to user must NOT enqueue any gitRefresh events either
     const userHandoff = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
@@ -77,15 +75,11 @@ describe('Handoff-to-user workspace sync', () => {
     });
     expect(userHandoff.success).toBe(true);
 
-    const ws1Rows = await findGitRefreshCommands('sync-machine-1', '/sync/ws-1');
-    const ws2Rows = await findGitRefreshCommands('sync-machine-1', '/sync/ws-2');
-    expect(ws1Rows).toHaveLength(ws1Baseline + 1);
-    expect(ws2Rows).toHaveLength(ws2Baseline + 1);
-    expect(ws1Rows[ws1Rows.length - 1]!.machineId).toBe('sync-machine-1');
-    expect(ws2Rows[ws2Rows.length - 1]!.machineId).toBe('sync-machine-1');
+    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-1')).toHaveLength(ws1Baseline);
+    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-2')).toHaveLength(ws2Baseline);
   });
 
-  test('soft-deleted workspaces are excluded from gitRefresh enqueue', async () => {
+  test('soft-deleted workspaces are still excluded from registration refreshes', async () => {
     const { sessionId } = await createTestSession('handoff-sync-user-2');
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'planner');
@@ -126,9 +120,25 @@ describe('Handoff-to-user workspace sync', () => {
 
     const activeRows = await findGitRefreshCommands('sync-machine-2', '/sync/ws-active');
     const removedRows = await findGitRefreshCommands('sync-machine-2', '/sync/ws-removed');
-    expect(activeRows).toHaveLength(activeBaseline + 1);
-    expect(activeRows[activeRows.length - 1]!.machineId).toBe('sync-machine-2');
+    expect(activeRows).toHaveLength(activeBaseline);
     expect(removedRows).toHaveLength(removedBaseline);
     expect(activeWs).not.toBe(removedWs);
+  });
+
+  test('machines.requestGitRefresh still enqueues one daemon.gitRefresh for the machine', async () => {
+    const { sessionId } = await createTestSession('handoff-sync-manual');
+    await registerMachineWithDaemon(sessionId, 'sync-machine-manual');
+
+    const before = (await findGitRefreshCommands('sync-machine-manual', '/sync/manual')).length;
+
+    await t.mutation(api.machines.requestGitRefresh, {
+      sessionId,
+      machineId: 'sync-machine-manual',
+      workingDir: '/sync/manual',
+    });
+
+    const rows = await findGitRefreshCommands('sync-machine-manual', '/sync/manual');
+    expect(rows).toHaveLength(before + 1);
+    expect(rows[rows.length - 1]!.machineId).toBe('sync-machine-manual');
   });
 });

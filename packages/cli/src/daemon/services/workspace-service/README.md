@@ -223,9 +223,3 @@ skip their bodies, and then awaits the chain to drain. This gap is not yet close
   is kept (`infrastructure/workspace-membership-source.ts`).
 - A failed presence read is logged, and every directory keeps its current activity
   (`service/workspace-service.ts`, `readActiveWorkingDirs`).
-
-## Follow-ups
-
-- **Remove the handoff-to-user enqueue.** `services/backend/convex/messages.ts` still calls
-  `requestSyncOnHandoffToUser`, which enqueues `daemon.gitRefresh` for every active workspace on each
-  handoff to the user. It is kept for older CLIs. Remove it once a minimum daemon version is enforced.
