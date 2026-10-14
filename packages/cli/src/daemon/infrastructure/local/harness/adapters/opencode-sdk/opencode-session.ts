@@ -85,12 +85,9 @@ export class OpencodeSdkSession implements DirectHarnessSession {
     turnPromise.catch(() => {});
 
     const TURN_TIMEOUT_MS = 300_000; // 5 minutes
-    const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(
-        () => reject(new Error('Timed out waiting for session execution to finish')),
-        TURN_TIMEOUT_MS
-      );
-    });
+    // The timeout timer is created only right before the wait and cleared in `finally`,
+    // so it never outlives the turn: no late unhandled rejection, no event-loop hold.
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     try {
       // V2 moved agent/model off the prompt body: select them on the session first.
@@ -111,6 +108,12 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 
       // Wait for the execution terminal event (delivered by the harness SSE fan-out) or timeout.
       // Rejects when the execution failed or was interrupted, so callers never treat it as success.
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Timed out waiting for session execution to finish')),
+          TURN_TIMEOUT_MS
+        );
+      });
       await Promise.race([turnPromise, timeoutPromise]);
       console.log(`[opencode-session] execution finished for session ${this.opencodeSessionId}`);
     } catch (err) {
@@ -120,6 +123,7 @@ export class OpencodeSdkSession implements DirectHarnessSession {
       // A missing terminal event or a failed execution is not successful completion.
       throw err;
     } finally {
+      if (timer !== undefined) clearTimeout(timer);
       // Never let a late terminal event settle a later turn.
       this._turnDoneResolve = null;
       this._turnDoneReject = null;

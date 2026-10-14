@@ -240,6 +240,69 @@ describe('OpencodeSdkSession', () => {
     vi.useRealTimers();
   });
 
+  it('clears the turn timeout once the execution succeeds', async () => {
+    vi.useFakeTimers();
+    mockPrompt.mockResolvedValue({});
+
+    const session = createSession();
+    session.onEvent(() => {});
+
+    const promptDone = session.prompt({ agent: 'build', parts: [{ type: 'text', text: 'hi' }] });
+    // Let the submission complete so the timeout is armed before the terminal event.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(1);
+
+    session._receiveEvent(turnDoneEvent() as never);
+    await promptDone;
+
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('arms no timeout when applying overrides throws, and nothing fires after 5 minutes', async () => {
+    vi.useFakeTimers();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    mockSwitchAgent.mockRejectedValueOnce(new Error('switch failed'));
+
+    const session = createSession();
+    session.onEvent(() => {});
+
+    await expect(
+      session.prompt({ agent: 'build', parts: [{ type: 'text', text: 'hi' }] })
+    ).rejects.toThrow('switch failed');
+    expect(vi.getTimerCount()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(300_001);
+    process.off('unhandledRejection', onUnhandled);
+    vi.useRealTimers();
+
+    expect(unhandled).toEqual([]);
+  });
+
+  it('arms no timeout when the prompt submission throws, and nothing fires after 5 minutes', async () => {
+    vi.useFakeTimers();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    mockPrompt.mockRejectedValueOnce(new Error('submit failed'));
+
+    const session = createSession();
+    session.onEvent(() => {});
+
+    await expect(session.prompt({ parts: [{ type: 'text', text: 'hi' }] })).rejects.toThrow(
+      'submit failed'
+    );
+    expect(vi.getTimerCount()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(300_001);
+    process.off('unhandledRejection', onUnhandled);
+    vi.useRealTimers();
+
+    expect(unhandled).toEqual([]);
+  });
+
   // ── onEvent() / _receiveEvent() ─────────────────────────────────────────────
   //
   // Event delivery: harness SSE fan-out pushes events via _receiveEvent() into the
