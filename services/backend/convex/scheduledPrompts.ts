@@ -350,6 +350,11 @@ export const fireOne = internalMutation({
     });
     if (!result.ok) return;
 
+    // Wake offline agents, matching the manual user-message path in messages.ts.
+    await ctx.scheduler.runAfter(0, internal.agents.startNonRunningAgentsForChatroom, {
+      chatroomId: row.chatroomId,
+    });
+
     const now = Date.now();
     const schedule = toScheduleRow(row);
     await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
