@@ -31,7 +31,7 @@ interface WorkspaceRef {
 function createMockDeps(workspaces: WorkspaceRef[], chatrooms: ChatroomRef[]): CheckAccessDeps {
   return {
     getMachineByMachineId: async () => null,
-    getWorkspacesForMachine: async (machineId: string) =>
+    getWorkspacesForMachine: (machineId: string) =>
       workspaces.filter((w) => w.machineId === machineId),
     getChatroom: async (chatroomId: string) => chatrooms.find((c) => c.id === chatroomId) ?? null,
   };
@@ -123,7 +123,7 @@ describe('checkAccess — machine write-access (chatroom membership)', () => {
     let getChatroomCallCount = 0;
     const deps: CheckAccessDeps = {
       getMachineByMachineId: async () => null,
-      getWorkspacesForMachine: async () => [
+      getWorkspacesForMachine: () => [
         { chatroomId: 'chatroom-1', machineId: 'machine-1' },
         { chatroomId: 'chatroom-1', machineId: 'machine-1' }, // duplicate
         { chatroomId: 'chatroom-1', machineId: 'machine-1' }, // duplicate

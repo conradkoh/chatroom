@@ -8,6 +8,7 @@
 import type { Id } from '../../convex/_generated/dataModel';
 import type { QueryCtx, MutationCtx } from '../../convex/_generated/server';
 import { str } from '../../convex/utils/types';
+import { isActiveWorkspace } from '../../src/domain/entities/workspace';
 import {
   checkAccess as checkAccessCore,
   requireAccess as requireAccessCore,
@@ -18,6 +19,22 @@ import {
 } from '../../src/domain/usecase/auth/extensions/check-access';
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
+
+/**
+ * Lazily stream a machine's active workspaces, skipping removed ones. The consumer stops at the
+ * first accessor-owned chatroom, so only the needed prefix of rows is read.
+ */
+async function* activeWorkspacesForMachine(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string
+): AsyncGenerator<{ chatroomId: string; machineId: string }> {
+  for await (const workspace of ctx.db
+    .query('chatroom_workspaces')
+    .withIndex('by_machine', (q) => q.eq('machineId', machineId))) {
+    if (!isActiveWorkspace(workspace.removedAt)) continue;
+    yield { chatroomId: str(workspace.chatroomId), machineId: workspace.machineId };
+  }
+}
 
 /**
  * Create Convex-backed dependencies for unified access checks.
@@ -40,18 +57,7 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
         ownerId: str(chatroom.ownerId),
       };
     },
-    getWorkspacesForMachine: async (machineId: string) => {
-      const workspaces = await ctx.db
-        .query('chatroom_workspaces')
-        .withIndex('by_machine', (q) => q.eq('machineId', machineId))
-        .collect();
-      return workspaces
-        .filter((w) => !w.removedAt)
-        .map((w) => ({
-          chatroomId: str(w.chatroomId),
-          machineId: w.machineId,
-        }));
-    },
+    getWorkspacesForMachine: (machineId: string) => activeWorkspacesForMachine(ctx, machineId),
   };
 }
 
