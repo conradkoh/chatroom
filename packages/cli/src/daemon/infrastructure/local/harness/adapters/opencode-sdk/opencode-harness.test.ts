@@ -219,6 +219,24 @@ describe('OpencodeSdkHarness', () => {
     ]);
   });
 
+  it('listProviders scopes provider.list to the working directory', async () => {
+    // Mirrors the server: without a location the catalogue is empty.
+    mockProviderList.mockImplementation((input?: { location?: { directory?: string } }) =>
+      Promise.resolve({
+        data:
+          input?.location?.directory === '/test/workspace'
+            ? [{ id: 'openai', name: 'OpenAI' }]
+            : [],
+      })
+    );
+
+    const harness = createHarness();
+    const providers = await harness.listProviders();
+
+    expect(mockProviderList).toHaveBeenCalledWith({ location: { directory: '/test/workspace' } });
+    expect(providers.map((p) => p.providerID)).toEqual(['openai']);
+  });
+
   // ── listAgents() ────────────────────────────────────────────────────────────
 
   it('listAgents publishes agent ids, not display names', async () => {

@@ -155,7 +155,7 @@ export class OpencodeSdkHarness implements BoundHarness {
   /** List providers with their enabled models. */
   async listProviders(): Promise<readonly PublishedProvider[]> {
     const [providersResult, modelsResult] = await Promise.all([
-      this.client.provider.list(),
+      this.client.provider.list({ location: { directory: this.cwd } }),
       this.client.model.list({ location: { directory: this.cwd } }),
     ]);
     const providers = providersResult.data ?? [];
