@@ -218,3 +218,40 @@ describe('appendTaskDeliveryHandoffSections — verifier gate', () => {
     expect(output).not.toContain('<verifier-gate>');
   });
 });
+
+describe('appendTaskDeliveryHandoffSections — solo verifier gate', () => {
+  // Solo has no builder, so the gate must direct the entry point to rework itself.
+  const SOLO_VERIFIER_TARGETS = ['architect', 'verifier', 'uiux-engineer', 'user'];
+
+  function renderSolo(overrides: Partial<TaskDeliveryParams> = {}): string {
+    return renderHandoffSections({
+      role: 'solo',
+      isEntryPoint: true,
+      availableHandoffTargets: SOLO_VERIFIER_TARGETS,
+      ...overrides,
+    });
+  }
+
+  test.each([['code' as const], ['code:enhanced' as const]])(
+    'solo entry point in %s includes the gate with self-rework',
+    (conversationMode) => {
+      const output = renderSolo({
+        conversationMode,
+        message: { _id: 'user-msg', senderRole: 'user' },
+      });
+
+      expect(output).toContain('<verifier-gate>');
+      expect(output).toContain('do it yourself, then request round 2');
+      expect(output).not.toContain('delegate to `builder`');
+    }
+  );
+
+  test('solo entry point in Chat mode omits the gate', () => {
+    const output = renderSolo({
+      conversationMode: 'chat',
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(output).not.toContain('<verifier-gate>');
+  });
+});

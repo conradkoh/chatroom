@@ -183,13 +183,14 @@ export function appendTaskDeliveryHandoffSections(
 
   if (
     shouldIncludeVerifierGate({
-      role: params.role,
       isEntryPoint: params.isEntryPoint,
       conversationMode: params.conversationMode,
       availableHandoffTargets: activeHandoffTargets,
     })
   ) {
-    appendVerifierGateGuidance(lines);
+    appendVerifierGateGuidance(lines, {
+      hasBuilder: activeHandoffTargets.some((target) => target.trim().toLowerCase() === 'builder'),
+    });
   }
 
   appendTaskDeliveryNextSteps(lines, activeParams);

@@ -3,7 +3,10 @@ import { describe, expect, test } from 'vitest';
 import { appendVerifierGateGuidance, shouldIncludeVerifierGate } from './verifier-gate-guidance';
 import { VERIFIER_VERDICTS } from '../teams/verifier-handoff-templates';
 
+/** Duo entry-point targets: a builder is advertised, so rework delegates. */
 const TARGETS_WITH_VERIFIER = ['architect', 'verifier', 'builder', 'user'] as const;
+/** Solo entry-point targets: no builder, so rework is done by the entry point. */
+const SOLO_TARGETS_WITH_VERIFIER = ['architect', 'verifier', 'uiux-engineer', 'user'] as const;
 const TARGETS_WITHOUT_VERIFIER = ['architect', 'builder', 'user'] as const;
 
 describe('shouldIncludeVerifierGate', () => {
@@ -11,10 +14,9 @@ describe('shouldIncludeVerifierGate', () => {
     ['code mode', { conversationMode: 'code' as const }],
     ['code:enhanced mode', { conversationMode: 'code:enhanced' as const }],
     ['legacy undefined mode', { conversationMode: undefined }],
-  ])('includes the gate for an entry-point planner in %s', (_label, overrides) => {
+  ])('includes the gate for an entry-point role in %s', (_label, overrides) => {
     expect(
       shouldIncludeVerifierGate({
-        role: 'planner',
         isEntryPoint: true,
         availableHandoffTargets: TARGETS_WITH_VERIFIER,
         ...overrides,
@@ -24,14 +26,10 @@ describe('shouldIncludeVerifierGate', () => {
 
   test.each([
     ['chat mode', { conversationMode: 'chat' as const }],
-    ['the builder role', { role: 'builder', conversationMode: 'code' as const }],
-    ['the architect role', { role: 'architect', conversationMode: 'code' as const }],
-    ['the verifier role', { role: 'verifier', conversationMode: 'code' as const }],
-    ['a non-entry-point planner', { isEntryPoint: false, conversationMode: 'code' as const }],
+    ['a non-entry-point role', { isEntryPoint: false, conversationMode: 'code' as const }],
   ])('excludes the gate for %s', (_label, overrides) => {
     expect(
       shouldIncludeVerifierGate({
-        role: 'planner',
         isEntryPoint: true,
         availableHandoffTargets: TARGETS_WITH_VERIFIER,
         ...overrides,
@@ -42,7 +40,6 @@ describe('shouldIncludeVerifierGate', () => {
   test('excludes the gate when verifier is not an advertised target', () => {
     expect(
       shouldIncludeVerifierGate({
-        role: 'planner',
         isEntryPoint: true,
         conversationMode: 'code',
         availableHandoffTargets: TARGETS_WITHOUT_VERIFIER,
@@ -53,19 +50,51 @@ describe('shouldIncludeVerifierGate', () => {
   test('matches the verifier target case-insensitively', () => {
     expect(
       shouldIncludeVerifierGate({
-        role: 'planner',
         isEntryPoint: true,
         conversationMode: 'code',
         availableHandoffTargets: ['Verifier'],
       })
     ).toBe(true);
   });
+
+  test.each([['code' as const], ['code:enhanced' as const]])(
+    'includes the gate for a solo entry point in %s',
+    (conversationMode) => {
+      expect(
+        shouldIncludeVerifierGate({
+          isEntryPoint: true,
+          conversationMode,
+          availableHandoffTargets: SOLO_TARGETS_WITH_VERIFIER,
+        })
+      ).toBe(true);
+    }
+  );
+
+  test('excludes the gate for a solo entry point in chat mode', () => {
+    expect(
+      shouldIncludeVerifierGate({
+        isEntryPoint: true,
+        conversationMode: 'chat',
+        availableHandoffTargets: SOLO_TARGETS_WITH_VERIFIER,
+      })
+    ).toBe(false);
+  });
+
+  test('excludes the gate for a solo entry point without a verifier target', () => {
+    expect(
+      shouldIncludeVerifierGate({
+        isEntryPoint: true,
+        conversationMode: 'code',
+        availableHandoffTargets: ['architect', 'uiux-engineer', 'user'],
+      })
+    ).toBe(false);
+  });
 });
 
 describe('appendVerifierGateGuidance', () => {
-  function renderGate(): string {
+  function renderGate(hasBuilder = true): string {
     const lines: string[] = ['existing line'];
-    appendVerifierGateGuidance(lines);
+    appendVerifierGateGuidance(lines, { hasBuilder });
     return lines.join('\n');
   }
 
@@ -106,5 +135,19 @@ describe('appendVerifierGateGuidance', () => {
 
   test('states the UNAVAILABLE delivery rule', () => {
     expect(renderGate()).toContain('Verifier review: UNAVAILABLE (<reason>)');
+  });
+
+  test('delegates rework to the builder when a builder is advertised', () => {
+    const output = renderGate(true);
+
+    expect(output).toContain('delegate to `builder`, then request round 2');
+    expect(output).not.toContain('do it yourself');
+  });
+
+  test('does the rework itself when no builder is advertised', () => {
+    const output = renderGate(false);
+
+    expect(output).toContain('do it yourself, then request round 2');
+    expect(output).not.toContain('delegate to `builder`');
   });
 });

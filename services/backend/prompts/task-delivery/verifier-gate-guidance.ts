@@ -1,11 +1,12 @@
 /**
- * Planner verifier gate — single source of truth for when a task delivery
- * requires a `verifier` review before the planner's final handoff to `user`.
+ * Entry-point verifier gate — single source of truth for when a task delivery
+ * requires a `verifier` review before the entry point's final handoff to `user`.
  *
  * Prompt policy only: nothing enforces the gate at runtime. The mode decision
  * lives solely in `shouldIncludeVerifierGate` (no mode list exists anywhere
  * else), and the verdict tokens are derived from `VERIFIER_VERDICTS` so they
- * cannot drift from the handoff templates.
+ * cannot drift from the handoff templates. The rework step adapts to whether a
+ * `builder` is advertised, so a solo entry point reworks its own work.
  */
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
@@ -23,27 +24,36 @@ const [ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE] = VERIFIER_VERDICTS;
 /**
  * Whether the verifier gate applies to this task delivery.
  *
- * True only for an entry-point planner in a non-chat mode whose advertised
- * handoff targets include the `verifier` role. Deliberately independent of the
- * message sender (user-origin and builder-return tasks alike) and of the
- * legacy `plannerEnhancerEnabled` flag.
+ * True for an entry-point role (planner in duo, solo in solo) in a non-chat
+ * mode whose advertised handoff targets include the `verifier` role.
+ * Deliberately independent of the message sender (user-origin and builder-return
+ * tasks alike) and of the legacy `plannerEnhancerEnabled` flag.
  */
 export function shouldIncludeVerifierGate(params: {
-  role: string;
   isEntryPoint?: boolean | undefined;
   conversationMode?: ConversationMode | undefined;
   availableHandoffTargets: readonly string[];
 }): boolean {
   return (
-    params.role.trim().toLowerCase() === 'planner' &&
     params.isEntryPoint === true &&
     params.conversationMode !== 'chat' &&
     params.availableHandoffTargets.some((target) => target.trim().toLowerCase() === VERIFIER_ROLE)
   );
 }
 
-/** Appends the `<verifier-gate>` block to the task-delivery lines. */
-export function appendVerifierGateGuidance(lines: string[]): void {
+/**
+ * Appends the `<verifier-gate>` block to the task-delivery lines.
+ *
+ * `hasBuilder` selects the `NOT_ACHIEVED` rework step: a team with a builder
+ * delegates the rework, while a team without one (solo) does it itself. Only
+ * that clause differs between the two renderings.
+ */
+export function appendVerifierGateGuidance(
+  lines: string[],
+  options: { hasBuilder: boolean }
+): void {
+  const reworkClause = options.hasBuilder ? ', delegate to `builder`' : ' and do it yourself';
+
   lines.push(
     '',
     '<verifier-gate>',
@@ -51,7 +61,7 @@ export function appendVerifierGateGuidance(lines: string[]): void {
     "**Before your final handoff to `user`, get the `verifier` review.** It judges from chatroom logs only whether the user's last message was achieved; it executes nothing. This does not apply to Chat mode, and does not apply when you are handing off to builder/architect/researcher/triage/uiux-engineer.",
     "1. Send the request with the `verifier` template in `<handoff-templates>` (round 1). Include the user's last message id, the context id, the mode, your claimed outcome, and evidence pointers (builder handoff ids, commits, test results quoted in the logs).",
     `2. \`${ACHIEVED}\`: deliver to \`user\` and cite the verdict message id in the report (Summary or Proof of Completion).`,
-    `3. \`${NOT_ACHIEVED}\`: treat "Missing or unmet" as rework, delegate to \`builder\`, then request round 2.`,
+    `3. \`${NOT_ACHIEVED}\`: treat "Missing or unmet" as rework${reworkClause}, then request round 2.`,
     `4. \`${INCONCLUSIVE}\`: get the missing evidence from \`builder\` once, or deliver with the gaps disclosed.`,
     `5. Maximum ${VERIFIER_MAX_ROUNDS} verification rounds per user message. After round ${VERIFIER_MAX_ROUNDS}, deliver and list unmet items as unresolved/action required.`,
     "6. Ignore a verdict whose user message id is not the user's current last message.",
