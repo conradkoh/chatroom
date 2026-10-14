@@ -2,7 +2,7 @@
  * PiSdkHarness — BoundHarness implementation using @earendil-works/pi-coding-agent in-process.
  */
 
-import type { AgentSession } from '@earendil-works/pi-coding-agent';
+import type { AgentSession, ModelRuntime } from '@earendil-works/pi-coding-agent';
 
 import { PiSdkSession } from './pi-session.js';
 import type {
@@ -43,16 +43,15 @@ async function loadSdk(): Promise<LoadedPiSdk> {
   }
 }
 
-type PiModelRegistry = ReturnType<LoadedPiSdk['ModelRegistry']['create']>;
-type PiAuthStorage = ReturnType<LoadedPiSdk['AuthStorage']['create']>;
 type PiSessionManager = ReturnType<LoadedPiSdk['SessionManager']['create']>;
 
-function resolveRequiredModel(modelRegistry: PiModelRegistry, model: string) {
+/** Resolves `provider/id` via getModel, or a bare `id` by searching the chat models. */
+function resolveRequiredModel(modelRuntime: ModelRuntime, model: string) {
   const slash = model.indexOf('/');
   const resolved =
     slash === -1
-      ? modelRegistry.getAll().find((entry: { id: string }) => entry.id === model)
-      : modelRegistry.find(model.slice(0, slash), model.slice(slash + 1));
+      ? modelRuntime.getModels().find((entry) => entry.id === model)
+      : modelRuntime.getModel(model.slice(0, slash), model.slice(slash + 1));
   if (!resolved) {
     throw new Error(`Pi model not found: ${model}`);
   }
@@ -66,17 +65,15 @@ export class PiSdkHarness implements BoundHarness {
   readonly cwd: string;
   private closed = false;
   private readonly sessions = new Map<string, PiSdkSession>();
-  private readonly modelRegistry: PiModelRegistry;
-  private readonly authStorage: PiAuthStorage;
+  private readonly modelRuntime: ModelRuntime;
 
-  constructor(cwd: string, modelRegistry: PiModelRegistry, authStorage: PiAuthStorage) {
+  constructor(cwd: string, modelRuntime: ModelRuntime) {
     this.cwd = cwd;
-    this.modelRegistry = modelRegistry;
-    this.authStorage = authStorage;
+    this.modelRuntime = modelRuntime;
   }
 
   async models(): Promise<readonly ModelInfo[]> {
-    return this.modelRegistry.getAvailable().map((entry: { provider: string; id: string }) => ({
+    return (await this.modelRuntime.getAvailable()).map((entry) => ({
       id: `${entry.provider}/${entry.id}`,
       name: entry.id,
       provider: entry.provider,
@@ -90,7 +87,7 @@ export class PiSdkHarness implements BoundHarness {
   async listProviders(): Promise<readonly PublishedProvider[]> {
     const byProvider = new Map<string, { modelID: string; name: string }[]>();
 
-    for (const entry of this.modelRegistry.getAvailable() as { provider: string; id: string }[]) {
+    for (const entry of await this.modelRuntime.getAvailable()) {
       const models = byProvider.get(entry.provider) ?? [];
       models.push({ modelID: entry.id, name: entry.id });
       byProvider.set(entry.provider, models);
@@ -188,11 +185,11 @@ export class PiSdkHarness implements BoundHarness {
     const modelSlug = parsed?.model ?? args.model;
     const resolvedModel = args.requireModel
       ? resolveRequiredModel(
-          this.modelRegistry,
+          this.modelRuntime,
           requireHarnessModel(modelSlug, 'pi-sdk openAgentSession')
         )
       : modelSlug
-        ? resolveRequiredModel(this.modelRegistry, modelSlug)
+        ? resolveRequiredModel(this.modelRuntime, modelSlug)
         : undefined;
     const thinkingLevel = resolvePiThinkingLevel(parsed?.thinking);
 
@@ -213,8 +210,7 @@ export class PiSdkHarness implements BoundHarness {
       createAgentSession({
         cwd: this.cwd,
         sessionManager: args.sessionManager,
-        authStorage: this.authStorage,
-        modelRegistry: this.modelRegistry,
+        modelRuntime: this.modelRuntime,
         resourceLoader,
         ...(resolvedModel ? { model: resolvedModel } : {}),
         ...(thinkingLevel ? { thinkingLevel } : {}),
@@ -229,13 +225,12 @@ export class PiSdkHarness implements BoundHarness {
 
 export const startPiSdkHarness: BoundHarnessFactory = async (config) => {
   try {
-    const { AuthStorage, ModelRegistry } = await loadSdk();
-    const authStorage = AuthStorage.create();
-    const modelRegistry = ModelRegistry.create(authStorage);
-    if (modelRegistry.getAvailable().length === 0) {
+    const sdk = await loadSdk();
+    const modelRuntime = await sdk.ModelRuntime.create();
+    if ((await modelRuntime.getAvailable()).length === 0) {
       throw new Error('No Pi models available');
     }
-    return new PiSdkHarness(config.workingDir, modelRegistry, authStorage);
+    return new PiSdkHarness(config.workingDir, modelRuntime);
   } catch (err) {
     throw new Error(`pi-sdk unavailable: ${formatPiSdkLoadError(err)}`);
   }

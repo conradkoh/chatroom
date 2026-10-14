@@ -8,6 +8,7 @@ import type {
   PromptInput,
 } from '../../../../../domain/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
+import { assistantErrorOf } from '../../services/pi-sdk/assistant-error.js';
 import { withTimeout } from '../../services/with-timeout.js';
 
 const PROMPT_TIMEOUT_MS = 3_600_000;
@@ -16,7 +17,7 @@ export interface PiSdkSessionOptions {
   readonly session: AgentSession;
   readonly opencodeSessionId: string;
   readonly sessionTitle: string;
-  readonly onClose?:( (sessionId: string) => void) | undefined;
+  readonly onClose?: ((sessionId: string) => void) | undefined;
 }
 
 export class PiSdkSession implements DirectHarnessSession {
@@ -27,10 +28,12 @@ export class PiSdkSession implements DirectHarnessSession {
   }
 
   private readonly session: AgentSession;
-  private readonly onClose?:( (sessionId: string) => void) | undefined;
+  private readonly onClose?: ((sessionId: string) => void) | undefined;
   private readonly listeners = new Set<(event: DirectHarnessSessionEvent) => void>();
   private closed = false;
-  private unsubscribe?:( () => void) | undefined;
+  private unsubscribe?: (() => void) | undefined;
+  /** Provider error of the latest assistant message in the current prompt, or undefined when it succeeded. */
+  private lastAssistantError: string | undefined;
 
   constructor(options: PiSdkSessionOptions) {
     this.session = options.session;
@@ -49,8 +52,13 @@ export class PiSdkSession implements DirectHarnessSession {
     const text = input.parts.map((p) => p.text).join('\n');
     const messageId = randomUUID();
 
+    this.lastAssistantError = undefined;
     const onSessionEvent = (event: AgentSessionEvent) => {
       if (this.closed) return;
+      if (event.type === 'message_end' && event.message.role === 'assistant') {
+        // A retried error that later succeeds clears here, so only the final outcome counts.
+        this.lastAssistantError = assistantErrorOf(event);
+      }
       this.emitFromPiEvent(event, messageId);
     };
 
@@ -59,6 +67,10 @@ export class PiSdkSession implements DirectHarnessSession {
 
     await withTimeout(this.session.prompt(text), PROMPT_TIMEOUT_MS, 'session.prompt');
 
+    // Direct-session convention: a provider failure rejects prompt() and emits no session.idle.
+    if (this.lastAssistantError !== undefined) {
+      throw new Error(this.lastAssistantError);
+    }
     this.emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
   }
 

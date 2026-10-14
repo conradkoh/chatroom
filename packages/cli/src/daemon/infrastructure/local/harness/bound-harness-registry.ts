@@ -92,10 +92,9 @@ async function isCursorSdkInstalled(): Promise<boolean> {
 async function isPiSdkInstalled(): Promise<boolean> {
   try {
     const { importBundledPiSdk } = await import('./services/pi-sdk/pi-sdk-package.js');
-    const { ModelRegistry, AuthStorage } = await importBundledPiSdk();
-    const authStorage = AuthStorage.create();
-    const modelRegistry = ModelRegistry.create(authStorage);
-    return modelRegistry.getAvailable().length > 0;
+    const { ModelRuntime } = await importBundledPiSdk();
+    const modelRuntime = await ModelRuntime.create();
+    return (await modelRuntime.getAvailable()).length > 0;
   } catch {
     return false;
   }
