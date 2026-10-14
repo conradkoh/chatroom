@@ -299,7 +299,7 @@ override async stop(pid: number): Promise<void> {
 }
 ```
 
-See `cursor-sdk-agent-service.ts` and `opencode-sdk-agent-service.ts` (session abort + forwarder stop).
+See `cursor-sdk-agent-service.ts` and `opencode-sdk-agent-service.ts` (session interrupt + forwarder stop).
 
 ### 4.6 Server + client variant (`opencode-sdk`)
 
@@ -309,7 +309,7 @@ Some SDKs expect a local server:
 2. Parse listening URL from stdout (`waitForListeningUrl`)
 3. Create SDK client pointed at that URL
 4. Create session, send prompt, forward events via `SessionEventForwarder`
-5. Track session metadata by PID for `stop()` to call `session.abort`
+5. Track session metadata by PID for `stop()` to call `session.interrupt`
 
 The spawned server PID is the tracked PID (no separate keeper needed).
 
