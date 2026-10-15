@@ -48,6 +48,39 @@ async function waitForCanvasReady(canvas: Locator) {
     })
     .toBeGreaterThan(0);
 }
+const countRedPixels = (canvas: Locator) =>
+  canvas.evaluate((el) => {
+    const ctx = (el as HTMLCanvasElement).getContext('2d');
+    if (!ctx) return 0;
+    const { data } = ctx.getImageData(
+      0,
+      0,
+      (el as HTMLCanvasElement).width,
+      (el as HTMLCanvasElement).height
+    );
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4)
+      if (data[i] > 200 && data[i + 1] < 60 && data[i + 2] < 60 && data[i + 3] > 0) count++;
+    return count;
+  });
+async function writeRedPngToClipboard(page: Page) {
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 120;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('missing 2d context');
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (value) => (value ? resolve(value) : reject(new Error('toBlob failed'))),
+        'image/png'
+      )
+    );
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  });
+}
 test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test.describe('desktop', () => {
     test.describe.configure({ mode: 'serial' });
@@ -170,6 +203,22 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await page.getByRole('button', { name: 'Keep editing' }).click();
       await expect(page.getByRole('button', { name: 'Discard sketch' })).toBeHidden();
       await expect(canvas).toBeVisible();
+    });
+    test.describe('clipboard paste', () => {
+      test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+      test('pasting an image after drawing adds a layer with pixels', async ({ page }) => {
+        await openSketch(page);
+        const canvas = page.getByLabel('Sketch canvas');
+        await mouseStroke(page, canvas);
+        await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
+        // Drawing a stroke moves focus off the tool rail onto the dialog popup. The paste
+        // event dispatches at document.activeElement, so a handler on a descendant never fires.
+        expect(await countRedPixels(canvas)).toBe(0);
+        await writeRedPngToClipboard(page);
+        await page.keyboard.press('ControlOrMeta+V');
+        await expect(page.getByText(/Pasted image 1/)).toBeVisible();
+        await expect.poll(() => countRedPixels(canvas), { timeout: 5000 }).toBeGreaterThan(0);
+      });
     });
   });
   test.describe('mobile', () => {

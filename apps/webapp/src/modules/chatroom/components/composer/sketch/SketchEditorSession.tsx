@@ -75,7 +75,7 @@ export function SketchEditorSession({
     disabled: brushInputDisabled,
     eraserMode: activeTool === 'eraser',
   });
-  const { onPaste, isImporting } = useSketchClipboardPaste({
+  const { isImporting } = useSketchClipboardPaste({
     disabled: isSaving,
     importPastedImage,
     onTransformRequested: () => setActiveTool('transform'),
@@ -193,11 +193,7 @@ export function SketchEditorSession({
     onDismiss();
   }, [onDismiss]);
   return (
-    <div
-      aria-busy={isSaving || isImporting}
-      onPaste={onPaste}
-      className="flex min-h-0 flex-1 flex-col"
-    >
+    <div aria-busy={isSaving || isImporting} className="flex min-h-0 flex-1 flex-col">
       <DialogHeader className="min-h-12 shrink-0 justify-center border-b-2 border-chatroom-border px-4 pr-12 text-left">
         <DialogTitle>Sketch attachment</DialogTitle>
       </DialogHeader>
