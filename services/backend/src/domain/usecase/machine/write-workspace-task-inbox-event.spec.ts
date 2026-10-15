@@ -8,7 +8,10 @@ import { createTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { writeWorkspaceTaskInboxEvent } from './write-workspace-task-inbox-event';
+import {
+  toWorkspaceTaskInboxTaskHeader,
+  writeWorkspaceTaskInboxEvent,
+} from './write-workspace-task-inbox-event';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -90,6 +93,41 @@ async function listInboxEvents(chatroomId: Id<'chatroom_rooms'>, taskId: Id<'cha
       .collect();
   });
 }
+
+describe('toWorkspaceTaskInboxTaskHeader', () => {
+  test('keeps only the header keys and drops legacy fat fields', () => {
+    const legacyTask = {
+      taskId: 'task_1' as Id<'chatroom_tasks'>,
+      chatroomId: 'room_1' as Id<'chatroom_rooms'>,
+      status: 'pending',
+      createdAt: 100,
+      updatedAt: 200,
+      createdBy: 'user',
+      content: 'heavy content',
+      queuePosition: 3,
+      taskEnvelope: { anything: true },
+    };
+
+    const header = toWorkspaceTaskInboxTaskHeader(legacyTask);
+
+    expect(header).toEqual({
+      taskId: 'task_1',
+      chatroomId: 'room_1',
+      status: 'pending',
+      createdAt: 100,
+      updatedAt: 200,
+    });
+    expect(Object.keys(header).sort()).toEqual(
+      ['chatroomId', 'createdAt', 'status', 'taskId', 'updatedAt'].sort()
+    );
+    expect(header).not.toHaveProperty('assignedTo');
+    expect(header).not.toHaveProperty('startInNewSession');
+    expect(header).not.toHaveProperty('content');
+    expect(header).not.toHaveProperty('taskEnvelope');
+    expect(header).not.toHaveProperty('queuePosition');
+    expect(header).not.toHaveProperty('createdBy');
+  });
+});
 
 describe('writeWorkspaceTaskInboxEvent', () => {
   test('persists only the slim task header', async () => {

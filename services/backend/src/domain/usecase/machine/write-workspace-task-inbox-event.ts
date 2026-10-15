@@ -9,13 +9,26 @@ import {
   WorkspaceTaskInboxEventStatus,
   WorkspaceTaskAssigneeType,
   WorkspaceTaskInboxEventType,
+  type WorkspaceTaskInboxTaskHeader,
 } from '../../entities/chatroom-workspace-task-inbox';
 import { listLastSentLaunchRequestsForChatroom } from '../agent/get-last-sent-launch-request';
 
-/** Builds the slim task header stored on inbox events; content stays on chatroom_tasks. */
-function toWorkspaceTaskInboxTaskHeader(task: Doc<'chatroom_tasks'>) {
+/**
+ * Builds the slim task header stored on inbox events and served by `listPending`.
+ * Single picker shared by the writer and the view; it keeps only the header keys,
+ * so content stays on `chatroom_tasks`.
+ */
+export function toWorkspaceTaskInboxTaskHeader(task: {
+  taskId: Id<'chatroom_tasks'>;
+  chatroomId: Id<'chatroom_rooms'>;
+  status: string;
+  assignedTo?: string;
+  createdAt: number;
+  updatedAt: number;
+  startInNewSession?: boolean;
+}): WorkspaceTaskInboxTaskHeader {
   return omitUndefined({
-    taskId: task._id,
+    taskId: task.taskId,
     chatroomId: task.chatroomId,
     status: task.status,
     assignedTo: task.assignedTo,
@@ -40,7 +53,7 @@ export async function writeWorkspaceTaskInboxEvent(
     chatroomId: task.chatroomId,
   });
 
-  const taskPayload = toWorkspaceTaskInboxTaskHeader(task);
+  const taskPayload = toWorkspaceTaskInboxTaskHeader({ ...task, taskId: task._id });
 
   const targets = new Map<
     string,

@@ -5,10 +5,8 @@ import type { Doc } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { omitUndefined } from './lib/omitUndefined';
-import {
-  WorkspaceTaskInboxEventStatus,
-  type WorkspaceTaskInboxTaskHeader,
-} from '../src/domain/entities/chatroom-workspace-task-inbox';
+import { WorkspaceTaskInboxEventStatus } from '../src/domain/entities/chatroom-workspace-task-inbox';
+import { toWorkspaceTaskInboxTaskHeader } from '../src/domain/usecase/machine/write-workspace-task-inbox-event';
 
 /**
  * Header-only view of an inbox row for the delivery path. Drops deprecated top-level agent
@@ -16,16 +14,6 @@ import {
  * Heavy task content is loaded from `chatroom_tasks` by the daemon's one-shot loaders.
  */
 function toPendingInboxEventView(row: Doc<'chatroomWorkspaceTaskInbox'>) {
-  const { task } = row;
-  const header: WorkspaceTaskInboxTaskHeader = omitUndefined({
-    taskId: task.taskId,
-    chatroomId: task.chatroomId,
-    status: task.status,
-    assignedTo: task.assignedTo,
-    createdAt: task.createdAt,
-    updatedAt: task.updatedAt,
-    startInNewSession: task.startInNewSession,
-  });
   return omitUndefined({
     _id: row._id,
     machineId: row.machineId,
@@ -36,8 +24,7 @@ function toPendingInboxEventView(row: Doc<'chatroomWorkspaceTaskInbox'>) {
     eventType: row.eventType,
     status: row.status,
     createdAt: row.createdAt,
-    processedAt: row.processedAt,
-    task: header,
+    task: toWorkspaceTaskInboxTaskHeader(row.task),
   });
 }
 

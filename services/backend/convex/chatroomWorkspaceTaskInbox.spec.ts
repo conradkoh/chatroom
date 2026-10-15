@@ -122,6 +122,7 @@ describe('chatroomWorkspaceTaskInbox', () => {
       expect(pending[0]).not.toHaveProperty(legacyField);
       expect(pending[0].task).not.toHaveProperty(legacyField);
     }
+    expect(pending[0]).not.toHaveProperty('processedAt');
   });
 
   test('returns the same header-only view for a slim row', async () => {
