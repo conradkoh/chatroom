@@ -31,13 +31,14 @@ Track remediation progress here. Update status and PR links as work lands.
 | `closed` | Won't pursue or superseded by another approach |
 | `done`   | Remediated and verified                        |
 
-| Item                                                                | Status | PR  |
-| ------------------------------------------------------------------- | ------ | --- |
-| **P1.** Separate durable workspace history from the live daemon set | open   |     |
-| **P2.** Make operational-status delivery active-only or incremental | open   |     |
-| **P3.** Slim the web-app sidebar subscriptions                      | open   |     |
-| **P4.** Suppress no-op projection writes                            | open   |     |
-| **P5.** Measure observer count and serialized result size           | open   |     |
+| Item                                                                | Status | PR                                    |
+| ------------------------------------------------------------------- | ------ | ------------------------------------- |
+| **P1.** Separate durable workspace history from the live daemon set | open   |                                       |
+| **P2.** Make operational-status delivery active-only or incremental | open   |                                       |
+| **P3.** Slim the web-app sidebar subscriptions                      | open   |                                       |
+| **P4.** Suppress no-op projection writes                            | open   |                                       |
+| **P5.** Measure observer count and serialized result size           | open   |                                       |
+| **P6.** Slim the workspace task inbox delivery payload              | done   | `df0244cad`, `230166eb1`, `f57dbc3d3` |
 
 ## Scenario under review
 
@@ -130,6 +131,19 @@ Frontend chatroom observations are also throttled, but each observation can upda
 
 The operational-status projection has stronger no-op suppression. The role-status read model should receive equivalent equality suppression for fields that are not meaningfully changed.
 
+### 8. Workspace task inbox carried full task snapshots
+
+`chatroomWorkspaceTaskInbox.listPending` used 133.36 MB of production bandwidth because each inbox row copied the complete `chatroom_tasks` document, including `content` and `taskEnvelope`. The delivery path only needs a small header; the daemon loads task content on demand through `machines.getAssignedTaskForAction` and `messages.getTaskDeliveryPrompt`.
+
+Status: inbox rows store only the slim header (`df0244cad`), `listPending` returns a header-only view so legacy fat rows are also stripped on the wire (`230166eb1`), and the daemon contract is narrowed to the header (`f57dbc3d3`).
+
+Residual cost: while a machine drains pending work, the delivery loop re-runs `listPending` after each acknowledgement, giving an O(N²) re-read at roughly 0.5 KB per pending row. Pending sets are normally 0–3 rows, so this is small relative to the removed snapshot payload.
+
+Follow-ups (recorded only, not implemented here):
+
+- a TTL cleanup for processed `chatroomWorkspaceTaskInbox` rows, tracked in `docs/cleanup-policies.md`; and
+- a migration to strip the deprecated task fields from existing rows.
+
 ## Screenshot interpretation
 
 The screenshot is consistent with the following priority order:
@@ -184,3 +198,6 @@ The screenshot alone cannot determine how much of each total is steady-state idl
 - `services/backend/src/domain/usecase/agent/project-agent-role-status-read-model.ts`
 - `apps/webapp/src/modules/chatroom/components/AgentSettingsModal.tsx`
 - `services/backend/config/reliability.ts` — observation and recency windows
+- `services/backend/convex/chatroomWorkspaceTaskInbox.ts` — header-only `listPending` projection
+- `services/backend/src/domain/usecase/machine/write-workspace-task-inbox-event.ts` — slim header writer
+- `packages/cli/src/daemon/services/task-service/infrastructure/adapters/convex-native-task-delivery-gateway.ts` — daemon header contract
