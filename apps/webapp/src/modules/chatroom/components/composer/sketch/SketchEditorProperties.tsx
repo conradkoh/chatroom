@@ -128,7 +128,7 @@ export function SketchEditorProperties({
                 onClick={onCancelFloating}
                 className={chatroomIndustrialButtonSecondaryClassName}
               >
-                Cancel
+                Cancel transform
               </button>
             </div>
           ) : null}

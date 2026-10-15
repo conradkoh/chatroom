@@ -188,6 +188,16 @@ export function SketchEditorSession({
     setDiscardOpen(true);
   }, [cancelFloatingSelection, floating, hasContent, isSaving, onDismiss]);
   useEffect(() => registerRequestDismiss(requestDismiss), [registerRequestDismiss, requestDismiss]);
+  // The footer's Close button must not silently drop a pending floating paste the way the
+  // registered dismiss path (Escape / close) does; route it through the discard confirm.
+  const requestCloseFromFooter = useCallback(() => {
+    if (isSaving) return;
+    if (!hasContent && !floating) {
+      onDismiss();
+      return;
+    }
+    setDiscardOpen(true);
+  }, [floating, hasContent, isSaving, onDismiss]);
   const confirmDiscard = useCallback(() => {
     setDiscardOpen(false);
     onDismiss();
@@ -242,7 +252,7 @@ export function SketchEditorSession({
         className="shrink-0 px-4 py-3 lg:px-5"
         isSaving={isSaving}
         hasContent={hasContent}
-        onDismiss={requestDismiss}
+        onDismiss={requestCloseFromFooter}
         onSave={save}
         isImporting={isImporting}
       />

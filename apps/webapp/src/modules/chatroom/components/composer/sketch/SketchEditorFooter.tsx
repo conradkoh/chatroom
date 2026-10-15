@@ -33,7 +33,7 @@ export function SketchEditorFooter({
         disabled={isSaving}
         onClick={onDismiss}
       >
-        Cancel
+        Close
       </button>
       <button
         type="button"
