@@ -12,6 +12,19 @@ import {
 } from '../../entities/chatroom-workspace-task-inbox';
 import { listLastSentLaunchRequestsForChatroom } from '../agent/get-last-sent-launch-request';
 
+/** Builds the slim task header stored on inbox events; content stays on chatroom_tasks. */
+function toWorkspaceTaskInboxTaskHeader(task: Doc<'chatroom_tasks'>) {
+  return omitUndefined({
+    taskId: task._id,
+    chatroomId: task.chatroomId,
+    status: task.status,
+    assignedTo: task.assignedTo,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    startInNewSession: task.startInNewSession,
+  });
+}
+
 /** Writes a task lifecycle event to every remote agent responsible for the task's role. */
 export async function writeWorkspaceTaskInboxEvent(
   ctx: MutationCtx,
@@ -27,34 +40,7 @@ export async function writeWorkspaceTaskInboxEvent(
     chatroomId: task.chatroomId,
   });
 
-  const taskPayload = omitUndefined({
-    taskId: task._id,
-    chatroomId: task.chatroomId,
-    createdBy: task.createdBy,
-    content: task.content,
-    status: task.status,
-    assignedTo: task.assignedTo,
-    sourceMessageId: task.sourceMessageId,
-    attachedTaskIds: task.attachedTaskIds,
-    origin: task.origin,
-    complexity: task.complexity,
-    value: task.value,
-    priority: task.priority,
-    parentTaskIds: task.parentTaskIds,
-    createdAt: task.createdAt,
-    updatedAt: task.updatedAt,
-    acknowledgedAt: task.acknowledgedAt,
-    startedAt: task.startedAt,
-    completedAt: task.completedAt,
-    queuePosition: task.queuePosition,
-    plannerEnhancerEnabled: task.plannerEnhancerEnabled,
-    conversationMode: task.conversationMode,
-    originUserMessageId: task.originUserMessageId,
-    enhancerEnabledAtEnqueue: task.enhancerEnabledAtEnqueue,
-    startInNewSession: task.startInNewSession,
-    taskEnvelope: task.taskEnvelope,
-    sessionPolicyConsumedAt: task.sessionPolicyConsumedAt,
-  });
+  const taskPayload = toWorkspaceTaskInboxTaskHeader(task);
 
   const targets = new Map<
     string,

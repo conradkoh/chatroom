@@ -1,5 +1,5 @@
 import { AgentRoleLifecycleTag as WorkspaceTaskAssigneeType } from '@workspace/shared/domain/agent-role';
-import { v } from 'convex/values';
+import { type Infer, v } from 'convex/values';
 
 export enum WorkspaceTaskInboxEventType {
   TaskAssigned = 'task_assigned',
@@ -37,14 +37,29 @@ const workspaceTaskInboxEventStatusValidator = v.union(
   v.literal(WorkspaceTaskInboxEventStatus.Processed)
 );
 
-/** The complete task payload needed by a daemon to handle an assignment. */
-const workspaceTaskInboxTaskValidator = v.object({
+/**
+ * Task fields the daemon consumes from an inbox event. Heavy content is loaded on demand.
+ * Intended for the Slice 2 `listPending` view, hence the unused-export suppression.
+ */
+// fallow-ignore-next-line unused-export
+export const workspaceTaskInboxTaskHeaderFields = {
   taskId: v.id('chatroom_tasks'),
   chatroomId: v.id('chatroom_rooms'),
-  createdBy: v.string(),
-  content: v.string(),
   status: v.string(),
   assignedTo: v.optional(v.string()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  startInNewSession: v.optional(v.boolean()),
+};
+
+/**
+ * @deprecated Legacy snapshot fields. No longer written. Present only on rows written before
+ * the slim header. Read task content from `chatroom_tasks` instead.
+ */
+const legacyWorkspaceTaskInboxTaskFields = {
+  createdBy: v.optional(v.string()), // was required
+  content: v.optional(v.string()), // was required
+  queuePosition: v.optional(v.number()), // was required
   sourceMessageId: v.optional(v.id('chatroom_messages')),
   attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   origin: v.optional(v.string()),
@@ -52,20 +67,26 @@ const workspaceTaskInboxTaskValidator = v.object({
   value: v.optional(v.string()),
   priority: v.optional(v.number()),
   parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
-  createdAt: v.number(),
-  updatedAt: v.number(),
   acknowledgedAt: v.optional(v.number()),
   startedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),
-  queuePosition: v.number(),
   plannerEnhancerEnabled: v.optional(v.boolean()),
   conversationMode: v.optional(v.string()),
   originUserMessageId: v.optional(v.id('chatroom_messages')),
   enhancerEnabledAtEnqueue: v.optional(v.boolean()),
-  startInNewSession: v.optional(v.boolean()),
   taskEnvelope: v.optional(v.any()),
   sessionPolicyConsumedAt: v.optional(v.number()),
+};
+
+const workspaceTaskInboxTaskValidator = v.object({
+  ...workspaceTaskInboxTaskHeaderFields,
+  ...legacyWorkspaceTaskInboxTaskFields,
 });
+
+// fallow-ignore-next-line unused-export
+export const workspaceTaskInboxTaskHeaderValidator = v.object(workspaceTaskInboxTaskHeaderFields);
+// fallow-ignore-next-line unused-type
+export type WorkspaceTaskInboxTaskHeader = Infer<typeof workspaceTaskInboxTaskHeaderValidator>;
 
 const workspaceTaskInboxEventFields = {
   machineId: v.string(),
