@@ -35,7 +35,7 @@ export function getTriageToEntryPointHandoffTemplate(entryPointRole: string): st
 
 ## Handoff Template (Triage → ${entryPoint})
 
-Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Use the exact sections below. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
+Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
 
 ## Summary
 <briefly state the diagnosis and whether the root cause was confirmed or remains a hypothesis>
