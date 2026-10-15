@@ -56,28 +56,47 @@ const workspaceTaskInboxTaskHeaderValidator = v.object(workspaceTaskInboxTaskHea
 export type WorkspaceTaskInboxTaskHeader = Infer<typeof workspaceTaskInboxTaskHeaderValidator>;
 
 /**
- * @deprecated Legacy snapshot fields. No longer written. Present only on rows written before
- * the slim header. Read task content from `chatroom_tasks` instead.
+ * Legacy task snapshot fields. The writer no longer sets them. They exist only so rows written
+ * before the slim header still validate. Read task content from `chatroom_tasks` instead.
  */
 const legacyWorkspaceTaskInboxTaskFields = {
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   createdBy: v.optional(v.string()), // was required
+  /** @deprecated No longer written. Read content from `chatroom_tasks`. */
   content: v.optional(v.string()), // was required
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   queuePosition: v.optional(v.number()), // was required
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   sourceMessageId: v.optional(v.id('chatroom_messages')),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   origin: v.optional(v.string()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   complexity: v.optional(v.string()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   value: v.optional(v.string()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   priority: v.optional(v.number()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   acknowledgedAt: v.optional(v.number()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   startedAt: v.optional(v.number()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   completedAt: v.optional(v.number()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   plannerEnhancerEnabled: v.optional(v.boolean()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   conversationMode: v.optional(v.string()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   originUserMessageId: v.optional(v.id('chatroom_messages')),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   enhancerEnabledAtEnqueue: v.optional(v.boolean()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   taskEnvelope: v.optional(v.any()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   sessionPolicyConsumedAt: v.optional(v.number()),
 };
 
