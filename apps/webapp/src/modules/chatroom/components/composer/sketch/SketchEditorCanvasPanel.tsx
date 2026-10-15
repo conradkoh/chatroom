@@ -21,6 +21,7 @@ export type SketchEditorCanvasPanelProps = Pick<
   selectionBindings?: UseSketchDocumentResult['canvasBindings'];
   activeTool?: SketchToolId;
   showBrushCursor?: boolean;
+  manipulationCursor?: string;
   manipulationBindings?: UseSketchDocumentResult['canvasBindings'];
 };
 
@@ -33,6 +34,7 @@ export function SketchEditorCanvasPanel({
   selectionBindings,
   activeTool,
   showBrushCursor,
+  manipulationCursor,
   manipulationBindings,
 }: SketchEditorCanvasPanelProps) {
   return (
@@ -48,10 +50,15 @@ export function SketchEditorCanvasPanel({
             ? 'cursor-not-allowed opacity-60'
             : showBrushCursor
               ? 'cursor-none'
-              : 'cursor-crosshair',
+              : manipulationCursor
+                ? ''
+                : 'cursor-crosshair',
           'ring-2 ring-chatroom-border'
         )}
-        style={{ backgroundColor: SKETCH_CANVAS_BACKGROUND }}
+        style={{
+          backgroundColor: SKETCH_CANVAS_BACKGROUND,
+          ...(!disabled && manipulationCursor ? { cursor: manipulationCursor } : null),
+        }}
         {...(activeTool === 'select'
           ? selectionBindings
           : activeTool === 'move' || activeTool === 'transform'

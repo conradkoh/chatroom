@@ -149,10 +149,10 @@ export function SketchEditorSession({
         onPointerLeave: brushCursorBindings.onPointerLeave,
       }
     : canvasBindings;
-  const { manipulationBindings } = useSketchManipulation({
+  const { manipulationBindings, cursor } = useSketchManipulation({
     canvasRef,
     overlayRef,
-    activeTool: activeTool === 'transform' ? 'transform' : 'move',
+    activeTool,
     disabled: inputDisabled,
     selection: docSelection,
     floating,
@@ -222,6 +222,7 @@ export function SketchEditorSession({
           selectionBindings={selectionBindings}
           activeTool={activeTool}
           showBrushCursor={showBrushCursor}
+          manipulationCursor={cursor}
           manipulationBindings={manipulationBindings}
         />
         <aside className="order-1 flex shrink-0 flex-col border-b-2 border-chatroom-border lg:order-none lg:min-h-0 lg:border-b-0 lg:border-l-2">
