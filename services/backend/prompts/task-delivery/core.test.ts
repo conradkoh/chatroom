@@ -257,3 +257,51 @@ describe('appendTaskDeliveryHandoffSections — solo verifier gate', () => {
     expect(output).toContain('If this task involved code changes');
   });
 });
+
+describe('appendTaskDeliveryHandoffSections — triage handoff templates', () => {
+  // Triage's report template must be inlined in task delivery for both team shapes.
+  test.each([
+    ['duo', 'planner'],
+    ['solo', 'solo'],
+  ])('%s triage delivery inlines the triage → %s report template', (teamId, entryPoint) => {
+    const output = renderHandoffSections({
+      teamId,
+      role: 'triage',
+      isEntryPoint: false,
+      message: { _id: 'entry-msg', senderRole: entryPoint },
+      availableHandoffTargets: [entryPoint, 'user'],
+    });
+
+    expect(output).toContain('Use these structures when handing off.');
+    expect(output).toContain(`### Handoff to \`${entryPoint}\``);
+    expect(output).toContain(`Handoff Template (Triage → ${entryPoint})`);
+    expect(output).toContain('## Root cause');
+  });
+
+  test('duo planner entry-point delivery inlines the planner → triage template', () => {
+    const output = renderHandoffSections({
+      teamId: 'duo',
+      role: 'planner',
+      isEntryPoint: true,
+      message: { _id: 'user-msg', senderRole: 'user' },
+      availableHandoffTargets: ['triage', 'builder', 'user'],
+    });
+
+    expect(output).toContain('### Handoff to `triage`');
+    expect(output).toContain('Handoff Template (planner → triage)');
+  });
+
+  test('duo triage delivery includes the handoff templates block', () => {
+    const output = renderHandoffSections({
+      teamId: 'duo',
+      role: 'triage',
+      isEntryPoint: false,
+      message: { _id: 'planner-msg', senderRole: 'planner' },
+      availableHandoffTargets: ['planner', 'user'],
+    });
+
+    expect(output).toContain('<handoff-templates>');
+    expect(output).toContain('### Handoff to `planner`');
+    expect(output).toContain('Handoff Template (Triage → planner)');
+  });
+});
