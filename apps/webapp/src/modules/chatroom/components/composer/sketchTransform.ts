@@ -14,6 +14,16 @@ export type SketchTransformHandle =
   | 'south-east'
   | 'south-west'
   | 'rotate';
+export type SketchScaleAspectMode = 'proportional' | 'free';
+/**
+ * Photoshop Free Transform (CC 2020+): scale handles are proportional by default, for corners AND edges.
+ * Shift switches to free (non-proportional) scaling. Alt/Option is intentionally ignored.
+ */
+export function resolveSketchScaleAspectMode(
+  modifiers: Pick<PointerEvent, 'shiftKey'>
+): SketchScaleAspectMode {
+  return modifiers.shiftKey ? 'free' : 'proportional';
+}
 export const IDENTITY_TRANSFORM: SketchTransform = {
   x: 0,
   y: 0,
@@ -111,20 +121,24 @@ export function scaleTransformFromHandle(
 ): SketchTransform {
   const dx = pointer.x - start.x;
   const dy = pointer.y - start.y;
-  const d = preserveAspect ? (Math.abs(dx) >= Math.abs(dy) ? dx / w : dy / h) : 0;
-  const sx =
-    handle.includes('east') || handle.includes('west')
-      ? t.scaleX + (handle.includes('west') ? -dx / w : dx / w)
-      : t.scaleX;
-  const sy =
-    handle.includes('north') || handle.includes('south')
-      ? t.scaleY + (handle.includes('north') ? -dy / h : dy / h)
-      : t.scaleY;
-  return {
-    ...t,
-    scaleX: Math.max(0.01, preserveAspect ? t.scaleX + d : sx),
-    scaleY: Math.max(0.01, preserveAspect ? t.scaleY + d : sy),
-  };
+  const affectsX = handle.includes('east') || handle.includes('west');
+  const affectsY = handle.includes('north') || handle.includes('south');
+  const freeX = affectsX ? t.scaleX + (handle.includes('west') ? -dx / w : dx / w) : t.scaleX;
+  const freeY = affectsY ? t.scaleY + (handle.includes('north') ? -dy / h : dy / h) : t.scaleY;
+  if (!preserveAspect) {
+    return { ...t, scaleX: Math.max(0.01, freeX), scaleY: Math.max(0.01, freeY) };
+  }
+  // Proportional: derive one uniform factor from the drag-start scales, so the ratio scaleX:scaleY is preserved.
+  const kx = freeX / t.scaleX;
+  const ky = freeY / t.scaleY;
+  let k: number;
+  if (affectsX && !affectsY)
+    k = kx; // east / west edge
+  else if (affectsY && !affectsX)
+    k = ky; // north / south edge
+  else k = Math.abs(kx - 1) >= Math.abs(ky - 1) ? kx : ky; // corner: dominant axis
+  k = Math.max(k, 0.01 / Math.min(t.scaleX, t.scaleY)); // keep both scales >= 0.01
+  return { ...t, scaleX: t.scaleX * k, scaleY: t.scaleY * k };
 }
 export function rotateTransformFromHandle(
   t: SketchTransform,

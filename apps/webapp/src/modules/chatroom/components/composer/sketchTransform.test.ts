@@ -8,6 +8,7 @@ import {
   translateTransform,
   scaleTransformFromHandle,
   rotateTransformFromHandle,
+  resolveSketchScaleAspectMode,
 } from './sketchTransform';
 
 describe('sketchTransform', () => {
@@ -54,5 +55,64 @@ describe('sketchTransform', () => {
     expect(
       rotateTransformFromHandle(t, { x: 10, y: 0 }, { x: 0, y: 0 }, 10, 10).rotationRadians
     ).not.toBe(0);
+  });
+});
+
+describe('resolveSketchScaleAspectMode', () => {
+  it('is proportional without Shift and free with Shift', () => {
+    expect(resolveSketchScaleAspectMode({ shiftKey: false })).toBe('proportional');
+    expect(resolveSketchScaleAspectMode({ shiftKey: true })).toBe('free');
+  });
+});
+
+describe('scaleTransformFromHandle proportional mode', () => {
+  const base = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotationRadians: 0 };
+  const scale = (
+    t: typeof base,
+    handle: Parameters<typeof scaleTransformFromHandle>[1],
+    pointer: { x: number; y: number },
+    start: { x: number; y: number },
+    preserveAspect = true
+  ) => scaleTransformFromHandle(t, handle, pointer, start, 10, 10, preserveAspect);
+
+  it('scales an east edge uniformly from the drag-start ratio', () => {
+    const next = scale(base, 'east', { x: 30, y: 0 }, { x: 0, y: 0 });
+    expect(next.scaleX).toBe(4);
+    expect(next.scaleY).toBe(4);
+  });
+
+  it('ignores off-axis drag on an edge', () => {
+    const next = scale(base, 'east', { x: 0, y: 30 }, { x: 0, y: 0 });
+    expect(next.scaleX).toBe(1);
+    expect(next.scaleY).toBe(1);
+  });
+
+  it('preserves a non-square ratio when scaling a corner', () => {
+    const next = scale(
+      { ...base, scaleX: 2, scaleY: 1 },
+      'south-east',
+      { x: 10, y: 0 },
+      { x: 0, y: 0 }
+    );
+    expect(next.scaleX).toBe(3);
+    expect(next.scaleY).toBe(1.5);
+  });
+
+  it('enlarges instead of shrinking when dragging north-west outward', () => {
+    const next = scale(base, 'north-west', { x: -10, y: -10 }, { x: 0, y: 0 });
+    expect(next.scaleX).toBe(2);
+    expect(next.scaleY).toBe(2);
+  });
+
+  it('clamps both scales to 0.01 at minimum', () => {
+    const next = scale(base, 'south-east', { x: -100, y: -100 }, { x: 0, y: 0 });
+    expect(next.scaleX).toBe(0.01);
+    expect(next.scaleY).toBe(0.01);
+  });
+
+  it('leaves the free branch unchanged', () => {
+    const next = scale(base, 'east', { x: 30, y: 0 }, { x: 0, y: 0 }, false);
+    expect(next.scaleX).toBe(4);
+    expect(next.scaleY).toBe(1);
   });
 });
