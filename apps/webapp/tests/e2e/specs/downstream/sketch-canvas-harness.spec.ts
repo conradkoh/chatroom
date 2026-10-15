@@ -148,6 +148,29 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await page.getByRole('button', { name: 'Delete selection' }).click();
       await expect(page.getByRole('button', { name: 'Add sketch' })).toBeDisabled();
     });
+    test('discard confirm is clickable and closes the sketch', async ({ page }) => {
+      await openSketch(page);
+      const canvas = page.getByLabel('Sketch canvas');
+      await mouseStroke(page, canvas);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await expect(page.getByRole('button', { name: 'Discard sketch' })).toBeVisible();
+      // No `force: true` — the click must actually reach the confirm button. Before the
+      // fix, the confirm lives in a `pointer-events-none` portal host, so this is click-through.
+      await page.getByRole('button', { name: 'Discard sketch' }).click();
+      await expect(canvas).toBeHidden();
+    });
+    test('keep editing dismisses the confirm and keeps the sketch open', async ({ page }) => {
+      await openSketch(page);
+      const canvas = page.getByLabel('Sketch canvas');
+      await mouseStroke(page, canvas);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await expect(page.getByRole('button', { name: 'Keep editing' })).toBeVisible();
+      await page.getByRole('button', { name: 'Keep editing' }).click();
+      await expect(page.getByRole('button', { name: 'Discard sketch' })).toBeHidden();
+      await expect(canvas).toBeVisible();
+    });
   });
   test.describe('mobile', () => {
     const { defaultBrowserType: _defaultBrowserType, ...iphone14 } = devices['iPhone 14'];
