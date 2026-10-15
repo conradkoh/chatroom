@@ -47,15 +47,23 @@ export function useSketchManipulation({
     handle: SketchTransformHandle;
   } | null>(null);
   const paint = useCallback(() => {
-    const ctx = overlayRef.current?.getContext('2d');
-    if (ctx && floating)
-      drawSketchTransformOverlay(
-        ctx,
-        floating.transform,
-        floating.sourceWidth,
-        floating.sourceHeight,
-        activeTool
-      );
+    const canvas = overlayRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    if (!floating) {
+      // A committed selection leaves no overlay to draw, so clear the handles rather than
+      // leaving the previous frame's transform handles stranded on the overlay canvas.
+      // Guarded because lightweight canvas stubs (jsdom) do not implement clearRect.
+      if (typeof ctx.clearRect === 'function') ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    drawSketchTransformOverlay(
+      ctx,
+      floating.transform,
+      floating.sourceWidth,
+      floating.sourceHeight,
+      activeTool
+    );
   }, [activeTool, overlayRef, floating]);
   useEffect(() => {
     paint();

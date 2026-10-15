@@ -70,6 +70,20 @@ const countColorPixels = (canvas: Locator, color: 'red' | 'blue') =>
   }, color);
 const countRedPixels = (canvas: Locator) => countColorPixels(canvas, 'red');
 const countBluePixels = (canvas: Locator) => countColorPixels(canvas, 'blue');
+const countOpaqueOverlayPixels = (canvas: Locator) =>
+  canvas.evaluate((el) => {
+    const ctx = (el as HTMLCanvasElement).getContext('2d');
+    if (!ctx) return 0;
+    const { data } = ctx.getImageData(
+      0,
+      0,
+      (el as HTMLCanvasElement).width,
+      (el as HTMLCanvasElement).height
+    );
+    let count = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 0) count++;
+    return count;
+  });
 async function writePngToClipboard(page: Page, color: string, size = 120) {
   await page.evaluate(
     async ({ fill, width }) => {
@@ -248,6 +262,23 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
         await page.getByRole('button', { name: 'Apply' }).click();
         await expect.poll(() => countRedPixels(canvas), { timeout: 5000 }).toBeGreaterThan(0);
         expect(await countBluePixels(canvas)).toBeGreaterThan(0);
+      });
+      test('applying a pasted image clears the transform overlay', async ({ page }) => {
+        await openSketch(page);
+        const canvas = page.getByLabel('Sketch canvas');
+        await mouseStroke(page, canvas);
+        await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
+        await writePngToClipboard(page, '#ff0000');
+        await page.keyboard.press('ControlOrMeta+V');
+        await expect(page.getByText(/Pasted image 1/)).toBeVisible();
+        const overlay = page.getByTestId('sketch-selection-overlay');
+        await expect
+          .poll(() => countOpaqueOverlayPixels(overlay), { timeout: 5000 })
+          .toBeGreaterThan(0);
+        await page.getByRole('button', { name: 'Apply' }).click();
+        // The transform handles must be removed once the paste is committed; otherwise
+        // stale handles linger on the overlay canvas.
+        await expect.poll(() => countOpaqueOverlayPixels(overlay), { timeout: 5000 }).toBe(0);
       });
     });
   });
