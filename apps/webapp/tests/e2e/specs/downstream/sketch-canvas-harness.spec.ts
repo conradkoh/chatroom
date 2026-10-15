@@ -48,8 +48,8 @@ async function waitForCanvasReady(canvas: Locator) {
     })
     .toBeGreaterThan(0);
 }
-const countRedPixels = (canvas: Locator) =>
-  canvas.evaluate((el) => {
+const countColorPixels = (canvas: Locator, color: 'red' | 'blue') =>
+  canvas.evaluate((el, wanted) => {
     const ctx = (el as HTMLCanvasElement).getContext('2d');
     if (!ctx) return 0;
     const { data } = ctx.getImageData(
@@ -59,27 +59,37 @@ const countRedPixels = (canvas: Locator) =>
       (el as HTMLCanvasElement).height
     );
     let count = 0;
-    for (let i = 0; i < data.length; i += 4)
-      if (data[i] > 200 && data[i + 1] < 60 && data[i + 2] < 60 && data[i + 3] > 0) count++;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const match = wanted === 'red' ? r > 200 && g < 60 && b < 60 : b > 200 && r < 60 && g < 60;
+      if (match && data[i + 3] > 0) count++;
+    }
     return count;
-  });
-async function writeRedPngToClipboard(page: Page) {
-  await page.evaluate(async () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 120;
-    canvas.height = 120;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('missing 2d context');
-    ctx.fillStyle = '#ff0000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
-        (value) => (value ? resolve(value) : reject(new Error('toBlob failed'))),
-        'image/png'
-      )
-    );
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-  });
+  }, color);
+const countRedPixels = (canvas: Locator) => countColorPixels(canvas, 'red');
+const countBluePixels = (canvas: Locator) => countColorPixels(canvas, 'blue');
+async function writePngToClipboard(page: Page, color: string, size = 120) {
+  await page.evaluate(
+    async ({ fill, width }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = width;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('missing 2d context');
+      ctx.fillStyle = fill;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(
+          (value) => (value ? resolve(value) : reject(new Error('toBlob failed'))),
+          'image/png'
+        )
+      );
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    },
+    { fill: color, width: size }
+  );
 }
 test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test.describe('desktop', () => {
@@ -214,10 +224,30 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
         // Drawing a stroke moves focus off the tool rail onto the dialog popup. The paste
         // event dispatches at document.activeElement, so a handler on a descendant never fires.
         expect(await countRedPixels(canvas)).toBe(0);
-        await writeRedPngToClipboard(page);
+        await writePngToClipboard(page, '#ff0000');
         await page.keyboard.press('ControlOrMeta+V');
         await expect(page.getByText(/Pasted image 1/)).toBeVisible();
         await expect.poll(() => countRedPixels(canvas), { timeout: 5000 }).toBeGreaterThan(0);
+      });
+      test('pasting a second image commits the first pending paste', async ({ page }) => {
+        await openSketch(page);
+        const canvas = page.getByLabel('Sketch canvas');
+        await mouseStroke(page, canvas);
+        await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
+        // First paste stays floating (not yet applied).
+        await writePngToClipboard(page, '#ff0000', 160);
+        await page.keyboard.press('ControlOrMeta+V');
+        await expect(page.getByText(/Pasted image 1/)).toBeVisible();
+        await expect.poll(() => countRedPixels(canvas), { timeout: 5000 }).toBeGreaterThan(0);
+        // A second paste arrives while the first is still floating. The first must be
+        // committed rather than silently dropped, so both survive. The blue image is
+        // smaller, so the red border remains visible around it.
+        await writePngToClipboard(page, '#0000ff', 80);
+        await page.keyboard.press('ControlOrMeta+V');
+        await expect(page.getByText(/Pasted image 2/)).toBeVisible();
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await expect.poll(() => countRedPixels(canvas), { timeout: 5000 }).toBeGreaterThan(0);
+        expect(await countBluePixels(canvas)).toBeGreaterThan(0);
       });
     });
   });
