@@ -39,7 +39,8 @@ const workspaceTaskInboxEventStatusValidator = v.union(
 
 /**
  * Task fields the daemon consumes from an inbox event. Heavy content is loaded on demand.
- * Intended for the Slice 2 `listPending` view, hence the unused-export suppression.
+ * Source for the slim header validator and the `WorkspaceTaskInboxTaskHeader` type that the
+ * `listPending` view consumes; only read inside this module, hence the unused-export suppression.
  */
 // fallow-ignore-next-line unused-export
 export const workspaceTaskInboxTaskHeaderFields = {
@@ -85,7 +86,6 @@ const workspaceTaskInboxTaskValidator = v.object({
 
 // fallow-ignore-next-line unused-export
 export const workspaceTaskInboxTaskHeaderValidator = v.object(workspaceTaskInboxTaskHeaderFields);
-// fallow-ignore-next-line unused-type
 export type WorkspaceTaskInboxTaskHeader = Infer<typeof workspaceTaskInboxTaskHeaderValidator>;
 
 const workspaceTaskInboxEventFields = {
