@@ -102,6 +102,11 @@ export function SketchEditorProperties({
                 : `${Math.round(selection.width)} × ${Math.round(selection.height)} px`}
             </p>
           ) : null}
+          {activeTool === 'transform' && floating ? (
+            <p className="text-xs text-chatroom-text-muted">
+              Drag a handle to scale proportionally. Hold Shift to stretch freely.
+            </p>
+          ) : null}
           {selection || floating ? (
             <button
               type="button"
