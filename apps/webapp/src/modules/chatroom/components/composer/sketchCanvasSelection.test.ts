@@ -124,4 +124,75 @@ describe('sketch selection marquee', () => {
       )
     ).not.toThrow();
   });
+
+  it('draws black handles with solid white outlines over a white/black dashed frame', () => {
+    const { ctx, fillRectCalls, strokeRectCalls } = createRecordingCtx();
+    drawSketchTransformOverlay(
+      ctx,
+      { x: 10, y: 20, scaleX: 1, scaleY: 1, rotationRadians: 0 },
+      100,
+      100,
+      'transform'
+    );
+
+    // Frame: white solid base, then black [4,4] dash on top.
+    expect(strokeRectCalls[0]).toMatchObject({ style: '#ffffff', dash: [] });
+    expect(strokeRectCalls[1]).toMatchObject({ style: '#000000', dash: [4, 4] });
+
+    // 8 handles: 4 corners + 4 edge midpoints, black fill, solid white outline.
+    expect(fillRectCalls).toHaveLength(8);
+    expect(fillRectCalls.every((c) => c.fillStyle === '#000000')).toBe(true);
+    const handleStrokes = strokeRectCalls.slice(2);
+    expect(handleStrokes).toHaveLength(8);
+    expect(handleStrokes.every((c) => c.style === '#ffffff' && c.dash.length === 0)).toBe(true);
+
+    // Exact handle geometry (order: 4 corners then 4 edge midpoints).
+    expect(fillRectCalls.map((c) => c.args)).toEqual([
+      [6, 16, 8, 8],
+      [106, 16, 8, 8],
+      [106, 116, 8, 8],
+      [6, 116, 8, 8],
+      [56, 16, 8, 8],
+      [106, 66, 8, 8],
+      [56, 116, 8, 8],
+      [6, 66, 8, 8],
+    ]);
+  });
+
+  it('draws no handles in move mode', () => {
+    const { ctx, fillRectCalls } = createRecordingCtx();
+    drawSketchTransformOverlay(
+      ctx,
+      { x: 10, y: 10, scaleX: 1, scaleY: 1, rotationRadians: 0 },
+      50,
+      50,
+      'move'
+    );
+    expect(fillRectCalls).toHaveLength(0);
+  });
 });
+
+function createRecordingCtx() {
+  let dash: number[] = [];
+  const fillRectCalls: { args: number[]; fillStyle: string }[] = [];
+  const strokeRectCalls: { args: number[]; style: string; dash: number[] }[] = [];
+  const ctx = {
+    clearRect: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 1,
+    lineDashOffset: 0,
+    setLineDash: vi.fn((next: number[]) => {
+      dash = next;
+    }),
+    fillRect: vi.fn((...args: number[]) => {
+      fillRectCalls.push({ args, fillStyle: ctx.fillStyle });
+    }),
+    strokeRect: vi.fn((...args: number[]) => {
+      strokeRectCalls.push({ args, style: ctx.strokeStyle, dash: [...dash] });
+    }),
+  };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, fillRectCalls, strokeRectCalls };
+}

@@ -8,6 +8,9 @@ import {
   SKETCH_CANVAS_BACKGROUND,
   SKETCH_CANVAS_HEIGHT,
   SKETCH_CANVAS_WIDTH,
+  SKETCH_OVERLAY_BLACK,
+  SKETCH_OVERLAY_WHITE,
+  SKETCH_TRANSFORM_HANDLE_SIZE,
 } from './sketchConstants';
 
 describe('sketch constants', () => {
@@ -24,5 +27,10 @@ describe('sketch constants', () => {
     expect(SKETCH_CANVAS_WIDTH).toBe(1200);
     expect(SKETCH_CANVAS_HEIGHT).toBe(900);
     expect(SKETCH_CANVAS_WIDTH / SKETCH_CANVAS_HEIGHT).toBe(4 / 3);
+  });
+  it('defines theme-invariant transform overlay ink and handle size', () => {
+    expect(SKETCH_OVERLAY_WHITE).toBe('#ffffff');
+    expect(SKETCH_OVERLAY_BLACK).toBe('#000000');
+    expect(SKETCH_TRANSFORM_HANDLE_SIZE).toBe(8);
   });
 });
