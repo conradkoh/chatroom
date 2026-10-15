@@ -159,6 +159,76 @@ async function verifyBackendStructure(
   ).toEqual(team.ephemeralRoles);
 }
 
+test.describe('Right sidebar scrolls as a single container', { tag: [TAG_DOWNSTREAM] }, () => {
+  test.use({ viewport: { width: 1440, height: 800 } });
+
+  test('keeps the full task list reachable at a short viewport', async ({
+    authenticatedPage: page,
+  }) => {
+    const rawSessionId = await page.evaluate(() => localStorage.getItem('sessionId'));
+    expect(rawSessionId, 'anonymous login should persist a session').toBeTruthy();
+    const sessionId = rawSessionId as SessionId;
+    const client = new ConvexHttpClient(getConvexUrl());
+    const chatroomId = await client.mutation(api.chatrooms.create, {
+      sessionId,
+      teamStructureId: 'duo@1',
+    });
+
+    await page.goto(`/app/chatroom?id=${chatroomId}`);
+    await dismissSetupWorkspace(page);
+
+    const sidebar = page.getByTestId('agent-sidebar');
+    await expect(sidebar).toBeVisible();
+
+    // 1. The sidebar is the single scroll container and its content overflows it.
+    const scrollInfo = await sidebar.evaluate((el) => ({
+      overflowY: getComputedStyle(el).overflowY,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }));
+    expect(scrollInfo.overflowY).toBe('auto');
+    expect(scrollInfo.scrollHeight).toBeGreaterThan(scrollInfo.clientHeight);
+
+    // 2. Agent rows do not squeeze the Current section header to zero height.
+    const currentHeader = sidebar.getByText(/^Current \(\d+\)$/);
+    await expect(currentHeader).toBeVisible();
+    const currentBox = await currentHeader.boundingBox();
+    expect(currentBox).not.toBeNull();
+    expect(currentBox?.height ?? 0).toBeGreaterThan(0);
+
+    // 3. Scrolling the sidebar to the bottom makes the Backlog header reachable
+    // while the Agents header scrolls off the top of the viewport.
+    await sidebar.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const innerHeight = await page.evaluate(() => window.innerHeight);
+
+    const backlogHeader = sidebar.getByText(/^Backlog \(\d+\)$/);
+    const backlogBox = await backlogHeader.boundingBox();
+    expect(backlogBox).not.toBeNull();
+    expect(backlogBox?.y ?? -1).toBeGreaterThanOrEqual(0);
+    expect((backlogBox?.y ?? 0) + (backlogBox?.height ?? 0)).toBeLessThanOrEqual(innerHeight);
+
+    const agentsHeader = sidebar.getByText(/^Agents \(\d+\)$/);
+    const agentsBox = await agentsHeader.boundingBox();
+    expect(agentsBox).not.toBeNull();
+    expect(agentsBox?.y ?? 0).toBeLessThan(0);
+
+    // 4. The WorkQueue no longer nests its own scroll area.
+    const workQueueRoot = backlogHeader.locator(
+      'xpath=ancestor::section[1]/parent::div/parent::div'
+    );
+    const nestedScrollContainers = await workQueueRoot.evaluate(
+      (root) =>
+        Array.from(root.querySelectorAll<HTMLElement>('*')).filter((el) => {
+          const overflowY = getComputedStyle(el).overflowY;
+          return overflowY === 'auto' || overflowY === 'scroll';
+        }).length
+    );
+    expect(nestedScrollContainers).toBe(0);
+  });
+});
+
 test.describe('Builtin agent sidebar', { tag: [TAG_DOWNSTREAM] }, () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
 

@@ -128,10 +128,10 @@ Put your **complete** deliverable in the handoff message — not in session text
 
 ## Handoff Template (Verifier → planner)
 
-Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It runs no test the user did not ask for, and never builds, lints, or edits. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
+Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It also checks the work against the user's expectations (\`## User Expectations\`) under the same logs-only, claim-is-not-evidence rule. It runs no test the user did not ask for, and never builds, lints, or edits. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
 
 ## Verdict
-<exactly one of ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE as the value; ACHIEVED only if every requirement is met; NOT_ACHIEVED if any requirement is unmet (logs show it was not done, or contradict it); INCONCLUSIVE if none is unmet but any is unverified (logs are silent)>
+<exactly one of ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE as the value; ACHIEVED only if every requirement and user expectation is met; NOT_ACHIEVED if any requirement or user expectation is unmet (logs show it was not done, or contradict it); INCONCLUSIVE if none is unmet but any is unverified (logs are silent)>
 
 ## Objective
 <user message id, any prior user messages used, objective in 1-2 sentences>
@@ -139,11 +139,14 @@ Return one advisory verdict for the authoritative request. This review is non-bi
 ## Requirements
 <numbered \`R1 — <requirement> — met | unmet | unverified — <evidence ref>\`>
 
+## User Expectations
+<numbered \`U1 — <expectation from the user's handoff template> — met | unmet | unverified — <evidence ref>\`; exactly \`None applicable.\` in chat mode or when no expectation applies>
+
 ## Evidence
 <bullets: \`<message id or handoff> — "<short quote>" — supports R#\`; for a requested test run, \`<command> — exit <result> — supports R#\`>
 
 ## Missing or unmet
-<per unmet or unverified requirement: what is missing and what evidence would resolve it; exactly \`None.\` if ACHIEVED>
+<per unmet or unverified requirement or user expectation: what is missing and what evidence would resolve it; exactly \`None.\` if ACHIEVED>
 
 ## Scope and limits
 <state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; log range read; whether the download was truncated; context id read and whether it matched the request>
@@ -177,10 +180,10 @@ Put your **complete** deliverable in the handoff message — not in session text
 
 ## Handoff Template (Verifier → solo)
 
-Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It runs no test the user did not ask for, and never builds, lints, or edits. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
+Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It also checks the work against the user's expectations (\`## User Expectations\`) under the same logs-only, claim-is-not-evidence rule. It runs no test the user did not ask for, and never builds, lints, or edits. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
 
 ## Verdict
-<exactly one of ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE as the value; ACHIEVED only if every requirement is met; NOT_ACHIEVED if any requirement is unmet (logs show it was not done, or contradict it); INCONCLUSIVE if none is unmet but any is unverified (logs are silent)>
+<exactly one of ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE as the value; ACHIEVED only if every requirement and user expectation is met; NOT_ACHIEVED if any requirement or user expectation is unmet (logs show it was not done, or contradict it); INCONCLUSIVE if none is unmet but any is unverified (logs are silent)>
 
 ## Objective
 <user message id, any prior user messages used, objective in 1-2 sentences>
@@ -188,11 +191,14 @@ Return one advisory verdict for the authoritative request. This review is non-bi
 ## Requirements
 <numbered \`R1 — <requirement> — met | unmet | unverified — <evidence ref>\`>
 
+## User Expectations
+<numbered \`U1 — <expectation from the user's handoff template> — met | unmet | unverified — <evidence ref>\`; exactly \`None applicable.\` in chat mode or when no expectation applies>
+
 ## Evidence
 <bullets: \`<message id or handoff> — "<short quote>" — supports R#\`; for a requested test run, \`<command> — exit <result> — supports R#\`>
 
 ## Missing or unmet
-<per unmet or unverified requirement: what is missing and what evidence would resolve it; exactly \`None.\` if ACHIEVED>
+<per unmet or unverified requirement or user expectation: what is missing and what evidence would resolve it; exactly \`None.\` if ACHIEVED>
 
 ## Scope and limits
 <state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; log range read; whether the download was truncated; context id read and whether it matched the request>

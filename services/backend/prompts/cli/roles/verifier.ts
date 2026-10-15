@@ -1,5 +1,7 @@
 import { getSessionContinuityLine } from '../../native/session-continuity';
 import { VERIFIER_TEST_RULE, VERIFIER_VERDICTS } from '../../teams/verifier-handoff-templates';
+import { getChatToUserHandoffTemplate } from '../../utils/chat-handoff-template';
+import { getHandoffReportTemplateBody } from '../../utils/handoff-report-template-body';
 import { getInterRoleHandoffRule } from '../sections';
 
 export type VerifierGuidanceParams = {
@@ -22,8 +24,9 @@ ${getInterRoleHandoffRule()}
 2a. Requested test runs: if the user's last message (or prior user messages for this objective) explicitly asks for tests to be run, run exactly those commands from the repository root, record the command and exit result, and count the output as evidence. Run no test the user did not ask for. If the request is absent, run nothing.
 3. Run \`chatroom context read --chatroom-id="<chatroom-id>" --role="verifier"\` and note any mismatch with the request's context id.
 4. Decompose the objective into numbered requirements R1..Rn. Split compound requests and ignore anything the user did not actually ask for.
+4a. User expectations: the user's handoff template (the section at the end of this prompt) defines what the user expects from the work. In a code mode, turn each applicable item that concerns the work into an expectation \`U1..Un\`: each requirement's evidence (PR, commit, or file), files changed, Code Change Verification, backlog items moved to \`pending_user_review\` after a verified end-to-end feature with a PR, and any manual steps or unresolved decisions the user must act on. Skip presentation-only items: template disclosure checkboxes, section order, collapsing, diagram format, and Proof of Planning. In \`chat\` mode the template asks only for a direct, concise answer, so add no expectations beyond the requirements.
 5. Find evidence for every requirement in the logs alone: builder handoff reports, planner delegations, quoted test output, commits, and PRs. \`met\` requires concrete evidence in the logs. The planner's claimed outcome is a claim, not evidence. Silence means \`unverified\`. A contradiction, or a log showing the requirement was not done, means \`unmet\`. Never state that tests passed unless a log reports it, or you ran the requested tests yourself.
-6. Choose the verdict by the rules in the injected verdict template: exactly one of ${VERIFIER_VERDICTS.join(', ')}. ${ACHIEVED} only if every requirement is met; ${NOT_ACHIEVED} if any requirement is unmet; ${INCONCLUSIVE} if none is unmet but any is unverified.
+6. Choose the verdict by the rules in the injected verdict template: exactly one of ${VERIFIER_VERDICTS.join(', ')}. ${ACHIEVED} only if every requirement and every U-expectation is met; ${NOT_ACHIEVED} if any is unmet; ${INCONCLUSIVE} if none is unmet but any is unverified.
 7. Follow the injected \`<handoff-templates>\` verdict template exactly, in its order, and put the complete verdict in the handoff. Then hand off to the configured entry point with the normal command, then stop:
 
 \`\`\`bash
@@ -31,8 +34,20 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="{E
 \`\`\``;
 
 export function getVerifierGuidance(params: VerifierGuidanceParams = {}): string {
-  return VERIFIER_GUIDANCE.replace(
+  const guidance = VERIFIER_GUIDANCE.replace(
     '{ENTRY_POINT_ROLE}',
     params.entryPointRole?.trim().toLowerCase() || 'planner'
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
+
+  const userTemplateSection = `## The User's Handoff Template
+
+The user's handoff template is the contract for what the user expects from the work. Judge the work against it as described in step 4a. In code modes the user receives the report below:
+
+${getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true })}
+
+In chat mode the user receives this instead:
+
+${getChatToUserHandoffTemplate()}`;
+
+  return `${guidance}\n\n${userTemplateSection}`;
 }
