@@ -25,4 +25,13 @@ describe('verifier guidance snapshots', () => {
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
     expect(guidance).not.toContain('{SESSION_CONTINUITY}');
   });
+
+  test('carries the user handoff template and the step 4a expectation rule', () => {
+    const guidance = getVerifierGuidance({ nativeIntegration: false, entryPointRole: 'planner' });
+
+    expect(guidance).toContain("## The User's Handoff Template");
+    expect(guidance).toContain('Code Change Verification');
+    expect(guidance).toContain('Chat Response Template');
+    expect(guidance).toContain('4a. User expectations');
+  });
 });
