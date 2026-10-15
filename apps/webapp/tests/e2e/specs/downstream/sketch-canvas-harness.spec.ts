@@ -70,6 +70,22 @@ const countColorPixels = (canvas: Locator, color: 'red' | 'blue') =>
   }, color);
 const countRedPixels = (canvas: Locator) => countColorPixels(canvas, 'red');
 const countBluePixels = (canvas: Locator) => countColorPixels(canvas, 'blue');
+const countWhitePixels = (canvas: Locator) =>
+  canvas.evaluate((el) => {
+    const ctx = (el as HTMLCanvasElement).getContext('2d');
+    if (!ctx) return 0;
+    const { data } = ctx.getImageData(
+      0,
+      0,
+      (el as HTMLCanvasElement).width,
+      (el as HTMLCanvasElement).height
+    );
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4)
+      if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255 && data[i + 3] === 255)
+        count++;
+    return count;
+  });
 const countOpaqueOverlayPixels = (canvas: Locator) =>
   canvas.evaluate((el) => {
     const ctx = (el as HTMLCanvasElement).getContext('2d');
@@ -279,6 +295,25 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
         // The transform handles must be removed once the paste is committed; otherwise
         // stale handles linger on the overlay canvas.
         await expect.poll(() => countOpaqueOverlayPixels(overlay), { timeout: 5000 }).toBe(0);
+      });
+      test('eraser shows a live preview while dragging', async ({ page }) => {
+        await openSketch(page);
+        const canvas = page.getByLabel('Sketch canvas');
+        await mouseStroke(page, canvas);
+        await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
+        const whiteBefore = await countWhitePixels(canvas);
+        await page.getByRole('button', { name: 'Eraser tool' }).click();
+        const box = await canvas.boundingBox();
+        if (!box) throw new Error('canvas missing bounding box');
+        await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.5, { steps: 20 });
+        // The pointer is still down: erased pixels must already be visible, not only after
+        // pointerup commits the eraser stroke.
+        await expect
+          .poll(() => countWhitePixels(canvas), { timeout: 5000 })
+          .toBeGreaterThan(whiteBefore);
+        await page.mouse.up();
       });
     });
   });

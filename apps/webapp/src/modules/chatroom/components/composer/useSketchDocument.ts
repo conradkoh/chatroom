@@ -165,7 +165,12 @@ export function useSketchDocument({
       );
     }
     return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        // Null the handle too: `scheduleComposite` short-circuits on a non-null handle, so
+        // cancelling without clearing it would strand all future composite requests.
+        rafRef.current = null;
+      }
     };
   }, [doc.layers, scheduleComposite]);
   const activeContext = useCallback(

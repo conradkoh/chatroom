@@ -9,6 +9,7 @@ import {
   setSelection,
   removeLayer,
   countPastedImageLayers,
+  updateLayerHasContent,
 } from './sketchDocument';
 
 describe('sketchDocument', () => {
@@ -61,6 +62,14 @@ describe('sketchDocument', () => {
       }).selection
     ).toBeNull();
     expect(documentHasContent(next)).toBe(true);
+  });
+  it('returns the identical state when hasContent is unchanged', () => {
+    const doc = createInitialDocument();
+    const withContent = updateLayerHasContent(doc, doc.activeLayerId, true);
+    expect(withContent).not.toBe(doc);
+    expect(withContent.layers[0].hasContent).toBe(true);
+    expect(updateLayerHasContent(withContent, doc.activeLayerId, true)).toBe(withContent);
+    expect(updateLayerHasContent(doc, doc.activeLayerId, false)).toBe(doc);
   });
   it('rejects selection for non-active layer', () => {
     const doc = createInitialDocument();
