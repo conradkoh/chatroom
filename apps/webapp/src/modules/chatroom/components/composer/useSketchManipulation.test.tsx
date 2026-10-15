@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import type { SketchTransform } from './sketchDocument';
 import { useSketchManipulation } from './useSketchManipulation';
 
 const meta = {
@@ -34,7 +35,7 @@ function setup() {
   });
   return c;
 }
-const event = (c: HTMLCanvasElement, x: number, y: number) =>
+const event = (c: HTMLCanvasElement, x: number, y: number, modifiers: Partial<PointerEvent> = {}) =>
   ({
     currentTarget: c,
     target: c,
@@ -43,7 +44,9 @@ const event = (c: HTMLCanvasElement, x: number, y: number) =>
     pointerId: 1,
     clientX: x,
     clientY: y,
+    shiftKey: false,
     nativeEvent: new PointerEvent('pointermove'),
+    ...modifiers,
   }) as never;
 describe('useSketchManipulation', () => {
   it('begins floating synchronously and preserves pointer-up transform', () => {
@@ -89,5 +92,63 @@ describe('useSketchManipulation', () => {
     act(() => h.result.current.manipulationBindings.onPointerDown?.(event(c, 30, 30)));
     act(() => h.result.current.manipulationBindings.onPointerCancel?.(event(c, 50, 50)));
     expect(update).toHaveBeenLastCalledWith(meta.transform);
+  });
+});
+
+describe('useSketchManipulation transform scaling', () => {
+  type Update = Mock<(t: SketchTransform) => void>;
+  function renderTransform(update: Update) {
+    const c = setup();
+    const h = renderHook(() =>
+      useSketchManipulation({
+        canvasRef: { current: c },
+        overlayRef: { current: null },
+        activeTool: 'transform',
+        disabled: false,
+        selection: null,
+        floating: meta,
+        beginFloatingSelection: vi.fn(),
+        updateFloatingTransform: update,
+      })
+    );
+    return { c, h };
+  }
+  const lastUpdate = (update: Update) =>
+    update.mock.calls.at(-1)?.[0] as { scaleX: number; scaleY: number };
+
+  it('scales a corner proportionally by default and freely with Shift', () => {
+    const update = vi.fn<(t: SketchTransform) => void>();
+    const { c, h } = renderTransform(update);
+    act(() => h.result.current.manipulationBindings.onPointerDown?.(event(c, 120, 120)));
+    act(() => h.result.current.manipulationBindings.onPointerMove?.(event(c, 170, 130)));
+    expect(lastUpdate(update)).toMatchObject({ scaleX: 1.5, scaleY: 1.5 });
+    act(() =>
+      h.result.current.manipulationBindings.onPointerMove?.(event(c, 170, 130, { shiftKey: true }))
+    );
+    expect(lastUpdate(update)).toMatchObject({ scaleX: 1.5, scaleY: 1.1 });
+  });
+
+  it('scales an edge proportionally by default and along its axis with Shift', () => {
+    const update = vi.fn<(t: SketchTransform) => void>();
+    const { c, h } = renderTransform(update);
+    act(() => h.result.current.manipulationBindings.onPointerDown?.(event(c, 120, 70)));
+    act(() => h.result.current.manipulationBindings.onPointerMove?.(event(c, 170, 70)));
+    expect(lastUpdate(update)).toMatchObject({ scaleX: 1.5, scaleY: 1.5 });
+    act(() =>
+      h.result.current.manipulationBindings.onPointerMove?.(event(c, 170, 70, { shiftKey: true }))
+    );
+    expect(lastUpdate(update)).toMatchObject({ scaleX: 1.5, scaleY: 1 });
+  });
+
+  it('recomputes from the drag-start transform when Shift is toggled mid-drag', () => {
+    const update = vi.fn<(t: SketchTransform) => void>();
+    const { c, h } = renderTransform(update);
+    act(() => h.result.current.manipulationBindings.onPointerDown?.(event(c, 120, 120)));
+    act(() => h.result.current.manipulationBindings.onPointerMove?.(event(c, 130, 130)));
+    expect(lastUpdate(update)).toMatchObject({ scaleX: 1.1, scaleY: 1.1 });
+    act(() =>
+      h.result.current.manipulationBindings.onPointerMove?.(event(c, 170, 130, { shiftKey: true }))
+    );
+    expect(lastUpdate(update)).toMatchObject({ scaleX: 1.5, scaleY: 1.1 });
   });
 });

@@ -15,6 +15,7 @@ import type { SketchSelection, SketchFloatingSelectionMeta } from './sketchDocum
 import {
   clampTransformToCanvas,
   hitTestTransformHandle,
+  resolveSketchScaleAspectMode,
   rotateTransformFromHandle,
   scaleTransformFromHandle,
   translateTransform,
@@ -113,7 +114,7 @@ export function useSketchManipulation({
           a.start,
           f.sourceWidth,
           f.sourceHeight,
-          !['north', 'south', 'east', 'west'].includes(a.handle)
+          resolveSketchScaleAspectMode(e) === 'proportional'
         );
       else next = translateTransform(a.transform, p.x - a.start.x, p.y - a.start.y);
       updateFloatingTransform(clampTransformToCanvas(next, f.sourceWidth, f.sourceHeight));
