@@ -121,6 +121,25 @@ describe('getHandoffReportTemplateBody', () => {
     expect(body).not.toContain('## Proof of Verification');
     expect(body).not.toContain('I confirm I verified the user');
     expect(body).not.toContain('messages anchor');
+    expect(body).not.toContain('Proof of verification (verifier review)');
+  });
+
+  test('entry-point Proof of Completion discloses the verifier review and request command', () => {
+    const body = getHandoffReportTemplateBody(
+      { chatroomId: 'chat-1', role: 'planner' },
+      { includeProofOfVerification: true }
+    );
+
+    expect(body).toContain('Proof of verification (verifier review)');
+    expect(body).toContain(
+      'chatroom handoff --chatroom-id="chat-1" --role="planner" --next-role="verifier"'
+    );
+  });
+
+  test('non-entry-point rendering does not disclose the verifier review', () => {
+    const body = getHandoffReportTemplateBody({ chatroomId: 'chat-1', role: 'builder' });
+
+    expect(body).not.toContain('Proof of verification (verifier review)');
   });
 
   test('entry-point Proof of Completion includes the verification workflow', () => {

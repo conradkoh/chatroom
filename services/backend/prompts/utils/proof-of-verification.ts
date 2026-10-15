@@ -8,7 +8,13 @@
  * The verification workflow is rolled up INTO the Proof of Completion section
  * (not a separate `## Proof of Verification` heading), so the agent answers
  * "was the goal met?" once, with requirement-by-requirement evidence.
+ *
+ * It also discloses the verifier review: the command the entry point sent to
+ * request the verifier verdict, and the requirement to check that verdict
+ * before delivering to the user. This too lives inside Proof of Completion.
  */
+
+import { VERIFIER_VERDICTS } from '../teams/verifier-handoff-templates';
 
 export interface ProofOfVerificationParams {
   chatroomId?: string | undefined;
@@ -46,6 +52,36 @@ export function messagesDownloadSinceCommand(
 const PROOF_OF_VERIFICATION_CHECKBOX =
   "- [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff";
 
+const VERIFIER_REVIEW_CHECKBOX =
+  "- [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is `ACHIEVED` — or every unmet item is listed under Unresolved / action required";
+
+/** The verifier verdict values accepted by the disclosure, derived from the single source. */
+const VERIFIER_REVIEW_VALUES = `${VERIFIER_VERDICTS.join(' | ')} | UNAVAILABLE (<reason>) | not required (no code changes)`;
+
+/** Command prefix for the verifier request, matching the `handoff` command shape. */
+function verifierRequestCommand(params: ProofOfVerificationParams = {}): string {
+  const prefix = params.cliEnvPrefix ?? '';
+  const chatroomId = params.chatroomId ?? '<chatroom-id>';
+  const role = params.role ?? '<role>';
+  return `${prefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role="verifier"`;
+}
+
+/**
+ * Verifier review disclosure for the entry-point Proof of Completion.
+ * Discloses the verifier request command actually sent, and requires the entry
+ * point to check the verdict before handing off to `user`.
+ */
+// fallow-ignore-next-line unused-export
+export function getVerifierReviewDisclosureBlock(params: ProofOfVerificationParams = {}): string {
+  return `**Proof of verification (verifier review):**
+${VERIFIER_REVIEW_CHECKBOX}
+- Verifier review: <${VERIFIER_REVIEW_VALUES}>
+- Verifier request command (disclose the command you sent): \`${verifierRequestCommand(params)}\`
+- Verifier request message id: <id of your verifier handoff> · Round: <1 | 2>
+- Verdict message id: <id of the verifier's verdict handoff> · Verdict user message id: <id> (must equal the current last user message)
+- Verdict gaps (only if not ACHIEVED): <each unmet item, or \`None.\`>`;
+}
+
 /** HTML comment with the entry-point proof-of-completion workflow commands. */
 function getProofOfVerificationComment(params: ProofOfVerificationParams = {}): string {
   const anchorCmd = messagesAnchorCommand(params);
@@ -64,11 +100,11 @@ Then: \`${anchorCmd}\` → \`${downloadCmd}\` (use the message ID from anchor ou
 
 /**
  * Entry-point Proof of Completion extension: verification workflow comment +
- * verification checkbox. Rendered INSIDE Proof of Completion (not a separate
- * `## Proof of Verification` section).
+ * verification checkbox + verifier-review disclosure. Rendered INSIDE Proof of
+ * Completion (not a separate `## Proof of Verification` section).
  */
 export function getEntryPointProofOfCompletionVerificationBlock(
   params: ProofOfVerificationParams = {}
 ): string {
-  return `${getProofOfVerificationComment(params)}\n${PROOF_OF_VERIFICATION_CHECKBOX}`;
+  return `${getProofOfVerificationComment(params)}\n${PROOF_OF_VERIFICATION_CHECKBOX}\n${getVerifierReviewDisclosureBlock(params)}`;
 }
