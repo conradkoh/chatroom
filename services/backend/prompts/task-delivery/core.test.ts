@@ -259,8 +259,7 @@ describe('appendTaskDeliveryHandoffSections — solo verifier gate', () => {
 });
 
 describe('appendTaskDeliveryHandoffSections — triage handoff templates', () => {
-  // Triage was previously missing from NATIVE_DELIVERY_TEMPLATE_TARGETS, so its
-  // report template never reached task delivery. These tests lock the fix in.
+  // Triage's report template must be inlined in task delivery for both team shapes.
   test.each([
     ['duo', 'planner'],
     ['solo', 'solo'],

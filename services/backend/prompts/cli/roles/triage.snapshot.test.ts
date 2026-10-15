@@ -21,7 +21,7 @@ describe('triage guidance snapshots', () => {
     expect(guidance).toContain('advisory only');
     expect(guidance).toContain('do not edit implementation files');
     expect(guidance).toContain('--role="triage" --next-role="planner"');
-    expect(guidance).toContain('`## Summary` heading as its first line');
+    expect(guidance).toContain('beginning with the `## Summary` section');
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
     expect(guidance).not.toContain('{SESSION_CONTINUITY}');
   });
