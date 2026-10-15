@@ -290,8 +290,8 @@ export const AgentPanel = memo(function AgentPanel({
         </SidebarSection.Toolbar>
       )}
       <CommandQueuePanel machineId={machineId} />
-      {/* Scrollable container for agent rows */}
-      <div className="overflow-y-auto">
+      {/* Agent rows — the right sidebar container scrolls, not this wrapper */}
+      <div>
         {teamStructure === null ? (
           <SidebarSection.Empty>No team configured</SidebarSection.Empty>
         ) : (
