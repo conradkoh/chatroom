@@ -40,10 +40,9 @@ const workspaceTaskInboxEventStatusValidator = v.union(
 /**
  * Task fields the daemon consumes from an inbox event. Heavy content is loaded on demand.
  * Source for the slim header validator and the `WorkspaceTaskInboxTaskHeader` type that the
- * `listPending` view consumes; only read inside this module, hence the unused-export suppression.
+ * `listPending` view consumes; only read inside this module.
  */
-// fallow-ignore-next-line unused-export
-export const workspaceTaskInboxTaskHeaderFields = {
+const workspaceTaskInboxTaskHeaderFields = {
   taskId: v.id('chatroom_tasks'),
   chatroomId: v.id('chatroom_rooms'),
   status: v.string(),
@@ -52,6 +51,9 @@ export const workspaceTaskInboxTaskHeaderFields = {
   updatedAt: v.number(),
   startInNewSession: v.optional(v.boolean()),
 };
+
+const workspaceTaskInboxTaskHeaderValidator = v.object(workspaceTaskInboxTaskHeaderFields);
+export type WorkspaceTaskInboxTaskHeader = Infer<typeof workspaceTaskInboxTaskHeaderValidator>;
 
 /**
  * @deprecated Legacy snapshot fields. No longer written. Present only on rows written before
@@ -80,13 +82,9 @@ const legacyWorkspaceTaskInboxTaskFields = {
 };
 
 const workspaceTaskInboxTaskValidator = v.object({
-  ...workspaceTaskInboxTaskHeaderFields,
+  ...workspaceTaskInboxTaskHeaderValidator.fields,
   ...legacyWorkspaceTaskInboxTaskFields,
 });
-
-// fallow-ignore-next-line unused-export
-export const workspaceTaskInboxTaskHeaderValidator = v.object(workspaceTaskInboxTaskHeaderFields);
-export type WorkspaceTaskInboxTaskHeader = Infer<typeof workspaceTaskInboxTaskHeaderValidator>;
 
 const workspaceTaskInboxEventFields = {
   machineId: v.string(),
