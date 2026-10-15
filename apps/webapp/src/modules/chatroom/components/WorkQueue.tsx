@@ -320,16 +320,16 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
 
   if (tasks === undefined) {
     return (
-      <div className="flex flex-col min-h-0 overflow-hidden p-4 text-center text-chatroom-text-muted text-xs">
+      <div className="flex flex-col p-4 text-center text-chatroom-text-muted text-xs">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col overflow-hidden min-h-0">
-      {/* Scrollable Task List Container */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+    <div className="flex flex-col">
+      {/* Task list — the right sidebar container scrolls, not this component */}
+      <div>
         {/* Queue Health Warning - Show when promotion needed */}
         {effectiveNeedsPromotion && (
           <div className="p-3 border-b border-chatroom-border bg-chatroom-status-warning/10">
@@ -480,7 +480,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
         </SidebarSection.Root>
         {/* End of Backlog Tasks */}
       </div>
-      {/* End of Scrollable Task List Container */}
 
       {/* Task detail portal stacks above other modals. */}
       {selectedTask && (

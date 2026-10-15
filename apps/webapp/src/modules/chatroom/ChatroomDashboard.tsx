@@ -1996,12 +1996,14 @@ function ChatroomDashboardContent({
                     {/* Sidebar - positioned below app header on mobile */}
                     {/* On desktop: transitions width to 0 when hidden so chat fills space */}
                     {/* On mobile: uses fixed positioning with translate for overlay effect */}
+                    {/* This container is the sidebar's single scroll area, so agents, toolbar, command queue and task sections all scroll together. */}
                     <div
+                      data-testid="agent-sidebar"
                       className={`
-                ${isSmallScreen ? `fixed right-0 top-14 bottom-0 ${Z_PANEL} overscroll-contain w-72` : 'relative overflow-hidden'}
+                ${isSmallScreen ? `fixed right-0 top-14 bottom-0 ${Z_PANEL} overscroll-contain w-72` : 'relative'}
                 ${!isSmallScreen && sidebarVisible ? 'w-72' : ''}
-                ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
-                grid grid-rows-[auto_1fr] border-l-2 border-chatroom-border-strong
+                ${!isSmallScreen && !sidebarVisible ? 'w-0 overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}
+                border-l-2 border-chatroom-border-strong
                 ${isSmallScreen ? 'bg-chatroom-bg-primary' : 'bg-chatroom-bg-surface backdrop-blur-xl'}
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
