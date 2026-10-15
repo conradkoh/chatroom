@@ -135,7 +135,7 @@ The operational-status projection has stronger no-op suppression. The role-statu
 
 `chatroomWorkspaceTaskInbox.listPending` used 133.36 MB of production bandwidth because each inbox row copied the complete `chatroom_tasks` document, including `content` and `taskEnvelope`. The delivery path only needs a small header; the daemon loads task content on demand through `machines.getAssignedTaskForAction` and `messages.getTaskDeliveryPrompt`.
 
-Status: inbox rows store only the slim header, `listPending` returns a header-only view so legacy fat rows are also stripped on the wire, and the daemon contract is narrowed to the header (`#1726`).
+Status: inbox rows store only the slim header, `listPending` returns a header-only view so legacy fat rows are also stripped on the wire, and the daemon contract is narrowed to the header (`#1726`). Legacy snapshot fields in `task` are `@deprecated` in code and are read only for pre-slim rows.
 
 Residual cost: while a machine drains pending work, the delivery loop re-runs `listPending` after each acknowledgement, giving an O(N²) re-read at roughly 0.5 KB per pending row. Pending sets are normally 0–3 rows, so this is small relative to the removed snapshot payload.
 
