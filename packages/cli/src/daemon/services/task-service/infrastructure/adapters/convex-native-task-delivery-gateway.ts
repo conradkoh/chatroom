@@ -16,7 +16,10 @@ import type {
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
 import type { NativeTaskDeliveryGateway } from '../../service/ports/native-task-delivery.js';
-import type { WorkspaceTaskInboxEvent } from '../../service/task-service.js';
+import type {
+  WorkspaceTaskInboxEvent,
+  WorkspaceTaskInboxEventTask,
+} from '../../service/task-service.js';
 
 type Backend = {
   mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -124,6 +127,25 @@ export function mapPendingTaskInboxRows(rows: unknown): WorkspaceTaskInboxEvent[
     status: row.status as WorkspaceTaskInboxEventStatus,
     createdAt: row.createdAt as number,
     ...(row.processedAt === undefined ? {} : { processedAt: row.processedAt as number }),
-    task: row.task as WorkspaceTaskInboxEvent['task'],
+    task: mapPendingTaskInboxTask(row.task as Record<string, unknown>),
   })) as WorkspaceTaskInboxEvent[];
+}
+
+/**
+ * Maps a backend inbox row's task into the daemon's slim header, field by field.
+ * Legacy rows still carry content fields; they are deliberately dropped here so the
+ * daemon consumes only what `applyInboxEvent` reads.
+ */
+function mapPendingTaskInboxTask(task: Record<string, unknown>): WorkspaceTaskInboxEventTask {
+  return {
+    taskId: task.taskId as string,
+    chatroomId: task.chatroomId as string,
+    status: task.status as string,
+    ...(task.assignedTo === undefined ? {} : { assignedTo: task.assignedTo as string }),
+    createdAt: task.createdAt as number,
+    updatedAt: task.updatedAt as number,
+    ...(task.startInNewSession === undefined
+      ? {}
+      : { startInNewSession: task.startInNewSession as boolean }),
+  };
 }

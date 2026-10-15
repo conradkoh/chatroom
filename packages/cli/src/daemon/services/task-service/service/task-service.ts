@@ -15,11 +15,7 @@ import { createPendingTaskReconciliationWatcher } from './watchers/pending-task-
 import { createTaskInboxAcknowledgementRetryWatcher } from './watchers/task-inbox-acknowledgement-retry-watcher.js';
 import { createTaskInboxDeliveryRetryWatcher } from './watchers/task-inbox-delivery-retry-watcher.js';
 import { api } from '../../../../api.js';
-import type {
-  TaskAssigneeType,
-  AssignedTask,
-  AssignedTaskWithContent,
-} from '../../../domain/entities/assigned-task.js';
+import type { TaskAssigneeType, AssignedTask } from '../../../domain/entities/assigned-task.js';
 import {
   TaskInboxState,
   type TaskInboxStateReader,
@@ -42,6 +38,21 @@ import {
   type TaskHandoffRecord,
 } from '../infrastructure/repository/task-handoff-repository.js';
 
+/**
+ * Slim task header carried on every inbox event. Mirrors the backend header contract
+ * (`taskId, chatroomId, status, assignedTo?, createdAt, updatedAt, startInNewSession?`).
+ * Task content is loaded on demand through `loadAssignedTaskForAction`.
+ */
+export interface WorkspaceTaskInboxEventTask {
+  readonly taskId: string;
+  readonly chatroomId: string;
+  readonly status: string;
+  readonly assignedTo?: string;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly startInNewSession?: boolean;
+}
+
 interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
   readonly machineId: string;
@@ -61,12 +72,7 @@ interface WorkspaceTaskInboxEventFields {
   readonly status: WorkspaceTaskInboxEventStatus;
   readonly createdAt: number;
   readonly processedAt?: number;
-  readonly task: AssignedTaskWithContent & {
-    readonly createdBy: string;
-    readonly sourceMessageId?: string;
-    readonly queuePosition: number;
-    readonly [key: string]: unknown;
-  };
+  readonly task: WorkspaceTaskInboxEventTask;
 }
 
 export type WorkspaceTaskInboxEvent =
