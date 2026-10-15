@@ -22,6 +22,7 @@ const verdictHeadings = [
   '## Verdict',
   '## Objective',
   '## Requirements',
+  '## User Expectations',
   '## Evidence',
   '## Missing or unmet',
   '## Scope and limits',
@@ -78,5 +79,12 @@ describe('verifier handoff template snapshots', () => {
     for (const verdict of VERIFIER_VERDICTS) expect(template).toContain(verdict);
     expect(template).toContain(VERIFIER_VERDICTS.join(', '));
     expect(template).toContain('No tests were run; none were requested.');
+  });
+
+  test('verdict carries the user-expectations section and its chat-mode fallback', () => {
+    const template = getVerifierToEntryPointHandoffTemplate('planner');
+
+    expect(template).toContain('None applicable.');
+    expect(template).toContain('U1');
   });
 });
