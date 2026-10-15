@@ -39,18 +39,17 @@ import {
 } from '../infrastructure/repository/task-handoff-repository.js';
 
 /**
- * Slim task header carried on every inbox event. Mirrors the backend header contract
- * (`taskId, chatroomId, status, assignedTo?, createdAt, updatedAt, startInNewSession?`).
- * Task content is loaded on demand through `loadAssignedTaskForAction`.
+ * Slim task header carried on every inbox event. Produced by the gateway's
+ * `pendingTaskInboxTaskSchema`; task content is loaded via `loadAssignedTaskForAction`.
  */
 export interface WorkspaceTaskInboxEventTask {
   readonly taskId: string;
   readonly chatroomId: string;
   readonly status: string;
-  readonly assignedTo?: string;
+  readonly assignedTo?: string | undefined;
   readonly createdAt: number;
   readonly updatedAt: number;
-  readonly startInNewSession?: boolean;
+  readonly startInNewSession?: boolean | undefined;
 }
 
 interface WorkspaceTaskInboxEventFields {
@@ -68,10 +67,10 @@ interface WorkspaceTaskInboxEventFields {
           readonly model: string;
           readonly workingDir: string;
         };
-      };
+      }
+    | undefined;
   readonly status: WorkspaceTaskInboxEventStatus;
   readonly createdAt: number;
-  readonly processedAt?: number;
   readonly task: WorkspaceTaskInboxEventTask;
 }
 
@@ -408,7 +407,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   ): TaskStateApplicationResult | 'handled' => {
     if (
       event.eventType === WorkspaceTaskInboxEventType.TaskDeleted ||
-      (event.task.status as string) === 'completed'
+      event.task.status === 'completed'
     ) {
       taskInboxState.remove(event.chatroomId, event.role, event.taskId, event.task.updatedAt);
       clearRedeliveryTrackingForTask(event.chatroomId, event.role, event.taskId);

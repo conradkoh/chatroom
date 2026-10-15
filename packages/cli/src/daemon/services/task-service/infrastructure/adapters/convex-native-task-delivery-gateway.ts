@@ -1,10 +1,12 @@
 // fallow-ignore-file complexity
 
-import type {
+import {
   WorkspaceTaskInboxEventStatus,
   WorkspaceTaskInboxEventType,
 } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import { assignedTaskAssigneeSchema } from '@workspace/backend/src/domain/usecase/machine/assigned-task-contract.js';
+import { z } from 'zod';
 
 import { api, type Id } from '../../../../../api.js';
 import {
@@ -16,10 +18,7 @@ import type {
   AssignedTaskWithContent,
 } from '../../../../domain/entities/assigned-task.js';
 import type { NativeTaskDeliveryGateway } from '../../service/ports/native-task-delivery.js';
-import type {
-  WorkspaceTaskInboxEvent,
-  WorkspaceTaskInboxEventTask,
-} from '../../service/task-service.js';
+import type { WorkspaceTaskInboxEvent } from '../../service/task-service.js';
 
 type Backend = {
   mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -111,41 +110,63 @@ export function createConvexNativeTaskDeliveryGateway(backend: Backend): NativeT
   };
 }
 
-export function mapPendingTaskInboxRows(rows: unknown): WorkspaceTaskInboxEvent[] {
-  return (rows as Record<string, unknown>[]).map((row) => ({
-    eventId: row._id as string,
-    machineId: row.machineId as string,
-    chatroomId: row.chatroomId as string,
-    taskId: row.taskId as string,
-    role: row.role as string,
-    ...(row.assignee === undefined
-      ? {}
-      : {
-          assignee: row.assignee as WorkspaceTaskInboxEvent['assignee'],
-        }),
-    eventType: row.eventType as WorkspaceTaskInboxEventType,
-    status: row.status as WorkspaceTaskInboxEventStatus,
-    createdAt: row.createdAt as number,
-    ...(row.processedAt === undefined ? {} : { processedAt: row.processedAt as number }),
-    task: mapPendingTaskInboxTask(row.task as Record<string, unknown>),
-  })) as WorkspaceTaskInboxEvent[];
+/**
+ * Slim task header on a `listPending` row. `z.object` strips unknown keys, so legacy
+ * fat-row fields (content, taskEnvelope, …) and future backend additions are dropped
+ * here instead of failing delivery on CLI/backend version skew.
+ */
+const pendingTaskInboxTaskSchema = z.object({
+  taskId: z.string(),
+  chatroomId: z.string(),
+  status: z.string(),
+  assignedTo: z.string().optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  startInNewSession: z.boolean().optional(),
+});
+
+/** Declared structure of one `chatroomWorkspaceTaskInbox.listPending` row. */
+const pendingTaskInboxRowSchema = z.object({
+  _id: z.string(),
+  machineId: z.string(),
+  chatroomId: z.string(),
+  taskId: z.string(),
+  role: z.string(),
+  assignee: assignedTaskAssigneeSchema.optional(),
+  eventType: z.enum(WorkspaceTaskInboxEventType),
+  status: z.enum(WorkspaceTaskInboxEventStatus),
+  createdAt: z.number(),
+  task: pendingTaskInboxTaskSchema,
+});
+
+/** Wire input accepted by the parser; type-tested against the backend `listPending` return type. */
+// fallow-ignore-next-line unused-type
+export type PendingTaskInboxRow = z.input<typeof pendingTaskInboxRowSchema>;
+
+function toWorkspaceTaskInboxEvent({
+  _id: eventId,
+  ...row
+}: z.output<typeof pendingTaskInboxRowSchema>): WorkspaceTaskInboxEvent {
+  return { ...row, eventId };
 }
 
 /**
- * Maps a backend inbox row's task into the daemon's slim header, field by field.
- * Legacy rows still carry content fields; they are deliberately dropped here so the
- * daemon consumes only what `applyInboxEvent` reads.
+ * Parses backend pending rows into daemon events. A malformed row is logged and skipped,
+ * so one bad row cannot stall delivery of the rest. It stays pending in the backend.
+ * Throws only when the payload is not an array.
  */
-function mapPendingTaskInboxTask(task: Record<string, unknown>): WorkspaceTaskInboxEventTask {
-  return {
-    taskId: task.taskId as string,
-    chatroomId: task.chatroomId as string,
-    status: task.status as string,
-    ...(task.assignedTo === undefined ? {} : { assignedTo: task.assignedTo as string }),
-    createdAt: task.createdAt as number,
-    updatedAt: task.updatedAt as number,
-    ...(task.startInNewSession === undefined
-      ? {}
-      : { startInNewSession: task.startInNewSession as boolean }),
-  };
+export function mapPendingTaskInboxRows(rows: unknown): WorkspaceTaskInboxEvent[] {
+  return z
+    .array(z.unknown())
+    .parse(rows)
+    .flatMap((raw) => {
+      const parsed = pendingTaskInboxRowSchema.safeParse(raw);
+      if (!parsed.success) {
+        console.warn(
+          `[TaskService] skipping malformed task inbox row: ${z.prettifyError(parsed.error)}`
+        );
+        return [];
+      }
+      return [toWorkspaceTaskInboxEvent(parsed.data)];
+    });
 }
