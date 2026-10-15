@@ -1,5 +1,5 @@
 import { AgentRoleLifecycleTag as WorkspaceTaskAssigneeType } from '@workspace/shared/domain/agent-role';
-import { v } from 'convex/values';
+import { type Infer, v } from 'convex/values';
 
 export enum WorkspaceTaskInboxEventType {
   TaskAssigned = 'task_assigned',
@@ -37,34 +37,72 @@ const workspaceTaskInboxEventStatusValidator = v.union(
   v.literal(WorkspaceTaskInboxEventStatus.Processed)
 );
 
-/** The complete task payload needed by a daemon to handle an assignment. */
-const workspaceTaskInboxTaskValidator = v.object({
+/**
+ * Task fields the daemon consumes from an inbox event. Heavy content is loaded on demand.
+ * Source for the slim header validator and the `WorkspaceTaskInboxTaskHeader` type that the
+ * `listPending` view consumes; only read inside this module.
+ */
+const workspaceTaskInboxTaskHeaderFields = {
   taskId: v.id('chatroom_tasks'),
   chatroomId: v.id('chatroom_rooms'),
-  createdBy: v.string(),
-  content: v.string(),
   status: v.string(),
   assignedTo: v.optional(v.string()),
-  sourceMessageId: v.optional(v.id('chatroom_messages')),
-  attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
-  origin: v.optional(v.string()),
-  complexity: v.optional(v.string()),
-  value: v.optional(v.string()),
-  priority: v.optional(v.number()),
-  parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   createdAt: v.number(),
   updatedAt: v.number(),
-  acknowledgedAt: v.optional(v.number()),
-  startedAt: v.optional(v.number()),
-  completedAt: v.optional(v.number()),
-  queuePosition: v.number(),
-  plannerEnhancerEnabled: v.optional(v.boolean()),
-  conversationMode: v.optional(v.string()),
-  originUserMessageId: v.optional(v.id('chatroom_messages')),
-  enhancerEnabledAtEnqueue: v.optional(v.boolean()),
   startInNewSession: v.optional(v.boolean()),
+};
+
+const workspaceTaskInboxTaskHeaderValidator = v.object(workspaceTaskInboxTaskHeaderFields);
+export type WorkspaceTaskInboxTaskHeader = Infer<typeof workspaceTaskInboxTaskHeaderValidator>;
+
+/**
+ * Legacy task snapshot fields. The writer no longer sets them. They exist only so rows written
+ * before the slim header still validate. Read task content from `chatroom_tasks` instead.
+ */
+const legacyWorkspaceTaskInboxTaskFields = {
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  createdBy: v.optional(v.string()), // was required
+  /** @deprecated No longer written. Read content from `chatroom_tasks`. */
+  content: v.optional(v.string()), // was required
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  queuePosition: v.optional(v.number()), // was required
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  sourceMessageId: v.optional(v.id('chatroom_messages')),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  origin: v.optional(v.string()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  complexity: v.optional(v.string()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  value: v.optional(v.string()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  priority: v.optional(v.number()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  acknowledgedAt: v.optional(v.number()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  startedAt: v.optional(v.number()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  completedAt: v.optional(v.number()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  plannerEnhancerEnabled: v.optional(v.boolean()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  conversationMode: v.optional(v.string()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  originUserMessageId: v.optional(v.id('chatroom_messages')),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
+  enhancerEnabledAtEnqueue: v.optional(v.boolean()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   taskEnvelope: v.optional(v.any()),
+  /** @deprecated No longer written. Present only on pre-slim rows. */
   sessionPolicyConsumedAt: v.optional(v.number()),
+};
+
+const workspaceTaskInboxTaskValidator = v.object({
+  ...workspaceTaskInboxTaskHeaderValidator.fields,
+  ...legacyWorkspaceTaskInboxTaskFields,
 });
 
 const workspaceTaskInboxEventFields = {

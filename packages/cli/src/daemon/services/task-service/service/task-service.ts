@@ -15,11 +15,7 @@ import { createPendingTaskReconciliationWatcher } from './watchers/pending-task-
 import { createTaskInboxAcknowledgementRetryWatcher } from './watchers/task-inbox-acknowledgement-retry-watcher.js';
 import { createTaskInboxDeliveryRetryWatcher } from './watchers/task-inbox-delivery-retry-watcher.js';
 import { api } from '../../../../api.js';
-import type {
-  TaskAssigneeType,
-  AssignedTask,
-  AssignedTaskWithContent,
-} from '../../../domain/entities/assigned-task.js';
+import type { TaskAssigneeType, AssignedTask } from '../../../domain/entities/assigned-task.js';
 import {
   TaskInboxState,
   type TaskInboxStateReader,
@@ -42,6 +38,20 @@ import {
   type TaskHandoffRecord,
 } from '../infrastructure/repository/task-handoff-repository.js';
 
+/**
+ * Slim task header carried on every inbox event. Produced by the gateway's
+ * `pendingTaskInboxTaskSchema`; task content is loaded via `loadAssignedTaskForAction`.
+ */
+export interface WorkspaceTaskInboxEventTask {
+  readonly taskId: string;
+  readonly chatroomId: string;
+  readonly status: string;
+  readonly assignedTo?: string | undefined;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly startInNewSession?: boolean | undefined;
+}
+
 interface WorkspaceTaskInboxEventFields {
   readonly eventId: string;
   readonly machineId: string;
@@ -57,16 +67,11 @@ interface WorkspaceTaskInboxEventFields {
           readonly model: string;
           readonly workingDir: string;
         };
-      };
+      }
+    | undefined;
   readonly status: WorkspaceTaskInboxEventStatus;
   readonly createdAt: number;
-  readonly processedAt?: number;
-  readonly task: AssignedTaskWithContent & {
-    readonly createdBy: string;
-    readonly sourceMessageId?: string;
-    readonly queuePosition: number;
-    readonly [key: string]: unknown;
-  };
+  readonly task: WorkspaceTaskInboxEventTask;
 }
 
 export type WorkspaceTaskInboxEvent =
@@ -402,7 +407,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   ): TaskStateApplicationResult | 'handled' => {
     if (
       event.eventType === WorkspaceTaskInboxEventType.TaskDeleted ||
-      (event.task.status as string) === 'completed'
+      event.task.status === 'completed'
     ) {
       taskInboxState.remove(event.chatroomId, event.role, event.taskId, event.task.updatedAt);
       clearRedeliveryTrackingForTask(event.chatroomId, event.role, event.taskId);

@@ -1426,6 +1426,11 @@ export default defineSchema({
   /**
    * One-shot task assignment events for workspace daemons. Events are not
    * leased or retried: the daemon marks an event processed after receiving it.
+   *
+   * `task` is a slim header on rows written after the slim-header change. Its legacy
+   * snapshot fields are @deprecated: they are not written any more and appear only on
+   * older rows. Read task content from `chatroom_tasks`. `processedAt` is live: it is
+   * written by `markProcessed`.
    */
   chatroomWorkspaceTaskInbox: defineTable(workspaceTaskInboxEventValidator)
     .index('by_machine_status_createdAt', ['machineId', 'status', 'createdAt'])

@@ -831,6 +831,74 @@ describe('TaskService inbox consumption', () => {
     service.stopTaskInbox();
   });
 
+  test('header-only pending event is acknowledged once and a later snapshot without it does not re-acknowledge', async () => {
+    const event = {
+      _id: 'event-header-1',
+      machineId: 'machine-1',
+      chatroomId: 'room-1',
+      taskId: 'task-1',
+      role: 'builder',
+      eventType: WorkspaceTaskInboxEventType.TaskAssigned,
+      status: WorkspaceTaskInboxEventStatus.Pending,
+      createdAt: 1_000,
+      task: {
+        taskId: 'task-1',
+        chatroomId: 'room-1',
+        status: 'pending',
+        assignedTo: 'builder',
+        createdAt: 900,
+        updatedAt: 1_000,
+        startInNewSession: false,
+      },
+    } as never;
+    const query = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValue([]);
+    const mutation = vi.fn(async () => ({ processed: true }));
+    const service = createTaskService({
+      sessionId: 'session-1',
+      machineId: 'machine-1',
+      convexUrl: 'http://test:3210',
+      configurationService: { get: () => undefined } as never,
+      handoffRepository: createInMemoryTaskHandoffRepository(),
+      backend: { mutation, query },
+    });
+    const notifications: unknown[] = [];
+    service.subscribe((notification) => {
+      notifications.push(notification);
+      return {
+        handledEventIds: notification.kind === 'inbox-event' ? [notification.event.eventId] : [],
+      };
+    });
+    let captured: ((rows: readonly unknown[]) => void) | undefined;
+    const wsClient = {
+      onUpdate: vi.fn((_queryRef, _args, callback) => {
+        // `startTaskInbox` subscribes to the pending inbox before the task-status
+        // stream, so the first captured callback is the inbox snapshot.
+        captured ??= callback as typeof captured;
+        return () => {};
+      }),
+    };
+
+    await service.startTaskInbox(wsClient as never);
+    captured?.([event]);
+    await vi.waitFor(() => {
+      expect(mutation).toHaveBeenCalledWith(
+        api.chatroomWorkspaceTaskInbox.markProcessed,
+        expect.objectContaining({ eventId: 'event-header-1' })
+      );
+    });
+
+    expect(notifications).toHaveLength(1);
+    expect(service.listTasksForRole('room-1', 'builder')).toHaveLength(1);
+    expect(mutation).toHaveBeenCalledTimes(1);
+
+    captured?.([]);
+    await Promise.resolve();
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(notifications).toHaveLength(1);
+    service.stopTaskInbox();
+  });
+
   test('retries acknowledgement without redelivering the event', async () => {
     vi.useFakeTimers();
     try {

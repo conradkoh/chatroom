@@ -9,8 +9,34 @@ import {
   WorkspaceTaskInboxEventStatus,
   WorkspaceTaskAssigneeType,
   WorkspaceTaskInboxEventType,
+  type WorkspaceTaskInboxTaskHeader,
 } from '../../entities/chatroom-workspace-task-inbox';
 import { listLastSentLaunchRequestsForChatroom } from '../agent/get-last-sent-launch-request';
+
+/**
+ * Builds the slim task header stored on inbox events and served by `listPending`.
+ * Single picker shared by the writer and the view; it keeps only the header keys,
+ * so content stays on `chatroom_tasks`.
+ */
+export function toWorkspaceTaskInboxTaskHeader(task: {
+  taskId: Id<'chatroom_tasks'>;
+  chatroomId: Id<'chatroom_rooms'>;
+  status: string;
+  assignedTo?: string;
+  createdAt: number;
+  updatedAt: number;
+  startInNewSession?: boolean;
+}): WorkspaceTaskInboxTaskHeader {
+  return omitUndefined({
+    taskId: task.taskId,
+    chatroomId: task.chatroomId,
+    status: task.status,
+    assignedTo: task.assignedTo,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    startInNewSession: task.startInNewSession,
+  });
+}
 
 /** Writes a task lifecycle event to every remote agent responsible for the task's role. */
 export async function writeWorkspaceTaskInboxEvent(
@@ -27,34 +53,7 @@ export async function writeWorkspaceTaskInboxEvent(
     chatroomId: task.chatroomId,
   });
 
-  const taskPayload = omitUndefined({
-    taskId: task._id,
-    chatroomId: task.chatroomId,
-    createdBy: task.createdBy,
-    content: task.content,
-    status: task.status,
-    assignedTo: task.assignedTo,
-    sourceMessageId: task.sourceMessageId,
-    attachedTaskIds: task.attachedTaskIds,
-    origin: task.origin,
-    complexity: task.complexity,
-    value: task.value,
-    priority: task.priority,
-    parentTaskIds: task.parentTaskIds,
-    createdAt: task.createdAt,
-    updatedAt: task.updatedAt,
-    acknowledgedAt: task.acknowledgedAt,
-    startedAt: task.startedAt,
-    completedAt: task.completedAt,
-    queuePosition: task.queuePosition,
-    plannerEnhancerEnabled: task.plannerEnhancerEnabled,
-    conversationMode: task.conversationMode,
-    originUserMessageId: task.originUserMessageId,
-    enhancerEnabledAtEnqueue: task.enhancerEnabledAtEnqueue,
-    startInNewSession: task.startInNewSession,
-    taskEnvelope: task.taskEnvelope,
-    sessionPolicyConsumedAt: task.sessionPolicyConsumedAt,
-  });
+  const taskPayload = toWorkspaceTaskInboxTaskHeader({ ...task, taskId: task._id });
 
   const targets = new Map<
     string,
