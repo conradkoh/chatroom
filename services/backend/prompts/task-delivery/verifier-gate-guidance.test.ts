@@ -107,6 +107,16 @@ describe('appendVerifierGateGuidance', () => {
     expect(output).toContain('After round 2, deliver');
   });
 
+  test('step 2 tells the planner to fill the verifier review block', () => {
+    const output = renderGate();
+
+    expect(output).toContain(
+      '`ACHIEVED`: deliver to `user` and fill the "Proof of verification (verifier review)" block'
+    );
+    expect(output).toContain("the report's Proof of Completion");
+    expect(output).toContain('the verdict message id, the verifier request command, and the round');
+  });
+
   test('states the stale-verdict rule', () => {
     expect(renderGate()).toContain(
       "Ignore a verdict whose user message id is not the user's current last message"
