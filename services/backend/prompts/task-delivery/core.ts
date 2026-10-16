@@ -32,7 +32,7 @@ export interface TaskDeliveryParams {
 }
 
 const SINGLE_HANDOFF_NOTE =
-  'Run handoff exactly once for this task. To update the user before then, use `chatroom notify-user` (see Commands in your system prompt). It does not complete the task.';
+  'When you finish this task, run `handoff` once; a handoff that returns an error does not count, so fix the error and run it again. When you need to update the user before you finish, run `chatroom notify-user` with the notice on stdin (same heredoc form as `handoff`, closing line exactly `CHATROOM_NOTIFY_END`); it does not complete the task.';
 
 function appendPrimaryHandoffInstructions(
   lines: string[],

@@ -142,7 +142,7 @@ describe('native session continuity', () => {
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('End your turn now');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('builder');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain(
-      'Do not run `handoff` again for this task'
+      'After a successful handoff, do not run `handoff` or `notify-user` again for this task'
     );
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('messages download');
   });
@@ -150,7 +150,7 @@ describe('native session continuity', () => {
   test('getNativeHandoffTurnEndGuidance for user handoff', () => {
     expect(getNativeHandoffTurnEndGuidance('user')).toContain('End your turn now');
     expect(getNativeHandoffTurnEndGuidance('user')).toContain(
-      'Do not run `handoff` again for this task'
+      'After a successful handoff, do not run `handoff` or `notify-user` again for this task'
     );
     expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages download');
   });

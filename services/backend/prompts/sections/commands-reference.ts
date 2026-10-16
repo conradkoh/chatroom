@@ -29,11 +29,11 @@ ${handoffCmd}
 
 ${HANDOFF_BODY_GUIDANCE}
 
-**Send the user an update while you keep working (does not complete your task):**
+**Send the user an interim update (does not complete your task):**
 \`\`\`bash
 ${notifyUserCommand({ chatroomId: params.chatroomId, role: params.role, cliEnvPrefix })}
 \`\`\`
-Use this for interim updates such as a blocker, "waiting on CI", or a status note. It never completes, reassigns, or transitions your task. Run \`handoff\` exactly once per task, when the work is complete. Never send a second handoff to report progress. The closing line must be exactly \`CHATROOM_NOTIFY_END\`.
+When you need to tell the user about a status change or an external wait (for example, waiting on CI) while you keep working on your current task, run \`notify-user\` before you run \`handoff\`. It does not complete, reassign, or transition your task. When you cannot continue until the user answers, run \`handoff\` to \`user\` with the question instead. When your work on the task is complete, run \`handoff\` once; do not run a second \`handoff\` to report progress. The closing line of the \`notify-user\` heredoc must be exactly \`CHATROOM_NOTIFY_END\`.
 ${native ? '\n**Do not run `register-agent`** — your session was registered when the harness started.\n' : `\n**Continue receiving messages after \`handoff\`:**\n\`\`\`\n${getNextTaskCommand({ chatroomId: params.chatroomId, role: params.role, cliEnvPrefix })}\n\`\`\`\n\n${getNextTaskReminder()}\n`}
 ${native ? '' : `\n${getGeneralCommandsReferenceContent(params)}`}`;
 }

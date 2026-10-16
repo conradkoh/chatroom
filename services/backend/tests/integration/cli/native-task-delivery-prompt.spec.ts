@@ -272,7 +272,7 @@ describe('Native task delivery prompt (integration)', () => {
     expect(fullCliOutput).toContain('get-next-task');
     expect(fullCliOutput).toContain('<handoffs>');
     expect(fullCliOutput).toContain('you MUST run the handoff command');
-    expect(fullCliOutput).toContain('Run handoff exactly once for this task');
+    expect(fullCliOutput).toContain('When you finish this task, run `handoff` once');
   });
 
   test('explicit Chat envelope keeps builder capability and suppresses enhancer at the prompt boundary', async () => {

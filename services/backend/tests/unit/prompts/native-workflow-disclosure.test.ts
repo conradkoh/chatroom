@@ -186,6 +186,32 @@ describe('Native task delivery — attached context', () => {
   });
 });
 
+describe('Native task delivery — single-handoff and cross-reference rules', () => {
+  test('planner next-steps pins the standalone single-handoff rule', () => {
+    const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);
+    const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
+
+    expect(nextSteps).toContain('When you finish this task, run `handoff` once');
+    expect(nextSteps).not.toContain('see Commands in your system prompt');
+  });
+
+  test('no emitted delivery text cross-references another rule', () => {
+    for (const scenario of NATIVE_DELIVERY_SCENARIOS) {
+      const output = deliver(scenario);
+      for (const phrase of [
+        'see Commands',
+        'see above',
+        'see below',
+        'the rule below',
+        'the rules below',
+        'above rule',
+      ]) {
+        expect(output, `${scenario.label} must not contain "${phrase}"`).not.toContain(phrase);
+      }
+    }
+  });
+});
+
 describe('Native task delivery — Chat mode eager template matrix', () => {
   test('duo planner chat entry-point user keeps base templates without enhancer-specific injection', () => {
     const output = generateNativeTaskDeliveryOutput({

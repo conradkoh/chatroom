@@ -40,7 +40,7 @@ describe('Duo Team > Builder > Handoff Output', () => {
       \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="builder"\`
 
       **Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.**
-      Do not run \`handoff\` again for this task — each task takes exactly one handoff.
+      After a successful handoff, do not run \`handoff\` or \`notify-user\` again for this task.
       The system delivers \`planner\`'s handback when they finish — do not poll \`messages download\` while waiting. For history reconstruction tasks, \`messages download\` is the correct tool."
     `);
   });
