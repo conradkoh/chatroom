@@ -56,11 +56,12 @@ const STALE_INPUT: RenderTaskPromptInput = {
 };
 
 /**
- * Golden output from the current (unchanged) renderer.
+ * Golden output length from the current renderer.
  * Captured manually — used for the size-constraint assertion.
- * DO NOT update without verifying against the actual renderer output.
+ * Updated when backlog `<interactions>` were added to the shared attachment
+ * renderer (intentional content increase); verified against the renderer output.
  */
-const OLD_GOLDEN_LENGTH = 1008;
+const OLD_GOLDEN_LENGTH = 1429;
 
 // =========================================================================
 // Layout
