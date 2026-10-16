@@ -9,10 +9,10 @@ The \`triage\` agent **only** receives the text inside your \`handoff --next-rol
 
 They **cannot** see:
 - Anything you write in this agent session
-- Progress reports
+- \`notify-user\` notices (notices go to the user only)
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
 ---
 
@@ -39,10 +39,10 @@ The \`triage\` agent **only** receives the text inside your \`handoff --next-rol
 
 They **cannot** see:
 - Anything you write in this agent session
-- Progress reports
+- \`notify-user\` notices (notices go to the user only)
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
 ---
 
@@ -69,10 +69,10 @@ The \`planner\` agent **only** receives the text inside your \`handoff --next-ro
 
 They **cannot** see:
 - Anything you write in this agent session
-- Progress reports
+- \`notify-user\` notices (notices go to the user only)
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
 ---
 
@@ -121,10 +121,10 @@ The \`solo\` agent **only** receives the text inside your \`handoff --next-role=
 
 They **cannot** see:
 - Anything you write in this agent session
-- Progress reports
+- \`notify-user\` notices (notices go to the user only)
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
 ---
 

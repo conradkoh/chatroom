@@ -14,9 +14,9 @@ export type VerifierVerdict = (typeof VERIFIER_VERDICTS)[number];
 
 /**
  * The verifier's single execution exception, shared by the verifier role
- * guidance, both verifier handoff templates, and the planner gate so the rule
- * has one source: it runs only the tests the user explicitly asked for, and
- * nothing else.
+ * guidance, both verifier handoff templates, and the planner gate so this
+ * behavior has one source: it runs only the tests the user explicitly asked
+ * for, and nothing else.
  */
 export const VERIFIER_TEST_RULE =
   'runs no test the user did not ask for, and never builds, lints, or edits';

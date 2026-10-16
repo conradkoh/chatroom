@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// fallow-ignore-file code-duplication
 /**
  * Chatroom CLI
  *
@@ -425,6 +426,49 @@ handoffCommandGroup
       role,
       message,
       nextRole,
+    });
+  });
+
+program
+  .command('notify-user')
+  .description(
+    'Send the user an update while you keep working (does not complete or transition your task)'
+  )
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  // fallow-ignore-next-line complexity
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+
+    // Read message from stdin
+    const { decode } = await import('./utils/serialization/decode/index.js');
+    const stdinContent = await readStdin();
+
+    let message: string;
+    try {
+      const { NOTIFY_USER_STDIN_DELIMITER, validateStdinHeredocBody } =
+        await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+      const result = decode(stdinContent, { singleParam: 'message' });
+      message = result.message;
+      validateStdinHeredocBody(message, NOTIFY_USER_STDIN_DELIMITER);
+    } catch (err) {
+      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+      process.exit(1);
+    }
+
+    // Validate that message is not empty
+    if (!message || message.trim().length === 0) {
+      console.error('❌ Message is empty');
+      console.error(
+        `   Usage: chatroom notify-user --chatroom-id=<id> --role=<role> << 'CHATROOM_NOTIFY_END'`
+      );
+      process.exit(1);
+    }
+
+    const { notifyUser } = await import('./commands/notify-user/index.js');
+    await notifyUser(options.chatroomId, {
+      role: options.role,
+      message,
     });
   });
 

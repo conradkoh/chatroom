@@ -8,16 +8,14 @@ Agent prompt generation system.
 prompts/
 ├── types/              # Shared types
 │   └── cli.ts          # CLI command generator types
+├── cli/                # CLI command generators
+│   ├── get-next-task/
+│   │   └── command.ts  # Command generator
+│   ├── handoff/
+│   │   └── command.ts  # Command generator
+│   └── notify-user/
+│       └── command.ts  # Command generator
 ├── base/               # Base prompts (shared by all teams)
-│   ├── cli/            # CLI command prompts
-│   │   ├── classify/
-│   │   │   └── command.ts       # Command generator
-│   │   ├── handoff/
-│   │   │   └── command.ts       # Command generator
-│   │   └── get-next-task/
-│   │       └── command.ts       # Command generator
-│   ├── roles/          # Role definitions (builder, planner)
-│   ├── workflows/      # Workflow definitions
 │   └── shared/         # Shared utilities
 ├── teams/              # Team-specific customizations
 │   ├── duo/            # Duo team (planner + builder)
@@ -35,38 +33,33 @@ Each CLI command has a `command.ts` file that generates command strings. This en
 
 ### Available Commands
 
-| Command         | Generator                           | Description                             |
-| --------------- | ----------------------------------- | --------------------------------------- |
-| `classify`      | `base/cli/classify/command.ts`      | Classify a task's origin message        |
-| `handoff`       | `base/cli/handoff/command.ts`       | Complete task and hand off to next role |
-| `get-next-task` | `base/cli/get-next-task/command.ts` | Wait for incoming tasks                 |
+| Command         | Generator                      | Description                             |
+| --------------- | ------------------------------ | --------------------------------------- |
+| `handoff`       | `cli/handoff/command.ts`       | Complete task and hand off to next role |
+| `notify-user`   | `cli/notify-user/command.ts`   | Post an interim update to the user      |
+| `get-next-task` | `cli/get-next-task/command.ts` | Wait for incoming tasks                 |
 
 ### Usage
 
 ```typescript
-import { classifyCommand } from './base/cli/classify/command.js';
-import { handoffCommand } from './base/cli/handoff/command.js';
-import { getNextTaskCommand } from './base/cli/get-next-task/command.js';
+import { handoffCommand } from './cli/handoff/command.js';
+import { getNextTaskCommand } from './cli/get-next-task/command.js';
 
 // Examples with placeholders (for documentation)
-classifyCommand({ cliEnvPrefix: '' });
-// → "chatroom classify --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> ..."
+handoffCommand({ cliEnvPrefix: '' });
+// → "chatroom handoff --chatroom-id=\"<chatroom-id>\" --role=\"<role>\" --next-role=\"<target>\" << 'CHATROOM_HANDOFF_END' ..."
 
-handoffCommand({ type: 'example' });
-// → "chatroom handoff <chatroom-id> --role=<role> --message-file=<message-file> --next-role=<target>"
-
-getNextTaskCommand({ type: 'example' });
-// → "chatroom get-next-task <chatroom-id> --role=<role>"
+getNextTaskCommand({ cliEnvPrefix: '' });
+// → "chatroom get-next-task --chatroom-id=\"<chatroom-id>\" --role=\"<role>\""
 
 // Commands with real values (for actual prompts)
-classifyCommand({
-  chatroomId: 'abc',
+handoffCommand({
+  chatroomId: 'abc123',
   role: 'builder',
-  taskId: 'xyz',
-  classification: 'question',
+  nextRole: 'planner',
   cliEnvPrefix: '',
 });
-// → "chatroom classify --chatroom-id=abc --role=builder --task-id=xyz --origin-message-classification=question"
+// → "chatroom handoff --chatroom-id=\"abc123\" --role=\"builder\" --next-role=\"planner\" << 'CHATROOM_HANDOFF_END' ..."
 ```
 
 ## Guidelines

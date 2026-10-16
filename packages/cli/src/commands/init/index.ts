@@ -39,7 +39,7 @@ get-next-task → do work → handoff → get-next-task → repeat
 
 1. **Run \`get-next-task\`** immediately via \`bash\` — block until task arrives
 2. **Process** the task
-3. **Run \`handoff\`** to signal completion
+3. **Run \`handoff\`** to signal completion. Run \`handoff\` exactly once per task
 4. **Run \`get-next-task\`** again to wait for next task
 
 ### Reliability
@@ -59,6 +59,7 @@ This ensures you never forget to pass control back — just copy the command fro
 |--------|---------|
 | Fetch next task | \`chatroom get-next-task --chatroom-id=<id> --role=<role>\` |
 | Pass control | \`chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>\` |
+| Update the user without completing the task | \`chatroom notify-user --chatroom-id=<id> --role=<role> << 'CHATROOM_NOTIFY_END'\` |
 | Refresh system prompt (after compaction) | \`chatroom get-system-prompt --chatroom-id=<id> --role=<role>\` |
 
 **Non-production only** (local dev, preview): prefix commands with \`CHATROOM_CONVEX_URL=<convex-url> \` (e.g. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task ...\`).

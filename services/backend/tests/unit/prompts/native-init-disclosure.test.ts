@@ -18,9 +18,14 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
 /**
  * Length budget for native duo/planner init with shared inter-role guidance.
  * Raised from 12900 to admit the bug-report-to-triage nudge bullet (~270 characters),
- * then from 13200 to admit the verify-before-delivering nudge bullet (~180 characters).
+ * then from 13200 to admit the verify-before-delivering nudge bullet (~180 characters),
+ * then from 13400 to admit the notify-user command block and single-handoff bullet
+ * in the shared commands reference (~760 characters), then from 14200 to admit the
+ * visibility-consistency rewording of the user-communication and handoff-completeness
+ * bullets (~32 characters), then from 14300 to admit the notify-user vs. handoff
+ * conditional rewording in the inter-role handoff rule and commands reference (~370 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 13400;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 14700;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];
@@ -92,13 +97,37 @@ describe('Init — templates deferred to task delivery', () => {
 });
 
 describe('Native init — commands reference', () => {
-  test('includes handoff only (no view-template or get-next-task)', () => {
+  test('includes handoff and notify-user (no view-template or get-next-task)', () => {
     const prompt = nativeInitPrompt('duo', 'builder');
     expect(prompt).toContain('### Commands');
     expect(prompt).toContain('chatroom handoff');
+    expect(prompt).toContain('chatroom notify-user');
+    expect(prompt).toContain('CHATROOM_NOTIFY_END');
     expect(prompt).not.toContain('report-progress');
     expect(prompt).not.toContain('handoff view-template');
     expect(prompt).not.toContain('chatroom get-next-task');
+  });
+
+  test('CLI init advertises notify-user with its heredoc delimiter', () => {
+    const prompt = cliInitPrompt('duo', 'builder');
+    expect(prompt).toContain('chatroom notify-user');
+    expect(prompt).toContain('CHATROOM_NOTIFY_END');
+    expect(prompt).toContain('chatroom get-next-task');
+  });
+
+  test('init prompts no longer claim progress reports are invisible to the user', () => {
+    const prompts = [
+      nativeInitPrompt('duo', 'builder'),
+      nativeInitPrompt('duo', 'planner'),
+      cliInitPrompt('duo', 'planner'),
+      cliInitPrompt('solo', 'solo'),
+    ];
+    for (const prompt of prompts) {
+      expect(prompt).not.toContain('progress reports');
+      expect(prompt).not.toContain('all other messages are invisible');
+      expect(prompt).not.toContain('can ONLY see');
+      expect(prompt).not.toContain('ONLY role that communicates');
+    }
   });
 
   test('includes role title, compact glossary, role guidance, and recovery commands', () => {

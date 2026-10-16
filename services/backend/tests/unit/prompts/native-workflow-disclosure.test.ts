@@ -92,6 +92,16 @@ describe('Native task delivery — sender-based primary handoff (step 2)', () =>
     expect(templates).toContain('The `planner` agent');
     expect(templates).toContain('handoff --next-role="planner"');
   });
+
+  test('recipient visibility callouts state notice visibility per recipient type', () => {
+    const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);
+    const templates = output.slice(
+      output.indexOf('<handoff-templates>'),
+      output.indexOf('</handoff-templates>')
+    );
+    expect(templates).toContain('`notify-user` notices (notices go to the user only)');
+    expect(templates).toContain('plus any `notify-user` notices');
+  });
 });
 
 describe('Native task delivery — eager handoff template matrix', () => {
@@ -173,6 +183,32 @@ describe('Native task delivery — attached context', () => {
     expect(output.indexOf('<attachments>')).toBeLessThan(output.indexOf('Main task'));
     expect(output.indexOf('<next-steps>')).toBeGreaterThan(output.indexOf('</attachments>'));
     expect(output).not.toContain('<attached>');
+  });
+});
+
+describe('Native task delivery — single-handoff and cross-reference rules', () => {
+  test('planner next-steps pins the standalone single-handoff rule', () => {
+    const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);
+    const nextSteps = output.slice(output.indexOf('<next-steps>'), output.indexOf('</next-steps>'));
+
+    expect(nextSteps).toContain('When you finish this task, run `handoff` once');
+    expect(nextSteps).not.toContain('see Commands in your system prompt');
+  });
+
+  test('no emitted delivery text cross-references another rule', () => {
+    for (const scenario of NATIVE_DELIVERY_SCENARIOS) {
+      const output = deliver(scenario);
+      for (const phrase of [
+        'see Commands',
+        'see above',
+        'see below',
+        'the rule below',
+        'the rules below',
+        'above rule',
+      ]) {
+        expect(output, `${scenario.label} must not contain "${phrase}"`).not.toContain(phrase);
+      }
+    }
   });
 });
 

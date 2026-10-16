@@ -32,13 +32,13 @@ describe('Duo Team > Planner > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Chatroom task completed and handed off to builder
 
-      ✅ Level B complete (chatroom task handed off).
-      ⏳ Level A continues (session is still active) — run get-next-task to stay connected:
+      ✅ Chatroom task complete (handoff sent).
+      **Handoff complete. When the harness does not support native integration: run \`get-next-task\` in the foreground now; it blocks until the next chatroom task is ready.**
+      After a successful handoff, do not run \`handoff\` or \`notify-user\` again for this task.
+      When you are waiting for \`builder\`'s handback: do not poll \`messages download\`; your blocking \`get-next-task\` returns it.
+      When you need the history of how this task was done: \`messages download\` is the correct tool.
 
-      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`
-
-      **Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.**
-      The system delivers \`builder\`'s handback when they finish — do not poll \`messages download\` while waiting. For history reconstruction tasks, \`messages download\` is the correct tool."
+      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`"
     `);
   });
 
@@ -55,13 +55,12 @@ describe('Duo Team > Planner > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Chatroom task completed and handed off to user
 
-      ✅ Level B complete (chatroom task handed off).
-      ⏳ Level A continues (session is still active) — run get-next-task to stay connected:
+      ✅ Chatroom task complete (handoff sent).
+      **Handoff complete. When the harness does not support native integration: run \`get-next-task\` in the foreground now; it blocks until the next chatroom task is ready.**
+      After a successful handoff, do not run \`handoff\` or \`notify-user\` again for this task.
+      When the next task arrives: the user sends it, and your blocking \`get-next-task\` returns it.
 
-      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`
-
-      **Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.**
-      The system delivers the next chatroom task when the user sends one."
+      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`"
     `);
   });
 });

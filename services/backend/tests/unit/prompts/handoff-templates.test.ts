@@ -174,14 +174,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ⚠️ **CRITICAL — Recipient visibility**
 
-      The user **only** receives the text inside your \`handoff --next-role="user"\` command.
+      The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
 
       They **cannot** see:
       - Anything you write in this agent session (including direct replies like "Hello!")
-      - Progress reports
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
 
       ---
 
@@ -191,7 +190,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       \`\`\`markdown
       <handoff-overview>
-      <!-- For informational tasks (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed — the user only sees this handoff. -->
+      <!-- When the task is informational (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed. Do not rely on earlier \`notify-user\` notices or session text. -->
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
@@ -337,10 +336,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       They **cannot** see:
       - Anything you write in this agent session
-      - Progress reports
+      - \`notify-user\` notices (notices go to the user only)
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
       ---
 
@@ -418,10 +417,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       They **cannot** see:
       - Anything you write in this agent session
-      - Progress reports
+      - \`notify-user\` notices (notices go to the user only)
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
       ---
 
@@ -518,10 +517,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       They **cannot** see:
       - Anything you write in this agent session
-      - Progress reports
+      - \`notify-user\` notices (notices go to the user only)
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
       ---
 
@@ -613,14 +612,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ⚠️ **CRITICAL — Recipient visibility**
 
-      The user **only** receives the text inside your \`handoff --next-role="user"\` command.
+      The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
 
       They **cannot** see:
       - Anything you write in this agent session (including direct replies like "Hello!")
-      - Progress reports
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
 
       ---
 
@@ -630,7 +628,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       \`\`\`markdown
       <handoff-overview>
-      <!-- For informational tasks (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed — the user only sees this handoff. -->
+      <!-- When the task is informational (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed. Do not rely on earlier \`notify-user\` notices or session text. -->
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 

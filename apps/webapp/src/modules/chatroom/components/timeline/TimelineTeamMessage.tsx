@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, ArrowRightLeft } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Info } from 'lucide-react';
 import { memo } from 'react';
 
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
@@ -37,6 +37,13 @@ function getMessageTypeBadge(type: string) {
       className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
       label: 'handoff',
       icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
+    };
+  }
+  if (type === 'notice') {
+    return {
+      className: `${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`,
+      label: 'notice',
+      icon: <Info size={ICON_SIZE} className="flex-shrink-0" aria-hidden="true" />,
     };
   }
   return null;
@@ -78,6 +85,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
     <div
       className={`${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
       data-testid="timeline-team-message"
+      data-message-type={message.type}
     >
       <div
         className={cn(

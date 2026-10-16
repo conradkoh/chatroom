@@ -171,6 +171,146 @@ Edge case X
     });
   });
 
+  describe('notice messages', () => {
+    const NOTICE_MESSAGE: Message = {
+      ...BASE_MESSAGE,
+      type: 'notice',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Build finished. Ready for review.',
+    };
+
+    it('renders an informational notice badge and no handoff badge', () => {
+      render(<TimelineTeamMessage message={NOTICE_MESSAGE} chatroomId="room-1" />);
+
+      const badge = screen.getByText('notice');
+      expect(badge).toHaveClass('bg-chatroom-status-info/15');
+      expect(badge).toHaveClass('text-chatroom-status-info');
+      expect(screen.queryByText('handoff')).not.toBeInTheDocument();
+    });
+
+    it('renders the notice body through the plain markdown body unchanged', () => {
+      render(<TimelineTeamMessage message={NOTICE_MESSAGE} chatroomId="room-1" />);
+
+      expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
+        'Build finished. Ready for review.'
+      );
+    });
+
+    it('does not render handoff envelope/report views for envelope-shaped notice content', () => {
+      const envelopeNotice: Message = {
+        ...NOTICE_MESSAGE,
+        content: '<user-message>hello</user-message><grounding>notes</grounding>',
+      };
+      render(<TimelineTeamMessage message={envelopeNotice} chatroomId="room-1" />);
+
+      expect(screen.queryByTestId('handoff-envelope-view')).not.toBeInTheDocument();
+      expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent('<user-message>hello');
+    });
+
+    it('does not render handoff report views for report-shaped notice content', () => {
+      const reportNotice: Message = {
+        ...NOTICE_MESSAGE,
+        content: `<handoff-overview>
+## Summary
+Looks good overall
+</handoff-overview>
+
+<handoff-action>
+## Risks & failure modes
+Edge case X
+</handoff-action>`,
+      };
+      render(<TimelineTeamMessage message={reportNotice} chatroomId="room-1" />);
+
+      expect(screen.queryByTestId('handoff-report-view')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('handoff-section-overview')).not.toBeInTheDocument();
+      expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent('Looks good overall');
+    });
+
+    it('does not unwrap a presentation fence for notice content', () => {
+      const fencedNotice: Message = {
+        ...NOTICE_MESSAGE,
+        content: '```markdown\n## Summary\nHello world\n```',
+      };
+      render(<TimelineTeamMessage message={fencedNotice} chatroomId="room-1" />);
+
+      const body = screen.getByTestId('timeline-markdown-body');
+      expect(body.textContent).toContain('```markdown');
+      expect(body.textContent).toContain('## Summary');
+    });
+
+    it('renders no handoff duration chip for notices', () => {
+      const { unmount } = render(
+        <TimelineTeamMessage message={NOTICE_MESSAGE} chatroomId="room-1" />
+      );
+      expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
+      unmount();
+
+      render(
+        <TimelineTeamMessage
+          message={NOTICE_MESSAGE}
+          chatroomId="room-1"
+          handoffDurationMs={undefined}
+        />
+      );
+      expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
+    });
+
+    it('exposes the notice type on the root and shows sender → user in the header', () => {
+      render(<TimelineTeamMessage message={NOTICE_MESSAGE} chatroomId="room-1" />);
+
+      expect(screen.getByTestId('timeline-team-message')).toHaveAttribute(
+        'data-message-type',
+        'notice'
+      );
+      expect(screen.getByText('builder')).toBeInTheDocument();
+      expect(screen.getByText('user')).toBeInTheDocument();
+    });
+
+    it('keeps the grid header and notice badge when headerNavigation is supplied', () => {
+      render(
+        <TimelineTeamMessage
+          message={NOTICE_MESSAGE}
+          chatroomId="room-1"
+          headerNavigation={{
+            onJumpToFirst: vi.fn(),
+            onJumpToPrevious: vi.fn(),
+            onJumpToCurrent: vi.fn(),
+            onJumpToNext: vi.fn(),
+            onJumpToLast: vi.fn(),
+            hasFirst: true,
+            hasPrevious: true,
+            hasNext: true,
+            hasLast: true,
+          }}
+        />
+      );
+
+      expect(screen.getByTestId('timeline-message-header').className).toContain(
+        'grid-cols-[1fr_auto_1fr]'
+      );
+      expect(screen.getByText('notice')).toBeInTheDocument();
+    });
+  });
+
+  it('renders no type badge for a plain team message and exposes its type on the root', () => {
+    const plainMessage: Message = {
+      ...BASE_MESSAGE,
+      type: 'message',
+      senderRole: 'planner',
+      content: 'Ordinary reply',
+    };
+    render(<TimelineTeamMessage message={plainMessage} chatroomId="room-1" />);
+
+    expect(screen.queryByText('notice')).not.toBeInTheDocument();
+    expect(screen.queryByText('handoff')).not.toBeInTheDocument();
+    expect(screen.getByTestId('timeline-team-message')).toHaveAttribute(
+      'data-message-type',
+      'message'
+    );
+  });
+
   it('uses true-center grid on header when headerNavigation provided', () => {
     render(
       <TimelineTeamMessage

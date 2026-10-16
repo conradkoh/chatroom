@@ -20,14 +20,12 @@ vi.mock('../../../hooks/chatroomMessageStore', () => ({
   toMessage: (m: { _id: string }) => m,
 }));
 
-vi.mock('../../../timeline/mapMessageToTimelineEvent', () => ({
-  mapMessageToTimelineEvent: (message: { _id: string }) => ({
-    id: message._id,
-    kind: 'user_message',
-    creationTime: 100,
-    message,
-  }),
-}));
+vi.mock('../../../timeline/mapMessageToTimelineEvent', async () => {
+  const actual = (await vi.importActual('../../../timeline/mapMessageToTimelineEvent')) as {
+    mapMessageToTimelineEvent: (message: never, handoffDurationMs?: number) => unknown;
+  };
+  return { mapMessageToTimelineEvent: vi.fn(actual.mapMessageToTimelineEvent) };
+});
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
@@ -322,5 +320,56 @@ describe('useAllTabConversation', () => {
       .at(-1);
     expect(latestNavCall).toEqual({ chatroomId: 'room-1' });
     expect(latestNavCall).not.toHaveProperty('anchorMessageId');
+  });
+
+  it('maps user, notice, and handoff to user_message, team_message, team_message with notice carrying no duration', () => {
+    const userMessage = {
+      _id: 'msg-u',
+      type: 'message',
+      senderRole: 'user',
+      content: 'do it',
+      _creationTime: 100,
+      acknowledgedAt: 100,
+    };
+    const notice = {
+      _id: 'msg-n',
+      type: 'notice',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'heads up',
+      _creationTime: 200,
+    };
+    const handoff = {
+      _id: 'msg-h',
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'done',
+      _creationTime: 500,
+      taskOriginMessageId: 'msg-u',
+    };
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [userMessage, notice, handoff],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useAllTabConversation('room-1'));
+
+    expect(result.current.events.map((event) => event.kind)).toEqual([
+      'user_message',
+      'team_message',
+      'team_message',
+    ]);
+    expect(result.current.events.map((event) => event.id)).toEqual(['msg-u', 'msg-n', 'msg-h']);
+
+    const noticeEvent = result.current.events[1];
+    expect(noticeEvent.message.type).toBe('notice');
+    expect((noticeEvent as { handoffDurationMs?: number }).handoffDurationMs).toBeUndefined();
+
+    expect(result.current.events[2]).toMatchObject({
+      kind: 'team_message',
+      handoffDurationMs: 400,
+    });
   });
 });

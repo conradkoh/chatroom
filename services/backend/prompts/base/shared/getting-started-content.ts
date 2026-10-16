@@ -40,7 +40,7 @@ flowchart LR
 
 When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. ${getTokenActivityInProgressNote()}
 
-⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
+⚠️ Completing a **chatroom task** does NOT end your **session**. After every handoff, you must run \`get-next-task\` again to continue the session.
 
 ### Context Recovery (after compaction/summarization)
 
@@ -56,12 +56,12 @@ ${cliEnvPrefix}chatroom register-agent --chatroom-id="${chatroomId}" --role="${r
 \`\`\`
 
 ### Get Next Task
-Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
+Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—treat the message content as the source of truth for what to do.
 
 \`\`\`bash
 ${cliEnvPrefix}chatroom get-next-task --chatroom-id="${chatroomId}" --role="${role}"
 \`\`\`
 
-**This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
+**This loop never ends.** A session processes many chatroom tasks. Each handoff completes one chatroom task — \`get-next-task\` continues the session. Do not stop or exit after a handoff.
 `;
 }

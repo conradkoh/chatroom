@@ -31,6 +31,9 @@ export interface TaskDeliveryParams {
   conversationMode?: ConversationMode | undefined;
 }
 
+const SINGLE_HANDOFF_NOTE =
+  'When you finish this task, run `handoff` once; a handoff that returns an error does not count, so fix the error and run it again. When you need to update the user before you finish, run `chatroom notify-user` with the notice on stdin (same heredoc form as `handoff`, closing line exactly `CHATROOM_NOTIFY_END`); it does not complete the task.';
+
 function appendPrimaryHandoffInstructions(
   lines: string[],
   params: {
@@ -58,6 +61,7 @@ function appendPrimaryHandoffInstructions(
   lines.push(
     'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the template content. The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**'
   );
+  lines.push('', SINGLE_HANDOFF_NOTE);
 }
 
 function getTaskSenderRole(message: { senderRole: string } | null | undefined): string | undefined {
@@ -97,6 +101,8 @@ function appendTaskDeliveryNextSteps(
 
   lines.push(
     '2. **When complete, you MUST run a handoff command from `<handoffs>` below as your final action this turn. Run handoff last, then end your turn immediately — no further tool calls after handoff.**',
+    '',
+    SINGLE_HANDOFF_NOTE,
     '',
     '</next-steps>'
   );

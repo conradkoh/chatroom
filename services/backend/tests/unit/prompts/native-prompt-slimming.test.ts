@@ -146,6 +146,7 @@ describe('native task delivery', () => {
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
     expect(output).toContain('**builder**');
+    expect(output).toContain('When you finish this task, run `handoff` once');
     expect(output).not.toContain('task injection');
     expect(output).not.toContain('Classify');
   });

@@ -43,6 +43,48 @@ async function insertTimelineMessage(
   });
 }
 
+/** Seed an active task so `messages.notifyUser` accepts the sender role. */
+async function seedActiveTask(
+  chatroomId: Id<'chatroom_rooms'>,
+  assignedTo: string
+): Promise<Id<'chatroom_tasks'>> {
+  return await t.run(async (ctx) => {
+    const now = Date.now();
+    return (await ctx.db.insert('chatroom_tasks', {
+      chatroomId,
+      createdBy: 'user',
+      content: 'Active work',
+      status: 'in_progress',
+      assignedTo,
+      createdAt: now,
+      updatedAt: now,
+      queuePosition: 1,
+    })) as Id<'chatroom_tasks'>;
+  });
+}
+
+/** Send a real notice through `messages.notifyUser` and return its id. */
+async function sendNotice(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  content: string
+): Promise<Id<'chatroom_messages'>> {
+  const { messageId } = await t.mutation(api.messages.notifyUser, {
+    sessionId,
+    chatroomId,
+    senderRole: 'builder',
+    content,
+  });
+  return messageId;
+}
+
+async function getMessageCreationTime(id: Id<'chatroom_messages'>): Promise<number> {
+  return await t.run(async (ctx) => {
+    const row = await ctx.db.get('chatroom_messages', id);
+    return row!._creationTime;
+  });
+}
+
 describe('getAllTabAnchorNavigation', () => {
   test('returns all null when no messages exist', async () => {
     const { sessionId } = await createTestSession('alltab-nav-empty');
@@ -413,6 +455,89 @@ describe('listAllTabSlicePaginated', () => {
     expect(secondPage.sliceMetadata.upperBoundExclusive).toBe(navigation.sliceUpperBoundExclusive);
     const ids = [...firstPage.page, ...secondPage.page].map((message) => message._id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('listAllTabSlicePaginated — notice isolation', () => {
+  test("a notice stays inside the anchor's slice and does not end it", async () => {
+    const { sessionId } = await createTestSession('alltab-slice-notice');
+    const chatroomId = await createChatroom(sessionId);
+
+    const u1 = await insertTimelineMessage(chatroomId, 'user', 'U1 anchor');
+    await seedActiveTask(chatroomId, 'builder');
+    const noticeId = await sendNotice(sessionId, chatroomId, 'N notice inside U1 slice');
+    const u2 = await insertTimelineMessage(chatroomId, 'user', 'U2 next user');
+
+    const navigation = await t.query(api.allTabConversation.getAllTabAnchorNavigation, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: u1,
+    });
+    const u2CreationTime = await getMessageCreationTime(u2);
+    const noticeCreationTime = await getMessageCreationTime(noticeId);
+    expect(navigation.nextAnchorId).toBe(u2);
+    expect(navigation.sliceUpperBoundExclusive).toBe(u2CreationTime);
+    expect(navigation.sliceUpperBoundExclusive).not.toBe(noticeCreationTime);
+
+    const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: u1,
+      paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: navigation.sliceUpperBoundExclusive,
+    });
+
+    const ids = result.page.map((m) => m._id);
+    const types = result.page.map((m) => m.type);
+    expect(ids).toContain(u1);
+    expect(ids).toContain(noticeId);
+    expect(ids).not.toContain(u2);
+    expect(ids.indexOf(u1)).toBeLessThan(ids.indexOf(noticeId));
+    expect(types[ids.indexOf(noticeId)]).toBe('notice');
+    expect(result.sliceMetadata.upperBoundExclusive).toBe(u2CreationTime);
+
+    const u1CreationTime = await getMessageCreationTime(u1);
+    const tail = await t.query(api.allTabConversation.subscribeAllTabSliceTail, {
+      sessionId,
+      chatroomId,
+      afterCreationTime: u1CreationTime,
+      upperBoundExclusive: navigation.sliceUpperBoundExclusive,
+    });
+    expect(tail).not.toBeNull();
+    const tailNotice = tail!.find((m) => m._id === noticeId);
+    expect(tailNotice).toBeDefined();
+    expect(tailNotice!.type).toBe('notice');
+    expect(tail!.some((m) => m._id === u2)).toBe(false);
+  });
+
+  test('a notice sent after the next user message belongs to that slice', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-notice-after');
+    const chatroomId = await createChatroom(sessionId);
+
+    const u1 = await insertTimelineMessage(chatroomId, 'user', 'U1 anchor');
+    await seedActiveTask(chatroomId, 'builder');
+    const u2 = await insertTimelineMessage(chatroomId, 'user', 'U2 next user');
+    const noticeId = await sendNotice(sessionId, chatroomId, 'N2 notice after U2');
+
+    const navigation = await t.query(api.allTabConversation.getAllTabAnchorNavigation, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: u2,
+    });
+    expect(navigation.nextAnchorId).toBeNull();
+
+    const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: u2,
+      paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: navigation.sliceUpperBoundExclusive,
+    });
+
+    const ids = result.page.map((m) => m._id);
+    expect(ids).toContain(u2);
+    expect(ids).toContain(noticeId);
+    expect(ids).not.toContain(u1);
   });
 });
 

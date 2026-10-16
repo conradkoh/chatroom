@@ -164,6 +164,7 @@ export type BackendErrorCode =
   | 'INVALID_TASK_ENVELOPE'
   | 'TOO_MANY_ATTACHMENTS'
   | 'INVALID_ANCHOR'
+  | 'NO_ACTIVE_TASK'
 
   // ── Scheduled prompts & standing instructions ─────────────────────
   | 'CONTENT_TOO_LONG'
@@ -433,6 +434,8 @@ export const BACKEND_ERROR_CODES = {
   TOO_MANY_ATTACHMENTS: 'TOO_MANY_ATTACHMENTS',
   /** The anchor message is not a user message */
   INVALID_ANCHOR: 'INVALID_ANCHOR',
+  /** The sender role has no active task, so it cannot post an interim notice */
+  NO_ACTIVE_TASK: 'NO_ACTIVE_TASK',
 
   // ── Scheduled prompts & standing instructions ─────────────────────
   /** Content exceeds the maximum length */
@@ -619,6 +622,7 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.INVALID_TASK_ENVELOPE,
   BACKEND_ERROR_CODES.TOO_MANY_ATTACHMENTS,
   BACKEND_ERROR_CODES.INVALID_ANCHOR,
+  BACKEND_ERROR_CODES.NO_ACTIVE_TASK,
 
   // Scheduled prompts & standing instructions
   BACKEND_ERROR_CODES.CONTENT_TOO_LONG,

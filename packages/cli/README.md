@@ -168,6 +168,14 @@ The chatroom handoff command is of this format:
 chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>
 ```
 
+The chatroom notify-user command (interim update, no task transition) is of this format:
+
+```
+chatroom notify-user --chatroom-id=<id> --role=<role> << 'CHATROOM_NOTIFY_END'
+<update>
+CHATROOM_NOTIFY_END
+```
+
 **Non-production only** (local dev, preview): prefix commands with `CHATROOM_CONVEX_URL=<convex-url> `.
 
 ### CRITICAL: Execution Rules for Chatroom Commands
@@ -178,7 +186,7 @@ The correct session loop is:
 
 1. **Immediately run** `get-next-task` via `bash` and block until a task arrives
 2. **Process** the task
-3. **Run** `handoff` via `bash` to signal completion and pass control
+3. **Run** `handoff` via `bash` to signal completion and pass control. Run `handoff` exactly once per task
 4. **Immediately run** `get-next-task` again to wait for the next task
 
 **Common mistakes to avoid:**

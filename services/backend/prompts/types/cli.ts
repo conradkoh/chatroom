@@ -36,6 +36,17 @@ export interface HandoffParams extends CommandContext {
 }
 
 // ============================================================================
+// notify-user command types
+// ============================================================================
+
+export interface NotifyUserParams extends CommandContext {
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  /** Placeholder text inside the heredoc body (default: [Your update for the user]). */
+  messagePlaceholder?: string | undefined;
+}
+
+// ============================================================================
 // get-next-task command types
 // ============================================================================
 

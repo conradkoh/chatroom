@@ -12,7 +12,7 @@
  * Format: Single line, positive framing, clear consequence
  */
 export function getNextTaskReminder(): string {
-  return 'A foreground `get-next-task` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.';
+  return 'A foreground `get-next-task` blocks until the user or team message is ready, then resolves with that message as a chatroom task—treat the message content as the source of truth for what to do. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.';
 }
 
 /**
@@ -29,7 +29,7 @@ export function getNextTaskGuidance(): string {
 
 Your primary directive: Stay available to receive chatroom tasks from your team.
 
-When the user or team is ready, your blocking \`get-next-task\` resolves and delivers their message as the next chatroom task. That message is the source of truth for what to do—numbered next-steps in task delivery are typical role patterns, not a rigid script.
+When the user or team is ready, your blocking \`get-next-task\` resolves and delivers their message as the next chatroom task. That message content is the source of truth for what to do.
 
 The harness delivers the next chatroom task only through a single foreground \`get-next-task\` that blocks as a tool call. After completing work and handing off, that blocking listener is what keeps you connected to your team.
 
