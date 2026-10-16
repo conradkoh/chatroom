@@ -32,12 +32,8 @@ import type { ResolvedChatroom } from '../../../../convex/lib/chatroomTeam';
 import { getTeamRolesFromChatroom } from '../chatroom/get-team-roles';
 import { markChatroomUnread } from '../chatroom/unread-status';
 
-/**
- * Maximum number of characters allowed in a notice body.
- * Exported for the `chatroom notify-user` CLI surface (validates before upload).
- */
-// fallow-ignore-next-line unused-export
-export const NOTIFY_USER_MAX_CONTENT_LENGTH = 10_000;
+/** Maximum number of characters allowed in a notice body. Enforced by `assertValidContent`. */
+const NOTIFY_USER_MAX_CONTENT_LENGTH = 10_000;
 
 /**
  * Statuses under which a sender role counts as actively working a task.
