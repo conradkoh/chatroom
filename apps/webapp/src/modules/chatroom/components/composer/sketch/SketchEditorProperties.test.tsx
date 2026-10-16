@@ -54,3 +54,14 @@ describe('SketchEditorProperties transform hint', () => {
     expect(screen.queryByText(HINT)).not.toBeInTheDocument();
   });
 });
+
+describe('SketchEditorProperties transform cancel button', () => {
+  it('is labelled "Cancel" and uses a ring instead of a 1px border box', () => {
+    render(<SketchEditorProperties {...baseProps} />);
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancel).toHaveClass('border-0');
+    expect(cancel).toHaveClass('ring-chatroom-border');
+    // tailwind-merge must drop the secondary class's plain `border` so the box matches Apply.
+    expect(cancel.className).not.toMatch(/(^|\s)border(\s|$)/);
+  });
+});

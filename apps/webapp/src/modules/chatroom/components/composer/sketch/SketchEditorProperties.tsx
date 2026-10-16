@@ -131,9 +131,12 @@ export function SketchEditorProperties({
                 type="button"
                 disabled={disabled}
                 onClick={onCancelFloating}
-                className={chatroomIndustrialButtonSecondaryClassName}
+                className={cn(
+                  chatroomIndustrialButtonSecondaryClassName,
+                  'border-0 ring-1 ring-inset ring-chatroom-border'
+                )}
               >
-                Cancel transform
+                Cancel
               </button>
             </div>
           ) : null}

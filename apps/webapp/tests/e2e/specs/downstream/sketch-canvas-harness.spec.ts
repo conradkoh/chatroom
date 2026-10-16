@@ -326,12 +326,9 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
         await writePngToClipboard(page, '#ff0000');
         await page.keyboard.press('ControlOrMeta+V');
         await expect(page.getByText(/Pasted image 1/)).toBeVisible();
-        // Before the fix the transform panel's cancel and the footer dismiss both read
-        // "Cancel", making a bare `Cancel` locator ambiguous.
-        await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0);
-        await expect(
-          page.getByRole('button', { name: 'Cancel transform', exact: true })
-        ).toHaveCount(1);
+        // The transform panel's cancel is the only control labelled exactly "Cancel"; the footer
+        // dismiss reads "Close", so a bare `Cancel` locator stays unambiguous.
+        await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(1);
         await expect(footerCloseButton(page)).toHaveCount(1);
         // Closing with a pending paste must confirm rather than silently dropping the paste.
         await footerCloseButton(page).click();
