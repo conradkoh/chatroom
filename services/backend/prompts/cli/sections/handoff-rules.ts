@@ -21,7 +21,7 @@ function buildHandoffRuleLines(config: TeamCompositionConfig): string {
   }
   lines.push(getInterRoleHandoffRule());
   lines.push(
-    `- **To deliver to user** → Hand off to \`user\` with a complete, standalone summary\n  ⚠️ ${getUserHandoffVisibilityNote()}`
+    `- **When the work is complete and ready for the user** → Hand off to \`user\` with a complete, standalone summary\n  ⚠️ ${getUserHandoffVisibilityNote()}`
   );
   return lines.join('\n');
 }

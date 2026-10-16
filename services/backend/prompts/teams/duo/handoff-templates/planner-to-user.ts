@@ -2,8 +2,8 @@
  * Handoff template: Duo planner → user (final report).
  *
  * This is the most important template in the set: the planner is the single
- * point of contact for the user, and the user can ONLY see the final
- * handoff-to-user message. A high-quality report shapes the planner's goals
+ * point of contact for the user, and the user reads the handoff-to-user
+ * message and any `notify-user` notices. A high-quality report shapes the planner's goals
  * up-front, which is why this template is delivered with each task (see
  * prompts/cli/get-next-task/fullOutput.ts and native task delivery) rather
  * than baked into the static init/system prompt.

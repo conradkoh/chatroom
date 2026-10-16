@@ -20,9 +20,11 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * Raised from 12900 to admit the bug-report-to-triage nudge bullet (~270 characters),
  * then from 13200 to admit the verify-before-delivering nudge bullet (~180 characters),
  * then from 13400 to admit the notify-user command block and single-handoff bullet
- * in the shared commands reference (~760 characters).
+ * in the shared commands reference (~760 characters), then from 14200 to admit the
+ * visibility-consistency rewording of the user-communication and handoff-completeness
+ * bullets (~32 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 14200;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 14300;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];
@@ -122,6 +124,8 @@ describe('Native init — commands reference', () => {
     for (const prompt of prompts) {
       expect(prompt).not.toContain('progress reports');
       expect(prompt).not.toContain('all other messages are invisible');
+      expect(prompt).not.toContain('can ONLY see');
+      expect(prompt).not.toContain('ONLY role that communicates');
     }
   });
 

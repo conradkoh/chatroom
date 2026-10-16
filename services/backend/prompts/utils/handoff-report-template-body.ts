@@ -19,7 +19,7 @@ export function getHandoffReportTemplateBody(
   options: HandoffReportTemplateBodyOptions = {}
 ): string {
   return `<handoff-overview>
-<!-- For informational tasks (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed — the user only sees this handoff. -->
+<!-- When the task is informational (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed. Do not rely on earlier \`notify-user\` notices or session text. -->
 ## Summary
 <what was accomplished, in plain terms — no references to prior messages>
 

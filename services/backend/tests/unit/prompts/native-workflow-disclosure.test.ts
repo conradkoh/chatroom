@@ -92,6 +92,16 @@ describe('Native task delivery — sender-based primary handoff (step 2)', () =>
     expect(templates).toContain('The `planner` agent');
     expect(templates).toContain('handoff --next-role="planner"');
   });
+
+  test('recipient visibility callouts state notice visibility per recipient type', () => {
+    const output = deliver(NATIVE_DELIVERY_SCENARIOS[1]);
+    const templates = output.slice(
+      output.indexOf('<handoff-templates>'),
+      output.indexOf('</handoff-templates>')
+    );
+    expect(templates).toContain('`notify-user` notices (notices go to the user only)');
+    expect(templates).toContain('plus any `notify-user` notices');
+  });
 });
 
 describe('Native task delivery — eager handoff template matrix', () => {

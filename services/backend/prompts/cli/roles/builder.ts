@@ -61,7 +61,7 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 **Handoff Rules:**
 - **After code changes** → Hand off to \`${codeChangesTarget}\`
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
-  ⚠️ If \`${questionTarget}\` is the user: ${getUserHandoffVisibilityNote()}
+  ⚠️ When \`${questionTarget}\` is the user: ${getUserHandoffVisibilityNote()}
 ${getInterRoleHandoffRule()}
 
 ${getHandoffTemplateDiscoveryGuidance({ teamId: 'duo', rolePlaceholder: 'builder' })}

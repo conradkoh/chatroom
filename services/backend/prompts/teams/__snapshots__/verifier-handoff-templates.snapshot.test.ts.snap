@@ -9,9 +9,10 @@ The \`verifier\` agent **only** receives the text inside your \`handoff --next-r
 
 They **cannot** see:
 - Anything you write in this agent session
+- \`notify-user\` notices (notices go to the user only)
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
+When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
 ---
 
@@ -63,9 +64,10 @@ The \`verifier\` agent **only** receives the text inside your \`handoff --next-r
 
 They **cannot** see:
 - Anything you write in this agent session
+- \`notify-user\` notices (notices go to the user only)
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
+When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
 ---
 
@@ -117,9 +119,10 @@ The \`planner\` agent **only** receives the text inside your \`handoff --next-ro
 
 They **cannot** see:
 - Anything you write in this agent session
+- \`notify-user\` notices (notices go to the user only)
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
+When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
 ---
 
@@ -168,9 +171,10 @@ The \`solo\` agent **only** receives the text inside your \`handoff --next-role=
 
 They **cannot** see:
 - Anything you write in this agent session
+- \`notify-user\` notices (notices go to the user only)
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
+When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
 
 ---
 

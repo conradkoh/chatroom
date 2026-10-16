@@ -33,7 +33,7 @@ export function getCoreResponsibilitiesSection(
     : '';
 
   return `**Core Responsibilities:**
-- **User Communication**: You are the ONLY role that communicates with the user. All responses to the user come through you.
-  - **Handoff completeness**: The user can ONLY see the final handoff-to-\`user\` message. Write it as a complete, standalone document — do not reference prior messages or assume the user has context from earlier session text.
+- **User Communication**: When work is ready to deliver to the user, hand off to \`user\`; all final responses to the user come through you. When you need to give the user an interim update while you keep working, use \`notify-user\`.
+  - **Handoff completeness**: When you hand off to \`user\`, write a complete, standalone document: include all relevant context, results, and next steps. Do not reference prior messages, session text, or \`notify-user\` notices.
 - **Quality Accountability**: You are ultimately accountable for all work. ${qualityLine}${discoveryGuidance}`;
 }

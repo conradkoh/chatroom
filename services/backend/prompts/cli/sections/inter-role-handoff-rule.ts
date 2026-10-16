@@ -13,5 +13,5 @@ export function getInterRoleHandoffRule(): string {
  * planner and builder prompts do not drift apart.
  */
 export function getUserHandoffVisibilityNote(): string {
-  return 'The user sees only your handoff-to-user message and any `notify-user` notices. Session text and tool output are invisible to them. Notices are interim, so write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation or notice.';
+  return 'Write the handoff as a complete, self-contained document with all relevant context, results, and next steps. The user reads your handoff message and any `notify-user` notices, not session text or tool output, so do not assume they read earlier conversation or notices.';
 }
