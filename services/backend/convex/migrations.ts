@@ -92,6 +92,32 @@ export const unsetMachineDaemonConnected = migrations.define({
 });
 
 /**
+ * Migration: Remove dead capability and liveness fields from chatroom_machines.
+ * Capabilities are read from chatroom_machineCapabilities and liveness from the
+ * machine status/liveness tables. The stale values on this document are re-sent on
+ * every read of the machine document, so they are removed here.
+ */
+export const unsetMachineLegacyCapabilityFields = migrations.define({
+  table: 'chatroom_machines',
+  migrateOne: async (_ctx, machine) => {
+    const legacy = machine as Record<string, unknown>;
+    if (
+      legacy.availableModels !== undefined ||
+      legacy.availableHarnesses !== undefined ||
+      legacy.harnessVersions !== undefined ||
+      legacy.lastSeenAt !== undefined
+    ) {
+      return migrationPatch<Doc<'chatroom_machines'>>({
+        availableModels: undefined,
+        availableHarnesses: undefined,
+        harnessVersions: undefined,
+        lastSeenAt: undefined,
+      });
+    }
+  },
+});
+
+/**
  * Migration: Remove daemon connectivity from the agent/role read model.
  * Connectivity is a machine-level UI concern, not role projection state.
  */
@@ -869,6 +895,7 @@ const allMigrationReferences = [
   internal.migrations.unsetSessionExpiration,
   internal.migrations.unsetCliSessionExpiration,
   internal.migrations.unsetMachineDaemonConnected,
+  internal.migrations.unsetMachineLegacyCapabilityFields,
   internal.migrations.unsetAgentRoleDaemonConnected,
   internal.migrations.unsetMachineLivenessDaemonConnected,
   internal.migrations.setUserAccessLevelDefault,
