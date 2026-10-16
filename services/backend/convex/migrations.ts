@@ -172,7 +172,6 @@ export const setUserAccessLevelDefault = migrations.define({
 type LegacyCliSessionTimestamp = { lastUsedAt?: number };
 /** Historical stored shape of sessions before lastActivityAt removal. */
 type LegacySessionTimestamp = { lastActivityAt?: number };
-/** Historical stored shape of chatroom_machines before lastSeenAt removal. */
 
 /**
  * Backfill chatroom_cliSessionLastUsedAt from the historical
