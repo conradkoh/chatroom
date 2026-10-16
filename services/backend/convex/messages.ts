@@ -36,6 +36,7 @@ import {
   isMessageReadModelComplete,
   linkMessageToTask,
 } from '../src/domain/usecase/message/message-read-model';
+import { notifyUser as notifyUserUsecase } from '../src/domain/usecase/message/notify-user';
 import { walkToUserMessageId } from '../src/domain/usecase/message/resolve-origin-user-message-id';
 import { listActivatedSkills } from '../src/domain/usecase/skills/list-activated-skills';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
@@ -803,6 +804,25 @@ export const handoff = mutation({
   },
   handler: async (ctx, args) => {
     return runHandoffHandler(ctx, args);
+  },
+});
+
+/** Sends an agent → user notice. Never completes, creates, or reassigns tasks. */
+export const notifyUser = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    senderRole: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const teamChatroom = await withActiveTeamStructure(ctx, chatroom);
+    return notifyUserUsecase(ctx, {
+      chatroom: teamChatroom,
+      senderRole: args.senderRole,
+      content: args.content,
+    });
   },
 });
 
