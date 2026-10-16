@@ -317,4 +317,92 @@ describe('messages.notifyUser', () => {
       tasksWithStatus.filter((task) => task._id === taskId && task.status === 'completed')
     ).toHaveLength(1);
   });
+
+  test('getLatestForRole never returns a notice to any agent role', async () => {
+    const { sessionId } = await createTestSession('notify-user-get-latest');
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    // Active builder task so the notice is allowed.
+    await seedUserOriginTask(chatroomId, 'Builder work in flight', 'builder', 'in_progress');
+
+    const { messageId: noticeId } = await t.mutation(api.messages.notifyUser, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'Interim notice that must never be delivered as work.',
+    });
+
+    // Queued user follow-ups created after the notice, one for each role.
+    const { userMessageId: builderUserMessageId } = await seedUserOriginTask(
+      chatroomId,
+      'Follow up for builder',
+      'builder',
+      'pending'
+    );
+    const { userMessageId: plannerUserMessageId } = await seedUserOriginTask(
+      chatroomId,
+      'Follow up for planner',
+      'planner',
+      'pending'
+    );
+
+    const builderLatest = await t.query(api.messages.getLatestForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      afterMessageId: noticeId,
+    });
+    const plannerLatest = await t.query(api.messages.getLatestForRole, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      afterMessageId: noticeId,
+    });
+
+    expect(builderLatest?._id).toBe(builderUserMessageId);
+    expect(builderLatest?.senderRole).toBe('user');
+    expect(builderLatest?._id).not.toBe(noticeId);
+
+    expect(plannerLatest?._id).toBe(plannerUserMessageId);
+    expect(plannerLatest?.senderRole).toBe('user');
+    expect(plannerLatest?._id).not.toBe(noticeId);
+  });
+
+  test('a notice marks unread without the handoff flag, then a handoff-to-user sets it', async () => {
+    const { sessionId } = await createTestSession('notify-user-unread-flag');
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await seedUserOriginTask(chatroomId, 'Unread flag work', 'builder', 'in_progress');
+
+    await t.mutation(api.messages.notifyUser, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'Notice only — no handoff yet.',
+    });
+
+    const afterNotice = await t.query(api.chatrooms.listUnreadStatus, { sessionId });
+    const noticeStatus = afterNotice.find((status) => status.chatroomId === chatroomId);
+    expect(noticeStatus).toBeDefined();
+    expect(noticeStatus!.hasUnread).toBe(true);
+    expect(noticeStatus!.hasUnreadHandoff).toBe(false);
+
+    await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Handing this back.',
+    });
+
+    const afterHandoff = await t.query(api.chatrooms.listUnreadStatus, { sessionId });
+    const handoffStatus = afterHandoff.find((status) => status.chatroomId === chatroomId);
+    expect(handoffStatus).toBeDefined();
+    expect(handoffStatus!.hasUnread).toBe(true);
+    expect(handoffStatus!.hasUnreadHandoff).toBe(true);
+  });
 });
