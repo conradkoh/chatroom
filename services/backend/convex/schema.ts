@@ -464,7 +464,9 @@ export default defineSchema({
       v.literal('handoff'),
       v.literal('join'), // Deprecated: no longer created, kept for backwards compat with existing data
       v.literal('progress'),
-      v.literal('new-context') // Displayed when a new context is created
+      v.literal('new-context'), // Displayed when a new context is created
+      // Agent → user interim message; no task transition (chatroom notify-user)
+      v.literal('notice')
     ),
     // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
     contextCreatedBy: v.optional(v.string()),
@@ -555,7 +557,8 @@ export default defineSchema({
       v.literal('handoff'),
       v.literal('join'),
       v.literal('progress'),
-      v.literal('new-context')
+      v.literal('new-context'),
+      v.literal('notice')
     ),
     isTimeline: v.boolean(),
     taskId: v.optional(v.id('chatroom_tasks')),
