@@ -114,7 +114,7 @@ describe('useSketchManipulation transform scaling', () => {
     return { c, h };
   }
   const lastUpdate = (update: Update) =>
-    update.mock.calls.at(-1)?.[0] as { scaleX: number; scaleY: number };
+    update.mock.calls.at(-1)?.[0] as { x: number; y: number; scaleX: number; scaleY: number };
 
   it('scales a corner proportionally by default and freely with Shift', () => {
     const update = vi.fn<(t: SketchTransform) => void>();
@@ -133,7 +133,7 @@ describe('useSketchManipulation transform scaling', () => {
     const { c, h } = renderTransform(update);
     act(() => h.result.current.manipulationBindings.onPointerDown?.(event(c, 120, 70)));
     act(() => h.result.current.manipulationBindings.onPointerMove?.(event(c, 170, 70)));
-    expect(lastUpdate(update)).toMatchObject({ scaleX: 1.5, scaleY: 1.5 });
+    expect(lastUpdate(update)).toMatchObject({ scaleX: 1.5, scaleY: 1.5, x: 20, y: -5 });
     act(() =>
       h.result.current.manipulationBindings.onPointerMove?.(event(c, 170, 70, { shiftKey: true }))
     );

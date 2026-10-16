@@ -109,6 +109,11 @@ const midpoint = (a: SketchPoint, b: SketchPoint): SketchPoint => ({
 export function translateTransform(t: SketchTransform, dx: number, dy: number): SketchTransform {
   return { ...t, x: t.x + dx, y: t.y + dy };
 }
+/**
+ * Scales from `handle`, keeping the opposite handle fixed at its drag-start canvas position.
+ * `preserveAspect` keeps the drag-start `scaleX:scaleY` ratio (Photoshop-style); free mode scales
+ * each axis independently. In both modes the origin is shifted so the anchor point does not move.
+ */
 // fallow-ignore-next-line complexity
 export function scaleTransformFromHandle(
   t: SketchTransform,
@@ -125,20 +130,40 @@ export function scaleTransformFromHandle(
   const affectsY = handle.includes('north') || handle.includes('south');
   const freeX = affectsX ? t.scaleX + (handle.includes('west') ? -dx / w : dx / w) : t.scaleX;
   const freeY = affectsY ? t.scaleY + (handle.includes('north') ? -dy / h : dy / h) : t.scaleY;
+  let sx: number;
+  let sy: number;
   if (!preserveAspect) {
-    return { ...t, scaleX: Math.max(0.01, freeX), scaleY: Math.max(0.01, freeY) };
+    sx = Math.max(0.01, freeX);
+    sy = Math.max(0.01, freeY);
+  } else {
+    // Proportional: derive one uniform factor from the drag-start scales, so the ratio scaleX:scaleY is preserved.
+    const kx = freeX / t.scaleX;
+    const ky = freeY / t.scaleY;
+    let k: number;
+    if (affectsX && !affectsY)
+      k = kx; // east / west edge
+    else if (affectsY && !affectsX)
+      k = ky; // north / south edge
+    else k = Math.abs(kx - 1) >= Math.abs(ky - 1) ? kx : ky; // corner: dominant axis
+    k = Math.max(k, 0.01 / Math.min(t.scaleX, t.scaleY)); // keep both scales >= 0.01
+    sx = t.scaleX * k;
+    sy = t.scaleY * k;
   }
-  // Proportional: derive one uniform factor from the drag-start scales, so the ratio scaleX:scaleY is preserved.
-  const kx = freeX / t.scaleX;
-  const ky = freeY / t.scaleY;
-  let k: number;
-  if (affectsX && !affectsY)
-    k = kx; // east / west edge
-  else if (affectsY && !affectsX)
-    k = ky; // north / south edge
-  else k = Math.abs(kx - 1) >= Math.abs(ky - 1) ? kx : ky; // corner: dominant axis
-  k = Math.max(k, 0.01 / Math.min(t.scaleX, t.scaleY)); // keep both scales >= 0.01
-  return { ...t, scaleX: t.scaleX * k, scaleY: t.scaleY * k };
+  // Keep the opposite handle fixed. The anchor is the local point (ax*w, ay*h); its canvas
+  // position is (x,y) + R(θ)·(u·sx, v·sy). Shifting (x,y) by R(θ)·(du,dv) cancels the change.
+  const ax = handle.includes('west') ? 1 : handle.includes('east') ? 0 : 0.5;
+  const ay = handle.includes('north') ? 1 : handle.includes('south') ? 0 : 0.5;
+  const du = ax * w * (t.scaleX - sx);
+  const dv = ay * h * (t.scaleY - sy);
+  const c = Math.cos(t.rotationRadians);
+  const s = Math.sin(t.rotationRadians);
+  return {
+    ...t,
+    scaleX: sx,
+    scaleY: sy,
+    x: t.x + c * du - s * dv,
+    y: t.y + s * du + c * dv,
+  };
 }
 export function rotateTransformFromHandle(
   t: SketchTransform,
