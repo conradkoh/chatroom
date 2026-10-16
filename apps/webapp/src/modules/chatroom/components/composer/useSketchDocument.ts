@@ -165,7 +165,12 @@ export function useSketchDocument({
       );
     }
     return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        // Null the handle too: `scheduleComposite` short-circuits on a non-null handle, so
+        // cancelling without clearing it would strand all future composite requests.
+        rafRef.current = null;
+      }
     };
   }, [doc.layers, scheduleComposite]);
   const activeContext = useCallback(
@@ -365,8 +370,31 @@ export function useSketchDocument({
     setDoc((state) => ({ ...state, floating: null }));
     scheduleComposite();
   }, [doc, finishPasteFloating, mark, scheduleComposite]);
+  const applyFloatingSelection = useCallback(() => {
+    if (!doc.floating || !floatingBitmapRef.current) return;
+    const ctx = layersRef.current.get(doc.activeLayerId)?.getContext('2d');
+    const bitmap = floatingBitmapRef.current;
+    if (ctx && bitmap)
+      applySketchTransform(ctx, doc.floating.transform, () => ctx.drawImage(bitmap, 0, 0));
+    floatingBitmapRef.current = null;
+    floatingBackupRef.current = null;
+    floatingTransformRef.current = null;
+    setDoc((state) => ({
+      ...state,
+      floating: null,
+      layers: state.layers.map((l) =>
+        l.id === state.activeLayerId ? { ...l, hasContent: true } : l
+      ),
+    }));
+    scheduleComposite();
+  }, [doc, scheduleComposite]);
+  // Declared after `applyFloatingSelection` because it commits any pending floating paste
+  // before importing, and the dependency array must not read it in its temporal dead zone.
   const importPastedImage = useCallback(
     async (file: File) => {
+      // Photoshop commits the pending transform on a new paste. Without this,
+      // floatingBitmapRef is overwritten and the first image's pixels are lost.
+      if (doc.floating) applyFloatingSelection();
       let objectUrl: string | null = null;
       try {
         let decoded: ImageBitmap | HTMLImageElement;
@@ -417,26 +445,8 @@ export function useSketchDocument({
         if (objectUrl) URL.revokeObjectURL(objectUrl);
       }
     },
-    [scheduleComposite]
+    [applyFloatingSelection, doc.floating, scheduleComposite]
   );
-  const applyFloatingSelection = useCallback(() => {
-    if (!doc.floating || !floatingBitmapRef.current) return;
-    const ctx = layersRef.current.get(doc.activeLayerId)?.getContext('2d');
-    const bitmap = floatingBitmapRef.current;
-    if (ctx && bitmap)
-      applySketchTransform(ctx, doc.floating.transform, () => ctx.drawImage(bitmap, 0, 0));
-    floatingBitmapRef.current = null;
-    floatingBackupRef.current = null;
-    floatingTransformRef.current = null;
-    setDoc((state) => ({
-      ...state,
-      floating: null,
-      layers: state.layers.map((l) =>
-        l.id === state.activeLayerId ? { ...l, hasContent: true } : l
-      ),
-    }));
-    scheduleComposite();
-  }, [doc, scheduleComposite]);
   const exportPngFile = useCallback(
     () =>
       new Promise<File | null>((resolve) => {

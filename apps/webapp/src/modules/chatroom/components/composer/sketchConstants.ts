@@ -6,6 +6,11 @@ export const SKETCH_CANVAS_BACKGROUND = '#ffffff' as const;
 export const SKETCH_CANVAS_WIDTH = 1200;
 export const SKETCH_CANVAS_HEIGHT = 900;
 
+/** Theme-invariant overlay ink: the overlay canvas sits on a fixed white background. */
+export const SKETCH_OVERLAY_WHITE = '#ffffff' as const; // frame base stroke, handle outline
+export const SKETCH_OVERLAY_BLACK = '#000000' as const; // frame dash stroke, handle fill
+export const SKETCH_TRANSFORM_HANDLE_SIZE = 8 as const; // canvas px, square side
+
 export const SKETCH_BRUSH_PALETTE = [
   { label: 'Black', value: '#171717' },
   { label: 'Red', value: '#ef4444' },

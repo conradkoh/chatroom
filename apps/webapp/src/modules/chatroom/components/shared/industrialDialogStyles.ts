@@ -74,12 +74,13 @@ export const chatroomPortaledMenuSurfaceClassName =
  */
 export const chatroomPortaledMenuFloatingClassName = `z-50 pointer-events-auto outline-none ${chatroomPortaledMenuSurfaceClassName}`;
 
-/** Confirmation overlay — above floating menus and nested modals. */
-export const chatroomIndustrialConfirmationOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} ${Z_CONFIRMATION} bg-black/60`;
+/** Confirmation overlay — above floating menus and nested modals. Opts back in to pointer events because it may be portaled into a pointer-events-none host. */
+export const chatroomIndustrialConfirmationOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} ${Z_CONFIRMATION} pointer-events-auto bg-black/60`;
 
 export const chatroomIndustrialConfirmationModalContentClassName = [
   ...chatroomIndustrialModalContentAnimationClassName,
   Z_CONFIRMATION,
+  'pointer-events-auto',
   'rounded-none',
   chatroomIndustrialBorderClassName,
   chatroomIndustrialSurfaceClassName,

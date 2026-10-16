@@ -75,7 +75,7 @@ export function SketchEditorSession({
     disabled: brushInputDisabled,
     eraserMode: activeTool === 'eraser',
   });
-  const { onPaste, isImporting } = useSketchClipboardPaste({
+  const { isImporting } = useSketchClipboardPaste({
     disabled: isSaving,
     importPastedImage,
     onTransformRequested: () => setActiveTool('transform'),
@@ -149,10 +149,10 @@ export function SketchEditorSession({
         onPointerLeave: brushCursorBindings.onPointerLeave,
       }
     : canvasBindings;
-  const { manipulationBindings } = useSketchManipulation({
+  const { manipulationBindings, cursor } = useSketchManipulation({
     canvasRef,
     overlayRef,
-    activeTool: activeTool === 'transform' ? 'transform' : 'move',
+    activeTool,
     disabled: inputDisabled,
     selection: docSelection,
     floating,
@@ -188,16 +188,22 @@ export function SketchEditorSession({
     setDiscardOpen(true);
   }, [cancelFloatingSelection, floating, hasContent, isSaving, onDismiss]);
   useEffect(() => registerRequestDismiss(requestDismiss), [registerRequestDismiss, requestDismiss]);
+  // The footer's Close button must not silently drop a pending floating paste the way the
+  // registered dismiss path (Escape / close) does; route it through the discard confirm.
+  const requestCloseFromFooter = useCallback(() => {
+    if (isSaving) return;
+    if (!hasContent && !floating) {
+      onDismiss();
+      return;
+    }
+    setDiscardOpen(true);
+  }, [floating, hasContent, isSaving, onDismiss]);
   const confirmDiscard = useCallback(() => {
     setDiscardOpen(false);
     onDismiss();
   }, [onDismiss]);
   return (
-    <div
-      aria-busy={isSaving || isImporting}
-      onPaste={onPaste}
-      className="flex min-h-0 flex-1 flex-col"
-    >
+    <div aria-busy={isSaving || isImporting} className="flex min-h-0 flex-1 flex-col">
       <DialogHeader className="min-h-12 shrink-0 justify-center border-b-2 border-chatroom-border px-4 pr-12 text-left">
         <DialogTitle>Sketch attachment</DialogTitle>
       </DialogHeader>
@@ -216,6 +222,7 @@ export function SketchEditorSession({
           selectionBindings={selectionBindings}
           activeTool={activeTool}
           showBrushCursor={showBrushCursor}
+          manipulationCursor={cursor}
           manipulationBindings={manipulationBindings}
         />
         <aside className="order-1 flex shrink-0 flex-col border-b-2 border-chatroom-border lg:order-none lg:min-h-0 lg:border-b-0 lg:border-l-2">
@@ -246,7 +253,7 @@ export function SketchEditorSession({
         className="shrink-0 px-4 py-3 lg:px-5"
         isSaving={isSaving}
         hasContent={hasContent}
-        onDismiss={requestDismiss}
+        onDismiss={requestCloseFromFooter}
         onSave={save}
         isImporting={isImporting}
       />

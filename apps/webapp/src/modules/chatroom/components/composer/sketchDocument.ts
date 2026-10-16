@@ -109,8 +109,12 @@ export function updateLayerHasContent(
   layerId: SketchLayerId,
   hasContent: boolean
 ): SketchDocumentState {
+  const layer = state.layers.find((l) => l.id === layerId);
+  // Return the identical state when nothing changes so callers that mark content on every
+  // brush/eraser segment do not force a repaint effect keyed on `state.layers`.
+  if (!layer || layer.hasContent === hasContent) return state;
   return {
     ...state,
-    layers: state.layers.map((layer) => (layer.id === layerId ? { ...layer, hasContent } : layer)),
+    layers: state.layers.map((l) => (l.id === layerId ? { ...l, hasContent } : l)),
   };
 }

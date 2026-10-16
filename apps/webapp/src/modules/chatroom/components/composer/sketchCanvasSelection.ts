@@ -1,6 +1,12 @@
 // fallow-ignore-file complexity
 import type { SketchPoint } from './sketchCanvasDrawing';
-import { SKETCH_CANVAS_HEIGHT, SKETCH_CANVAS_WIDTH } from './sketchConstants';
+import {
+  SKETCH_CANVAS_HEIGHT,
+  SKETCH_CANVAS_WIDTH,
+  SKETCH_OVERLAY_BLACK,
+  SKETCH_OVERLAY_WHITE,
+  SKETCH_TRANSFORM_HANDLE_SIZE,
+} from './sketchConstants';
 import type { SketchTransform } from './sketchDocument';
 
 export type SketchSelectionRect = { x: number; y: number; width: number; height: number };
@@ -92,8 +98,8 @@ export function drawSketchSelectionMarquee(
     height -= 2;
   }
   for (const [color, offset] of [
-    ['#fff', 0],
-    ['#000', 4],
+    [SKETCH_OVERLAY_WHITE, 0],
+    [SKETCH_OVERLAY_BLACK, 4],
   ] as const) {
     ctx.save();
     ctx.strokeStyle = color;
@@ -113,22 +119,46 @@ export function drawSketchTransformOverlay(
 ): void {
   ctx.clearRect(0, 0, SKETCH_CANVAS_WIDTH, SKETCH_CANVAS_HEIGHT);
   ctx.save();
-  ctx.strokeStyle = '#fff';
-  ctx.strokeRect(t.x + 0.5, t.y + 0.5, w * t.scaleX - 1, h * t.scaleY - 1);
-  ctx.strokeStyle = '#000';
+  const W = w * t.scaleX;
+  const H = h * t.scaleY;
+  // Frame: white solid base, then black dash on top (visible on light and dark pixels).
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = SKETCH_OVERLAY_WHITE;
+  ctx.strokeRect(t.x + 0.5, t.y + 0.5, W - 1, H - 1);
+  ctx.strokeStyle = SKETCH_OVERLAY_BLACK;
   ctx.setLineDash([4, 4]);
-  ctx.strokeRect(t.x + 0.5, t.y + 0.5, w * t.scaleX - 1, h * t.scaleY - 1);
-  if (mode === 'transform')
-    for (const p of [
+  ctx.strokeRect(t.x + 0.5, t.y + 0.5, W - 1, H - 1);
+  ctx.setLineDash([]); // reset before handles so their outlines are solid
+  if (mode === 'transform') {
+    const half = SKETCH_TRANSFORM_HANDLE_SIZE / 2;
+    // Same geometry as hitTestTransformHandle: 4 corners + 4 edge midpoints.
+    const points: SketchPoint[] = [
       { x: t.x, y: t.y },
-      { x: t.x + w * t.scaleX, y: t.y },
-      { x: t.x + w * t.scaleX, y: t.y + h * t.scaleY },
-      { x: t.x, y: t.y + h * t.scaleY },
-    ]) {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(p.x - 4, p.y - 4, 8, 8);
-      ctx.strokeStyle = '#000';
-      ctx.strokeRect(p.x - 4, p.y - 4, 8, 8);
+      { x: t.x + W, y: t.y },
+      { x: t.x + W, y: t.y + H },
+      { x: t.x, y: t.y + H },
+      { x: t.x + W / 2, y: t.y },
+      { x: t.x + W, y: t.y + H / 2 },
+      { x: t.x + W / 2, y: t.y + H },
+      { x: t.x, y: t.y + H / 2 },
+    ];
+    for (const p of points) {
+      ctx.fillStyle = SKETCH_OVERLAY_BLACK;
+      ctx.fillRect(
+        p.x - half,
+        p.y - half,
+        SKETCH_TRANSFORM_HANDLE_SIZE,
+        SKETCH_TRANSFORM_HANDLE_SIZE
+      );
+      ctx.strokeStyle = SKETCH_OVERLAY_WHITE;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(
+        p.x - half - 0.5,
+        p.y - half - 0.5,
+        SKETCH_TRANSFORM_HANDLE_SIZE + 1,
+        SKETCH_TRANSFORM_HANDLE_SIZE + 1
+      );
     }
+  }
   ctx.restore();
 }
