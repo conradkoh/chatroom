@@ -243,7 +243,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
-      ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
+      ⚠️ Completing a **chatroom task** does NOT end your **session**. After every handoff, you must run \`get-next-task\` again to continue the session.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -263,13 +263,13 @@ describe('Solo Team > Solo > System Prompt', () => {
       \`\`\`
 
       ### Get Next Task
-      Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer intent from the message rather than following numbered next-steps blindly.
+      Listen for incoming tasks assigned to your role. A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—treat the message content as the source of truth for what to do.
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
       \`\`\`
 
-      **This loop never ends.** A session (Level A) processes many chatroom tasks (Level B). Each handoff completes Level B — \`get-next-task\` continues Level A. Do not stop or exit after a handoff.
+      **This loop never ends.** A session processes many chatroom tasks. Each handoff completes one chatroom task — \`get-next-task\` continues the session. Do not stop or exit after a handoff.
 
 
       ### Start working
@@ -299,7 +299,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       ## Solo Operating Model
 
-      Completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, run \`get-next-task\` to continue.
+      Completing a **chatroom task** does NOT end your **session**. After every handoff, run \`get-next-task\` to continue.
 
       You are an autonomous agent responsible for BOTH planning and implementing chatroom tasks independently.
 
@@ -343,7 +343,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Handoff Rules:**
 
-      ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
+      ⚠️ When the harness does not support native integration: after any handoff (including to \`user\`), run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **For rework** → Revise your implementation directly and re-validate
@@ -395,7 +395,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
       \`\`\`
 
-      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
+      A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—treat the message content as the source of truth for what to do. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
 
       ### Reference commands

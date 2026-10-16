@@ -60,7 +60,7 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 
 **Handoff Rules:**
 - **After code changes** → Hand off to \`${codeChangesTarget}\`
-- **For simple questions** → Can hand off directly to \`${questionTarget}\`
+- **When the task needs no code changes (a question or information request)** → Hand off directly to \`${questionTarget}\`
   ⚠️ When \`${questionTarget}\` is the user: ${getUserHandoffVisibilityNote()}
 ${getInterRoleHandoffRule()}
 

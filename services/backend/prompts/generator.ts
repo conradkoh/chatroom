@@ -258,13 +258,10 @@ export function generateHandoffOutput(params: {
     lines.push(getNativeHandoffTurnEndGuidance(nextRole));
   } else {
     lines.push('');
-    lines.push('✅ Level B complete (chatroom task handed off).');
-    lines.push(
-      '⏳ Level A continues (session is still active) — run get-next-task to stay connected:'
-    );
+    lines.push('✅ Chatroom task complete (handoff sent).');
+    lines.push(getHandoffTurnEndGuidance(nextRole, false));
     lines.push('');
     lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
-    lines.push(getHandoffTurnEndGuidance(nextRole));
   }
 
   return lines.join('\n');
