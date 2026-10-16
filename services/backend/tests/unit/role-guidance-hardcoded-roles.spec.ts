@@ -50,8 +50,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
       - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
       - **To communicate with another team role** → Use \`chatroom handoff\` to that role, even for a short test or status message. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
+      - **To update the user while you keep working** → Use \`chatroom notify-user\`. It posts a notice to the user and never completes, reassigns, or transitions your task. Never use a second \`handoff\` for status updates.
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
-        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation."
+        ⚠️ The user sees only your handoff-to-user message and any \`notify-user\` notices. Session text and tool output are invisible to them. Notices are interim, so write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation or notice."
     `);
   });
 
@@ -79,8 +80,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
       - **For rework** → Revise your implementation directly and re-validate
       - **To communicate with another team role** → Use \`chatroom handoff\` to that role, even for a short test or status message. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
+      - **To update the user while you keep working** → Use \`chatroom notify-user\`. It posts a notice to the user and never completes, reassigns, or transitions your task. Never use a second \`handoff\` for status updates.
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
-        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation."
+        ⚠️ The user sees only your handoff-to-user message and any \`notify-user\` notices. Session text and tool output are invisible to them. Notices are interim, so write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation or notice."
     `);
   });
 
@@ -183,8 +185,9 @@ describe('getBuilderGuidance', () => {
       **Handoff Rules:**
       - **After code changes** → Hand off to \`planner\`
       - **For simple questions** → Can hand off directly to \`planner\`
-        ⚠️ If \`planner\` is the user: the user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
+        ⚠️ If \`planner\` is the user: The user sees only your handoff-to-user message and any \`notify-user\` notices. Session text and tool output are invisible to them. Notices are interim, so write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation or notice.
       - **To communicate with another team role** → Use \`chatroom handoff\` to that role, even for a short test or status message. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
+      - **To update the user while you keep working** → Use \`chatroom notify-user\`. It posts a notice to the user and never completes, reassigns, or transitions your task. Never use a second \`handoff\` for status updates.
 
       **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
       \`\`\`bash

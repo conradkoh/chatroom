@@ -2,8 +2,8 @@
  * Handoff recipient visibility — shared callouts for handoff templates.
  *
  * Native and CLI harnesses run in isolated sessions. Recipients (user or
- * agent) only receive the handoff message body — not session text, tool
- * output, or progress reports.
+ * agent) only receive the handoff message body — not session text or tool
+ * output.
  */
 
 function recipientLabel(toRole: string): string {
@@ -24,10 +24,9 @@ ${recipient} **only** receives the text inside your \`handoff --next-role="${toR
 
 They **cannot** see:
 - Anything you write in this agent session${sessionExample}
-- Progress reports
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
 ---`;
 }

@@ -2,7 +2,7 @@
  * Handoff rules section for the planner role.
  */
 
-import { getInterRoleHandoffRule } from './inter-role-handoff-rule';
+import { getInterRoleHandoffRule, getUserHandoffVisibilityNote } from './inter-role-handoff-rule';
 import type { TeamCompositionConfig } from './team-composition';
 import { getHandoffContinuityRule } from '../../native/session-continuity';
 
@@ -21,7 +21,7 @@ function buildHandoffRuleLines(config: TeamCompositionConfig): string {
   }
   lines.push(getInterRoleHandoffRule());
   lines.push(
-    '- **To deliver to user** → Hand off to `user` with a complete, standalone summary\n  ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.'
+    `- **To deliver to user** → Hand off to \`user\` with a complete, standalone summary\n  ⚠️ ${getUserHandoffVisibilityNote()}`
   );
   return lines.join('\n');
 }

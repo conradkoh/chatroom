@@ -178,10 +178,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       They **cannot** see:
       - Anything you write in this agent session (including direct replies like "Hello!")
-      - Progress reports
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
       ---
 
@@ -337,10 +336,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       They **cannot** see:
       - Anything you write in this agent session
-      - Progress reports
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
       ---
 
@@ -418,10 +416,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       They **cannot** see:
       - Anything you write in this agent session
-      - Progress reports
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
       ---
 
@@ -518,10 +515,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       They **cannot** see:
       - Anything you write in this agent session
-      - Progress reports
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
       ---
 
@@ -617,10 +613,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       They **cannot** see:
       - Anything you write in this agent session (including direct replies like "Hello!")
-      - Progress reports
       - Tool output
 
-      Put your **complete** deliverable in the handoff message — not in session text.
+      Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
       ---
 

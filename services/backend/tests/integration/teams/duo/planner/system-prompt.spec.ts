@@ -393,8 +393,9 @@ describe('Duo Team > Planner > System Prompt', () => {
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
       - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
       - **To communicate with another team role** → Use \`chatroom handoff\` to that role, even for a short test or status message. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
+      - **To update the user while you keep working** → Use \`chatroom notify-user\`. It posts a notice to the user and never completes, reassigns, or transitions your task. Never use a second \`handoff\` for status updates.
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
-        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
+        ⚠️ The user sees only your handoff-to-user message and any \`notify-user\` notices. Session text and tool output are invisible to them. Notices are interim, so write the handoff as a complete, self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation or notice.
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
@@ -424,6 +425,15 @@ describe('Duo Team > Planner > System Prompt', () => {
       \`\`\`
 
       Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
+
+      **Send the user an update while you keep working (does not complete your task):**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom notify-user --chatroom-id="000000000000010002chatroom_rooms" --role="planner" << 'CHATROOM_NOTIFY_END'
+      ---MESSAGE---
+      [Your update for the user]
+      CHATROOM_NOTIFY_END
+      \`\`\`
+      Use this for interim updates such as a blocker, "waiting on CI", or a status note. It never completes, reassigns, or transitions your task. Run \`handoff\` exactly once per task, when the work is complete. Never send a second handoff to report progress. The closing line must be exactly \`CHATROOM_NOTIFY_END\`.
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`

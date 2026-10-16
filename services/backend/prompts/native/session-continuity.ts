@@ -36,6 +36,7 @@ export function getHandoffTurnEndGuidance(nextRole: string): string {
   const lines = [
     '',
     '**Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.**',
+    'Do not run `handoff` again for this task — each task takes exactly one handoff.',
   ];
 
   if (nextRole.toLowerCase() === 'user') {

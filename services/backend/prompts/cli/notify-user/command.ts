@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * Command generator for the notify-user CLI command.
  *

@@ -9,10 +9,9 @@ The \`planner\` agent **only** receives the text inside your \`handoff --next-ro
 
 They **cannot** see:
 - Anything you write in this agent session
-- Progress reports
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
 ---
 
@@ -107,10 +106,9 @@ The \`solo\` agent **only** receives the text inside your \`handoff --next-role=
 
 They **cannot** see:
 - Anything you write in this agent session
-- Progress reports
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
 ---
 
@@ -205,10 +203,9 @@ The \`uiux-engineer\` agent **only** receives the text inside your \`handoff --n
 
 They **cannot** see:
 - Anything you write in this agent session
-- Progress reports
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
 ---
 
@@ -237,10 +234,9 @@ The \`<entry-point-role>\` agent **only** receives the text inside your \`handof
 
 They **cannot** see:
 - Anything you write in this agent session
-- Progress reports
 - Tool output
 
-Put your **complete** deliverable in the handoff message — not in session text.
+Put your **complete** deliverable in the handoff message — not in session text or \`notify-user\` notices.
 
 ---
 

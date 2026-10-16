@@ -187,6 +187,7 @@ describe('Native init prompt (integration)', () => {
     expect(output).not.toContain('Level A');
     expect(output).toContain('handed off to planner');
     expect(output).toContain('End your turn now');
+    expect(output).toContain('Do not run `handoff` again for this task');
     expect(output).toContain('messages download');
   });
 
