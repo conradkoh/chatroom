@@ -202,8 +202,10 @@ export default defineSchema({
         v.literal('username_password') // Traditional username/password (for future use)
       )
     ), // How the user authenticated for this session
-    expiresAt: v.optional(v.number()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
-    expiresAtLabel: v.optional(v.string()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
+    /** @deprecated No longer used for session expiry. Kept for migration compatibility. */
+    expiresAt: v.optional(v.number()),
+    /** @deprecated No longer used for session expiry. Kept for migration compatibility. */
+    expiresAtLabel: v.optional(v.string()),
     // Device and activity tracking for session management
     /**
      * @deprecated Read/write chatroom_sessionLastActivityAt instead. Retained as
@@ -470,7 +472,7 @@ export default defineSchema({
     ),
     // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
     contextCreatedBy: v.optional(v.string()),
-    // DEPRECATED: Task classification removed from product. Field retained for existing documents.
+    /** @deprecated Task classification removed from product. Field retained for existing documents. */
     classification: v.optional(
       v.union(
         v.literal('question'), // Quick question - can hand directly back to user
@@ -478,9 +480,11 @@ export default defineSchema({
         v.literal('follow_up') // Follow-up to previous message - part of same context
       )
     ),
-    // DEPRECATED: Feature metadata removed from product. Field retained for existing documents.
+    /** @deprecated Feature metadata removed from product. Field retained for existing documents. */
     featureTitle: v.optional(v.string()),
+    /** @deprecated Feature metadata removed from product. Field retained for existing documents. */
     featureDescription: v.optional(v.string()),
+    /** @deprecated Feature metadata removed from product. Field retained for existing documents. */
     featureTechSpecs: v.optional(v.string()),
     // Reference to the original user message that started this task chain
     // Set when an agent runs task read / classify, links all related messages
@@ -522,8 +526,10 @@ export default defineSchema({
     // Explorer file snippets attached via Cmd+I (inline content, no separate table)
     attachedSnippets: v.optional(v.array(attachedSnippetValidator)),
 
-    // DEPRECATED: Legacy DAG workflow attachments. Feature removed — not written by
-    // current app code. Retained so existing documents continue to validate.
+    /**
+     * @deprecated Legacy DAG workflow attachments. Feature removed; not written by current app
+     * code. Retained so existing documents continue to validate.
+     */
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
 
     // Link to the scheduled prompt that triggered this message
@@ -630,7 +636,7 @@ export default defineSchema({
     // Attached chatroom messages for context
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
     attachedSnippets: v.optional(v.array(attachedSnippetValidator)),
-    // DEPRECATED: Legacy DAG workflow attachments (see chatroom_messages.attachedWorkflowIds).
+    /** @deprecated Legacy DAG workflow attachments (see chatroom_messages.attachedWorkflowIds). */
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
