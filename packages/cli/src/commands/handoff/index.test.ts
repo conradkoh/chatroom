@@ -125,11 +125,10 @@ describe('handoff', () => {
 
       const output = getAllLogOutput();
       expect(output).toContain('Chatroom task completed and handed off to builder');
-      expect(output).toContain('Level B complete');
-      expect(output).toContain('Level A continues');
+      expect(output).toContain('Chatroom task complete (handoff sent).');
+      expect(output).toContain('When the harness does not support native integration');
       expect(output).toContain('get-next-task');
-      expect(output).toContain('Handoff complete. End your turn now — stop tool calls.');
-      expect(output).toContain('system will send you a message when further action is required');
+      expect(output).not.toContain('End your turn now');
     });
 
     it('omits get-next-task when mutation reports native integration', async () => {
@@ -147,7 +146,7 @@ describe('handoff', () => {
       expect(output).not.toContain('Level A');
       expect(output).not.toContain('injected automatically');
       expect(output).toContain('Handoff complete. End your turn now — stop tool calls.');
-      expect(output).toContain('system will send you a message when further action is required');
+      expect(output).toContain('When the harness supports native integration');
     });
   });
 
