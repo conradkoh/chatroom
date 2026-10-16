@@ -249,6 +249,27 @@ describe('useHandoffNotification', () => {
     expect(notificationInstances).toHaveLength(0);
   });
 
+  it('does not notify for notice messages to the user', () => {
+    const initialMessages = [makeMessage({ _id: 'init-1' })];
+    const { rerender } = renderHook(
+      ({ msgs }) => useHandoffNotification(msgs, 'test-chatroom-id'),
+      { initialProps: { msgs: initialMessages } }
+    );
+
+    setDocumentHidden(true);
+
+    const noticeMsg = makeMessage({
+      _id: 'notice-1',
+      type: 'notice',
+      senderRole: 'builder',
+      targetRole: 'user',
+    });
+    rerender({ msgs: [...initialMessages, noticeMsg] });
+
+    expect(swPostMessage).not.toHaveBeenCalled();
+    expect(notificationInstances).toHaveLength(0);
+  });
+
   it('does not notify for handoffs to non-user roles', () => {
     const initialMessages = [makeMessage({ _id: 'init-1' })];
     const { rerender } = renderHook(

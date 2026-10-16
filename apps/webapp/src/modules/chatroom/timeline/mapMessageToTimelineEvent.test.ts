@@ -61,6 +61,20 @@ describe('mapMessageToTimelineEvent', () => {
     expect(event.kind).toBe('team_message');
   });
 
+  it('maps notices to team_message events with no handoff duration', () => {
+    const message = makeMessage({
+      type: 'notice',
+      senderRole: 'builder',
+      targetRole: 'user',
+    });
+    const event = mapMessageToTimelineEvent(message);
+
+    expect(event.kind).toBe('team_message');
+    if (event.kind !== 'team_message') throw new Error('expected a team_message event');
+    expect(event.message).toBe(message);
+    expect(event.handoffDurationMs).toBeUndefined();
+  });
+
   it('treats user handoffs as team_message (not user_message)', () => {
     const message = makeMessage({
       type: 'handoff',
