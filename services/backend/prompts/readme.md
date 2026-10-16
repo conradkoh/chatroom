@@ -39,6 +39,7 @@ Each CLI command has a `command.ts` file that generates command strings. This en
 | --------------- | ----------------------------------- | --------------------------------------- |
 | `classify`      | `base/cli/classify/command.ts`      | Classify a task's origin message        |
 | `handoff`       | `base/cli/handoff/command.ts`       | Complete task and hand off to next role |
+| `notify-user`   | `cli/notify-user/command.ts`        | Post an interim update to the user      |
 | `get-next-task` | `base/cli/get-next-task/command.ts` | Wait for incoming tasks                 |
 
 ### Usage

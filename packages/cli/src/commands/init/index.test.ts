@@ -84,6 +84,9 @@ describe('init', () => {
       expect(written).toContain('Context Recovery');
       expect(written).not.toContain('CHATROOM_CONVEX_URL=<endpoint>');
       expect(written).toContain('chatroom get-next-task --chatroom-id=<id> --role=<role>');
+      expect(written).toContain('chatroom notify-user --chatroom-id=<id> --role=<role>');
+      expect(written).toContain('CHATROOM_NOTIFY_END');
+      expect(written).toContain('Run `handoff` exactly once per task');
     });
   });
 
