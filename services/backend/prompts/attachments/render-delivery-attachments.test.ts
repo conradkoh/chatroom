@@ -77,7 +77,7 @@ describe('backlog attachment hint', () => {
     expect(block).toContain('<content>foo &amp; bar &lt;baz&gt;</content>');
   });
 
-  test('hint requires verified end-to-end before mark-for-review', () => {
+  test('renders a command interaction that requires verified end-to-end before mark-for-review', () => {
     const lines = renderDeliveryAttachmentsBlock(
       {
         attachedBacklogItems: [{ _id: 'item-111', content: 'Add login page', status: 'pending' }],
@@ -85,8 +85,30 @@ describe('backlog attachment hint', () => {
       { chatroomId: 'test-chatroom-456', role: 'planner' }
     );
     const block = lines.join('\n');
-    expect(block.toLowerCase()).toContain('verified end-to-end');
+    expect(block).toContain('<interactions>');
+    expect(block).toContain('<interaction type="command">');
+    expect(block).toContain('Once this task is complete');
+    expect(block).toContain('verified end-to-end');
+    expect(block).toContain(
+      'chatroom backlog mark-for-review --chatroom-id="test-chatroom-456" --role="planner" --backlog-item-id=item-111'
+    );
     expect(block).not.toContain('When done:');
+  });
+
+  test('escapes content next to interactions and nests interaction inside the attachment', () => {
+    const lines = renderDeliveryAttachmentsBlock(
+      {
+        attachedBacklogItems: [{ _id: 'item-111', content: 'foo & bar <baz>', status: 'pending' }],
+      },
+      { chatroomId: 'test-chatroom-456', role: 'planner' }
+    );
+    const block = lines.join('\n');
+    expect(block).toContain('<content>foo &amp; bar &lt;baz&gt;</content>');
+    const attachmentStart = block.indexOf('<attachment type="backlog"');
+    const attachmentEnd = block.indexOf('</attachment>');
+    const interactionIndex = block.indexOf('<interaction type="command">');
+    expect(interactionIndex).toBeGreaterThan(attachmentStart);
+    expect(interactionIndex).toBeLessThan(attachmentEnd);
   });
 });
 

@@ -39,16 +39,45 @@ function renderSnippetAttachment(snippet: DeliverySnippet): string[] {
   ];
 }
 
+/** Agent-facing follow-up action attached to a rendered item. */
+export interface DeliveryInteraction {
+  type: 'command';
+  text: string;
+}
+
+function renderInteractions(interactions: DeliveryInteraction[], indent: string): string[] {
+  return [
+    `${indent}<interactions>`,
+    ...interactions.map(
+      (i) =>
+        `${indent}  <interaction type="${escapeXmlAttribute(i.type)}">${escapeXmlText(i.text)}</interaction>`
+    ),
+    `${indent}</interactions>`,
+  ];
+}
+
 function renderBacklogAttachments(
   items: DeliveryBacklogItem[],
   ctx: DeliveryAttachmentRenderContext
 ): string[] {
   const lines: string[] = [];
   for (const item of items) {
-    lines.push(`  <attachment type="backlog" backlog-item-id="${escapeXmlAttribute(item._id)}">`);
+    const id = escapeXmlAttribute(item._id);
+    const chatroomId = escapeXmlAttribute(ctx.chatroomId);
+    const role = escapeXmlAttribute(ctx.role);
+    lines.push(`  <attachment type="backlog" backlog-item-id="${id}">`);
     lines.push(...xmlTextElement('content', item.content, '    '));
+    lines.push(`    <hint>Work on this item.</hint>`);
     lines.push(
-      `    <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="${escapeXmlAttribute(ctx.chatroomId)}" --role="${escapeXmlAttribute(ctx.role)}" --backlog-item-id=${item._id}</hint>`
+      ...renderInteractions(
+        [
+          {
+            type: 'command',
+            text: `Once this task is complete (implemented, verified end-to-end, PR raised for user review), run: chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${id} — this moves the task to pending review. Do not use complete.`,
+          },
+        ],
+        '    '
+      )
     );
     lines.push(`  </attachment>`);
   }

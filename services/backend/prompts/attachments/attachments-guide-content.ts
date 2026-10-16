@@ -223,7 +223,10 @@ Add a kind to \`PRIMARY_DELIVERY_ATTACHMENT_KINDS\` and \`PRIMARY_DELIVERY_INPUT
 \`\`\`xml
   <attachment type="backlog" backlog-item-id="item-111">
     <content>Add login page</content>
-    <hint>Work on this item. When verified end-to-end and a PR is ready for review: chatroom backlog mark-for-review --chatroom-id="..." --role="..." --backlog-item-id=item-111</hint>
+    <hint>Work on this item.</hint>
+    <interactions>
+      <interaction type="command">Once this task is complete (implemented, verified end-to-end, PR raised for user review), run: chatroom backlog mark-for-review --chatroom-id="..." --role="..." --backlog-item-id=item-111 — this moves the task to pending review. Do not use complete.</interaction>
+    </interactions>
   </attachment>
 \`\`\`
 
