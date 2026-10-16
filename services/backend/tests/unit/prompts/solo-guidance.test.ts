@@ -54,7 +54,7 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance).not.toMatch(/get-next-task/i);
     expect(guidance).toContain('Receive user message');
     expect(guidance).toContain('Hand off when complete');
-    expect(guidance).not.toContain('After ANY handoff');
+    expect(guidance).not.toContain('When the harness does not support native integration');
   });
 
   test('CLI mode still includes get-next-task in operating model and handoff rules', () => {
