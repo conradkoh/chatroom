@@ -56,6 +56,8 @@ jobs:
       - name: Start self-hosted Convex backend
         if: steps.discover.outputs.has_tests == 'true'
         run: |
+          # The upstream image moved with the org rename to `convex` (convex-backend#609).
+          # Pinned by digest to the image that last passed e2e (run 38829978663).
           docker run --detach \
             --name convex-backend \
             --publish 3210:3210 \
@@ -68,7 +70,7 @@ jobs:
             --env DOCUMENT_RETENTION_DELAY=1 \
             --env INDEX_RETENTION_DELAY=1 \
             --env RETENTION_DELETE_FREQUENCY=10 \
-            ghcr.io/get-convex/convex-backend:latest
+            ghcr.io/convex/convex-backend@sha256:d715e9ec088784407ca4ba2d3db592702cd328d02c76cdca3852c0018f2a76b4
 
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error "$CONVEX_SELF_HOSTED_URL/version"; then
