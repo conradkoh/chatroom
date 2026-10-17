@@ -99,6 +99,9 @@ export const unsetMachineDaemonConnected = migrations.define({
  */
 export const unsetMachineLegacyCapabilityFields = migrations.define({
   table: 'chatroom_machines',
+  // Legacy rows are large (~148 KB each); the library default of 100 rows would
+  // read ~15 MB in one mutation, close to Convex's 16 MiB per-mutation read limit.
+  batchSize: 10,
   migrateOne: async (_ctx, machine) => {
     const legacy = machine as Record<string, unknown>;
     if (
