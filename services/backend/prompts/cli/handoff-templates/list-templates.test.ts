@@ -69,7 +69,7 @@ describe('listHandoffTemplates', () => {
       ).toBeTruthy();
     }
     expect(listing.templates.find((t) => t.toRole === 'triage')?.template).toContain(
-      'Handoff Template (planner → triage)'
+      'Message template for `planner`'
     );
   });
 
@@ -79,7 +79,7 @@ describe('listHandoffTemplates', () => {
     expect(listing.receivesFrom).toEqual(['planner']);
     expect(listing.returnsTo).toEqual(['planner']);
     expect(listing.templates.map((template) => template.toRole)).toEqual(['planner']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Verifier → planner)');
+    expect(listing.templates[0]?.template).toContain('Message template for `planner`');
     for (const heading of [
       '## Verdict',
       '## Objective',
@@ -87,7 +87,6 @@ describe('listHandoffTemplates', () => {
       '## Evidence',
       '## Missing or unmet',
       '## Scope and limits',
-      '## Handoff',
     ]) {
       expect(listing.templates[0]?.template).toContain(heading);
     }
@@ -99,7 +98,7 @@ describe('listHandoffTemplates', () => {
     expect(listing.receivesFrom).toEqual(['planner']);
     expect(listing.returnsTo).toEqual(['planner']);
     expect(listing.templates.map((template) => template.toRole)).toEqual(['planner']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Triage → planner)');
+    expect(listing.templates[0]?.template).toContain('Message template for `planner`');
     for (const heading of [
       '## Summary',
       '## Reported behavior',
@@ -108,7 +107,6 @@ describe('listHandoffTemplates', () => {
       '## Proposed immediate fix',
       '## Systemic issues',
       '## Work completed',
-      '## Handoff',
     ]) {
       expect(listing.templates[0]?.template).toContain(heading);
     }
@@ -138,7 +136,7 @@ describe('listHandoffTemplates', () => {
       'verifier',
     ]);
     expect(listing.templates.find((t) => t.toRole === 'triage')?.template).toContain(
-      'Handoff Template (solo → triage)'
+      'Message template for `solo`'
     );
     expect(listing.templates.find((t) => t.toRole === 'user')?.template).toContain(
       'Report Template (Solo → User)'
@@ -151,7 +149,7 @@ describe('listHandoffTemplates', () => {
     expect(listing.receivesFrom).toEqual(['solo']);
     expect(listing.returnsTo).toEqual(['solo']);
     expect(listing.templates.map((template) => template.toRole)).toEqual(['solo']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Verifier → solo)');
+    expect(listing.templates[0]?.template).toContain('Message template for `solo`');
     for (const heading of [
       '## Verdict',
       '## Objective',
@@ -159,7 +157,6 @@ describe('listHandoffTemplates', () => {
       '## Evidence',
       '## Missing or unmet',
       '## Scope and limits',
-      '## Handoff',
     ]) {
       expect(listing.templates[0]?.template).toContain(heading);
     }
@@ -171,7 +168,7 @@ describe('listHandoffTemplates', () => {
     expect(listing.receivesFrom).toEqual(['solo']);
     expect(listing.returnsTo).toEqual(['solo']);
     expect(listing.templates.map((template) => template.toRole)).toEqual(['solo']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Triage → solo)');
+    expect(listing.templates[0]?.template).toContain('Message template for `solo`');
     expect(listing.templates[0]?.template).toContain('## Root cause');
   });
 

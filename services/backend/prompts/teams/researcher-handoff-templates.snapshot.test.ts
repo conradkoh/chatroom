@@ -15,7 +15,6 @@ const briefHeadings = [
   '## Remaining ambiguity',
   '## Risks and constraints',
   '## Work completed',
-  '## Handoff',
 ];
 
 describe('researcher handoff template snapshots', () => {

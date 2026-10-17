@@ -11,7 +11,7 @@ export function getEntryPointToTriageHandoffTemplate(entryPointRole: string): st
 
   return `${getHandoffRecipientVisibilityCallout('triage')}
 
-## Handoff Template (${entryPoint} → triage)
+Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
 
@@ -33,9 +33,9 @@ export function getTriageToEntryPointHandoffTemplate(entryPointRole: string): st
 
   return `${getHandoffRecipientVisibilityCallout(entryPoint)}
 
-## Handoff Template (Triage → ${entryPoint})
+Instructions (not part of the message): Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
 
-Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
+Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <briefly state the diagnosis and whether the root cause was confirmed or remains a hypothesis>
@@ -58,8 +58,7 @@ Return a complete, evidence-backed investigation of the authoritative reported b
 ## Work completed
 <state the code paths inspected and every test or reproduction action taken, including results>
 
-## Handoff
-Run the normal handoff command to \`${entryPoint}\` with this complete report, then stop.
+Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 
 \`\`\`bash
 ${handoffCommand({

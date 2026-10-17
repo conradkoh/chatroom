@@ -26,7 +26,7 @@ export function getEntryPointToArchitectHandoffTemplate(entryPointRole: string):
 
   return `${getHandoffRecipientVisibilityCallout('architect')}
 
-## Handoff Template (${entryPoint} → architect)
+Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the Architect needs to design within the existing repository and team scope.
 
@@ -65,9 +65,9 @@ function renderArchitectToEntryPointHandoffTemplate(entryPoint: string, generic 
 
   return `${getHandoffRecipientVisibilityCallout(entryPoint)}
 
-## Handoff Template (Architect → Entry Point)
+Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
-Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -129,8 +129,7 @@ ${sharedContractsHeading}
 ## Out of scope
 - <explicit files, flows, behavior, or migration work the implementer must not touch>
 
-## Handoff
-Run the normal handoff command to the configured entry point with this complete design, then stop.${placeholderInstruction}
+Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.${placeholderInstruction}
 
 \`\`\`bash
 ${handoffCommand({

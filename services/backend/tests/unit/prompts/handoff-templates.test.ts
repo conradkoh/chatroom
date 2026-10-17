@@ -170,19 +170,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       role: 'planner',
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
-
-      They **cannot** see:
-      - Anything you write in this agent session (including direct replies like "Hello!")
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
-
-      ---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
 
       **Report Template (Planner → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
@@ -328,20 +317,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       role: 'builder',
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - \`notify-user\` notices (notices go to the user only)
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
       **Handoff Template (Builder → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
@@ -409,20 +386,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       nativeIntegration: false,
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`builder\` agent **only** receives the text inside your \`handoff --next-role="builder"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - \`notify-user\` notices (notices go to the user only)
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the \`builder\` agent receives only the text inside your \`handoff --next-role="builder"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
@@ -509,20 +474,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       nativeIntegration: true,
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`builder\` agent **only** receives the text inside your \`handoff --next-role="builder"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - \`notify-user\` notices (notices go to the user only)
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the \`builder\` agent receives only the text inside your \`handoff --next-role="builder"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
@@ -608,19 +561,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       role: 'solo',
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
-
-      They **cannot** see:
-      - Anything you write in this agent session (including direct replies like "Hello!")
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
-
-      ---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
 
       **Report Template (Solo → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 

@@ -13,7 +13,6 @@ const reportHeadings = [
   '## Proposed immediate fix',
   '## Systemic issues',
   '## Work completed',
-  '## Handoff',
 ];
 
 describe('triage handoff template snapshots', () => {

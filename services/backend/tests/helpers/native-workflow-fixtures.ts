@@ -157,7 +157,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'planner',
     availableHandoffTargets: ['planner'],
     primaryHandoffTarget: 'planner',
-    eagerTemplateHeadings: ['Handoff Template (Architect → Entry Point)'],
+    eagerTemplateHeadings: ['Message template for `planner`'],
   },
   {
     label: 'duo UI/UX engineer receives planner design task → return to planner',
@@ -166,7 +166,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'planner',
     availableHandoffTargets: ['planner'],
     primaryHandoffTarget: 'planner',
-    eagerTemplateHeadings: ['Handoff Template (UI/UX Engineer → Entry Point)'],
+    eagerTemplateHeadings: ['Message template for `planner`'],
   },
   {
     label: 'solo architect receives solo design task → return to solo',
@@ -175,7 +175,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'solo',
     availableHandoffTargets: ['solo'],
     primaryHandoffTarget: 'solo',
-    eagerTemplateHeadings: ['Handoff Template (Architect → Entry Point)'],
+    eagerTemplateHeadings: ['Message template for `solo`'],
   },
   {
     label: 'solo UI/UX engineer receives solo design task → return to solo',
@@ -184,7 +184,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'solo',
     availableHandoffTargets: ['solo'],
     primaryHandoffTarget: 'solo',
-    eagerTemplateHeadings: ['Handoff Template (UI/UX Engineer → Entry Point)'],
+    eagerTemplateHeadings: ['Message template for `solo`'],
   },
 ];
 

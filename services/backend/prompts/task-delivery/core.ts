@@ -59,7 +59,7 @@ function appendPrimaryHandoffInstructions(
   );
   lines.push('```', '');
   lines.push(
-    'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the template content. The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**'
+    'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the message body only: start at the first `## ` section heading of the template and stop at the last body section. Do not include the template notice, any `### Handoff to` heading, any template title line, or any section after the body (the command instructions). The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**'
   );
   lines.push('', SINGLE_HANDOFF_NOTE);
 }

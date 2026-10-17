@@ -76,10 +76,12 @@ describe('Native task delivery — sender-based primary handoff (step 2)', () =>
       output.indexOf('<handoff-templates>'),
       output.indexOf('</handoff-templates>')
     );
-    expect(templates).toContain('⚠️ **CRITICAL — Recipient visibility**');
+    expect(templates).toContain(
+      '⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**'
+    );
     expect(templates).toContain('handoff --next-role="user"');
     expect(templates).toContain('handoff --next-role="builder"');
-    expect(templates).toContain('including direct replies like "Hello!"');
+    expect(templates).toContain('including direct replies');
   });
 
   test('builder delivery includes planner visibility callout in handoff template', () => {
@@ -88,8 +90,10 @@ describe('Native task delivery — sender-based primary handoff (step 2)', () =>
       output.indexOf('<handoff-templates>'),
       output.indexOf('</handoff-templates>')
     );
-    expect(templates).toContain('⚠️ **CRITICAL — Recipient visibility**');
-    expect(templates).toContain('The `planner` agent');
+    expect(templates).toContain(
+      '⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**'
+    );
+    expect(templates).toContain('the `planner` agent');
     expect(templates).toContain('handoff --next-role="planner"');
   });
 
@@ -99,7 +103,7 @@ describe('Native task delivery — sender-based primary handoff (step 2)', () =>
       output.indexOf('<handoff-templates>'),
       output.indexOf('</handoff-templates>')
     );
-    expect(templates).toContain('`notify-user` notices (notices go to the user only)');
+    expect(templates).toContain('the `builder` agent receives only the text inside your');
     expect(templates).toContain('plus any `notify-user` notices');
   });
 });
