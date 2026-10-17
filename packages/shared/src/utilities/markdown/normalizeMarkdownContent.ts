@@ -2,13 +2,20 @@ import TurndownService from 'turndown';
 
 import { decodeHtmlEntities } from './decodeHtmlEntities';
 
-const LEGACY_HTML_TAG_PATTERN =
-  /<\/?(?:p|div|span|strong|em|b|i|a|br|h[1-6]|ul|ol|li|table|tr|td|th|blockquote|pre|code)\b[^>]*>/i;
+/** Block-level legacy tags the old editor stored at the start of a document. Lowercase, case-sensitive. */
+const LEGACY_HTML_BLOCK_START_PATTERN = /^<(?:p|div|ul|ol|h[1-6]|table|blockquote|pre)\b[^>]*>/;
+
+/** Removes fenced blocks and inline code spans so HTML-like text inside code never counts. */
+function stripCodeSpans(text: string) {
+  return text.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+}
+
 export function containsFencedCode(text: string) {
   return /```[\s\S]*?```/.test(text);
 }
 function looksLikeHtmlDecoded(value: string) {
-  return !!value && !containsFencedCode(value) && LEGACY_HTML_TAG_PATTERN.test(value);
+  if (!value) return false;
+  return LEGACY_HTML_BLOCK_START_PATTERN.test(stripCodeSpans(value).trimStart());
 }
 export function looksLikeHtml(text: string) {
   return looksLikeHtmlDecoded(decodeHtmlEntities(text.trim()));
