@@ -1,22 +1,10 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`triage handoff template snapshots > planner delegation renders the complete contract 1`] = `
-"---
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`triage\` agent receives only the text inside your \`handoff --next-role="triage"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-⚠️ **CRITICAL — Recipient visibility**
-
-The \`triage\` agent **only** receives the text inside your \`handoff --next-role="triage"\` command.
-
-They **cannot** see:
-- Anything you write in this agent session
-- \`notify-user\` notices (notices go to the user only)
-- Tool output
-
-When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
----
-
-## Handoff Template (planner → triage)
+Message template for \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
 
@@ -31,22 +19,10 @@ CHATROOM_HANDOFF_END
 `;
 
 exports[`triage handoff template snapshots > solo delegation renders the complete contract 1`] = `
-"---
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`triage\` agent receives only the text inside your \`handoff --next-role="triage"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-⚠️ **CRITICAL — Recipient visibility**
-
-The \`triage\` agent **only** receives the text inside your \`handoff --next-role="triage"\` command.
-
-They **cannot** see:
-- Anything you write in this agent session
-- \`notify-user\` notices (notices go to the user only)
-- Tool output
-
-When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
----
-
-## Handoff Template (solo → triage)
+Message template for \`solo\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
 
@@ -61,24 +37,12 @@ CHATROOM_HANDOFF_END
 `;
 
 exports[`triage handoff template snapshots > triage to planner renders the complete contract 1`] = `
-"---
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-⚠️ **CRITICAL — Recipient visibility**
+Instructions (not part of the message): Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
 
-The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
-
-They **cannot** see:
-- Anything you write in this agent session
-- \`notify-user\` notices (notices go to the user only)
-- Tool output
-
-When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
----
-
-## Handoff Template (Triage → planner)
-
-Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
+Message template for \`planner\` from \`triage\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <briefly state the diagnosis and whether the root cause was confirmed or remains a hypothesis>
@@ -101,8 +65,7 @@ Return a complete, evidence-backed investigation of the authoritative reported b
 ## Work completed
 <state the code paths inspected and every test or reproduction action taken, including results>
 
-## Handoff
-Run the normal handoff command to \`planner\` with this complete report, then stop.
+Instructions after the body (not part of the message): run the normal handoff command to \`planner\` with the complete body above, then stop.
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="triage" --next-role="planner" << 'CHATROOM_HANDOFF_END'
@@ -113,24 +76,12 @@ CHATROOM_HANDOFF_END
 `;
 
 exports[`triage handoff template snapshots > triage to solo renders the complete contract 1`] = `
-"---
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`solo\` agent receives only the text inside your \`handoff --next-role="solo"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-⚠️ **CRITICAL — Recipient visibility**
+Instructions (not part of the message): Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
 
-The \`solo\` agent **only** receives the text inside your \`handoff --next-role="solo"\` command.
-
-They **cannot** see:
-- Anything you write in this agent session
-- \`notify-user\` notices (notices go to the user only)
-- Tool output
-
-When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
----
-
-## Handoff Template (Triage → solo)
-
-Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
+Message template for \`solo\` from \`triage\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <briefly state the diagnosis and whether the root cause was confirmed or remains a hypothesis>
@@ -153,8 +104,7 @@ Return a complete, evidence-backed investigation of the authoritative reported b
 ## Work completed
 <state the code paths inspected and every test or reproduction action taken, including results>
 
-## Handoff
-Run the normal handoff command to \`solo\` with this complete report, then stop.
+Instructions after the body (not part of the message): run the normal handoff command to \`solo\` with the complete body above, then stop.
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="triage" --next-role="solo" << 'CHATROOM_HANDOFF_END'

@@ -11,7 +11,7 @@ export function getEntryPointToResearcherHandoffTemplate(entryPointRole: string)
 
   return `${getHandoffRecipientVisibilityCallout('researcher')}
 
-## Handoff Template (${entryPoint} → researcher)
+Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Pass the decisions the research must ground, the specific research questions, known constraints, and the files or areas already suspected. Ask the researcher for a report only: do not edit files, implement code, or design alternative architectures.
 
@@ -43,9 +43,9 @@ export function getResearcherToEntryPointHandoffTemplate(entryPointRole: string)
 
   return `${getHandoffRecipientVisibilityCallout(entryPoint)}
 
-## Handoff Template (Researcher → ${entryPoint})
+Instructions (not part of the message): Return a complete, evidence-backed research brief for the authoritative request. The researcher is advisory: do not edit files, implement code, or present alternative architectures beyond what grounds the decision. Answer only the questions asked. Separate every finding into confirmed (with evidence), inferred (with reasoning), or unknown. Never present a guess as fact. External claims must cite the source URL together with the version or date checked. Use the exact sections below, in this order.
 
-Return a complete, evidence-backed research brief for the authoritative request. The researcher is advisory: do not edit files, implement code, or present alternative architectures beyond what grounds the decision. Answer only the questions asked. Separate every finding into confirmed (with evidence), inferred (with reasoning), or unknown. Never present a guess as fact. External claims must cite the source URL together with the version or date checked. Use the exact sections below, in this order.
+Message template for \`${entryPoint}\` from \`researcher\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <state the answer to the core question in two to four sentences and whether any decision remains open>
@@ -74,8 +74,7 @@ Return a complete, evidence-backed research brief for the authoritative request.
 ## Work completed
 <paths inspected, searches run, and sources opened, with the result of each>
 
-## Handoff
-Run the normal handoff command to \`${entryPoint}\` with this complete brief, then stop.
+Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 
 \`\`\`bash
 ${handoffCommand({

@@ -31,7 +31,7 @@ export function getBuilderToPlannerHandoffTemplate(
 ): string {
   return `${getHandoffRecipientVisibilityCallout('planner')}
 
-${getHandoffReportTemplateIntro('Handoff Template (Builder → Planner)')}
+${getHandoffReportTemplateIntro('Builder → Planner report')}
 
 \`\`\`markdown
 ## Summary

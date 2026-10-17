@@ -32,7 +32,7 @@ export function getPlannerToUserReportTemplate(
 ): string {
   return `${getHandoffRecipientVisibilityCallout('user')}
 
-${getHandoffReportTemplateIntro('Report Template (Planner → User)')}
+${getHandoffReportTemplateIntro('Planner → User report')}
 
 \`\`\`markdown
 ${getHandoffReportTemplateBody(roleGuidanceContext, { includeProofOfVerification: true })}

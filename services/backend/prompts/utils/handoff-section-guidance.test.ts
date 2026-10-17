@@ -24,7 +24,7 @@ describe('handoff-section-guidance', () => {
   });
 
   test('getHandoffReportTemplateIntro includes global N/A callout', () => {
-    const intro = getHandoffReportTemplateIntro('Report Template (Planner → User)');
+    const intro = getHandoffReportTemplateIntro('Planner → User report');
     expect(intro).toContain('Not Applicable.');
     expect(intro).toContain('no explanation');
     expect(intro).toContain('no em-dash');

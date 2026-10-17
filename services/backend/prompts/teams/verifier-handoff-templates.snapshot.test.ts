@@ -15,7 +15,6 @@ const requestHeadings = [
   '## Claimed outcome',
   '## Evidence pointers',
   '## Known gaps',
-  '## Handoff',
 ];
 
 const verdictHeadings = [
@@ -26,7 +25,6 @@ const verdictHeadings = [
   '## Evidence',
   '## Missing or unmet',
   '## Scope and limits',
-  '## Handoff',
 ];
 
 describe('verifier handoff template snapshots', () => {

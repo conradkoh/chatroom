@@ -19,10 +19,13 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
+const { markdownBodyMock } = vi.hoisted(() => ({ markdownBodyMock: vi.fn() }));
+
 vi.mock('./TimelineMarkdownBody', () => ({
-  TimelineMarkdownBody: ({ content }: { content: string }) => (
-    <div data-testid="timeline-markdown-body">{content}</div>
-  ),
+  TimelineMarkdownBody: ({ content }: { content: string }) => {
+    markdownBodyMock({ content });
+    return <div data-testid="timeline-markdown-body">{content}</div>;
+  },
 }));
 
 vi.mock('../../attachments', async (importOriginal) => {
@@ -64,6 +67,15 @@ const BASE_MESSAGE: Message = {
   _creationTime: 1000,
 };
 
+// Exact prod handoff shape whose inline code contains HTML-like text.
+const HANDOFF_BODY = [
+  '## Summary',
+  'Your slice is **accepted**.',
+  '',
+  '## Files',
+  '- Budgets: `bond budget list --currency <code> [--at]`',
+].join('\n');
+
 describe('TimelineTeamMessage', () => {
   it('renders ordinary markdown and generic footer metadata', () => {
     render(
@@ -73,6 +85,15 @@ describe('TimelineTeamMessage', () => {
     expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent('Handoff content');
     expect(screen.getByTestId('timeline-handoff-duration')).toHaveTextContent('1m 2s');
     expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
+  });
+
+  it('hands inline-code HTML-like handoff markdown to the renderer unchanged', () => {
+    const handoffMessage: Message = { ...BASE_MESSAGE, content: HANDOFF_BODY };
+    render(<TimelineTeamMessage message={handoffMessage} chatroomId="room-1" />);
+
+    expect(markdownBodyMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ content: HANDOFF_BODY })
+    );
   });
 
   it('renders HandoffEnvelopeView with generic collapsed defaults', () => {

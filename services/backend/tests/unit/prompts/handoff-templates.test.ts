@@ -170,21 +170,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       role: 'planner',
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
 
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
-
-      They **cannot** see:
-      - Anything you write in this agent session (including direct replies like "Hello!")
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
-
-      ---
-
-      **Report Template (Planner → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
+      Instructions (not part of the message) for the Planner → User report template: complete every section below. Do not omit sections, principles, or XML wrappers.
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
@@ -328,22 +317,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       role: 'builder',
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - \`notify-user\` notices (notices go to the user only)
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Handoff Template (Builder → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
+      Instructions (not part of the message) for the Builder → Planner report template: complete every section below. Do not omit sections, principles, or XML wrappers.
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
@@ -409,20 +386,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       nativeIntegration: false,
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`builder\` agent **only** receives the text inside your \`handoff --next-role="builder"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - \`notify-user\` notices (notices go to the user only)
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the \`builder\` agent receives only the text inside your \`handoff --next-role="builder"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
@@ -434,7 +399,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-      \`\`\`markdown
+      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+
+      \`\`\`\`markdown
       ## Summary
       <brief context for this delegation slice — what problem it solves and where it fits in the larger task>
 
@@ -491,12 +458,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
       ## Skills to activate
-      - <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
+      - e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice>
 
-      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once."
+      \`\`\`\`"
     `);
   });
 
@@ -509,20 +476,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       nativeIntegration: true,
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
-
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The \`builder\` agent **only** receives the text inside your \`handoff --next-role="builder"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - \`notify-user\` notices (notices go to the user only)
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the \`builder\` agent receives only the text inside your \`handoff --next-role="builder"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
       **Delegation Brief (Planner → Builder)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
@@ -534,7 +489,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-      \`\`\`markdown
+      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+
+      \`\`\`\`markdown
       ## Summary
       <brief context for this delegation slice — what problem it solves and where it fits in the larger task>
 
@@ -591,12 +548,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
       ## Skills to activate
-      - <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
+      - e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice>
 
-      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once."
+      \`\`\`\`"
     `);
   });
 
@@ -608,21 +565,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       role: 'solo',
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
+      "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+      > Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
 
-      ⚠️ **CRITICAL — Recipient visibility**
-
-      The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
-
-      They **cannot** see:
-      - Anything you write in this agent session (including direct replies like "Hello!")
-      - Tool output
-
-      When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
-
-      ---
-
-      **Report Template (Solo → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
+      Instructions (not part of the message) for the Solo → User report template: complete every section below. Do not omit sections, principles, or XML wrappers.
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
@@ -828,7 +774,7 @@ describe('handoff-templates > conversation mode chat', () => {
       toRole: 'user',
       conversationMode: 'code',
     });
-    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('Planner → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -839,7 +785,7 @@ describe('handoff-templates > conversation mode chat', () => {
       toRole: 'user',
       conversationMode: 'code:enhanced',
     });
-    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('Planner → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -849,7 +795,7 @@ describe('handoff-templates > conversation mode chat', () => {
       fromRole: 'planner',
       toRole: 'user',
     });
-    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('Planner → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -860,7 +806,7 @@ describe('handoff-templates > conversation mode chat', () => {
       toRole: 'user',
       conversationMode: 'code',
     });
-    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('Solo → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -871,7 +817,7 @@ describe('handoff-templates > conversation mode chat', () => {
       toRole: 'user',
       conversationMode: 'code:enhanced',
     });
-    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('Solo → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -881,7 +827,7 @@ describe('handoff-templates > conversation mode chat', () => {
       fromRole: 'solo',
       toRole: 'user',
     });
-    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('Solo → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 });
