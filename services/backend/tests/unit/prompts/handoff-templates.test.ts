@@ -399,7 +399,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-      \`\`\`markdown
+      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+
+      \`\`\`\`markdown
       ## Summary
       <brief context for this delegation slice — what problem it solves and where it fits in the larger task>
 
@@ -456,12 +458,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
       ## Skills to activate
-      - <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
+      - e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice>
 
-      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once."
+      \`\`\`\`"
     `);
   });
 
@@ -487,7 +489,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-      \`\`\`markdown
+      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+
+      \`\`\`\`markdown
       ## Summary
       <brief context for this delegation slice — what problem it solves and where it fits in the larger task>
 
@@ -544,12 +548,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
       ## Skills to activate
-      - <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
+      - e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice>
 
-      Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once."
+      \`\`\`\`"
     `);
   });
 

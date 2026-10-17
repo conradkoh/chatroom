@@ -7,11 +7,11 @@ export function getDataQueryDesignTemplateBlock(): string {
 ### 1. Sources of concern
 | Source | Write frequency | Read pattern | Risk |
 |--------|---------------|--------------|------|
-| \`<table/mutation>\` | \`<frequency>\` | \`<pattern>\` | \`<scan / hot partition>\` |
+| \`{table/mutation}\` | \`<frequency>\` | \`<pattern>\` | \`<scan / hot partition>\` |
 
 ### 2. Schema design
-**Hot path:** \`<table>\` — fields, projection from \`<source>\`
-**Cold path:** \`<table>\` — …
+**Hot path:** \`{table}\` — fields, projection from \`<source>\`
+**Cold path:** \`{table}\` — …
 
 \`\`\`typescript
 // target schema shape
