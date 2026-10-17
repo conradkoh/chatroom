@@ -20,6 +20,7 @@ import {
   upsertMessageReadModel,
   ensureMessageReadModelState,
 } from '../src/domain/usecase/message/message-read-model';
+import { syncActiveTaskHeader } from '../src/domain/usecase/task/active-task-header';
 import { upsertActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
@@ -145,6 +146,21 @@ export const migrateMachineAvailableModelsToTable = migrations.define({
       });
     } // else: the new table is fresher. Never overwrite it.
     return migrationPatch<Doc<'chatroom_machineCapabilities'>>({ availableModels: undefined });
+  },
+});
+
+/**
+ * Migration: Backfill the slim active task header projection.
+ *
+ * Seeds `chatroom_activeTaskHeaders` from current task truth. Idempotent:
+ * `syncActiveTaskHeader` inserts, patches, or deletes per task, so re-running also
+ * removes rows for tasks that are no longer active or assigned.
+ */
+export const backfillActiveTaskHeaders = migrations.define({
+  table: 'chatroom_tasks',
+  batchSize: 25, // full docs with content are read
+  migrateOne: async (ctx, task) => {
+    await syncActiveTaskHeader(ctx, task);
   },
 });
 
@@ -980,6 +996,8 @@ const allMigrationReferences = [
   internal.migrations.purgeRetiredAgentViewMetadata,
   internal.migrations.purgeRetiredMachineIdentity,
   internal.migrations.purgeRetiredMachineRegistry,
+  // Active task header projection backfill (reads full task docs — run last)
+  internal.migrations.backfillActiveTaskHeaders,
 ] as unknown as MigrationFunctionReference[];
 
 export const runAll = migrations.runner(allMigrationReferences);

@@ -13,7 +13,7 @@ import {
   writeWorkspaceTaskInboxEvent,
 } from './write-workspace-task-inbox-event';
 import { api } from '../../../../convex/_generated/api';
-import type { Id } from '../../../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
 import {
   WorkspaceTaskInboxEventStatus,
@@ -91,6 +91,79 @@ async function listInboxEvents(chatroomId: Id<'chatroom_rooms'>, taskId: Id<'cha
       .query('chatroomWorkspaceTaskInbox')
       .withIndex('by_chatroom_taskId', (q) => q.eq('chatroomId', chatroomId).eq('taskId', taskId))
       .collect();
+  });
+}
+
+async function readHeader(taskId: Id<'chatroom_tasks'>) {
+  return await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_activeTaskHeaders')
+      .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
+      .first()
+  );
+}
+
+async function patchTask(taskId: Id<'chatroom_tasks'>, patch: Partial<Doc<'chatroom_tasks'>>) {
+  return await t.run(async (ctx) => {
+    await ctx.db.patch('chatroom_tasks', taskId, patch);
+    const task = await ctx.db.get('chatroom_tasks', taskId);
+    if (!task) throw new Error('task missing');
+    return task;
+  });
+}
+
+const ACTIVE_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
+
+/** Asserts chatroom_activeTaskHeaders equals a scan of chatroom_tasks filtered to active + assigned. */
+async function expectProjectionMatchesTasks(chatroomId: Id<'chatroom_rooms'>) {
+  await t.run(async (ctx) => {
+    const tasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+    const headers = await ctx.db
+      .query('chatroom_activeTaskHeaders')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+
+    const byTaskId = <T extends { taskId: Id<'chatroom_tasks'> }>(rows: T[]) =>
+      [...rows].sort((a, b) => a.taskId.localeCompare(b.taskId));
+
+    const expected = byTaskId(
+      tasks
+        .filter(
+          (task) =>
+            (ACTIVE_STATUSES as readonly string[]).includes(task.status) &&
+            task.assignedTo !== undefined
+        )
+        .map((task) => ({
+          taskId: task._id,
+          chatroomId: task.chatroomId,
+          status: task.status,
+          assignedTo: task.assignedTo,
+          createdAt: task.createdAt,
+          updatedAt: task.updatedAt,
+          ...(task.startInNewSession === undefined
+            ? {}
+            : { startInNewSession: task.startInNewSession }),
+        }))
+    );
+
+    const actual = byTaskId(
+      headers.map((header) => ({
+        taskId: header.taskId,
+        chatroomId: header.chatroomId,
+        status: header.status,
+        assignedTo: header.assignedTo,
+        createdAt: header.createdAt,
+        updatedAt: header.updatedAt,
+        ...(header.startInNewSession === undefined
+          ? {}
+          : { startInNewSession: header.startInNewSession }),
+      }))
+    );
+
+    expect(actual).toEqual(expected);
   });
 }
 
@@ -188,5 +261,109 @@ describe('writeWorkspaceTaskInboxEvent', () => {
         }),
       ])
     );
+  });
+});
+
+describe('writeWorkspaceTaskInboxEvent — active task header projection', () => {
+  async function setupTask(id: string) {
+    const { sessionId } = await createTestSession(id);
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = `${id}-machine`;
+    await seedRemoteConfig(chatroomId, 'builder', machineId);
+    const task = await seedBuilderTask(chatroomId);
+    await t.run((ctx) =>
+      writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskAssigned, task)
+    );
+    return { chatroomId, task };
+  }
+
+  test('creating a task syncs the projection', async () => {
+    const { chatroomId, task } = await setupTask('proj-create');
+
+    await expectProjectionMatchesTasks(chatroomId);
+    const header = await readHeader(task._id);
+    expect(header).not.toBeNull();
+    expect(header!.status).toBe('pending');
+    expect(header!.assignedTo).toBe('builder');
+    expect(header!.startInNewSession).toBe(true);
+  });
+
+  test('transitioning a task updates the projection', async () => {
+    const { chatroomId, task } = await setupTask('proj-transition');
+
+    const updated = await patchTask(task._id, { status: 'in_progress' });
+    await t.run((ctx) =>
+      writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskUpdated, updated)
+    );
+
+    await expectProjectionMatchesTasks(chatroomId);
+    expect((await readHeader(task._id))!.status).toBe('in_progress');
+  });
+
+  test('reassigning a task updates the projection', async () => {
+    const { chatroomId, task } = await setupTask('proj-reassign');
+
+    const updated = await patchTask(task._id, { assignedTo: 'architect' });
+    await t.run((ctx) =>
+      writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskUpdated, updated)
+    );
+
+    await expectProjectionMatchesTasks(chatroomId);
+    expect((await readHeader(task._id))!.assignedTo).toBe('architect');
+  });
+
+  test('completing a task removes the projection row', async () => {
+    const { chatroomId, task } = await setupTask('proj-complete');
+
+    const updated = await patchTask(task._id, { status: 'completed' });
+    await t.run((ctx) =>
+      writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskUpdated, updated)
+    );
+
+    await expectProjectionMatchesTasks(chatroomId);
+    expect(await readHeader(task._id)).toBeNull();
+  });
+
+  test('deleting a task removes the projection row', async () => {
+    const { chatroomId, task } = await setupTask('proj-delete');
+
+    // Production order: TaskDeleted is written just before the task row is deleted.
+    await t.run((ctx) =>
+      writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskDeleted, task)
+    );
+    await t.run((ctx) => ctx.db.delete('chatroom_tasks', task._id));
+
+    await expectProjectionMatchesTasks(chatroomId);
+    expect(await readHeader(task._id)).toBeNull();
+  });
+
+  test('consuming a session keeps the projection in sync', async () => {
+    const { chatroomId, task } = await setupTask('proj-consume');
+
+    const updated = await patchTask(task._id, {
+      startInNewSession: undefined,
+      sessionPolicyConsumedAt: Date.now(),
+    });
+    await t.run((ctx) =>
+      writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskUpdated, updated)
+    );
+
+    await expectProjectionMatchesTasks(chatroomId);
+    expect((await readHeader(task._id))!.startInNewSession).toBeUndefined();
+  });
+
+  test('editing content leaves the projection row unchanged', async () => {
+    const { chatroomId, task } = await setupTask('proj-edit-content');
+    const before = await readHeader(task._id);
+
+    const updated = await patchTask(task._id, { content: 'rewritten body' });
+    await t.run((ctx) =>
+      writeWorkspaceTaskInboxEvent(ctx, WorkspaceTaskInboxEventType.TaskUpdated, updated)
+    );
+
+    await expectProjectionMatchesTasks(chatroomId);
+    const after = await readHeader(task._id);
+    expect(after).toEqual(before);
+    expect(after).not.toHaveProperty('content');
   });
 });

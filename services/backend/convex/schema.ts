@@ -760,6 +760,21 @@ export default defineSchema({
       'originUserMessageId',
     ]),
 
+  /** Slim per-task header for tasks in an active status. Read by daemon/taskStatus:listActive so it never loads chatroom_tasks.content.
+   *  Invariant: a row exists iff task.status in {pending, acknowledged, in_progress} AND task.assignedTo !== undefined;
+   *  its fields equal the task's. */
+  chatroom_activeTaskHeaders: defineTable({
+    taskId: v.id('chatroom_tasks'),
+    chatroomId: v.id('chatroom_rooms'),
+    status: v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress')),
+    assignedTo: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    startInNewSession: v.optional(v.boolean()),
+  })
+    .index('by_taskId', ['taskId'])
+    .index('by_chatroom', ['chatroomId']),
+
   /**
    * Slim timeline task-status signals — one row per FSM transition.
    * Chatroom-scoped only; webapp subscribes via by_chatroom_signalKey.
