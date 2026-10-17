@@ -140,7 +140,7 @@
     "services/backend/convex/participants.ts:209-224|services/backend/convex/skills.ts:35-39",
     "services/backend/convex/presentations.ts:111-123|services/backend/convex/presentations.ts:77-89",
     "services/backend/convex/storageCleanup.ts:23-41|services/backend/convex/storageCleanup.ts:67-84",
-    "services/backend/convex/tasks.ts:174-179|services/backend/src/domain/usecase/machine/write-workspace-task-inbox-event.ts:64-69",
+    "services/backend/convex/tasks.ts:174-179|services/backend/src/domain/usecase/machine/write-workspace-task-inbox-event.ts:77-82",
     "services/backend/convex/tasks.ts:768-781|services/backend/src/domain/usecase/backlog/list-backlog-items.ts:50-63",
     "services/backend/convex/workspaceFileTree/access.ts:23-40|services/backend/convex/workspacePathSecurity.ts:97-116",
     "services/backend/convex/workspaces.ts:205-217|services/backend/convex/workspaces.ts:231-243|services/backend/convex/workspaces.ts:253-265",

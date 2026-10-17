@@ -142,4 +142,57 @@ describe('migration: unsetMachineLegacyCapabilityFields', () => {
       t.mutation(api.machines.markDaemonOnline, { sessionId, machineId })
     ).resolves.toEqual({ success: true });
   });
+
+  test('register and refreshCapabilities never write the legacy fields onto the machine row', async () => {
+    const sessionId = await createTestSession('migration-no-legacy-writes');
+    const machineId = 'migration-no-legacy-writes-machine';
+
+    await registerMachine(sessionId, machineId);
+    const afterRegister = await readMachine(machineId);
+    expect(afterRegister).not.toBeNull();
+    for (const field of LEGACY_FIELDS) {
+      expect(afterRegister).not.toHaveProperty(field);
+    }
+
+    await t.mutation(api.machines.refreshCapabilities, {
+      sessionId,
+      machineId,
+      availableHarnesses: ['opencode'],
+      harnessVersions: { opencode: { version: '1.2.3', major: 1 } },
+      availableModels: { opencode: ['openai/gpt-4'] },
+    });
+
+    const afterRefresh = await readMachine(machineId);
+    expect(afterRefresh).not.toBeNull();
+    for (const field of LEGACY_FIELDS) {
+      expect(afterRefresh).not.toHaveProperty(field);
+    }
+  });
+
+  test('re-registering a machine patches only hostname and os', async () => {
+    const sessionId = await createTestSession('migration-reregister-identity');
+    const machineId = 'migration-reregister-identity-machine';
+    await registerMachine(sessionId, machineId);
+
+    const before = await readMachine(machineId);
+    expect(before).not.toBeNull();
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: `${machineId}-host-2`,
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+      availableModels: { opencode: ['openai/gpt-4'] },
+      harnessVersions: { opencode: { version: '2.0.0', major: 2 } },
+    });
+
+    const after = await readMachine(machineId);
+    expect(after).not.toBeNull();
+    for (const field of LEGACY_FIELDS) {
+      expect(after).not.toHaveProperty(field);
+    }
+    // Only the stable identity fields change; every other stored field is untouched.
+    expect(after).toEqual({ ...before!, hostname: `${machineId}-host-2`, os: 'darwin' });
+  });
 });

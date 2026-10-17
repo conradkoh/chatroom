@@ -20,6 +20,7 @@ import {
   upsertMessageReadModel,
   ensureMessageReadModelState,
 } from '../src/domain/usecase/message/message-read-model';
+import { syncActiveTaskHeader } from '../src/domain/usecase/task/active-task-header';
 import { upsertActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
@@ -99,6 +100,9 @@ export const unsetMachineDaemonConnected = migrations.define({
  */
 export const unsetMachineLegacyCapabilityFields = migrations.define({
   table: 'chatroom_machines',
+  // Legacy rows are large (~148 KB each); the library default of 100 rows would
+  // read ~15 MB in one mutation, close to Convex's 16 MiB per-mutation read limit.
+  batchSize: 10,
   migrateOne: async (_ctx, machine) => {
     const legacy = machine as Record<string, unknown>;
     if (
@@ -114,6 +118,49 @@ export const unsetMachineLegacyCapabilityFields = migrations.define({
         lastSeenAt: undefined,
       });
     }
+  },
+});
+
+/**
+ * Migration: Move the machine model catalog off the capabilities row.
+ *
+ * Copies `chatroom_machineCapabilities.availableModels` into
+ * `chatroom_machineAvailableModels` and unsets the old field in the same mutation,
+ * so the data is never dropped. An existing row in the new table wins (the new
+ * table is fresher); this migration never overwrites it.
+ */
+export const migrateMachineAvailableModelsToTable = migrations.define({
+  table: 'chatroom_machineCapabilities',
+  batchSize: 5, // ~265 KB read + write per row
+  migrateOne: async (ctx, row) => {
+    if (row.availableModels === undefined) return;
+    const existing = await ctx.db
+      .query('chatroom_machineAvailableModels')
+      .withIndex('by_machineId', (q) => q.eq('machineId', row.machineId))
+      .first();
+    if (!existing) {
+      await ctx.db.insert('chatroom_machineAvailableModels', {
+        machineId: row.machineId,
+        availableModels: row.availableModels,
+        updatedAt: row.updatedAt ?? Date.now(),
+      });
+    } // else: the new table is fresher. Never overwrite it.
+    return migrationPatch<Doc<'chatroom_machineCapabilities'>>({ availableModels: undefined });
+  },
+});
+
+/**
+ * Migration: Backfill the slim active task header projection.
+ *
+ * Seeds `chatroom_activeTaskHeaders` from current task truth. Idempotent:
+ * `syncActiveTaskHeader` inserts, patches, or deletes per task, so re-running also
+ * removes rows for tasks that are no longer active or assigned.
+ */
+export const backfillActiveTaskHeaders = migrations.define({
+  table: 'chatroom_tasks',
+  batchSize: 25, // full docs with content are read
+  migrateOne: async (ctx, task) => {
+    await syncActiveTaskHeader(ctx, task);
   },
 });
 
@@ -895,6 +942,7 @@ const allMigrationReferences = [
   internal.migrations.unsetCliSessionExpiration,
   internal.migrations.unsetMachineDaemonConnected,
   internal.migrations.unsetMachineLegacyCapabilityFields,
+  internal.migrations.migrateMachineAvailableModelsToTable,
   internal.migrations.unsetAgentRoleDaemonConnected,
   internal.migrations.unsetMachineLivenessDaemonConnected,
   internal.migrations.setUserAccessLevelDefault,
@@ -948,6 +996,8 @@ const allMigrationReferences = [
   internal.migrations.purgeRetiredAgentViewMetadata,
   internal.migrations.purgeRetiredMachineIdentity,
   internal.migrations.purgeRetiredMachineRegistry,
+  // Active task header projection backfill (reads full task docs — run last)
+  internal.migrations.backfillActiveTaskHeaders,
 ] as unknown as MigrationFunctionReference[];
 
 export const runAll = migrations.runner(allMigrationReferences);

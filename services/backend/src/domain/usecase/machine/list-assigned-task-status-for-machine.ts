@@ -43,35 +43,27 @@ async function listTasksForRequest(
   request: LaunchRequest,
   machineId: string
 ): Promise<TaskStatusView[]> {
-  const statuses = ['pending', 'acknowledged', 'in_progress'] as const;
-  const groups = await Promise.all(
-    statuses.map((status) =>
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', request.chatroomId).eq('status', status)
-        )
-        .collect()
-    )
-  );
+  // Read the slim projection so this query never loads chatroom_tasks.content.
+  const headers = await ctx.db
+    .query('chatroom_activeTaskHeaders')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', request.chatroomId))
+    .collect();
   const role = request.role.toLowerCase();
 
-  return groups.flatMap((tasks) =>
-    tasks
-      .filter((task) => task.assignedTo?.toLowerCase() === role)
-      .map((task) => ({
-        taskId: task._id,
-        chatroomId: task.chatroomId,
-        status: task.status as ActiveTaskStatus,
-        ...(task.assignedTo === undefined ? {} : { assignedTo: task.assignedTo }),
-        updatedAt: task.updatedAt,
-        createdAt: task.createdAt,
-        agentConfig: { role: request.role, machineId },
-        ...(task.startInNewSession === undefined
-          ? {}
-          : { requestsNativeColdSession: task.startInNewSession }),
-      }))
-  );
+  return headers
+    .filter((header) => header.assignedTo.toLowerCase() === role)
+    .map((header) => ({
+      taskId: header.taskId,
+      chatroomId: header.chatroomId,
+      status: header.status,
+      assignedTo: header.assignedTo,
+      updatedAt: header.updatedAt,
+      createdAt: header.createdAt,
+      agentConfig: { role: request.role, machineId },
+      ...(header.startInNewSession === undefined
+        ? {}
+        : { requestsNativeColdSession: header.startInNewSession }),
+    }));
 }
 
 /**

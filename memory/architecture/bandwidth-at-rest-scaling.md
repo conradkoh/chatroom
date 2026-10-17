@@ -144,6 +144,10 @@ Follow-ups (recorded only, not implemented here):
 - a TTL cleanup for processed `chatroomWorkspaceTaskInbox` rows, not yet tracked; add a `chatroomWorkspaceTaskInbox` row to `docs/cleanup-policies.md` when the TTL cleanup is designed; and
 - a migration to strip the deprecated task fields from existing rows.
 
+### 9. Machine-row legacy capability fields are cleaned up in small batches
+
+A `chatroom_machines` row can still carry a large legacy `availableModels` payload (~147 KB in dev), which is re-sent on every machine-owner read. The `unsetMachineLegacyCapabilityFields` migration unsets the legacy `availableModels`, `availableHarnesses`, `harnessVersions`, and `lastSeenAt` fields, and Fix 1 caps it at `batchSize: 10`, because the library default of 100 rows would read ~15 MB in a single mutation against Convex's 16 MiB per-mutation read limit. Running the cleanup against dev is an ops step and is not performed by this change.
+
 ## Screenshot interpretation
 
 The screenshot is consistent with the following priority order:

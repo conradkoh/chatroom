@@ -12,6 +12,7 @@ import {
   type WorkspaceTaskInboxTaskHeader,
 } from '../../entities/chatroom-workspace-task-inbox';
 import { listLastSentLaunchRequestsForChatroom } from '../agent/get-last-sent-launch-request';
+import { removeActiveTaskHeader, syncActiveTaskHeader } from '../task/active-task-header';
 
 /**
  * Builds the slim task header stored on inbox events and served by `listPending`.
@@ -38,12 +39,25 @@ export function toWorkspaceTaskInboxTaskHeader(task: {
   });
 }
 
-/** Writes a task lifecycle event to every remote agent responsible for the task's role. */
+/**
+ * Writes a task lifecycle event to every remote agent responsible for the task's role,
+ * and maintains the `chatroom_activeTaskHeaders` projection that `listActive` reads.
+ * Every task header change calls this function, so it is the single projection sync point.
+ */
 export async function writeWorkspaceTaskInboxEvent(
   ctx: MutationCtx,
   eventType: WorkspaceTaskInboxEventType,
   task: Doc<'chatroom_tasks'>
 ): Promise<Id<'chatroomWorkspaceTaskInbox'>[]> {
+  // Keep the slim listActive projection in sync on every task header change.
+  // This runs before the "no assigned role" early return so unassigned or
+  // completed tasks still drop any stale projection row.
+  if (eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
+    await removeActiveTaskHeader(ctx, task._id);
+  } else {
+    await syncActiveTaskHeader(ctx, task);
+  }
+
   const assignedRole = task.assignedTo;
   if (!assignedRole || assignedRole.toLowerCase() === 'user') {
     return [];

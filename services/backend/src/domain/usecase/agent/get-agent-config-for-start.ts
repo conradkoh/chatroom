@@ -14,6 +14,7 @@ import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request'
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness } from '../../entities/agent';
+import { getMachineAvailableModels } from '../machine/machine-available-models';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -68,11 +69,12 @@ export async function getAgentConfigForStart(
         .query('chatroom_machineCapabilities')
         .withIndex('by_machineId', (q) => q.eq('machineId', m.machineId))
         .first();
+      const models = await getMachineAvailableModels(ctx, m.machineId);
       return {
         machineId: m.machineId,
         hostname: m.hostname,
         availableHarnesses: (capabilities?.availableHarnesses ?? []) as AgentHarness[],
-        availableModels: capabilities?.availableModels ?? {},
+        availableModels: models ?? capabilities?.availableModels /* @deprecated fallback */ ?? {},
       };
     })
   );

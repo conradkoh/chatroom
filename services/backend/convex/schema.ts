@@ -760,6 +760,21 @@ export default defineSchema({
       'originUserMessageId',
     ]),
 
+  /** Slim per-task header for tasks in an active status. Read by daemon/taskStatus:listActive so it never loads chatroom_tasks.content.
+   *  Invariant: a row exists iff task.status in {pending, acknowledged, in_progress} AND task.assignedTo !== undefined;
+   *  its fields equal the task's. */
+  chatroom_activeTaskHeaders: defineTable({
+    taskId: v.id('chatroom_tasks'),
+    chatroomId: v.id('chatroom_rooms'),
+    status: v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress')),
+    assignedTo: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    startInNewSession: v.optional(v.boolean()),
+  })
+    .index('by_taskId', ['taskId'])
+    .index('by_chatroom', ['chatroomId']),
+
   /**
    * Slim timeline task-status signals — one row per FSM transition.
    * Chatroom-scoped only; webapp subscribes via by_chatroom_signalKey.
@@ -2877,6 +2892,7 @@ export default defineSchema({
     harnessVersions: v.optional(
       v.record(v.string(), v.object({ version: v.string(), major: v.number() }))
     ),
+    /** @deprecated Models live in chatroom_machineAvailableModels. Kept optional until migrateMachineAvailableModelsToTable has run on every deployment. */
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
     workspaces: v.optional(
       v.array(
@@ -2921,4 +2937,11 @@ export default defineSchema({
   })
     .index('by_machineId', ['machineId'])
     .index('by_lastSeenAt', ['lastSeenAt']),
+
+  /** Daemon-discovered model catalog per machine. Cold, large (~265 KB), split from capabilities. */
+  chatroom_machineAvailableModels: defineTable({
+    machineId: v.string(),
+    availableModels: v.record(v.string(), v.array(v.string())),
+    updatedAt: v.number(),
+  }).index('by_machineId', ['machineId']),
 });
