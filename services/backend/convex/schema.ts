@@ -325,11 +325,16 @@ export default defineSchema({
     ownerId: v.id('users'),
     // Custom chatroom name (user-defined for easier identification)
     name: v.optional(v.string()),
-    // @deprecated Structural team data is resolved from chatroom_activeTeamStructures.
-    // Retained only so existing deployments can continue validating old documents.
+    /**
+     * @deprecated Structural team data moved to chatroom_activeTeamStructures; read only as a
+     * fallback for old documents. Retained so existing deployments can still validate.
+     */
     teamId: v.optional(v.string()),
+    /** @deprecated Structural team data moved to chatroom_activeTeamStructures; read only as a fallback for old documents. */
     teamName: v.optional(v.string()),
+    /** @deprecated Structural team data moved to chatroom_activeTeamStructures; read only as a fallback for old documents. */
     teamRoles: v.optional(v.array(v.string())),
+    /** @deprecated Structural team data moved to chatroom_activeTeamStructures; read only as a fallback for old documents. */
     teamEntryPoint: v.optional(v.string()),
     // Last activity timestamp - updated when messages are sent
     // Used for sorting chatrooms by recent activity
@@ -340,7 +345,7 @@ export default defineSchema({
     nextQueuePosition: v.optional(v.number()),
     // Current active context for this chatroom (explicit context management)
     currentContextId: v.optional(v.id('chatroom_contexts')),
-    // @deprecated - legacy field kept for backward compatibility with existing documents
+    /** @deprecated Message counts are derived at read time; no code reads or writes it. Retained so existing documents still validate. */
     messageCount: v.optional(v.number()),
     standingInstructions: v.optional(v.string()),
     standingInstructionsEnabled: v.optional(v.boolean()),
@@ -415,12 +420,14 @@ export default defineSchema({
      * New code no longer writes or reads token-activity timestamps.
      */
     lastSeenTokenAt: v.optional(v.number()),
-    // @deprecated Lifecycle status is daemon-owned and read from the role-status model.
+    /** @deprecated Lifecycle status is daemon-owned and read from chatroom_agentRoleStatusReadModel. */
     lastStatus: v.optional(v.string()),
-    // @deprecated Desired state is no longer persisted by Convex.
+    /** @deprecated Desired state is no longer persisted by Convex. */
     lastDesiredState: v.optional(v.string()),
-    // @deprecated Retained for compatibility with existing participant documents.
-    // New code no longer writes this native-harness task correlation field.
+    /**
+     * @deprecated Native-harness task correlation was removed; no code reads or writes it.
+     * Retained so existing participant documents still validate.
+     */
     lastInFlightTaskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])
@@ -500,9 +507,10 @@ export default defineSchema({
     // enhanced handoffs so the UI diff survives without job rows)
     enhancerOriginalContent: v.optional(v.string()),
 
-    // @deprecated Legacy enhancer job linkage (job pipeline retired — the
-    // table is deleted). Kept optional (as a plain string) so historical
-    // messages still validate; no code reads or writes it.
+    /**
+     * @deprecated Legacy enhancer job linkage; the enhancer job table was deleted and no code
+     * reads or writes it. Kept optional so historical messages still validate.
+     */
     enhancerJobId: v.optional(v.string()),
 
     // When true, message appears only in the ALL timeline tab (not role-filtered views)
@@ -568,8 +576,10 @@ export default defineSchema({
     ),
     isTimeline: v.boolean(),
     taskId: v.optional(v.id('chatroom_tasks')),
-    // @deprecated Denormalized copy of chatroom_tasks.status. No code reads or writes it any more;
-    // kept optional so historical rows still validate. Source of truth is chatroom_tasks.status.
+    /**
+     * @deprecated Denormalized copy of chatroom_tasks.status; no code reads or writes it any more.
+     * Source of truth is chatroom_tasks.status. Kept so historical rows still validate.
+     */
     taskStatus: v.optional(
       v.union(
         v.literal('pending'),
@@ -690,11 +700,13 @@ export default defineSchema({
     sourceMessageId: v.optional(v.id('chatroom_messages')),
 
     // Backlog attachment tracking
-    // @deprecated - backlog-specific field; use chatroom_backlog references instead
+    /** @deprecated Backlog attachment tracking moved to chatroom_backlog; kept so existing tasks still validate. */
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task
 
-    // @deprecated - origin was used to distinguish backlog vs chat tasks; all backlog items
-    // are now in chatroom_backlog. Remove after running the reference cleanup migration.
+    /**
+     * @deprecated Origin was used to distinguish backlog vs chat tasks; all backlog items now
+     * live in chatroom_backlog. Remove after the reference cleanup migration runs.
+     */
     origin: v.optional(
       v.union(
         v.literal('backlog'), // @deprecated - all backlog items are now in chatroom_backlog table
@@ -702,12 +714,14 @@ export default defineSchema({
       )
     ),
 
-    // @deprecated - backlog scoring fields; now on chatroom_backlog. Remove after cleanup.
+    /** @deprecated Backlog scoring moved to chatroom_backlog; remove after cleanup. */
     complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    /** @deprecated Backlog scoring moved to chatroom_backlog; remove after cleanup. */
     value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    /** @deprecated Backlog scoring moved to chatroom_backlog; remove after cleanup. */
     priority: v.optional(v.number()),
 
-    // @deprecated - bidirectional link to parent backlog task. Remove after reference cleanup migration.
+    /** @deprecated Legacy parent-backlog-task link; remove after the reference cleanup migration. */
     parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
 
     // Timestamps
@@ -841,7 +855,7 @@ export default defineSchema({
 
     // Legacy reference - set during migration from chatroom_tasks
     // Used to remap attachedTaskIds/parentTaskIds in messages and tasks
-    // @deprecated - migration reference from Phase 1; can be removed after Phase 5 (reference cleanup)
+    /** @deprecated Migration reference from the backlog split; removable after the reference cleanup migration. */
     legacyTaskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])
@@ -1039,9 +1053,9 @@ export default defineSchema({
     alias: v.optional(v.string()),
     // Operating system (darwin, linux, win32)
     os: v.string(),
-    // @deprecated Capability discovery is read from chatroom_machineCapabilities.
+    /** @deprecated Capability discovery moved to chatroom_machineCapabilities. */
     availableHarnesses: v.optional(v.array(agentHarnessValidator)),
-    // @deprecated Capability discovery is read from chatroom_machineCapabilities.
+    /** @deprecated Capability discovery moved to chatroom_machineCapabilities. */
     harnessVersions: v.optional(
       v.record(
         v.string(),
@@ -1057,9 +1071,9 @@ export default defineSchema({
     ),
     // When machine was first registered
     registeredAt: v.number(),
-    // @deprecated Recency is read from chatroom_machineLiveness/capabilities.
+    /** @deprecated Recency moved to chatroom_machineLiveness. */
     lastSeenAt: v.optional(v.number()),
-    // @deprecated Connectivity is read from chatroom_machineStatus.
+    /** @deprecated Connectivity moved to chatroom_machineStatus. */
     daemonConnected: v.optional(v.boolean()),
     // Last time the user requested a capabilities refresh for this machine (cooldown)
     lastCapabilitiesRefreshRequestedAt: v.optional(v.number()),
@@ -1273,9 +1287,9 @@ export default defineSchema({
     observedAt: v.optional(v.number()),
     lastSeenAt: v.optional(v.number()),
     lastSeenAction: v.optional(v.string()),
-    // @deprecated Structural identity is resolved from the active team structure.
+    /** @deprecated Structural identity resolves from chatroom_activeTeamStructures. */
     teamId: v.optional(v.string()),
-    // @deprecated Replaced by status.
+    /** @deprecated Replaced by status. */
     operationalState: v.optional(
       v.union(
         v.literal('running'),
@@ -1284,7 +1298,7 @@ export default defineSchema({
         v.literal('circuit_open')
       )
     ),
-    // @deprecated Replaced by status.
+    /** @deprecated Replaced by status. */
     viewState: v.optional(
       v.union(
         v.literal('idle'),
@@ -1294,12 +1308,13 @@ export default defineSchema({
         v.literal('circuit_open')
       )
     ),
-    // @deprecated Daemon-owned process state is represented by status and observed fields.
+    /** @deprecated Daemon-owned process state is represented by status and observed fields. */
     isAlive: v.optional(v.boolean()),
-    // @deprecated Derived convenience field; the daemon-fed status is canonical.
+    /** @deprecated Derived convenience field; the daemon-fed status is canonical. */
     isRunning: v.optional(v.boolean()),
     /** @deprecated Connectivity is machine-scoped, not role-projection state. */
     daemonConnected: v.optional(v.boolean()),
+    /** @deprecated No current reader or writer; task acceptance is read from status. Retained so existing rows still validate. */
     acceptsTasks: v.optional(v.boolean()),
     revisionKey: v.optional(v.string()),
     /** Latest daemon event timestamp accepted for this role. */
@@ -2869,8 +2884,10 @@ export default defineSchema({
       v.literal('enhancer_claim'),
       v.literal('cli_get_next_task')
     ),
-    // @deprecated Legacy enhancer job linkage (job table deleted); kept
-    // optional as a plain string so historical rows still validate.
+    /**
+     * @deprecated Legacy enhancer job linkage; the job table was deleted and no code reads or
+     * writes it. Kept so historical rows still validate.
+     */
     jobId: v.optional(v.string()),
     harnessSessionId: v.optional(v.string()),
     deliveredAt: v.number(),
