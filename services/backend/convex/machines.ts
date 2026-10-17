@@ -38,6 +38,10 @@ import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-r
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
+import {
+  getMachineAvailableModels,
+  upsertMachineAvailableModels,
+} from '../src/domain/usecase/machine/machine-available-models';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -109,10 +113,12 @@ async function getOwnedMachine(
 /**
  * Upsert the per-machine daemon capability snapshot.
  *
- * One row per machine; the whole Record<harness, models[]> lives in a single row.
- * Skips the write when availableModels is undefined (don't clobber existing data
- * with an empty/absent payload from old daemons that don't send models).
- * Also skips when the content is structurally identical to the existing row
+ * One capabilities row per machine, holding only harnesses and versions. The model
+ * catalog is written separately to `chatroom_machineAvailableModels` so this row
+ * stays small. Skips the capabilities write when availableHarnesses and
+ * harnessVersions are undefined (don't clobber existing data with an absent payload
+ * from old daemons); the models write is handled independently. Also skips when the
+ * capabilities content is structurally identical to the existing row
  * (JSON.stringify deep-equality) — no-op writes still invalidate Convex
  * subscriptions, so we must suppress them to achieve the bandwidth goal.
  */
@@ -131,8 +137,12 @@ async function upsertMachineCapabilities(
     input.availableHarnesses === undefined &&
     input.harnessVersions === undefined
   ) {
-    // Don't clobber existing models when caller didn't supply them.
+    // Nothing to write.
     return;
+  }
+
+  if (input.availableModels !== undefined) {
+    await upsertMachineAvailableModels(ctx, machineId, input.availableModels);
   }
 
   const existing = await ctx.db
@@ -147,8 +157,6 @@ async function upsertMachineCapabilities(
     // indicate a genuine harness-list change and trigger a real write (correct behaviour).
     if (
       (input.lastSeenAt === undefined || existing.lastSeenAt === input.lastSeenAt) &&
-      (input.availableModels === undefined ||
-        JSON.stringify(existing.availableModels) === JSON.stringify(input.availableModels)) &&
       (input.availableHarnesses === undefined ||
         JSON.stringify(existing.availableHarnesses) === JSON.stringify(input.availableHarnesses)) &&
       (input.harnessVersions === undefined ||
@@ -158,7 +166,6 @@ async function upsertMachineCapabilities(
     }
     await ctx.db.patch('chatroom_machineCapabilities', existing._id, {
       ...(input.lastSeenAt !== undefined ? { lastSeenAt: input.lastSeenAt } : {}),
-      ...(input.availableModels !== undefined ? { availableModels: input.availableModels } : {}),
       ...(input.availableHarnesses !== undefined
         ? { availableHarnesses: [...input.availableHarnesses] }
         : {}),
@@ -169,7 +176,6 @@ async function upsertMachineCapabilities(
     await ctx.db.insert('chatroom_machineCapabilities', {
       machineId,
       ...(input.lastSeenAt !== undefined ? { lastSeenAt: input.lastSeenAt } : {}),
-      ...(input.availableModels !== undefined ? { availableModels: input.availableModels } : {}),
       ...(input.availableHarnesses !== undefined
         ? { availableHarnesses: [...input.availableHarnesses] }
         : {}),
@@ -675,12 +681,18 @@ export const getMachineModels = query({
       .first();
     if (!machine) return { availableModels: {} as Record<string, string[]> };
 
-    const newRow = await ctx.db
+    const models = await getMachineAvailableModels(ctx, args.machineId);
+    if (models !== undefined) {
+      return { availableModels: models };
+    }
+
+    // @deprecated fallback: remove after migrateMachineAvailableModelsToTable has run everywhere
+    const legacyRow = await ctx.db
       .query('chatroom_machineCapabilities')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .first();
-    if (newRow?.availableModels) {
-      return { availableModels: newRow.availableModels };
+    if (legacyRow?.availableModels) {
+      return { availableModels: legacyRow.availableModels };
     }
     return { availableModels: {} as Record<string, string[]> };
   },

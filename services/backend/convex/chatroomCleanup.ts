@@ -9,6 +9,7 @@
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import { deleteCliSessionLastUsedAt } from './lib/lastAtProjections';
+import { deleteMachineAvailableModels } from '../src/domain/usecase/machine/machine-available-models';
 import { deleteObservedWorkspaceViewsForMachine } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 import { deleteWorkspaceGitUnitRows } from '../src/domain/usecase/workspace/workspace-git-unit-rows';
 
@@ -174,6 +175,7 @@ export const cleanupMachines = internalMutation({
       if (!machine) {
         // Orphan projection: parent already gone, just clean the row.
         await ctx.db.delete('chatroom_machineCapabilities', projection._id);
+        await deleteMachineAvailableModels(ctx, projection.machineId);
         continue;
       }
       const mid = machine.machineId;
@@ -372,6 +374,7 @@ export const cleanupMachines = internalMutation({
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))
         .first();
       if (capability) await ctx.db.delete('chatroom_machineCapabilities', capability._id);
+      await deleteMachineAvailableModels(ctx, mid);
       deletedMachines++;
     }
 

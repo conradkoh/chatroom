@@ -121,6 +121,34 @@ export const unsetMachineLegacyCapabilityFields = migrations.define({
 });
 
 /**
+ * Migration: Move the machine model catalog off the capabilities row.
+ *
+ * Copies `chatroom_machineCapabilities.availableModels` into
+ * `chatroom_machineAvailableModels` and unsets the old field in the same mutation,
+ * so the data is never dropped. An existing row in the new table wins (the new
+ * table is fresher); this migration never overwrites it.
+ */
+export const migrateMachineAvailableModelsToTable = migrations.define({
+  table: 'chatroom_machineCapabilities',
+  batchSize: 5, // ~265 KB read + write per row
+  migrateOne: async (ctx, row) => {
+    if (row.availableModels === undefined) return;
+    const existing = await ctx.db
+      .query('chatroom_machineAvailableModels')
+      .withIndex('by_machineId', (q) => q.eq('machineId', row.machineId))
+      .first();
+    if (!existing) {
+      await ctx.db.insert('chatroom_machineAvailableModels', {
+        machineId: row.machineId,
+        availableModels: row.availableModels,
+        updatedAt: row.updatedAt ?? Date.now(),
+      });
+    } // else: the new table is fresher. Never overwrite it.
+    return migrationPatch<Doc<'chatroom_machineCapabilities'>>({ availableModels: undefined });
+  },
+});
+
+/**
  * Migration: Remove daemon connectivity from the agent/role read model.
  * Connectivity is a machine-level UI concern, not role projection state.
  */
@@ -898,6 +926,7 @@ const allMigrationReferences = [
   internal.migrations.unsetCliSessionExpiration,
   internal.migrations.unsetMachineDaemonConnected,
   internal.migrations.unsetMachineLegacyCapabilityFields,
+  internal.migrations.migrateMachineAvailableModelsToTable,
   internal.migrations.unsetAgentRoleDaemonConnected,
   internal.migrations.unsetMachineLivenessDaemonConnected,
   internal.migrations.setUserAccessLevelDefault,

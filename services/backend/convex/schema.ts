@@ -2877,6 +2877,7 @@ export default defineSchema({
     harnessVersions: v.optional(
       v.record(v.string(), v.object({ version: v.string(), major: v.number() }))
     ),
+    /** @deprecated Models live in chatroom_machineAvailableModels. Kept optional until migrateMachineAvailableModelsToTable has run on every deployment. */
     availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
     workspaces: v.optional(
       v.array(
@@ -2921,4 +2922,11 @@ export default defineSchema({
   })
     .index('by_machineId', ['machineId'])
     .index('by_lastSeenAt', ['lastSeenAt']),
+
+  /** Daemon-discovered model catalog per machine. Cold, large (~265 KB), split from capabilities. */
+  chatroom_machineAvailableModels: defineTable({
+    machineId: v.string(),
+    availableModels: v.record(v.string(), v.array(v.string())),
+    updatedAt: v.number(),
+  }).index('by_machineId', ['machineId']),
 });
