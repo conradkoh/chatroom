@@ -118,7 +118,7 @@ describe('listHandoffTemplates', () => {
     expect(listing.receivesFrom.map((r) => r.toLowerCase())).toEqual(['planner']);
     expect(listing.returnsTo.map((r) => r.toLowerCase())).toEqual(['planner']);
     expect(listing.templates.map((t) => t.toRole.toLowerCase())).toEqual(['planner']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Builder → Planner)');
+    expect(listing.templates[0]?.template).toContain('Builder → Planner report');
   });
 
   test('solo lists solo → design-role and user templates', () => {
@@ -139,7 +139,7 @@ describe('listHandoffTemplates', () => {
       'Message template for `solo`'
     );
     expect(listing.templates.find((t) => t.toRole === 'user')?.template).toContain(
-      'Report Template (Solo → User)'
+      'Solo → User report'
     );
   });
 

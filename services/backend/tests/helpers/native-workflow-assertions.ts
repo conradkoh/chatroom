@@ -95,7 +95,7 @@ export function assertNativeInitTemplateDisclosure(
 ): void {
   expect(prompt).not.toContain('Begin With the End in Mind');
   expect(prompt).not.toContain('handoff view-template');
-  expect(prompt).not.toContain('Report Template (Planner → User)');
+  expect(prompt).not.toContain('Planner → User report');
 
   if (options.referencesDeliveryTemplates) {
     expect(prompt).toContain('task delivery');

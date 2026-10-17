@@ -6,7 +6,7 @@ exports[`UI/UX engineer handoff template snapshots > UI/UX engineer to planner r
 
 Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
-Message template for \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Message template for \`planner\` from \`uiux-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -91,7 +91,7 @@ exports[`UI/UX engineer handoff template snapshots > UI/UX engineer to solo rend
 
 Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
-Message template for \`solo\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Message template for \`solo\` from \`uiux-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -196,7 +196,7 @@ exports[`UI/UX engineer handoff template snapshots > generic UI/UX engineer hand
 
 Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
-Message template for \`<entry-point-role>\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Message template for \`<entry-point-role>\` from \`uiux-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>

@@ -23,7 +23,7 @@ export function getSoloToUserReportTemplate(
 ): string {
   return `${getHandoffRecipientVisibilityCallout('user')}
 
-${getHandoffReportTemplateIntro('Report Template (Solo → User)')}
+${getHandoffReportTemplateIntro('Solo → User report')}
 
 \`\`\`markdown
 ${getHandoffReportTemplateBody(roleGuidanceContext, { includeProofOfVerification: true })}

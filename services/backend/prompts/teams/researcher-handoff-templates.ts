@@ -45,7 +45,7 @@ export function getResearcherToEntryPointHandoffTemplate(entryPointRole: string)
 
 Instructions (not part of the message): Return a complete, evidence-backed research brief for the authoritative request. The researcher is advisory: do not edit files, implement code, or present alternative architectures beyond what grounds the decision. Answer only the questions asked. Separate every finding into confirmed (with evidence), inferred (with reasoning), or unknown. Never present a guess as fact. External claims must cite the source URL together with the version or date checked. Use the exact sections below, in this order.
 
-Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Message template for \`${entryPoint}\` from \`researcher\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <state the answer to the core question in two to four sentences and whether any decision remains open>

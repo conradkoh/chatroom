@@ -16,7 +16,7 @@ export function getHandoffNotApplicableSectionComment(context: string): string {
 
 /** Header line for report-style templates (planner/solo → user, builder → planner). */
 export function getHandoffReportTemplateIntro(templateLabel: string): string {
-  return `**${templateLabel}** — complete every section below. Do not omit sections, principles, or XML wrappers:
+  return `Instructions (not part of the message) for the ${templateLabel} template: complete every section below. Do not omit sections, principles, or XML wrappers.
 
 When a section has no content, write exactly \`${HANDOFF_NOT_APPLICABLE_EXACT_TEXT}\` — no explanation, no em-dash, no additional text.`;
 }

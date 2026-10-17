@@ -37,7 +37,7 @@ describe('generateFullCliOutput — delivery paths', () => {
     expect(output).not.toContain('task injection');
     expect(output).not.toMatch(/task read --chatroom-id/i);
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Handoff Template (Builder → Planner)');
+    expect(output).toContain('Builder → Planner report');
   });
 
   test('CLI mode includes handoff templates, capabilities, and footer', () => {
@@ -60,7 +60,7 @@ describe('generateFullCliOutput — delivery paths', () => {
       availableHandoffTargets: ['builder', 'user'],
     });
 
-    expect(output).toContain('Report Template (Planner → User)');
+    expect(output).toContain('Planner → User report');
     expect(output).toContain('Delegation Brief (Planner → Builder)');
     expect(output).toContain('--next-role="user"');
     expectNoEnhancerCeremony(output);

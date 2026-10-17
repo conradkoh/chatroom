@@ -39,7 +39,7 @@ describe('handoff view-template command (recovery / CLI)', () => {
       nextRole: 'user',
       teamId: 'duo',
     });
-    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('Planner → User report');
   });
 
   test('resolves duo builder → planner handoff template body', () => {
@@ -48,7 +48,7 @@ describe('handoff view-template command (recovery / CLI)', () => {
       nextRole: 'planner',
       teamId: 'duo',
     });
-    expect(template).toContain('Handoff Template (Builder → Planner)');
+    expect(template).toContain('Builder → Planner report');
   });
 
   test('rejects role-only viewing for roles other than architect and uiux-engineer', () => {

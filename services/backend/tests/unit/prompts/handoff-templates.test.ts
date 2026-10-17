@@ -173,7 +173,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
       > Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
 
-      **Report Template (Planner → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
+      Instructions (not part of the message) for the Planner → User report template: complete every section below. Do not omit sections, principles, or XML wrappers.
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
@@ -320,7 +320,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
       > Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-      **Handoff Template (Builder → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
+      Instructions (not part of the message) for the Builder → Planner report template: complete every section below. Do not omit sections, principles, or XML wrappers.
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
@@ -568,7 +568,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
       > Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
 
-      **Report Template (Solo → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
+      Instructions (not part of the message) for the Solo → User report template: complete every section below. Do not omit sections, principles, or XML wrappers.
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
@@ -774,7 +774,7 @@ describe('handoff-templates > conversation mode chat', () => {
       toRole: 'user',
       conversationMode: 'code',
     });
-    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('Planner → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -785,7 +785,7 @@ describe('handoff-templates > conversation mode chat', () => {
       toRole: 'user',
       conversationMode: 'code:enhanced',
     });
-    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('Planner → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -795,7 +795,7 @@ describe('handoff-templates > conversation mode chat', () => {
       fromRole: 'planner',
       toRole: 'user',
     });
-    expect(template).toContain('Report Template (Planner → User)');
+    expect(template).toContain('Planner → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -806,7 +806,7 @@ describe('handoff-templates > conversation mode chat', () => {
       toRole: 'user',
       conversationMode: 'code',
     });
-    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('Solo → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -817,7 +817,7 @@ describe('handoff-templates > conversation mode chat', () => {
       toRole: 'user',
       conversationMode: 'code:enhanced',
     });
-    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('Solo → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 
@@ -827,7 +827,7 @@ describe('handoff-templates > conversation mode chat', () => {
       fromRole: 'solo',
       toRole: 'user',
     });
-    expect(template).toContain('Report Template (Solo → User)');
+    expect(template).toContain('Solo → User report');
     expect(template).toContain('<handoff-proofs>');
   });
 });
