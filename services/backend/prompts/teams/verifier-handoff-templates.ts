@@ -65,7 +65,7 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Body for the verifier returning its advisory verdict to its entry point. */
+/** Body for the verifier returning its advisory verdict to the entry role. */
 export function getVerifierToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.toRole;
 

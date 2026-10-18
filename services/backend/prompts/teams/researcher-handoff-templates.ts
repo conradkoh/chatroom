@@ -29,7 +29,7 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Body for the researcher returning its grounded research brief to its entry point. */
+/** Body for the researcher returning its grounded research brief to the entry role. */
 export function getResearcherToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.toRole;
 

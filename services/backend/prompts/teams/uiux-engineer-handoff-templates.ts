@@ -17,7 +17,7 @@ function getUiuxEngineerRequirements(): string {
 - Do not propose or require web accessibility implementation work unless the user explicitly requests it.`;
 }
 
-/** Body for an entry-point role delegating design work to the UI/UX engineer. */
+/** Body for the entry role delegating design work to the UI/UX engineer. */
 export function getEntryPointToUiuxEngineerHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.fromRole;
 
@@ -37,18 +37,12 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Body for the UI/UX engineer returning one recommended design to its entry point. */
+/** Body for the UI/UX engineer returning one recommended design to the entry role. */
 export function getUiuxEngineerToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
-  return renderUiuxEngineerToEntryPointHandoffTemplate(query.toRole);
-}
+  const entryPoint = query.toRole;
+  const sharedContractsHeading = `## Shared contracts (${entryPoint}-owned)`;
 
-function renderUiuxEngineerToEntryPointHandoffTemplate(entryPoint: string): string {
-  const sharedContractsHeading =
-    entryPoint === 'planner'
-      ? '## Shared contracts (planner-owned)'
-      : '## Shared contracts (configured entry-point-owned)';
-
-  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to \`${entryPoint}\`. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>

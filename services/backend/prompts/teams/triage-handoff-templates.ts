@@ -19,7 +19,7 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Body for triage returning its investigation report to its entry point. */
+/** Body for triage returning its investigation report to the entry role. */
 export function getTriageToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.toRole;
 

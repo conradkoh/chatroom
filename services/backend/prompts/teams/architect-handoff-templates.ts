@@ -16,7 +16,7 @@ function getArchitectRequirements(): string {
 - Specify concrete schema, query, and mutation changes; migration/backfill sequence; tests; and verification order.`;
 }
 
-/** Body for an entry-point role delegating design work to the architect. */
+/** Body for the entry role delegating design work to the architect. */
 export function getEntryPointToArchitectHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.fromRole;
 
@@ -36,12 +36,12 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Body for the architect returning one recommended design to its entry point. */
+/** Body for the architect returning one recommended design to the entry role. */
 export function getArchitectToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.toRole;
   const sharedContractsHeading = `## Shared contracts (${entryPoint}-owned)`;
 
-  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to \`${entryPoint}\`. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
