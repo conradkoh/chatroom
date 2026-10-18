@@ -10,6 +10,10 @@
  * catalogs can depend on it without creating an import cycle.
  */
 
+import {
+  CONVERSATION_MODES,
+  type ConversationMode,
+} from '@workspace/shared/domain/conversation-mode';
 import { TEAM_PRESET_IDS, type TeamPresetId } from '@workspace/shared/domain/team-kind';
 
 /** One addressed handoff template: a sender and recipient within a team. */
@@ -29,6 +33,8 @@ export type HandoffTemplateCommandName = 'view-template' | 'list-templates';
 export interface HandoffTemplatePairInput {
   from?: string | undefined;
   to?: string | undefined;
+  /** Conversation mode: `chat` | `code` | `code:enhanced`. Required by view-template and list-templates. */
+  mode?: string | undefined;
   teamId?: string | undefined;
   /** Deprecated parent-group `--role`. */
   legacyRole?: string | undefined;
@@ -37,7 +43,22 @@ export interface HandoffTemplatePairInput {
 }
 
 export type HandoffTemplatePairErrorCode =
-  'MISSING_PAIR' | 'LEGACY_ROLE_FLAGS' | 'UNKNOWN_TEAM' | 'UNKNOWN_FROM_ROLE' | 'UNKNOWN_PAIR';
+  | 'MISSING_PAIR'
+  | 'MISSING_MODE'
+  | 'UNKNOWN_MODE'
+  | 'LEGACY_ROLE_FLAGS'
+  | 'UNKNOWN_TEAM'
+  | 'UNKNOWN_FROM_ROLE'
+  | 'UNKNOWN_PAIR';
+
+/** Key segment for a template body: `chat`, or `code` (covers `code` and `code:enhanced`). */
+export type HandoffTemplateModeBucket = 'chat' | 'code';
+
+/** A pair plus the conversation mode it is rendered for. */
+export interface HandoffTemplateSelection {
+  pair: HandoffTemplatePair;
+  mode: ConversationMode;
+}
 
 export class HandoffTemplatePairError extends Error {
   constructor(
@@ -56,12 +77,40 @@ export function normalizeHandoffRole(value: string | undefined): string | undefi
   return normalized === '' ? undefined : normalized;
 }
 
+/** Trims and lowercases a mode token; empty/whitespace becomes `undefined`. */
+export function normalizeHandoffMode(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.trim().toLowerCase();
+  return normalized === '' ? undefined : normalized;
+}
+
+/** Type guard for the canonical conversation modes. */
+export function isConversationMode(value: string): value is ConversationMode {
+  return (CONVERSATION_MODES as readonly string[]).includes(value);
+}
+
+/** Body bucket for a mode: `chat` alone, otherwise the shared `code` body. */
+// Reason: part of the mode vocabulary; the key formatter and unit tests consume it.
+// fallow-ignore-next-line unused-export
+export function modeBucket(mode: ConversationMode): HandoffTemplateModeBucket {
+  return mode === 'chat' ? 'chat' : 'code';
+}
+
+/** Stable key for a selection, e.g. `duo:planner->user@chat`. */
+export function formatHandoffTemplateKey(selection: HandoffTemplateSelection): string {
+  const { pair, mode } = selection;
+  return `${pair.teamId}:${pair.fromRole}->${pair.toRole}@${modeBucket(mode)}`;
+}
+
 /** Type guard for the builtin team presets (`duo`, `solo`). */
 export function isTeamPresetId(value: string): value is TeamPresetId {
   return (TEAM_PRESET_IDS as readonly string[]).includes(value);
 }
 
 /** Stable id for a pair, e.g. `duo:planner->builder`. */
+// Reason: the mode-keyed command now composes keys via formatHandoffTemplateKey;
+// this pair primitive stays for tests and non-mode callers.
+// fallow-ignore-next-line unused-export
 export function formatHandoffTemplatePairId(
   pair: Pick<HandoffTemplatePair, 'teamId' | 'fromRole' | 'toRole'>
 ): HandoffTemplatePairId {
@@ -73,13 +122,20 @@ export function formatHandoffPairLabel(pair: { fromRole: string; toRole: string 
   return `\`${pair.fromRole}\` → \`${pair.toRole}\``;
 }
 
-/** Copy/paste-ready command that addresses a pair. */
+/**
+ * Copy/paste-ready command that addresses a pair.
+ *
+ * `modeArg` is written verbatim, so pass `<chat|code|code:enhanced>` for
+ * placeholders. When omitted, no `--mode` flag is emitted.
+ */
 export function formatHandoffTemplateCommand(
   command: HandoffTemplateCommandName,
   pair: HandoffTemplatePair,
-  cliEnvPrefix = ''
+  cliEnvPrefix = '',
+  modeArg?: string
 ): string {
-  return `${cliEnvPrefix}chatroom handoff ${command} --from="${pair.fromRole}" --to="${pair.toRole}" --team-id="${pair.teamId}"`;
+  const modeFlag = modeArg === undefined ? '' : ` --mode="${modeArg}"`;
+  return `${cliEnvPrefix}chatroom handoff ${command} --from="${pair.fromRole}" --to="${pair.toRole}"${modeFlag} --team-id="${pair.teamId}"`;
 }
 
 type MissingFlags = '--from, --to' | '--from' | '--to';
@@ -91,14 +147,29 @@ export function missingPairMessage(
 ): string {
   return [
     `handoff ${command} requires both --from and --to (missing: ${missing}). Handoff templates are keyed by the (sender, recipient) pair.`,
-    `Example: chatroom handoff ${command} --from="planner" --to="builder" --team-id="duo"`,
+    `Example: chatroom handoff ${command} --from="planner" --to="builder" --mode="code" --team-id="duo"`,
   ].join('\n');
+}
+
+/** `MISSING_MODE` message: `--mode` is required after the pair resolves. */
+export function missingModeMessage(command: HandoffTemplateCommandName): string {
+  return [
+    `handoff ${command} requires --mode (missing: --mode). Handoff templates are keyed by the (sender, recipient) pair and the conversation mode.`,
+    `Example: chatroom handoff ${command} --from="planner" --to="user" --mode="chat" --team-id="duo"`,
+  ].join('\n');
+}
+
+/** `UNKNOWN_MODE` message. */
+export function unknownModeMessage(mode: string): string {
+  return `Unknown mode "${mode}". Valid modes: ${CONVERSATION_MODES.join(', ')}.`;
 }
 
 export interface LegacyRoleFlagsMessageInput {
   teamId: string;
   legacyRole?: string | undefined;
   legacyNextRole?: string | undefined;
+  /** Supplied `--mode`, if any; otherwise the rewritten command shows the placeholder. */
+  mode?: string | undefined;
   /** Pairs from `legacyRole` when it names a catalog role; empty/undefined otherwise. */
   rolePairs?: readonly HandoffTemplatePair[] | undefined;
 }
@@ -110,15 +181,21 @@ export function legacyRoleFlagsMessage(
   input: LegacyRoleFlagsMessageInput
 ): string {
   const header = `handoff ${command} no longer accepts --role/--next-role. Handoff templates are keyed by the (sender, recipient) pair.`;
+  const modeArg = input.mode ?? '<chat|code|code:enhanced>';
 
   if (input.legacyRole !== undefined && input.legacyNextRole !== undefined) {
     return [
       header,
-      `Use: ${formatHandoffTemplateCommand(command, {
-        teamId: input.teamId as TeamPresetId,
-        fromRole: input.legacyRole,
-        toRole: input.legacyNextRole,
-      })}`,
+      `Use: ${formatHandoffTemplateCommand(
+        command,
+        {
+          teamId: input.teamId as TeamPresetId,
+          fromRole: input.legacyRole,
+          toRole: input.legacyNextRole,
+        },
+        '',
+        modeArg
+      )}`,
     ].join('\n');
   }
 
@@ -126,14 +203,16 @@ export function legacyRoleFlagsMessage(
     return [
       header,
       `Pairs from "${input.legacyRole}" in team "${input.teamId}":`,
-      ...input.rolePairs.map((pair) => `  ${formatHandoffTemplateCommand(command, pair)}`),
+      ...input.rolePairs.map(
+        (pair) => `  ${formatHandoffTemplateCommand(command, pair, '', modeArg)}`
+      ),
     ].join('\n');
   }
 
   const to = input.legacyNextRole ?? '<recipient-role>';
   return [
     header,
-    `Use: chatroom handoff ${command} --from="<your-role>" --to="${to}" --team-id="${input.teamId}"`,
+    `Use: chatroom handoff ${command} --from="<your-role>" --to="${to}" --mode="${modeArg}" --team-id="${input.teamId}"`,
   ].join('\n');
 }
 

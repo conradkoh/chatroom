@@ -7,13 +7,19 @@ import { describe, expect, test } from 'vitest';
 import {
   formatHandoffPairLabel,
   formatHandoffTemplateCommand,
+  formatHandoffTemplateKey,
   formatHandoffTemplatePairId,
   HandoffTemplatePairError,
+  isConversationMode,
   isTeamPresetId,
   legacyRoleFlagsMessage,
+  missingModeMessage,
   missingPairMessage,
+  modeBucket,
+  normalizeHandoffMode,
   normalizeHandoffRole,
   unknownFromRoleMessage,
+  unknownModeMessage,
   unknownPairMessage,
   unknownTeamMessage,
   type HandoffTemplatePair,
@@ -26,6 +32,57 @@ describe('normalizeHandoffRole', () => {
     expect(normalizeHandoffRole('   ')).toBeUndefined();
     expect(normalizeHandoffRole(' Planner ')).toBe('planner');
     expect(normalizeHandoffRole('BUILDER')).toBe('builder');
+  });
+});
+
+describe('normalizeHandoffMode', () => {
+  test('trims, lowercases, and collapses empty input to undefined', () => {
+    expect(normalizeHandoffMode(undefined)).toBeUndefined();
+    expect(normalizeHandoffMode('')).toBeUndefined();
+    expect(normalizeHandoffMode('   ')).toBeUndefined();
+    expect(normalizeHandoffMode(' CODE ')).toBe('code');
+    expect(normalizeHandoffMode('Code:Enhanced')).toBe('code:enhanced');
+  });
+});
+
+describe('isConversationMode', () => {
+  test('accepts the canonical modes and rejects everything else', () => {
+    expect(isConversationMode('chat')).toBe(true);
+    expect(isConversationMode('code')).toBe(true);
+    expect(isConversationMode('code:enhanced')).toBe(true);
+    expect(isConversationMode('bogus')).toBe(false);
+    expect(isConversationMode('')).toBe(false);
+  });
+});
+
+describe('modeBucket', () => {
+  test('maps chat to its own bucket and both code modes to the code bucket', () => {
+    expect(modeBucket('chat')).toBe('chat');
+    expect(modeBucket('code')).toBe('code');
+    expect(modeBucket('code:enhanced')).toBe('code');
+  });
+});
+
+describe('formatHandoffTemplateKey', () => {
+  test('appends the mode bucket to the pair id', () => {
+    expect(
+      formatHandoffTemplateKey({
+        pair: { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+        mode: 'chat',
+      })
+    ).toBe('duo:planner->user@chat');
+    expect(
+      formatHandoffTemplateKey({
+        pair: { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+        mode: 'code',
+      })
+    ).toBe('duo:planner->builder@code');
+    expect(
+      formatHandoffTemplateKey({
+        pair: { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+        mode: 'code:enhanced',
+      })
+    ).toBe('duo:planner->user@code');
   });
 });
 
@@ -71,6 +128,17 @@ describe('formatHandoffTemplateCommand', () => {
       'CHATROOM_CONVEX_URL=x chatroom handoff list-templates --from="planner" --to="builder" --team-id="duo"'
     );
   });
+
+  test('writes the mode argument verbatim before --team-id when given', () => {
+    expect(formatHandoffTemplateCommand('view-template', pair, '', 'chat')).toBe(
+      'chatroom handoff view-template --from="planner" --to="builder" --mode="chat" --team-id="duo"'
+    );
+    expect(
+      formatHandoffTemplateCommand('view-template', pair, '', '<chat|code|code:enhanced>')
+    ).toBe(
+      'chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+    );
+  });
 });
 
 describe('missingPairMessage', () => {
@@ -78,7 +146,7 @@ describe('missingPairMessage', () => {
     expect(missingPairMessage('view-template', '--from, --to')).toBe(
       [
         'handoff view-template requires both --from and --to (missing: --from, --to). Handoff templates are keyed by the (sender, recipient) pair.',
-        'Example: chatroom handoff view-template --from="planner" --to="builder" --team-id="duo"',
+        'Example: chatroom handoff view-template --from="planner" --to="builder" --mode="code" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -86,6 +154,25 @@ describe('missingPairMessage', () => {
   test('lists only the missing flag', () => {
     expect(missingPairMessage('list-templates', '--from')).toContain('(missing: --from).');
     expect(missingPairMessage('list-templates', '--to')).toContain('(missing: --to).');
+  });
+});
+
+describe('missingModeMessage', () => {
+  test('names --mode and shows a chat example', () => {
+    expect(missingModeMessage('view-template')).toBe(
+      [
+        'handoff view-template requires --mode (missing: --mode). Handoff templates are keyed by the (sender, recipient) pair and the conversation mode.',
+        'Example: chatroom handoff view-template --from="planner" --to="user" --mode="chat" --team-id="duo"',
+      ].join('\n')
+    );
+  });
+});
+
+describe('unknownModeMessage', () => {
+  test('names the valid modes', () => {
+    expect(unknownModeMessage('bogus')).toBe(
+      'Unknown mode "bogus". Valid modes: chat, code, code:enhanced.'
+    );
   });
 });
 
@@ -103,7 +190,23 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="planner" --to="builder" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+      ].join('\n')
+    );
+  });
+
+  test('a supplied mode is written into the rewritten command verbatim', () => {
+    expect(
+      legacyRoleFlagsMessage('view-template', {
+        teamId: 'duo',
+        legacyRole: 'planner',
+        legacyNextRole: 'builder',
+        mode: 'chat',
+      })
+    ).toBe(
+      [
+        header,
+        'Use: chatroom handoff view-template --from="planner" --to="builder" --mode="chat" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -123,8 +226,8 @@ describe('legacyRoleFlagsMessage', () => {
       [
         header,
         'Pairs from "planner" in team "duo":',
-        '  chatroom handoff view-template --from="planner" --to="user" --team-id="duo"',
-        '  chatroom handoff view-template --from="planner" --to="builder" --team-id="duo"',
+        '  chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        '  chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -139,7 +242,7 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="<your-role>" --to="<recipient-role>" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="<your-role>" --to="<recipient-role>" --mode="<chat|code|code:enhanced>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -153,7 +256,7 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="<your-role>" --to="builder" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="<your-role>" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
       ].join('\n')
     );
   });

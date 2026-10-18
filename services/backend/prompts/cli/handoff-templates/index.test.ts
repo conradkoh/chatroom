@@ -13,6 +13,7 @@ import {
   listHandoffTemplatePairs,
   renderHandoffTemplate,
   resolveHandoffTemplatePair,
+  resolveHandoffTemplateSelection,
   type HandoffTemplatePair,
   type HandoffTemplateQuery,
 } from './index';
@@ -331,6 +332,69 @@ describe('resolveHandoffTemplatePair', () => {
     );
     expect(unknownPair.message).toContain(
       'No handoff template for "planner" → "solo" in team "duo".'
+    );
+  });
+});
+
+describe('resolveHandoffTemplateSelection', () => {
+  test('returns the normalized pair plus the resolved mode', () => {
+    expect(
+      resolveHandoffTemplateSelection(
+        { from: ' Planner ', to: 'USER', mode: ' CODE ', teamId: 'DUO' },
+        'view-template'
+      )
+    ).toEqual({
+      pair: { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+      mode: 'code',
+    });
+  });
+
+  test('throws MISSING_MODE when the pair resolves but --mode is absent', () => {
+    expect(
+      expectPairError(
+        () =>
+          resolveHandoffTemplateSelection(
+            { from: 'planner', to: 'user', teamId: 'duo' },
+            'view-template'
+          ),
+        'MISSING_MODE'
+      ).message
+    ).toContain('requires --mode (missing: --mode).');
+  });
+
+  test('throws UNKNOWN_MODE for a mode outside the canonical set', () => {
+    expect(
+      expectPairError(
+        () =>
+          resolveHandoffTemplateSelection(
+            { from: 'planner', to: 'user', mode: 'bogus', teamId: 'duo' },
+            'view-template'
+          ),
+        'UNKNOWN_MODE'
+      ).message
+    ).toBe('Unknown mode "bogus". Valid modes: chat, code, code:enhanced.');
+  });
+
+  test('pair errors keep precedence over a missing or unknown mode', () => {
+    expectPairError(
+      () => resolveHandoffTemplateSelection({ teamId: 'duo' }, 'view-template'),
+      'MISSING_PAIR'
+    );
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { legacyRole: 'planner', legacyNextRole: 'builder', teamId: 'duo' },
+          'view-template'
+        ),
+      'LEGACY_ROLE_FLAGS'
+    );
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'planner', to: 'user', mode: 'bogus', teamId: 'tri' },
+          'view-template'
+        ),
+      'UNKNOWN_TEAM'
     );
   });
 });

@@ -328,13 +328,13 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
       \`\`\`bash
-      chatroom handoff view-template --from="solo" --to="user" --team-id="solo"
-      chatroom handoff view-template --from="solo" --to="architect" --team-id="solo"
-      chatroom handoff view-template --from="solo" --to="uiux-engineer" --team-id="solo"
-      chatroom handoff view-template --from="solo" --to="triage" --team-id="solo"
-      chatroom handoff view-template --from="solo" --to="verifier" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="user" --mode="<chat|code|code:enhanced>" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="architect" --mode="<chat|code|code:enhanced>" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="uiux-engineer" --mode="<chat|code|code:enhanced>" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="triage" --mode="<chat|code|code:enhanced>" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="verifier" --mode="<chat|code|code:enhanced>" --team-id="solo"
       \`\`\`
-      Both --from and --to are required. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+      All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Implementation Guidelines:**
       - For UI/UX work, request the design from the UI/UX engineer, who owns the UI/UX decisions and provides the target markup, classes, and styles.

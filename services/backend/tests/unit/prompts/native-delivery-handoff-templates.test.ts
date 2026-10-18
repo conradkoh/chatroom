@@ -17,18 +17,28 @@ describe('handoff view-template command (recovery / CLI)', () => {
     ['solo', 'architect', 'solo'],
     ['solo', 'uiux-engineer', 'solo'],
   ] as const)('keeps the concrete %s handoff target for %s', (teamId, from, to) => {
-    const template = viewHandoffTemplate({ from, to, teamId });
+    const template = viewHandoffTemplate({ from, to, mode: 'code', teamId });
 
     expect(template).toContain(`--next-role="${to}"`);
   });
 
   test('resolves duo planner → user report template body', () => {
-    const template = viewHandoffTemplate({ from: 'planner', to: 'user', teamId: 'duo' });
+    const template = viewHandoffTemplate({
+      from: 'planner',
+      to: 'user',
+      mode: 'code',
+      teamId: 'duo',
+    });
     expect(template).toContain('Handoff template `planner` → `user`');
   });
 
   test('resolves duo builder → planner handoff template body', () => {
-    const template = viewHandoffTemplate({ from: 'builder', to: 'planner', teamId: 'duo' });
+    const template = viewHandoffTemplate({
+      from: 'builder',
+      to: 'planner',
+      mode: 'code',
+      teamId: 'duo',
+    });
     expect(template).toContain('Handoff template `builder` → `planner`');
   });
 
@@ -46,14 +56,14 @@ describe('handoff view-template command (recovery / CLI)', () => {
       expect(error).toBeInstanceOf(HandoffTemplatePairError);
       expect((error as HandoffTemplatePairError).code).toBe('LEGACY_ROLE_FLAGS');
       expect((error as Error).message).toContain(
-        'Use: chatroom handoff view-template --from="builder" --to="planner" --team-id="duo"'
+        'Use: chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code|code:enhanced>" --team-id="duo"'
       );
     }
   });
 
   test('rejects a pair that has no template', () => {
     try {
-      viewHandoffTemplate({ from: 'planner', to: 'solo', teamId: 'duo' });
+      viewHandoffTemplate({ from: 'planner', to: 'solo', mode: 'code', teamId: 'duo' });
       throw new Error('expected HandoffTemplatePairError');
     } catch (error) {
       expect(error).toBeInstanceOf(HandoffTemplatePairError);

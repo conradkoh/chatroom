@@ -191,9 +191,9 @@ describe('getBuilderGuidance', () => {
 
       **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
       \`\`\`bash
-      chatroom handoff view-template --from="builder" --to="planner" --team-id="duo"
+      chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code|code:enhanced>" --team-id="duo"
       \`\`\`
-      Both --from and --to are required. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+      All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Implementation Guidelines:**
       - For UI implementation, first write a snapshot test that renders the component with the UI/UX engineer's target markup, classes, and styles as the expected output. Run it and confirm it fails, then implement the components until it passes. Do not update the expected snapshot to accept different markup.
@@ -254,7 +254,7 @@ describe('role guidance — handoff template discovery instruction', () => {
 
     expect(guidance).toContain('Pair-keyed handoff templates');
     expect(guidance).toContain(
-      'chatroom handoff view-template --from="planner" --to="builder" --team-id="duo"'
+      'chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
     );
   });
 
@@ -281,7 +281,7 @@ describe('role guidance — handoff template discovery instruction', () => {
 
     expect(guidance).toContain('Pair-keyed handoff templates');
     expect(guidance).toContain(
-      'chatroom handoff view-template --from="builder" --to="planner" --team-id="duo"'
+      'chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code|code:enhanced>" --team-id="duo"'
     );
     expect(guidance.indexOf('view-template')).toBeLessThan(
       guidance.indexOf('**Implementation Guidelines:**')

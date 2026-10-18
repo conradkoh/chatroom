@@ -327,20 +327,22 @@ teamCommand
 handoffCommandGroup
   .command('view-template')
   .description(
-    'Print the handoff template for one sender → recipient pair (requires --from and --to)'
+    'Print the handoff template for one sender → recipient pair in one conversation mode (requires --from, --to, and --mode)'
   )
   .option('--from <role>', 'Sending role (the role that runs the handoff)')
   .option('--to <role>', 'Receiving role (the --next-role of the handoff)')
+  .option('--mode <mode>', 'Conversation mode: chat | code | code:enhanced (required)')
   .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
   // --role / --next-role stay declared on the handoff group: when present they
   // are forwarded as legacy flags so the backend can emit the rewritten command.
   // fallow-ignore-next-line complexity
-  .action(async function (options: { from?: string; to?: string; teamId?: string }) {
+  .action(async function (options: { from?: string; to?: string; mode?: string; teamId?: string }) {
     const parentOpts = (this.parent?.opts() ?? {}) as { role?: string; nextRole?: string };
     const { printHandoffViewTemplate } = await import('./commands/handoff/view-template.js');
     printHandoffViewTemplate({
       from: options.from,
       to: options.to,
+      mode: options.mode,
       teamId: options.teamId,
       legacyRole: parentOpts.role,
       legacyNextRole: parentOpts.nextRole,
@@ -350,20 +352,22 @@ handoffCommandGroup
 handoffCommandGroup
   .command('list-templates')
   .description(
-    'Show the pair descriptor and handoff template for one sender → recipient pair (requires --from and --to; static, no chatroom required)'
+    'Show the pair descriptor and handoff template for one sender → recipient pair in one conversation mode (requires --from, --to, and --mode; static, no chatroom required)'
   )
   .option('--from <role>', 'Sending role (the role that runs the handoff)')
   .option('--to <role>', 'Receiving role (the --next-role of the handoff)')
+  .option('--mode <mode>', 'Conversation mode: chat | code | code:enhanced (required)')
   .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
   // --role / --next-role stay declared on the handoff group: when present they
   // are forwarded as legacy flags so the backend can emit the rewritten command.
   // fallow-ignore-next-line complexity
-  .action(async function (options: { from?: string; to?: string; teamId?: string }) {
+  .action(async function (options: { from?: string; to?: string; mode?: string; teamId?: string }) {
     const parentOpts = (this.parent?.opts() ?? {}) as { role?: string; nextRole?: string };
     const { printHandoffListTemplates } = await import('./commands/handoff/list-templates.js');
     printHandoffListTemplates({
       from: options.from,
       to: options.to,
+      mode: options.mode,
       teamId: options.teamId,
       legacyRole: parentOpts.role,
       legacyNextRole: parentOpts.nextRole,

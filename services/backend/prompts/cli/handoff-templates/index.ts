@@ -17,16 +17,21 @@ import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
 import type { HandoffTemplateQuery, RoleHandoffContract } from './contracts';
 import {
   HandoffTemplatePairError,
+  isConversationMode,
   isTeamPresetId,
   legacyRoleFlagsMessage,
+  missingModeMessage,
   missingPairMessage,
+  normalizeHandoffMode,
   normalizeHandoffRole,
   unknownFromRoleMessage,
+  unknownModeMessage,
   unknownPairMessage,
   unknownTeamMessage,
   type HandoffTemplateCommandName,
   type HandoffTemplatePair,
   type HandoffTemplatePairInput,
+  type HandoffTemplateSelection,
 } from './pair';
 import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
 import { listDuoRoleHandoffContracts } from '../../teams/duo/handoff-templates';
@@ -88,7 +93,9 @@ export function listHandoffTemplatePairs(
  * and lowercased and `teamId` defaults to `duo`. Throws
  * {@link HandoffTemplatePairError}.
  */
-// fallow-ignore-next-line complexity
+// Reason: the pair-only resolver remains public (signature frozen) and is used by
+// resolveHandoffTemplateSelection and the resolver tests.
+// fallow-ignore-next-line unused-export complexity
 export function resolveHandoffTemplatePair(
   input: HandoffTemplatePairInput,
   command: HandoffTemplateCommandName
@@ -127,6 +134,7 @@ export function resolveHandoffTemplatePair(
         teamId: team,
         legacyRole,
         legacyNextRole,
+        mode: normalizeHandoffMode(input.mode),
         rolePairs:
           legacyRole === undefined ? undefined : listHandoffTemplatePairs(team, legacyRole),
       })
@@ -140,6 +148,28 @@ export function resolveHandoffTemplatePair(
         ? '--from'
         : '--to';
   throw new HandoffTemplatePairError('MISSING_PAIR', missingPairMessage(command, missing));
+}
+
+/**
+ * Resolves the pair (existing rules), then the conversation mode.
+ *
+ * Missing mode → `MISSING_MODE`; unknown mode → `UNKNOWN_MODE`. Pair errors
+ * keep precedence because the pair resolves first. Throws
+ * {@link HandoffTemplatePairError}.
+ */
+export function resolveHandoffTemplateSelection(
+  input: HandoffTemplatePairInput,
+  command: HandoffTemplateCommandName
+): HandoffTemplateSelection {
+  const pair = resolveHandoffTemplatePair(input, command);
+  const mode = normalizeHandoffMode(input.mode);
+  if (mode === undefined) {
+    throw new HandoffTemplatePairError('MISSING_MODE', missingModeMessage(command));
+  }
+  if (!isConversationMode(mode)) {
+    throw new HandoffTemplatePairError('UNKNOWN_MODE', unknownModeMessage(mode));
+  }
+  return { pair, mode };
 }
 
 /**

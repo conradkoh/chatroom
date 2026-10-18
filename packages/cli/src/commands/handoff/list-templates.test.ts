@@ -33,12 +33,12 @@ function getErrorOutput(): string {
 
 describe('handoff list-templates', () => {
   it('prints the duo planner → builder descriptor and template body', () => {
-    printHandoffListTemplates({ from: 'planner', to: 'builder', teamId: 'duo' });
+    printHandoffListTemplates({ from: 'planner', to: 'builder', mode: 'code', teamId: 'duo' });
 
     expect(exitSpy).not.toHaveBeenCalled();
     const output = getLogOutput();
     expect(output).toContain(
-      'Handoff template `planner` → `builder` (team: `duo`, key: `duo:planner->builder`)'
+      'Handoff template `planner` → `builder` (team: `duo`, mode: `code`, key: `duo:planner->builder@code`)'
     );
     expect(output).toContain('Send with: chatroom handoff');
     expect(output).toContain('Reply pair: `builder` → `planner`');
@@ -46,10 +46,19 @@ describe('handoff list-templates', () => {
   });
 
   it('prints Reply pair: none for the terminal user recipient', () => {
-    printHandoffListTemplates({ from: 'planner', to: 'user', teamId: 'duo' });
+    printHandoffListTemplates({ from: 'planner', to: 'user', mode: 'chat', teamId: 'duo' });
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(getLogOutput()).toContain('Reply pair: none');
+  });
+
+  it('errors when --mode is missing after the pair resolves', () => {
+    printHandoffListTemplates({ from: 'planner', to: 'user', teamId: 'duo' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getErrorOutput()).toContain(
+      '❌ handoff list-templates requires --mode (missing: --mode).'
+    );
   });
 
   it('errors when --to is missing', () => {
@@ -66,11 +75,13 @@ describe('handoff list-templates', () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('no longer accepts --role/--next-role');
-    expect(getErrorOutput()).toContain('--from="planner" --to="builder" --team-id="duo"');
+    expect(getErrorOutput()).toContain(
+      '--from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+    );
   });
 
   it('errors with nonzero exit for an unknown team', () => {
-    printHandoffListTemplates({ from: 'planner', to: 'builder', teamId: 'tri' });
+    printHandoffListTemplates({ from: 'planner', to: 'builder', mode: 'code', teamId: 'tri' });
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo.');

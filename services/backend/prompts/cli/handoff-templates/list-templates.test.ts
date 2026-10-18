@@ -23,29 +23,40 @@ describe('listHandoffTemplatesCommand', () => {
     const output = listHandoffTemplatesCommand({
       from: 'planner',
       to: 'builder',
+      mode: 'code',
       teamId: 'duo',
     });
 
     expect(output).toContain(
-      'Handoff template `planner` → `builder` (team: `duo`, key: `duo:planner->builder`)'
+      'Handoff template `planner` → `builder` (team: `duo`, mode: `code`, key: `duo:planner->builder@code`)'
     );
     expect(output).toContain(
       'Send with: chatroom handoff --chatroom-id="<chatroom-id>" --role="planner" --next-role="builder"'
     );
     expect(output).toContain(
-      'Reply pair: `builder` → `planner` (view: chatroom handoff view-template --from="builder" --to="planner" --team-id="duo")'
+      'Reply pair: `builder` → `planner` (view: chatroom handoff view-template --from="builder" --to="planner" --mode="code" --team-id="duo")'
     );
     expect(output).toContain(getPlannerToBuilderHandoffTemplate());
   });
 
   test('prints the reply pair for a role recipient', () => {
-    const output = listHandoffTemplatesCommand({ from: 'builder', to: 'planner', teamId: 'duo' });
+    const output = listHandoffTemplatesCommand({
+      from: 'builder',
+      to: 'planner',
+      mode: 'code',
+      teamId: 'duo',
+    });
 
     expect(output).toContain('Reply pair: `planner` → `builder`');
   });
 
   test('prints no reply pair for the terminal user recipient', () => {
-    const output = listHandoffTemplatesCommand({ from: 'planner', to: 'user', teamId: 'duo' });
+    const output = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'chat',
+      teamId: 'duo',
+    });
 
     expect(output).toContain('Reply pair: none (`user` replies free-form)');
   });
@@ -54,6 +65,7 @@ describe('listHandoffTemplatesCommand', () => {
     const output = listHandoffTemplatesCommand({
       from: 'planner',
       to: 'builder',
+      mode: 'code',
       teamId: 'duo',
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=x ',
     });
@@ -62,8 +74,69 @@ describe('listHandoffTemplatesCommand', () => {
       'Send with: CHATROOM_CONVEX_URL=x chatroom handoff --chatroom-id="<chatroom-id>"'
     );
     expect(output).toContain(
-      'view: CHATROOM_CONVEX_URL=x chatroom handoff view-template --from="builder" --to="planner"'
+      'view: CHATROOM_CONVEX_URL=x chatroom handoff view-template --from="builder" --to="planner" --mode="code"'
     );
+  });
+
+  test('mode selects the body and the key for planner → user', () => {
+    const chat = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'chat',
+      teamId: 'duo',
+    });
+    const code = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'code',
+      teamId: 'duo',
+    });
+
+    expect(chat).toContain('key: `duo:planner->user@chat`');
+    expect(chat).not.toContain('Proof of Completion');
+    expect(code).toContain('key: `duo:planner->user@code`');
+    expect(code).toContain('Proof of Completion');
+    expect(chat).not.toBe(code);
+  });
+
+  test('code:enhanced shares the code bucket key and body', () => {
+    const code = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'code',
+      teamId: 'duo',
+    });
+    const enhanced = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'code:enhanced',
+      teamId: 'duo',
+    });
+
+    expect(enhanced).toContain('key: `duo:planner->user@code`');
+    // Same body: only the informational mode label differs.
+    expect(enhanced.replace('mode: `code:enhanced`', 'mode: `code`')).toBe(code);
+  });
+
+  test('a mode-agnostic pair renders the same body for chat and code', () => {
+    const chat = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'builder',
+      mode: 'chat',
+      teamId: 'duo',
+    });
+    const code = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'builder',
+      mode: 'code',
+      teamId: 'duo',
+    });
+
+    expect(chat).toContain(getPlannerToBuilderHandoffTemplate());
+    expect(code).toContain(getPlannerToBuilderHandoffTemplate());
+    // The header block (mode label, key, reply command) differs; the body is identical.
+    const bodyAfterHeader = (output: string): string => output.slice(output.indexOf('\n\n') + 2);
+    expect(bodyAfterHeader(chat)).toBe(bodyAfterHeader(code));
   });
 
   test('legacy role-only input lists every pair from that role', () => {
@@ -83,7 +156,7 @@ describe('listHandoffTemplatesCommand', () => {
       'verifier',
     ]) {
       expect(error.message).toContain(
-        `chatroom handoff list-templates --from="planner" --to="${to}" --team-id="duo"`
+        `chatroom handoff list-templates --from="planner" --to="${to}" --mode="<chat|code|code:enhanced>" --team-id="duo"`
       );
     }
     expect(error.message.match(/chatroom handoff list-templates --from="planner"/g)).toHaveLength(
@@ -100,9 +173,32 @@ describe('listHandoffTemplatesCommand', () => {
     expect(error.message).toBe(
       [
         'handoff list-templates requires both --from and --to (missing: --to). Handoff templates are keyed by the (sender, recipient) pair.',
-        'Example: chatroom handoff list-templates --from="planner" --to="builder" --team-id="duo"',
+        'Example: chatroom handoff list-templates --from="planner" --to="builder" --mode="code" --team-id="duo"',
       ].join('\n')
     );
+  });
+
+  test('missing --mode fails with the exact MISSING_MODE text', () => {
+    const error = expectPairError(() =>
+      listHandoffTemplatesCommand({ from: 'planner', to: 'user', teamId: 'duo' })
+    );
+
+    expect(error.code).toBe('MISSING_MODE');
+    expect(error.message).toBe(
+      [
+        'handoff list-templates requires --mode (missing: --mode). Handoff templates are keyed by the (sender, recipient) pair and the conversation mode.',
+        'Example: chatroom handoff list-templates --from="planner" --to="user" --mode="chat" --team-id="duo"',
+      ].join('\n')
+    );
+  });
+
+  test('an unknown --mode fails with the exact UNKNOWN_MODE text', () => {
+    const error = expectPairError(() =>
+      listHandoffTemplatesCommand({ from: 'planner', to: 'user', mode: 'bogus', teamId: 'duo' })
+    );
+
+    expect(error.code).toBe('UNKNOWN_MODE');
+    expect(error.message).toBe('Unknown mode "bogus". Valid modes: chat, code, code:enhanced.');
   });
 
   test('unknown team fails with the exact UNKNOWN_TEAM text', () => {

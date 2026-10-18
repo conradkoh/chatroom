@@ -9,13 +9,13 @@
 import {
   getReplyHandoffTemplatePair,
   renderHandoffTemplate,
-  resolveHandoffTemplatePair,
+  resolveHandoffTemplateSelection,
 } from './index';
 import {
   HandoffTemplatePairError,
   formatHandoffPairLabel,
   formatHandoffTemplateCommand,
-  formatHandoffTemplatePairId,
+  formatHandoffTemplateKey,
   unrenderablePairMessage,
   type HandoffTemplatePairInput,
 } from './pair';
@@ -30,11 +30,12 @@ import { handoffCommand } from '../handoff/command';
 export function listHandoffTemplatesCommand(
   params: HandoffTemplatePairInput & { cliEnvPrefix?: string | undefined }
 ): string {
-  const pair = resolveHandoffTemplatePair(params, 'list-templates');
+  const { pair, mode } = resolveHandoffTemplateSelection(params, 'list-templates');
   const reply = getReplyHandoffTemplatePair(pair);
   const template = renderHandoffTemplate(pair, {
     nativeIntegration: true,
     cliEnvPrefix: params.cliEnvPrefix,
+    conversationMode: mode,
   });
   if (!template) {
     throw new HandoffTemplatePairError('UNKNOWN_PAIR', unrenderablePairMessage(pair));
@@ -48,10 +49,10 @@ export function listHandoffTemplatesCommand(
   }).split('\n')[0];
 
   return [
-    `Handoff template ${formatHandoffPairLabel(pair)} (team: \`${pair.teamId}\`, key: \`${formatHandoffTemplatePairId(pair)}\`)`,
+    `Handoff template ${formatHandoffPairLabel(pair)} (team: \`${pair.teamId}\`, mode: \`${mode}\`, key: \`${formatHandoffTemplateKey({ pair, mode })}\`)`,
     `Send with: ${sendCommand}`,
     reply
-      ? `Reply pair: ${formatHandoffPairLabel(reply)} (view: ${formatHandoffTemplateCommand('view-template', reply, params.cliEnvPrefix)})`
+      ? `Reply pair: ${formatHandoffPairLabel(reply)} (view: ${formatHandoffTemplateCommand('view-template', reply, params.cliEnvPrefix, mode)})`
       : `Reply pair: none (\`${pair.toRole}\` replies free-form)`,
     '',
     template,

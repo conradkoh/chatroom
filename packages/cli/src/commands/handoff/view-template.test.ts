@@ -33,10 +33,20 @@ function getErrorOutput(): string {
 
 describe('handoff view-template', () => {
   it('prints the duo planner → builder delegation brief', () => {
-    printHandoffViewTemplate({ from: 'planner', to: 'builder', teamId: 'duo' });
+    printHandoffViewTemplate({ from: 'planner', to: 'builder', mode: 'code', teamId: 'duo' });
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(getLogOutput()).toContain('Delegation Brief');
+  });
+
+  it('errors when --mode is missing after the pair resolves', () => {
+    printHandoffViewTemplate({ from: 'planner', to: 'user', teamId: 'duo' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getErrorOutput()).toContain(
+      '❌ handoff view-template requires --mode (missing: --mode).'
+    );
+    expect(getErrorOutput()).toContain('--mode="chat"');
   });
 
   it('errors when --to is missing', () => {
@@ -58,11 +68,13 @@ describe('handoff view-template', () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('no longer accepts --role/--next-role');
-    expect(getErrorOutput()).toContain('--from="planner" --to="builder" --team-id="duo"');
+    expect(getErrorOutput()).toContain(
+      '--from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+    );
   });
 
   it('errors with nonzero exit for an unknown team', () => {
-    printHandoffViewTemplate({ from: 'planner', to: 'builder', teamId: 'tri' });
+    printHandoffViewTemplate({ from: 'planner', to: 'builder', mode: 'code', teamId: 'tri' });
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo.');

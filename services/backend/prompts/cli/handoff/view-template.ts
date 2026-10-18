@@ -7,7 +7,7 @@
  * rendered template.
  */
 
-import { renderHandoffTemplate, resolveHandoffTemplatePair } from '../handoff-templates';
+import { renderHandoffTemplate, resolveHandoffTemplateSelection } from '../handoff-templates';
 import {
   HandoffTemplatePairError,
   unrenderablePairMessage,
@@ -20,10 +20,11 @@ export interface ViewHandoffTemplateParams extends HandoffTemplatePairInput {
 }
 
 export function viewHandoffTemplate(params: ViewHandoffTemplateParams): string {
-  const pair = resolveHandoffTemplatePair(params, 'view-template');
+  const { pair, mode } = resolveHandoffTemplateSelection(params, 'view-template');
   const template = renderHandoffTemplate(pair, {
     nativeIntegration: params.nativeIntegration ?? true,
     cliEnvPrefix: params.cliEnvPrefix,
+    conversationMode: mode,
   });
   if (!template) {
     throw new HandoffTemplatePairError('UNKNOWN_PAIR', unrenderablePairMessage(pair));
