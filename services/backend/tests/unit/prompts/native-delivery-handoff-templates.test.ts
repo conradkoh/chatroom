@@ -8,52 +8,56 @@
 import { describe, expect, test } from 'vitest';
 
 import { viewHandoffTemplate } from '../../../prompts/cli/handoff/view-template';
+import { HandoffTemplatePairError } from '../../../prompts/cli/handoff-templates/pair';
 
 describe('handoff view-template command (recovery / CLI)', () => {
-  test.each([
-    ['architect', /module boundaries|schemas/i],
-    ['uiux-engineer', /loading\/empty\/error\/success|accessibility/i],
-  ] as const)('renders a generic %s template without an entry-point role', (role, focus) => {
-    const template = viewHandoffTemplate({ role });
-
-    expect(template).toMatch(focus);
-    expect(template).toContain('<entry-point-role>');
-    expect(template).not.toContain('planner');
-    expect(template).not.toContain('solo');
-  });
-
   test.each([
     ['duo', 'architect', 'planner'],
     ['duo', 'uiux-engineer', 'planner'],
     ['solo', 'architect', 'solo'],
     ['solo', 'uiux-engineer', 'solo'],
-  ] as const)('keeps concrete %s handoff target for %s', (teamId, role, nextRole) => {
-    const template = viewHandoffTemplate({ role, nextRole, teamId });
+  ] as const)('keeps the concrete %s handoff target for %s', (teamId, from, to) => {
+    const template = viewHandoffTemplate({ from, to, teamId });
 
-    expect(template).toContain(`--next-role="${nextRole}"`);
+    expect(template).toContain(`--next-role="${to}"`);
   });
 
   test('resolves duo planner → user report template body', () => {
-    const template = viewHandoffTemplate({
-      role: 'planner',
-      nextRole: 'user',
-      teamId: 'duo',
-    });
+    const template = viewHandoffTemplate({ from: 'planner', to: 'user', teamId: 'duo' });
     expect(template).toContain('Planner → User report');
   });
 
   test('resolves duo builder → planner handoff template body', () => {
-    const template = viewHandoffTemplate({
-      role: 'builder',
-      nextRole: 'planner',
-      teamId: 'duo',
-    });
+    const template = viewHandoffTemplate({ from: 'builder', to: 'planner', teamId: 'duo' });
     expect(template).toContain('Builder → Planner report');
   });
 
-  test('rejects role-only viewing for roles other than architect and uiux-engineer', () => {
-    expect(() => viewHandoffTemplate({ role: 'builder' })).toThrow(
-      /only for architect or uiux-engineer/i
+  test('requires both --from and --to', () => {
+    expect(() => viewHandoffTemplate({ from: 'planner', teamId: 'duo' })).toThrow(
+      /requires both --from and --to \(missing: --to\)/
     );
+  });
+
+  test('rejects role-only viewing with LEGACY_ROLE_FLAGS', () => {
+    try {
+      viewHandoffTemplate({ legacyRole: 'builder', legacyNextRole: 'planner', teamId: 'duo' });
+      throw new Error('expected HandoffTemplatePairError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HandoffTemplatePairError);
+      expect((error as HandoffTemplatePairError).code).toBe('LEGACY_ROLE_FLAGS');
+      expect((error as Error).message).toContain(
+        'Use: chatroom handoff view-template --from="builder" --to="planner" --team-id="duo"'
+      );
+    }
+  });
+
+  test('rejects a pair that has no template', () => {
+    try {
+      viewHandoffTemplate({ from: 'planner', to: 'solo', teamId: 'duo' });
+      throw new Error('expected HandoffTemplatePairError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HandoffTemplatePairError);
+      expect((error as HandoffTemplatePairError).code).toBe('UNKNOWN_PAIR');
+    }
   });
 });

@@ -163,3 +163,12 @@ export function unknownPairMessage(input: {
 }): string {
   return `No handoff template for "${input.from}" → "${input.to}" in team "${input.team}". Valid recipients for "${input.from}": ${input.recipients.join(', ')}.`;
 }
+
+/**
+ * `UNKNOWN_PAIR` message for a pair that the catalog validates but whose
+ * getter returned no template. Shared by the pair commands so both report the
+ * same wording.
+ */
+export function unrenderablePairMessage(pair: HandoffTemplatePair): string {
+  return `No handoff template for "${pair.fromRole}" → "${pair.toRole}" in team "${pair.teamId}".`;
+}

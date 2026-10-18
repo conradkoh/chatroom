@@ -109,7 +109,7 @@ export function listHandoffTemplatePairs(
  * and lowercased and `teamId` defaults to `duo`. Throws
  * {@link HandoffTemplatePairError}.
  */
-// fallow-ignore-next-line unused-export complexity
+// fallow-ignore-next-line complexity
 export function resolveHandoffTemplatePair(
   input: HandoffTemplatePairInput,
   command: HandoffTemplateCommandName
@@ -168,7 +168,6 @@ export function resolveHandoffTemplatePair(
  *
  * Phase A: the getter output is returned as-is; a null getter result stays null.
  */
-// fallow-ignore-next-line unused-export
 export function renderHandoffTemplate(
   pair: HandoffTemplatePair,
   options?: HandoffTemplateRenderOptions

@@ -1,35 +1,32 @@
 /**
- * Handoff view-template command generator and template resolver.
+ * Handoff view-template command: renders the template for one sender →
+ * recipient pair.
+ *
+ * Pair resolution (including every user-facing error) lives in
+ * `../handoff-templates/pair`; this module only maps a resolved pair to its
+ * rendered template.
  */
 
-import { getGenericArchitectToEntryPointHandoffTemplate } from '../../teams/architect-handoff-templates';
-import { getGenericUiuxEngineerToEntryPointHandoffTemplate } from '../../teams/uiux-engineer-handoff-templates';
-import { getHandoffTemplate } from '../handoff-templates';
+import { renderHandoffTemplate, resolveHandoffTemplatePair } from '../handoff-templates';
+import {
+  HandoffTemplatePairError,
+  unrenderablePairMessage,
+  type HandoffTemplatePairInput,
+} from '../handoff-templates/pair';
 
-// fallow-ignore-next-line complexity
-export function viewHandoffTemplate(params: {
-  role: string;
-  nextRole?: string | undefined;
-  teamId?: string | undefined;
+export interface ViewHandoffTemplateParams extends HandoffTemplatePairInput {
   nativeIntegration?: boolean | undefined;
-}): string {
-  if (params.nextRole === undefined) {
-    const role = params.role.trim().toLowerCase();
-    if (role === 'architect') return getGenericArchitectToEntryPointHandoffTemplate();
-    if (role === 'uiux-engineer') return getGenericUiuxEngineerToEntryPointHandoffTemplate();
-    throw new Error(
-      `Role-only handoff template viewing is supported only for architect or uiux-engineer, not ${params.role}`
-    );
-  }
+  cliEnvPrefix?: string | undefined;
+}
 
-  const template = getHandoffTemplate({
-    fromRole: params.role,
-    toRole: params.nextRole,
-    teamId: params.teamId,
+export function viewHandoffTemplate(params: ViewHandoffTemplateParams): string {
+  const pair = resolveHandoffTemplatePair(params, 'view-template');
+  const template = renderHandoffTemplate(pair, {
     nativeIntegration: params.nativeIntegration ?? true,
+    cliEnvPrefix: params.cliEnvPrefix,
   });
   if (!template) {
-    throw new Error(`No handoff template for ${params.role} → ${params.nextRole}`);
+    throw new HandoffTemplatePairError('UNKNOWN_PAIR', unrenderablePairMessage(pair));
   }
   return template;
 }

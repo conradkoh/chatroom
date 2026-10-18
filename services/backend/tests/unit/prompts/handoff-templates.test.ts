@@ -9,7 +9,6 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { viewHandoffTemplate } from '../../../prompts/cli/handoff/view-template';
 import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import { getBuilderToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
@@ -76,18 +75,6 @@ describe('handoff-templates > resolver', () => {
     expect(template).toMatch(/responsive breakpoints|responsive behavior/i);
     expect(template).toMatch(/UI\/integration test plan/i);
   });
-
-  test.each(['architect', 'uiux-engineer'] as const)(
-    'generic %s design brief stays neutral while retaining the placeholder target',
-    (role) => {
-      const template = viewHandoffTemplate({ role });
-
-      for (const heading of rigidDesignBriefHeadings) expect(template).toContain(heading);
-      expect(template).toContain('<entry-point-role>');
-      expect(template).not.toContain('planner');
-      expect(template).not.toContain('solo');
-    }
-  );
 
   test('resolves planner → builder to the delegation brief', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'builder' })).toBe(

@@ -49,19 +49,11 @@ export function getArchitectToEntryPointHandoffTemplate(entryPointRole: string):
   return renderArchitectToEntryPointHandoffTemplate(normalizeEntryPointRole(entryPointRole));
 }
 
-/** Template for inspecting the architect handback without a configured target. */
-export function getGenericArchitectToEntryPointHandoffTemplate(): string {
-  return renderArchitectToEntryPointHandoffTemplate('<entry-point-role>', true);
-}
-
-function renderArchitectToEntryPointHandoffTemplate(entryPoint: string, generic = false): string {
+function renderArchitectToEntryPointHandoffTemplate(entryPoint: string): string {
   const sharedContractsHeading =
-    !generic && entryPoint === 'planner'
+    entryPoint === 'planner'
       ? '## Shared contracts (planner-owned)'
       : '## Shared contracts (configured entry-point-owned)';
-  const placeholderInstruction = generic
-    ? ' Replace `<entry-point-role>` with the configured entry-point role before running it.'
-    : '';
 
   return `${getHandoffRecipientVisibilityCallout(entryPoint)}
 
@@ -129,7 +121,7 @@ ${sharedContractsHeading}
 ## Out of scope
 - <explicit files, flows, behavior, or migration work the implementer must not touch>
 
-Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.${placeholderInstruction}
+Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 
 \`\`\`bash
 ${handoffCommand({
