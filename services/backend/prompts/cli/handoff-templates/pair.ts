@@ -3,7 +3,7 @@
  *
  * Handoff templates are addressed by the (sender, recipient) pair, not by a
  * single role. This module owns the pure pair vocabulary — the pair key type,
- * id/label/command formatting, the team-preset guard, the pair error class,
+ * label/command formatting, the team-preset guard, the pair error class,
  * and the exact error-message builders.
  *
  * It deliberately imports nothing from the team catalogs or `./index` so the
@@ -22,9 +22,6 @@ export interface HandoffTemplatePair {
   fromRole: string;
   toRole: string;
 }
-
-/** Stable pair key, e.g. `duo:planner->builder`. */
-export type HandoffTemplatePairId = `${TeamPresetId}:${string}->${string}`;
 
 /** Handoff CLI commands that address a template by pair. */
 export type HandoffTemplateCommandName = 'view-template' | 'list-templates';
@@ -90,9 +87,7 @@ export function isConversationMode(value: string): value is ConversationMode {
 }
 
 /** Body bucket for a mode: `chat` alone, otherwise the shared `code` body. */
-// Reason: part of the mode vocabulary; the key formatter and unit tests consume it.
-// fallow-ignore-next-line unused-export
-export function modeBucket(mode: ConversationMode): HandoffTemplateModeBucket {
+function modeBucket(mode: ConversationMode): HandoffTemplateModeBucket {
   return mode === 'chat' ? 'chat' : 'code';
 }
 
@@ -105,16 +100,6 @@ export function formatHandoffTemplateKey(selection: HandoffTemplateSelection): s
 /** Type guard for the builtin team presets (`duo`, `solo`). */
 export function isTeamPresetId(value: string): value is TeamPresetId {
   return (TEAM_PRESET_IDS as readonly string[]).includes(value);
-}
-
-/** Stable id for a pair, e.g. `duo:planner->builder`. */
-// Reason: the mode-keyed command now composes keys via formatHandoffTemplateKey;
-// this pair primitive stays for tests and non-mode callers.
-// fallow-ignore-next-line unused-export
-export function formatHandoffTemplatePairId(
-  pair: Pick<HandoffTemplatePair, 'teamId' | 'fromRole' | 'toRole'>
-): HandoffTemplatePairId {
-  return `${pair.teamId}:${pair.fromRole}->${pair.toRole}`;
 }
 
 /** Human-readable pair label, e.g. `` `planner` → `builder` ``. */

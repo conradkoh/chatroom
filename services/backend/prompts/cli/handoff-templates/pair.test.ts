@@ -8,14 +8,12 @@ import {
   formatHandoffPairLabel,
   formatHandoffTemplateCommand,
   formatHandoffTemplateKey,
-  formatHandoffTemplatePairId,
   HandoffTemplatePairError,
   isConversationMode,
   isTeamPresetId,
   legacyRoleFlagsMessage,
   missingModeMessage,
   missingPairMessage,
-  modeBucket,
   normalizeHandoffMode,
   normalizeHandoffRole,
   unknownFromRoleMessage,
@@ -55,14 +53,6 @@ describe('isConversationMode', () => {
   });
 });
 
-describe('modeBucket', () => {
-  test('maps chat to its own bucket and both code modes to the code bucket', () => {
-    expect(modeBucket('chat')).toBe('chat');
-    expect(modeBucket('code')).toBe('code');
-    expect(modeBucket('code:enhanced')).toBe('code');
-  });
-});
-
 describe('formatHandoffTemplateKey', () => {
   test('appends the mode bucket to the pair id', () => {
     expect(
@@ -92,17 +82,6 @@ describe('isTeamPresetId', () => {
     expect(isTeamPresetId('solo')).toBe(true);
     expect(isTeamPresetId('tri')).toBe(false);
     expect(isTeamPresetId('')).toBe(false);
-  });
-});
-
-describe('formatHandoffTemplatePairId', () => {
-  test('joins team, sender, and recipient', () => {
-    expect(
-      formatHandoffTemplatePairId({ teamId: 'duo', fromRole: 'planner', toRole: 'builder' })
-    ).toBe('duo:planner->builder');
-    expect(formatHandoffTemplatePairId({ teamId: 'solo', fromRole: 'solo', toRole: 'user' })).toBe(
-      'solo:solo->user'
-    );
   });
 });
 

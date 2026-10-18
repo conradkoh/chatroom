@@ -12,7 +12,6 @@ import {
   getReplyHandoffTemplatePair,
   listHandoffTemplatePairs,
   renderHandoffTemplate,
-  resolveHandoffTemplatePair,
   resolveHandoffTemplateSelection,
   type HandoffTemplatePair,
   type HandoffTemplateQuery,
@@ -257,32 +256,42 @@ describe('renderHandoffTemplate — callout and pair-title invariants', () => {
   });
 });
 
-describe('resolveHandoffTemplatePair', () => {
-  test('normalizes an explicit pair and defaults/prefers explicit flags over legacy ones', () => {
+describe('resolveHandoffTemplateSelection — pair normalization and precedence', () => {
+  test('normalizes an explicit pair and prefers explicit flags over legacy ones', () => {
     expect(
-      resolveHandoffTemplatePair(
-        { from: ' Planner ', to: 'BUILDER', teamId: 'DUO', legacyRole: 'x', legacyNextRole: 'y' },
+      resolveHandoffTemplateSelection(
+        {
+          from: ' Planner ',
+          to: 'BUILDER',
+          mode: 'chat',
+          teamId: 'DUO',
+          legacyRole: 'x',
+          legacyNextRole: 'y',
+        },
         'view-template'
       )
-    ).toEqual({ teamId: 'duo', fromRole: 'planner', toRole: 'builder' });
+    ).toEqual({
+      pair: { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+      mode: 'chat',
+    });
   });
 
   test('throws MISSING_PAIR with the missing flag list', () => {
     expect(
       expectPairError(
-        () => resolveHandoffTemplatePair({ teamId: 'duo' }, 'view-template'),
+        () => resolveHandoffTemplateSelection({ teamId: 'duo' }, 'view-template'),
         'MISSING_PAIR'
       ).message
     ).toContain('(missing: --from, --to).');
     expect(
       expectPairError(
-        () => resolveHandoffTemplatePair({ to: 'builder', teamId: 'duo' }, 'view-template'),
+        () => resolveHandoffTemplateSelection({ to: 'builder', teamId: 'duo' }, 'view-template'),
         'MISSING_PAIR'
       ).message
     ).toContain('(missing: --from).');
     expect(
       expectPairError(
-        () => resolveHandoffTemplatePair({ from: 'planner', teamId: 'duo' }, 'view-template'),
+        () => resolveHandoffTemplateSelection({ from: 'planner', teamId: 'duo' }, 'view-template'),
         'MISSING_PAIR'
       ).message
     ).toContain('(missing: --to).');
@@ -291,18 +300,25 @@ describe('resolveHandoffTemplatePair', () => {
   test('throws LEGACY_ROLE_FLAGS for legacy role flags', () => {
     expect(
       expectPairError(
-        () => resolveHandoffTemplatePair({ legacyRole: 'planner', teamId: 'duo' }, 'view-template'),
+        () =>
+          resolveHandoffTemplateSelection(
+            { legacyRole: 'planner', teamId: 'duo' },
+            'view-template'
+          ),
         'LEGACY_ROLE_FLAGS'
       ).message
     ).toContain('no longer accepts --role/--next-role');
     expectPairError(
       () =>
-        resolveHandoffTemplatePair({ legacyNextRole: 'builder', teamId: 'duo' }, 'view-template'),
+        resolveHandoffTemplateSelection(
+          { legacyNextRole: 'builder', teamId: 'duo' },
+          'view-template'
+        ),
       'LEGACY_ROLE_FLAGS'
     );
     expectPairError(
       () =>
-        resolveHandoffTemplatePair(
+        resolveHandoffTemplateSelection(
           { legacyRole: 'planner', legacyNextRole: 'builder', teamId: 'duo' },
           'view-template'
         ),
@@ -313,21 +329,30 @@ describe('resolveHandoffTemplatePair', () => {
   test('throws UNKNOWN_TEAM, UNKNOWN_FROM_ROLE, and UNKNOWN_PAIR in precedence order', () => {
     const unknownTeam = expectPairError(
       () =>
-        resolveHandoffTemplatePair({ from: 'planner', to: 'user', teamId: 'tri' }, 'view-template'),
+        resolveHandoffTemplateSelection(
+          { from: 'planner', to: 'user', mode: 'chat', teamId: 'tri' },
+          'view-template'
+        ),
       'UNKNOWN_TEAM'
     );
     expect(unknownTeam.message).toBe('Unknown team "tri". Known teams: duo, solo.');
 
     const unknownFrom = expectPairError(
       () =>
-        resolveHandoffTemplatePair({ from: 'user', to: 'planner', teamId: 'duo' }, 'view-template'),
+        resolveHandoffTemplateSelection(
+          { from: 'user', to: 'planner', mode: 'chat', teamId: 'duo' },
+          'view-template'
+        ),
       'UNKNOWN_FROM_ROLE'
     );
     expect(unknownFrom.message).toContain('Role "user" has no handoff templates in team "duo".');
 
     const unknownPair = expectPairError(
       () =>
-        resolveHandoffTemplatePair({ from: 'planner', to: 'solo', teamId: 'duo' }, 'view-template'),
+        resolveHandoffTemplateSelection(
+          { from: 'planner', to: 'solo', mode: 'chat', teamId: 'duo' },
+          'view-template'
+        ),
       'UNKNOWN_PAIR'
     );
     expect(unknownPair.message).toContain(

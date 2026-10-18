@@ -93,10 +93,8 @@ export function listHandoffTemplatePairs(
  * and lowercased and `teamId` defaults to `duo`. Throws
  * {@link HandoffTemplatePairError}.
  */
-// Reason: the pair-only resolver remains public (signature frozen) and is used by
-// resolveHandoffTemplateSelection and the resolver tests.
-// fallow-ignore-next-line unused-export complexity
-export function resolveHandoffTemplatePair(
+// fallow-ignore-next-line complexity
+function resolveHandoffTemplatePair(
   input: HandoffTemplatePairInput,
   command: HandoffTemplateCommandName
 ): HandoffTemplatePair {
