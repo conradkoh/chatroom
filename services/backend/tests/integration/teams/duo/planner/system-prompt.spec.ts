@@ -364,7 +364,7 @@ describe('Duo Team > Planner > System Prompt', () => {
           B -->|No: question or clarification only| C[Answer directly → deliver to user]
       \`\`\`
 
-      **Default: delegate with a Delegation Brief.** Use the **Handoff to \`builder\`** template in the task delivery \`<handoff-templates>\` section — follow that structure in your handoff message.
+      **Default: delegate with a Delegation Brief.** Use the \`planner\` → \`builder\` handoff template in the task delivery \`<handoff-templates>\` section — follow that structure in your handoff message.
 
       **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 

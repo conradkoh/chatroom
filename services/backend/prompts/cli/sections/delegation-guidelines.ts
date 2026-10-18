@@ -15,7 +15,7 @@ function buildCmdHelper(cliEnvPrefix: string, chatroomIdArg: string, roleArg: st
 }
 
 function getDelegationBriefReference(): string {
-  return 'Use the **Handoff to `builder`** template in the task delivery `<handoff-templates>` section — follow that structure in your handoff message.';
+  return 'Use the `planner` → `builder` handoff template in the task delivery `<handoff-templates>` section — follow that structure in your handoff message.';
 }
 
 function getSoloImplementationGuidelines(cmd: CmdHelper, feedingNote: string): string {
