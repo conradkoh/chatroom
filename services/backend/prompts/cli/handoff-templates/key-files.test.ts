@@ -20,8 +20,7 @@ const __dirname = dirname(__filename);
 const TEAMS_DIR = join(__dirname, '..', '..', 'teams');
 const BUCKETS = ['chat', 'code'] as const;
 
-/** Solo is added with its key files; duo is covered first. */
-const TEAMS = ['duo'] as const;
+const TEAMS = ['duo', 'solo'] as const;
 
 describe('handoff template key files', () => {
   for (const team of TEAMS) {
