@@ -5,19 +5,21 @@
  * planner only.
  */
 
-import { getBuilderToPlannerHandoffTemplate } from './builder-to-planner';
-import type { BuiltinTeamRoleHandoffContract } from '../../../cli/handoff-templates/contracts';
+import { getBuilderPlannerChatTemplate } from './builder-planner-chat';
+import { getBuilderPlannerCodeTemplate } from './builder-planner-code';
+import {
+  handoffTemplateByMode,
+  type BuiltinTeamRoleHandoffContract,
+} from '../../../cli/handoff-templates/contracts';
 
 export const duoBuilderHandoffContract = {
   role: 'builder',
   receivesFrom: ['planner'],
   returnsTo: ['planner'],
   outboundTemplates: {
-    planner: (query) =>
-      getBuilderToPlannerHandoffTemplate({
-        chatroomId: query.chatroomId,
-        role: query.role,
-        cliEnvPrefix: query.cliEnvPrefix,
-      }),
+    planner: handoffTemplateByMode({
+      chat: getBuilderPlannerChatTemplate,
+      code: getBuilderPlannerCodeTemplate,
+    }),
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'duo', 'builder'>;

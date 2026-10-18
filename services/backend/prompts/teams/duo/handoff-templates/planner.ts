@@ -2,18 +2,28 @@
  * Duo planner role-owned handoff contract.
  *
  * The duo planner owns its outbound targets (builder, user). It receives work
- * from the user and the builder (handbacks).
+ * from the user and the builder (handbacks). Each target selects its key file
+ * by conversation mode through `handoffTemplateByMode`.
  */
 
-import { getPlannerToBuilderHandoffTemplate } from './planner-to-builder';
+import { getPlannerArchitectChatTemplate } from './planner-architect-chat';
+import { getPlannerArchitectCodeTemplate } from './planner-architect-code';
+import { getPlannerBuilderChatTemplate } from './planner-builder-chat';
+import { getPlannerBuilderCodeTemplate } from './planner-builder-code';
+import { getPlannerResearcherChatTemplate } from './planner-researcher-chat';
+import { getPlannerResearcherCodeTemplate } from './planner-researcher-code';
+import { getPlannerTriageChatTemplate } from './planner-triage-chat';
+import { getPlannerTriageCodeTemplate } from './planner-triage-code';
+import { getPlannerUiuxEngineerChatTemplate } from './planner-uiux-engineer-chat';
+import { getPlannerUiuxEngineerCodeTemplate } from './planner-uiux-engineer-code';
 import { getPlannerUserChatTemplate } from './planner-user-chat';
 import { getPlannerUserCodeTemplate } from './planner-user-code';
-import type { BuiltinTeamRoleHandoffContract } from '../../../cli/handoff-templates/contracts';
-import { getEntryPointToArchitectHandoffTemplate } from '../../architect-handoff-templates';
-import { getEntryPointToResearcherHandoffTemplate } from '../../researcher-handoff-templates';
-import { getEntryPointToTriageHandoffTemplate } from '../../triage-handoff-templates';
-import { getEntryPointToUiuxEngineerHandoffTemplate } from '../../uiux-engineer-handoff-templates';
-import { getEntryPointToVerifierHandoffTemplate } from '../../verifier-handoff-templates';
+import { getPlannerVerifierChatTemplate } from './planner-verifier-chat';
+import { getPlannerVerifierCodeTemplate } from './planner-verifier-code';
+import {
+  handoffTemplateByMode,
+  type BuiltinTeamRoleHandoffContract,
+} from '../../../cli/handoff-templates/contracts';
 
 export const duoPlannerHandoffContract = {
   role: 'planner',
@@ -28,19 +38,33 @@ export const duoPlannerHandoffContract = {
   ],
   returnsTo: ['user', 'builder', 'architect', 'uiux-engineer', 'triage', 'researcher', 'verifier'],
   outboundTemplates: {
-    builder: () => getPlannerToBuilderHandoffTemplate(),
-    architect: getEntryPointToArchitectHandoffTemplate,
-    'uiux-engineer': getEntryPointToUiuxEngineerHandoffTemplate,
-    triage: getEntryPointToTriageHandoffTemplate,
-    researcher: getEntryPointToResearcherHandoffTemplate,
-    verifier: getEntryPointToVerifierHandoffTemplate,
-    user: (query) =>
-      query.conversationMode === 'chat'
-        ? getPlannerUserChatTemplate()
-        : getPlannerUserCodeTemplate({
-            chatroomId: query.chatroomId,
-            role: query.role,
-            cliEnvPrefix: query.cliEnvPrefix,
-          }),
+    builder: handoffTemplateByMode({
+      chat: getPlannerBuilderChatTemplate,
+      code: getPlannerBuilderCodeTemplate,
+    }),
+    architect: handoffTemplateByMode({
+      chat: getPlannerArchitectChatTemplate,
+      code: getPlannerArchitectCodeTemplate,
+    }),
+    'uiux-engineer': handoffTemplateByMode({
+      chat: getPlannerUiuxEngineerChatTemplate,
+      code: getPlannerUiuxEngineerCodeTemplate,
+    }),
+    triage: handoffTemplateByMode({
+      chat: getPlannerTriageChatTemplate,
+      code: getPlannerTriageCodeTemplate,
+    }),
+    researcher: handoffTemplateByMode({
+      chat: getPlannerResearcherChatTemplate,
+      code: getPlannerResearcherCodeTemplate,
+    }),
+    verifier: handoffTemplateByMode({
+      chat: getPlannerVerifierChatTemplate,
+      code: getPlannerVerifierCodeTemplate,
+    }),
+    user: handoffTemplateByMode({
+      chat: getPlannerUserChatTemplate,
+      code: getPlannerUserCodeTemplate,
+    }),
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'duo', 'planner'>;

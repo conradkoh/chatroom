@@ -6,7 +6,12 @@ import { describe, expect, test } from 'vitest';
 
 import { listHandoffTemplatesCommand } from './list-templates';
 import { HandoffTemplatePairError } from './pair';
-import { getPlannerToBuilderHandoffTemplate } from '../../teams/duo/handoff-templates/planner-to-builder';
+import { getPlannerBuilderCodeTemplate } from '../../teams/duo/handoff-templates/planner-builder-code';
+
+const plannerBuilderBody = getPlannerBuilderCodeTemplate({
+  fromRole: 'planner',
+  toRole: 'builder',
+});
 
 function expectPairError(fn: () => unknown): HandoffTemplatePairError {
   try {
@@ -36,7 +41,7 @@ describe('listHandoffTemplatesCommand', () => {
     expect(output).toContain(
       'Reply pair: `builder` → `planner` (view: chatroom handoff view-template --from="builder" --to="planner" --mode="code" --team-id="duo")'
     );
-    expect(output).toContain(getPlannerToBuilderHandoffTemplate());
+    expect(output).toContain(plannerBuilderBody);
   });
 
   test('prints the reply pair for a role recipient', () => {
@@ -132,8 +137,8 @@ describe('listHandoffTemplatesCommand', () => {
       teamId: 'duo',
     });
 
-    expect(chat).toContain(getPlannerToBuilderHandoffTemplate());
-    expect(code).toContain(getPlannerToBuilderHandoffTemplate());
+    expect(chat).toContain(plannerBuilderBody);
+    expect(code).toContain(plannerBuilderBody);
     // The header block (mode label, key, reply command) differs; the body is identical.
     const bodyAfterHeader = (output: string): string => output.slice(output.indexOf('\n\n') + 2);
     expect(bodyAfterHeader(chat)).toBe(bodyAfterHeader(code));

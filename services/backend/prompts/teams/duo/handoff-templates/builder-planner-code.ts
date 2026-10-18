@@ -1,15 +1,10 @@
 /**
- * Handoff template: Duo builder → planner (work complete / blocked).
- *
- * Every section is required — do not omit sections. The handback captures not just
- * what changed but the reasoning behind it:
- *  1. Template disclosure confirmation — builder attests they saw this template
- *     at task start before implementing (soft verification for debugging).
- *  2. Proof of principles — how the work adhered to organization/maintainability
- *     and static evaluability/provability principles.
- *  3. Proof of completion — evidence the delegation goal was met (files changed).
+ * Key: `duo:builder->planner@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Builder → planner work-complete/blocked handback. Body only: the pair resolver
+ * prepends the recipient callout and the title line.
  */
 
+import type { HandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getDelegationBriefDisclosureBlock } from '../../../utils/delegation-disclosure';
@@ -21,16 +16,8 @@ import {
 } from '../../../utils/handoff-section-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
-/**
- * Returns the markdown handoff template body the builder uses when returning
- * work to the planner.
- *
- * Body only: the pair resolver prepends the recipient callout and the
- * `builder` → `planner` title line.
- */
-export function getBuilderToPlannerHandoffTemplate(
-  roleGuidanceContext?: RoleGuidanceCommandParams
-): string {
+/** Returns the markdown handback template body the builder uses when returning work. */
+function getBuilderPlannerCodeBody(roleGuidanceContext?: RoleGuidanceCommandParams): string {
   return `${getHandoffReportTemplateIntro()}
 
 \`\`\`markdown
@@ -59,4 +46,13 @@ ${getHandoffNotApplicableSectionComment('List blockers')}
 ${getHandoffNotApplicableSectionComment('List review notes')}
 <specific areas for planner to check>
 \`\`\``;
+}
+
+/** Code-bucket getter for the duo `builder` → `planner` handoff. */
+export function getBuilderPlannerCodeTemplate(query: HandoffTemplateQuery): string {
+  return getBuilderPlannerCodeBody({
+    chatroomId: query.chatroomId,
+    role: query.role,
+    cliEnvPrefix: query.cliEnvPrefix,
+  });
 }

@@ -1,24 +1,15 @@
 /**
- * Handoff template: Duo planner → builder (delegation brief).
- *
- * Provides the structure the planner should follow when delegating an
- * implementation slice to the builder. The planner owns technical decisions
- * down to the file level, with code snippets that leave no ambiguity; the
- * builder executes implementation, tool calls, and verification.
- * Fields that do not apply may be omitted.
+ * Key: `duo:planner->builder@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Planner → builder delegation brief. Body only: the pair resolver prepends the
+ * recipient callout and the title line. Fields that do not apply may be omitted.
  */
 
+import type { HandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-guidance';
 import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance';
 
-/**
- * Returns the markdown delegation-brief template body the planner uses when
- * handing a unit of work to the builder.
- *
- * Body only: the pair resolver prepends the recipient callout and the
- * `planner` → `builder` title line. Fields that do not apply may be omitted.
- */
-export function getPlannerToBuilderHandoffTemplate(): string {
+/** Returns the markdown delegation-brief template body. */
+function getPlannerBuilderCodeBody(): string {
   return `${getDelegationBriefIntro()}
 
 **Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved design choice), hand off to \`researcher\` first and delegate only after its brief returns. Skip this for small, well-understood edits. The \`researcher\` handoff template defines the criteria.
@@ -94,4 +85,9 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 - <files or areas the builder must NOT touch in this slice>
 
 \`\`\`\``;
+}
+
+/** Code-bucket getter for the duo `planner` → `builder` handoff. */
+export function getPlannerBuilderCodeTemplate(_query: HandoffTemplateQuery): string {
+  return getPlannerBuilderCodeBody();
 }

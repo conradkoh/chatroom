@@ -14,8 +14,8 @@ import {
   listHandoffTemplatePairs,
 } from '../../../prompts/cli/handoff-templates';
 import { getHandoffRecipientVisibilityCallout } from '../../../prompts/native/handoff-visibility';
-import { getBuilderToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-to-planner';
-import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
+import { getBuilderPlannerCodeTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-planner-code';
+import { getPlannerBuilderCodeTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-builder-code';
 import { getPlannerUserCodeTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-user-code';
 import { getSoloUserCodeTemplate } from '../../../prompts/teams/solo/handoff-templates/solo-user-code';
 import { getHandoffTemplateTitleLine } from '../../../prompts/utils/handoff-section-guidance';
@@ -101,7 +101,7 @@ describe('handoff-templates > resolver', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'builder' })).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
-        getPlannerToBuilderHandoffTemplate()
+        getPlannerBuilderCodeTemplate({ fromRole: 'planner', toRole: 'builder' })
       )
     );
   });
@@ -119,7 +119,7 @@ describe('handoff-templates > resolver', () => {
     expect(getHandoffTemplate({ fromRole: 'builder', toRole: 'planner' })).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
-        getBuilderToPlannerHandoffTemplate({ role: 'builder' })
+        getBuilderPlannerCodeTemplate({ fromRole: 'builder', toRole: 'planner', role: 'builder' })
       )
     );
   });
@@ -190,7 +190,7 @@ describe('handoff-templates > resolver', () => {
     ).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
-        getBuilderToPlannerHandoffTemplate(params)
+        getBuilderPlannerCodeTemplate({ fromRole: 'builder', toRole: 'planner', ...params })
       )
     );
   });
@@ -801,7 +801,7 @@ describe('handoff-templates > conversation mode chat', () => {
     expect(template).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
-        getPlannerToBuilderHandoffTemplate()
+        getPlannerBuilderCodeTemplate({ fromRole: 'planner', toRole: 'builder' })
       )
     );
   });
@@ -1076,13 +1076,13 @@ describe('handoff-templates > invariants', () => {
   });
 
   test('planner → builder points ungrounded slices to the researcher before delegating', () => {
-    const template = getPlannerToBuilderHandoffTemplate();
+    const template = getPlannerBuilderCodeTemplate({ fromRole: 'planner', toRole: 'builder' });
     expect(template).toContain('**Before you delegate:**');
     expect(template).toContain('`researcher`');
   });
 
   test('planner → builder requires a triage report before delegating bug fixes', () => {
-    const template = getPlannerToBuilderHandoffTemplate();
+    const template = getPlannerBuilderCodeTemplate({ fromRole: 'planner', toRole: 'builder' });
     expect(template).toContain('**Bug fixes:**');
     expect(template).toContain('`triage` report');
   });

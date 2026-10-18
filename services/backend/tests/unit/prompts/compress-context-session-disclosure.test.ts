@@ -8,12 +8,12 @@
 import { describe, expect, test } from 'vitest';
 
 import { generateNativeTaskDeliveryOutput } from '../../../prompts/native/task-delivery';
-import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
+import { getPlannerBuilderCodeTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-builder-code';
 import { resolveSessionAugmentationForTask } from '../../../src/domain/handoff/parse-session-augmentation';
 
 describe('Delegation brief template — no Session Augmentation section', () => {
   test('planner → builder brief does not include Session Augmentation section', () => {
-    const brief = getPlannerToBuilderHandoffTemplate();
+    const brief = getPlannerBuilderCodeTemplate({ fromRole: 'planner', toRole: 'builder' });
     expect(brief).not.toContain('## Session Augmentation');
     expect(brief).not.toContain('session_augmentation');
   });

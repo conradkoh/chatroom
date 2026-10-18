@@ -1,11 +1,18 @@
-import type { BuiltinTeamRoleHandoffContract } from '../../../cli/handoff-templates/contracts';
-import { getArchitectToEntryPointHandoffTemplate } from '../../architect-handoff-templates';
+import { getArchitectPlannerChatTemplate } from './architect-planner-chat';
+import { getArchitectPlannerCodeTemplate } from './architect-planner-code';
+import {
+  handoffTemplateByMode,
+  type BuiltinTeamRoleHandoffContract,
+} from '../../../cli/handoff-templates/contracts';
 
 export const duoArchitectHandoffContract = {
   role: 'architect',
   receivesFrom: ['planner'],
   returnsTo: ['planner'],
   outboundTemplates: {
-    planner: getArchitectToEntryPointHandoffTemplate,
+    planner: handoffTemplateByMode({
+      chat: getArchitectPlannerChatTemplate,
+      code: getArchitectPlannerCodeTemplate,
+    }),
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'duo', 'architect'>;

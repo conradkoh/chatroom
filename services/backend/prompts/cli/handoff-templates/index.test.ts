@@ -18,8 +18,8 @@ import {
 } from './index';
 import { HandoffTemplatePairError, type HandoffTemplatePairErrorCode } from './pair';
 import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
-import { getBuilderToPlannerHandoffTemplate } from '../../teams/duo/handoff-templates/builder-to-planner';
-import { getPlannerToBuilderHandoffTemplate } from '../../teams/duo/handoff-templates/planner-to-builder';
+import { getBuilderPlannerCodeTemplate } from '../../teams/duo/handoff-templates/builder-planner-code';
+import { getPlannerBuilderCodeTemplate } from '../../teams/duo/handoff-templates/planner-builder-code';
 import { getPlannerUserCodeTemplate } from '../../teams/duo/handoff-templates/planner-user-code';
 import { getSoloUserCodeTemplate } from '../../teams/solo/handoff-templates/solo-user-code';
 import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
@@ -65,13 +65,13 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'builder'))).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
-        getPlannerToBuilderHandoffTemplate()
+        getPlannerBuilderCodeTemplate(duoQuery('planner', 'builder'))
       )
     );
     expect(getHandoffTemplate(duoQuery('builder', 'planner'))).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
-        getBuilderToPlannerHandoffTemplate({ role: 'builder' })
+        getBuilderPlannerCodeTemplate({ ...duoQuery('builder', 'planner'), role: 'builder' })
       )
     );
     expect(getHandoffTemplate(duoQuery('planner', 'user'))).toBe(
@@ -123,7 +123,7 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
     expect(getHandoffTemplate(duoQuery('Planner', 'BUILDER'))).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
-        getPlannerToBuilderHandoffTemplate()
+        getPlannerBuilderCodeTemplate(duoQuery('planner', 'builder'))
       )
     );
     expect(getHandoffTemplate(duoQuery('planner', 'USER'))).toBe(
@@ -453,7 +453,7 @@ describe('getHandoffTemplate — pair resolver facade', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'builder'))).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
-        getPlannerToBuilderHandoffTemplate()
+        getPlannerBuilderCodeTemplate(duoQuery('planner', 'builder'))
       )
     );
   });
