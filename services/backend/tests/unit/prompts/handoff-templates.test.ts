@@ -97,19 +97,19 @@ describe('handoff-templates > resolver', () => {
 
   test('resolves planner → user to the report template', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'user' })).toBe(
-      getPlannerToUserReportTemplate()
+      getPlannerToUserReportTemplate({ role: 'planner' })
     );
   });
 
   test('resolves builder → planner to the work-complete template', () => {
     expect(getHandoffTemplate({ fromRole: 'builder', toRole: 'planner' })).toBe(
-      getBuilderToPlannerHandoffTemplate()
+      getBuilderToPlannerHandoffTemplate({ role: 'builder' })
     );
   });
 
   test('is case-insensitive on role names', () => {
     expect(getHandoffTemplate({ fromRole: 'Planner', toRole: 'USER' })).toBe(
-      getPlannerToUserReportTemplate()
+      getPlannerToUserReportTemplate({ role: 'planner' })
     );
   });
 

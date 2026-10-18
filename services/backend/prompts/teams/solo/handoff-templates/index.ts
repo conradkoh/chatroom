@@ -1,8 +1,9 @@
 /**
- * Solo handoff template resolver — compatibility facade over role-owned contracts.
+ * Solo handoff template catalog — role-owned contracts.
  *
  * The solo catalog declares the permanent entry point and its ephemeral
- * advisory roles, all with role-owned handoff capabilities.
+ * advisory roles, all with role-owned handoff capabilities. Pair resolution
+ * lives in `cli/handoff-templates`.
  */
 // fallow-ignore-file unused-export unused-type
 
@@ -13,7 +14,6 @@ import { soloUiuxEngineerHandoffContract } from './uiux-engineer';
 import { soloVerifierHandoffContract } from './verifier';
 import type {
   BuiltinTeamHandoffCatalog,
-  HandoffTemplateQuery,
   RoleHandoffContract,
 } from '../../../cli/handoff-templates/contracts';
 import { validateBuiltinTeamRoleHandoffContracts } from '../../../cli/handoff-templates/contracts';
@@ -40,14 +40,4 @@ export const validatedSoloRoleHandoffContracts: readonly RoleHandoffContract[] =
 
 export function listSoloRoleHandoffContracts(): readonly RoleHandoffContract[] {
   return validatedSoloRoleHandoffContracts;
-}
-
-export function getSoloHandoffTemplate(query: HandoffTemplateQuery): string | null {
-  const fromRole = query.fromRole.toLowerCase();
-  const toRole = query.toRole.toLowerCase();
-  const contract = validatedSoloRoleHandoffContracts.find(
-    (candidate) => candidate.role.toLowerCase() === fromRole
-  );
-  const getter = contract?.outboundTemplates[toRole];
-  return getter?.(query) ?? null;
 }

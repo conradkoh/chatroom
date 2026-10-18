@@ -26,7 +26,7 @@ export const duoPlannerHandoffContract = {
     'researcher',
     'verifier',
   ],
-  returnsTo: ['builder', 'architect', 'uiux-engineer', 'triage', 'researcher', 'verifier', 'user'],
+  returnsTo: ['user', 'builder', 'architect', 'uiux-engineer', 'triage', 'researcher', 'verifier'],
   outboundTemplates: {
     builder: () => getPlannerToBuilderHandoffTemplate(),
     architect: () => getEntryPointToArchitectHandoffTemplate('planner'),

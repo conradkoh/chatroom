@@ -1,9 +1,8 @@
 /**
- * Duo handoff template resolver — compatibility facade over role-owned contracts.
+ * Duo handoff template catalog — role-owned contracts.
  *
- * Pair-keyed registries are gone; each role module owns its outbound targets.
- * This index selects the role contract by fromRole and dispatches to the
- * target getter, preserving the historical pair resolver behaviour for callers.
+ * Each role module owns its outbound targets; this index collects and validates
+ * the catalog. Pair resolution lives in `cli/handoff-templates`.
  */
 // fallow-ignore-file unused-export unused-type
 
@@ -17,7 +16,6 @@ import { duoVerifierHandoffContract } from './verifier';
 import { validateBuiltinTeamRoleHandoffContracts } from '../../../cli/handoff-templates/contracts';
 import type {
   BuiltinTeamHandoffCatalog,
-  HandoffTemplateQuery,
   RoleHandoffContract,
 } from '../../../cli/handoff-templates/contracts';
 
@@ -45,14 +43,4 @@ export const validatedDuoRoleHandoffContracts: readonly RoleHandoffContract[] = 
 
 export function listDuoRoleHandoffContracts(): readonly RoleHandoffContract[] {
   return validatedDuoRoleHandoffContracts;
-}
-
-export function getDuoHandoffTemplate(query: HandoffTemplateQuery): string | null {
-  const fromRole = query.fromRole.toLowerCase();
-  const toRole = query.toRole.toLowerCase();
-  const contract = validatedDuoRoleHandoffContracts.find(
-    (candidate) => candidate.role.toLowerCase() === fromRole
-  );
-  const getter = contract?.outboundTemplates[toRole];
-  return getter?.(query) ?? null;
 }

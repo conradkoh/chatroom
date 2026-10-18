@@ -16,7 +16,7 @@ import { getEntryPointToVerifierHandoffTemplate } from '../../verifier-handoff-t
 export const soloHandoffContract = {
   role: 'solo',
   receivesFrom: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
-  returnsTo: ['architect', 'uiux-engineer', 'triage', 'verifier', 'user'],
+  returnsTo: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
   outboundTemplates: {
     architect: () => getEntryPointToArchitectHandoffTemplate('solo'),
     'uiux-engineer': () => getEntryPointToUiuxEngineerHandoffTemplate('solo'),
