@@ -16,8 +16,8 @@ import {
 import { getHandoffRecipientVisibilityCallout } from '../../../prompts/native/handoff-visibility';
 import { getBuilderToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
-import { getPlannerToUserReportTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-user';
-import { getSoloToUserReportTemplate } from '../../../prompts/teams/solo/handoff-templates/solo-to-user';
+import { getPlannerUserCodeTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-user-code';
+import { getSoloUserCodeTemplate } from '../../../prompts/teams/solo/handoff-templates/solo-user-code';
 import { getHandoffTemplateTitleLine } from '../../../prompts/utils/handoff-section-guidance';
 import {
   handoffTemplateDeliveryParams,
@@ -110,7 +110,7 @@ describe('handoff-templates > resolver', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'user' })).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
-        getPlannerToUserReportTemplate({ role: 'planner' })
+        getPlannerUserCodeTemplate({ role: 'planner' })
       )
     );
   });
@@ -128,7 +128,7 @@ describe('handoff-templates > resolver', () => {
     expect(getHandoffTemplate({ fromRole: 'Planner', toRole: 'USER' })).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
-        getPlannerToUserReportTemplate({ role: 'planner' })
+        getPlannerUserCodeTemplate({ role: 'planner' })
       )
     );
   });
@@ -145,7 +145,7 @@ describe('handoff-templates > resolver', () => {
     ).toBe(
       composePairTemplate(
         { teamId: 'solo', fromRole: 'solo', toRole: 'user' },
-        getSoloToUserReportTemplate(params)
+        getSoloUserCodeTemplate(params)
       )
     );
   });
@@ -178,7 +178,7 @@ describe('handoff-templates > resolver', () => {
     ).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
-        getPlannerToUserReportTemplate(params)
+        getPlannerUserCodeTemplate(params)
       )
     );
   });

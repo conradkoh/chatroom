@@ -5,9 +5,9 @@
  * work to the user.
  */
 
-import { getSoloToUserReportTemplate } from './solo-to-user';
+import { getSoloUserChatTemplate } from './solo-user-chat';
+import { getSoloUserCodeTemplate } from './solo-user-code';
 import type { BuiltinTeamRoleHandoffContract } from '../../../cli/handoff-templates/contracts';
-import { getChatToUserHandoffTemplate } from '../../../utils/chat-handoff-template';
 import { getEntryPointToArchitectHandoffTemplate } from '../../architect-handoff-templates';
 import { getEntryPointToTriageHandoffTemplate } from '../../triage-handoff-templates';
 import { getEntryPointToUiuxEngineerHandoffTemplate } from '../../uiux-engineer-handoff-templates';
@@ -24,8 +24,8 @@ export const soloHandoffContract = {
     verifier: getEntryPointToVerifierHandoffTemplate,
     user: (query) =>
       query.conversationMode === 'chat'
-        ? getChatToUserHandoffTemplate()
-        : getSoloToUserReportTemplate({
+        ? getSoloUserChatTemplate()
+        : getSoloUserCodeTemplate({
             chatroomId: query.chatroomId,
             role: query.role,
             cliEnvPrefix: query.cliEnvPrefix,

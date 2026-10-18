@@ -6,9 +6,9 @@
  */
 
 import { getPlannerToBuilderHandoffTemplate } from './planner-to-builder';
-import { getPlannerToUserReportTemplate } from './planner-to-user';
+import { getPlannerUserChatTemplate } from './planner-user-chat';
+import { getPlannerUserCodeTemplate } from './planner-user-code';
 import type { BuiltinTeamRoleHandoffContract } from '../../../cli/handoff-templates/contracts';
-import { getChatToUserHandoffTemplate } from '../../../utils/chat-handoff-template';
 import { getEntryPointToArchitectHandoffTemplate } from '../../architect-handoff-templates';
 import { getEntryPointToResearcherHandoffTemplate } from '../../researcher-handoff-templates';
 import { getEntryPointToTriageHandoffTemplate } from '../../triage-handoff-templates';
@@ -36,8 +36,8 @@ export const duoPlannerHandoffContract = {
     verifier: getEntryPointToVerifierHandoffTemplate,
     user: (query) =>
       query.conversationMode === 'chat'
-        ? getChatToUserHandoffTemplate()
-        : getPlannerToUserReportTemplate({
+        ? getPlannerUserChatTemplate()
+        : getPlannerUserCodeTemplate({
             chatroomId: query.chatroomId,
             role: query.role,
             cliEnvPrefix: query.cliEnvPrefix,

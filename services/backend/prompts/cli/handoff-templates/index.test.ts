@@ -21,8 +21,8 @@ import { HandoffTemplatePairError, type HandoffTemplatePairErrorCode } from './p
 import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
 import { getBuilderToPlannerHandoffTemplate } from '../../teams/duo/handoff-templates/builder-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../teams/duo/handoff-templates/planner-to-builder';
-import { getPlannerToUserReportTemplate } from '../../teams/duo/handoff-templates/planner-to-user';
-import { getSoloToUserReportTemplate } from '../../teams/solo/handoff-templates/solo-to-user';
+import { getPlannerUserCodeTemplate } from '../../teams/duo/handoff-templates/planner-user-code';
+import { getSoloUserCodeTemplate } from '../../teams/solo/handoff-templates/solo-user-code';
 import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
 
 const duoQuery = (fromRole: string, toRole: string): HandoffTemplateQuery => ({
@@ -78,7 +78,7 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'user'))).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
-        getPlannerToUserReportTemplate({ role: 'planner' })
+        getPlannerUserCodeTemplate({ role: 'planner' })
       )
     );
   });
@@ -87,7 +87,7 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
     expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'user' })).toBe(
       composePairTemplate(
         { teamId: 'solo', fromRole: 'solo', toRole: 'user' },
-        getSoloToUserReportTemplate({ role: 'solo' })
+        getSoloUserCodeTemplate({ role: 'solo' })
       )
     );
   });
@@ -130,7 +130,7 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'USER'))).toBe(
       composePairTemplate(
         { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
-        getPlannerToUserReportTemplate({ role: 'planner' })
+        getPlannerUserCodeTemplate({ role: 'planner' })
       )
     );
   });
