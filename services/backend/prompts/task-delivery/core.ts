@@ -88,7 +88,7 @@ function buildPrimaryHandoffBodyGuidance(params: {
 
   const pairLabel = formatHandoffPairLabel(pair);
   const heading = formatDeliveredHandoffTemplateHeading(pair);
-  return `Fill in the message using the ${pairLabel} template (the \`${heading}\` block in \`<handoff-templates>\` below); do not use a template addressed to a different recipient. Replace \`[Your message here]\` with the message body only: start at the first \`## \` section heading of the template and stop at the last body section. Do not include the template notice, any \`### Handoff template\` heading, the template title line, or any section after the body (the command instructions). The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). ${LAST_TOOL_CALL_SENTENCE}`;
+  return `Fill in the message using the ${pairLabel} template (the "${heading}" block in \`<handoff-templates>\` below); do not use a template addressed to a different recipient. Replace \`[Your message here]\` with the message body only: start at the first \`## \` section heading of the template and stop at the last body section. Do not include the template notice, any \`### Handoff template\` heading, the template title line, or any section after the body (the command instructions). The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). ${LAST_TOOL_CALL_SENTENCE}`;
 }
 
 function getTaskSenderRole(message: { senderRole: string } | null | undefined): string | undefined {

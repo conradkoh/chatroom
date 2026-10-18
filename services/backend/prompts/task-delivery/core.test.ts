@@ -311,7 +311,7 @@ describe('appendTaskDeliveryHandoffSections — pair-addressed next-steps and ha
     const output = renderHandoffSections();
 
     expect(output).toContain(
-      'Fill in the message using the `planner` → `user` template (the `### Handoff template `planner` → `user`` block in `<handoff-templates>` below); do not use a template addressed to a different recipient.'
+      'Fill in the message using the `planner` → `user` template (the "### Handoff template `planner` → `user`" block in `<handoff-templates>` below); do not use a template addressed to a different recipient.'
     );
   });
 
