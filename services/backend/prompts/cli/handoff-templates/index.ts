@@ -8,19 +8,13 @@
  * are the single registry. Pairs are derived from each contract's `returnsTo`
  * order and rendered through its `outboundTemplates` getter — there is no
  * separate flat pair registry. `getHandoffTemplate` remains a compatibility
- * facade over that resolver; `listHandoffTemplates` exposes the deterministic
- * role-level catalog read used by the discovery command.
+ * facade over that resolver; the CLI commands resolve explicit pairs.
  */
 // fallow-ignore-file unused-type
 
-import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
 
-import type {
-  HandoffTemplateDescriptor,
-  HandoffTemplateQuery,
-  RoleHandoffContract,
-} from './contracts';
+import type { HandoffTemplateQuery, RoleHandoffContract } from './contracts';
 import {
   HandoffTemplatePairError,
   isTeamPresetId,
@@ -39,23 +33,6 @@ import { listSoloRoleHandoffContracts } from '../../teams/solo/handoff-templates
 
 export type { HandoffTemplateQuery } from './contracts';
 export type { HandoffTemplatePair, HandoffTemplatePairInput } from './pair';
-
-export interface ListHandoffTemplatesQuery {
-  teamId?: string | undefined;
-  role: string;
-  nativeIntegration?: boolean | undefined;
-  chatroomId?: string | undefined;
-  cliEnvPrefix?: string | undefined;
-  conversationMode?: ConversationMode | undefined;
-}
-
-export interface RoleHandoffTemplateListing {
-  teamId: string;
-  role: string;
-  receivesFrom: readonly string[];
-  returnsTo: readonly string[];
-  templates: readonly HandoffTemplateDescriptor[];
-}
 
 /** Single team dispatch: the validated role-owned catalogs keyed by team. */
 const BUILTIN_TEAM_HANDOFF_CONTRACTS: Readonly<
@@ -191,7 +168,6 @@ export function renderHandoffTemplate(
  * Reply pair (`to` → `from`) when `to` is a catalog role with an outbound
  * template back to `from`; `null` for `user` or any role without that edge.
  */
-// fallow-ignore-next-line unused-export
 export function getReplyHandoffTemplatePair(pair: HandoffTemplatePair): HandoffTemplatePair | null {
   const contract = BUILTIN_TEAM_HANDOFF_CONTRACTS[pair.teamId].find(
     (candidate) => candidate.role.toLowerCase() === pair.toRole
@@ -199,50 +175,6 @@ export function getReplyHandoffTemplatePair(pair: HandoffTemplatePair): HandoffT
   const getter = contract?.outboundTemplates[pair.fromRole];
   if (!getter) return null;
   return { teamId: pair.teamId, fromRole: pair.toRole, toRole: pair.fromRole };
-}
-
-/**
- * Static role-level catalog read. Returns the role contract's receives/returns
- * metadata plus every renderable outbound template (null results omitted).
- * Returns `null` for unknown teams/roles — the listing never throws.
- */
-// fallow-ignore-next-line complexity
-export function listHandoffTemplates(
-  query: ListHandoffTemplatesQuery
-): RoleHandoffTemplateListing | null {
-  const teamId = (query.teamId ?? 'duo').toLowerCase();
-  if (!isTeamPresetId(teamId)) return null;
-  const contracts = BUILTIN_TEAM_HANDOFF_CONTRACTS[teamId];
-  const contract = contracts.find(
-    (candidate) => candidate.role.toLowerCase() === query.role.toLowerCase()
-  );
-  if (!contract) return null;
-
-  const templates: HandoffTemplateDescriptor[] = [];
-  // Deterministic order: sort outbound targets alphabetically.
-  for (const toRole of Object.keys(contract.outboundTemplates).sort()) {
-    const getter = contract.outboundTemplates[toRole];
-    const template = getter?.({
-      fromRole: contract.role,
-      toRole,
-      teamId,
-      nativeIntegration: query.nativeIntegration,
-      chatroomId: query.chatroomId,
-      role: contract.role,
-      cliEnvPrefix: query.cliEnvPrefix,
-      conversationMode: query.conversationMode,
-    });
-    if (!template) continue;
-    templates.push({ fromRole: contract.role, toRole, template });
-  }
-
-  return {
-    teamId,
-    role: contract.role,
-    receivesFrom: [...contract.receivesFrom],
-    returnsTo: [...contract.returnsTo],
-    templates,
-  };
 }
 
 /**

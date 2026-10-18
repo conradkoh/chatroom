@@ -62,7 +62,6 @@ export function isTeamPresetId(value: string): value is TeamPresetId {
 }
 
 /** Stable id for a pair, e.g. `duo:planner->builder`. */
-// fallow-ignore-next-line unused-export
 export function formatHandoffTemplatePairId(
   pair: Pick<HandoffTemplatePair, 'teamId' | 'fromRole' | 'toRole'>
 ): HandoffTemplatePairId {
@@ -70,13 +69,11 @@ export function formatHandoffTemplatePairId(
 }
 
 /** Human-readable pair label, e.g. `` `planner` → `builder` ``. */
-// fallow-ignore-next-line unused-export
 export function formatHandoffPairLabel(pair: { fromRole: string; toRole: string }): string {
   return `\`${pair.fromRole}\` → \`${pair.toRole}\``;
 }
 
 /** Copy/paste-ready command that addresses a pair. */
-// fallow-ignore-next-line unused-export
 export function formatHandoffTemplateCommand(
   command: HandoffTemplateCommandName,
   pair: HandoffTemplatePair,

@@ -1,55 +1,59 @@
 /**
  * Handoff template discovery command — deterministic, local, static.
  *
- * No chatroom id and no network calls: the agent lists its role-owned handoff
- * contract (receivesFrom / returnsTo / renderable outbound templates) before
- * work that may require a handoff.
+ * No chatroom id and no network calls: the agent resolves one
+ * `(team, sender → recipient)` pair and prints its descriptor, send command,
+ * reply pair, and rendered template before work that may require a handoff.
  */
 
-import { listHandoffTemplates, type RoleHandoffTemplateListing } from './index';
-
-/** Concise, copy/paste friendly human-readable listing. */
-// fallow-ignore-next-line unused-export
-export function formatHandoffTemplateListing(listing: RoleHandoffTemplateListing): string {
-  const receives = listing.receivesFrom.length
-    ? listing.receivesFrom.map((role) => `\`${role}\``).join(', ')
-    : '(none)';
-  const returns = listing.returnsTo.length
-    ? listing.returnsTo.map((role) => `\`${role}\``).join(', ')
-    : '(none)';
-
-  const lines = [
-    `Handoff contract for \`${listing.role}\` (team: \`${listing.teamId}\`)`,
-    '',
-    `Receives from: ${receives}`,
-    `Returns to: ${returns}`,
-    '',
-    'Renderable outbound templates:',
-    ...listing.templates.map((template) => `- \`${template.fromRole}\` → \`${template.toRole}\``),
-  ];
-  return lines.join('\n');
-}
+import {
+  getReplyHandoffTemplatePair,
+  renderHandoffTemplate,
+  resolveHandoffTemplatePair,
+} from './index';
+import {
+  HandoffTemplatePairError,
+  formatHandoffPairLabel,
+  formatHandoffTemplateCommand,
+  formatHandoffTemplatePairId,
+  unrenderablePairMessage,
+  type HandoffTemplatePairInput,
+} from './pair';
+import { handoffCommand } from '../handoff/command';
 
 /**
- * Resolves and formats a role handoff contract listing.
+ * Resolves and formats one pair's handoff template.
  *
- * Throws for unknown role/team so the CLI can report a clear nonzero error.
+ * Throws {@link HandoffTemplatePairError} for missing/legacy/unknown pair input
+ * so the CLI can report a clear nonzero error.
  */
-export function listHandoffTemplatesCommand(params: {
-  role: string;
-  teamId?: string | undefined;
-  cliEnvPrefix?: string | undefined;
-}): string {
-  const listing = listHandoffTemplates({
-    role: params.role,
-    teamId: params.teamId,
+export function listHandoffTemplatesCommand(
+  params: HandoffTemplatePairInput & { cliEnvPrefix?: string | undefined }
+): string {
+  const pair = resolveHandoffTemplatePair(params, 'list-templates');
+  const reply = getReplyHandoffTemplatePair(pair);
+  const template = renderHandoffTemplate(pair, {
+    nativeIntegration: true,
     cliEnvPrefix: params.cliEnvPrefix,
   });
-  if (!listing) {
-    const teamId = params.teamId ?? 'duo';
-    throw new Error(
-      `No handoff contract for role "${params.role}" in team "${teamId}". Known roles: planner, builder (duo) or solo.`
-    );
+  if (!template) {
+    throw new HandoffTemplatePairError('UNKNOWN_PAIR', unrenderablePairMessage(pair));
   }
-  return formatHandoffTemplateListing(listing);
+
+  const sendCommand = handoffCommand({
+    chatroomId: '<chatroom-id>',
+    role: pair.fromRole,
+    nextRole: pair.toRole,
+    cliEnvPrefix: params.cliEnvPrefix ?? '',
+  }).split('\n')[0];
+
+  return [
+    `Handoff template ${formatHandoffPairLabel(pair)} (team: \`${pair.teamId}\`, key: \`${formatHandoffTemplatePairId(pair)}\`)`,
+    `Send with: ${sendCommand}`,
+    reply
+      ? `Reply pair: ${formatHandoffPairLabel(reply)} (view: ${formatHandoffTemplateCommand('view-template', reply, params.cliEnvPrefix)})`
+      : `Reply pair: none (\`${pair.toRole}\` replies free-form)`,
+    '',
+    template,
+  ].join('\n');
 }

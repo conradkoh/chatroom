@@ -1,17 +1,17 @@
 /**
  * list-templates Unit Tests
  *
- * The command is fully local (no auth, no Convex), so tests assert formatted
- * success output, the default duo team selection, and unknown-role/team errors.
+ * The command is fully local (no auth, no Convex), so tests assert the pair
+ * descriptor output and the exact pair-resolution errors from the backend.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { printHandoffListTemplates } from './list-templates.js';
 
-let exitSpy: any;
-let logSpy: any;
-let errorSpy: any;
+let exitSpy: ReturnType<typeof vi.spyOn>;
+let logSpy: ReturnType<typeof vi.spyOn>;
+let errorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
@@ -23,45 +23,56 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function getAllLogOutput(): string {
-  return logSpy.mock.calls.map((c: unknown[]) => (c as string[]).join(' ')).join('\n');
+function getLogOutput(): string {
+  return logSpy.mock.calls.map((call: unknown[]) => (call as string[]).join(' ')).join('\n');
 }
 
-function getAllErrorOutput(): string {
-  return errorSpy.mock.calls.map((c: unknown[]) => (c as string[]).join(' ')).join('\n');
+function getErrorOutput(): string {
+  return errorSpy.mock.calls.map((call: unknown[]) => (call as string[]).join(' ')).join('\n');
 }
 
 describe('handoff list-templates', () => {
-  it('prints the duo planner contract with receives/returns and outbound templates', () => {
-    printHandoffListTemplates({ role: 'planner', teamId: 'duo' });
+  it('prints the duo planner → builder descriptor and template body', () => {
+    printHandoffListTemplates({ from: 'planner', to: 'builder', teamId: 'duo' });
 
     expect(exitSpy).not.toHaveBeenCalled();
-    const output = getAllLogOutput();
-    expect(output).toContain('Handoff contract for `planner` (team: `duo`)');
-    expect(output).toContain('Receives from:');
-    expect(output).toContain('Returns to:');
-    expect(output).toContain('- `planner` → `builder`');
-    expect(output).toContain('- `planner` → `user`');
+    const output = getLogOutput();
+    expect(output).toContain(
+      'Handoff template `planner` → `builder` (team: `duo`, key: `duo:planner->builder`)'
+    );
+    expect(output).toContain('Send with: chatroom handoff');
+    expect(output).toContain('Reply pair: `builder` → `planner`');
+    expect(output).toContain('Delegation Brief (Planner → Builder)');
   });
 
-  it('defaults team-id to duo when omitted', () => {
-    printHandoffListTemplates({ role: 'planner' });
+  it('prints Reply pair: none for the terminal user recipient', () => {
+    printHandoffListTemplates({ from: 'planner', to: 'user', teamId: 'duo' });
 
     expect(exitSpy).not.toHaveBeenCalled();
-    expect(getAllLogOutput()).toContain('(team: `duo`)');
+    expect(getLogOutput()).toContain('Reply pair: none');
   });
 
-  it('errors with nonzero exit for an unknown role', () => {
-    printHandoffListTemplates({ role: 'reviewer', teamId: 'duo' });
+  it('errors when --to is missing', () => {
+    printHandoffListTemplates({ from: 'planner', teamId: 'duo' });
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getAllErrorOutput()).toContain('reviewer');
+    expect(getErrorOutput()).toContain(
+      '❌ handoff list-templates requires both --from and --to (missing: --to).'
+    );
+  });
+
+  it('errors with legacy flags and the pair commands from that role', () => {
+    printHandoffListTemplates({ legacyRole: 'planner', teamId: 'duo' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getErrorOutput()).toContain('no longer accepts --role/--next-role');
+    expect(getErrorOutput()).toContain('--from="planner" --to="builder" --team-id="duo"');
   });
 
   it('errors with nonzero exit for an unknown team', () => {
-    printHandoffListTemplates({ role: 'planner', teamId: 'tri' });
+    printHandoffListTemplates({ from: 'planner', to: 'builder', teamId: 'tri' });
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getAllErrorOutput()).toContain('No handoff contract for role "planner"');
+    expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo.');
   });
 });
