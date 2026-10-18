@@ -9,7 +9,10 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
+import {
+  getHandoffTemplate,
+  listHandoffTemplatePairs,
+} from '../../../prompts/cli/handoff-templates';
 import { getHandoffRecipientVisibilityCallout } from '../../../prompts/native/handoff-visibility';
 import { getBuilderToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
@@ -876,6 +879,35 @@ describe('handoff-templates > conversation mode chat', () => {
     });
     expect(template).toContain('Handoff template `solo` → `user`');
     expect(template).toContain('<handoff-proofs>');
+  });
+});
+
+describe('handoff-templates > pair-addressed rendering invariants', () => {
+  const allPairs = [...listHandoffTemplatePairs('duo'), ...listHandoffTemplatePairs('solo')];
+
+  test('all 22 permanent pairs render one callout followed by exactly one pair title line', () => {
+    expect(allPairs).toHaveLength(22);
+
+    for (const pair of allPairs) {
+      const label = `${pair.teamId}:${pair.fromRole}->${pair.toRole}`;
+      const template = getHandoffTemplate({
+        ...handoffTemplateDeliveryParams(pair.fromRole),
+        teamId: pair.teamId,
+        fromRole: pair.fromRole,
+        toRole: pair.toRole,
+      });
+      expect(template, label).not.toBeNull();
+      const rendered = template as string;
+
+      expect(
+        rendered.startsWith(
+          `${getHandoffRecipientVisibilityCallout(pair.toRole)}\n\n${getHandoffTemplateTitleLine(pair)}`
+        ),
+        label
+      ).toBe(true);
+      expect(rendered.match(/^Handoff template `/gm) ?? [], label).toHaveLength(1);
+      expect(rendered, label).not.toContain('Handoff template for');
+    }
   });
 });
 

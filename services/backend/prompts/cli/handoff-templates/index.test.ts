@@ -191,6 +191,71 @@ describe('listHandoffTemplatePairs', () => {
   });
 });
 
+describe('renderHandoffTemplate — callout and pair-title invariants', () => {
+  const ALL_PAIRS = [
+    ...listHandoffTemplatePairs('duo'),
+    ...listHandoffTemplatePairs('solo'),
+  ] as const;
+
+  test('covers every permanent pair (13 duo + 9 solo)', () => {
+    expect(ALL_PAIRS).toHaveLength(22);
+  });
+
+  for (const pair of ALL_PAIRS) {
+    const label = `${pair.teamId}:${pair.fromRole}->${pair.toRole}`;
+
+    test(`${label} starts with the callout then exactly one pair title line`, () => {
+      const template = renderHandoffTemplate(pair);
+      expect(template).not.toBeNull();
+      const rendered = template as string;
+
+      expect(
+        rendered.startsWith(
+          `${getHandoffRecipientVisibilityCallout(pair.toRole)}\n\n${getHandoffTemplateTitleLine(pair)}`
+        )
+      ).toBe(true);
+
+      // Exactly one title line: the resolver's. Getters no longer emit their own.
+      expect(rendered.match(/^Handoff template `/gm) ?? []).toHaveLength(1);
+      expect(rendered).not.toContain('Handoff template for');
+      expect(rendered).not.toContain('<entry-point-role>');
+    });
+
+    test(`${label} embeds only pair-scoped handoff commands`, () => {
+      const rendered = renderHandoffTemplate(pair) as string;
+      const matches = [...rendered.matchAll(/--role="([^"]+)" --next-role="([^"]+)"/g)];
+
+      for (const match of matches) {
+        const [, from, to] = match;
+        // A template only ever instructs one of its two roles to send. Reports
+        // additionally embed a sender-scoped command to a later target (verifier).
+        expect([pair.fromRole, pair.toRole], `${label} command ${from} → ${to}`).toContain(from);
+        if (to === pair.toRole) {
+          expect(from, `${label} addressed send command ${from} → ${to}`).toBe(pair.fromRole);
+        }
+      }
+    });
+  }
+
+  test('delegation brief and user report are distinct for duo planner → {builder,user}', () => {
+    const delegation = renderHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'builder',
+    }) as string;
+    const report = renderHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'user',
+    }) as string;
+
+    expect(delegation).toContain('Delegation Brief');
+    expect(delegation).not.toContain('Template Disclosure Confirmation');
+    expect(report).toContain('Template Disclosure Confirmation');
+    expect(report).not.toContain('Delegation Brief');
+  });
+});
+
 describe('resolveHandoffTemplatePair', () => {
   test('normalizes an explicit pair and defaults/prefers explicit flags over legacy ones', () => {
     expect(

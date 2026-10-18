@@ -8,6 +8,7 @@ import {
   HANDOFF_NOT_APPLICABLE_EXACT_TEXT,
   getHandoffNotApplicableSectionComment,
   getHandoffReportTemplateIntro,
+  getHandoffTemplateTitleLine,
 } from './handoff-section-guidance';
 
 describe('handoff-section-guidance', () => {
@@ -28,6 +29,12 @@ describe('handoff-section-guidance', () => {
     expect(intro).toContain('Not Applicable.');
     expect(intro).toContain('no explanation');
     expect(intro).toContain('no em-dash');
+  });
+
+  test('getHandoffTemplateTitleLine names the exact sender → recipient pair', () => {
+    expect(getHandoffTemplateTitleLine({ fromRole: 'planner', toRole: 'builder' })).toBe(
+      'Handoff template `planner` → `builder` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):'
+    );
   });
 });
 
