@@ -6,6 +6,6 @@ export const duoUiuxEngineerHandoffContract = {
   receivesFrom: ['planner'],
   returnsTo: ['planner'],
   outboundTemplates: {
-    planner: () => getUiuxEngineerToEntryPointHandoffTemplate('planner'),
+    planner: getUiuxEngineerToEntryPointHandoffTemplate,
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'duo', 'uiux-engineer'>;

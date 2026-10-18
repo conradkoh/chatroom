@@ -1,10 +1,6 @@
 import { handoffCommand } from '../cli/handoff/command';
-import { getHandoffRecipientVisibilityCallout } from '../native/handoff-visibility';
+import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 import { getFileReferenceGuidanceComment } from '../utils/file-reference-guidance';
-
-function normalizeEntryPointRole(entryPointRole: string): string {
-  return entryPointRole.trim().toLowerCase() || 'planner';
-}
 
 function getUiuxEngineerFocus(): string {
   return 'complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests';
@@ -21,15 +17,11 @@ function getUiuxEngineerRequirements(): string {
 - Do not propose or require web accessibility implementation work unless the user explicitly requests it.`;
 }
 
-/** Template for an entry-point role delegating design work to the UI/UX engineer. */
-export function getEntryPointToUiuxEngineerHandoffTemplate(entryPointRole: string): string {
-  const entryPoint = normalizeEntryPointRole(entryPointRole);
+/** Body for an entry-point role delegating design work to the UI/UX engineer. */
+export function getEntryPointToUiuxEngineerHandoffTemplate(query: HandoffTemplateQuery): string {
+  const entryPoint = query.fromRole;
 
-  return `${getHandoffRecipientVisibilityCallout('uiux-engineer')}
-
-Handoff template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
-
-The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
+  return `The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
 
 Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on ${getUiuxEngineerFocus()}.
 
@@ -45,9 +37,9 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Template for the UI/UX engineer returning one recommended design to its entry point. */
-export function getUiuxEngineerToEntryPointHandoffTemplate(entryPointRole: string): string {
-  return renderUiuxEngineerToEntryPointHandoffTemplate(normalizeEntryPointRole(entryPointRole));
+/** Body for the UI/UX engineer returning one recommended design to its entry point. */
+export function getUiuxEngineerToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
+  return renderUiuxEngineerToEntryPointHandoffTemplate(query.toRole);
 }
 
 function renderUiuxEngineerToEntryPointHandoffTemplate(entryPoint: string): string {
@@ -56,11 +48,7 @@ function renderUiuxEngineerToEntryPointHandoffTemplate(entryPoint: string): stri
       ? '## Shared contracts (planner-owned)'
       : '## Shared contracts (configured entry-point-owned)';
 
-  return `${getHandoffRecipientVisibilityCallout(entryPoint)}
-
-Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
-
-Handoff template for \`${entryPoint}\` from \`uiux-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>

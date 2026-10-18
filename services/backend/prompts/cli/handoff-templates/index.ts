@@ -28,8 +28,10 @@ import {
   type HandoffTemplatePair,
   type HandoffTemplatePairInput,
 } from './pair';
+import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
 import { listDuoRoleHandoffContracts } from '../../teams/duo/handoff-templates';
 import { listSoloRoleHandoffContracts } from '../../teams/solo/handoff-templates';
+import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
 
 export type { HandoffTemplateQuery } from './contracts';
 export type { HandoffTemplatePair, HandoffTemplatePairInput } from './pair';
@@ -141,9 +143,12 @@ export function resolveHandoffTemplatePair(
 }
 
 /**
- * Renders the pair's outbound getter, or `null` when the pair has no template.
+ * Renders the pair's outbound getter, composing the recipient callout and the
+ * pair title line around the getter's body text.
  *
- * Phase A: the getter output is returned as-is; a null getter result stays null.
+ * The getter returns body text only (or `null` when the pair has no template);
+ * a `null` getter result stays `null` so callers can fall back to the generic
+ * free-form handoff message. The `null` contract never throws.
  */
 export function renderHandoffTemplate(
   pair: HandoffTemplatePair,
@@ -153,15 +158,20 @@ export function renderHandoffTemplate(
     (candidate) => candidate.role.toLowerCase() === pair.fromRole
   );
   const getter = contract?.outboundTemplates[pair.toRole];
-  return (
-    getter?.({
-      ...options,
-      teamId: pair.teamId,
-      fromRole: pair.fromRole,
-      toRole: pair.toRole,
-      role: pair.fromRole,
-    }) ?? null
-  );
+  if (!getter) return null;
+  const body = getter({
+    ...options,
+    teamId: pair.teamId,
+    fromRole: pair.fromRole,
+    toRole: pair.toRole,
+    role: pair.fromRole,
+  });
+  if (!body) return null;
+  return [
+    getHandoffRecipientVisibilityCallout(pair.toRole),
+    getHandoffTemplateTitleLine(pair),
+    body,
+  ].join('\n\n');
 }
 
 /**

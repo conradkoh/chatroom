@@ -10,20 +10,20 @@
  */
 
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
-import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { getHandoffReportTemplateBody } from '../../../utils/handoff-report-template-body';
 import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
 
 /**
- * Returns the markdown report template the solo agent uses when delivering
+ * Returns the markdown report template body the solo agent uses when delivering
  * the final result to the user.
+ *
+ * Body only: the pair resolver prepends the recipient callout and the
+ * `solo` → `user` title line.
  */
 export function getSoloToUserReportTemplate(
   roleGuidanceContext?: RoleGuidanceCommandParams
 ): string {
-  return `${getHandoffRecipientVisibilityCallout('user')}
-
-${getHandoffReportTemplateIntro('Solo → User report')}
+  return `${getHandoffReportTemplateIntro()}
 
 \`\`\`markdown
 ${getHandoffReportTemplateBody(roleGuidanceContext, { includeProofOfVerification: true })}

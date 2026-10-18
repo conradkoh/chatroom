@@ -36,7 +36,7 @@ describe('handoff view-template', () => {
     printHandoffViewTemplate({ from: 'planner', to: 'builder', teamId: 'duo' });
 
     expect(exitSpy).not.toHaveBeenCalled();
-    expect(getLogOutput()).toContain('Delegation Brief (Planner → Builder)');
+    expect(getLogOutput()).toContain('Delegation Brief');
   });
 
   it('errors when --to is missing', () => {

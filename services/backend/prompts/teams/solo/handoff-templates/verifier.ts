@@ -6,6 +6,6 @@ export const soloVerifierHandoffContract = {
   receivesFrom: ['solo'],
   returnsTo: ['solo'],
   outboundTemplates: {
-    solo: () => getVerifierToEntryPointHandoffTemplate('solo'),
+    solo: getVerifierToEntryPointHandoffTemplate,
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'solo', 'verifier'>;

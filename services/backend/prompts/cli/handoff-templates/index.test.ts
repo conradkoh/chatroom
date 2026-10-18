@@ -17,16 +17,34 @@ import {
   type HandoffTemplateQuery,
 } from './index';
 import { HandoffTemplatePairError, type HandoffTemplatePairErrorCode } from './pair';
+import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
 import { getBuilderToPlannerHandoffTemplate } from '../../teams/duo/handoff-templates/builder-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../teams/duo/handoff-templates/planner-to-builder';
 import { getPlannerToUserReportTemplate } from '../../teams/duo/handoff-templates/planner-to-user';
 import { getSoloToUserReportTemplate } from '../../teams/solo/handoff-templates/solo-to-user';
+import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
 
 const duoQuery = (fromRole: string, toRole: string): HandoffTemplateQuery => ({
   teamId: 'duo',
   fromRole,
   toRole,
 });
+
+/**
+ * Compose the rendered template the way the pair resolver does: recipient
+ * callout, pair title line, then the getter body. Keeps "exact prose"
+ * assertions meaningful now that getters return body text only.
+ */
+function composePairTemplate(
+  pair: { teamId: string; fromRole: string; toRole: string },
+  body: string
+): string {
+  return [
+    getHandoffRecipientVisibilityCallout(pair.toRole),
+    getHandoffTemplateTitleLine(pair),
+    body,
+  ].join('\n\n');
+}
 
 function expectPairError(
   fn: () => unknown,
@@ -45,19 +63,31 @@ function expectPairError(
 describe('getHandoffTemplate — role-owned catalog compatibility', () => {
   test('resolves every renderable permanent duo pair to its exact prose', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'builder'))).toBe(
-      getPlannerToBuilderHandoffTemplate()
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+        getPlannerToBuilderHandoffTemplate()
+      )
     );
     expect(getHandoffTemplate(duoQuery('builder', 'planner'))).toBe(
-      getBuilderToPlannerHandoffTemplate({ role: 'builder' })
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
+        getBuilderToPlannerHandoffTemplate({ role: 'builder' })
+      )
     );
     expect(getHandoffTemplate(duoQuery('planner', 'user'))).toBe(
-      getPlannerToUserReportTemplate({ role: 'planner' })
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+        getPlannerToUserReportTemplate({ role: 'planner' })
+      )
     );
   });
 
   test('resolves the permanent solo pair', () => {
     expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'user' })).toBe(
-      getSoloToUserReportTemplate({ role: 'solo' })
+      composePairTemplate(
+        { teamId: 'solo', fromRole: 'solo', toRole: 'user' },
+        getSoloToUserReportTemplate({ role: 'solo' })
+      )
     );
   });
 
@@ -91,10 +121,16 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
 
   test('role names are case-insensitive for fromRole and toRole', () => {
     expect(getHandoffTemplate(duoQuery('Planner', 'BUILDER'))).toBe(
-      getPlannerToBuilderHandoffTemplate()
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+        getPlannerToBuilderHandoffTemplate()
+      )
     );
     expect(getHandoffTemplate(duoQuery('planner', 'USER'))).toBe(
-      getPlannerToUserReportTemplate({ role: 'planner' })
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+        getPlannerToUserReportTemplate({ role: 'planner' })
+      )
     );
   });
 
@@ -261,7 +297,10 @@ describe('getHandoffTemplate — pair resolver facade', () => {
     expect(getHandoffTemplate(duoQuery('user', 'planner'))).toBeNull();
     expect(getHandoffTemplate(duoQuery('planner', 'solo'))).toBeNull();
     expect(getHandoffTemplate(duoQuery('planner', 'builder'))).toBe(
-      getPlannerToBuilderHandoffTemplate()
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+        getPlannerToBuilderHandoffTemplate()
+      )
     );
   });
 });

@@ -8,20 +8,18 @@
  * Fields that do not apply may be omitted.
  */
 
-import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-guidance';
 import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance';
 
 /**
- * Returns the markdown delegation-brief template the planner uses when
+ * Returns the markdown delegation-brief template body the planner uses when
  * handing a unit of work to the builder.
  *
- * Fields that do not apply may be omitted.
+ * Body only: the pair resolver prepends the recipient callout and the
+ * `planner` → `builder` title line. Fields that do not apply may be omitted.
  */
 export function getPlannerToBuilderHandoffTemplate(): string {
-  return `${getHandoffRecipientVisibilityCallout('builder')}
-
-${getDelegationBriefIntro()}
+  return `${getDelegationBriefIntro()}
 
 **Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved design choice), hand off to \`researcher\` first and delegate only after its brief returns. Skip this for small, well-understood edits. The \`researcher\` handoff template defines the criteria.
 

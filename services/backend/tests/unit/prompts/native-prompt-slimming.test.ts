@@ -141,7 +141,7 @@ describe('native task delivery', () => {
     expect(output).toContain('<next-steps>');
     expect(output).toContain('you MUST run the handoff command');
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Planner → User report');
+    expect(output).toContain('### Handoff template `planner` → `user`');
     expect(output).toContain('get-role-guidance --chatroom-id="room-id"');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
@@ -268,8 +268,8 @@ describe('native task delivery', () => {
     expect(output).toContain('context read');
     expect(output).toContain('context new');
     // Proof-rich report template present
-    expect(output).toContain('Planner → User report');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
+    expect(output).toContain('### Handoff template `planner` → `user`');
+    expect(output).toContain('Delegation Brief');
     // No chat-mode guidance
     expect(output).not.toContain('<chat-mode>');
   });

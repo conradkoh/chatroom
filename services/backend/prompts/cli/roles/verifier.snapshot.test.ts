@@ -31,7 +31,7 @@ describe('verifier guidance snapshots', () => {
 
     expect(guidance).toContain("## The User's Handoff Template");
     expect(guidance).toContain('Code Change Verification');
-    expect(guidance).toContain('Chat Response Template');
+    expect(guidance).toContain('Instructions (not part of the message): chat response');
     expect(guidance).toContain('4a. User expectations');
   });
 });

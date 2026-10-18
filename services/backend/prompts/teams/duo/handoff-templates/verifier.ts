@@ -6,6 +6,6 @@ export const duoVerifierHandoffContract = {
   receivesFrom: ['planner'],
   returnsTo: ['planner'],
   outboundTemplates: {
-    planner: () => getVerifierToEntryPointHandoffTemplate('planner'),
+    planner: getVerifierToEntryPointHandoffTemplate,
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'duo', 'verifier'>;

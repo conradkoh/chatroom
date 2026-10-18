@@ -29,11 +29,11 @@ export const duoPlannerHandoffContract = {
   returnsTo: ['user', 'builder', 'architect', 'uiux-engineer', 'triage', 'researcher', 'verifier'],
   outboundTemplates: {
     builder: () => getPlannerToBuilderHandoffTemplate(),
-    architect: () => getEntryPointToArchitectHandoffTemplate('planner'),
-    'uiux-engineer': () => getEntryPointToUiuxEngineerHandoffTemplate('planner'),
-    triage: () => getEntryPointToTriageHandoffTemplate('planner'),
-    researcher: () => getEntryPointToResearcherHandoffTemplate('planner'),
-    verifier: () => getEntryPointToVerifierHandoffTemplate('planner'),
+    architect: getEntryPointToArchitectHandoffTemplate,
+    'uiux-engineer': getEntryPointToUiuxEngineerHandoffTemplate,
+    triage: getEntryPointToTriageHandoffTemplate,
+    researcher: getEntryPointToResearcherHandoffTemplate,
+    verifier: getEntryPointToVerifierHandoffTemplate,
     user: (query) =>
       query.conversationMode === 'chat'
         ? getChatToUserHandoffTemplate()

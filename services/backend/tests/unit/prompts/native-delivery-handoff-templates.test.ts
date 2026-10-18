@@ -24,12 +24,12 @@ describe('handoff view-template command (recovery / CLI)', () => {
 
   test('resolves duo planner → user report template body', () => {
     const template = viewHandoffTemplate({ from: 'planner', to: 'user', teamId: 'duo' });
-    expect(template).toContain('Planner → User report');
+    expect(template).toContain('Handoff template `planner` → `user`');
   });
 
   test('resolves duo builder → planner handoff template body', () => {
     const template = viewHandoffTemplate({ from: 'builder', to: 'planner', teamId: 'duo' });
-    expect(template).toContain('Builder → Planner report');
+    expect(template).toContain('Handoff template `builder` → `planner`');
   });
 
   test('requires both --from and --to', () => {

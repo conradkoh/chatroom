@@ -97,7 +97,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'user',
     availableHandoffTargets: ['user'],
     primaryHandoffTarget: 'user',
-    eagerTemplateHeadings: ['Solo → User report'],
+    eagerTemplateHeadings: ['### Handoff template `solo` → `user`'],
   },
   {
     label:
@@ -107,7 +107,10 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'user',
     availableHandoffTargets: ['builder', 'user'],
     primaryHandoffTarget: 'user',
-    eagerTemplateHeadings: ['Planner → User report', 'Delegation Brief (Planner → Builder)'],
+    eagerTemplateHeadings: [
+      '### Handoff template `planner` → `user`',
+      '### Handoff template `planner` → `builder`',
+    ],
   },
   {
     label: 'duo builder receives planner delegation → return to planner',
@@ -116,7 +119,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'planner',
     availableHandoffTargets: ['planner'],
     primaryHandoffTarget: 'planner',
-    eagerTemplateHeadings: ['Builder → Planner report'],
+    eagerTemplateHeadings: ['### Handoff template `builder` → `planner`'],
   },
   {
     label: 'duo builder receives planner task even when planner not in waiting-participants list',
@@ -125,7 +128,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'planner',
     availableHandoffTargets: ['user'],
     primaryHandoffTarget: 'planner',
-    eagerTemplateHeadings: ['Builder → Planner report'],
+    eagerTemplateHeadings: ['### Handoff template `builder` → `planner`'],
   },
   {
     label: 'duo planner receives builder handback → deliver to user',
@@ -134,7 +137,10 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'builder',
     availableHandoffTargets: ['builder', 'user'],
     primaryHandoffTarget: 'user',
-    eagerTemplateHeadings: ['Planner → User report', 'Delegation Brief (Planner → Builder)'],
+    eagerTemplateHeadings: [
+      '### Handoff template `planner` → `user`',
+      '### Handoff template `planner` → `builder`',
+    ],
     taskContent: [
       '## Summary',
       'Connectivity test passed.',
@@ -151,7 +157,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'planner',
     availableHandoffTargets: ['planner'],
     primaryHandoffTarget: 'planner',
-    eagerTemplateHeadings: ['Handoff template for `planner`'],
+    eagerTemplateHeadings: ['### Handoff template `architect` → `planner`'],
   },
   {
     label: 'duo UI/UX engineer receives planner design task → return to planner',
@@ -160,7 +166,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'planner',
     availableHandoffTargets: ['planner'],
     primaryHandoffTarget: 'planner',
-    eagerTemplateHeadings: ['Handoff template for `planner`'],
+    eagerTemplateHeadings: ['### Handoff template `uiux-engineer` → `planner`'],
   },
   {
     label: 'solo architect receives solo design task → return to solo',
@@ -169,7 +175,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'solo',
     availableHandoffTargets: ['solo'],
     primaryHandoffTarget: 'solo',
-    eagerTemplateHeadings: ['Handoff template for `solo`'],
+    eagerTemplateHeadings: ['### Handoff template `architect` → `solo`'],
   },
   {
     label: 'solo UI/UX engineer receives solo design task → return to solo',
@@ -178,7 +184,7 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
     senderRole: 'solo',
     availableHandoffTargets: ['solo'],
     primaryHandoffTarget: 'solo',
-    eagerTemplateHeadings: ['Handoff template for `solo`'],
+    eagerTemplateHeadings: ['### Handoff template `uiux-engineer` → `solo`'],
   },
 ];
 

@@ -18,10 +18,10 @@ export const soloHandoffContract = {
   receivesFrom: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
   returnsTo: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
   outboundTemplates: {
-    architect: () => getEntryPointToArchitectHandoffTemplate('solo'),
-    'uiux-engineer': () => getEntryPointToUiuxEngineerHandoffTemplate('solo'),
-    triage: () => getEntryPointToTriageHandoffTemplate('solo'),
-    verifier: () => getEntryPointToVerifierHandoffTemplate('solo'),
+    architect: getEntryPointToArchitectHandoffTemplate,
+    'uiux-engineer': getEntryPointToUiuxEngineerHandoffTemplate,
+    triage: getEntryPointToTriageHandoffTemplate,
+    verifier: getEntryPointToVerifierHandoffTemplate,
     user: (query) =>
       query.conversationMode === 'chat'
         ? getChatToUserHandoffTemplate()

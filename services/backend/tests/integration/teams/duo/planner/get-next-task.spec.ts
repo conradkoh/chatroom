@@ -44,8 +44,8 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('Implement the feature as described');
     expect(output).not.toMatch(/task read --chatroom-id/i);
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
-    expect(output).toContain('Planner → User report');
+    expect(output).toContain('Delegation Brief');
+    expect(output).toContain('### Handoff template `planner` → `user`');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('you MUST run the handoff command');
     expect(output).toContain('--next-role="user"');

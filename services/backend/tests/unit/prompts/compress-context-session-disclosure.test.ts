@@ -31,7 +31,7 @@ describe('Native task delivery — no Session Augmentation in brief', () => {
       availableHandoffTargets: ['builder', 'user'],
     });
 
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
+    expect(output).toContain('Delegation Brief');
     expect(output).not.toContain('## Session Augmentation');
     expect(output).not.toContain('data:agent.session_augmentation');
   });

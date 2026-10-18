@@ -1,19 +1,11 @@
 import { handoffCommand } from '../cli/handoff/command';
-import { getHandoffRecipientVisibilityCallout } from '../native/handoff-visibility';
+import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 
-function normalizeEntryPointRole(entryPointRole: string): string {
-  return entryPointRole.trim().toLowerCase() || 'planner';
-}
+/** Body for a planner or solo agent delegating grounded research before planning. */
+export function getEntryPointToResearcherHandoffTemplate(query: HandoffTemplateQuery): string {
+  const entryPoint = query.fromRole;
 
-/** Template for a planner or solo agent delegating grounded research before planning. */
-export function getEntryPointToResearcherHandoffTemplate(entryPointRole: string): string {
-  const entryPoint = normalizeEntryPointRole(entryPointRole);
-
-  return `${getHandoffRecipientVisibilityCallout('researcher')}
-
-Handoff template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
-
-The automatically injected \`<user-message>\` is the authoritative request. Pass the decisions the research must ground, the specific research questions, known constraints, and the files or areas already suspected. Ask the researcher for a report only: do not edit files, implement code, or design alternative architectures.
+  return `The automatically injected \`<user-message>\` is the authoritative request. Pass the decisions the research must ground, the specific research questions, known constraints, and the files or areas already suspected. Ask the researcher for a report only: do not edit files, implement code, or design alternative architectures.
 
 ### When to research
 
@@ -37,15 +29,11 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Template for the researcher returning its grounded research brief to its entry point. */
-export function getResearcherToEntryPointHandoffTemplate(entryPointRole: string): string {
-  const entryPoint = normalizeEntryPointRole(entryPointRole);
+/** Body for the researcher returning its grounded research brief to its entry point. */
+export function getResearcherToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
+  const entryPoint = query.toRole;
 
-  return `${getHandoffRecipientVisibilityCallout(entryPoint)}
-
-Instructions (not part of the message): Return a complete, evidence-backed research brief for the authoritative request. The researcher is advisory: do not edit files, implement code, or present alternative architectures beyond what grounds the decision. Answer only the questions asked. Separate every finding into confirmed (with evidence), inferred (with reasoning), or unknown. Never present a guess as fact. External claims must cite the source URL together with the version or date checked. Use the exact sections below, in this order.
-
-Handoff template for \`${entryPoint}\` from \`researcher\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+  return `Instructions (not part of the message): Return a complete, evidence-backed research brief for the authoritative request. The researcher is advisory: do not edit files, implement code, or present alternative architectures beyond what grounds the decision. Answer only the questions asked. Separate every finding into confirmed (with evidence), inferred (with reasoning), or unknown. Never present a guess as fact. External claims must cite the source URL together with the version or date checked. Use the exact sections below, in this order.
 
 ## Summary
 <state the answer to the core question in two to four sentences and whether any decision remains open>

@@ -6,6 +6,6 @@ export const duoArchitectHandoffContract = {
   receivesFrom: ['planner'],
   returnsTo: ['planner'],
   outboundTemplates: {
-    planner: () => getArchitectToEntryPointHandoffTemplate('planner'),
+    planner: getArchitectToEntryPointHandoffTemplate,
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'duo', 'architect'>;

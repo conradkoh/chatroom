@@ -11,7 +11,6 @@
  */
 
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
-import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getDelegationBriefDisclosureBlock } from '../../../utils/delegation-disclosure';
 import { getFileReferenceProofOfCompletionExample } from '../../../utils/file-reference-guidance';
@@ -23,15 +22,16 @@ import {
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
- * Returns the markdown handoff template the builder uses when returning work
- * to the planner.
+ * Returns the markdown handoff template body the builder uses when returning
+ * work to the planner.
+ *
+ * Body only: the pair resolver prepends the recipient callout and the
+ * `builder` → `planner` title line.
  */
 export function getBuilderToPlannerHandoffTemplate(
   roleGuidanceContext?: RoleGuidanceCommandParams
 ): string {
-  return `${getHandoffRecipientVisibilityCallout('planner')}
-
-${getHandoffReportTemplateIntro('Builder → Planner report')}
+  return `${getHandoffReportTemplateIntro()}
 
 \`\`\`markdown
 ## Summary

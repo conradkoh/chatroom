@@ -1,12 +1,12 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`verifier handoff template snapshots > planner request renders the complete contract 1`] = `
+exports[`verifier handoff template snapshots > 'duo' 'planner' → 'verifier' renders the complete contract 1`] = `
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`verifier\` agent receives only the text inside your \`handoff --next-role="verifier"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Instructions (not part of the message): The verifier judges, from chatroom logs only, whether the user's last message was achieved. It runs no test the user did not ask for, and never builds, lints, or edits; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only when the task involved code changes, in any conversation mode. The verdict returns to \`planner\`.
+Handoff template \`planner\` → \`verifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Handoff template for \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Instructions (not part of the message): The verifier judges, from chatroom logs only, whether the user's last message was achieved. It runs no test the user did not ask for, and never builds, lints, or edits; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only when the task involved code changes, in any conversation mode. The verdict returns to \`planner\`.
 
 ## Round
 <1 or 2; for 2, cite the round-1 verdict message id>
@@ -42,13 +42,52 @@ CHATROOM_HANDOFF_END
 \`\`\`"
 `;
 
-exports[`verifier handoff template snapshots > solo request renders the complete contract 1`] = `
+exports[`verifier handoff template snapshots > 'duo' 'verifier' → 'planner' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`verifier\` → \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It also checks the work against the user's expectations (\`## User Expectations\`) under the same logs-only, claim-is-not-evidence rule. It runs no test the user did not ask for, and never builds, lints, or edits. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
+
+## Verdict
+<exactly one of ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE as the value; ACHIEVED only if every requirement and user expectation is met; NOT_ACHIEVED if any requirement or user expectation is unmet (logs show it was not done, or contradict it); INCONCLUSIVE if none is unmet but any is unverified (logs are silent)>
+
+## Objective
+<user message id, any prior user messages used, objective in 1-2 sentences>
+
+## Requirements
+<numbered \`R1 — <requirement> — met | unmet | unverified — <evidence ref>\`>
+
+## User Expectations
+<numbered \`U1 — <expectation from the user's handoff template> — met | unmet | unverified — <evidence ref>\`; exactly \`None applicable.\` in chat mode or when no expectation applies>
+
+## Evidence
+<bullets: \`<message id or handoff> — "<short quote>" — supports R#\`; for a requested test run, \`<command> — exit <result> — supports R#\`>
+
+## Missing or unmet
+<per unmet or unverified requirement or user expectation: what is missing and what evidence would resolve it; exactly \`None.\` if ACHIEVED>
+
+## Scope and limits
+<state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; log range read; whether the download was truncated; context id read and whether it matched the request>
+
+Instructions after the body (not part of the message): run the normal handoff command to \`planner\` with the complete body above, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`verifier handoff template snapshots > 'solo' 'solo' → 'verifier' renders the complete contract 1`] = `
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`verifier\` agent receives only the text inside your \`handoff --next-role="verifier"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Instructions (not part of the message): The verifier judges, from chatroom logs only, whether the user's last message was achieved. It runs no test the user did not ask for, and never builds, lints, or edits; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only when the task involved code changes, in any conversation mode. The verdict returns to \`solo\`.
+Handoff template \`solo\` → \`verifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Handoff template for \`solo\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Instructions (not part of the message): The verifier judges, from chatroom logs only, whether the user's last message was achieved. It runs no test the user did not ask for, and never builds, lints, or edits; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only when the task involved code changes, in any conversation mode. The verdict returns to \`solo\`.
 
 ## Round
 <1 or 2; for 2, cite the round-1 verdict message id>
@@ -84,52 +123,13 @@ CHATROOM_HANDOFF_END
 \`\`\`"
 `;
 
-exports[`verifier handoff template snapshots > verifier to planner renders the complete contract 1`] = `
-"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
-> Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
-
-Instructions (not part of the message): Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It also checks the work against the user's expectations (\`## User Expectations\`) under the same logs-only, claim-is-not-evidence rule. It runs no test the user did not ask for, and never builds, lints, or edits. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
-
-Handoff template for \`planner\` from \`verifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
-
-## Verdict
-<exactly one of ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE as the value; ACHIEVED only if every requirement and user expectation is met; NOT_ACHIEVED if any requirement or user expectation is unmet (logs show it was not done, or contradict it); INCONCLUSIVE if none is unmet but any is unverified (logs are silent)>
-
-## Objective
-<user message id, any prior user messages used, objective in 1-2 sentences>
-
-## Requirements
-<numbered \`R1 — <requirement> — met | unmet | unverified — <evidence ref>\`>
-
-## User Expectations
-<numbered \`U1 — <expectation from the user's handoff template> — met | unmet | unverified — <evidence ref>\`; exactly \`None applicable.\` in chat mode or when no expectation applies>
-
-## Evidence
-<bullets: \`<message id or handoff> — "<short quote>" — supports R#\`; for a requested test run, \`<command> — exit <result> — supports R#\`>
-
-## Missing or unmet
-<per unmet or unverified requirement or user expectation: what is missing and what evidence would resolve it; exactly \`None.\` if ACHIEVED>
-
-## Scope and limits
-<state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; log range read; whether the download was truncated; context id read and whether it matched the request>
-
-Instructions after the body (not part of the message): run the normal handoff command to \`planner\` with the complete body above, then stop.
-
-\`\`\`bash
-chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="planner" << 'CHATROOM_HANDOFF_END'
----MESSAGE---
-[Your message here]
-CHATROOM_HANDOFF_END
-\`\`\`"
-`;
-
-exports[`verifier handoff template snapshots > verifier to solo renders the complete contract 1`] = `
+exports[`verifier handoff template snapshots > 'solo' 'verifier' → 'solo' renders the complete contract 1`] = `
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`solo\` agent receives only the text inside your \`handoff --next-role="solo"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Instructions (not part of the message): Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It also checks the work against the user's expectations (\`## User Expectations\`) under the same logs-only, claim-is-not-evidence rule. It runs no test the user did not ask for, and never builds, lints, or edits. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
+Handoff template \`verifier\` → \`solo\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Handoff template for \`solo\` from \`verifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Instructions (not part of the message): Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It also checks the work against the user's expectations (\`## User Expectations\`) under the same logs-only, claim-is-not-evidence rule. It runs no test the user did not ask for, and never builds, lints, or edits. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
 
 ## Verdict
 <exactly one of ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE as the value; ACHIEVED only if every requirement and user expectation is met; NOT_ACHIEVED if any requirement or user expectation is unmet (logs show it was not done, or contradict it); INCONCLUSIVE if none is unmet but any is unverified (logs are silent)>

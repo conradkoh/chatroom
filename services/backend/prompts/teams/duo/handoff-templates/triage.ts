@@ -6,6 +6,6 @@ export const duoTriageHandoffContract = {
   receivesFrom: ['planner'],
   returnsTo: ['planner'],
   outboundTemplates: {
-    planner: () => getTriageToEntryPointHandoffTemplate('planner'),
+    planner: getTriageToEntryPointHandoffTemplate,
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'duo', 'triage'>;

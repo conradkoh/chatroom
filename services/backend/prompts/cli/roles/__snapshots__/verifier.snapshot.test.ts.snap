@@ -158,11 +158,7 @@ flowchart TD
 
 In chat mode the user receives this instead:
 
-> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
-> Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
-
-**Chat Response Template**
-
+Instructions (not part of the message): chat response — 
 \`\`\`markdown
 <write only the concise response the user should see; do not add handoff XML sections, proofs, context evidence, or placeholder text>
 \`\`\`"
@@ -326,11 +322,7 @@ flowchart TD
 
 In chat mode the user receives this instead:
 
-> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
-> Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
-
-**Chat Response Template**
-
+Instructions (not part of the message): chat response — 
 \`\`\`markdown
 <write only the concise response the user should see; do not add handoff XML sections, proofs, context evidence, or placeholder text>
 \`\`\`"

@@ -1,10 +1,25 @@
 import { describe, expect, test } from 'vitest';
 
+import { VERIFIER_VERDICTS } from './verifier-handoff-templates';
 import {
-  VERIFIER_VERDICTS,
-  getEntryPointToVerifierHandoffTemplate,
-  getVerifierToEntryPointHandoffTemplate,
-} from './verifier-handoff-templates';
+  listHandoffTemplatePairs,
+  renderHandoffTemplate,
+  type HandoffTemplatePair,
+} from '../cli/handoff-templates';
+
+/** Every pair in either team shape whose sender or recipient is the verifier. */
+const verifierPairs = [
+  ...listHandoffTemplatePairs('duo'),
+  ...listHandoffTemplatePairs('solo'),
+].filter((pair) => pair.fromRole === 'verifier' || pair.toRole === 'verifier');
+
+function renderPair(pair: HandoffTemplatePair): string {
+  const template = renderHandoffTemplate(pair);
+  if (!template) {
+    throw new Error(`no handoff template for ${pair.teamId}:${pair.fromRole}->${pair.toRole}`);
+  }
+  return template;
+}
 
 const requestHeadings = [
   '## Round',
@@ -28,17 +43,12 @@ const verdictHeadings = [
 ];
 
 describe('verifier handoff template snapshots', () => {
-  test.each([
-    ['planner request', getEntryPointToVerifierHandoffTemplate('planner')],
-    ['verifier to planner', getVerifierToEntryPointHandoffTemplate('planner')],
-    ['solo request', getEntryPointToVerifierHandoffTemplate('solo')],
-    ['verifier to solo', getVerifierToEntryPointHandoffTemplate('solo')],
-  ] as const)('%s renders the complete contract', (_variant, template) => {
-    expect(template).toMatchSnapshot();
+  test.each(verifierPairs)('$teamId $fromRole → $toRole renders the complete contract', (pair) => {
+    expect(renderPair(pair)).toMatchSnapshot();
   });
 
   test('planner request states the logs-only scope, claim-is-not-evidence, and code-change rule', () => {
-    const template = getEntryPointToVerifierHandoffTemplate('planner');
+    const template = renderPair({ teamId: 'duo', fromRole: 'planner', toRole: 'verifier' });
 
     expect(template).toContain('from chatroom logs only');
     expect(template).toContain('Requested test runs');
@@ -54,7 +64,7 @@ describe('verifier handoff template snapshots', () => {
   });
 
   test('planner request uses the required sections in order', () => {
-    const template = getEntryPointToVerifierHandoffTemplate('planner');
+    const template = renderPair({ teamId: 'duo', fromRole: 'planner', toRole: 'verifier' });
     const positions = requestHeadings.map((heading) => template.indexOf(`\n${heading}\n`));
 
     for (const position of positions) expect(position).toBeGreaterThan(-1);
@@ -62,7 +72,7 @@ describe('verifier handoff template snapshots', () => {
   });
 
   test('verdict uses the required sections in order and ends with a handoff', () => {
-    const template = getVerifierToEntryPointHandoffTemplate('planner');
+    const template = renderPair({ teamId: 'duo', fromRole: 'verifier', toRole: 'planner' });
     const positions = verdictHeadings.map((heading) => template.indexOf(`\n${heading}\n`));
 
     for (const position of positions) expect(position).toBeGreaterThan(-1);
@@ -72,7 +82,7 @@ describe('verifier handoff template snapshots', () => {
   });
 
   test('verdict enumerates every VERIFIER_VERDICTS token and states the logs-only limit', () => {
-    const template = getVerifierToEntryPointHandoffTemplate('planner');
+    const template = renderPair({ teamId: 'duo', fromRole: 'verifier', toRole: 'planner' });
 
     for (const verdict of VERIFIER_VERDICTS) expect(template).toContain(verdict);
     expect(template).toContain(VERIFIER_VERDICTS.join(', '));
@@ -80,7 +90,7 @@ describe('verifier handoff template snapshots', () => {
   });
 
   test('verdict carries the user-expectations section and its chat-mode fallback', () => {
-    const template = getVerifierToEntryPointHandoffTemplate('planner');
+    const template = renderPair({ teamId: 'duo', fromRole: 'verifier', toRole: 'planner' });
 
     expect(template).toContain('None applicable.');
     expect(template).toContain('U1');

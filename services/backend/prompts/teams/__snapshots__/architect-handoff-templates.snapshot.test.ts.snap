@@ -1,12 +1,12 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`architect handoff template snapshots > architect to planner renders the complete contract 1`] = `
+exports[`architect handoff template snapshots > 'duo' 'architect' → 'planner' renders the complete contract 1`] = `
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+Handoff template \`architect\` → \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Handoff template for \`planner\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -84,13 +84,33 @@ CHATROOM_HANDOFF_END
 \`\`\`"
 `;
 
-exports[`architect handoff template snapshots > architect to solo renders the complete contract 1`] = `
+exports[`architect handoff template snapshots > 'duo' 'planner' → 'architect' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`architect\` agent receives only the text inside your \`handoff --next-role="architect"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`planner\` → \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the Architect needs to design within the existing repository and team scope.
+
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
+
+After completing the design, hand it back to \`planner\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`architect handoff template snapshots > 'solo' 'architect' → 'solo' renders the complete contract 1`] = `
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`solo\` agent receives only the text inside your \`handoff --next-role="solo"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+Handoff template \`architect\` → \`solo\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Handoff template for \`solo\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -128,7 +148,7 @@ List every file or product surface the implementer must create or modify. Mark e
 
 <add one block per file; do not collapse multiple files into a directory or vague layer>
 
-## Shared contracts (configured entry-point-owned)
+## Shared contracts (solo-owned)
 <list cross-file interfaces, schemas, API contracts, state/data boundaries, or write exactly \`Not Applicable.\` when genuinely inapplicable>
 
 ### Interfaces & types
@@ -168,20 +188,20 @@ CHATROOM_HANDOFF_END
 \`\`\`"
 `;
 
-exports[`architect handoff template snapshots > entry point to architect renders the complete contract 1`] = `
+exports[`architect handoff template snapshots > 'solo' 'solo' → 'architect' renders the complete contract 1`] = `
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`architect\` agent receives only the text inside your \`handoff --next-role="architect"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Handoff template for \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template \`solo\` → \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the Architect needs to design within the existing repository and team scope.
 
 Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 
-After completing the design, hand it back to \`planner\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
+After completing the design, hand it back to \`solo\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
 
 \`\`\`bash
-chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="solo" << 'CHATROOM_HANDOFF_END'
 ---MESSAGE---
 [Your message here]
 CHATROOM_HANDOFF_END

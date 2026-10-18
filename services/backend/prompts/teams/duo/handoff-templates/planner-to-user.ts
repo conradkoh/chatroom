@@ -19,20 +19,20 @@
  */
 
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';
-import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { getHandoffReportTemplateBody } from '../../../utils/handoff-report-template-body';
 import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
 
 /**
- * Returns the markdown report template the planner uses when delivering the
- * final result to the user.
+ * Returns the markdown report template body the planner uses when delivering
+ * the final result to the user.
+ *
+ * Body only: the pair resolver prepends the recipient callout and the
+ * `planner` → `user` title line.
  */
 export function getPlannerToUserReportTemplate(
   roleGuidanceContext?: RoleGuidanceCommandParams
 ): string {
-  return `${getHandoffRecipientVisibilityCallout('user')}
-
-${getHandoffReportTemplateIntro('Planner → User report')}
+  return `${getHandoffReportTemplateIntro()}
 
 \`\`\`markdown
 ${getHandoffReportTemplateBody(roleGuidanceContext, { includeProofOfVerification: true })}

@@ -6,6 +6,6 @@ export const soloTriageHandoffContract = {
   receivesFrom: ['solo'],
   returnsTo: ['solo'],
   outboundTemplates: {
-    solo: () => getTriageToEntryPointHandoffTemplate('solo'),
+    solo: getTriageToEntryPointHandoffTemplate,
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'solo', 'triage'>;

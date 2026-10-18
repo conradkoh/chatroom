@@ -6,6 +6,6 @@ export const soloUiuxEngineerHandoffContract = {
   receivesFrom: ['solo'],
   returnsTo: ['solo'],
   outboundTemplates: {
-    solo: () => getUiuxEngineerToEntryPointHandoffTemplate('solo'),
+    solo: getUiuxEngineerToEntryPointHandoffTemplate,
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'solo', 'uiux-engineer'>;

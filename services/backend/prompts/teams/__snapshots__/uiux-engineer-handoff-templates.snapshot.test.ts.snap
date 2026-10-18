@@ -1,12 +1,32 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`UI/UX engineer handoff template snapshots > UI/UX engineer to planner renders the complete contract 1`] = `
+exports[`UI/UX engineer handoff template snapshots > 'duo' 'planner' → 'uiux-engineer' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`uiux-engineer\` agent receives only the text inside your \`handoff --next-role="uiux-engineer"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`planner\` → \`uiux-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
+
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
+
+After completing the design, hand it back to \`planner\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`UI/UX engineer handoff template snapshots > 'duo' 'uiux-engineer' → 'planner' renders the complete contract 1`] = `
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+Handoff template \`uiux-engineer\` → \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Handoff template for \`planner\` from \`uiux-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -85,13 +105,33 @@ CHATROOM_HANDOFF_END
 \`\`\`"
 `;
 
-exports[`UI/UX engineer handoff template snapshots > UI/UX engineer to solo renders the complete contract 1`] = `
+exports[`UI/UX engineer handoff template snapshots > 'solo' 'solo' → 'uiux-engineer' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`uiux-engineer\` agent receives only the text inside your \`handoff --next-role="uiux-engineer"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`solo\` → \`uiux-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
+
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
+
+After completing the design, hand it back to \`solo\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="solo" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`UI/UX engineer handoff template snapshots > 'solo' 'uiux-engineer' → 'solo' renders the complete contract 1`] = `
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`solo\` agent receives only the text inside your \`handoff --next-role="solo"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+Handoff template \`uiux-engineer\` → \`solo\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Handoff template for \`solo\` from \`uiux-engineer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -164,26 +204,6 @@ Instructions after the body (not part of the message): run the normal handoff co
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="solo" << 'CHATROOM_HANDOFF_END'
----MESSAGE---
-[Your message here]
-CHATROOM_HANDOFF_END
-\`\`\`"
-`;
-
-exports[`UI/UX engineer handoff template snapshots > entry point to UI/UX engineer renders the complete contract 1`] = `
-"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
-> Recipient visibility: the \`uiux-engineer\` agent receives only the text inside your \`handoff --next-role="uiux-engineer"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
-
-Handoff template for \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
-
-The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
-
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
-
-After completing the design, hand it back to \`planner\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
-
-\`\`\`bash
-chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="planner" << 'CHATROOM_HANDOFF_END'
 ---MESSAGE---
 [Your message here]
 CHATROOM_HANDOFF_END

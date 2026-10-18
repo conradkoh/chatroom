@@ -42,7 +42,7 @@ describe('handoff list-templates', () => {
     );
     expect(output).toContain('Send with: chatroom handoff');
     expect(output).toContain('Reply pair: `builder` → `planner`');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
+    expect(output).toContain('Delegation Brief');
   });
 
   it('prints Reply pair: none for the terminal user recipient', () => {

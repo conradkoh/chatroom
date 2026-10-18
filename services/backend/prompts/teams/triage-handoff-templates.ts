@@ -1,19 +1,11 @@
 import { handoffCommand } from '../cli/handoff/command';
-import { getHandoffRecipientVisibilityCallout } from '../native/handoff-visibility';
+import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 
-function normalizeEntryPointRole(entryPointRole: string): string {
-  return entryPointRole.trim().toLowerCase() || 'planner';
-}
+/** Body for a planner or solo agent delegating a bug investigation to triage. */
+export function getEntryPointToTriageHandoffTemplate(query: HandoffTemplateQuery): string {
+  const entryPoint = query.fromRole;
 
-/** Template for a planner or solo agent delegating a bug investigation to triage. */
-export function getEntryPointToTriageHandoffTemplate(entryPointRole: string): string {
-  const entryPoint = normalizeEntryPointRole(entryPointRole);
-
-  return `${getHandoffRecipientVisibilityCallout('triage')}
-
-Handoff template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
-
-The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
+  return `The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
 
 After completing the investigation, triage must return the evidence-backed report to \`${entryPoint}\` with the normal handoff command.
 
@@ -27,15 +19,11 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Template for triage returning its investigation report to its entry point. */
-export function getTriageToEntryPointHandoffTemplate(entryPointRole: string): string {
-  const entryPoint = normalizeEntryPointRole(entryPointRole);
+/** Body for triage returning its investigation report to its entry point. */
+export function getTriageToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
+  const entryPoint = query.toRole;
 
-  return `${getHandoffRecipientVisibilityCallout(entryPoint)}
-
-Instructions (not part of the message): Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
-
-Handoff template for \`${entryPoint}\` from \`triage\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+  return `Instructions (not part of the message): Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
 
 ## Summary
 <briefly state the diagnosis and whether the root cause was confirmed or remains a hypothesis>
