@@ -35,7 +35,7 @@ export function getEntryPointToVerifierHandoffTemplate(entryPointRole: string): 
 
 Instructions (not part of the message): The verifier judges, from chatroom logs only, whether the user's last message was achieved. It ${VERIFIER_TEST_RULE}; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only when the task involved code changes, in any conversation mode. The verdict returns to \`${entryPoint}\`.
 
-Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Round
 <1 or 2; for 2, cite the round-1 verdict message id>
@@ -81,7 +81,7 @@ export function getVerifierToEntryPointHandoffTemplate(entryPointRole: string): 
 
 Instructions (not part of the message): Return one advisory verdict for the authoritative request. This review is non-binding: it uses chatroom logs, plus the requested test runs listed in the request, if any, deciding every requirement from the evidence those logs and runs actually contain. It also checks the work against the user's expectations (\`## User Expectations\`) under the same logs-only, claim-is-not-evidence rule. It ${VERIFIER_TEST_RULE}. Never accept the claimed outcome as proof. Use the exact sections below, in this order.
 
-Message template for \`${entryPoint}\` from \`verifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`${entryPoint}\` from \`verifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Verdict
 <exactly one of ${VERIFIER_VERDICTS.join(', ')} as the value; ${ACHIEVED} only if every requirement and user expectation is met; ${NOT_ACHIEVED} if any requirement or user expectation is unmet (logs show it was not done, or contradict it); ${INCONCLUSIVE} if none is unmet but any is unverified (logs are silent)>

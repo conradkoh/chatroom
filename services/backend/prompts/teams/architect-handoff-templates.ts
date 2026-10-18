@@ -26,7 +26,7 @@ export function getEntryPointToArchitectHandoffTemplate(entryPointRole: string):
 
   return `${getHandoffRecipientVisibilityCallout('architect')}
 
-Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the Architect needs to design within the existing repository and team scope.
 
@@ -67,7 +67,7 @@ function renderArchitectToEntryPointHandoffTemplate(entryPoint: string, generic 
 
 Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
-Message template for \`${entryPoint}\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`${entryPoint}\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>

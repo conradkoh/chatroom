@@ -274,7 +274,7 @@ describe('appendTaskDeliveryHandoffSections — triage handoff templates', () =>
 
     expect(output).toContain('Use these structures when handing off.');
     expect(output).toContain(`### Handoff to \`${entryPoint}\``);
-    expect(output).toContain(`Message template for \`${entryPoint}\``);
+    expect(output).toContain(`Handoff template for \`${entryPoint}\``);
     expect(output).toContain('## Root cause');
   });
 
@@ -288,7 +288,7 @@ describe('appendTaskDeliveryHandoffSections — triage handoff templates', () =>
     });
 
     expect(output).toContain('### Handoff to `triage`');
-    expect(output).toContain('Message template for `planner`');
+    expect(output).toContain('Handoff template for `planner`');
   });
 
   test('duo triage delivery includes the handoff templates block', () => {
@@ -302,6 +302,6 @@ describe('appendTaskDeliveryHandoffSections — triage handoff templates', () =>
 
     expect(output).toContain('<handoff-templates>');
     expect(output).toContain('### Handoff to `planner`');
-    expect(output).toContain('Message template for `planner`');
+    expect(output).toContain('Handoff template for `planner`');
   });
 });

@@ -11,7 +11,7 @@ export function getEntryPointToTriageHandoffTemplate(entryPointRole: string): st
 
   return `${getHandoffRecipientVisibilityCallout('triage')}
 
-Message template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`${entryPoint}\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
 
@@ -35,7 +35,7 @@ export function getTriageToEntryPointHandoffTemplate(entryPointRole: string): st
 
 Instructions (not part of the message): Return a complete, evidence-backed investigation of the authoritative reported bug. Triage is advisory: do not edit implementation files or implement the proposed fix. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section. Cite concrete repository paths and symbols, observed behavior, commands, and test output. Distinguish confirmed findings from hypotheses; never claim a test proved behavior unless its failing assertion demonstrates the report.
 
-Message template for \`${entryPoint}\` from \`triage\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`${entryPoint}\` from \`triage\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <briefly state the diagnosis and whether the root cause was confirmed or remains a hypothesis>

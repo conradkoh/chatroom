@@ -6,7 +6,7 @@ exports[`architect handoff template snapshots > architect to planner renders the
 
 Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
-Message template for \`planner\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`planner\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -90,7 +90,7 @@ exports[`architect handoff template snapshots > architect to solo renders the co
 
 Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
-Message template for \`solo\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`solo\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -172,7 +172,7 @@ exports[`architect handoff template snapshots > entry point to architect renders
 "> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
 > Recipient visibility: the \`architect\` agent receives only the text inside your \`handoff --next-role="architect"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
 
-Message template for \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the Architect needs to design within the existing repository and team scope.
 
@@ -194,7 +194,7 @@ exports[`architect handoff template snapshots > generic architect handback rende
 
 Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
-Message template for \`<entry-point-role>\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+Handoff template for \`<entry-point-role>\` from \`architect\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
