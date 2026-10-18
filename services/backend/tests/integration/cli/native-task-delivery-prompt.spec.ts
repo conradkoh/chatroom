@@ -324,11 +324,11 @@ describe('Native task delivery prompt (integration)', () => {
     // Builder capability remains advertised (handoff block + eager template)
     expect(fullCliOutput).toContain('<handoffs>');
     expect(fullCliOutput).toContain('**builder**');
-    expect(fullCliOutput).toContain('Handoff to `builder`');
+    expect(fullCliOutput).toContain('### Handoff template `planner` → `builder`');
 
     // The stale enhancer/mode scalar is overridden by the explicit envelope
     expect(fullCliOutput).not.toContain('<handoff-enhancer>');
-    expect(fullCliOutput).not.toContain('Handoff to `enhancer`');
+    expect(fullCliOutput).not.toContain('### Handoff template `planner` → `enhancer`');
     expect(fullCliOutput).not.toContain('delegate to another agent');
     expect(fullCliOutput).toContain('you may hand off to any advertised team target');
   });

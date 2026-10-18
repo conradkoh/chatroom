@@ -77,10 +77,10 @@ describe('native task-started content', () => {
     });
 
     expect(output).toContain('--trigger-message-id="enh-msg-id"');
-    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).not.toContain('### Handoff template `planner` → `enhancer`');
     expect(output).not.toContain('<enhancer-input>');
     expect(output).not.toContain('origin-user-message-id');
-    expect(output).toContain('Handoff to `builder`');
+    expect(output).toContain('### Handoff template `planner` → `builder`');
   });
 });
 
@@ -211,10 +211,10 @@ describe('native task delivery', () => {
     // Advertised team capabilities remain (builder template + plain handoff)
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**builder**');
-    expect(output).toContain('Handoff to `builder`');
+    expect(output).toContain('### Handoff template `planner` → `builder`');
     expect(output).toContain('Delegation Brief');
     // Ephemeral capability remains ordinary advertised data when supplied.
-    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).not.toContain('### Handoff template `planner` → `enhancer`');
     expect(output).not.toContain('<handoff-enhancer>');
     // Direct primary user command
     expect(output).toContain('--next-role="user"');

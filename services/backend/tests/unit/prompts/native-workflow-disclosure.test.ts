@@ -232,10 +232,10 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
 
     // Eager templates keep the full duo planner base (user + builder)
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Handoff to `user`');
-    expect(output).toContain('Handoff to `builder`');
+    expect(output).toContain('### Handoff template `planner` → `user`');
+    expect(output).toContain('### Handoff template `planner` → `builder`');
     // No enhancer-specific template is injected in Chat or any other mode.
-    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).not.toContain('### Handoff template `planner` → `enhancer`');
     // Alternate handoff targets remain advertised
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**builder**');
@@ -279,9 +279,9 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     });
 
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Handoff to `user`');
-    expect(output).toContain('Handoff to `architect`');
-    expect(output).toContain('Handoff to `uiux-engineer`');
+    expect(output).toContain('### Handoff template `solo` → `user`');
+    expect(output).toContain('### Handoff template `solo` → `architect`');
+    expect(output).toContain('### Handoff template `solo` → `uiux-engineer`');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('**user**');
     expect(output).toContain('**architect**');

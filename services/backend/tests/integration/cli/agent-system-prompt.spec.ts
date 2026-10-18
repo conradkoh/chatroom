@@ -350,7 +350,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       CHATROOM_HANDOFF_END
       \`\`\`
 
-      Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
+      Fill in the message using the \`<handoff-templates>\` block headed \`### Handoff template \`builder\` → \`<recipient>\`\` for the recipient you hand off to. Replace \`[Your message here]\` with that template's body. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
 
       **Send the user an interim update (does not complete your task):**
       \`\`\`bash

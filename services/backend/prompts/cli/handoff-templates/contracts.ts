@@ -44,13 +44,6 @@ export type BuiltinTeamHandoffCatalog<T extends TeamPresetId> = {
   [R in BuiltinTeamRole<T>]: BuiltinTeamRoleHandoffContract<T, R>;
 };
 
-/** One renderable outbound mapping in a role listing. */
-export interface HandoffTemplateDescriptor {
-  fromRole: string;
-  toRole: string;
-  template: string;
-}
-
 /**
  * Validates a team's role-handoff catalog. Throws a descriptive Error for:
  * - duplicate role names (case-insensitive);

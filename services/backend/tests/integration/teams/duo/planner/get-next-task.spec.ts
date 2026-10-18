@@ -109,7 +109,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('**architect**');
     expect(output).toContain('**uiux-engineer**');
     expect(output).toContain('--next-role="user"');
-    expect(output).toContain('Handoff to `builder`');
+    expect(output).toContain('### Handoff template `planner` → `builder`');
   });
 
   test('task from the compatibility role uses the standard sender handoff recommendation', () => {

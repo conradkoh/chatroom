@@ -15,7 +15,12 @@ import { appendVerifierGateGuidance, shouldIncludeVerifierGate } from './verifie
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
-import { appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates } from '../native/delivery-handoff-templates.js';
+import { formatHandoffPairLabel } from '../cli/handoff-templates/pair';
+import {
+  appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates,
+  formatDeliveredHandoffTemplateHeading,
+  getDeliveredHandoffTemplatePair,
+} from '../native/delivery-handoff-templates.js';
 
 export interface TaskDeliveryParams {
   chatroomId: string;
@@ -40,6 +45,7 @@ function appendPrimaryHandoffInstructions(
     chatroomId: string;
     role: string;
     cliEnvPrefix: string;
+    teamId?: string | undefined;
     primaryTarget: string;
     senderRole?: string | undefined;
   }
@@ -58,10 +64,31 @@ function appendPrimaryHandoffInstructions(
     })
   );
   lines.push('```', '');
-  lines.push(
-    'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the message body only: start at the first `## ` section heading of the template and stop at the last body section. Do not include the template notice, any `### Handoff to` heading, any template title line, or any section after the body (the command instructions). The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**'
-  );
+  lines.push(buildPrimaryHandoffBodyGuidance(params));
   lines.push('', SINGLE_HANDOFF_NOTE);
+}
+
+const LAST_TOOL_CALL_SENTENCE =
+  '**Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**';
+
+/**
+ * Body guidance for step 2, addressed by the exact (sender, recipient) pair.
+ * When the role has no template for the primary target, fall back to a
+ * free-form message instruction.
+ */
+function buildPrimaryHandoffBodyGuidance(params: {
+  role: string;
+  teamId?: string | undefined;
+  primaryTarget: string;
+}): string {
+  const pair = getDeliveredHandoffTemplatePair(params.teamId, params.role, params.primaryTarget);
+  if (!pair) {
+    return `No handoff template is defined for \`${params.role}\` → \`${params.primaryTarget}\`; write a complete free-form message. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). ${LAST_TOOL_CALL_SENTENCE}`;
+  }
+
+  const pairLabel = formatHandoffPairLabel(pair);
+  const heading = formatDeliveredHandoffTemplateHeading(pair);
+  return `Fill in the message using the ${pairLabel} template (the \`${heading}\` block in \`<handoff-templates>\` below); do not use a template addressed to a different recipient. Replace \`[Your message here]\` with the message body only: start at the first \`## \` section heading of the template and stop at the last body section. Do not include the template notice, any \`### Handoff template\` heading, the template title line, or any section after the body (the command instructions). The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). ${LAST_TOOL_CALL_SENTENCE}`;
 }
 
 function getTaskSenderRole(message: { senderRole: string } | null | undefined): string | undefined {
@@ -73,10 +100,17 @@ function appendTaskDeliveryNextSteps(
   lines: string[],
   params: Pick<
     TaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'message' | 'availableHandoffTargets' | 'isEntryPoint'
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'teamId'
+    | 'message'
+    | 'availableHandoffTargets'
+    | 'isEntryPoint'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, message, availableHandoffTargets, isEntryPoint } = params;
+  const { chatroomId, role, cliEnvPrefix, teamId, message, availableHandoffTargets, isEntryPoint } =
+    params;
   const senderRole = getTaskSenderRole(message);
   const primaryTarget = inferPrimaryHandoffTarget({
     senderRole,
@@ -92,6 +126,7 @@ function appendTaskDeliveryNextSteps(
       chatroomId,
       role,
       cliEnvPrefix,
+      teamId,
       primaryTarget,
       senderRole,
     });
@@ -112,10 +147,10 @@ function appendTaskDeliveryHandoffTargets(
   lines: string[],
   params: Pick<
     TaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'availableHandoffTargets'
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'teamId' | 'availableHandoffTargets'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, availableHandoffTargets } = params;
+  const { chatroomId, role, cliEnvPrefix, teamId, availableHandoffTargets } = params;
   if (availableHandoffTargets.length === 0) return;
 
   lines.push('');
@@ -124,7 +159,12 @@ function appendTaskDeliveryHandoffTargets(
   lines.push('');
 
   for (const target of availableHandoffTargets) {
-    lines.push(`**${target}**`);
+    const pair = getDeliveredHandoffTemplatePair(teamId, role, target);
+    lines.push(
+      pair
+        ? `**${target}** — template: ${formatHandoffPairLabel(pair)}`
+        : `**${target}** — no template (free-form)`
+    );
     lines.push('```bash');
     lines.push(handoffCommand({ chatroomId, role, nextRole: target, cliEnvPrefix }));
     lines.push('```', '');
