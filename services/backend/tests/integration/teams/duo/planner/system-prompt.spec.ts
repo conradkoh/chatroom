@@ -325,11 +325,17 @@ describe('Duo Team > Planner > System Prompt', () => {
         - **Handoff completeness**: When you hand off to \`user\`, write a complete, standalone document: include all relevant context, results, and next steps. Do not reference prior messages, session text, or \`notify-user\` notices.
       - **Quality Accountability**: You are ultimately accountable for all work. If the user's requirements are not met, hand work back to the builder for rework.
 
-      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
       \`\`\`bash
-      chatroom handoff list-templates --role="planner" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="user" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="builder" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="architect" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="uiux-engineer" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="triage" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="researcher" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="verifier" --team-id="duo"
       \`\`\`
-      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+      Both --from and --to are required. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Delegation & Decomposition:**
 

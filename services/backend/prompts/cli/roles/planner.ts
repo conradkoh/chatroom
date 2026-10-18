@@ -52,7 +52,7 @@ ${getTeamCompositionSection(members)}
 
 ${getOperatingModelSection(teamConfig, nativeIntegration)}
 
-${getCoreResponsibilitiesSection(teamConfig, { role: 'planner', teamId: guidanceTeamId })}
+${getCoreResponsibilitiesSection(teamConfig, { role, teamId: guidanceTeamId, nativeIntegration })}
 
 ${getDelegationAndDecompositionSection(teamConfig)}
 

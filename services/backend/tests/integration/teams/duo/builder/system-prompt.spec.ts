@@ -279,11 +279,11 @@ describe('Duo Team > Builder > System Prompt', () => {
       - **When you need to send any message to another team role (including a short test or status message)** → Run \`chatroom handoff --next-role=<role>\`. This completes your current task. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
       - **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.
 
-      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
       \`\`\`bash
-      chatroom handoff list-templates --role="builder" --team-id="duo"
+      chatroom handoff view-template --from="builder" --to="planner" --team-id="duo"
       \`\`\`
-      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+      Both --from and --to are required. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Implementation Guidelines:**
       - For UI implementation, first write a snapshot test that renders the component with the UI/UX engineer's target markup, classes, and styles as the expected output. Run it and confirm it fails, then implement the components until it passes. Do not update the expected snapshot to accept different markup.

@@ -326,11 +326,15 @@ describe('Solo Team > Solo > System Prompt', () => {
         - **Handoff completeness**: When you hand off to \`user\`, write a complete, standalone document: include all relevant context, results, and next steps. Do not reference prior messages, session text, or \`notify-user\` notices.
       - **Quality Accountability**: You are ultimately accountable for all work. If the work doesn't meet requirements, revise it yourself before delivering.
 
-      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
       \`\`\`bash
-      chatroom handoff list-templates --role="solo" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="user" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="architect" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="uiux-engineer" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="triage" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="verifier" --team-id="solo"
       \`\`\`
-      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+      Both --from and --to are required. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Implementation Guidelines:**
       - For UI/UX work, request the design from the UI/UX engineer, who owns the UI/UX decisions and provides the target markup, classes, and styles.

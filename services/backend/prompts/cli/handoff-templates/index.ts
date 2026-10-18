@@ -52,7 +52,7 @@ export type HandoffTemplateRenderOptions = Omit<
  * Pairs in contract `returnsTo` order. `fromRole` omitted → every pair for the
  * team in catalog order. Unknown team or unknown role → `[]`.
  */
-// fallow-ignore-next-line unused-export complexity
+// fallow-ignore-next-line complexity
 export function listHandoffTemplatePairs(
   teamId: string | undefined,
   fromRole?: string

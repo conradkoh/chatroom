@@ -44,6 +44,11 @@ export function getBuilderGuidance(params: BuilderGuidanceParams): string {
   } = params;
   const questionTarget = questionTargetParam ?? 'user';
   const codeChangesTarget = codeChangesTargetParam ?? 'planner';
+  const discoveryGuidance = getHandoffTemplateDiscoveryGuidance({
+    teamId: 'duo',
+    role: 'builder',
+    nativeIntegration,
+  });
 
   return `
 ## Builder Operating Model
@@ -64,9 +69,7 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
   ⚠️ When \`${questionTarget}\` is the user: ${getUserHandoffVisibilityNote()}
 ${getInterRoleHandoffRule()}
 
-${getHandoffTemplateDiscoveryGuidance({ teamId: 'duo', rolePlaceholder: 'builder' })}
-
-**Implementation Guidelines:**
+${discoveryGuidance ? `${discoveryGuidance}\n\n` : ''}**Implementation Guidelines:**
 - For UI implementation, first write a snapshot test that renders the component with the UI/UX engineer's target markup, classes, and styles as the expected output. Run it and confirm it fails, then implement the components until it passes. Do not update the expected snapshot to accept different markup.
 - Write clean, maintainable, well-documented code
 - Follow established patterns and best practices from the codebase
