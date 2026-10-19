@@ -15,7 +15,7 @@ import { getCliEnvPrefix } from '../utils/index';
  * heading the agent must use for the pair it hands off to.
  */
 function getHandoffBodyGuidance(role: string): string {
-  return `Fill in the message using the \`<handoff-templates>\` block headed \`### Handoff template \`${role}\` → \`<recipient>\`\` for the recipient you hand off to. Replace \`[Your message here]\` with that template's body. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).`;
+  return `Fill in the message using the \`<handoff-templates>\` block headed "### Handoff template \`${role}\` → \`<recipient>\`" for the recipient you hand off to. Replace \`[Your message here]\` with that template's body. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).`;
 }
 export interface CommandsReferenceParams extends GeneralKnowledgeParams {}
 function handoffContent(params: CommandsReferenceParams, native: boolean): string {

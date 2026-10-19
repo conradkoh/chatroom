@@ -383,7 +383,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       CHATROOM_HANDOFF_END
       \`\`\`
 
-      Fill in the message using the \`<handoff-templates>\` block headed \`### Handoff template \`solo\` → \`<recipient>\`\` for the recipient you hand off to. Replace \`[Your message here]\` with that template's body. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
+      Fill in the message using the \`<handoff-templates>\` block headed "### Handoff template \`solo\` → \`<recipient>\`" for the recipient you hand off to. Replace \`[Your message here]\` with that template's body. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
 
       **Send the user an interim update (does not complete your task):**
       \`\`\`bash
