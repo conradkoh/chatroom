@@ -7,8 +7,8 @@ import type { SelectorContext } from '../../types/sections';
 
 describe('triage guidance snapshots', () => {
   test.each([
-    ['CLI planner', { nativeIntegration: false, entryPointRole: 'planner' }],
-    ['native planner', { nativeIntegration: true, entryPointRole: 'planner' }],
+    ['CLI planner', { nativeIntegration: false, recipientRole: 'planner' }],
+    ['native planner', { nativeIntegration: true, recipientRole: 'planner' }],
   ] as const)('%s renders the complete operating model', (_variant, params) => {
     const guidance = getTriageGuidance(params);
 
@@ -16,7 +16,7 @@ describe('triage guidance snapshots', () => {
   });
 
   test('is advisory and hands off to the concrete recipient', () => {
-    const guidance = getTriageGuidance({ nativeIntegration: false, entryPointRole: 'Planner' });
+    const guidance = getTriageGuidance({ nativeIntegration: false, recipientRole: 'Planner' });
 
     expect(guidance).toContain('advisory only');
     expect(guidance).toContain('do not edit implementation files');

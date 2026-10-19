@@ -3,8 +3,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type ArchitectGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  /** Role the architect hands the design brief to (the team's entry role). */
-  entryPointRole: string;
+  /** Role this guidance hands off to (from the team contract). */
+  recipientRole: string;
 };
 
 const ARCHITECT_GUIDANCE = `## Architect Operating Model
@@ -32,6 +32,6 @@ The handoff must contain every required brief section, repository evidence, chos
 export function getArchitectGuidance(params: ArchitectGuidanceParams): string {
   return ARCHITECT_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole.trim().toLowerCase()
+    params.recipientRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

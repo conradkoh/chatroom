@@ -3,8 +3,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type UiuxEngineerGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  /** Role the UI/UX engineer hands the design brief to (the team's entry role). */
-  entryPointRole: string;
+  /** Role this guidance hands off to (from the team contract). */
+  recipientRole: string;
 };
 
 const UIUX_ENGINEER_GUIDANCE = `## UI/UX Engineer Operating Model
@@ -32,6 +32,6 @@ The handoff must contain every required brief section, repository evidence, chos
 export function getUiuxEngineerGuidance(params: UiuxEngineerGuidanceParams): string {
   return UIUX_ENGINEER_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole.trim().toLowerCase()
+    params.recipientRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

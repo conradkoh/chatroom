@@ -6,8 +6,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type VerifierGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  /** Role the verifier hands the verdict to (the team's entry role). */
-  entryPointRole: string;
+  /** Role this guidance hands off to (from the team contract). */
+  recipientRole: string;
 };
 
 const [ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE] = VERIFIER_VERDICTS;
@@ -37,7 +37,7 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="{E
 export function getVerifierGuidance(params: VerifierGuidanceParams): string {
   const guidance = VERIFIER_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole.trim().toLowerCase()
+    params.recipientRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 
   const userTemplateSection = `## The User's Handoff Template

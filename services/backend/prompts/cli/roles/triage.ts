@@ -3,8 +3,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type TriageGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  /** Role triage hands the report to (the team's entry role). */
-  entryPointRole: string;
+  /** Role this guidance hands off to (from the team contract). */
+  recipientRole: string;
 };
 
 const TRIAGE_GUIDANCE = `## Triage Operating Model
@@ -28,6 +28,6 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="triage" --next-role="{ENT
 export function getTriageGuidance(params: TriageGuidanceParams): string {
   return TRIAGE_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole.trim().toLowerCase()
+    params.recipientRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

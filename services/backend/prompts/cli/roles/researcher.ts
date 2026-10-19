@@ -3,8 +3,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type ResearcherGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  /** Role the researcher hands the brief to (the team's entry role). */
-  entryPointRole: string;
+  /** Role this guidance hands off to (from the team contract). */
+  recipientRole: string;
 };
 
 const RESEARCHER_GUIDANCE = `## Researcher Operating Model
@@ -30,6 +30,6 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="researcher" --next-role="
 export function getResearcherGuidance(params: ResearcherGuidanceParams): string {
   return RESEARCHER_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole.trim().toLowerCase()
+    params.recipientRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

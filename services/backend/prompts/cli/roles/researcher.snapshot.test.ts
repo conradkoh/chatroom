@@ -4,8 +4,8 @@ import { getResearcherGuidance } from './researcher';
 
 describe('researcher guidance snapshots', () => {
   test.each([
-    ['CLI planner', { nativeIntegration: false, entryPointRole: 'planner' }],
-    ['native planner', { nativeIntegration: true, entryPointRole: 'planner' }],
+    ['CLI planner', { nativeIntegration: false, recipientRole: 'planner' }],
+    ['native planner', { nativeIntegration: true, recipientRole: 'planner' }],
   ] as const)('%s renders the complete operating model', (_variant, params) => {
     const guidance = getResearcherGuidance(params);
 
@@ -13,7 +13,7 @@ describe('researcher guidance snapshots', () => {
   });
 
   test('is advisory and hands off to the concrete recipient', () => {
-    const guidance = getResearcherGuidance({ nativeIntegration: false, entryPointRole: 'Planner' });
+    const guidance = getResearcherGuidance({ nativeIntegration: false, recipientRole: 'Planner' });
 
     expect(guidance).toContain('advisory only');
     expect(guidance).toContain('do not edit files, implement code');
