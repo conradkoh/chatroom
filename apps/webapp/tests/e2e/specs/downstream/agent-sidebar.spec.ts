@@ -26,9 +26,18 @@ const CANONICAL_TEAMS = [
   {
     teamId: 'duo',
     teamStructureId: 'duo@1',
-    roles: ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'verifier', 'builder'],
+    roles: [
+      'planner',
+      'architect',
+      'researcher',
+      'triage',
+      'reviewer',
+      'uiux-engineer',
+      'verifier',
+      'builder',
+    ],
     permanentRoles: ['planner', 'builder'],
-    ephemeralRoles: ['architect', 'researcher', 'triage', 'uiux-engineer', 'verifier'],
+    ephemeralRoles: ['architect', 'researcher', 'triage', 'reviewer', 'uiux-engineer', 'verifier'],
   },
   {
     teamId: 'solo',

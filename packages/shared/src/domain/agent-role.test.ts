@@ -5,6 +5,7 @@ import {
   AGENT_ROLE_DEFINITIONS,
   type AgentRoleDefinition,
   getAgentRoleTags,
+  getBuiltinRolesForTeam,
   isBuiltinAgentRole,
   getPermanentRoleNames,
   hasAgentRoleTag,
@@ -23,6 +24,7 @@ describe('agent-role lifecycle tags', () => {
     expect(getAgentRoleTags('triage')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('uiux-engineer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('researcher')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
+    expect(getAgentRoleTags('reviewer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('verifier')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect('enhancer' in AGENT_ROLE_DEFINITIONS).toBe(false);
     expect(getAgentRoleTags('enhancer')).toEqual([AgentRoleLifecycleTag.Permanent]);
@@ -45,6 +47,7 @@ describe('agent-role lifecycle tags', () => {
     expect(isEphemeralAgentRole('triage')).toBe(true);
     expect(isEphemeralAgentRole('UIUX-ENGINEER')).toBe(true);
     expect(isEphemeralAgentRole('Researcher')).toBe(true);
+    expect(isEphemeralAgentRole('Reviewer')).toBe(true);
     expect(isEphemeralAgentRole('Verifier')).toBe(true);
     expect(isPermanentAgentRole('PLANNER')).toBe(true);
     expect(isRetiredAgentRole('Enhancer')).toBe(true);
@@ -67,10 +70,19 @@ describe('agent-role lifecycle tags', () => {
       getPermanentRoleNames(['solo', 'architect', 'triage', 'uiux-engineer', 'enhancer'])
     ).toEqual(['solo']);
     expect(getPermanentRoleNames(['researcher'])).toEqual([]);
+    expect(getPermanentRoleNames(['reviewer'])).toEqual([]);
     expect(getPermanentRoleNames(['verifier'])).toEqual([]);
     expect(getPermanentRoleNames(['architect'])).toEqual([]);
     expect(getPermanentRoleNames(['triage'])).toEqual([]);
     expect(getPermanentRoleNames(['uiux-engineer'])).toEqual([]);
+  });
+
+  test('reviewer is an ephemeral duo-only role ordered between triage and uiux-engineer', () => {
+    const duoRoles = getBuiltinRolesForTeam('duo');
+    expect(duoRoles).toContain('reviewer');
+    expect(duoRoles.indexOf('reviewer')).toBe(duoRoles.indexOf('triage') + 1);
+    expect(duoRoles.indexOf('reviewer')).toBe(duoRoles.indexOf('uiux-engineer') - 1);
+    expect(getBuiltinRolesForTeam('solo')).not.toContain('reviewer');
   });
 
   test('authored definitions have one lifecycle and nonempty unique valid team memberships', () => {

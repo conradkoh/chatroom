@@ -86,6 +86,21 @@ export const BUILTIN_ROLE_TEMPLATES = {
     defaultHandoffTarget: 'planner',
   },
 
+  reviewer: {
+    role: 'reviewer',
+    title: 'Reviewer',
+    description:
+      'You are the reviewer responsible for inspecting the code artifacts the planner names and reporting the issues you observe; you are advisory only and do not implement fixes.',
+    responsibilities: [
+      'Recover the review target and focus from the planner brief',
+      'Inspect the diff or commits and the surrounding code they depend on',
+      'Look for correctness, security, test quality, ownership, dead code, duplication, and type drift',
+      'Label each issue with a severity and cite the file and line',
+      'Hand one review report to the planner, separating reviewed scope from what was not reviewed',
+    ],
+    defaultHandoffTarget: 'planner',
+  },
+
   verifier: {
     role: 'verifier',
     title: 'Verifier',

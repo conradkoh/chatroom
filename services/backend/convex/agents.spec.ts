@@ -9,7 +9,16 @@ const canonicalTeamFacts = [
   {
     teamId: 'duo',
     teamStructureId: 'duo@1',
-    roles: ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'verifier', 'builder'],
+    roles: [
+      'planner',
+      'architect',
+      'researcher',
+      'triage',
+      'reviewer',
+      'uiux-engineer',
+      'verifier',
+      'builder',
+    ],
     permanentRoles: ['planner', 'builder'],
   },
   {
@@ -100,7 +109,7 @@ describe('canonical agent reads', () => {
           teamEntryPoint: permanentRoles[0],
         });
         for (const [role, roleKind] of [
-          ['reviewer', 'persistent'],
+          ['designer', 'persistent'],
           ['enhancer', 'ephemeral'],
         ] as const) {
           await ctx.db.insert('chatroom_agentRoleStatusReadModel', {
@@ -126,7 +135,7 @@ describe('canonical agent reads', () => {
       expect(overviewWithExtraRows?.agents.map(({ role }) => role)).toEqual(roles);
       expect(requestsAfter).toEqual([]);
       expect(
-        statusesWithExtraRows.some(({ role }) => role === 'enhancer' || role === 'reviewer')
+        statusesWithExtraRows.some(({ role }) => role === 'enhancer' || role === 'designer')
       ).toBe(false);
     }
   );

@@ -12,6 +12,8 @@ import { getPlannerBuilderChatTemplate } from './planner-builder-chat';
 import { getPlannerBuilderCodeTemplate } from './planner-builder-code';
 import { getPlannerResearcherChatTemplate } from './planner-researcher-chat';
 import { getPlannerResearcherCodeTemplate } from './planner-researcher-code';
+import { getPlannerReviewerChatTemplate } from './planner-reviewer-chat';
+import { getPlannerReviewerCodeTemplate } from './planner-reviewer-code';
 import { getPlannerTriageChatTemplate } from './planner-triage-chat';
 import { getPlannerTriageCodeTemplate } from './planner-triage-code';
 import { getPlannerUiuxEngineerChatTemplate } from './planner-uiux-engineer-chat';
@@ -34,9 +36,19 @@ export const duoPlannerHandoffContract = {
     'uiux-engineer',
     'triage',
     'researcher',
+    'reviewer',
     'verifier',
   ],
-  returnsTo: ['user', 'builder', 'architect', 'uiux-engineer', 'triage', 'researcher', 'verifier'],
+  returnsTo: [
+    'user',
+    'builder',
+    'architect',
+    'uiux-engineer',
+    'triage',
+    'researcher',
+    'reviewer',
+    'verifier',
+  ],
   outboundTemplates: {
     builder: handoffTemplateByMode({
       chat: getPlannerBuilderChatTemplate,
@@ -57,6 +69,10 @@ export const duoPlannerHandoffContract = {
     researcher: handoffTemplateByMode({
       chat: getPlannerResearcherChatTemplate,
       code: getPlannerResearcherCodeTemplate,
+    }),
+    reviewer: handoffTemplateByMode({
+      chat: getPlannerReviewerChatTemplate,
+      code: getPlannerReviewerCodeTemplate,
     }),
     verifier: handoffTemplateByMode({
       chat: getPlannerVerifierChatTemplate,

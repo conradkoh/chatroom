@@ -37,9 +37,18 @@ const teamFacts = [
   {
     teamId: 'duo',
     persistedRoles: ['planner', 'builder'],
-    roles: ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'verifier', 'builder'],
+    roles: [
+      'planner',
+      'architect',
+      'researcher',
+      'triage',
+      'reviewer',
+      'uiux-engineer',
+      'verifier',
+      'builder',
+    ],
     permanentRoles: ['planner', 'builder'],
-    ephemeralRoles: ['architect', 'researcher', 'triage', 'uiux-engineer', 'verifier'],
+    ephemeralRoles: ['architect', 'researcher', 'triage', 'reviewer', 'uiux-engineer', 'verifier'],
   },
   {
     teamId: 'solo',
@@ -133,13 +142,13 @@ describe('getWorkspaceAgentRoles', () => {
   it('preserves custom-team roles while excluding the user identity', () => {
     const structure = getTeamStructure({
       teamId: 'custom-team',
-      persistedRoles: ['reviewer', 'user'],
-      persistedEntryPoint: 'reviewer',
+      persistedRoles: ['designer', 'user'],
+      persistedEntryPoint: 'designer',
     });
 
     expect(getWorkspaceAgentRoles(structure)).toEqual([
       {
-        role: 'reviewer',
+        role: 'designer',
         lifecycle: AgentRoleLifecycleTag.Permanent,
         optional: false,
         teamId: 'custom-team',

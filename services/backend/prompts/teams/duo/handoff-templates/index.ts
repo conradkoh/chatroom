@@ -10,6 +10,7 @@ import { duoArchitectHandoffContract } from './architect';
 import { duoBuilderHandoffContract } from './builder';
 import { duoPlannerHandoffContract } from './planner';
 import { duoResearcherHandoffContract } from './researcher';
+import { duoReviewerHandoffContract } from './reviewer';
 import { duoTriageHandoffContract } from './triage';
 import { duoUiuxEngineerHandoffContract } from './uiux-engineer';
 import { duoVerifierHandoffContract } from './verifier';
@@ -21,12 +22,13 @@ import type {
 
 export type { HandoffTemplateQuery as DuoHandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 
-/** Role-owned duo catalog, including ephemeral architect, researcher, triage, UI/UX, and verifier roles. */
+/** Role-owned duo catalog, including ephemeral architect, researcher, triage, reviewer, UI/UX, and verifier roles. */
 export const DUO_ROLE_HANDOFF_CATALOG = {
   planner: duoPlannerHandoffContract,
   builder: duoBuilderHandoffContract,
   architect: duoArchitectHandoffContract,
   researcher: duoResearcherHandoffContract,
+  reviewer: duoReviewerHandoffContract,
   'uiux-engineer': duoUiuxEngineerHandoffContract,
   triage: duoTriageHandoffContract,
   verifier: duoVerifierHandoffContract,
