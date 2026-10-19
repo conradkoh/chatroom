@@ -158,6 +158,7 @@ describe('listHandoffTemplatesCommand', () => {
       'uiux-engineer',
       'triage',
       'researcher',
+      'reviewer',
       'verifier',
     ]) {
       expect(error.message).toContain(
@@ -165,7 +166,7 @@ describe('listHandoffTemplatesCommand', () => {
       );
     }
     expect(error.message.match(/chatroom handoff list-templates --from="planner"/g)).toHaveLength(
-      7
+      8
     );
   });
 

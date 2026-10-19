@@ -1,0 +1,58 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`reviewer handoff template snapshots > 'duo' 'planner' → 'reviewer' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`reviewer\` agent receives only the text inside your \`handoff --next-role="reviewer"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`planner\` → \`reviewer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Pass the review target and the review focus. State the exact commit range, branch, pull request, or file list to inspect, the focus areas (for example security, correctness, or test quality), and any known context or constraints. Ask the reviewer for a report only: do not edit files, run builds or tests, or implement fixes.
+
+### When to review
+
+Review before delivery for code-producing work:
+- a builder slice has just completed and is about to be delivered;
+- the user asks for a code review;
+- a change is large, risky, or touches security-sensitive or shared code.
+
+Skip review for a trivial edit that has already been verified.
+
+After completing the review, the reviewer must return its issue report to \`planner\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="planner" --next-role="reviewer" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`reviewer handoff template snapshots > 'duo' 'reviewer' → 'planner' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`reviewer\` → \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Return a complete review report for the target the planner named. The reviewer is advisory: do not edit files, implement fixes, run builds or tests, or propose architecture rewrites beyond each issue's suggested fix. Report only what you observed and mark anything unverified as such. Label every issue with a severity: \`blocker\`, \`major\`, \`minor\`, or \`nit\`. Group the issues by severity with blockers first, and cite the repository-relative file and line or line range for each. Use the exact sections below, in this order.
+
+## Summary
+<one to three sentences: overall state of the target and the count of blocker/major issues>
+
+## Review scope
+<commits, paths, and PR/branch inspected; commands run, if any>
+
+## Issues
+<numbered list grouped by severity (blocker, major, minor, nit); each item: \`file:line\` — summary — evidence — suggested fix; write exactly \`None observed.\` if none>
+
+## Not reviewed
+<anything out of scope or unreadable; write exactly \`None.\` if none>
+
+Instructions after the body (not part of the message): run the normal handoff command to \`planner\` with the complete body above, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="reviewer" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;

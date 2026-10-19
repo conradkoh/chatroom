@@ -6,6 +6,7 @@ import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
 import { getResearcherGuidance } from './researcher';
+import { getReviewerGuidance } from './reviewer';
 import { getTriageGuidance } from './triage';
 import { getUiuxEngineerGuidance } from './uiux-engineer';
 import { getVerifierGuidance } from './verifier';
@@ -30,6 +31,8 @@ const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams)
     getArchitectGuidance({ recipientRole, nativeIntegration }),
   researcher: ({ recipientRole, nativeIntegration }) =>
     getResearcherGuidance({ recipientRole, nativeIntegration }),
+  reviewer: ({ recipientRole, nativeIntegration }) =>
+    getReviewerGuidance({ recipientRole, nativeIntegration }),
   triage: ({ recipientRole, nativeIntegration }) =>
     getTriageGuidance({ recipientRole, nativeIntegration }),
   verifier: ({ recipientRole, nativeIntegration }) =>

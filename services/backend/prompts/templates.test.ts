@@ -30,7 +30,7 @@ describe('role templates', () => {
       ],
       defaultHandoffTarget: 'user',
     });
-    expect(getRoleTemplate('reviewer').description).toContain('participating as the reviewer');
+    expect(getRoleTemplate('designer').description).toContain('participating as the designer');
     expect(BUILTIN_ROLE_TEMPLATES).not.toHaveProperty('tester');
   });
 
