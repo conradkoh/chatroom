@@ -48,4 +48,20 @@ describe('normalizeMarkdownContent — markdown with HTML-like text', () => {
     expect(normalizeMarkdownContent(legacy)).toContain('world');
     expect(normalizeMarkdownContent(legacy)).not.toContain('<p>');
   });
+
+  it('converts legacy HTML that starts with an inline tag', () => {
+    const legacy = '<strong>Bold</strong> and <span>plain</span>';
+    expect(looksLikeHtml(legacy)).toBe(true);
+    expect(normalizeMarkdownContent(legacy)).not.toContain('<strong>');
+  });
+
+  it('converts clipboard-style HTML that starts with a meta tag', () => {
+    const pasted = `<meta charset='utf-8'><span style="color:red">Pasted</span> text`;
+    expect(looksLikeHtml(pasted)).toBe(true);
+    expect(normalizeMarkdownContent(pasted)).not.toContain('<span');
+  });
+
+  it('matches uppercase legacy tags', () => {
+    expect(looksLikeHtml('<P>Shout</P>')).toBe(true);
+  });
 });
