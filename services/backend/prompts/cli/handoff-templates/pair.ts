@@ -102,6 +102,9 @@ export function isTeamPresetId(value: string): value is TeamPresetId {
   return (TEAM_PRESET_IDS as readonly string[]).includes(value);
 }
 
+/** Builtin team used when a caller omits a team id; the single source of the default. */
+export const DEFAULT_HANDOFF_TEAM_ID: TeamPresetId = 'duo';
+
 /** Human-readable pair label, e.g. `` `planner` → `builder` ``. */
 export function formatHandoffPairLabel(pair: { fromRole: string; toRole: string }): string {
   return `\`${pair.fromRole}\` → \`${pair.toRole}\``;

@@ -10,7 +10,7 @@
  */
 
 import { listHandoffTemplatePairs } from '../handoff-templates';
-import { formatHandoffTemplateCommand } from '../handoff-templates/pair';
+import { DEFAULT_HANDOFF_TEAM_ID, formatHandoffTemplateCommand } from '../handoff-templates/pair';
 
 export interface HandoffTemplateDiscoveryGuidanceParams {
   teamId?: string | undefined;
@@ -23,7 +23,7 @@ export function getHandoffTemplateDiscoveryGuidance(
 ): string {
   if (params.nativeIntegration) return '';
 
-  const teamId = params.teamId ?? 'duo';
+  const teamId = params.teamId ?? DEFAULT_HANDOFF_TEAM_ID;
   const pairs = listHandoffTemplatePairs(teamId, params.role);
   const commands = pairs.length
     ? pairs.map((pair) =>

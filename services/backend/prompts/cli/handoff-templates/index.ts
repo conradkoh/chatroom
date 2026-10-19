@@ -16,6 +16,7 @@ import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
 
 import type { HandoffTemplateQuery, RoleHandoffContract } from './contracts';
 import {
+  DEFAULT_HANDOFF_TEAM_ID,
   HandoffTemplatePairError,
   isConversationMode,
   isTeamPresetId,
@@ -64,7 +65,7 @@ export function listHandoffTemplatePairs(
   teamId: string | undefined,
   fromRole?: string
 ): readonly HandoffTemplatePair[] {
-  const team = (teamId ?? 'duo').trim().toLowerCase();
+  const team = (teamId ?? DEFAULT_HANDOFF_TEAM_ID).trim().toLowerCase();
   if (!isTeamPresetId(team)) return [];
 
   const normalizedFrom = fromRole === undefined ? undefined : fromRole.trim().toLowerCase();
@@ -102,7 +103,7 @@ function resolveHandoffTemplatePair(
   const to = normalizeHandoffRole(input.to);
   const legacyRole = normalizeHandoffRole(input.legacyRole);
   const legacyNextRole = normalizeHandoffRole(input.legacyNextRole);
-  const team = (input.teamId ?? 'duo').trim().toLowerCase();
+  const team = (input.teamId ?? DEFAULT_HANDOFF_TEAM_ID).trim().toLowerCase();
 
   if (from !== undefined && to !== undefined) {
     if (!isTeamPresetId(team)) {
@@ -223,7 +224,7 @@ export function getReplyHandoffTemplatePair(pair: HandoffTemplatePair): HandoffT
  */
 // fallow-ignore-next-line complexity
 export function getHandoffTemplate(query: HandoffTemplateQuery): string | null {
-  const team = (query.teamId ?? 'duo').trim().toLowerCase();
+  const team = (query.teamId ?? DEFAULT_HANDOFF_TEAM_ID).trim().toLowerCase();
   const fromRole = normalizeHandoffRole(query.fromRole);
   const toRole = normalizeHandoffRole(query.toRole);
   if (!isTeamPresetId(team) || fromRole === undefined || toRole === undefined) return null;
