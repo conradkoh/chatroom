@@ -19,7 +19,8 @@ type RoleSpecificGuidanceParams = {
   nativeIntegration?: boolean | undefined;
   codeChangesTarget?: string | undefined;
   questionTarget?: string | undefined;
-  entryPointRole?: string | undefined;
+  /** Role the specialist guidance hands off to (the team's entry role). */
+  entryPointRole: string;
 };
 
 const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams) => string> = {
@@ -45,7 +46,7 @@ export function getRoleSpecificGuidance(
   teamRoles: string[],
   isEntryPoint: boolean,
   convexUrl: string,
-  entryPointRole?: string
+  entryPointRole: string
 ): string {
   const normalizedRole = role.toLowerCase();
   return (

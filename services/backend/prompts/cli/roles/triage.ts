@@ -3,7 +3,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type TriageGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  entryPointRole?: string | undefined;
+  /** Role triage hands the report to (the team's entry role). */
+  entryPointRole: string;
 };
 
 const TRIAGE_GUIDANCE = `## Triage Operating Model
@@ -18,15 +19,15 @@ ${getInterRoleHandoffRule()}
 2. Trace the relevant code paths with concrete repository paths and symbols. Label every finding \`confirmed\` or \`hypothesis\`. Never present a hypothesis as fact.
 3. Attempt a focused reproduction only when it is cheap and safe. A focused regression test may be written as evidence. Do not edit implementation files.
 4. Write the report using the sections in the injected \`<handoff-templates>\`, in the order given, beginning with the \`## Summary\` section.
-5. Hand the report to the configured entry point with the normal command, then stop:
+5. Hand the report to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="triage" --next-role="{ENTRY_POINT_ROLE}"
 \`\`\``;
 
-export function getTriageGuidance(params: TriageGuidanceParams = {}): string {
-  return TRIAGE_GUIDANCE.replace(
+export function getTriageGuidance(params: TriageGuidanceParams): string {
+  return TRIAGE_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole?.trim().toLowerCase() || 'planner'
+    params.entryPointRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

@@ -15,7 +15,7 @@ describe('triage guidance snapshots', () => {
     expect(guidance).toMatchSnapshot();
   });
 
-  test('is advisory and hands off to the configured entry point', () => {
+  test('is advisory and hands off to the concrete recipient', () => {
     const guidance = getTriageGuidance({ nativeIntegration: false, entryPointRole: 'Planner' });
 
     expect(guidance).toContain('advisory only');
@@ -27,13 +27,19 @@ describe('triage guidance snapshots', () => {
   });
 
   test('role dispatch renders the operating model for triage', () => {
-    const guidance = getRoleSpecificGuidance('triage', ['triage'], false, 'http://127.0.0.1:3210');
+    const guidance = getRoleSpecificGuidance(
+      'triage',
+      ['triage'],
+      false,
+      'http://127.0.0.1:3210',
+      'planner'
+    );
 
     expect(guidance).not.toBe('');
     expect(guidance).toContain('## Triage Operating Model');
   });
 
-  test('from context, hands off to the configured entry point', () => {
+  test('from context, hands off to the concrete recipient', () => {
     const ctx: SelectorContext = {
       role: 'triage',
       team: 'solo',

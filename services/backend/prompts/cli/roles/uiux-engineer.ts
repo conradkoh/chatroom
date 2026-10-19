@@ -3,7 +3,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type UiuxEngineerGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  entryPointRole?: string | undefined;
+  /** Role the UI/UX engineer hands the design brief to (the team's entry role). */
+  entryPointRole: string;
 };
 
 const UIUX_ENGINEER_GUIDANCE = `## UI/UX Engineer Operating Model
@@ -20,17 +21,17 @@ ${getInterRoleHandoffRule()}
 4. Specify exact keyboard shortcuts, focus order, keyboard navigation, focus restoration, accessible semantics and labels, component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
 5. Choose concrete ShadCN components using the Base UI backend and existing icon conventions. Specify exact Tailwind utility or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode; keep the styling theme-aware and make state ownership explicit. Also specify responsive breakpoints, visual feedback, destructive-action safeguards, and the UI/integration/accessibility test plan.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to the configured entry point with the normal command, then stop:
+7. Hand the complete design brief to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="{ENTRY_POINT_ROLE}"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen flow, exact component/prop/state details, explicit states, accessibility details, ownership decisions, concrete classes/tokens, risks, acceptance criteria, tests, and implementation sequence the configured entry point needs to coordinate implementation. It must not contain implementation edits or alternative designs.`;
+The handoff must contain every required brief section, repository evidence, chosen flow, exact component/prop/state details, explicit states, accessibility details, ownership decisions, concrete classes/tokens, risks, acceptance criteria, tests, and implementation sequence \`{ENTRY_POINT_ROLE}\` needs to coordinate implementation. It must not contain implementation edits or alternative designs.`;
 
-export function getUiuxEngineerGuidance(params: UiuxEngineerGuidanceParams = {}): string {
-  return UIUX_ENGINEER_GUIDANCE.replace(
+export function getUiuxEngineerGuidance(params: UiuxEngineerGuidanceParams): string {
+  return UIUX_ENGINEER_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole?.trim().toLowerCase() || 'planner'
+    params.entryPointRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

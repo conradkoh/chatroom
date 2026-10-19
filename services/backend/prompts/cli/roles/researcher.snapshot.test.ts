@@ -12,7 +12,7 @@ describe('researcher guidance snapshots', () => {
     expect(guidance).toMatchSnapshot();
   });
 
-  test('is advisory and hands off to the configured entry point', () => {
+  test('is advisory and hands off to the concrete recipient', () => {
     const guidance = getResearcherGuidance({ nativeIntegration: false, entryPointRole: 'Planner' });
 
     expect(guidance).toContain('advisory only');

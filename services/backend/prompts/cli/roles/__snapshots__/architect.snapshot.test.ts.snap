@@ -16,13 +16,13 @@ Completing a **chatroom task** does NOT end your **session**. After every handof
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to the configured entry point with the normal command, then stop:
+7. Hand the complete design brief to \`planner\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="planner"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence the configured entry point needs to coordinate implementation. It must not contain implementation edits or alternative designs."
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`planner\` needs to coordinate implementation. It must not contain implementation edits or alternative designs."
 `;
 
 exports[`architect guidance snapshots > CLI solo renders the complete operating model 1`] = `
@@ -41,13 +41,13 @@ Completing a **chatroom task** does NOT end your **session**. After every handof
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to the configured entry point with the normal command, then stop:
+7. Hand the complete design brief to \`solo\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="solo"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence the configured entry point needs to coordinate implementation. It must not contain implementation edits or alternative designs."
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`solo\` needs to coordinate implementation. It must not contain implementation edits or alternative designs."
 `;
 
 exports[`architect guidance snapshots > native planner renders the complete operating model 1`] = `
@@ -66,13 +66,13 @@ You are the architect responsible for careful coding and system design. You are 
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to the configured entry point with the normal command, then stop:
+7. Hand the complete design brief to \`planner\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="planner"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence the configured entry point needs to coordinate implementation. It must not contain implementation edits or alternative designs."
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`planner\` needs to coordinate implementation. It must not contain implementation edits or alternative designs."
 `;
 
 exports[`architect guidance snapshots > native solo renders the complete operating model 1`] = `
@@ -91,11 +91,11 @@ You are the architect responsible for careful coding and system design. You are 
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to the configured entry point with the normal command, then stop:
+7. Hand the complete design brief to \`solo\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="solo"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence the configured entry point needs to coordinate implementation. It must not contain implementation edits or alternative designs."
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`solo\` needs to coordinate implementation. It must not contain implementation edits or alternative designs."
 `;

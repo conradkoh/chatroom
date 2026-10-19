@@ -6,7 +6,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type VerifierGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  entryPointRole?: string | undefined;
+  /** Role the verifier hands the verdict to (the team's entry role). */
+  entryPointRole: string;
 };
 
 const [ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE] = VERIFIER_VERDICTS;
@@ -27,16 +28,16 @@ ${getInterRoleHandoffRule()}
 4a. User expectations: the user's handoff template defines what the user expects from the work. In a code mode, turn each applicable item that concerns the work into a user expectation: each requirement's evidence (PR, commit, or file), files changed, Code Change Verification, backlog items moved to \`pending_user_review\` after a verified end-to-end feature with a PR, and any manual steps or unresolved decisions the user must act on. Skip presentation-only items: template disclosure checkboxes, section order, collapsing, diagram format, and Proof of Planning. In \`chat\` mode the template asks only for a direct, concise answer, so add no expectations beyond the requirements.
 5. Find evidence for every requirement in the logs alone: builder handoff reports, planner delegations, quoted test output, commits, and PRs. \`met\` requires concrete evidence in the logs. The planner's claimed outcome is a claim, not evidence. Silence means \`unverified\`. A contradiction, or a log showing the requirement was not done, means \`unmet\`. Never state that tests passed unless a log reports it, or you ran the requested tests yourself.
 6. Choose exactly one verdict from ${VERIFIER_VERDICTS.join(', ')}: ${ACHIEVED} only if every requirement and every user expectation is met; ${NOT_ACHIEVED} if any requirement or user expectation is unmet; ${INCONCLUSIVE} if none is unmet but any is unverified.
-7. Follow the injected \`<handoff-templates>\` verdict template exactly, in its order, and put the complete verdict in the handoff. Then hand off to the configured entry point with the normal command, then stop:
+7. Follow the injected \`<handoff-templates>\` verdict template exactly, in its order, and put the complete verdict in the handoff. Then hand off to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="{ENTRY_POINT_ROLE}"
 \`\`\``;
 
-export function getVerifierGuidance(params: VerifierGuidanceParams = {}): string {
-  const guidance = VERIFIER_GUIDANCE.replace(
+export function getVerifierGuidance(params: VerifierGuidanceParams): string {
+  const guidance = VERIFIER_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole?.trim().toLowerCase() || 'planner'
+    params.entryPointRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 
   const userTemplateSection = `## The User's Handoff Template
