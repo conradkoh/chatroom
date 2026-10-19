@@ -90,7 +90,7 @@ ${sharedContractsHeading}
 ## Requirements (acceptance criteria)
 - <one concrete, verifiable requirement per bullet; include exact states, interactions, classes/tokens, and responsive behavior>
 - Include UI and integration test coverage for the design's risk areas.
-- Verify the implemented user-facing entry point end-to-end; unit tests alone are insufficient.
+- Verify the implemented user-facing feature end-to-end; unit tests alone are insufficient.
 
 ## What to avoid
 - Do not implement code or edit files as the UI/UX engineer; this handoff is advisory only.

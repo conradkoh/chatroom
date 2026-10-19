@@ -89,7 +89,7 @@ ${sharedContractsHeading}
 ## Requirements (acceptance criteria)
 - <one concrete, verifiable requirement per bullet; include exact data shape, API contract, migration result, and failure behavior>
 - Include repository test coverage for domain, concurrency, read-pattern, migration, and recovery risk areas.
-- Verify the implemented user-facing entry point or task-delivery path end-to-end; unit tests alone are insufficient.
+- Verify the implemented user-facing feature or task-delivery path end-to-end; unit tests alone are insufficient.
 
 ## What to avoid
 - Do not implement code or edit files as the architect; this handoff is advisory only.

@@ -3,7 +3,7 @@
 exports[`triage guidance snapshots > CLI planner renders the complete operating model 1`] = `
 "## Triage Operating Model
 
-You are the triage agent responsible for investigating a reported bug so the entry point can delegate a precise fix. You are advisory only: do not edit implementation files or implement the fix.
+You are the triage agent responsible for investigating a reported bug so the recipient can delegate a precise fix. You are advisory only: do not edit implementation files or implement the fix.
 
 Completing a **chatroom task** does NOT end your **session**. After every handoff, run \`get-next-task\` to continue.
 
@@ -24,7 +24,7 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="triage" --next-role="plan
 exports[`triage guidance snapshots > native planner renders the complete operating model 1`] = `
 "## Triage Operating Model
 
-You are the triage agent responsible for investigating a reported bug so the entry point can delegate a precise fix. You are advisory only: do not edit implementation files or implement the fix.
+You are the triage agent responsible for investigating a reported bug so the recipient can delegate a precise fix. You are advisory only: do not edit implementation files or implement the fix.
 
 
 

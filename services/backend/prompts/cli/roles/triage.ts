@@ -9,7 +9,7 @@ export type TriageGuidanceParams = {
 
 const TRIAGE_GUIDANCE = `## Triage Operating Model
 
-You are the triage agent responsible for investigating a reported bug so the entry point can delegate a precise fix. You are advisory only: do not edit implementation files or implement the fix.
+You are the triage agent responsible for investigating a reported bug so the recipient can delegate a precise fix. You are advisory only: do not edit implementation files or implement the fix.
 
 ${'{SESSION_CONTINUITY}'}
 
