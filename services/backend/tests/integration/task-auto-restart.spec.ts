@@ -121,15 +121,15 @@ describe('Handoff target role validation', () => {
     const result = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      content: 'Handing off to reviewer',
+      content: 'Handing off to designer',
       senderRole: 'planner',
-      targetRole: 'reviewer',
+      targetRole: 'designer',
     });
 
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
     expect(result.error?.code).toBe('INVALID_TARGET_ROLE');
-    expect(result.error?.message).toContain('Cannot hand off to "reviewer"');
+    expect(result.error?.message).toContain('Cannot hand off to "designer"');
     expect(result.error?.message).toContain('not part of the current team');
     expect(result.error?.suggestedTargets).toEqual([
       'user',
@@ -137,6 +137,7 @@ describe('Handoff target role validation', () => {
       'architect',
       'researcher',
       'triage',
+      'reviewer',
       'uiux-engineer',
       'verifier',
       'builder',

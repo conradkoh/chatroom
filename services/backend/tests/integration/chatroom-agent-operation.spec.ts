@@ -162,6 +162,7 @@ describe('agents.requestChatroomAgentOperation', () => {
       'triage',
       'uiux-engineer',
       'researcher',
+      'reviewer',
       'verifier',
     ];
     expect(result.skipped).toEqual(

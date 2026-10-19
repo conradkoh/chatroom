@@ -34,7 +34,7 @@ const mismatchedIdentity: typeof AGENT_ROLE_DEFINITIONS.planner = {
   role: 'triage',
 };
 // @ts-expect-error Builtin role names derive from metadata keys.
-const customBuiltin: BuiltinAgentRole = 'reviewer';
+const customBuiltin: BuiltinAgentRole = 'designer';
 // @ts-expect-error The solo-only role is not a Duo builtin member.
 const duoSoloRole: BuiltinTeamRole<'duo'> = 'solo';
 
@@ -49,13 +49,13 @@ const customStructure: TeamStructure = {
   teamId: 'custom',
   teamStructureId: 'custom',
   teamName: 'Custom',
-  entryPoint: 'reviewer',
-  roles: [{ role: 'reviewer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false }],
+  entryPoint: 'designer',
+  roles: [{ role: 'designer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false }],
 };
 const customResolvedStructure = getTeamStructure({
   teamId: 'custom',
-  persistedRoles: ['reviewer'],
-  persistedEntryPoint: 'reviewer',
+  persistedRoles: ['designer'],
+  persistedEntryPoint: 'designer',
 });
 
 void [

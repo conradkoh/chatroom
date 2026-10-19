@@ -17,6 +17,7 @@ const missingPrompt: BuiltinRoleTemplateCatalog = {
   builder: BUILTIN_ROLE_TEMPLATES.builder,
   solo: BUILTIN_ROLE_TEMPLATES.solo,
   researcher: BUILTIN_ROLE_TEMPLATES.researcher,
+  reviewer: BUILTIN_ROLE_TEMPLATES.reviewer,
   verifier: BUILTIN_ROLE_TEMPLATES.verifier,
   triage: BUILTIN_ROLE_TEMPLATES.triage,
   'uiux-engineer': BUILTIN_ROLE_TEMPLATES['uiux-engineer'],
@@ -35,6 +36,7 @@ const missingDuoContract: BuiltinTeamHandoffCatalog<'duo'> = {
   planner: DUO_ROLE_HANDOFF_CATALOG.planner,
   builder: DUO_ROLE_HANDOFF_CATALOG.builder,
   researcher: DUO_ROLE_HANDOFF_CATALOG.researcher,
+  reviewer: DUO_ROLE_HANDOFF_CATALOG.reviewer,
   verifier: DUO_ROLE_HANDOFF_CATALOG.verifier,
   triage: DUO_ROLE_HANDOFF_CATALOG.triage,
   'uiux-engineer': DUO_ROLE_HANDOFF_CATALOG['uiux-engineer'],
@@ -75,8 +77,8 @@ void soloAsDuoTarget;
 
 const unknownBuiltinTarget: BuiltinTeamRoleHandoffContract<'duo', 'planner'> = {
   role: 'planner',
-  // @ts-expect-error reviewer is not a duo role or user
-  receivesFrom: ['reviewer'],
+  // @ts-expect-error designer is not a duo role or user
+  receivesFrom: ['designer'],
   returnsTo: ['user'],
   outboundTemplates: { user: () => 'handoff' },
 };

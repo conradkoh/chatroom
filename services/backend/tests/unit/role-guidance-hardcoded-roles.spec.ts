@@ -26,7 +26,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
     expect(guidance).toContain('Operating model: Planner + Builder');
     expect(guidance).toContain('**To delegate implementation** → Hand off to `builder`');
-    expect(guidance).not.toContain('reviewer');
+    expect(guidance).not.toContain('enhancer');
   });
 
   test('duo team planner - Handoff Rules snapshot', () => {
@@ -65,7 +65,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     });
 
     expect(guidance).toContain('Operating model: Planner Solo');
-    expect(guidance).not.toContain('reviewer');
+    expect(guidance).not.toContain('enhancer');
 
     const handoffRulesMatch = guidance.match(
       /\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/
@@ -148,7 +148,7 @@ describe('getBuilderGuidance', () => {
       questionTarget: 'planner',
     });
 
-    expect(guidance).not.toContain('reviewer');
+    expect(guidance).not.toContain('enhancer');
     expect(guidance).toContain('Hand off to `planner`');
   });
 
@@ -224,7 +224,7 @@ describe('getRoleGuidanceFromContext - duo team', () => {
 
     expect(guidance).toContain('Duo Team Context');
     expect(guidance).toContain('Planner + Builder');
-    expect(guidance).not.toContain('reviewer');
+    expect(guidance).not.toContain('enhancer');
   });
 
   test('duo builder should produce duo-specific guidance', () => {
@@ -239,7 +239,7 @@ describe('getRoleGuidanceFromContext - duo team', () => {
     const guidance = getRoleGuidanceFromContext(ctx);
 
     expect(guidance).toContain('Duo Team Context');
-    expect(guidance).not.toContain('reviewer');
+    expect(guidance).not.toContain('enhancer');
   });
 });
 

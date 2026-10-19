@@ -21,6 +21,7 @@ describe('team presets', () => {
         'architect',
         'researcher',
         'triage',
+        'reviewer',
         'uiux-engineer',
         'verifier',
         'builder',

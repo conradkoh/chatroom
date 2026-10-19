@@ -135,7 +135,7 @@ describe('handoff-templates > resolver', () => {
 
   test('returns null for role pairs without a specialized template', () => {
     expect(getHandoffTemplate({ fromRole: 'builder', toRole: 'user' })).toBeNull();
-    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'reviewer' })).toBeNull();
+    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'designer' })).toBeNull();
   });
 
   test('resolves solo → user to the solo report template', () => {
@@ -885,8 +885,8 @@ describe('handoff-templates > conversation mode chat', () => {
 describe('handoff-templates > pair-addressed rendering invariants', () => {
   const allPairs = [...listHandoffTemplatePairs('duo'), ...listHandoffTemplatePairs('solo')];
 
-  test('all 22 permanent pairs render one callout followed by exactly one pair title line', () => {
-    expect(allPairs).toHaveLength(22);
+  test('all 24 permanent pairs render one callout followed by exactly one pair title line', () => {
+    expect(allPairs).toHaveLength(24);
 
     for (const pair of allPairs) {
       const label = `${pair.teamId}:${pair.fromRole}->${pair.toRole}`;

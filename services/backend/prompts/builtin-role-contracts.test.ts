@@ -142,38 +142,38 @@ describe('builtin role capability contracts', () => {
         new RegExp(`${TEAM_PRESETS[teamId].name}.*missing.*triage`, 'i')
       );
 
-      const reviewer: RoleHandoffContract = {
-        role: 'reviewer',
+      const designer: RoleHandoffContract = {
+        role: 'designer',
         receivesFrom: [TEAM_PRESETS[teamId].entryPoint],
         returnsTo: [TEAM_PRESETS[teamId].entryPoint],
         outboundTemplates: { [TEAM_PRESETS[teamId].entryPoint]: () => 'review complete' },
       };
-      const withReviewer = cloneContracts(original);
-      const entryPoint = withReviewer.find(({ role }) => role === TEAM_PRESETS[teamId].entryPoint)!;
-      entryPoint.receivesFrom = [...entryPoint.receivesFrom, 'reviewer'];
-      entryPoint.returnsTo = [...entryPoint.returnsTo, 'reviewer'];
+      const withDesigner = cloneContracts(original);
+      const entryPoint = withDesigner.find(({ role }) => role === TEAM_PRESETS[teamId].entryPoint)!;
+      entryPoint.receivesFrom = [...entryPoint.receivesFrom, 'designer'];
+      entryPoint.returnsTo = [...entryPoint.returnsTo, 'designer'];
       entryPoint.outboundTemplates = {
         ...entryPoint.outboundTemplates,
-        reviewer: () => 'review request',
+        designer: () => 'review request',
       };
-      withReviewer.push(reviewer);
-      expect(() => validateRoleHandoffContracts(withReviewer)).not.toThrow();
-      expect(() => validateBuiltinTeamRoleHandoffContracts(teamId, withReviewer)).toThrow(
-        new RegExp(`${TEAM_PRESETS[teamId].name}.*unexpected.*reviewer`, 'i')
+      withDesigner.push(designer);
+      expect(() => validateRoleHandoffContracts(withDesigner)).not.toThrow();
+      expect(() => validateBuiltinTeamRoleHandoffContracts(teamId, withDesigner)).toThrow(
+        new RegExp(`${TEAM_PRESETS[teamId].name}.*unexpected.*designer`, 'i')
       );
 
       const unregisteredTarget = cloneContracts(original);
       const triage = unregisteredTarget.find(({ role }) => role === 'triage')!;
-      triage.receivesFrom = [...triage.receivesFrom, 'reviewer'];
+      triage.receivesFrom = [...triage.receivesFrom, 'designer'];
       expect(() => validateBuiltinTeamRoleHandoffContracts(teamId, unregisteredTarget)).toThrow(
-        new RegExp(`${TEAM_PRESETS[teamId].name}.*triage.*reviewer`, 'i')
+        new RegExp(`${TEAM_PRESETS[teamId].name}.*triage.*designer`, 'i')
       );
 
       const unregisteredReturnTarget = cloneContracts(original);
-      unregisteredReturnTarget.find(({ role }) => role === 'triage')!.returnsTo = ['reviewer'];
+      unregisteredReturnTarget.find(({ role }) => role === 'triage')!.returnsTo = ['designer'];
       expect(() =>
         validateBuiltinTeamRoleHandoffContracts(teamId, unregisteredReturnTarget)
-      ).toThrow(new RegExp(`${TEAM_PRESETS[teamId].name}.*triage.*reviewer`, 'i'));
+      ).toThrow(new RegExp(`${TEAM_PRESETS[teamId].name}.*triage.*designer`, 'i'));
 
       const mismatchedReturns = cloneContracts(original);
       mismatchedReturns.find(({ role }) => role === 'triage')!.returnsTo = [];

@@ -34,6 +34,7 @@ describe('getAgentViewStatus', () => {
       'stopped',
       'stopped',
       'stopped',
+      'stopped',
     ]);
   });
 
@@ -85,11 +86,12 @@ describe('getAgentViewStatus — fresh team', () => {
       'architect',
       'researcher',
       'triage',
+      'reviewer',
       'uiux-engineer',
       'verifier',
       'builder',
     ]);
-    expect(result!.agents).toHaveLength(7);
+    expect(result!.agents).toHaveLength(8);
     expect(result!.agents.every((a) => a.state === 'stopped')).toBe(true);
   });
 });

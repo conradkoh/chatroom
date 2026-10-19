@@ -70,6 +70,7 @@ describe('appendNativeDeliveryHandoffTemplates — pair headings in returnsTo or
       'planner→uiux-engineer',
       'planner→triage',
       'planner→researcher',
+      'planner→reviewer',
       'planner→verifier',
     ]);
   });

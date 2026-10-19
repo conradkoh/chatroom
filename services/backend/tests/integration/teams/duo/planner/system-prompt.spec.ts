@@ -74,7 +74,7 @@ describe('Duo Team > Planner > System Prompt', () => {
     // Planner CAN hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toContain(
-      'Available targets: architect, researcher, triage, uiux-engineer, verifier, builder, user'
+      'Available targets: architect, researcher, triage, reviewer, uiux-engineer, verifier, builder, user'
     );
     // Researcher nudge points to the researcher handoff template rather than restating its criteria
     expect(prompt).toContain('Ground new work first');
@@ -290,12 +290,13 @@ describe('Duo Team > Planner > System Prompt', () => {
       - You coordinate with the builder for implementation tasks
       - You are ultimately accountable for all work quality
       - **Ground new work first:** when a request introduces something not yet grounded in this repository, get a researcher brief before delegating. The \`researcher\` handoff template defines when research is needed and how to request it.
+      - **Review on demand:** when a builder slice is complete or the user asks for a code review, hand off to \`reviewer\` with the review target (commit range, branch, PR, or file list) and focus. Review findings are advisory: triage them, send blocking issues back to \`builder\` as rework, and deliver to \`user\` only after blockers are resolved or explicitly accepted. The \`reviewer\` handoff template defines the request.
       - **Bug reports go to triage first:** when the user reports a bug (something broken or behaving differently than expected), always hand off to \`triage\` to investigate before any builder delegation. Never delegate a bug fix straight to the builder. The \`triage\` handoff template defines what to send.
       - **Verify before delivering:** when task delivery includes a \`<verifier-gate>\` block, follow it before handing off to \`user\`. The \`verifier\` handoff template defines the request.
       - After reviewing builder output, deliver results to the user
       - **Only you can hand off to \`user\`**
 
-      **Team composition:** Duo team — you coordinate with \`architect\`, \`researcher\`, \`triage\`, \`uiux-engineer\`, \`verifier\`, \`builder\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`architect\`, \`researcher\`, \`triage\`, \`reviewer\`, \`uiux-engineer\`, \`verifier\`, \`builder\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -333,6 +334,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       chatroom handoff view-template --from="planner" --to="uiux-engineer" --mode="<chat|code|code:enhanced>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="triage" --mode="<chat|code|code:enhanced>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="researcher" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="reviewer" --mode="<chat|code|code:enhanced>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="verifier" --mode="<chat|code|code:enhanced>" --team-id="duo"
       \`\`\`
       All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
@@ -418,7 +420,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
 
       ### Handoff Options
-      Available targets: architect, researcher, triage, uiux-engineer, verifier, builder, user
+      Available targets: architect, researcher, triage, reviewer, uiux-engineer, verifier, builder, user
 
       ### Commands
 

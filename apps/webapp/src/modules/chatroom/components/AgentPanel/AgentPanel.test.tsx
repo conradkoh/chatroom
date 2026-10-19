@@ -33,7 +33,7 @@ const pinnedTeamFacts = [
   {
     teamId: 'duo',
     permanentRoles: ['planner', 'builder'],
-    ephemeralRoles: ['architect', 'researcher', 'triage', 'uiux-engineer', 'verifier'],
+    ephemeralRoles: ['architect', 'researcher', 'triage', 'reviewer', 'uiux-engineer', 'verifier'],
   },
   {
     teamId: 'solo',
@@ -154,8 +154,8 @@ describe('AgentPanel', () => {
   it('keeps declared rows visible while status data is loading', () => {
     render(<AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={undefined} />);
 
-    expect(screen.getByText('Agents (7)')).toBeInTheDocument();
-    expect(screen.getByText('Ephemeral (5)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (8)')).toBeInTheDocument();
+    expect(screen.getByText('Ephemeral (6)')).toBeInTheDocument();
     const triage = screen.getByLabelText(/triage: Loading/i);
     expect(triage).toBeInTheDocument();
     expect(within(triage).getByLabelText('Status: Loading...')).toBeInTheDocument();
@@ -169,7 +169,7 @@ describe('AgentPanel', () => {
       <AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={errorStatus} />
     );
 
-    expect(screen.getByText('Agents (7)')).toBeInTheDocument();
+    expect(screen.getByText('Agents (8)')).toBeInTheDocument();
     expect(screen.getAllByLabelText(/triage:/i)).toHaveLength(1);
     expect(screen.getByLabelText(/triage:/i)).toHaveTextContent('OFFLINE (ERROR)');
     expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
@@ -190,7 +190,7 @@ describe('AgentPanel', () => {
       roles: [
         { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
         { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-        { role: 'reviewer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+        { role: 'analyst', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
         { role: 'tester', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
         { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
         { role: 'triage', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
@@ -204,7 +204,7 @@ describe('AgentPanel', () => {
     expect(screen.getByText('Ephemeral (3)')).toBeInTheDocument();
     expect(screen.getByLabelText(/planner:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/builder:/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/reviewer:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/analyst:/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/tester:/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/triage:/i)).toBeInTheDocument();
