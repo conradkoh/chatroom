@@ -52,7 +52,7 @@ export const TEAM_PRESETS = {
     structureId: TEAM_STRUCTURE_IDS.duo,
     name: 'Duo',
     description:
-      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, uiux-engineer, and verifier roles',
+      'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, and verifier roles',
     roles: getBuiltinRolesForTeam('duo'),
     entryPoint: 'planner',
   },

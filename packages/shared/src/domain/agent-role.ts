@@ -66,6 +66,10 @@ const roleMetadata = {
       { teamId: 'solo', order: 45 },
     ],
   },
+  reviewer: {
+    tags: [AgentRoleLifecycleTag.Ephemeral],
+    teams: [{ teamId: 'duo', order: 35 }],
+  },
 } as const satisfies Record<string, AgentRoleMetadata>;
 
 export type BuiltinAgentRole = keyof typeof roleMetadata;

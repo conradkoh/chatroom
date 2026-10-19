@@ -25,12 +25,13 @@ describe('team presets', () => {
       name: 'Duo',
       structureId: 'duo@1',
       description:
-        'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, uiux-engineer, and verifier roles',
+        'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, and verifier roles',
       roles: [
         'planner',
         'architect',
         'researcher',
         'triage',
+        'reviewer',
         'uiux-engineer',
         'verifier',
         'builder',
@@ -76,6 +77,7 @@ describe('team presets', () => {
               { role: 'architect', lifecycle: 'ephemeral', optional: true },
               { role: 'researcher', lifecycle: 'ephemeral', optional: true },
               { role: 'triage', lifecycle: 'ephemeral', optional: true },
+              { role: 'reviewer', lifecycle: 'ephemeral', optional: true },
               { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
               { role: 'verifier', lifecycle: 'ephemeral', optional: true },
               { role: 'builder', lifecycle: 'permanent', optional: false },
@@ -112,16 +114,16 @@ describe('team presets', () => {
       getTeamStructure({
         teamId: ' custom-team ',
         teamName: 'Custom Team',
-        persistedRoles: ['reviewer', 'enhancer'],
-        persistedEntryPoint: 'reviewer',
+        persistedRoles: ['designer', 'enhancer'],
+        persistedEntryPoint: 'designer',
       })
     ).toEqual({
       teamId: ' custom-team ',
       teamStructureId: 'custom-team',
       teamName: 'Custom Team',
-      entryPoint: 'reviewer',
+      entryPoint: 'designer',
       roles: [
-        { role: 'reviewer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+        { role: 'designer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
         { role: 'enhancer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
       ],
     });
@@ -141,14 +143,32 @@ describe('team presets', () => {
       'duo@1',
       'Duo',
       'planner',
-      ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'verifier', 'builder'],
+      [
+        'planner',
+        'architect',
+        'researcher',
+        'triage',
+        'reviewer',
+        'uiux-engineer',
+        'verifier',
+        'builder',
+      ],
     ],
     [
       'duo@1',
       'duo@1',
       'Duo',
       'planner',
-      ['planner', 'architect', 'researcher', 'triage', 'uiux-engineer', 'verifier', 'builder'],
+      [
+        'planner',
+        'architect',
+        'researcher',
+        'triage',
+        'reviewer',
+        'uiux-engineer',
+        'verifier',
+        'builder',
+      ],
     ],
     [
       'solo',
@@ -178,14 +198,24 @@ describe('team presets', () => {
         entryPoint,
         roles: roles.map((role) => ({
           role,
-          lifecycle: ['architect', 'researcher', 'triage', 'uiux-engineer', 'verifier'].includes(
-            role
-          )
+          lifecycle: [
+            'architect',
+            'researcher',
+            'triage',
+            'reviewer',
+            'uiux-engineer',
+            'verifier',
+          ].includes(role)
             ? 'ephemeral'
             : 'permanent',
-          optional: ['architect', 'researcher', 'triage', 'uiux-engineer', 'verifier'].includes(
-            role
-          ),
+          optional: [
+            'architect',
+            'researcher',
+            'triage',
+            'reviewer',
+            'uiux-engineer',
+            'verifier',
+          ].includes(role),
         })),
       });
       expect(structure.roles.find(({ role }) => role === 'triage')).toEqual({
