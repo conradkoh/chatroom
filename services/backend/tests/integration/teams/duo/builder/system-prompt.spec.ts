@@ -293,7 +293,7 @@ describe('Duo Team > Builder > System Prompt', () => {
       - Commit work with descriptive, atomic commit messages
 
       **Completion gates (before PR or handoff):**
-      - All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+      - All **(Required)** files done; **verified end-to-end** (user-facing feature works: CLI command runnable, API reachable, or UI action functional)
       - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
 
        
