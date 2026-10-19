@@ -7,7 +7,11 @@ import {
 } from '@workspace/shared/domain/team-presets';
 import { describe, expect, test } from 'vitest';
 
-import { getHandoffTemplate, listHandoffTemplates } from './cli/handoff-templates';
+import {
+  getHandoffTemplate,
+  listHandoffTemplatePairs,
+  renderHandoffTemplate,
+} from './cli/handoff-templates';
 import {
   validateBuiltinTeamRoleHandoffContracts,
   validateRoleHandoffContracts,
@@ -72,35 +76,30 @@ describe('builtin role capability contracts', () => {
         }
 
         for (const conversationMode of ['code', 'chat'] as const) {
-          const listing = listHandoffTemplates({
-            teamId,
-            role,
-            nativeIntegration: false,
-            chatroomId: 'contract-test-room',
-            cliEnvPrefix: 'CHATROOM',
-            conversationMode,
-          });
-          expect(listing).not.toBeNull();
-          const resolvedListing = listing!;
-          expect(resolvedListing.templates.map(({ toRole }) => toRole).sort()).toEqual(
+          const pairs = listHandoffTemplatePairs(teamId, role);
+          expect(pairs.map(({ toRole }) => toRole).sort()).toEqual(
             Object.keys(contract.outboundTemplates).sort()
           );
-          expect(resolvedListing.returnsTo).toEqual(contract.returnsTo);
-          expect(resolvedListing.receivesFrom).toEqual(contract.receivesFrom);
-          for (const outbound of resolvedListing.templates) {
-            expect(outbound.fromRole).toBe(role);
-            const resolved = getHandoffTemplate({
-              teamId,
-              fromRole: role,
-              toRole: outbound.toRole,
-              role,
+          expect(pairs.map(({ toRole }) => toRole)).toEqual(contract.returnsTo);
+          for (const pair of pairs) {
+            expect(pair.fromRole).toBe(role);
+            const renderOptions = {
               chatroomId: 'contract-test-room',
               cliEnvPrefix: 'CHATROOM',
               nativeIntegration: false,
               conversationMode,
-            });
-            expect(resolved).toMatch(/\S/);
-            expect(resolved).toBe(outbound.template);
+            } as const;
+            const rendered = renderHandoffTemplate(pair, renderOptions);
+            expect(rendered).toMatch(/\S/);
+            expect(
+              getHandoffTemplate({
+                teamId,
+                fromRole: pair.fromRole,
+                toRole: pair.toRole,
+                role,
+                ...renderOptions,
+              })
+            ).toBe(rendered);
           }
         }
       }

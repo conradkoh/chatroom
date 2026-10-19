@@ -1,111 +1,243 @@
 /**
- * Barrel + resolver for role-specific handoff templates.
+ * Pair resolver for role-specific handoff templates.
  *
  * Handoff templates provide good structure for how a role hands work off to
  * the next role.
  *
- * Team-specific templates live under prompts/teams/{team}/handoff-templates/.
- * The pair resolver (`getHandoffTemplate`) remains a compatibility facade over
- * the role-owned catalogs; `listHandoffTemplates` exposes the deterministic
- * role-level capability/catalog read used by the discovery command.
+ * The role-owned catalogs (`DUO_ROLE_HANDOFF_CATALOG`, `SOLO_ROLE_HANDOFF_CATALOG`)
+ * are the single registry. Pairs are derived from each contract's `returnsTo`
+ * order and rendered through its `outboundTemplates` getter — there is no
+ * separate flat pair registry. `getHandoffTemplate` remains a compatibility
+ * facade over that resolver; the CLI commands resolve explicit pairs.
  */
 // fallow-ignore-file unused-type
 
-import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
 
-import type {
-  HandoffTemplateDescriptor,
-  HandoffTemplateQuery,
-  RoleHandoffContract,
-} from './contracts';
+import type { HandoffTemplateQuery, RoleHandoffContract } from './contracts';
 import {
-  getDuoHandoffTemplate,
-  listDuoRoleHandoffContracts,
-} from '../../teams/duo/handoff-templates';
-import {
-  getSoloHandoffTemplate,
-  listSoloRoleHandoffContracts,
-} from '../../teams/solo/handoff-templates';
+  DEFAULT_HANDOFF_TEAM_ID,
+  HandoffTemplatePairError,
+  isConversationMode,
+  isTeamPresetId,
+  legacyRoleFlagsMessage,
+  missingModeMessage,
+  missingPairMessage,
+  normalizeHandoffMode,
+  normalizeHandoffRole,
+  unknownFromRoleMessage,
+  unknownModeMessage,
+  unknownPairMessage,
+  unknownTeamMessage,
+  type HandoffTemplateCommandName,
+  type HandoffTemplatePair,
+  type HandoffTemplatePairInput,
+  type HandoffTemplateSelection,
+} from './pair';
+import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
+import { listDuoRoleHandoffContracts } from '../../teams/duo/handoff-templates';
+import { listSoloRoleHandoffContracts } from '../../teams/solo/handoff-templates';
+import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
 
 export type { HandoffTemplateQuery } from './contracts';
+export type { HandoffTemplatePair, HandoffTemplatePairInput } from './pair';
 
-export interface ListHandoffTemplatesQuery {
-  teamId?: string | undefined;
-  role: string;
-  nativeIntegration?: boolean | undefined;
-  chatroomId?: string | undefined;
-  cliEnvPrefix?: string | undefined;
-  conversationMode?: ConversationMode | undefined;
-}
+/** Single team dispatch: the validated role-owned catalogs keyed by team. */
+const BUILTIN_TEAM_HANDOFF_CONTRACTS: Readonly<
+  Record<TeamPresetId, readonly RoleHandoffContract[]>
+> = {
+  duo: listDuoRoleHandoffContracts(),
+  solo: listSoloRoleHandoffContracts(),
+};
 
-export interface RoleHandoffTemplateListing {
-  teamId: string;
-  role: string;
-  receivesFrom: readonly string[];
-  returnsTo: readonly string[];
-  templates: readonly HandoffTemplateDescriptor[];
-}
-
-function resolveTeamContracts(teamId: string | undefined): readonly RoleHandoffContract[] | null {
-  const team = (teamId ?? 'duo').toLowerCase();
-  if (team === 'duo') return listDuoRoleHandoffContracts();
-  if (team === 'solo') return listSoloRoleHandoffContracts();
-  return null;
-}
+/** Options passed through to a pair getter (everything but the pair key itself). */
+export type HandoffTemplateRenderOptions = Omit<
+  HandoffTemplateQuery,
+  'fromRole' | 'toRole' | 'teamId' | 'role'
+>;
 
 /**
- * Static role-level catalog read. Returns the role contract's receives/returns
- * metadata plus every renderable outbound template (null results omitted).
- * Returns `null` for unknown teams/roles — the listing never throws.
+ * Pairs in contract `returnsTo` order. `fromRole` omitted → every pair for the
+ * team in catalog order. Unknown team or unknown role → `[]`.
  */
 // fallow-ignore-next-line complexity
-export function listHandoffTemplates(
-  query: ListHandoffTemplatesQuery
-): RoleHandoffTemplateListing | null {
-  const teamId = (query.teamId ?? 'duo').toLowerCase();
-  const contracts = resolveTeamContracts(teamId);
-  if (!contracts) return null;
-  const contract = contracts.find(
-    (candidate) => candidate.role.toLowerCase() === query.role.toLowerCase()
-  );
-  if (!contract) return null;
+export function listHandoffTemplatePairs(
+  teamId: string | undefined,
+  fromRole?: string
+): readonly HandoffTemplatePair[] {
+  const team = (teamId ?? DEFAULT_HANDOFF_TEAM_ID).trim().toLowerCase();
+  if (!isTeamPresetId(team)) return [];
 
-  const templates: HandoffTemplateDescriptor[] = [];
-  // Deterministic order: sort outbound targets alphabetically.
-  for (const toRole of Object.keys(contract.outboundTemplates).sort()) {
-    const getter = contract.outboundTemplates[toRole];
-    const template = getter?.({
+  const normalizedFrom = fromRole === undefined ? undefined : fromRole.trim().toLowerCase();
+  const contracts =
+    normalizedFrom === undefined
+      ? BUILTIN_TEAM_HANDOFF_CONTRACTS[team]
+      : BUILTIN_TEAM_HANDOFF_CONTRACTS[team].filter(
+          (contract) => contract.role.toLowerCase() === normalizedFrom
+        );
+
+  return contracts.flatMap((contract) =>
+    contract.returnsTo.map((toRole) => ({
+      teamId: team,
       fromRole: contract.role,
       toRole,
-      teamId,
-      nativeIntegration: query.nativeIntegration,
-      chatroomId: query.chatroomId,
-      role: contract.role,
-      cliEnvPrefix: query.cliEnvPrefix,
-      conversationMode: query.conversationMode,
-    });
-    if (!template) continue;
-    templates.push({ fromRole: contract.role, toRole, template });
-  }
-
-  return {
-    teamId,
-    role: contract.role,
-    receivesFrom: [...contract.receivesFrom],
-    returnsTo: [...contract.returnsTo],
-    templates,
-  };
+    }))
+  );
 }
 
 /**
- * Resolves the handoff template for a given (fromRole → toRole) pair.
+ * Resolves the canonical pair from raw input.
  *
- * Returns `null` when no specialized template exists for the pair — callers
- * fall back to the generic free-form handoff message in that case.
+ * Precedence: an explicit `from`+`to` pair wins (legacy flags ignored); any
+ * legacy flag yields `LEGACY_ROLE_FLAGS`; otherwise `MISSING_PAIR`, then
+ * `UNKNOWN_TEAM`, `UNKNOWN_FROM_ROLE`, and `UNKNOWN_PAIR`. Inputs are trimmed
+ * and lowercased and `teamId` defaults to `duo`. Throws
+ * {@link HandoffTemplatePairError}.
  */
+// fallow-ignore-next-line complexity
+function resolveHandoffTemplatePair(
+  input: HandoffTemplatePairInput,
+  command: HandoffTemplateCommandName
+): HandoffTemplatePair {
+  const from = normalizeHandoffRole(input.from);
+  const to = normalizeHandoffRole(input.to);
+  const legacyRole = normalizeHandoffRole(input.legacyRole);
+  const legacyNextRole = normalizeHandoffRole(input.legacyNextRole);
+  const team = (input.teamId ?? DEFAULT_HANDOFF_TEAM_ID).trim().toLowerCase();
+
+  if (from !== undefined && to !== undefined) {
+    if (!isTeamPresetId(team)) {
+      throw new HandoffTemplatePairError('UNKNOWN_TEAM', unknownTeamMessage(team));
+    }
+    const contracts = BUILTIN_TEAM_HANDOFF_CONTRACTS[team];
+    const contract = contracts.find((candidate) => candidate.role.toLowerCase() === from);
+    if (!contract) {
+      throw new HandoffTemplatePairError(
+        'UNKNOWN_FROM_ROLE',
+        unknownFromRoleMessage({ from, team, roles: contracts.map((c) => c.role) })
+      );
+    }
+    if (!contract.returnsTo.includes(to)) {
+      throw new HandoffTemplatePairError(
+        'UNKNOWN_PAIR',
+        unknownPairMessage({ from, to, team, recipients: contract.returnsTo })
+      );
+    }
+    return { teamId: team, fromRole: contract.role, toRole: to };
+  }
+
+  if (legacyRole !== undefined || legacyNextRole !== undefined) {
+    throw new HandoffTemplatePairError(
+      'LEGACY_ROLE_FLAGS',
+      legacyRoleFlagsMessage(command, {
+        teamId: team,
+        legacyRole,
+        legacyNextRole,
+        mode: normalizeHandoffMode(input.mode),
+        rolePairs:
+          legacyRole === undefined ? undefined : listHandoffTemplatePairs(team, legacyRole),
+      })
+    );
+  }
+
+  const missing =
+    from === undefined && to === undefined
+      ? '--from, --to'
+      : from === undefined
+        ? '--from'
+        : '--to';
+  throw new HandoffTemplatePairError('MISSING_PAIR', missingPairMessage(command, missing));
+}
+
+/**
+ * Resolves the pair (existing rules), then the conversation mode.
+ *
+ * Missing mode → `MISSING_MODE`; unknown mode → `UNKNOWN_MODE`. Pair errors
+ * keep precedence because the pair resolves first. Throws
+ * {@link HandoffTemplatePairError}.
+ */
+export function resolveHandoffTemplateSelection(
+  input: HandoffTemplatePairInput,
+  command: HandoffTemplateCommandName
+): HandoffTemplateSelection {
+  const pair = resolveHandoffTemplatePair(input, command);
+  const mode = normalizeHandoffMode(input.mode);
+  if (mode === undefined) {
+    throw new HandoffTemplatePairError('MISSING_MODE', missingModeMessage(command));
+  }
+  if (!isConversationMode(mode)) {
+    throw new HandoffTemplatePairError('UNKNOWN_MODE', unknownModeMessage(mode));
+  }
+  return { pair, mode };
+}
+
+/**
+ * Renders the pair's outbound getter, composing the recipient callout and the
+ * pair title line around the getter's body text.
+ *
+ * The getter returns body text only (or `null` when the pair has no template);
+ * a `null` getter result stays `null` so callers can fall back to the generic
+ * free-form handoff message. The `null` contract never throws.
+ */
+export function renderHandoffTemplate(
+  pair: HandoffTemplatePair,
+  options?: HandoffTemplateRenderOptions
+): string | null {
+  const contract = BUILTIN_TEAM_HANDOFF_CONTRACTS[pair.teamId].find(
+    (candidate) => candidate.role.toLowerCase() === pair.fromRole
+  );
+  const getter = contract?.outboundTemplates[pair.toRole];
+  if (!getter) return null;
+  const body = getter({
+    ...options,
+    teamId: pair.teamId,
+    fromRole: pair.fromRole,
+    toRole: pair.toRole,
+    role: pair.fromRole,
+  });
+  if (!body) return null;
+  return [
+    getHandoffRecipientVisibilityCallout(pair.toRole),
+    getHandoffTemplateTitleLine(pair),
+    body,
+  ].join('\n\n');
+}
+
+/**
+ * Reply pair (`to` → `from`) when `to` is a catalog role with an outbound
+ * template back to `from`; `null` for `user` or any role without that edge.
+ */
+export function getReplyHandoffTemplatePair(pair: HandoffTemplatePair): HandoffTemplatePair | null {
+  const contract = BUILTIN_TEAM_HANDOFF_CONTRACTS[pair.teamId].find(
+    (candidate) => candidate.role.toLowerCase() === pair.toRole
+  );
+  const getter = contract?.outboundTemplates[pair.fromRole];
+  if (!getter) return null;
+  return { teamId: pair.teamId, fromRole: pair.toRole, toRole: pair.fromRole };
+}
+
+/**
+ * Compatibility facade over the pair resolver: resolves the handoff template
+ * for a `(fromRole → toRole)` pair, returning `null` — never throwing — when
+ * the team is custom or the pair has no specialized template. Callers fall
+ * back to the generic free-form handoff message on `null`.
+ */
+// fallow-ignore-next-line complexity
 export function getHandoffTemplate(query: HandoffTemplateQuery): string | null {
-  const team = (query.teamId ?? 'duo').toLowerCase();
-  if (team === 'duo') return getDuoHandoffTemplate(query);
-  if (team === 'solo') return getSoloHandoffTemplate(query);
-  return null;
+  const team = (query.teamId ?? DEFAULT_HANDOFF_TEAM_ID).trim().toLowerCase();
+  const fromRole = normalizeHandoffRole(query.fromRole);
+  const toRole = normalizeHandoffRole(query.toRole);
+  if (!isTeamPresetId(team) || fromRole === undefined || toRole === undefined) return null;
+
+  const pair = listHandoffTemplatePairs(team, fromRole).find(
+    (candidate) => candidate.toRole === toRole
+  );
+  if (!pair) return null;
+
+  return renderHandoffTemplate(pair, {
+    nativeIntegration: query.nativeIntegration,
+    chatroomId: query.chatroomId,
+    cliEnvPrefix: query.cliEnvPrefix,
+    conversationMode: query.conversationMode,
+  });
 }

@@ -436,3 +436,37 @@ describe('createTask — TaskEnvelopeV1', () => {
     expect(task?.taskEnvelope?.handoffWorkflow).not.toBe(suppliedEnvelope.handoffWorkflow);
   });
 });
+
+describe('createTask — handoff markdown preservation', () => {
+  // Exact prod handoff shape whose inline code contains HTML-like text.
+  const handoffBody = [
+    '## Summary',
+    'Your slice is **accepted**.',
+    '',
+    '## Files',
+    '- Budgets: `bond budget list --currency <code> [--at]`',
+  ].join('\n');
+
+  test('stores inline-code markdown content on the task unchanged', async () => {
+    const { sessionId } = await createTestSession('create-task-handoff-md-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const { taskId } = await t.run(async (ctx) => {
+      return await createTask(ctx, {
+        chatroomId,
+        createdBy: 'user',
+        content: handoffBody,
+        queuePosition: 0,
+        startInNewSession: false,
+      });
+    });
+
+    const inserted = await t.run(async (ctx) => {
+      const task = await ctx.db.get('chatroom_tasks', taskId);
+      if (!task) throw new Error('created task not found');
+      return task;
+    });
+
+    expect(inserted.content).toBe(handoffBody);
+  });
+});

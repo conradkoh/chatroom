@@ -4,66 +4,54 @@
  * Gives each role the structures it needs before work starts — final user
  * accountability, delegation format, or return handoffs — without CLI
  * listen-loop framing.
+ *
+ * The role-owned catalogs are the only registry: every inlined block comes
+ * from `listHandoffTemplatePairs(teamId, role)` in contract `returnsTo` order,
+ * and each heading names the exact sender → recipient pair.
  */
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
-import { getHandoffTemplate } from '../cli/handoff-templates';
+import {
+  listHandoffTemplatePairs,
+  renderHandoffTemplate,
+  type HandoffTemplatePair,
+} from '../cli/handoff-templates';
+import { formatHandoffPairLabel } from '../cli/handoff-templates/pair';
 
-/** toRole targets to inline per team:role on native task delivery. */
-const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
-  'solo:solo': ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
-  'solo:architect': ['solo'],
-  'solo:uiux-engineer': ['solo'],
-  'solo:triage': ['solo'],
-  'solo:verifier': ['solo'],
-  'duo:planner': [
-    'user',
-    'builder',
-    'architect',
-    'uiux-engineer',
-    'triage',
-    'researcher',
-    'verifier',
-  ],
-  'duo:builder': ['planner'],
-  'duo:architect': ['planner'],
-  'duo:uiux-engineer': ['planner'],
-  'duo:triage': ['planner'],
-  'duo:researcher': ['planner'],
-  'duo:verifier': ['planner'],
-};
-
-function getNativeDeliveryTemplateTargets(
+/** The delivered pair whose recipient is `toRole`, or `null` when none exists. */
+export function getDeliveredHandoffTemplatePair(
   teamId: string | undefined,
-  role: string
-): readonly string[] {
-  const key = `${(teamId ?? 'duo').toLowerCase()}:${role.toLowerCase()}`;
-  return NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
+  role: string,
+  toRole: string
+): HandoffTemplatePair | null {
+  const normalizedTo = toRole.trim().toLowerCase();
+  return (
+    listHandoffTemplatePairs(teamId, role).find((pair) => pair.toRole === normalizedTo) ?? null
+  );
+}
+
+/** Section heading for one delivered template, e.g. ``### Handoff template `planner` → `builder` ``. */
+export function formatDeliveredHandoffTemplateHeading(pair: HandoffTemplatePair): string {
+  return `### Handoff template ${formatHandoffPairLabel(pair)}`;
 }
 
 function renderNativeDeliveryTemplateBlock(
   params: {
-    teamId?: string | undefined;
-    role: string;
     chatroomId?: string | undefined;
     cliEnvPrefix?: string | undefined;
     conversationMode?: ConversationMode | undefined;
   },
-  toRole: string
+  pair: HandoffTemplatePair
 ): string[] | null {
-  const template = getHandoffTemplate({
-    teamId: params.teamId,
-    fromRole: params.role,
-    toRole,
+  const template = renderHandoffTemplate(pair, {
     nativeIntegration: true,
     chatroomId: params.chatroomId,
-    role: params.role,
     cliEnvPrefix: params.cliEnvPrefix,
     conversationMode: params.conversationMode,
   });
   if (!template) return null;
-  return [`### Handoff to \`${toRole}\``, template, ''];
+  return [formatDeliveredHandoffTemplateHeading(pair), template, ''];
 }
 
 export function appendNativeDeliveryHandoffTemplates(
@@ -78,18 +66,16 @@ export function appendNativeDeliveryHandoffTemplates(
     senderRole?: string | undefined;
   }
 ): void {
-  const targets = getNativeDeliveryTemplateTargets(params.teamId, params.role);
-  const blocks = targets.flatMap(
-    (toRole) =>
+  const pairs = listHandoffTemplatePairs(params.teamId, params.role);
+  const blocks = pairs.flatMap(
+    (pair) =>
       renderNativeDeliveryTemplateBlock(
         {
-          teamId: params.teamId,
-          role: params.role,
           chatroomId: params.chatroomId,
           cliEnvPrefix: params.cliEnvPrefix,
           conversationMode: params.conversationMode,
         },
-        toRole
+        pair
       ) ?? []
   );
   if (blocks.length === 0) return;

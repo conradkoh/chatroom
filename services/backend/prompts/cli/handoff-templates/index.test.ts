@@ -7,11 +7,22 @@ import { describe, expect, test } from 'vitest';
 
 import { validateRoleHandoffContracts } from './contracts';
 import type { RoleHandoffContract } from './contracts';
-import { getHandoffTemplate, type HandoffTemplateQuery } from './index';
-import { getBuilderToPlannerHandoffTemplate } from '../../teams/duo/handoff-templates/builder-to-planner';
-import { getPlannerToBuilderHandoffTemplate } from '../../teams/duo/handoff-templates/planner-to-builder';
-import { getPlannerToUserReportTemplate } from '../../teams/duo/handoff-templates/planner-to-user';
-import { getSoloToUserReportTemplate } from '../../teams/solo/handoff-templates/solo-to-user';
+import {
+  getHandoffTemplate,
+  getReplyHandoffTemplatePair,
+  listHandoffTemplatePairs,
+  renderHandoffTemplate,
+  resolveHandoffTemplateSelection,
+  type HandoffTemplatePair,
+  type HandoffTemplateQuery,
+} from './index';
+import { HandoffTemplatePairError, type HandoffTemplatePairErrorCode } from './pair';
+import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
+import { getBuilderPlannerCodeTemplate } from '../../teams/duo/handoff-templates/builder-planner-code';
+import { getPlannerBuilderCodeTemplate } from '../../teams/duo/handoff-templates/planner-builder-code';
+import { getPlannerUserCodeTemplate } from '../../teams/duo/handoff-templates/planner-user-code';
+import { getSoloUserCodeTemplate } from '../../teams/solo/handoff-templates/solo-user-code';
+import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
 
 const duoQuery = (fromRole: string, toRole: string): HandoffTemplateQuery => ({
   teamId: 'duo',
@@ -19,20 +30,64 @@ const duoQuery = (fromRole: string, toRole: string): HandoffTemplateQuery => ({
   toRole,
 });
 
+/**
+ * Compose the rendered template the way the pair resolver does: recipient
+ * callout, pair title line, then the getter body. Keeps "exact prose"
+ * assertions meaningful now that getters return body text only.
+ */
+function composePairTemplate(
+  pair: { teamId: string; fromRole: string; toRole: string },
+  body: string
+): string {
+  return [
+    getHandoffRecipientVisibilityCallout(pair.toRole),
+    getHandoffTemplateTitleLine(pair),
+    body,
+  ].join('\n\n');
+}
+
+function expectPairError(
+  fn: () => unknown,
+  code: HandoffTemplatePairErrorCode
+): HandoffTemplatePairError {
+  try {
+    fn();
+  } catch (error) {
+    expect(error).toBeInstanceOf(HandoffTemplatePairError);
+    expect((error as HandoffTemplatePairError).code).toBe(code);
+    return error as HandoffTemplatePairError;
+  }
+  throw new Error(`expected HandoffTemplatePairError(${code})`);
+}
+
 describe('getHandoffTemplate — role-owned catalog compatibility', () => {
   test('resolves every renderable permanent duo pair to its exact prose', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'builder'))).toBe(
-      getPlannerToBuilderHandoffTemplate()
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+        getPlannerBuilderCodeTemplate(duoQuery('planner', 'builder'))
+      )
     );
     expect(getHandoffTemplate(duoQuery('builder', 'planner'))).toBe(
-      getBuilderToPlannerHandoffTemplate()
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
+        getBuilderPlannerCodeTemplate({ ...duoQuery('builder', 'planner'), role: 'builder' })
+      )
     );
-    expect(getHandoffTemplate(duoQuery('planner', 'user'))).toBe(getPlannerToUserReportTemplate());
+    expect(getHandoffTemplate(duoQuery('planner', 'user'))).toBe(
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+        getPlannerUserCodeTemplate({ role: 'planner' })
+      )
+    );
   });
 
   test('resolves the permanent solo pair', () => {
     expect(getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'user' })).toBe(
-      getSoloToUserReportTemplate()
+      composePairTemplate(
+        { teamId: 'solo', fromRole: 'solo', toRole: 'user' },
+        getSoloUserCodeTemplate({ role: 'solo' })
+      )
     );
   });
 
@@ -66,9 +121,17 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
 
   test('role names are case-insensitive for fromRole and toRole', () => {
     expect(getHandoffTemplate(duoQuery('Planner', 'BUILDER'))).toBe(
-      getPlannerToBuilderHandoffTemplate()
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+        getPlannerBuilderCodeTemplate(duoQuery('planner', 'builder'))
+      )
     );
-    expect(getHandoffTemplate(duoQuery('planner', 'USER'))).toBe(getPlannerToUserReportTemplate());
+    expect(getHandoffTemplate(duoQuery('planner', 'USER'))).toBe(
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+        getPlannerUserCodeTemplate({ role: 'planner' })
+      )
+    );
   });
 
   test('unknown pairs remain null', () => {
@@ -76,6 +139,323 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
     expect(getHandoffTemplate(duoQuery('planner', 'reviewer'))).toBeNull();
     expect(getHandoffTemplate(duoQuery('solo', 'builder'))).toBeNull();
     expect(getHandoffTemplate({ teamId: 'tri', fromRole: 'planner', toRole: 'user' })).toBeNull();
+  });
+});
+
+describe('listHandoffTemplatePairs', () => {
+  test('lists the 13 duo pairs in contract order', () => {
+    expect(listHandoffTemplatePairs('duo')).toEqual([
+      { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'architect' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'uiux-engineer' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'triage' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'researcher' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'verifier' },
+      { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
+      { teamId: 'duo', fromRole: 'architect', toRole: 'planner' },
+      { teamId: 'duo', fromRole: 'researcher', toRole: 'planner' },
+      { teamId: 'duo', fromRole: 'uiux-engineer', toRole: 'planner' },
+      { teamId: 'duo', fromRole: 'triage', toRole: 'planner' },
+      { teamId: 'duo', fromRole: 'verifier', toRole: 'planner' },
+    ]);
+  });
+
+  test('lists the 9 solo pairs in contract order', () => {
+    expect(listHandoffTemplatePairs('solo')).toEqual([
+      { teamId: 'solo', fromRole: 'solo', toRole: 'user' },
+      { teamId: 'solo', fromRole: 'solo', toRole: 'architect' },
+      { teamId: 'solo', fromRole: 'solo', toRole: 'uiux-engineer' },
+      { teamId: 'solo', fromRole: 'solo', toRole: 'triage' },
+      { teamId: 'solo', fromRole: 'solo', toRole: 'verifier' },
+      { teamId: 'solo', fromRole: 'architect', toRole: 'solo' },
+      { teamId: 'solo', fromRole: 'uiux-engineer', toRole: 'solo' },
+      { teamId: 'solo', fromRole: 'triage', toRole: 'solo' },
+      { teamId: 'solo', fromRole: 'verifier', toRole: 'solo' },
+    ]);
+  });
+
+  test('filters by fromRole and returns [] for unknown teams/roles', () => {
+    expect(listHandoffTemplatePairs('duo', 'builder')).toEqual([
+      { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
+    ]);
+    expect(listHandoffTemplatePairs('tri')).toEqual([]);
+    expect(listHandoffTemplatePairs('duo', 'user')).toEqual([]);
+    expect(listHandoffTemplatePairs('duo', 'nobody')).toEqual([]);
+  });
+
+  test('every listed pair renders a non-null template', () => {
+    for (const pair of [...listHandoffTemplatePairs('duo'), ...listHandoffTemplatePairs('solo')]) {
+      expect(renderHandoffTemplate(pair)).toMatch(/\S/);
+    }
+  });
+});
+
+describe('renderHandoffTemplate — callout and pair-title invariants', () => {
+  const ALL_PAIRS = [
+    ...listHandoffTemplatePairs('duo'),
+    ...listHandoffTemplatePairs('solo'),
+  ] as const;
+
+  test('covers every permanent pair (13 duo + 9 solo)', () => {
+    expect(ALL_PAIRS).toHaveLength(22);
+  });
+
+  for (const pair of ALL_PAIRS) {
+    const label = `${pair.teamId}:${pair.fromRole}->${pair.toRole}`;
+
+    test(`${label} starts with the callout then exactly one pair title line`, () => {
+      const template = renderHandoffTemplate(pair);
+      expect(template).not.toBeNull();
+      const rendered = template as string;
+
+      expect(
+        rendered.startsWith(
+          `${getHandoffRecipientVisibilityCallout(pair.toRole)}\n\n${getHandoffTemplateTitleLine(pair)}`
+        )
+      ).toBe(true);
+
+      // Exactly one title line: the resolver's. Getters no longer emit their own.
+      expect(rendered.match(/^Handoff template `/gm) ?? []).toHaveLength(1);
+      expect(rendered).not.toContain('Handoff template for');
+      expect(rendered).not.toContain('<entry-point-role>');
+    });
+
+    test(`${label} embeds only pair-scoped handoff commands`, () => {
+      const rendered = renderHandoffTemplate(pair) as string;
+      const matches = [...rendered.matchAll(/--role="([^"]+)" --next-role="([^"]+)"/g)];
+
+      for (const match of matches) {
+        const [, from, to] = match;
+        // A template only ever instructs one of its two roles to send. Reports
+        // additionally embed a sender-scoped command to a later target (verifier).
+        expect([pair.fromRole, pair.toRole], `${label} command ${from} → ${to}`).toContain(from);
+        if (to === pair.toRole) {
+          expect(from, `${label} addressed send command ${from} → ${to}`).toBe(pair.fromRole);
+        }
+      }
+    });
+  }
+
+  test('delegation brief and user report are distinct for duo planner → {builder,user}', () => {
+    const delegation = renderHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'builder',
+    }) as string;
+    const report = renderHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'user',
+    }) as string;
+
+    expect(delegation).toContain('Delegation Brief');
+    expect(delegation).not.toContain('Template Disclosure Confirmation');
+    expect(report).toContain('Template Disclosure Confirmation');
+    expect(report).not.toContain('Delegation Brief');
+  });
+});
+
+describe('resolveHandoffTemplateSelection — pair normalization and precedence', () => {
+  test('normalizes an explicit pair and prefers explicit flags over legacy ones', () => {
+    expect(
+      resolveHandoffTemplateSelection(
+        {
+          from: ' Planner ',
+          to: 'BUILDER',
+          mode: 'chat',
+          teamId: 'DUO',
+          legacyRole: 'x',
+          legacyNextRole: 'y',
+        },
+        'view-template'
+      )
+    ).toEqual({
+      pair: { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+      mode: 'chat',
+    });
+  });
+
+  test('throws MISSING_PAIR with the missing flag list', () => {
+    expect(
+      expectPairError(
+        () => resolveHandoffTemplateSelection({ teamId: 'duo' }, 'view-template'),
+        'MISSING_PAIR'
+      ).message
+    ).toContain('(missing: --from, --to).');
+    expect(
+      expectPairError(
+        () => resolveHandoffTemplateSelection({ to: 'builder', teamId: 'duo' }, 'view-template'),
+        'MISSING_PAIR'
+      ).message
+    ).toContain('(missing: --from).');
+    expect(
+      expectPairError(
+        () => resolveHandoffTemplateSelection({ from: 'planner', teamId: 'duo' }, 'view-template'),
+        'MISSING_PAIR'
+      ).message
+    ).toContain('(missing: --to).');
+  });
+
+  test('throws LEGACY_ROLE_FLAGS for legacy role flags', () => {
+    expect(
+      expectPairError(
+        () =>
+          resolveHandoffTemplateSelection(
+            { legacyRole: 'planner', teamId: 'duo' },
+            'view-template'
+          ),
+        'LEGACY_ROLE_FLAGS'
+      ).message
+    ).toContain('no longer accepts --role/--next-role');
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { legacyNextRole: 'builder', teamId: 'duo' },
+          'view-template'
+        ),
+      'LEGACY_ROLE_FLAGS'
+    );
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { legacyRole: 'planner', legacyNextRole: 'builder', teamId: 'duo' },
+          'view-template'
+        ),
+      'LEGACY_ROLE_FLAGS'
+    );
+  });
+
+  test('throws UNKNOWN_TEAM, UNKNOWN_FROM_ROLE, and UNKNOWN_PAIR in precedence order', () => {
+    const unknownTeam = expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'planner', to: 'user', mode: 'chat', teamId: 'tri' },
+          'view-template'
+        ),
+      'UNKNOWN_TEAM'
+    );
+    expect(unknownTeam.message).toBe('Unknown team "tri". Known teams: duo, solo.');
+
+    const unknownFrom = expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'user', to: 'planner', mode: 'chat', teamId: 'duo' },
+          'view-template'
+        ),
+      'UNKNOWN_FROM_ROLE'
+    );
+    expect(unknownFrom.message).toContain('Role "user" has no handoff templates in team "duo".');
+
+    const unknownPair = expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'planner', to: 'solo', mode: 'chat', teamId: 'duo' },
+          'view-template'
+        ),
+      'UNKNOWN_PAIR'
+    );
+    expect(unknownPair.message).toContain(
+      'No handoff template for "planner" → "solo" in team "duo".'
+    );
+  });
+});
+
+describe('resolveHandoffTemplateSelection', () => {
+  test('returns the normalized pair plus the resolved mode', () => {
+    expect(
+      resolveHandoffTemplateSelection(
+        { from: ' Planner ', to: 'USER', mode: ' CODE ', teamId: 'DUO' },
+        'view-template'
+      )
+    ).toEqual({
+      pair: { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
+      mode: 'code',
+    });
+  });
+
+  test('throws MISSING_MODE when the pair resolves but --mode is absent', () => {
+    expect(
+      expectPairError(
+        () =>
+          resolveHandoffTemplateSelection(
+            { from: 'planner', to: 'user', teamId: 'duo' },
+            'view-template'
+          ),
+        'MISSING_MODE'
+      ).message
+    ).toContain('requires --mode (missing: --mode).');
+  });
+
+  test('throws UNKNOWN_MODE for a mode outside the canonical set', () => {
+    expect(
+      expectPairError(
+        () =>
+          resolveHandoffTemplateSelection(
+            { from: 'planner', to: 'user', mode: 'bogus', teamId: 'duo' },
+            'view-template'
+          ),
+        'UNKNOWN_MODE'
+      ).message
+    ).toBe('Unknown mode "bogus". Valid modes: chat, code, code:enhanced.');
+  });
+
+  test('pair errors keep precedence over a missing or unknown mode', () => {
+    expectPairError(
+      () => resolveHandoffTemplateSelection({ teamId: 'duo' }, 'view-template'),
+      'MISSING_PAIR'
+    );
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { legacyRole: 'planner', legacyNextRole: 'builder', teamId: 'duo' },
+          'view-template'
+        ),
+      'LEGACY_ROLE_FLAGS'
+    );
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'planner', to: 'user', mode: 'bogus', teamId: 'tri' },
+          'view-template'
+        ),
+      'UNKNOWN_TEAM'
+    );
+  });
+});
+
+describe('getReplyHandoffTemplatePair', () => {
+  const duo = (fromRole: string, toRole: string): HandoffTemplatePair => ({
+    teamId: 'duo',
+    fromRole,
+    toRole,
+  });
+
+  test('builder→planner replies with planner→builder and vice versa', () => {
+    expect(getReplyHandoffTemplatePair(duo('builder', 'planner'))).toEqual(
+      duo('planner', 'builder')
+    );
+    expect(getReplyHandoffTemplatePair(duo('planner', 'builder'))).toEqual(
+      duo('builder', 'planner')
+    );
+  });
+
+  test('terminal user targets have no reply pair', () => {
+    expect(getReplyHandoffTemplatePair(duo('planner', 'user'))).toBeNull();
+  });
+});
+
+describe('getHandoffTemplate — pair resolver facade', () => {
+  test('returns null for unknown team/pair and non-null for valid pairs', () => {
+    expect(getHandoffTemplate({ teamId: 'tri', fromRole: 'planner', toRole: 'user' })).toBeNull();
+    expect(getHandoffTemplate(duoQuery('user', 'planner'))).toBeNull();
+    expect(getHandoffTemplate(duoQuery('planner', 'solo'))).toBeNull();
+    expect(getHandoffTemplate(duoQuery('planner', 'builder'))).toBe(
+      composePairTemplate(
+        { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
+        getPlannerBuilderCodeTemplate(duoQuery('planner', 'builder'))
+      )
+    );
   });
 });
 

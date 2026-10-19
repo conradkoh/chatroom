@@ -273,8 +273,8 @@ describe('appendTaskDeliveryHandoffSections — triage handoff templates', () =>
     });
 
     expect(output).toContain('Use these structures when handing off.');
-    expect(output).toContain(`### Handoff to \`${entryPoint}\``);
-    expect(output).toContain(`Handoff Template (Triage → ${entryPoint})`);
+    expect(output).toContain(`### Handoff template \`triage\` → \`${entryPoint}\``);
+    expect(output).toContain(`Handoff template \`triage\` → \`${entryPoint}\``);
     expect(output).toContain('## Root cause');
   });
 
@@ -287,8 +287,8 @@ describe('appendTaskDeliveryHandoffSections — triage handoff templates', () =>
       availableHandoffTargets: ['triage', 'builder', 'user'],
     });
 
-    expect(output).toContain('### Handoff to `triage`');
-    expect(output).toContain('Handoff Template (planner → triage)');
+    expect(output).toContain('### Handoff template `planner` → `triage`');
+    expect(output).toContain('Handoff template `planner` → `triage`');
   });
 
   test('duo triage delivery includes the handoff templates block', () => {
@@ -301,7 +301,83 @@ describe('appendTaskDeliveryHandoffSections — triage handoff templates', () =>
     });
 
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('### Handoff to `planner`');
-    expect(output).toContain('Handoff Template (Triage → planner)');
+    expect(output).toContain('### Handoff template `triage` → `planner`');
+    expect(output).toContain('Handoff template `triage` → `planner`');
+  });
+});
+
+describe('appendTaskDeliveryHandoffSections — pair-addressed next-steps and handoffs', () => {
+  test('next-steps names the primary pair for a duo planner user task', () => {
+    const output = renderHandoffSections();
+
+    expect(output).toContain(
+      'Fill in the message using the `planner` → `user` template (the "### Handoff template `planner` → `user`" block in `<handoff-templates>` below); do not use a template addressed to a different recipient.'
+    );
+  });
+
+  test('next-steps names the return pair for a builder task from the planner', () => {
+    const output = renderHandoffSections({
+      role: 'builder',
+      message: { _id: 'planner-msg', senderRole: 'planner' },
+      availableHandoffTargets: ['planner', 'user'],
+      isEntryPoint: false,
+    });
+
+    expect(output).toContain('Fill in the message using the `builder` → `planner` template');
+  });
+
+  test('next-steps names the planner → builder pair when builder is the primary target', () => {
+    const output = renderHandoffSections({
+      teamId: 'duo',
+      role: 'planner',
+      message: { _id: 'planner-msg', senderRole: 'planner' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: false,
+    });
+
+    expect(output).toContain('Fill in the message using the `planner` → `builder` template');
+  });
+
+  test('handoffs annotate pairs with their template and non-pairs as free-form', () => {
+    const output = renderHandoffSections({
+      teamId: 'duo',
+      role: 'planner',
+      isEntryPoint: true,
+      message: { _id: 'user-msg', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'architect', 'user'],
+    });
+
+    expect(output).toContain('**builder** — template: `planner` → `builder`');
+    expect(output).toContain('**architect** — template: `planner` → `architect`');
+    expect(output).toContain('**user** — template: `planner` → `user`');
+  });
+
+  test('handoffs mark targets without a pair as free-form', () => {
+    const output = renderHandoffSections({
+      teamId: 'duo',
+      role: 'builder',
+      isEntryPoint: false,
+      message: { _id: 'planner-msg', senderRole: 'planner' },
+      availableHandoffTargets: ['planner', 'verifier'],
+    });
+
+    expect(output).toContain('**planner** — template: `builder` → `planner`');
+    expect(output).toContain('**verifier** — no template (free-form)');
+  });
+
+  test('custom team emits no <handoff-templates> block and uses the free-form sentence', () => {
+    const output = renderHandoffSections({
+      teamId: 'tri',
+      role: 'planner',
+      isEntryPoint: true,
+      message: { _id: 'user-msg', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+    });
+
+    expect(output).not.toContain('<handoff-templates>');
+    expect(output).toContain(
+      'No handoff template is defined for `planner` → `user`; write a complete free-form message.'
+    );
+    expect(output).toContain('**builder** — no template (free-form)');
   });
 });

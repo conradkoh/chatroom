@@ -110,7 +110,7 @@ describe('getTaskDeliveryPrompt — duo planner verifier gate', () => {
 
       expect(output).toContain('<verifier-gate>');
       expect(output).toContain('delegate to `builder`, then request round 2');
-      expect(output).toContain('### Handoff to `verifier`');
+      expect(output).toContain('### Handoff template `planner` → `verifier`');
       expect(output).toContain('--next-role="verifier"');
     }
   );
@@ -182,7 +182,7 @@ describe('getTaskDeliveryPrompt — duo planner verifier gate', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    expect(fullCliOutput).toContain('### Handoff to `planner`');
+    expect(fullCliOutput).toContain('### Handoff template `verifier` → `planner`');
     expect(fullCliOutput).not.toContain('<verifier-gate>');
   });
 });
@@ -210,7 +210,7 @@ describe('getTaskDeliveryPrompt — solo entry-point verifier gate', () => {
       expect(output).toContain('<verifier-gate>');
       expect(output).toContain('do it yourself, then request round 2');
       expect(output).not.toContain('delegate to `builder`');
-      expect(output).toContain('### Handoff to `verifier`');
+      expect(output).toContain('### Handoff template `solo` → `verifier`');
       expect(output).toContain('--next-role="verifier"');
     }
   );

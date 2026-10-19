@@ -17,24 +17,25 @@ type RoleSpecificGuidanceParams = {
   convexUrl: string;
   chatroomId?: string | undefined;
   nativeIntegration?: boolean | undefined;
-  codeChangesTarget?: string | undefined;
+  codeChangesTarget: string;
   questionTarget?: string | undefined;
-  entryPointRole?: string | undefined;
+  /** Role the specialist guidance hands off to (from the team contract). */
+  recipientRole: string;
 };
 
 const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams) => string> = {
   planner: getPlannerGuidance,
   builder: getBuilderGuidance,
-  architect: ({ entryPointRole, nativeIntegration }) =>
-    getArchitectGuidance({ entryPointRole, nativeIntegration }),
-  researcher: ({ entryPointRole, nativeIntegration }) =>
-    getResearcherGuidance({ entryPointRole, nativeIntegration }),
-  triage: ({ entryPointRole, nativeIntegration }) =>
-    getTriageGuidance({ entryPointRole, nativeIntegration }),
-  verifier: ({ entryPointRole, nativeIntegration }) =>
-    getVerifierGuidance({ entryPointRole, nativeIntegration }),
-  'uiux-engineer': ({ entryPointRole, nativeIntegration }) =>
-    getUiuxEngineerGuidance({ entryPointRole, nativeIntegration }),
+  architect: ({ recipientRole, nativeIntegration }) =>
+    getArchitectGuidance({ recipientRole, nativeIntegration }),
+  researcher: ({ recipientRole, nativeIntegration }) =>
+    getResearcherGuidance({ recipientRole, nativeIntegration }),
+  triage: ({ recipientRole, nativeIntegration }) =>
+    getTriageGuidance({ recipientRole, nativeIntegration }),
+  verifier: ({ recipientRole, nativeIntegration }) =>
+    getVerifierGuidance({ recipientRole, nativeIntegration }),
+  'uiux-engineer': ({ recipientRole, nativeIntegration }) =>
+    getUiuxEngineerGuidance({ recipientRole, nativeIntegration }),
 };
 
 /**
@@ -45,7 +46,7 @@ export function getRoleSpecificGuidance(
   teamRoles: string[],
   isEntryPoint: boolean,
   convexUrl: string,
-  entryPointRole?: string
+  recipientRole: string
 ): string {
   const normalizedRole = role.toLowerCase();
   return (
@@ -54,7 +55,9 @@ export function getRoleSpecificGuidance(
       teamRoles,
       isEntryPoint,
       convexUrl,
-      entryPointRole,
+      recipientRole,
+      // The contract recipient is also the builder's post-code-change target.
+      codeChangesTarget: recipientRole,
     }) ?? ''
   );
 }

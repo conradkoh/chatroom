@@ -12,3 +12,56 @@ describe('normalizeMarkdownContent', () => {
     ).toContain('world');
   });
 });
+
+describe('normalizeMarkdownContent — markdown with HTML-like text', () => {
+  const handoff = [
+    '## Summary',
+    'Your slice is **accepted**.',
+    '',
+    '## Files',
+    '- Budgets: `bond budget list --currency <code> [--at]`',
+  ].join('\n');
+
+  it('leaves markdown with an inline-code HTML placeholder untouched', () => {
+    expect(normalizeMarkdownContent(handoff)).toBe(handoff);
+    expect(looksLikeHtml(handoff)).toBe(false);
+  });
+
+  it('leaves a tag that appears only inside an inline code span untouched', () => {
+    const body = 'Use `<div>` for the wrapper.\n\n- item';
+    expect(normalizeMarkdownContent(body)).toBe(body);
+  });
+
+  it('leaves a generic placeholder such as Foo<A, B> untouched', () => {
+    const body = '## Types\n\nReturns Foo<A, B> from the call.';
+    expect(normalizeMarkdownContent(body)).toBe(body);
+  });
+
+  it('leaves a mid-document <br/> in markdown untouched', () => {
+    const body = '## Title\n\nLine one<br/>line two';
+    expect(normalizeMarkdownContent(body)).toBe(body);
+  });
+
+  it('still converts legacy HTML that starts with a block tag', () => {
+    const legacy = '<p>Hello <strong>world</strong></p>';
+    expect(looksLikeHtml(legacy)).toBe(true);
+    expect(normalizeMarkdownContent(legacy)).toContain('world');
+    expect(normalizeMarkdownContent(legacy)).not.toContain('<p>');
+  });
+
+  it('converts legacy HTML that starts with an inline tag', () => {
+    const legacy = '<strong>Bold</strong> and <span>plain</span>';
+    expect(looksLikeHtml(legacy)).toBe(true);
+    expect(normalizeMarkdownContent(legacy)).not.toContain('<strong>');
+  });
+
+  it('converts clipboard-style HTML that starts with a meta tag', () => {
+    const pasted = `<meta charset='utf-8'><span style="color:red">Pasted</span> text`;
+    expect(looksLikeHtml(pasted)).toBe(true);
+    expect(normalizeMarkdownContent(pasted)).not.toContain('<span');
+  });
+
+  it('matches uppercase legacy tags', () => {
+    expect(looksLikeHtml('<P>Shout</P>')).toBe(true);
+  });
+});

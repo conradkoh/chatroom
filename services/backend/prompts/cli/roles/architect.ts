@@ -3,7 +3,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type ArchitectGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  entryPointRole?: string | undefined;
+  /** Role this guidance hands off to (from the team contract). */
+  recipientRole: string;
 };
 
 const ARCHITECT_GUIDANCE = `## Architect Operating Model
@@ -20,17 +21,17 @@ ${getInterRoleHandoffRule()}
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to the configured entry point with the normal command, then stop:
+7. Hand the complete design brief to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="{ENTRY_POINT_ROLE}"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence the configured entry point needs to coordinate implementation. It must not contain implementation edits or alternative designs.`;
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`{ENTRY_POINT_ROLE}\` needs to coordinate implementation. It must not contain implementation edits or alternative designs.`;
 
-export function getArchitectGuidance(params: ArchitectGuidanceParams = {}): string {
-  return ARCHITECT_GUIDANCE.replace(
+export function getArchitectGuidance(params: ArchitectGuidanceParams): string {
+  return ARCHITECT_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole?.trim().toLowerCase() || 'planner'
+    params.recipientRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

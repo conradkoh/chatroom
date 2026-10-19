@@ -59,7 +59,7 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
   });
 
   test('engineer guidance and Duo/Solo handbacks include target markup, classes, and styles', () => {
-    expect(getUiuxEngineerGuidance()).toContain(
+    expect(getUiuxEngineerGuidance({ recipientRole: 'planner' })).toContain(
       'Provide the target markup, classes, and styles in your handoff.'
     );
     for (const role of ['planner', 'solo'] as const)
@@ -78,6 +78,7 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
         teamRoles: ['planner', 'builder'],
         isEntryPoint: false,
         convexUrl: 'http://127.0.0.1:3210',
+        codeChangesTarget: 'planner',
         nativeIntegration,
       });
       const solo = getSoloGuidance({

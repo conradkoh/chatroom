@@ -10,7 +10,13 @@ import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
 
-const HANDOFF_BODY_GUIDANCE = `Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).`;
+/**
+ * Body-fill guidance for the commands reference, naming the sender → recipient
+ * heading the agent must use for the pair it hands off to.
+ */
+function getHandoffBodyGuidance(role: string): string {
+  return `Fill in the message using the \`<handoff-templates>\` block headed "### Handoff template \`${role}\` → \`<recipient>\`" for the recipient you hand off to. Replace \`[Your message here]\` with that template's body. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).`;
+}
 export interface CommandsReferenceParams extends GeneralKnowledgeParams {}
 function handoffContent(params: CommandsReferenceParams, native: boolean): string {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
@@ -27,7 +33,7 @@ function handoffContent(params: CommandsReferenceParams, native: boolean): strin
 ${handoffCmd}
 \`\`\`
 
-${HANDOFF_BODY_GUIDANCE}
+${getHandoffBodyGuidance(params.role)}
 
 **Send the user an interim update (does not complete your task):**
 \`\`\`bash

@@ -41,7 +41,7 @@ ${getTeamCompositionSection(teamRoles)}
 
 ${getPlannerSoloOperatingModel(nativeIntegration)}
 
-${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG, { role: 'solo', teamId: 'solo' })}
+${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG, { role: 'solo', teamId: 'solo', nativeIntegration })}
 
 **Implementation Guidelines:**
 - For UI/UX work, request the design from the UI/UX engineer, who owns the UI/UX decisions and provides the target markup, classes, and styles.

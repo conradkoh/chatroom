@@ -7,34 +7,8 @@
 
 /** Callout prepended to each handoff template (user or agent recipient). */
 export function getHandoffRecipientVisibilityCallout(toRole: string): string {
-  if (toRole.toLowerCase() === 'user') {
-    return `---
-
-⚠️ **CRITICAL — Recipient visibility**
-
-The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
-
-They **cannot** see:
-- Anything you write in this agent session (including direct replies like "Hello!")
-- Tool output
-
-When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
-
----`;
-  }
-
-  return `---
-
-⚠️ **CRITICAL — Recipient visibility**
-
-The \`${toRole}\` agent **only** receives the text inside your \`handoff --next-role="${toRole}"\` command.
-
-They **cannot** see:
-- Anything you write in this agent session
-- \`notify-user\` notices (notices go to the user only)
-- Tool output
-
-When you write this handoff, put your **complete** deliverable in the handoff message — not in session text.
-
----`;
+  const recipient = toRole.toLowerCase() === 'user' ? 'user' : `\`${toRole}\` agent`;
+  const sendCommand = `\`handoff --next-role="${toRole}"\``;
+  return `> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the ${recipient} receives only the text inside your ${sendCommand} command${toRole.toLowerCase() === 'user' ? ', plus any `notify-user` notices you sent earlier in this task' : ''}. It cannot see anything you write in this agent session${toRole.toLowerCase() === 'user' ? ' (including direct replies)' : ''}, or tool output. Put your complete deliverable in the handoff message.`;
 }

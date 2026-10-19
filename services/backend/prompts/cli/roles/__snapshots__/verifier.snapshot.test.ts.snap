@@ -18,7 +18,7 @@ Completing a **chatroom task** does NOT end your **session**. After every handof
 4a. User expectations: the user's handoff template defines what the user expects from the work. In a code mode, turn each applicable item that concerns the work into a user expectation: each requirement's evidence (PR, commit, or file), files changed, Code Change Verification, backlog items moved to \`pending_user_review\` after a verified end-to-end feature with a PR, and any manual steps or unresolved decisions the user must act on. Skip presentation-only items: template disclosure checkboxes, section order, collapsing, diagram format, and Proof of Planning. In \`chat\` mode the template asks only for a direct, concise answer, so add no expectations beyond the requirements.
 5. Find evidence for every requirement in the logs alone: builder handoff reports, planner delegations, quoted test output, commits, and PRs. \`met\` requires concrete evidence in the logs. The planner's claimed outcome is a claim, not evidence. Silence means \`unverified\`. A contradiction, or a log showing the requirement was not done, means \`unmet\`. Never state that tests passed unless a log reports it, or you ran the requested tests yourself.
 6. Choose exactly one verdict from ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE: ACHIEVED only if every requirement and every user expectation is met; NOT_ACHIEVED if any requirement or user expectation is unmet; INCONCLUSIVE if none is unmet but any is unverified.
-7. Follow the injected \`<handoff-templates>\` verdict template exactly, in its order, and put the complete verdict in the handoff. Then hand off to the configured entry point with the normal command, then stop:
+7. Follow the injected \`<handoff-templates>\` verdict template exactly, in its order, and put the complete verdict in the handoff. Then hand off to \`planner\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="planner"
@@ -158,22 +158,7 @@ flowchart TD
 
 In chat mode the user receives this instead:
 
----
-
-⚠️ **CRITICAL — Recipient visibility**
-
-The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
-
-They **cannot** see:
-- Anything you write in this agent session (including direct replies like "Hello!")
-- Tool output
-
-When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
-
----
-
-**Chat Response Template**
-
+Instructions (not part of the message): chat response — 
 \`\`\`markdown
 <write only the concise response the user should see; do not add handoff XML sections, proofs, context evidence, or placeholder text>
 \`\`\`"
@@ -197,7 +182,7 @@ You are the verifier. Your main job is to check whether the user's goal was acco
 4a. User expectations: the user's handoff template defines what the user expects from the work. In a code mode, turn each applicable item that concerns the work into a user expectation: each requirement's evidence (PR, commit, or file), files changed, Code Change Verification, backlog items moved to \`pending_user_review\` after a verified end-to-end feature with a PR, and any manual steps or unresolved decisions the user must act on. Skip presentation-only items: template disclosure checkboxes, section order, collapsing, diagram format, and Proof of Planning. In \`chat\` mode the template asks only for a direct, concise answer, so add no expectations beyond the requirements.
 5. Find evidence for every requirement in the logs alone: builder handoff reports, planner delegations, quoted test output, commits, and PRs. \`met\` requires concrete evidence in the logs. The planner's claimed outcome is a claim, not evidence. Silence means \`unverified\`. A contradiction, or a log showing the requirement was not done, means \`unmet\`. Never state that tests passed unless a log reports it, or you ran the requested tests yourself.
 6. Choose exactly one verdict from ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE: ACHIEVED only if every requirement and every user expectation is met; NOT_ACHIEVED if any requirement or user expectation is unmet; INCONCLUSIVE if none is unmet but any is unverified.
-7. Follow the injected \`<handoff-templates>\` verdict template exactly, in its order, and put the complete verdict in the handoff. Then hand off to the configured entry point with the normal command, then stop:
+7. Follow the injected \`<handoff-templates>\` verdict template exactly, in its order, and put the complete verdict in the handoff. Then hand off to \`planner\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="verifier" --next-role="planner"
@@ -337,22 +322,7 @@ flowchart TD
 
 In chat mode the user receives this instead:
 
----
-
-⚠️ **CRITICAL — Recipient visibility**
-
-The user receives the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task.
-
-They **cannot** see:
-- Anything you write in this agent session (including direct replies like "Hello!")
-- Tool output
-
-When you write this handoff, put your **complete** deliverable in the handoff message. Do not rely on session text or on earlier notices.
-
----
-
-**Chat Response Template**
-
+Instructions (not part of the message): chat response — 
 \`\`\`markdown
 <write only the concise response the user should see; do not add handoff XML sections, proofs, context evidence, or placeholder text>
 \`\`\`"

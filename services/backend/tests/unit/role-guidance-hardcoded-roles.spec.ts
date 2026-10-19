@@ -189,11 +189,11 @@ describe('getBuilderGuidance', () => {
       - **When you need to send any message to another team role (including a short test or status message)** → Run \`chatroom handoff --next-role=<role>\`. This completes your current task. Do not use \`chatroom message(s) send\`: those are user-ingress commands that persist \`senderRole=user\` and \`type=message\`.
       - **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.
 
-      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
       \`\`\`bash
-      chatroom handoff list-templates --role="builder" --team-id="duo"
+      chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code|code:enhanced>" --team-id="duo"
       \`\`\`
-      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+      All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Implementation Guidelines:**
       - For UI implementation, first write a snapshot test that renders the component with the UI/UX engineer's target markup, classes, and styles as the expected output. Run it and confirm it fails, then implement the components until it passes. Do not update the expected snapshot to accept different markup.
@@ -203,7 +203,7 @@ describe('getBuilderGuidance', () => {
       - Commit work with descriptive, atomic commit messages
 
       **Completion gates (before PR or handoff):**
-      - All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+      - All **(Required)** files done; **verified end-to-end** (user-facing feature works: CLI command runnable, API reachable, or UI action functional)
       - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
       "
     `);
@@ -252,8 +252,10 @@ describe('role guidance — handoff template discovery instruction', () => {
       convexUrl: CONVEX_URL,
     });
 
-    expect(guidance).toContain('Role-owned handoff contracts');
-    expect(guidance).toContain('chatroom handoff list-templates --role="planner" --team-id="duo"');
+    expect(guidance).toContain('Pair-keyed handoff templates');
+    expect(guidance).toContain(
+      'chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+    );
   });
 
   test('solo team planner guidance uses the solo team id in the discovery command', () => {
@@ -264,7 +266,7 @@ describe('role guidance — handoff template discovery instruction', () => {
       convexUrl: CONVEX_URL,
     });
 
-    expect(guidance).toContain('chatroom handoff list-templates');
+    expect(guidance).toContain('chatroom handoff view-template');
   });
 
   test('builder guidance mentions inspecting role-owned handoff templates before implementation rules', () => {
@@ -277,9 +279,11 @@ describe('role guidance — handoff template discovery instruction', () => {
       questionTarget: 'planner',
     });
 
-    expect(guidance).toContain('Role-owned handoff contracts');
-    expect(guidance).toContain('chatroom handoff list-templates --role="builder" --team-id="duo"');
-    expect(guidance.indexOf('list-templates')).toBeLessThan(
+    expect(guidance).toContain('Pair-keyed handoff templates');
+    expect(guidance).toContain(
+      'chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+    );
+    expect(guidance.indexOf('view-template')).toBeLessThan(
       guidance.indexOf('**Implementation Guidelines:**')
     );
   });

@@ -1,5 +1,6 @@
 import { createSection, type PromptSection } from '../../types/sections';
 import { getHandoffTemplate } from '../handoff-templates';
+import { formatHandoffPairLabel } from '../handoff-templates/pair';
 
 export function getHandoffTemplatesPreviewSection(params: {
   teamId?: string | undefined;
@@ -23,7 +24,9 @@ export function getHandoffTemplatesPreviewSection(params: {
     });
     if (!template) continue;
     blocks.push('');
-    blocks.push(`### Handoff to \`${target}\``);
+    blocks.push(
+      `### Handoff template ${formatHandoffPairLabel({ fromRole: role, toRole: target })}`
+    );
     blocks.push(template);
   }
 

@@ -1,27 +1,16 @@
 /**
- * Handoff template: Duo planner → builder (delegation brief).
- *
- * Provides the structure the planner should follow when delegating an
- * implementation slice to the builder. The planner owns technical decisions
- * down to the file level, with code snippets that leave no ambiguity; the
- * builder executes implementation, tool calls, and verification.
- * Fields that do not apply may be omitted.
+ * Key: `duo:planner->builder@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Planner → builder delegation brief. Body only: the pair resolver prepends the
+ * recipient callout and the title line. Fields that do not apply may be omitted.
  */
 
-import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
+import type { HandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';
 import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-guidance';
 import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance';
 
-/**
- * Returns the markdown delegation-brief template the planner uses when
- * handing a unit of work to the builder.
- *
- * Fields that do not apply may be omitted.
- */
-export function getPlannerToBuilderHandoffTemplate(): string {
-  return `${getHandoffRecipientVisibilityCallout('builder')}
-
-${getDelegationBriefIntro()}
+/** Returns the markdown delegation-brief template body. */
+function getPlannerBuilderCodeBody(): string {
+  return `${getDelegationBriefIntro()}
 
 **Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved design choice), hand off to \`researcher\` first and delegate only after its brief returns. Skip this for small, well-understood edits. The \`researcher\` handoff template defines the criteria.
 
@@ -31,7 +20,9 @@ ${getDelegationBriefIntro()}
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-\`\`\`markdown
+Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+
+\`\`\`\`markdown
 ## Summary
 <brief context for this delegation slice — what problem it solves and where it fits in the larger task>
 
@@ -88,10 +79,15 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
 ## Skills to activate
-- <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
+- e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
 
 ## Out of scope
 - <files or areas the builder must NOT touch in this slice>
 
-Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.`;
+\`\`\`\``;
+}
+
+/** Code-bucket getter for the duo `planner` → `builder` handoff. */
+export function getPlannerBuilderCodeTemplate(_query: HandoffTemplateQuery): string {
+  return getPlannerBuilderCodeBody();
 }

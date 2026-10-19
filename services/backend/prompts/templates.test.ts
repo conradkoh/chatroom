@@ -73,7 +73,7 @@ describe('role templates', () => {
       'Attempt to reproduce the issue with the smallest focused automated test and report the result honestly',
       'Recommend the smallest immediate fix without implementing it',
       'Report systemic design risks separately from the immediate fix',
-      'Hand the complete investigation report to the configured entry point',
+      'Hand the complete investigation report to the planner',
     ]);
   });
 

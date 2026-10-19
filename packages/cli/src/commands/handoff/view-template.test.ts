@@ -1,32 +1,82 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+/**
+ * view-template Unit Tests
+ *
+ * The command is fully local (no auth, no Convex), so tests assert the pair
+ * template output and the exact pair-resolution errors from the backend.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { printHandoffViewTemplate } from './view-template.js';
 
-describe('printHandoffViewTemplate', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+let exitSpy: ReturnType<typeof vi.spyOn>;
+let logSpy: ReturnType<typeof vi.spyOn>;
+let errorSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+  logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function getLogOutput(): string {
+  return logSpy.mock.calls.map((call: unknown[]) => (call as string[]).join(' ')).join('\n');
+}
+
+function getErrorOutput(): string {
+  return errorSpy.mock.calls.map((call: unknown[]) => (call as string[]).join(' ')).join('\n');
+}
+
+describe('handoff view-template', () => {
+  it('prints the duo planner → builder delegation brief', () => {
+    printHandoffViewTemplate({ from: 'planner', to: 'builder', mode: 'code', teamId: 'duo' });
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(getLogOutput()).toContain('Delegation Brief');
   });
 
-  test.each([
-    ['architect', /module boundaries|schemas/i],
-    ['uiux-engineer', /loading\/empty\/error\/success|accessibility/i],
-  ] as const)('prints the generic %s template', (role, focus) => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  it('errors when --mode is missing after the pair resolves', () => {
+    printHandoffViewTemplate({ from: 'planner', to: 'user', teamId: 'duo' });
 
-    printHandoffViewTemplate({ role });
-
-    expect(log).toHaveBeenCalledOnce();
-    const [template] = log.mock.calls[0] as [string];
-    expect(template).toMatch(focus);
-    expect(template).toContain('<entry-point-role>');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getErrorOutput()).toContain(
+      '❌ handoff view-template requires --mode (missing: --mode).'
+    );
+    expect(getErrorOutput()).toContain('--mode="chat"');
   });
 
-  test('prints a concrete pair template when nextRole is supplied', () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  it('errors when --to is missing', () => {
+    printHandoffViewTemplate({ from: 'planner', teamId: 'duo' });
 
-    printHandoffViewTemplate({ role: 'architect', nextRole: 'planner', teamId: 'duo' });
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getErrorOutput()).toContain(
+      '❌ handoff view-template requires both --from and --to (missing: --to).'
+    );
+    expect(getErrorOutput()).toContain('Example: chatroom handoff view-template');
+  });
 
-    expect(log).toHaveBeenCalledOnce();
-    expect(log.mock.calls[0]?.[0]).toContain('--next-role="planner"');
+  it('errors with legacy flags and the rewritten pair command', () => {
+    printHandoffViewTemplate({
+      legacyRole: 'planner',
+      legacyNextRole: 'builder',
+      teamId: 'duo',
+    });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getErrorOutput()).toContain('no longer accepts --role/--next-role');
+    expect(getErrorOutput()).toContain(
+      '--from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+    );
+  });
+
+  it('errors with nonzero exit for an unknown team', () => {
+    printHandoffViewTemplate({ from: 'planner', to: 'builder', mode: 'code', teamId: 'tri' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo.');
   });
 });

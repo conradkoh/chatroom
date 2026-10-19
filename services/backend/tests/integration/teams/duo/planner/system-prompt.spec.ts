@@ -325,11 +325,17 @@ describe('Duo Team > Planner > System Prompt', () => {
         - **Handoff completeness**: When you hand off to \`user\`, write a complete, standalone document: include all relevant context, results, and next steps. Do not reference prior messages, session text, or \`notify-user\` notices.
       - **Quality Accountability**: You are ultimately accountable for all work. If the user's requirements are not met, hand work back to the builder for rework.
 
-      **Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+      **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
       \`\`\`bash
-      chatroom handoff list-templates --role="planner" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="architect" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="uiux-engineer" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="triage" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="researcher" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="verifier" --mode="<chat|code|code:enhanced>" --team-id="duo"
       \`\`\`
-      This lists who you receive work from, who you return to, and every outbound handoff template you can use.
+      All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
       **Delegation & Decomposition:**
 
@@ -358,7 +364,7 @@ describe('Duo Team > Planner > System Prompt', () => {
           B -->|No: question or clarification only| C[Answer directly → deliver to user]
       \`\`\`
 
-      **Default: delegate with a Delegation Brief.** Use the **Handoff to \`builder\`** template in the task delivery \`<handoff-templates>\` section — follow that structure in your handoff message.
+      **Default: delegate with a Delegation Brief.** Use the \`planner\` → \`builder\` handoff template in the task delivery \`<handoff-templates>\` section — follow that structure in your handoff message.
 
       **How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 
@@ -424,7 +430,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       CHATROOM_HANDOFF_END
       \`\`\`
 
-      Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
+      Fill in the message using the \`<handoff-templates>\` block headed "### Handoff template \`planner\` → \`<recipient>\`" for the recipient you hand off to. Replace \`[Your message here]\` with that template's body. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
 
       **Send the user an interim update (does not complete your task):**
       \`\`\`bash

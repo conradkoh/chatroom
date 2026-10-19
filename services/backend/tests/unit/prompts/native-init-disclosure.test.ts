@@ -82,7 +82,11 @@ describe('Init — templates deferred to task delivery', () => {
   });
 
   test('CLI init also defers templates to task delivery (no init preview)', () => {
-    assertNativeInitTemplateDisclosure(cliInitPrompt('duo', 'planner'));
+    const prompt = cliInitPrompt('duo', 'planner');
+    expect(prompt).not.toContain('Begin With the End in Mind');
+    expect(prompt).not.toContain('Planner → User report');
+    // CLI discovery intentionally advertises the pair-keyed view-template command.
+    expect(prompt).toContain('chatroom handoff view-template');
   });
 
   test('architect and UI/UX init preserve their disclosure contract', () => {

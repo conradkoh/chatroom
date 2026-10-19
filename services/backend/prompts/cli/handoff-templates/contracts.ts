@@ -27,6 +27,20 @@ export interface HandoffTemplateQuery {
 
 export type HandoffTemplateGetter = (query: HandoffTemplateQuery) => string | null;
 
+/**
+ * Selects the chat or code key file by the query's conversation mode.
+ *
+ * Missing mode is treated as code (the historical default). Key files are named
+ * `<from>-<to>-<bucket>.ts`; the chat file re-exports the code getter for
+ * mode-agnostic pairs, so the body renders identically in both modes.
+ */
+export function handoffTemplateByMode(getters: {
+  chat: HandoffTemplateGetter;
+  code: HandoffTemplateGetter;
+}): HandoffTemplateGetter {
+  return (query) => (query.conversationMode === 'chat' ? getters.chat(query) : getters.code(query));
+}
+
 /** Role-owned declaration of who a role hands off to / receives from. */
 export interface RoleHandoffContract<R extends string = string, Target extends string = string> {
   role: R;
@@ -43,13 +57,6 @@ export type BuiltinTeamRoleHandoffContract<
 export type BuiltinTeamHandoffCatalog<T extends TeamPresetId> = {
   [R in BuiltinTeamRole<T>]: BuiltinTeamRoleHandoffContract<T, R>;
 };
-
-/** One renderable outbound mapping in a role listing. */
-export interface HandoffTemplateDescriptor {
-  fromRole: string;
-  toRole: string;
-  template: string;
-}
 
 /**
  * Validates a team's role-handoff catalog. Throws a descriptive Error for:

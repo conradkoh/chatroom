@@ -4,16 +4,16 @@ import { getVerifierGuidance } from './verifier';
 
 describe('verifier guidance snapshots', () => {
   test.each([
-    ['CLI planner', { nativeIntegration: false, entryPointRole: 'planner' }],
-    ['native planner', { nativeIntegration: true, entryPointRole: 'planner' }],
+    ['CLI planner', { nativeIntegration: false, recipientRole: 'planner' }],
+    ['native planner', { nativeIntegration: true, recipientRole: 'planner' }],
   ] as const)('%s renders the complete operating model', (_variant, params) => {
     const guidance = getVerifierGuidance(params);
 
     expect(guidance).toMatchSnapshot();
   });
 
-  test('is advisory and hands off to the configured entry point', () => {
-    const guidance = getVerifierGuidance({ nativeIntegration: false, entryPointRole: 'Planner' });
+  test('is advisory and hands off to the concrete recipient', () => {
+    const guidance = getVerifierGuidance({ nativeIntegration: false, recipientRole: 'Planner' });
 
     expect(guidance).toContain("main job is to check whether the user's goal was accomplished");
     expect(guidance).toContain('judged from chatroom logs');
@@ -27,11 +27,11 @@ describe('verifier guidance snapshots', () => {
   });
 
   test('carries the user handoff template and the step 4a expectation rule', () => {
-    const guidance = getVerifierGuidance({ nativeIntegration: false, entryPointRole: 'planner' });
+    const guidance = getVerifierGuidance({ nativeIntegration: false, recipientRole: 'planner' });
 
     expect(guidance).toContain("## The User's Handoff Template");
     expect(guidance).toContain('Code Change Verification');
-    expect(guidance).toContain('Chat Response Template');
+    expect(guidance).toContain('Instructions (not part of the message): chat response');
     expect(guidance).toContain('4a. User expectations');
   });
 });

@@ -44,8 +44,8 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('Implement the feature as described');
     expect(output).not.toMatch(/task read --chatroom-id/i);
     expect(output).toContain('<handoff-templates>');
-    expect(output).toContain('Delegation Brief (Planner → Builder)');
-    expect(output).toContain('Report Template (Planner → User)');
+    expect(output).toContain('Delegation Brief');
+    expect(output).toContain('### Handoff template `planner` → `user`');
     expect(output).toContain('<handoffs>');
     expect(output).toContain('you MUST run the handoff command');
     expect(output).toContain('--next-role="user"');
@@ -109,7 +109,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('**architect**');
     expect(output).toContain('**uiux-engineer**');
     expect(output).toContain('--next-role="user"');
-    expect(output).toContain('Handoff to `builder`');
+    expect(output).toContain('### Handoff template `planner` → `builder`');
   });
 
   test('task from the compatibility role uses the standard sender handoff recommendation', () => {

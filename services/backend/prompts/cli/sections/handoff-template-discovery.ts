@@ -1,38 +1,51 @@
 /**
  * Common handoff template discovery guidance.
  *
- * Tells an agent to inspect its role-owned handoff contract and renderable
- * outbound templates before work that may require a handoff. Static: no
- * chatroom id and no network calls.
+ * Tells an agent to view the template for the exact sender → recipient pair
+ * before work that may require a handoff. Static: no chatroom id and no
+ * network calls.
+ *
+ * CLI-only: native harnesses inline the handoff templates on each task
+ * delivery, so the discovery command is omitted there.
  */
+
+import { listHandoffTemplatePairs } from '../handoff-templates';
+import { DEFAULT_HANDOFF_TEAM_ID, formatHandoffTemplateCommand } from '../handoff-templates/pair';
 
 export interface HandoffTemplateDiscoveryGuidanceParams {
   teamId?: string | undefined;
-  rolePlaceholder?: string | undefined;
+  role: string;
+  nativeIntegration?: boolean | undefined;
 }
 
-// fallow-ignore-next-line complexity
 export function getHandoffTemplateDiscoveryGuidance(
-  params: HandoffTemplateDiscoveryGuidanceParams = {}
+  params: HandoffTemplateDiscoveryGuidanceParams
 ): string {
-  const teamId = params.teamId ?? 'duo';
-  const role = params.rolePlaceholder ?? 'planner';
-  const normalizedRole = role.trim().toLowerCase();
-  const designRoleInspectionGuidance =
-    normalizedRole === 'architect' || normalizedRole === 'uiux-engineer'
-      ? `
+  if (params.nativeIntegration) return '';
 
-For a static, no-network inspection of an architect or UI/UX engineer generic outbound prompt, omit the target role:
-\`\`\`bash
-chatroom handoff view-template --role="architect"
-chatroom handoff view-template --role="uiux-engineer"
-\`\`\`
-These role-only commands print the generic architect or UI/UX engineer handback template with an \`<entry-point-role>\` placeholder; replace it before running the handoff command.`
-      : '';
+  const teamId = params.teamId ?? DEFAULT_HANDOFF_TEAM_ID;
+  const pairs = listHandoffTemplatePairs(teamId, params.role);
+  const commands = pairs.length
+    ? pairs.map((pair) =>
+        formatHandoffTemplateCommand('view-template', pair, '', '<chat|code|code:enhanced>')
+      )
+    : [
+        // Custom team/role: no catalog pairs, so show the placeholder command.
+        formatHandoffTemplateCommand(
+          'view-template',
+          {
+            teamId,
+            fromRole: '<your-role>',
+            toRole: '<recipient-role>',
+          },
+          '',
+          '<chat|code|code:enhanced>'
+        ),
+      ];
 
-  return `**Role-owned handoff contracts:** Before work that may require a handoff, inspect your role's contract and renderable templates:
+  return `**Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
 \`\`\`bash
-chatroom handoff list-templates --role="${role}" --team-id="${teamId}"
+${commands.join('\n')}
 \`\`\`
-This lists who you receive work from, who you return to, and every outbound handoff template you can use.${designRoleInspectionGuidance}`;
+All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.`;
 }

@@ -327,52 +327,51 @@ teamCommand
 handoffCommandGroup
   .command('view-template')
   .description(
-    'Print a handoff message template; omit --next-role to inspect a generic architect or UI/UX engineer template'
+    'Print the handoff template for one sender → recipient pair in one conversation mode (requires --from, --to, and --mode)'
   )
+  .option('--from <role>', 'Sending role (the role that runs the handoff)')
+  .option('--to <role>', 'Receiving role (the --next-role of the handoff)')
+  .option('--mode <mode>', 'Conversation mode: chat | code | code:enhanced (required)')
   .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
-  // --role / --next-role are declared on the handoff group so subcommand flag
-  // names never collide with the parent options (commander v14 enforces parent
-  // required options on subcommand dispatch and shadows shared flags).
+  // --role / --next-role stay declared on the handoff group: when present they
+  // are forwarded as legacy flags so the backend can emit the rewritten command.
   // fallow-ignore-next-line complexity
-  .action(async function (options: { teamId?: string | undefined }) {
+  .action(async function (options: { from?: string; to?: string; mode?: string; teamId?: string }) {
     const parentOpts = (this.parent?.opts() ?? {}) as { role?: string; nextRole?: string };
-    if (!parentOpts.role) {
-      console.error(`error: required option '--role <role>' not specified`);
-      process.exit(1);
-    }
     const { printHandoffViewTemplate } = await import('./commands/handoff/view-template.js');
-    try {
-      printHandoffViewTemplate({
-        role: parentOpts.role,
-        nextRole: parentOpts.nextRole,
-        teamId: options.teamId,
-      });
-    } catch (err) {
-      console.error(`❌ ${(err as Error).message}`);
-      process.exit(1);
-    }
+    printHandoffViewTemplate({
+      from: options.from,
+      to: options.to,
+      mode: options.mode,
+      teamId: options.teamId,
+      legacyRole: parentOpts.role,
+      legacyNextRole: parentOpts.nextRole,
+    });
   });
 
 handoffCommandGroup
   .command('list-templates')
   .description(
-    'List the role-owned handoff contract and renderable templates (static, no chatroom required)'
+    'Show the pair descriptor and handoff template for one sender → recipient pair in one conversation mode (requires --from, --to, and --mode; static, no chatroom required)'
   )
+  .option('--from <role>', 'Sending role (the role that runs the handoff)')
+  .option('--to <role>', 'Receiving role (the --next-role of the handoff)')
+  .option('--mode <mode>', 'Conversation mode: chat | code | code:enhanced (required)')
   .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
+  // --role / --next-role stay declared on the handoff group: when present they
+  // are forwarded as legacy flags so the backend can emit the rewritten command.
   // fallow-ignore-next-line complexity
-  .action(async function (options: { teamId?: string | undefined }) {
-    const parentOpts = (this.parent?.opts() ?? {}) as { role?: string };
-    if (!parentOpts.role) {
-      console.error(`error: required option '--role <role>' not specified`);
-      process.exit(1);
-    }
+  .action(async function (options: { from?: string; to?: string; mode?: string; teamId?: string }) {
+    const parentOpts = (this.parent?.opts() ?? {}) as { role?: string; nextRole?: string };
     const { printHandoffListTemplates } = await import('./commands/handoff/list-templates.js');
-    try {
-      printHandoffListTemplates({ role: parentOpts.role, teamId: options.teamId });
-    } catch (err) {
-      console.error(`❌ ${(err as Error).message}`);
-      process.exit(1);
-    }
+    printHandoffListTemplates({
+      from: options.from,
+      to: options.to,
+      mode: options.mode,
+      teamId: options.teamId,
+      legacyRole: parentOpts.role,
+      legacyNextRole: parentOpts.nextRole,
+    });
   });
 
 handoffCommandGroup

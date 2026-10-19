@@ -1,10 +1,6 @@
 import { handoffCommand } from '../cli/handoff/command';
-import { getHandoffRecipientVisibilityCallout } from '../native/handoff-visibility';
+import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 import { getFileReferenceGuidanceComment } from '../utils/file-reference-guidance';
-
-function normalizeEntryPointRole(entryPointRole: string): string {
-  return entryPointRole.trim().toLowerCase() || 'planner';
-}
 
 function getUiuxEngineerFocus(): string {
   return 'complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests';
@@ -21,15 +17,11 @@ function getUiuxEngineerRequirements(): string {
 - Do not propose or require web accessibility implementation work unless the user explicitly requests it.`;
 }
 
-/** Template for an entry-point role delegating design work to the UI/UX engineer. */
-export function getEntryPointToUiuxEngineerHandoffTemplate(entryPointRole: string): string {
-  const entryPoint = normalizeEntryPointRole(entryPointRole);
+/** Body for the entry role delegating design work to the UI/UX engineer. */
+export function getEntryPointToUiuxEngineerHandoffTemplate(query: HandoffTemplateQuery): string {
+  const entryPoint = query.fromRole;
 
-  return `${getHandoffRecipientVisibilityCallout('uiux-engineer')}
-
-## Handoff Template (${entryPoint} → uiux-engineer)
-
-The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
+  return `The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the UI/UX Engineer needs to design within the existing repository and team scope.
 
 Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on ${getUiuxEngineerFocus()}.
 
@@ -45,33 +37,12 @@ ${handoffCommand({
 \`\`\``;
 }
 
-/** Template for the UI/UX engineer returning one recommended design to its entry point. */
-export function getUiuxEngineerToEntryPointHandoffTemplate(entryPointRole: string): string {
-  return renderUiuxEngineerToEntryPointHandoffTemplate(normalizeEntryPointRole(entryPointRole));
-}
+/** Body for the UI/UX engineer returning one recommended design to the entry role. */
+export function getUiuxEngineerToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
+  const entryPoint = query.toRole;
+  const sharedContractsHeading = `## Shared contracts (${entryPoint}-owned)`;
 
-/** Template for inspecting the UI/UX engineer handback without a configured target. */
-export function getGenericUiuxEngineerToEntryPointHandoffTemplate(): string {
-  return renderUiuxEngineerToEntryPointHandoffTemplate('<entry-point-role>', true);
-}
-
-function renderUiuxEngineerToEntryPointHandoffTemplate(
-  entryPoint: string,
-  generic = false
-): string {
-  const sharedContractsHeading =
-    !generic && entryPoint === 'planner'
-      ? '## Shared contracts (planner-owned)'
-      : '## Shared contracts (configured entry-point-owned)';
-  const placeholderInstruction = generic
-    ? ' Replace `<entry-point-role>` with the configured entry-point role before running it.'
-    : '';
-
-  return `${getHandoffRecipientVisibilityCallout(entryPoint)}
-
-## Handoff Template (UI/UX Engineer → Entry Point)
-
-Return exactly one recommended, evidence-backed design brief for the authoritative user request to the configured entry point. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to \`${entryPoint}\`. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -119,7 +90,7 @@ ${sharedContractsHeading}
 ## Requirements (acceptance criteria)
 - <one concrete, verifiable requirement per bullet; include exact states, interactions, classes/tokens, and responsive behavior>
 - Include UI and integration test coverage for the design's risk areas.
-- Verify the implemented user-facing entry point end-to-end; unit tests alone are insufficient.
+- Verify the implemented user-facing feature end-to-end; unit tests alone are insufficient.
 
 ## What to avoid
 - Do not implement code or edit files as the UI/UX engineer; this handoff is advisory only.
@@ -133,8 +104,7 @@ ${sharedContractsHeading}
 ## Out of scope
 - <explicit files, flows, behavior, or migration work the implementer must not touch>
 
-## Handoff
-Run the normal handoff command to the configured entry point with this complete design, then stop.${placeholderInstruction}
+Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 
 \`\`\`bash
 ${handoffCommand({

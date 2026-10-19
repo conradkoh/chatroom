@@ -2,33 +2,49 @@
  * Solo role-owned handoff contract.
  *
  * The solo agent is the only team member: it receives work from and returns
- * work to the user.
+ * work to the user. Each target selects its key file by conversation mode
+ * through `handoffTemplateByMode`.
  */
 
-import { getSoloToUserReportTemplate } from './solo-to-user';
-import type { BuiltinTeamRoleHandoffContract } from '../../../cli/handoff-templates/contracts';
-import { getChatToUserHandoffTemplate } from '../../../utils/chat-handoff-template';
-import { getEntryPointToArchitectHandoffTemplate } from '../../architect-handoff-templates';
-import { getEntryPointToTriageHandoffTemplate } from '../../triage-handoff-templates';
-import { getEntryPointToUiuxEngineerHandoffTemplate } from '../../uiux-engineer-handoff-templates';
-import { getEntryPointToVerifierHandoffTemplate } from '../../verifier-handoff-templates';
+import { getSoloArchitectChatTemplate } from './solo-architect-chat';
+import { getSoloArchitectCodeTemplate } from './solo-architect-code';
+import { getSoloTriageChatTemplate } from './solo-triage-chat';
+import { getSoloTriageCodeTemplate } from './solo-triage-code';
+import { getSoloUiuxEngineerChatTemplate } from './solo-uiux-engineer-chat';
+import { getSoloUiuxEngineerCodeTemplate } from './solo-uiux-engineer-code';
+import { getSoloUserChatTemplate } from './solo-user-chat';
+import { getSoloUserCodeTemplate } from './solo-user-code';
+import { getSoloVerifierChatTemplate } from './solo-verifier-chat';
+import { getSoloVerifierCodeTemplate } from './solo-verifier-code';
+import {
+  handoffTemplateByMode,
+  type BuiltinTeamRoleHandoffContract,
+} from '../../../cli/handoff-templates/contracts';
 
 export const soloHandoffContract = {
   role: 'solo',
   receivesFrom: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
-  returnsTo: ['architect', 'uiux-engineer', 'triage', 'verifier', 'user'],
+  returnsTo: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
   outboundTemplates: {
-    architect: () => getEntryPointToArchitectHandoffTemplate('solo'),
-    'uiux-engineer': () => getEntryPointToUiuxEngineerHandoffTemplate('solo'),
-    triage: () => getEntryPointToTriageHandoffTemplate('solo'),
-    verifier: () => getEntryPointToVerifierHandoffTemplate('solo'),
-    user: (query) =>
-      query.conversationMode === 'chat'
-        ? getChatToUserHandoffTemplate()
-        : getSoloToUserReportTemplate({
-            chatroomId: query.chatroomId,
-            role: query.role,
-            cliEnvPrefix: query.cliEnvPrefix,
-          }),
+    architect: handoffTemplateByMode({
+      chat: getSoloArchitectChatTemplate,
+      code: getSoloArchitectCodeTemplate,
+    }),
+    'uiux-engineer': handoffTemplateByMode({
+      chat: getSoloUiuxEngineerChatTemplate,
+      code: getSoloUiuxEngineerCodeTemplate,
+    }),
+    triage: handoffTemplateByMode({
+      chat: getSoloTriageChatTemplate,
+      code: getSoloTriageCodeTemplate,
+    }),
+    verifier: handoffTemplateByMode({
+      chat: getSoloVerifierChatTemplate,
+      code: getSoloVerifierCodeTemplate,
+    }),
+    user: handoffTemplateByMode({
+      chat: getSoloUserChatTemplate,
+      code: getSoloUserCodeTemplate,
+    }),
   },
 } as const satisfies BuiltinTeamRoleHandoffContract<'solo', 'solo'>;

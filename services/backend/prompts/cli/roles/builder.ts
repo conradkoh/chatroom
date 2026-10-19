@@ -37,13 +37,13 @@ ${handoffNodes}`;
  * Generate builder-specific guidance
  */
 export function getBuilderGuidance(params: BuilderGuidanceParams): string {
-  const {
-    questionTarget: questionTargetParam,
-    codeChangesTarget: codeChangesTargetParam,
-    nativeIntegration,
-  } = params;
+  const { questionTarget: questionTargetParam, codeChangesTarget, nativeIntegration } = params;
   const questionTarget = questionTargetParam ?? 'user';
-  const codeChangesTarget = codeChangesTargetParam ?? 'planner';
+  const discoveryGuidance = getHandoffTemplateDiscoveryGuidance({
+    teamId: 'duo',
+    role: 'builder',
+    nativeIntegration,
+  });
 
   return `
 ## Builder Operating Model
@@ -64,9 +64,7 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
   ⚠️ When \`${questionTarget}\` is the user: ${getUserHandoffVisibilityNote()}
 ${getInterRoleHandoffRule()}
 
-${getHandoffTemplateDiscoveryGuidance({ teamId: 'duo', rolePlaceholder: 'builder' })}
-
-**Implementation Guidelines:**
+${discoveryGuidance ? `${discoveryGuidance}\n\n` : ''}**Implementation Guidelines:**
 - For UI implementation, first write a snapshot test that renders the component with the UI/UX engineer's target markup, classes, and styles as the expected output. Run it and confirm it fails, then implement the components until it passes. Do not update the expected snapshot to accept different markup.
 - Write clean, maintainable, well-documented code
 - Follow established patterns and best practices from the codebase
@@ -74,7 +72,7 @@ ${getHandoffTemplateDiscoveryGuidance({ teamId: 'duo', rolePlaceholder: 'builder
 - Commit work with descriptive, atomic commit messages
 
 **Completion gates (before PR or handoff):**
-- All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+- All **(Required)** files done; **verified end-to-end** (user-facing feature works: CLI command runnable, API reachable, or UI action functional)
 - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
 `;
 }

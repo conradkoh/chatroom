@@ -7,16 +7,16 @@ import type { SelectorContext } from '../../types/sections';
 
 describe('triage guidance snapshots', () => {
   test.each([
-    ['CLI planner', { nativeIntegration: false, entryPointRole: 'planner' }],
-    ['native planner', { nativeIntegration: true, entryPointRole: 'planner' }],
+    ['CLI planner', { nativeIntegration: false, recipientRole: 'planner' }],
+    ['native planner', { nativeIntegration: true, recipientRole: 'planner' }],
   ] as const)('%s renders the complete operating model', (_variant, params) => {
     const guidance = getTriageGuidance(params);
 
     expect(guidance).toMatchSnapshot();
   });
 
-  test('is advisory and hands off to the configured entry point', () => {
-    const guidance = getTriageGuidance({ nativeIntegration: false, entryPointRole: 'Planner' });
+  test('is advisory and hands off to the concrete recipient', () => {
+    const guidance = getTriageGuidance({ nativeIntegration: false, recipientRole: 'Planner' });
 
     expect(guidance).toContain('advisory only');
     expect(guidance).toContain('do not edit implementation files');
@@ -27,13 +27,19 @@ describe('triage guidance snapshots', () => {
   });
 
   test('role dispatch renders the operating model for triage', () => {
-    const guidance = getRoleSpecificGuidance('triage', ['triage'], false, 'http://127.0.0.1:3210');
+    const guidance = getRoleSpecificGuidance(
+      'triage',
+      ['triage'],
+      false,
+      'http://127.0.0.1:3210',
+      'planner'
+    );
 
     expect(guidance).not.toBe('');
     expect(guidance).toContain('## Triage Operating Model');
   });
 
-  test('from context, hands off to the configured entry point', () => {
+  test('from context, hands off to the concrete recipient', () => {
     const ctx: SelectorContext = {
       role: 'triage',
       team: 'solo',

@@ -3,7 +3,8 @@ import { getInterRoleHandoffRule } from '../sections';
 
 export type ResearcherGuidanceParams = {
   nativeIntegration?: boolean | undefined;
-  entryPointRole?: string | undefined;
+  /** Role this guidance hands off to (from the team contract). */
+  recipientRole: string;
 };
 
 const RESEARCHER_GUIDANCE = `## Researcher Operating Model
@@ -20,15 +21,15 @@ ${getInterRoleHandoffRule()}
 4. Label every finding \`confirmed\`, \`inferred\`, or \`unknown\`. Never present a guess as fact.
 5. Resolve ambiguity where evidence allows. For the rest, state the open question, who must decide it, and a recommended default.
 6. Follow the injected \`<handoff-templates>\` research brief exactly, in its order. Answer only the questions asked. Do not present alternative architectures beyond what grounds the decision.
-7. Hand the brief to the configured entry point with the normal command, then stop:
+7. Hand the brief to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="researcher" --next-role="{ENTRY_POINT_ROLE}"
 \`\`\``;
 
-export function getResearcherGuidance(params: ResearcherGuidanceParams = {}): string {
-  return RESEARCHER_GUIDANCE.replace(
+export function getResearcherGuidance(params: ResearcherGuidanceParams): string {
+  return RESEARCHER_GUIDANCE.replaceAll(
     '{ENTRY_POINT_ROLE}',
-    params.entryPointRole?.trim().toLowerCase() || 'planner'
+    params.recipientRole.trim().toLowerCase()
   ).replace('{SESSION_CONTINUITY}', getSessionContinuityLine(params.nativeIntegration));
 }

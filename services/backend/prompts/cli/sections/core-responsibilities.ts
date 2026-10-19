@@ -12,6 +12,7 @@ import type { TeamCompositionConfig } from './team-composition';
 export interface CoreResponsibilitiesSectionOptions {
   role: string;
   teamId: string;
+  nativeIntegration?: boolean | undefined;
 }
 
 /**
@@ -29,11 +30,15 @@ export function getCoreResponsibilitiesSection(
     : "If the work doesn't meet requirements, revise it yourself before delivering.";
 
   const discoveryGuidance = options
-    ? `\n\n${getHandoffTemplateDiscoveryGuidance({ teamId: options.teamId, rolePlaceholder: options.role })}`
+    ? getHandoffTemplateDiscoveryGuidance({
+        teamId: options.teamId,
+        role: options.role,
+        nativeIntegration: options.nativeIntegration,
+      })
     : '';
 
   return `**Core Responsibilities:**
 - **User Communication**: When work is ready to deliver to the user, hand off to \`user\`; all final responses to the user come through you. When you need to give the user an interim update while you keep working, use \`notify-user\`.
   - **Handoff completeness**: When you hand off to \`user\`, write a complete, standalone document: include all relevant context, results, and next steps. Do not reference prior messages, session text, or \`notify-user\` notices.
-- **Quality Accountability**: You are ultimately accountable for all work. ${qualityLine}${discoveryGuidance}`;
+- **Quality Accountability**: You are ultimately accountable for all work. ${qualityLine}${discoveryGuidance ? `\n\n${discoveryGuidance}` : ''}`;
 }

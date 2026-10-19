@@ -1,9 +1,24 @@
 import { describe, expect, test } from 'vitest';
 
 import {
-  getEntryPointToResearcherHandoffTemplate,
-  getResearcherToEntryPointHandoffTemplate,
-} from './researcher-handoff-templates';
+  listHandoffTemplatePairs,
+  renderHandoffTemplate,
+  type HandoffTemplatePair,
+} from '../cli/handoff-templates';
+
+/** Every pair in either team shape whose sender or recipient is the researcher. */
+const researcherPairs = [
+  ...listHandoffTemplatePairs('duo'),
+  ...listHandoffTemplatePairs('solo'),
+].filter((pair) => pair.fromRole === 'researcher' || pair.toRole === 'researcher');
+
+function renderPair(pair: HandoffTemplatePair): string {
+  const template = renderHandoffTemplate(pair);
+  if (!template) {
+    throw new Error(`no handoff template for ${pair.teamId}:${pair.fromRole}->${pair.toRole}`);
+  }
+  return template;
+}
 
 const briefHeadings = [
   '## Summary',
@@ -15,19 +30,18 @@ const briefHeadings = [
   '## Remaining ambiguity',
   '## Risks and constraints',
   '## Work completed',
-  '## Handoff',
 ];
 
 describe('researcher handoff template snapshots', () => {
-  test.each([
-    ['planner delegation', getEntryPointToResearcherHandoffTemplate('planner')],
-    ['researcher to planner', getResearcherToEntryPointHandoffTemplate('planner')],
-  ] as const)('%s renders the complete contract', (_variant, template) => {
-    expect(template).toMatchSnapshot();
-  });
+  test.each(researcherPairs)(
+    '$teamId $fromRole → $toRole renders the complete contract',
+    (pair) => {
+      expect(renderPair(pair)).toMatchSnapshot();
+    }
+  );
 
   test('planner delegation states the research trigger and report-only scope', () => {
-    const template = getEntryPointToResearcherHandoffTemplate('planner');
+    const template = renderPair({ teamId: 'duo', fromRole: 'planner', toRole: 'researcher' });
 
     expect(template).toContain(
       'The automatically injected `<user-message>` is the authoritative request'
@@ -43,7 +57,7 @@ describe('researcher handoff template snapshots', () => {
   });
 
   test('researcher brief uses the required sections in order and ends with a handoff', () => {
-    const template = getResearcherToEntryPointHandoffTemplate('planner');
+    const template = renderPair({ teamId: 'duo', fromRole: 'researcher', toRole: 'planner' });
     const positions = briefHeadings.map((heading) => template.indexOf(`\n${heading}\n`));
 
     for (const position of positions) expect(position).toBeGreaterThan(-1);
@@ -53,7 +67,7 @@ describe('researcher handoff template snapshots', () => {
   });
 
   test('researcher brief separates confirmed, inferred, and unknown findings', () => {
-    const template = getResearcherToEntryPointHandoffTemplate('planner');
+    const template = renderPair({ teamId: 'duo', fromRole: 'researcher', toRole: 'planner' });
 
     expect(template).toContain('`confirmed` (with evidence)');
     expect(template).toContain('`inferred` (with reasoning)');

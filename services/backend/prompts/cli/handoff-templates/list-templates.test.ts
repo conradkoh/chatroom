@@ -1,225 +1,217 @@
 /**
- * Tests for the role-level handoff template listing (discovery command data).
+ * Tests for the pair-keyed handoff template listing (discovery command data).
  */
 
 import { describe, expect, test } from 'vitest';
 
-import { listHandoffTemplates, type RoleHandoffTemplateListing } from './index';
-import { formatHandoffTemplateListing, listHandoffTemplatesCommand } from './list-templates';
+import { listHandoffTemplatesCommand } from './list-templates';
+import { HandoffTemplatePairError } from './pair';
+import { getPlannerBuilderCodeTemplate } from '../../teams/duo/handoff-templates/planner-builder-code';
 
-function requireListing(query: {
-  role: string;
-  teamId?: string | undefined;
-}): RoleHandoffTemplateListing {
-  const listing = listHandoffTemplates({ role: query.role, teamId: query.teamId });
-  if (!listing) throw new Error(`missing listing for ${query.teamId ?? 'duo'}/${query.role}`);
-  return listing;
-}
-
-describe('listHandoffTemplates', () => {
-  test('duo planner lists permanent and design-role templates', () => {
-    const listing = requireListing({ teamId: 'duo', role: 'planner' });
-
-    expect(listing.teamId).toBe('duo');
-    expect(listing.role).toBe('planner');
-    expect(listing.receivesFrom.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining([
-        'user',
-        'builder',
-        'architect',
-        'uiux-engineer',
-        'researcher',
-        'triage',
-        'verifier',
-      ])
-    );
-    expect(listing.returnsTo.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining([
-        'builder',
-        'architect',
-        'uiux-engineer',
-        'researcher',
-        'triage',
-        'user',
-        'verifier',
-      ])
-    );
-
-    const targets = listing.templates.map((t) => t.toRole.toLowerCase());
-    expect(targets).toEqual([
-      'architect',
-      'builder',
-      'researcher',
-      'triage',
-      'uiux-engineer',
-      'user',
-      'verifier',
-    ]);
-    for (const toRole of [
-      'builder',
-      'architect',
-      'uiux-engineer',
-      'researcher',
-      'triage',
-      'user',
-      'verifier',
-    ]) {
-      expect(
-        listing.templates.find((t) => t.toRole.toLowerCase() === toRole)?.template
-      ).toBeTruthy();
-    }
-    expect(listing.templates.find((t) => t.toRole === 'triage')?.template).toContain(
-      'Handoff Template (planner → triage)'
-    );
-  });
-
-  test('duo verifier lists a complete verdict return template to planner', () => {
-    const listing = requireListing({ teamId: 'duo', role: 'verifier' });
-
-    expect(listing.receivesFrom).toEqual(['planner']);
-    expect(listing.returnsTo).toEqual(['planner']);
-    expect(listing.templates.map((template) => template.toRole)).toEqual(['planner']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Verifier → planner)');
-    for (const heading of [
-      '## Verdict',
-      '## Objective',
-      '## Requirements',
-      '## Evidence',
-      '## Missing or unmet',
-      '## Scope and limits',
-      '## Handoff',
-    ]) {
-      expect(listing.templates[0]?.template).toContain(heading);
-    }
-  });
-
-  test('duo triage lists a complete return template to planner', () => {
-    const listing = requireListing({ teamId: 'duo', role: 'triage' });
-
-    expect(listing.receivesFrom).toEqual(['planner']);
-    expect(listing.returnsTo).toEqual(['planner']);
-    expect(listing.templates.map((template) => template.toRole)).toEqual(['planner']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Triage → planner)');
-    for (const heading of [
-      '## Summary',
-      '## Reported behavior',
-      '## Root cause',
-      '## Reproduction attempt',
-      '## Proposed immediate fix',
-      '## Systemic issues',
-      '## Work completed',
-      '## Handoff',
-    ]) {
-      expect(listing.templates[0]?.template).toContain(heading);
-    }
-  });
-
-  test('duo builder lists planner only', () => {
-    const listing = requireListing({ teamId: 'duo', role: 'builder' });
-
-    expect(listing.receivesFrom.map((r) => r.toLowerCase())).toEqual(['planner']);
-    expect(listing.returnsTo.map((r) => r.toLowerCase())).toEqual(['planner']);
-    expect(listing.templates.map((t) => t.toRole.toLowerCase())).toEqual(['planner']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Builder → Planner)');
-  });
-
-  test('solo lists solo → design-role and user templates', () => {
-    const listing = requireListing({ teamId: 'solo', role: 'solo' });
-
-    expect(listing.teamId).toBe('solo');
-    expect(listing.receivesFrom.map((r) => r.toLowerCase())).toEqual(
-      expect.arrayContaining(['user'])
-    );
-    expect(listing.templates.map((t) => t.toRole.toLowerCase())).toEqual([
-      'architect',
-      'triage',
-      'uiux-engineer',
-      'user',
-      'verifier',
-    ]);
-    expect(listing.templates.find((t) => t.toRole === 'triage')?.template).toContain(
-      'Handoff Template (solo → triage)'
-    );
-    expect(listing.templates.find((t) => t.toRole === 'user')?.template).toContain(
-      'Report Template (Solo → User)'
-    );
-  });
-
-  test('solo verifier lists a complete verdict return template to solo', () => {
-    const listing = requireListing({ teamId: 'solo', role: 'verifier' });
-
-    expect(listing.receivesFrom).toEqual(['solo']);
-    expect(listing.returnsTo).toEqual(['solo']);
-    expect(listing.templates.map((template) => template.toRole)).toEqual(['solo']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Verifier → solo)');
-    for (const heading of [
-      '## Verdict',
-      '## Objective',
-      '## Requirements',
-      '## Evidence',
-      '## Missing or unmet',
-      '## Scope and limits',
-      '## Handoff',
-    ]) {
-      expect(listing.templates[0]?.template).toContain(heading);
-    }
-  });
-
-  test('solo triage lists its return template to solo', () => {
-    const listing = requireListing({ teamId: 'solo', role: 'triage' });
-
-    expect(listing.receivesFrom).toEqual(['solo']);
-    expect(listing.returnsTo).toEqual(['solo']);
-    expect(listing.templates.map((template) => template.toRole)).toEqual(['solo']);
-    expect(listing.templates[0]?.template).toContain('Handoff Template (Triage → solo)');
-    expect(listing.templates[0]?.template).toContain('## Root cause');
-  });
-
-  test('role matching is case-insensitive and defaults team to duo', () => {
-    expect(listHandoffTemplates({ role: 'PLANNER' })?.role).toBe('planner');
-    expect(listHandoffTemplates({ role: 'Planner' })?.teamId).toBe('duo');
-  });
-
-  test('unknown role and unknown team return null (never throw)', () => {
-    expect(listHandoffTemplates({ role: 'reviewer', teamId: 'duo' })).toBeNull();
-    expect(listHandoffTemplates({ role: 'planner', teamId: 'tri' })).toBeNull();
-    expect(listHandoffTemplates({ role: '', teamId: 'duo' })).toBeNull();
-  });
-
-  test('output order is deterministic', () => {
-    const a = requireListing({ teamId: 'duo', role: 'planner' });
-    const b = requireListing({ teamId: 'duo', role: 'planner' });
-    expect(a).toEqual(b);
-    expect(a.templates.map((t) => t.toRole.toLowerCase()).join(',')).toBe(
-      b.templates.map((t) => t.toRole.toLowerCase()).join(',')
-    );
-  });
+const plannerBuilderBody = getPlannerBuilderCodeTemplate({
+  fromRole: 'planner',
+  toRole: 'builder',
 });
 
-describe('listHandoffTemplatesCommand / formatHandoffTemplateListing', () => {
-  test('formatted planner output includes role, receives, returns, and outbound mappings', () => {
-    const output = listHandoffTemplatesCommand({ role: 'planner', teamId: 'duo' });
+function expectPairError(fn: () => unknown): HandoffTemplatePairError {
+  try {
+    fn();
+  } catch (error) {
+    expect(error).toBeInstanceOf(HandoffTemplatePairError);
+    return error as HandoffTemplatePairError;
+  }
+  throw new Error('expected HandoffTemplatePairError');
+}
 
-    expect(output).toContain('Handoff contract for `planner` (team: `duo`)');
-    expect(output).toContain('Receives from:');
-    expect(output).toContain('Returns to:');
-    expect(output).toContain('Renderable outbound templates:');
-    expect(output).toContain('- `planner` → `builder`');
-    expect(output).toContain('- `planner` → `user`');
+describe('listHandoffTemplatesCommand', () => {
+  test('prints the pair descriptor, send command, reply pair, and template body', () => {
+    const output = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'builder',
+      mode: 'code',
+      teamId: 'duo',
+    });
+
+    expect(output).toContain(
+      'Handoff template `planner` → `builder` (team: `duo`, mode: `code`, key: `duo:planner->builder@code`)'
+    );
+    expect(output).toContain(
+      'Send with: chatroom handoff --chatroom-id="<chatroom-id>" --role="planner" --next-role="builder"'
+    );
+    expect(output).toContain(
+      'Reply pair: `builder` → `planner` (view: chatroom handoff view-template --from="builder" --to="planner" --mode="code" --team-id="duo")'
+    );
+    expect(output).toContain(plannerBuilderBody);
   });
 
-  test('solo listing omits duplicate planner mappings and stays concise', () => {
-    const output = formatHandoffTemplateListing(requireListing({ teamId: 'solo', role: 'solo' }));
-    const templates = output.match(/^- `[^`]+` → `[^`]+`$/gm) ?? [];
-    expect(templates).toHaveLength(5);
+  test('prints the reply pair for a role recipient', () => {
+    const output = listHandoffTemplatesCommand({
+      from: 'builder',
+      to: 'planner',
+      mode: 'code',
+      teamId: 'duo',
+    });
+
+    expect(output).toContain('Reply pair: `planner` → `builder`');
   });
 
-  test('unknown role/team throws a descriptive error', () => {
-    expect(() => listHandoffTemplatesCommand({ role: 'reviewer', teamId: 'duo' })).toThrow(
-      /No handoff contract for role "reviewer"/i
+  test('prints no reply pair for the terminal user recipient', () => {
+    const output = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'chat',
+      teamId: 'duo',
+    });
+
+    expect(output).toContain('Reply pair: none (`user` replies free-form)');
+  });
+
+  test('prefixes the commands with the CLI env prefix', () => {
+    const output = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'builder',
+      mode: 'code',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=x ',
+    });
+
+    expect(output).toContain(
+      'Send with: CHATROOM_CONVEX_URL=x chatroom handoff --chatroom-id="<chatroom-id>"'
     );
-    expect(() => listHandoffTemplatesCommand({ role: 'planner', teamId: 'tri' })).toThrow(
-      /No handoff contract for role "planner"/i
+    expect(output).toContain(
+      'view: CHATROOM_CONVEX_URL=x chatroom handoff view-template --from="builder" --to="planner" --mode="code"'
     );
+  });
+
+  test('mode selects the body and the key for planner → user', () => {
+    const chat = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'chat',
+      teamId: 'duo',
+    });
+    const code = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'code',
+      teamId: 'duo',
+    });
+
+    expect(chat).toContain('key: `duo:planner->user@chat`');
+    expect(chat).not.toContain('Proof of Completion');
+    expect(code).toContain('key: `duo:planner->user@code`');
+    expect(code).toContain('Proof of Completion');
+    expect(chat).not.toBe(code);
+  });
+
+  test('code:enhanced shares the code bucket key and body', () => {
+    const code = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'code',
+      teamId: 'duo',
+    });
+    const enhanced = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'user',
+      mode: 'code:enhanced',
+      teamId: 'duo',
+    });
+
+    expect(enhanced).toContain('key: `duo:planner->user@code`');
+    // Same body: only the informational mode label differs.
+    expect(enhanced.replace('mode: `code:enhanced`', 'mode: `code`')).toBe(code);
+  });
+
+  test('a mode-agnostic pair renders the same body for chat and code', () => {
+    const chat = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'builder',
+      mode: 'chat',
+      teamId: 'duo',
+    });
+    const code = listHandoffTemplatesCommand({
+      from: 'planner',
+      to: 'builder',
+      mode: 'code',
+      teamId: 'duo',
+    });
+
+    expect(chat).toContain(plannerBuilderBody);
+    expect(code).toContain(plannerBuilderBody);
+    // The header block (mode label, key, reply command) differs; the body is identical.
+    const bodyAfterHeader = (output: string): string => output.slice(output.indexOf('\n\n') + 2);
+    expect(bodyAfterHeader(chat)).toBe(bodyAfterHeader(code));
+  });
+
+  test('legacy role-only input lists every pair from that role', () => {
+    const error = expectPairError(() =>
+      listHandoffTemplatesCommand({ legacyRole: 'planner', teamId: 'duo' })
+    );
+
+    expect(error.code).toBe('LEGACY_ROLE_FLAGS');
+    expect(error.message).toContain('handoff list-templates no longer accepts --role/--next-role.');
+    for (const to of [
+      'user',
+      'builder',
+      'architect',
+      'uiux-engineer',
+      'triage',
+      'researcher',
+      'verifier',
+    ]) {
+      expect(error.message).toContain(
+        `chatroom handoff list-templates --from="planner" --to="${to}" --mode="<chat|code|code:enhanced>" --team-id="duo"`
+      );
+    }
+    expect(error.message.match(/chatroom handoff list-templates --from="planner"/g)).toHaveLength(
+      7
+    );
+  });
+
+  test('missing --to fails with the exact MISSING_PAIR text', () => {
+    const error = expectPairError(() =>
+      listHandoffTemplatesCommand({ from: 'planner', teamId: 'duo' })
+    );
+
+    expect(error.code).toBe('MISSING_PAIR');
+    expect(error.message).toBe(
+      [
+        'handoff list-templates requires both --from and --to (missing: --to). Handoff templates are keyed by the (sender, recipient) pair.',
+        'Example: chatroom handoff list-templates --from="planner" --to="builder" --mode="code" --team-id="duo"',
+      ].join('\n')
+    );
+  });
+
+  test('missing --mode fails with the exact MISSING_MODE text', () => {
+    const error = expectPairError(() =>
+      listHandoffTemplatesCommand({ from: 'planner', to: 'user', teamId: 'duo' })
+    );
+
+    expect(error.code).toBe('MISSING_MODE');
+    expect(error.message).toBe(
+      [
+        'handoff list-templates requires --mode (missing: --mode). Handoff templates are keyed by the (sender, recipient) pair and the conversation mode.',
+        'Example: chatroom handoff list-templates --from="planner" --to="user" --mode="chat" --team-id="duo"',
+      ].join('\n')
+    );
+  });
+
+  test('an unknown --mode fails with the exact UNKNOWN_MODE text', () => {
+    const error = expectPairError(() =>
+      listHandoffTemplatesCommand({ from: 'planner', to: 'user', mode: 'bogus', teamId: 'duo' })
+    );
+
+    expect(error.code).toBe('UNKNOWN_MODE');
+    expect(error.message).toBe('Unknown mode "bogus". Valid modes: chat, code, code:enhanced.');
+  });
+
+  test('unknown team fails with the exact UNKNOWN_TEAM text', () => {
+    const error = expectPairError(() =>
+      listHandoffTemplatesCommand({ from: 'planner', to: 'builder', teamId: 'tri' })
+    );
+
+    expect(error.code).toBe('UNKNOWN_TEAM');
+    expect(error.message).toBe('Unknown team "tri". Known teams: duo, solo.');
   });
 });
