@@ -9,8 +9,6 @@
  * delivery, so the discovery command is omitted there.
  */
 
-import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
-
 import { listHandoffTemplatePairs } from '../handoff-templates';
 import { formatHandoffTemplateCommand } from '../handoff-templates/pair';
 
@@ -36,7 +34,7 @@ export function getHandoffTemplateDiscoveryGuidance(
         formatHandoffTemplateCommand(
           'view-template',
           {
-            teamId: teamId as TeamPresetId,
+            teamId,
             fromRole: '<your-role>',
             toRole: '<recipient-role>',
           },

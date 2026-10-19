@@ -108,6 +108,20 @@ export function formatHandoffPairLabel(pair: { fromRole: string; toRole: string 
 }
 
 /**
+ * Structural input to {@link formatHandoffTemplateCommand}.
+ *
+ * The formatter only interpolates text, so it accepts any team token: a
+ * validated {@link HandoffTemplatePair}, a placeholder, or the raw team a user
+ * typed when a legacy-flag error echoes their input back. Team validation lives
+ * at the resolver boundary (`isTeamPresetId`), not here.
+ */
+export interface HandoffTemplateCommandTarget {
+  teamId: string;
+  fromRole: string;
+  toRole: string;
+}
+
+/**
  * Copy/paste-ready command that addresses a pair.
  *
  * `modeArg` is written verbatim, so pass `<chat|code|code:enhanced>` for
@@ -115,7 +129,7 @@ export function formatHandoffPairLabel(pair: { fromRole: string; toRole: string 
  */
 export function formatHandoffTemplateCommand(
   command: HandoffTemplateCommandName,
-  pair: HandoffTemplatePair,
+  pair: HandoffTemplateCommandTarget,
   cliEnvPrefix = '',
   modeArg?: string
 ): string {
@@ -174,7 +188,7 @@ export function legacyRoleFlagsMessage(
       `Use: ${formatHandoffTemplateCommand(
         command,
         {
-          teamId: input.teamId as TeamPresetId,
+          teamId: input.teamId,
           fromRole: input.legacyRole,
           toRole: input.legacyNextRole,
         },
