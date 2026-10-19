@@ -37,13 +37,8 @@ ${handoffNodes}`;
  * Generate builder-specific guidance
  */
 export function getBuilderGuidance(params: BuilderGuidanceParams): string {
-  const {
-    questionTarget: questionTargetParam,
-    codeChangesTarget: codeChangesTargetParam,
-    nativeIntegration,
-  } = params;
+  const { questionTarget: questionTargetParam, codeChangesTarget, nativeIntegration } = params;
   const questionTarget = questionTargetParam ?? 'user';
-  const codeChangesTarget = codeChangesTargetParam ?? 'planner';
   const discoveryGuidance = getHandoffTemplateDiscoveryGuidance({
     teamId: 'duo',
     role: 'builder',

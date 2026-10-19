@@ -72,9 +72,10 @@ export interface BuilderGuidanceParams extends BasePromptParams {
   /** Override the default question/simple-task handoff target (default: 'user') */
   questionTarget?: string | undefined;
   /**
-   * Override the handoff target after code changes (default: 'planner').
+   * Handoff target after code changes, taken from the team contract (the duo
+   * builder returns to `planner`). Required: no silent default.
    */
-  codeChangesTarget?: string | undefined;
+  codeChangesTarget: string;
   /** True when harness uses native task injection instead of get-next-task */
   nativeIntegration?: boolean | undefined;
 }

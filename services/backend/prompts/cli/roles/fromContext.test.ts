@@ -48,4 +48,24 @@ describe('base role guidance recipient resolution', () => {
     expect(guidance).toContain('--role="architect" --next-role="lead"');
     expect(guidance).toContain('Hand the complete design brief to `lead`');
   });
+
+  test('duo builder code-change target comes from the contract, not teamConfig.entryPoint', () => {
+    const guidance = getBaseRoleGuidanceFromContext({
+      role: 'builder',
+      team: 'duo',
+      teamConfig: {
+        id: 'duo',
+        name: 'duo team',
+        roles: ['planner', 'builder'],
+        entryPoint: 'architect',
+      },
+      teamRoles: ['planner', 'builder'],
+      isEntryPoint: false,
+      convexUrl: 'http://127.0.0.1:3210',
+      agentType: 'unset',
+    });
+
+    expect(guidance).toContain('Hand off to `planner`');
+    expect(guidance).not.toContain('Hand off to `architect`');
+  });
 });

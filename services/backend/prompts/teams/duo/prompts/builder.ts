@@ -8,7 +8,7 @@
 import { getBuilderGuidance as getBaseBuilderGuidance } from '../../../cli/roles/builder';
 import type { BuilderGuidanceParams } from '../../../types/cli';
 
-export function getBuilderGuidance(ctx: BuilderGuidanceParams): string {
+export function getBuilderGuidance(ctx: Omit<BuilderGuidanceParams, 'codeChangesTarget'>): string {
   return `
  **Duo Team Context:**
  - You work with a planner who coordinates work and communicates with the user

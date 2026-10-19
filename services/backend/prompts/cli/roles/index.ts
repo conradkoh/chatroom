@@ -17,7 +17,7 @@ type RoleSpecificGuidanceParams = {
   convexUrl: string;
   chatroomId?: string | undefined;
   nativeIntegration?: boolean | undefined;
-  codeChangesTarget?: string | undefined;
+  codeChangesTarget: string;
   questionTarget?: string | undefined;
   /** Role the specialist guidance hands off to (from the team contract). */
   recipientRole: string;
@@ -56,6 +56,8 @@ export function getRoleSpecificGuidance(
       isEntryPoint,
       convexUrl,
       recipientRole,
+      // The contract recipient is also the builder's post-code-change target.
+      codeChangesTarget: recipientRole,
     }) ?? ''
   );
 }

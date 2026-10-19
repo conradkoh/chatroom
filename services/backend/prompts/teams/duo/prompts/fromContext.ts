@@ -14,7 +14,9 @@ import type { SelectorContext } from '../../../types/sections';
 // Parameter Converters
 // =============================================================================
 
-export function toDuoBuilderParams(ctx: SelectorContext): BuilderGuidanceParams {
+export function toDuoBuilderParams(
+  ctx: SelectorContext
+): Omit<BuilderGuidanceParams, 'codeChangesTarget'> {
   return {
     role: ctx.role,
     teamRoles: ctx.teamRoles,

@@ -78,6 +78,7 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
         teamRoles: ['planner', 'builder'],
         isEntryPoint: false,
         convexUrl: 'http://127.0.0.1:3210',
+        codeChangesTarget: 'planner',
         nativeIntegration,
       });
       const solo = getSoloGuidance({
