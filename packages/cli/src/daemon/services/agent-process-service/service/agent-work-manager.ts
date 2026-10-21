@@ -341,18 +341,35 @@ export class AgentWorkManager {
     role: string;
     mode: 'automatic' | 'explicit';
   }): Promise<{ released: number }> {
-    // Explicit user recovery overrides any waiting provider-failure backoff.
-    if (args.mode === 'explicit') {
-      this.cancelTurnFailureReleasesForRole(args.chatroomId, args.role);
-    }
     const key = recoveryKey(args.chatroomId, args.role);
-    const gate = this.recoveryGates.get(key);
+    let gate = this.recoveryGates.get(key);
     if (!gate)
       throw new Error(`role recovery gate not prepared for ${args.role}@${args.chatroomId}`);
-    if (gate.recoveryPromise) return gate.recoveryPromise;
+
+    // An explicit request must not reuse an automatic run: the automatic selector
+    // skipped tasks whose backoff marker was set, so its result is not an
+    // explicit recovery. Let it finish, re-open the gate if it closed it, then
+    // run a fresh explicit pass below.
+    while (gate.recoveryPromise) {
+      if (args.mode !== 'explicit') return gate.recoveryPromise;
+      await gate.recoveryPromise.catch(() => undefined);
+      if (!this.recoveryGates.has(key)) {
+        await this.prepareRoleRecovery({ chatroomId: args.chatroomId, role: args.role });
+      }
+      const nextGate = this.recoveryGates.get(key);
+      if (!nextGate)
+        throw new Error(`role recovery gate not prepared for ${args.role}@${args.chatroomId}`);
+      gate = nextGate;
+    }
+
     gate.recoveryPromise = (async () => {
       await gate.drainPromise;
       const result = await this.deps.taskService.recoverInFlightTasks(args);
+      // Only after an explicit recovery actually succeeded may its waiting
+      // releases be cancelled. A throw above leaves them armed.
+      if (args.mode === 'explicit') {
+        this.cancelTurnFailureReleasesForRole(args.chatroomId, args.role);
+      }
       if (this.recoveryGates.get(key) === gate) {
         if (gate.retryTimer) clearTimeout(gate.retryTimer);
         this.recoveryGates.delete(key);

@@ -1041,6 +1041,162 @@ describe('AgentWorkManager', () => {
     }
   });
 
+  test('explicit recovery waits for an in-flight automatic run and releases its waiting task', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      let resolveAutomatic!: (value: { released: number; skipped: number }) => void;
+      const automaticRun = new Promise<{ released: number; skipped: number }>((resolve) => {
+        resolveAutomatic = resolve;
+      });
+      const recoverInFlightTasks = vi
+        .fn()
+        .mockImplementationOnce(() => automaticRun)
+        .mockResolvedValueOnce({ released: 1, skipped: 0 });
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const clearTurnFailureReleasePending = vi.fn();
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        recoverInFlightTasks,
+        releaseTaskAfterTurnFailure,
+        clearTurnFailureReleasePending,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
+
+      const automatic = service.recoverStoppedRole({
+        chatroomId: 'room-1',
+        role: 'builder',
+        mode: 'automatic',
+      });
+      await Promise.resolve();
+      const explicit = service.recoverStoppedRole({
+        chatroomId: 'room-1',
+        role: 'builder',
+        mode: 'explicit',
+      });
+
+      resolveAutomatic({ released: 0, skipped: 1 });
+      await automatic;
+      await explicit;
+
+      expect(recoverInFlightTasks).toHaveBeenCalledTimes(2);
+      expect(recoverInFlightTasks.mock.calls[1][0]).toEqual({
+        chatroomId: 'room-1',
+        role: 'builder',
+        mode: 'explicit',
+      });
+      // The successful explicit pass is what cancels the waiting release.
+      expect(clearTurnFailureReleasePending).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      expect(vi.getTimerCount()).toBe(0);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('a rejected explicit recovery keeps the waiting release armed', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const recoverInFlightTasks = vi.fn(async () => {
+        throw new Error('backend unavailable');
+      });
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        recoverInFlightTasks,
+        releaseTaskAfterTurnFailure,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
+
+      await expect(
+        service.recoverStoppedRole({
+          chatroomId: 'room-1',
+          role: 'builder',
+          mode: 'explicit',
+        })
+      ).rejects.toThrow('backend unavailable');
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('an explicit recovery without a gate does not cancel the waiting release', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const clearTurnFailureReleasePending = vi.fn();
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        clearTurnFailureReleasePending,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      await expect(
+        service.recoverStoppedRole({
+          chatroomId: 'room-1',
+          role: 'builder',
+          mode: 'explicit',
+        })
+      ).rejects.toThrow('role recovery gate not prepared');
+      expect(clearTurnFailureReleasePending).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   test('cancels a waiting release on a user start and on a user restart', async () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
