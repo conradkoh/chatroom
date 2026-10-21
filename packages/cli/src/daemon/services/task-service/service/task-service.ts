@@ -1010,6 +1010,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         ...(expectedReason ? { expectedReason } : {}),
       }),
     recordTurnFailure,
+    parkTurnFailure: (args) => parkTask(args, 'provider_failure'),
     decideUncoveredTurnEnd,
     confirmNudgeSent,
     resetTurnTracking,

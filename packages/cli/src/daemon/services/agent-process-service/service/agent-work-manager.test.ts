@@ -27,6 +27,7 @@ function createService(
     readonly recordTurnFailure?: (
       args: Record<string, string>
     ) => Promise<{ attempts: number; exceeded: boolean }>;
+    readonly parkTurnFailure?: ReturnType<typeof vi.fn>;
     readonly isRedeliveryExhausted?: () => boolean;
     readonly clearRedeliveryTracking?: () => void;
     readonly markTurnFailureReleasePending?: ReturnType<typeof vi.fn>;
@@ -51,7 +52,9 @@ function createService(
     readonly resetTurnTracking?: ReturnType<typeof vi.fn>;
     readonly startAgent?: ReturnType<typeof vi.fn>;
     readonly runSerializedForAgent?: ReturnType<typeof vi.fn>;
-    readonly agentConfig?: { agentHarness: string; model: string; workingDir: string };
+    readonly agentConfig?:
+      | { agentHarness: string; model: string; workingDir: string }
+      | (() => { agentHarness: string; model: string; workingDir: string } | undefined);
     readonly isStopRequested?: () => boolean;
     readonly acquireNativeDeliverySlot?: ReturnType<typeof vi.fn>;
     readonly recordDeliveryFailure?: ReturnType<typeof vi.fn>;
@@ -62,7 +65,10 @@ function createService(
   const taskInboxState = options.taskInboxState ?? new TaskInboxState();
   taskInboxState.upsert(options.initialTasks ?? []);
   return new AgentWorkManager({
-    configurationService: { get: () => options.agentConfig } as never,
+    configurationService: {
+      get: () =>
+        typeof options.agentConfig === 'function' ? options.agentConfig() : options.agentConfig,
+    } as never,
     agentMgr: {
       subscribeAgentTurnEnded: (handler: (event: never) => Promise<unknown>) => {
         options.onTurnEnded?.(handler);
@@ -122,6 +128,7 @@ function createService(
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
       recordTurnFailure:
         options.recordTurnFailure ?? (async () => ({ attempts: 1, exceeded: false })),
+      parkTurnFailure: options.parkTurnFailure ?? vi.fn(),
       decideUncoveredTurnEnd:
         options.decideUncoveredTurnEnd ?? (async () => ({ action: 'nudge' as const })),
       confirmNudgeSent: options.confirmNudgeSent ?? vi.fn(),
@@ -605,7 +612,7 @@ describe('AgentWorkManager', () => {
     service.dispose();
   });
 
-  test('recovery retries cap their interval at ten minutes', async () => {
+  test('recovery retries cap their interval at thirty seconds', async () => {
     vi.useFakeTimers();
     try {
       const startedAt = Date.now();
@@ -625,21 +632,15 @@ describe('AgentWorkManager', () => {
         }
       ).scheduleRecoveryRetry('room-1', 'builder');
 
-      // 1s, 2s, 4s ... 512s, then the 10-minute cap for every later retry.
-      const delays = [
-        1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 512_000, 600_000,
-        600_000,
-      ];
+      // 1s, 2s, 4s, 8s, 16s, then the 30-second cap for every later retry.
+      const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000];
       for (const delay of delays) {
         await vi.advanceTimersByTimeAsync(delay);
       }
 
-      expect(recoveryTimes).toEqual([
-        1_000, 3_000, 7_000, 15_000, 31_000, 63_000, 127_000, 255_000, 511_000, 1_023_000,
-        1_623_000, 2_223_000,
-      ]);
+      expect(recoveryTimes).toEqual([1_000, 3_000, 7_000, 15_000, 31_000, 61_000, 91_000]);
       for (let index = 1; index < recoveryTimes.length; index += 1) {
-        expect(recoveryTimes[index] - recoveryTimes[index - 1]).toBeLessThanOrEqual(600_000);
+        expect(recoveryTimes[index] - recoveryTimes[index - 1]).toBeLessThanOrEqual(30_000);
       }
       service.dispose();
     } finally {
@@ -1628,6 +1629,52 @@ describe('AgentWorkManager', () => {
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
       service.dispose();
     } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('stops release retries and parks after five consecutive accounting failures', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => {
+        throw new Error('backend unavailable');
+      });
+      const recordTurnFailure = vi
+        .fn()
+        .mockResolvedValueOnce({ attempts: 1, exceeded: false })
+        .mockRejectedValue(new Error('accounting failed'));
+      const parkTurnFailure = vi.fn(async () => undefined);
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        recordTurnFailure,
+        parkTurnFailure,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      await vi.advanceTimersByTimeAsync(5_000 * 5);
+
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(5);
+      expect(parkTurnFailure).toHaveBeenCalledTimes(1);
+      expect(parkTurnFailure).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      expect(vi.getTimerCount()).toBe(0);
+      expect(errorLog.mock.calls.join('\n')).toContain('turn-failure-accounting-stalled');
+
+      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(5);
+      service.dispose();
+    } finally {
+      errorLog.mockRestore();
       random.mockRestore();
       vi.useRealTimers();
     }

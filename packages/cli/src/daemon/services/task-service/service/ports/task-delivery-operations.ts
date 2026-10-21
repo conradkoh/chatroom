@@ -30,6 +30,8 @@ export interface TaskDeliveryOperations {
     role: string;
     taskId: string;
   }): Promise<{ attempts: number; exceeded: boolean }>;
+  /** Parks a task through the provider-failure park path (records redelivery_exhausted). */
+  parkTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<void>;
   /** Next ladder step for a completed turn with no covering handoff. Parks when exhausted. */
   decideUncoveredTurnEnd(args: {
     chatroomId: string;

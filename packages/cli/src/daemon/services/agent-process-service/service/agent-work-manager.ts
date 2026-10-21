@@ -66,6 +66,9 @@ const MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS = 3;
 /** Delay before retrying a nudge whose delivery mutex was busy, to let the holder release it. */
 const UNCOVERED_NUDGE_RETRY_MS = 250;
 
+/** Consecutive release-retry accounting failures before parking; guards an infinite loop. */
+const MAX_TURN_FAILURE_ACCOUNTING_FAILURES = 5;
+
 interface RespawnStartRequest {
   readonly chatroomId: string;
   readonly role: string;
@@ -79,7 +82,8 @@ interface RespawnStartRequest {
 interface PendingRespawnStart {
   /** Identifies this restart intent. A retry runs only while the same intent is pending. */
   readonly restartId: number;
-  readonly request: RespawnStartRequest;
+  /** Re-resolved from configuration before each attempt. */
+  request: RespawnStartRequest;
   /** Start calls made so far, including the first attempt inside the restart. */
   attempts: number;
   timer?: ReturnType<typeof setTimeout> | undefined;
@@ -114,6 +118,7 @@ export type AgentWorkManagerTaskService = Pick<
   | 'recordDeliveryFailure'
   | 'clearDeliveryFailure'
   | 'recordTurnFailure'
+  | 'parkTurnFailure'
   | 'decideUncoveredTurnEnd'
   | 'confirmNudgeSent'
   | 'resetTurnTracking'
@@ -199,6 +204,8 @@ export class AgentWorkManager {
    * `chatroom:role:taskId`. In-memory on purpose: a daemon restart clears both
    * the timers and the in-memory attempt budget (known limitation).
    */
+  /** Consecutive accounting failures per task, so a broken task service cannot loop forever. */
+  private readonly turnFailureAccountingFailures = new Map<string, number>();
   private readonly turnFailureReleaseTimers = new Map<
     string,
     { readonly key: TurnFailureReleaseKey; readonly timer: ReturnType<typeof setTimeout> }
@@ -235,6 +242,7 @@ export class AgentWorkManager {
       recordDeliveryFailure: deps.taskService.recordDeliveryFailure,
       clearDeliveryFailure: deps.taskService.clearDeliveryFailure,
       recordTurnFailure: deps.taskService.recordTurnFailure,
+      parkTurnFailure: deps.taskService.parkTurnFailure,
       decideUncoveredTurnEnd: deps.taskService.decideUncoveredTurnEnd,
       confirmNudgeSent: deps.taskService.confirmNudgeSent,
       resetTurnTracking: deps.taskService.resetTurnTracking,
@@ -438,10 +446,7 @@ export class AgentWorkManager {
   private scheduleRecoveryRetry(chatroomId: string, role: string): void {
     const gate = this.recoveryGates.get(recoveryKey(chatroomId, role));
     if (!gate || gate.retryTimer || this.disposed) return;
-    const config = this.deps.configurationService.get(chatroomId, role);
-    const harness = config?.agentHarness ?? this.deps.agentMgr.getSlot(chatroomId, role)?.harness;
-    const maxInterval = isCliDrivenHarness(harness) ? 30_000 : AGENT_RESTART_RETRY_MAX_INTERVAL_MS;
-    const delay = Math.min(maxInterval, 1_000 * 2 ** gate.retryAttempts++);
+    const delay = Math.min(30_000, 1_000 * 2 ** gate.retryAttempts++);
     gate.retryTimer = setTimeout(() => {
       gate.retryTimer = undefined;
       void this.recoverStoppedRole({ chatroomId, role, mode: 'automatic' }).catch(
@@ -569,14 +574,33 @@ export class AgentWorkManager {
     key: TurnFailureReleaseKey,
     previousAttempt: number
   ): Promise<void> {
+    const keyStr = turnFailureReleaseKey(key);
     try {
       const { attempts, exceeded } = await this.deps.taskService.recordTurnFailure(key);
+      this.turnFailureAccountingFailures.delete(keyStr);
       if (exceeded) return;
       this.scheduleTurnFailureRelease(key, attempts, 'release-retry');
     } catch (error) {
       console.error(
         `[NativeDelivery:turn-failed-release-retry-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
+      const failures = (this.turnFailureAccountingFailures.get(keyStr) ?? 0) + 1;
+      this.turnFailureAccountingFailures.set(keyStr, failures);
+      if (failures >= MAX_TURN_FAILURE_ACCOUNTING_FAILURES) {
+        this.turnFailureAccountingFailures.delete(keyStr);
+        this.cancelTurnFailureRelease(key);
+        console.error(
+          `[NativeDelivery:turn-failure-accounting-stalled] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} failures=${failures}`
+        );
+        try {
+          await this.deps.taskService.parkTurnFailure(key);
+        } catch (parkError) {
+          console.error(
+            `[NativeDelivery:turn-failure-park-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${parkError instanceof Error ? (parkError.stack ?? parkError.message) : String(parkError)}`
+          );
+        }
+        return;
+      }
       // Failure accounting itself failed. Nothing has been parked or released,
       // so keep the timer armed with the previous delay rather than stranding
       // the task without a timer, marker, or park.
@@ -591,6 +615,7 @@ export class AgentWorkManager {
     if (entry === undefined) return;
     clearTimeout(entry.timer);
     this.turnFailureReleaseTimers.delete(keyStr);
+    this.turnFailureAccountingFailures.delete(keyStr);
     this.deps.taskService.clearTurnFailureReleasePending(key);
   }
 
@@ -601,6 +626,7 @@ export class AgentWorkManager {
       if (!keyStr.startsWith(prefix)) continue;
       clearTimeout(entry.timer);
       this.turnFailureReleaseTimers.delete(keyStr);
+      this.turnFailureAccountingFailures.delete(keyStr);
       this.deps.taskService.clearTurnFailureReleasePending(entry.key);
     }
   }
@@ -983,7 +1009,7 @@ export class AgentWorkManager {
   private async retryRespawnStart(key: string, restartId: number): Promise<void> {
     const pending = this.respawnStartRetries.get(key);
     if (!pending || pending.restartId !== restartId || this.disposed) return;
-    const { chatroomId, role, workingDir, startInput } = pending.request;
+    const { chatroomId, role } = pending.request;
     if (this.deps.agentMgr.isStopRequested(chatroomId, role)) {
       this.cancelRespawnStart(key, 'stop_requested');
       return;
@@ -993,6 +1019,36 @@ export class AgentWorkManager {
       this.cancelRespawnStart(key, 'agent_already_running');
       return;
     }
+
+    // Re-resolve configuration every attempt: the user may have changed the
+    // model/harness/workspace, or removed the config entirely.
+    const config = this.deps.configurationService.get(chatroomId, role);
+    if (!config) {
+      this.cancelRespawnStart(key, 'config_removed');
+      return;
+    }
+    const previous = pending.request;
+    if (
+      config.agentHarness !== previous.startInput.agentHarness ||
+      config.model !== previous.startInput.model ||
+      config.workingDir !== previous.workingDir
+    ) {
+      const startInput: EnsureAgentProcessInput = {
+        ...previous.startInput,
+        agentHarness: config.agentHarness as AgentHarness,
+        model: config.model,
+        workingDir: config.workingDir,
+      };
+      pending.request = {
+        ...previous,
+        workingDir: config.workingDir,
+        startInput,
+      };
+      console.info(
+        `[NativeDelivery:uncovered-restart-config-changed] chatroom=${chatroomId} role=${role} harness=${config.agentHarness} model=${config.model} workingDir=${config.workingDir}`
+      );
+    }
+    const { workingDir, startInput } = pending.request;
 
     const outcome = await this.deps.runSerializedForAgent(
       { chatroomId, role, workingDir },
@@ -1101,6 +1157,7 @@ export class AgentWorkManager {
       this.deps.taskService.clearTurnFailureReleasePending(entry.key);
     }
     this.turnFailureReleaseTimers.clear();
+    this.turnFailureAccountingFailures.clear();
     for (const pending of this.respawnStartRetries.values()) {
       if (pending.timer) clearTimeout(pending.timer);
       pending.timer = undefined;
