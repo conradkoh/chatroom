@@ -28,6 +28,21 @@ function backendRow() {
   };
 }
 
+/** Mirrors TURN_FAILURE_RETRY_CAP in task-service.ts: eight provider failures park the task. */
+const TURN_FAILURE_RETRY_CAP = 8;
+
+/** Records failures until the cap is reached, returning the final result. */
+async function exhaustTurnFailures(
+  service: ReturnType<typeof createTaskService>,
+  args: { chatroomId: string; role: string; taskId: string }
+): Promise<{ attempts: number; exceeded: boolean }> {
+  let result: { attempts: number; exceeded: boolean } = { attempts: 0, exceeded: false };
+  for (let attempt = 1; attempt <= TURN_FAILURE_RETRY_CAP; attempt += 1) {
+    result = await service.recordTurnFailure(args);
+  }
+  return result;
+}
+
 function activeTask(overrides: Record<string, unknown> = {}) {
   return {
     taskId: 'task-1',
@@ -158,9 +173,7 @@ describe('TaskService.recoverInFlightTasks', () => {
       handoffRepository: repository,
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'exhausted' };
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
+    await exhaustTurnFailures(service, exhaustedArgs);
 
     await expect(service.recoverInFlightTasks({ mode: 'automatic' })).resolves.toEqual({
       released: 1,
@@ -188,9 +201,7 @@ describe('TaskService.recoverInFlightTasks', () => {
       handoffRepository: repository,
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'covered' };
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
+    await exhaustTurnFailures(service, exhaustedArgs);
     expect(service.isRedeliveryExhausted(exhaustedArgs)).toBe(true);
 
     await expect(
@@ -405,9 +416,7 @@ describe('TaskService inbox consumption', () => {
 
     await service.startTaskInbox();
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
+    await exhaustTurnFailures(service, args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     service.forgetStaleTask(args);
@@ -587,9 +596,7 @@ describe('TaskService inbox consumption', () => {
       },
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'exhausted' };
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
+    await exhaustTurnFailures(service, exhaustedArgs);
 
     await service.startTaskInbox();
 
@@ -975,10 +982,14 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     const service = trackerService(mutation);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
 
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    for (let attempt = 1; attempt < TURN_FAILURE_RETRY_CAP; attempt += 1) {
+      expect(await service.recordTurnFailure(args)).toEqual({ attempts: attempt, exceeded: false });
+    }
     expect(service.isRedeliveryExhausted(args)).toBe(false);
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
+    expect(await service.recordTurnFailure(args)).toEqual({
+      attempts: TURN_FAILURE_RETRY_CAP,
+      exceeded: true,
+    });
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     // At the cap: failure recorded exactly once, further turns stay exhausted.
@@ -987,7 +998,10 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     );
     expect(recordCalls).toHaveLength(1);
     expect(recordCalls[0][1]).toMatchObject({ taskId: 'task-1', reason: 'redelivery_exhausted' });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
+    expect(await service.recordTurnFailure(args)).toEqual({
+      attempts: TURN_FAILURE_RETRY_CAP,
+      exceeded: true,
+    });
     expect(
       mutation.mock.calls.filter(
         ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
@@ -995,18 +1009,35 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     ).toHaveLength(1);
   });
 
+  test('a burst of three failures no longer parks the task under the raised cap', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+    // The production incident spent the old cap of three inside 2-9 seconds while
+    // the provider was still failing. Three failures must now leave the task live.
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 2, exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 3, exceeded: false });
+
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    expect(
+      mutation.mock.calls.filter(
+        ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+      )
+    ).toHaveLength(0);
+  });
+
   test('a user-initiated agent restart resets the exhausted cycle', async () => {
     const mutation = vi.fn().mockResolvedValue({ recorded: true });
     const service = trackerService(mutation);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
+    await exhaustTurnFailures(service, args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     service.clearRedeliveryTracking({ chatroomId: 'room-1', role: 'builder' });
     expect(service.isRedeliveryExhausted(args)).toBe(false);
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, exceeded: false });
   });
 
   test('a completed inbox event clears tracking for the task', async () => {
@@ -1031,9 +1062,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
       .mockResolvedValueOnce([event]); // bootstrap pending events
     const service = trackerService(mutation, query);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
+    await exhaustTurnFailures(service, args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     await service.startTaskInbox();
@@ -1094,7 +1123,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
       action: 'nudge',
     });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, exceeded: false });
     expect(service.isRedeliveryExhausted(args)).toBe(false);
     expect(redeliveryExhaustedWrites(mutation)).toHaveLength(0);
   });
@@ -1112,9 +1141,13 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
       action: 'restart-session',
     });
 
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
+    for (let attempt = 1; attempt < TURN_FAILURE_RETRY_CAP; attempt += 1) {
+      expect(await service.recordTurnFailure(args)).toEqual({ attempts: attempt, exceeded: false });
+    }
+    expect(await service.recordTurnFailure(args)).toEqual({
+      attempts: TURN_FAILURE_RETRY_CAP,
+      exceeded: true,
+    });
     expect(service.isRedeliveryExhausted(args)).toBe(true);
     expect(redeliveryExhaustedWrites(mutation)).toHaveLength(1);
   });
@@ -1129,7 +1162,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     await service.recordTurnFailure(counted);
     await service.recordTurnFailure(counted);
     service.resetTurnTracking(counted);
-    expect(await service.recordTurnFailure(counted)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(counted)).toEqual({ attempts: 1, exceeded: false });
 
     service.confirmNudgeSent({ ...nudged, sessionKey: '1:a' });
     service.resetTurnTracking(nudged);
@@ -1137,9 +1170,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
       action: 'nudge',
     });
 
-    await service.recordTurnFailure(parked);
-    await service.recordTurnFailure(parked);
-    await service.recordTurnFailure(parked);
+    await exhaustTurnFailures(service, parked);
     service.resetTurnTracking(parked);
     expect(service.isRedeliveryExhausted(parked)).toBe(true);
   });
@@ -1151,9 +1182,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     const plannerNudged = { chatroomId: 'room-1', role: 'planner', taskId: 'task-3' };
 
     service.confirmNudgeSent({ ...builderNudged, sessionKey: '1:a' });
-    await service.recordTurnFailure(builderParked);
-    await service.recordTurnFailure(builderParked);
-    await service.recordTurnFailure(builderParked);
+    await exhaustTurnFailures(service, builderParked);
     service.confirmNudgeSent({ ...plannerNudged, sessionKey: '1:a' });
 
     service.clearRedeliveryTracking({ chatroomId: 'room-1', role: 'builder' });

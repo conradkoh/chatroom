@@ -24,12 +24,12 @@ export interface TaskDeliveryOperations {
     taskId: string,
     expectedReason?: TaskDeliveryFailureReason
   ): Promise<boolean>;
-  /** Counts a provider failure; `exceeded` stops release/redelivery. */
+  /** Counts a provider failure; `attempts` is 1-based, `exceeded` stops release/redelivery. */
   recordTurnFailure(args: {
     chatroomId: string;
     role: string;
     taskId: string;
-  }): Promise<{ exceeded: boolean }>;
+  }): Promise<{ attempts: number; exceeded: boolean }>;
   /** Next ladder step for a completed turn with no covering handoff. Parks when exhausted. */
   decideUncoveredTurnEnd(args: {
     chatroomId: string;

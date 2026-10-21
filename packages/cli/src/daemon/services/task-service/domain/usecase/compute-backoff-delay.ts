@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * Exponential backoff for provider-failure redelivery.
  *
@@ -7,7 +6,10 @@
  * The delay before each release grows by a factor of two and is capped so a
  * multi-minute outage is absorbed without parking the task.
  */
+// The bounds are part of the helper's public contract (imported by its tests).
+// fallow-ignore-next-line unused-export
 export const RETRY_BACKOFF_BASE_MS = 5_000;
+// fallow-ignore-next-line unused-export
 export const RETRY_BACKOFF_MAX_MS = 5 * 60_000;
 
 /**

@@ -190,14 +190,16 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   // Turn-end tracking, per (chatroom, role, taskId). In-memory on purpose: a daemon
   // restart re-bounds the cycle. Two independent budgets:
   //  - turnFailureCounts: provider failures (failed / timed_out / aborted turns).
-  //    Park after TURN_FAILURE_RETRY_CAP consecutive failures.
+  //    Park after TURN_FAILURE_RETRY_CAP consecutive failures. The caller spaces
+  //    each release with exponential backoff so a provider outage does not burn
+  //    the budget in seconds.
   //  - uncoveredLadder: completed turns that end without a covering handoff.
   //    Nudge once per session, then restart the session once, then park.
   // Parking is the same for both: the key enters redeliveryExhaustedKeys and the
   // backend records 'redelivery_exhausted' once.
   // Reset on fresh task activity (task_assigned / completed / deleted) and on
   // user.start. Daemon-authored transitions (release, claim) do NOT reset anything.
-  const TURN_FAILURE_RETRY_CAP = 3;
+  const TURN_FAILURE_RETRY_CAP = 8;
   const turnFailureCounts = new Map<string, number>();
   const uncoveredLadder = new Map<string, UncoveredTurnLadderEntry>();
   const redeliveryExhaustedKeys = new Set<string>();
@@ -228,19 +230,26 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     );
   };
 
-  /** A provider failure: release and redeliver, park after TURN_FAILURE_RETRY_CAP. Unchanged behaviour. */
+  /**
+   * A provider failure. Returns the 1-based attempt number and whether the cap
+   * is exceeded; the caller schedules the release with exponential backoff.
+   * At the cap the task is parked instead of released.
+   */
   const recordTurnFailure = async (args: {
     chatroomId: string;
     role: string;
     taskId: string;
-  }): Promise<{ exceeded: boolean }> => {
+  }): Promise<{ attempts: number; exceeded: boolean }> => {
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
-    if (redeliveryExhaustedKeys.has(key)) return { exceeded: true };
-    const attempts = (turnFailureCounts.get(key) ?? 0) + 1;
+    const recordedAttempts = turnFailureCounts.get(key) ?? 0;
+    if (redeliveryExhaustedKeys.has(key)) {
+      return { attempts: recordedAttempts, exceeded: true };
+    }
+    const attempts = recordedAttempts + 1;
     turnFailureCounts.set(key, attempts);
-    if (attempts < TURN_FAILURE_RETRY_CAP) return { exceeded: false };
+    if (attempts < TURN_FAILURE_RETRY_CAP) return { attempts, exceeded: false };
     await parkTask(args, attempts);
-    return { exceeded: true };
+    return { attempts, exceeded: true };
   };
 
   /**

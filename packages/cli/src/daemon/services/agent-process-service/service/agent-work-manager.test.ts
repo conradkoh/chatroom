@@ -10,6 +10,7 @@ import {
   createAgentLifecycleOutboxRegistry,
   agentLifecycleKey,
 } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
+import { computeBackoffDelay } from '../../task-service/domain/usecase/compute-backoff-delay.js';
 import { getRoleDeliveryState } from '../../task-service/service/native-delivery/role-delivery-state.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { createAgentTaskStateService } from '../index.js';
@@ -23,7 +24,9 @@ function createService(
     readonly releaseTaskAfterTurnFailure?: (
       args: Record<string, string>
     ) => Promise<{ released: boolean; status: 'pending'; updatedAt: number }>;
-    readonly recordTurnFailure?: (args: Record<string, string>) => Promise<{ exceeded: boolean }>;
+    readonly recordTurnFailure?: (
+      args: Record<string, string>
+    ) => Promise<{ attempts: number; exceeded: boolean }>;
     readonly isRedeliveryExhausted?: () => boolean;
     readonly clearRedeliveryTracking?: () => void;
     readonly forgetStaleTask?: ReturnType<typeof vi.fn>;
@@ -109,12 +112,14 @@ function createService(
         (async ({ taskId }: { taskId: string }) => ({ taskId })),
       forgetStaleTask: options.forgetStaleTask ?? vi.fn(),
       recordDeliveryFailure: options.recordDeliveryFailure ?? vi.fn(),
+      clearDeliveryFailure: vi.fn(async () => true),
       getLatestHandoff: options.getLatestHandoff ?? (async () => null),
       recoverInFlightTasks:
         options.recoverInFlightTasks ?? (async () => ({ released: 0, skipped: 0 })),
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
-      recordTurnFailure: options.recordTurnFailure ?? (async () => ({ exceeded: false })),
+      recordTurnFailure:
+        options.recordTurnFailure ?? (async () => ({ attempts: 1, exceeded: false })),
       decideUncoveredTurnEnd:
         options.decideUncoveredTurnEnd ?? (async () => ({ action: 'nudge' as const })),
       confirmNudgeSent: options.confirmNudgeSent ?? vi.fn(),
@@ -136,6 +141,10 @@ function pendingTask(taskId: string, role = 'builder'): AssignedTask {
     createdAt: 1,
     agentConfig: { role, machineId: 'machine-1' },
   } as AssignedTask;
+}
+
+function inProgressTask(taskId: string, role = 'builder'): AssignedTask {
+  return { ...pendingTask(taskId, role), status: 'in_progress' } as AssignedTask;
 }
 
 function failedTurnEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -592,38 +601,339 @@ describe('AgentWorkManager', () => {
     service.dispose();
   });
 
-  test('a failed turn records a turn failure and never consults the uncovered ladder', async () => {
-    const recordTurnFailure = vi.fn(async () => ({ exceeded: false }));
-    const decideUncoveredTurnEnd = vi.fn();
-    const service = createService({ recordTurnFailure, decideUncoveredTurnEnd });
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+  test('a failed turn records a failure, never consults the ladder, and defers the release', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const recordTurnFailure = vi.fn(async () => ({ attempts: 1, exceeded: false }));
+      const decideUncoveredTurnEnd = vi.fn();
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        recordTurnFailure,
+        releaseTaskAfterTurnFailure,
+        decideUncoveredTurnEnd,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
-    await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
-    expect(recordTurnFailure).toHaveBeenCalledWith({
-      chatroomId: 'room-1',
-      role: 'builder',
-      taskId: 'task-1',
-    });
-    expect(decideUncoveredTurnEnd).not.toHaveBeenCalled();
-    service.dispose();
+      expect(recordTurnFailure).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      expect(decideUncoveredTurnEnd).not.toHaveBeenCalled();
+      // The turn-ended handler no longer releases inline.
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
-  test('applies the cap to failed turns without a covering handoff', async () => {
-    const releaseTaskAfterTurnFailure = vi.fn();
-    let attempts = 0;
-    const service = createService({
-      releaseTaskAfterTurnFailure,
-      recordTurnFailure: async () => ({ exceeded: ++attempts >= 3 }),
-    });
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-    await service.handleAgentTurnEnded(failedTurnEvent() as never);
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-    await service.handleAgentTurnEnded(failedTurnEvent() as never);
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-    await service.handleAgentTurnEnded(failedTurnEvent() as never);
-    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
-    service.dispose();
+  test('the second failure waits the second backoff delay, not the first', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const recordTurnFailure = vi
+        .fn()
+        .mockResolvedValueOnce({ attempts: 1, exceeded: false })
+        .mockResolvedValueOnce({ attempts: 2, exceeded: false });
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        recordTurnFailure,
+        releaseTaskAfterTurnFailure,
+        taskInboxState: inbox,
+      });
+
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(
+        failedTurnEvent({
+          eventId: 'turn-2',
+          completion: {
+            turnId: 'turn-2',
+            status: 'failed',
+            source: 'provider.transport',
+            error: 'boom',
+          },
+        }) as never
+      );
+
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('applies the cap to failed turns without a covering handoff and cancels the last timer', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      let attempts = 0;
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        recordTurnFailure: async () => ({ attempts: ++attempts, exceeded: attempts >= 8 }),
+        taskInboxState: inbox,
+      });
+
+      for (let attempt = 1; attempt <= 8; attempt += 1) {
+        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+        await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      }
+
+      expect(attempts).toBe(8);
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      // The 7th failure armed a timer; parking at the 8th must cancel it.
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('releases on the documented schedule before parking the eighth failure', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const startedAt = Date.now();
+      const releaseTimes: number[] = [];
+      const releaseTaskAfterTurnFailure = vi.fn(async () => {
+        releaseTimes.push(Date.now() - startedAt);
+        return { released: true, status: 'pending' as const, updatedAt: Date.now() };
+      });
+      let attempts = 0;
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        recordTurnFailure: async () => ({ attempts: ++attempts, exceeded: attempts >= 8 }),
+        taskInboxState: inbox,
+      });
+
+      for (let attempt = 1; attempt <= 8; attempt += 1) {
+        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+        await service.handleAgentTurnEnded(failedTurnEvent() as never);
+        if (attempt < 8) {
+          await vi.advanceTimersByTimeAsync(computeBackoffDelay(attempt, () => 0.5));
+        }
+      }
+
+      // Cumulative release times with neutral jitter: 5s, then +10s, +20s, +40s,
+      // +80s, +160s, +300s. The eighth failure parks and schedules nothing.
+      expect(releaseTimes).toEqual([5_000, 15_000, 35_000, 75_000, 155_000, 315_000, 615_000]);
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('cancels a waiting release when the task is deleted', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      await service.handleTaskServiceNotification({
+        kind: 'inbox-event',
+        event: {
+          eventType: 'task_deleted',
+          eventId: 'event-deleted',
+          chatroomId: 'room-1',
+          role: 'builder',
+          taskId: 'task-1',
+          task: inProgressTask('task-1'),
+        },
+      } as never);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('cancels a waiting release when a new task is assigned to the role', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      await service.handleTaskServiceNotification({
+        kind: 'inbox-event',
+        event: {
+          eventType: 'task_assigned',
+          eventId: 'event-assigned',
+          chatroomId: 'room-1',
+          role: 'builder',
+          taskId: 'task-2',
+          task: pendingTask('task-2'),
+        },
+      } as never);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('cancels a waiting release on a user start and on a user restart', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      for (const reason of [AgentStartReasonCode.USER_START, AgentStartReasonCode.USER_RESTART]) {
+        let startedHandler: ((event: never) => Promise<void>) | undefined;
+        const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+          released: true,
+          status: 'pending' as const,
+          updatedAt: 1700000000000,
+        }));
+        const inbox = new TaskInboxState();
+        inbox.upsert([inProgressTask('task-1')]);
+        const service = createService({
+          releaseTaskAfterTurnFailure,
+          taskInboxState: inbox,
+          onAgentStarted: (handler) => {
+            startedHandler = handler as never;
+          },
+        });
+        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+        await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+        await startedHandler?.({
+          chatroomId: 'room-1',
+          role: 'builder',
+          reason,
+        } as never);
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+        service.dispose();
+      }
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('cancels a waiting release on dispose', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      service.dispose();
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('skips the release when the task is no longer current when the timer fires', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      inbox.remove('room-1', 'builder', 'task-1', Date.now());
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      expect(log.mock.calls.join('\n')).toContain('reason=task_not_current');
+      service.dispose();
+    } finally {
+      log.mockRestore();
+      random.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   test('a user.start agent restart clears redelivery tracking', async () => {
@@ -1304,83 +1614,115 @@ describe('AgentWorkManager', () => {
     );
   });
 
-  test('failed turn with an active task recovers the exact task before releasing the slot', async () => {
-    const releaseTaskAfterTurnFailure = vi.fn(async () => ({
-      released: true,
-      status: 'pending' as const,
-      updatedAt: 1700000000000,
-    }));
-    const enqueueFact = vi.fn(async () => undefined);
-    const service = createService({ releaseTaskAfterTurnFailure, enqueueFact });
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+  test('failed turn with an active task schedules the exact task release after backoff', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const enqueueFact = vi.fn(async () => undefined);
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        enqueueFact,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
-    const disposition = await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      const disposition = await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
-    expect(releaseTaskAfterTurnFailure).toHaveBeenCalledWith({
-      chatroomId: 'room-1',
-      role: 'builder',
-      taskId: 'task-1',
-    });
-    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
-    expect(disposition).toEqual({ kind: 'release-slot' });
-    expect(enqueueFact).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'turn_failed', taskId: 'task-1', turnId: 'turn-1' })
-    );
-    service.dispose();
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
+      expect(disposition).toEqual({ kind: 'release-slot' });
+      expect(enqueueFact).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'turn_failed', taskId: 'task-1', turnId: 'turn-1' })
+      );
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
-  test('failed-turn recovery is awaited: disposition does not resolve before the backend call', async () => {
-    let resolveRecovery!: (value: {
-      released: boolean;
-      status: 'pending';
-      updatedAt: number;
-    }) => void;
-    const recovery = new Promise<{ released: boolean; status: 'pending'; updatedAt: number }>(
-      (resolve) => {
-        resolveRecovery = resolve;
-      }
-    );
-    const releaseTaskAfterTurnFailure = vi.fn(() => recovery);
-    const service = createService({ releaseTaskAfterTurnFailure });
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+  test('failed-turn disposition resolves before the deferred backend release', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      let resolveRecovery!: (value: {
+        released: boolean;
+        status: 'pending';
+        updatedAt: number;
+      }) => void;
+      const recovery = new Promise<{ released: boolean; status: 'pending'; updatedAt: number }>(
+        (resolve) => {
+          resolveRecovery = resolve;
+        }
+      );
+      const releaseTaskAfterTurnFailure = vi.fn(() => recovery);
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
-    let settled = false;
-    const pending = service.handleAgentTurnEnded(failedTurnEvent() as never).then((result) => {
-      settled = true;
-      return result;
-    });
-    await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 10));
+      const disposition = await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
-    expect(releaseTaskAfterTurnFailure).toHaveBeenCalled();
-    expect(settled).toBe(false);
-    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeDefined();
+      expect(disposition).toEqual({ kind: 'release-slot' });
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
 
-    resolveRecovery({ released: true, status: 'pending', updatedAt: 1700000000000 });
-    const disposition = await pending;
-
-    expect(settled).toBe(true);
-    expect(disposition).toEqual({ kind: 'release-slot' });
-    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toBeUndefined();
-    service.dispose();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      resolveRecovery({ released: true, status: 'pending', updatedAt: 1700000000000 });
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
-  test('failed-turn recovery rejection holds the slot and keeps active-task state', async () => {
-    const releaseTaskAfterTurnFailure = vi.fn(async () => {
-      throw new Error('backend unavailable');
-    });
-    const enqueueFact = vi.fn(async () => undefined);
-    const service = createService({ releaseTaskAfterTurnFailure, enqueueFact });
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+  test('a deferred release rejection is logged after the slot was already released', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => {
+        throw new Error('backend unavailable');
+      });
+      const enqueueFact = vi.fn(async () => undefined);
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        enqueueFact,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
-    const disposition = await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      const disposition = await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
-    expect(disposition).toEqual({ kind: 'hold-slot', reason: 'task-recovery-failed' });
-    expect(service.agentTaskState.get({ chatroomId: 'room-1', role: 'builder' })).toMatchObject({
-      taskId: 'task-1',
-    });
-    expect(enqueueFact).not.toHaveBeenCalled();
-    service.dispose();
+      expect(disposition).toEqual({ kind: 'release-slot' });
+      expect(enqueueFact).toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      expect(errorLog.mock.calls.join('\n')).toContain('turn-failed-release-error');
+      service.dispose();
+    } finally {
+      errorLog.mockRestore();
+      random.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   test('failed turn with no active task records the fact and releases the slot', async () => {
