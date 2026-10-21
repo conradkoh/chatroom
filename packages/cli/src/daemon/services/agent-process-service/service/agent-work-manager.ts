@@ -476,7 +476,7 @@ export class AgentWorkManager {
       this.turnFailureReleaseTimers.delete(keyStr);
       this.deps.taskService.clearTurnFailureReleasePending(key);
       if (this.disposed) return;
-      void this.releaseAfterTurnFailureBackoff(key);
+      void this.releaseAfterTurnFailureBackoff(key, attempt);
     }, delay);
     this.turnFailureReleaseTimers.set(keyStr, { key, timer });
     console.log(
@@ -490,7 +490,10 @@ export class AgentWorkManager {
    * task state, so the inbox read model (task id + `in_progress`) is the
    * authority here.
    */
-  private async releaseAfterTurnFailureBackoff(key: TurnFailureReleaseKey): Promise<void> {
+  private async releaseAfterTurnFailureBackoff(
+    key: TurnFailureReleaseKey,
+    attempt: number
+  ): Promise<void> {
     const current = this.deps.taskInboxState.getForRole(key.chatroomId, key.role, key.taskId);
     if (!current || current.status !== 'in_progress') {
       console.log(
@@ -518,7 +521,7 @@ export class AgentWorkManager {
       console.error(
         `[NativeDelivery:turn-failed-release-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
-      await this.retryReleaseAfterFailure(key);
+      await this.retryReleaseAfterFailure(key, attempt);
     }
   }
 
@@ -527,7 +530,10 @@ export class AgentWorkManager {
    * next backoff delay, or let the task service park the task once the cap is
    * reached. Nothing is left without a timer, a marker, or a park.
    */
-  private async retryReleaseAfterFailure(key: TurnFailureReleaseKey): Promise<void> {
+  private async retryReleaseAfterFailure(
+    key: TurnFailureReleaseKey,
+    previousAttempt: number
+  ): Promise<void> {
     try {
       const { attempts, exceeded } = await this.deps.taskService.recordTurnFailure(key);
       if (exceeded) return;
@@ -536,6 +542,10 @@ export class AgentWorkManager {
       console.error(
         `[NativeDelivery:turn-failed-release-retry-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
+      // Failure accounting itself failed. Nothing has been parked or released,
+      // so keep the timer armed with the previous delay rather than stranding
+      // the task without a timer, marker, or park.
+      this.scheduleTurnFailureRelease(key, previousAttempt, 'release-retry');
     }
   }
 

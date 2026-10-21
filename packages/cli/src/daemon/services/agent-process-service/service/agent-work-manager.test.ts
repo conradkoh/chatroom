@@ -1351,6 +1351,45 @@ describe('AgentWorkManager', () => {
     }
   });
 
+  test('reschedules with the previous delay when failure recording throws', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('backend unavailable'))
+        .mockResolvedValue({ released: true, status: 'pending', updatedAt: 1700000000000 });
+      const recordTurnFailure = vi
+        .fn()
+        .mockResolvedValueOnce({ attempts: 1, exceeded: false })
+        .mockRejectedValueOnce(new Error('record failed'));
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        recordTurnFailure,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      expect(recordTurnFailure).toHaveBeenCalledTimes(2);
+      // The failed accounting is replaced by a retry on the previous delay.
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   test('a release that keeps failing parks after the cap and leaves no timer', async () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
