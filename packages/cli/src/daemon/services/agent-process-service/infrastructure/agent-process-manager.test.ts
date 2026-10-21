@@ -1647,7 +1647,7 @@ describe('AgentProcessManager', () => {
       expect(manager.getSlot(CHATROOM_ID, ROLE)?.nativeTurnPhase).toBe('idle');
     });
 
-    test('hold-slot disposition preserves turn_in_flight after a failed native turn', async () => {
+    test('a failed native turn with no release disposition preserves turn_in_flight', async () => {
       type TurnResultCallback = Parameters<NonNullable<SpawnResult['onTurnResult']>>[0];
       let turnResultCb: TurnResultCallback | undefined;
       const service = {
@@ -1676,10 +1676,7 @@ describe('AgentProcessManager', () => {
         prompt: 'Continue working',
       });
 
-      manager.subscribeAgentTurnEnded(async () => ({
-        kind: 'hold-slot' as const,
-        reason: 'task-recovery-failed',
-      }));
+      manager.subscribeAgentTurnEnded(async () => undefined);
 
       turnResultCb?.({ turnId: 'turn-1', status: 'failed', source: 'test', error: 'boom' });
       await manager.whenTurnEndsIdle();

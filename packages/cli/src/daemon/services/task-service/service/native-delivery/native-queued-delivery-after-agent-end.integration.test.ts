@@ -30,12 +30,12 @@ import {
   createAgentProcessManagerService,
   createAgentTaskStateService,
   type AgentKey,
+  type AgentWorkManagerTaskService,
   type SerializedAgentOperationContext,
   type SerializedAgentOperationOptions,
   type SerializedAgentOperations,
 } from '../../../agent-process-service/index.js';
 import type { NativeDeliverySessionHandles } from '../../../service-interfaces.js';
-import type { TaskService } from '../../index.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
 type NativeTaskDeliverySessionDeps = NativeDeliverySessionHandles & { convexUrl: string };
@@ -188,17 +188,12 @@ describe('native queued delivery after agent_end', () => {
       }),
     };
     const taskService = {
-      subscribe: (listener: Parameters<TaskService['subscribe']>[0]) => {
+      subscribe: (listener: Parameters<AgentWorkManagerTaskService['subscribe']>[0]) => {
         taskListener = listener as unknown as typeof taskListener;
         return () => {
           taskListener = undefined;
         };
       },
-      startTaskInbox: async () => undefined,
-      stopTaskInbox: () => undefined,
-      listTasksForRole: (room: string, role: string) => inbox.listForRole(room, role as never),
-      listAllTasks: () => inbox.listAll(),
-      taskInboxState: inbox,
       recoverInFlightTasks: vi.fn(
         async (args: { chatroomId?: string; role?: string; mode: 'automatic' | 'explicit' }) => {
           expect(slotByRole.get(args.role ?? '')?.state).toBe('running');
@@ -225,7 +220,7 @@ describe('native queued delivery after agent_end', () => {
       clearRedeliveryTracking: vi.fn(),
       forgetStaleTask: vi.fn(),
       handleAgentTurnProgress: vi.fn(),
-    } satisfies Partial<TaskService>;
+    } satisfies AgentWorkManagerTaskService;
     const configurationService = {
       get: (_room: string, _role: string) => ({
         agentHarness: 'cursor-sdk',
@@ -268,7 +263,7 @@ describe('native queued delivery after agent_end', () => {
         taskInboxState: state,
         agentTaskState: createAgentTaskStateService(),
         lifecycleOutbox: { enqueue: async () => undefined },
-        taskService: taskService as never,
+        taskService,
       });
     const inboxEvent = (taskId: string, role: string, eventId: string) => ({
       kind: 'inbox-event' as const,
@@ -418,18 +413,12 @@ describe('native queued delivery after agent_end', () => {
       notifier: { subscribe: () => () => undefined } as never,
     });
     const taskService = {
-      subscribe: (listener: Parameters<TaskService['subscribe']>[0]) => {
+      subscribe: (listener: Parameters<AgentWorkManagerTaskService['subscribe']>[0]) => {
         taskListener = listener as unknown as typeof taskListener;
         return () => {
           taskListener = undefined;
         };
       },
-      startTaskInbox: async () => undefined,
-      stopTaskInbox: () => undefined,
-      listTasksForRole: (room: string, taskRole: string) =>
-        inbox.listForRole(room, taskRole as never),
-      listAllTasks: () => inbox.listAll(),
-      taskInboxState: inbox,
       recoverInFlightTasks: vi.fn(
         async (args: { chatroomId?: string; role?: string; mode: 'automatic' | 'explicit' }) => {
           expect(args).toEqual({ chatroomId, role, mode: 'explicit' });
@@ -453,7 +442,7 @@ describe('native queued delivery after agent_end', () => {
       clearRedeliveryTracking: vi.fn(),
       forgetStaleTask: vi.fn(),
       handleAgentTurnProgress: vi.fn(),
-    } satisfies Partial<TaskService>;
+    } satisfies AgentWorkManagerTaskService;
     const workManager = new AgentWorkManager({
       configurationService: {
         get: () => ({

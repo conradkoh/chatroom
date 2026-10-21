@@ -95,6 +95,32 @@ export type AgentWorkPass =
 
 export type AgentTaskDeliveredHandler = (args: TaskDeliveryLifecycleArgs) => void;
 
+/**
+ * The task-service surface the work manager reads. Narrowing the dependency to
+ * this Pick keeps production wiring and test doubles honest about the ports the
+ * manager actually uses.
+ */
+export type AgentWorkManagerTaskService = Pick<
+  TaskService,
+  | 'subscribe'
+  | 'recoverInFlightTasks'
+  | 'releaseTaskAfterTurnFailure'
+  | 'recordDeliveryFailure'
+  | 'clearDeliveryFailure'
+  | 'recordTurnFailure'
+  | 'decideUncoveredTurnEnd'
+  | 'confirmNudgeSent'
+  | 'resetTurnTracking'
+  | 'isRedeliveryExhausted'
+  | 'clearRedeliveryTracking'
+  | 'markTurnFailureReleasePending'
+  | 'clearTurnFailureReleasePending'
+  | 'forgetStaleTask'
+  | 'loadAssignedTaskForAction'
+  | 'getLatestHandoff'
+  | 'handleAgentTurnProgress'
+>;
+
 export interface AgentWorkManagerDependencies {
   /** Workspace configuration source for delivery-time agent runtime config. */
   readonly configurationService: AgentConfigRegistry;
@@ -107,7 +133,7 @@ export interface AgentWorkManagerDependencies {
   readonly taskInboxState: TaskInboxStateReader;
   readonly agentTaskState: AgentTaskStateService;
   readonly lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
-  readonly taskService: TaskService;
+  readonly taskService: AgentWorkManagerTaskService;
 }
 
 type RoleRecoveryGate = {
