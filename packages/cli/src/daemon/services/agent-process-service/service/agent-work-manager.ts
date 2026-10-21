@@ -341,6 +341,10 @@ export class AgentWorkManager {
     role: string;
     mode: 'automatic' | 'explicit';
   }): Promise<{ released: number }> {
+    // Explicit user recovery overrides any waiting provider-failure backoff.
+    if (args.mode === 'explicit') {
+      this.cancelTurnFailureReleasesForRole(args.chatroomId, args.role);
+    }
     const key = recoveryKey(args.chatroomId, args.role);
     const gate = this.recoveryGates.get(key);
     if (!gate)
@@ -474,6 +478,16 @@ export class AgentWorkManager {
     if (!current || current.status !== 'in_progress') {
       console.log(
         `[NativeDelivery:turn-failure-release-skipped] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} reason=task_not_current status=${current?.status ?? 'missing'}`
+      );
+      return;
+    }
+    const activeTask = this.deps.agentTaskState.get({
+      chatroomId: key.chatroomId,
+      role: key.role,
+    });
+    if (activeTask?.taskId === key.taskId) {
+      console.log(
+        `[NativeDelivery:turn-failure-release-skipped] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} reason=task_active`
       );
       return;
     }

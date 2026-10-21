@@ -914,6 +914,77 @@ describe('AgentWorkManager', () => {
     }
   });
 
+  test('does not release when the task is the role active task when the timer fires', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      // A new turn has started on the same task before the release fires.
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      expect(log.mock.calls.join('\n')).toContain('reason=task_active');
+      service.dispose();
+    } finally {
+      log.mockRestore();
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('explicit recovery cancels a waiting backoff release', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const clearTurnFailureReleasePending = vi.fn();
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        clearTurnFailureReleasePending,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
+      await service.recoverStoppedRole({
+        chatroomId: 'room-1',
+        role: 'builder',
+        mode: 'explicit',
+      });
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      expect(clearTurnFailureReleasePending).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   test('cancels a waiting release on a user start and on a user restart', async () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
