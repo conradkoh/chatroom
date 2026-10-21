@@ -19,6 +19,10 @@ import {
 import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
 import { ACTIVE_TASK_STATUSES, type AssignedTask } from '../../../domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../domain/usecase/check-agent-slot.js';
+import {
+  computeBackoffDelay,
+  REDELIVERY_BACKOFF_OPTIONS,
+} from '../../../domain/usecase/compute-backoff-delay.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
 import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
@@ -32,7 +36,6 @@ import type {
   NativeDeliverySessionHandles,
   TaskService,
 } from '../../service-interfaces.js';
-import { computeBackoffDelay } from '../../task-service/domain/usecase/compute-backoff-delay.js';
 import {
   explainNativeDeliveryBlock,
   isNativeHarness,
@@ -53,12 +56,10 @@ import type { TaskDeliveryService } from '../../task-service/service/native-deli
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from '../../task-service/service/native-task-injector.js';
 import { isCliDrivenHarness } from '../domain/usecase/is-cli-driven-harness.js';
+import { restartRetryMaxIntervalMs } from '../domain/usecase/restart-retry-interval.js';
 
 /** Starts allowed for one uncovered-turn restart: the first attempt plus two retries. */
 const MAX_RESPAWN_START_ATTEMPTS = 3;
-
-/** Upper bound for agent-restart retry intervals (native harnesses). */
-const AGENT_RESTART_RETRY_MAX_INTERVAL_MS = 10 * 60_000;
 
 /** Nudge sends allowed for one uncovered turn end: the first try plus two retries, then escalate. */
 const MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS = 3;
@@ -68,6 +69,10 @@ const UNCOVERED_NUDGE_RETRY_MS = 250;
 
 /** Consecutive release-retry accounting failures before parking; guards an infinite loop. */
 const MAX_TURN_FAILURE_ACCOUNTING_FAILURES = 5;
+
+/** Deterministic retry ladders for daemon-owned restarts. */
+const RECOVERY_RETRY_BACKOFF = { baseMs: 1_000, maxMs: 30_000, jitter: 0 } as const;
+const RESPAWN_RETRY_BASE_MS = 1_000;
 
 interface RespawnStartRequest {
   readonly chatroomId: string;
@@ -446,7 +451,7 @@ export class AgentWorkManager {
   private scheduleRecoveryRetry(chatroomId: string, role: string): void {
     const gate = this.recoveryGates.get(recoveryKey(chatroomId, role));
     if (!gate || gate.retryTimer || this.disposed) return;
-    const delay = Math.min(30_000, 1_000 * 2 ** gate.retryAttempts++);
+    const delay = computeBackoffDelay(gate.retryAttempts++ + 1, RECOVERY_RETRY_BACKOFF);
     gate.retryTimer = setTimeout(() => {
       gate.retryTimer = undefined;
       void this.recoverStoppedRole({ chatroomId, role, mode: 'automatic' }).catch(
@@ -496,7 +501,7 @@ export class AgentWorkManager {
   }
 
   /**
-   * Waits `computeBackoffDelay(attempt)` before releasing the task back to
+   * Waits the provider-failure backoff before releasing the task back to
    * `pending`. A newer failure for the same task replaces the pending timer so
    * only the latest attempt's delay applies.
    */
@@ -508,7 +513,7 @@ export class AgentWorkManager {
     if (this.disposed) return;
     this.cancelTurnFailureRelease(key);
     const keyStr = turnFailureReleaseKey(key);
-    const delay = computeBackoffDelay(attempt);
+    const delay = computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS);
     // Tell the task service a release is waiting so automatic recovery does not
     // bypass the remaining backoff.
     this.deps.taskService.markTurnFailureReleasePending(key);
@@ -991,10 +996,12 @@ export class AgentWorkManager {
 
   private armRespawnStartRetry(key: string, pending: PendingRespawnStart): void {
     if (this.disposed) return;
-    // Same backoff shape as scheduleRecoveryRetry: the first retry waits 1s.
-    // CLI-driven harnesses keep the old 30s cap.
-    const maxInterval = pending.request.cliDriven ? 30_000 : AGENT_RESTART_RETRY_MAX_INTERVAL_MS;
-    const delay = Math.min(maxInterval, 1_000 * 2 ** (pending.attempts - 1));
+    // The first retry waits 1s; CLI-driven harnesses keep the old 30s cap.
+    const delay = computeBackoffDelay(pending.attempts, {
+      baseMs: RESPAWN_RETRY_BASE_MS,
+      maxMs: restartRetryMaxIntervalMs(pending.request.startInput.agentHarness),
+      jitter: 0,
+    });
     pending.timer = setTimeout(() => {
       pending.timer = undefined;
       void this.retryRespawnStart(key, pending.restartId).catch((error: unknown) => {

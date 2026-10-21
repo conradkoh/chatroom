@@ -5,12 +5,15 @@ import { describe, expect, test, vi } from 'vitest';
 import { AgentWorkManager } from './agent-work-manager.js';
 import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
+import {
+  computeBackoffDelay,
+  REDELIVERY_BACKOFF_OPTIONS,
+} from '../../../domain/usecase/compute-backoff-delay.js';
 import { TaskInboxState } from '../../../infrastructure/inbox/task-inbox-state.js';
 import {
   createAgentLifecycleOutboxRegistry,
   agentLifecycleKey,
 } from '../../../infrastructure/outbox/agent-lifecycle-outbox.js';
-import { computeBackoffDelay } from '../../task-service/domain/usecase/compute-backoff-delay.js';
 import { getRoleDeliveryState } from '../../task-service/service/native-delivery/role-delivery-state.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { createAgentTaskStateService } from '../index.js';
@@ -1005,7 +1008,9 @@ describe('AgentWorkManager', () => {
         service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
         await service.handleAgentTurnEnded(failedTurnEvent() as never);
         if (attempt < 8) {
-          await vi.advanceTimersByTimeAsync(computeBackoffDelay(attempt, () => 0.5));
+          await vi.advanceTimersByTimeAsync(
+            computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS, () => 0.5)
+          );
         }
       }
 

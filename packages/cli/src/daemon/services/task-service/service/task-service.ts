@@ -17,6 +17,10 @@ import { createTaskInboxDeliveryRetryWatcher } from './watchers/task-inbox-deliv
 import { api } from '../../../../api.js';
 import type { TaskAssigneeType, AssignedTask } from '../../../domain/entities/assigned-task.js';
 import {
+  computeBackoffDelay,
+  type BackoffOptions,
+} from '../../../domain/usecase/compute-backoff-delay.js';
+import {
   TaskInboxState,
   type TaskInboxStateReader,
   type TaskStateApplicationResult,
@@ -84,6 +88,9 @@ export type WorkspaceTaskInboxEvent =
   | (WorkspaceTaskInboxEventFields & {
       readonly eventType: WorkspaceTaskInboxEventType.TaskDeleted;
     });
+
+/** Deterministic bootstrap-recovery ladder: 1s doubling to a 30s cap. */
+const BOOTSTRAP_RECOVERY_BACKOFF: BackoffOptions = { baseMs: 1_000, maxMs: 30_000, jitter: 0 };
 
 /**
  * Automatic re-arm delays after a task is parked as `redelivery_exhausted`.
@@ -520,7 +527,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const scheduleBootstrapRecovery = (): void => {
     if (inboxStopped || bootstrapRecoveryTimer || !bootstrapRecoveryPending) return;
-    const delay = Math.min(30_000, 1_000 * 2 ** bootstrapRecoveryAttempts++);
+    const delay = computeBackoffDelay(++bootstrapRecoveryAttempts, BOOTSTRAP_RECOVERY_BACKOFF);
     bootstrapRecoveryTimer = setTimeout(() => {
       bootstrapRecoveryTimer = undefined;
       if (!inboxStopped) void runBootstrapRecovery();

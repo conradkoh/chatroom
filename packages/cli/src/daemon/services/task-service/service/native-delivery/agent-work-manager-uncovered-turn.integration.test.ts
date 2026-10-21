@@ -11,11 +11,14 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
 import {
+  computeBackoffDelay,
+  REDELIVERY_BACKOFF_OPTIONS,
+} from '../../../../domain/usecase/compute-backoff-delay.js';
+import {
   AgentWorkManager,
   createAgentTaskStateService,
   type AgentStartedEvent,
 } from '../../../agent-process-service/index.js';
-import { computeBackoffDelay } from '../../domain/usecase/compute-backoff-delay.js';
 import { createInMemoryTaskHandoffRepository } from '../../infrastructure/repository/task-handoff-repository.js';
 import { createTaskService } from '../task-service.js';
 
@@ -325,7 +328,9 @@ describe('uncovered-turn ladder, end to end', () => {
         await d.turnEnded('failed', `fail-${attempt}`);
         if (attempt < 8) {
           expect(d.exhaustedWrites()).toHaveLength(0);
-          await vi.advanceTimersByTimeAsync(computeBackoffDelay(attempt, () => 0.5));
+          await vi.advanceTimersByTimeAsync(
+            computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS, () => 0.5)
+          );
           await vi.advanceTimersByTimeAsync(0);
           // A start redelivers the now-pending task (as the next daemon pass would).
           await d.start();
