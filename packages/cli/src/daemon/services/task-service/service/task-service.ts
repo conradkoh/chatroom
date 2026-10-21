@@ -306,14 +306,26 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       );
     }
 
+    let released = false;
     try {
-      await releaseTask({ chatroomId, role, taskId });
+      const result = await releaseTask({ chatroomId, role, taskId });
+      released = result.released;
+      if (!released) {
+        console.warn(
+          `[TaskService] redelivery-rearm release skipped chatroom=${chatroomId} role=${role} task=${taskId} cycle=${args.cycle}`
+        );
+      }
     } catch (error) {
       console.error(
         `[TaskService] redelivery-rearm release failed chatroom=${chatroomId} role=${role} task=${taskId} cycle=${args.cycle}: ${error instanceof Error ? error.message : String(error)}`
       );
-      // Keep the task parked and try the next cycle rather than stranding it active.
+    }
+
+    if (!released) {
+      // The task is still parked. Restore the backend record (it was cleared
+      // optimistically) and try the next cycle rather than stranding it active.
       redeliveryExhaustedKeys.add(key);
+      await recordExhaustedOnBackend({ chatroomId, role, taskId });
       scheduleRedeliveryRearm(args);
       return;
     }
@@ -323,12 +335,12 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     );
   };
 
-  const parkTask = async (
-    args: { chatroomId: string; role: string; taskId: string },
-    attempts?: number
-  ): Promise<void> => {
-    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
-    redeliveryExhaustedKeys.add(key);
+  /** Writes (or re-writes) the backend exhaustion record. Best effort; the in-memory key is authoritative. */
+  const recordExhaustedOnBackend = async (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<void> => {
     try {
       await gateway.recordDeliveryFailure({
         sessionId: deps.sessionId,
@@ -341,6 +353,15 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         `[TaskService] redelivery-exhausted failure record failed chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  };
+
+  const parkTask = async (
+    args: { chatroomId: string; role: string; taskId: string },
+    attempts?: number
+  ): Promise<void> => {
+    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
+    redeliveryExhaustedKeys.add(key);
+    await recordExhaustedOnBackend(args);
     const attemptsSuffix = attempts === undefined ? '' : ` attempts=${attempts}`;
     console.log(
       `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}${attemptsSuffix} — release/redelivery stopped; agent restart (user.start) resets`

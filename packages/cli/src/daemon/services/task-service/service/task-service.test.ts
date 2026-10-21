@@ -1306,9 +1306,75 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
 
       expect(releaseCalls(mutation)).toHaveLength(1);
       expect(clearCalls(mutation)).toHaveLength(1);
+      expect(exhaustionWrites(mutation)).toHaveLength(1);
       expect(service.isRedeliveryExhausted(args)).toBe(false);
       // The re-armed task starts again at attempt 1 of the full cap.
       expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, exceeded: false });
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a re-arm whose release throws re-records exhaustion and arms the next cycle', async () => {
+    vi.useFakeTimers();
+    try {
+      let releaseAttempts = 0;
+      const mutation = vi.fn(async (_fn: unknown, callArgs: unknown) => {
+        const call = callArgs as { chatroomId?: string; role?: string };
+        if (call.chatroomId !== undefined && call.role !== undefined) {
+          releaseAttempts += 1;
+          throw new Error('backend unavailable');
+        }
+        return { recorded: true, cleared: true, processed: true };
+      });
+      const service = trackerService(mutation);
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+      expect(exhaustionWrites(mutation)).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+
+      expect(releaseAttempts).toBe(1);
+      // The optimistic clear is compensated with a fresh exhaustion record.
+      expect(exhaustionWrites(mutation)).toHaveLength(2);
+      expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+      // The next cycle uses the second delay.
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1] - 1);
+      expect(releaseAttempts).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseAttempts).toBe(2);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a re-arm whose release returns released=false re-records exhaustion and arms the next cycle', async () => {
+    vi.useFakeTimers();
+    try {
+      let releaseAttempts = 0;
+      const mutation = vi.fn(async (_fn: unknown, callArgs: unknown) => {
+        const call = callArgs as { chatroomId?: string; role?: string };
+        if (call.chatroomId !== undefined && call.role !== undefined) {
+          releaseAttempts += 1;
+          return { released: false, status: 'in_progress', updatedAt: 5_000 };
+        }
+        return { recorded: true, cleared: true, processed: true };
+      });
+      const service = trackerService(mutation);
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+
+      expect(releaseCalls(mutation)).toHaveLength(1);
+      expect(exhaustionWrites(mutation)).toHaveLength(2);
+      expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1]);
+      expect(releaseAttempts).toBe(2);
       service.stopTaskInbox();
     } finally {
       vi.useRealTimers();
