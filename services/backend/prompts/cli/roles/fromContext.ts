@@ -4,6 +4,7 @@
 
 import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
+import { getGameAssetDesignerGuidance } from './game-asset-designer';
 import { getPlannerGuidance } from './planner';
 import { getResearcherGuidance } from './researcher';
 import { getReviewerGuidance } from './reviewer';
@@ -84,6 +85,11 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
     }),
   reviewer: (ctx) =>
     getReviewerGuidance({
+      nativeIntegration: ctx.nativeIntegration,
+      recipientRole: resolveSpecialistRecipientRole(ctx),
+    }),
+  'game-asset-designer': (ctx) =>
+    getGameAssetDesignerGuidance({
       nativeIntegration: ctx.nativeIntegration,
       recipientRole: resolveSpecialistRecipientRole(ctx),
     }),

@@ -16,6 +16,7 @@ const canonicalTeamFacts = [
       'triage',
       'reviewer',
       'uiux-engineer',
+      'game-asset-designer',
       'verifier',
       'builder',
     ],

@@ -23,6 +23,7 @@ describe('team presets', () => {
         'triage',
         'reviewer',
         'uiux-engineer',
+        'game-asset-designer',
         'verifier',
         'builder',
       ],

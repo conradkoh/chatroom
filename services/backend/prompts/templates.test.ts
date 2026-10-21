@@ -100,6 +100,16 @@ describe('role templates', () => {
     );
   });
 
+  test('game-asset-designer metadata identifies a specification-focused non-implementer', () => {
+    const template = ROLE_TEMPLATES['game-asset-designer'];
+
+    expect(template.role).toBe('game-asset-designer');
+    expect(template.title).toBe('Game Asset Designer');
+    expect(template.description).toContain('you do not implement application code');
+    expect(template.defaultHandoffTarget).toBe('planner');
+    expect(template.responsibilities).toHaveLength(5);
+  });
+
   test('uses a lifecycle-neutral template for the legacy ephemeral role', () => {
     const template = getRoleTemplate('enhancer');
     const text = [template.description, ...template.responsibilities].join(' ');

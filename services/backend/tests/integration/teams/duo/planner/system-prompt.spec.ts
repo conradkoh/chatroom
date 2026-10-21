@@ -74,7 +74,7 @@ describe('Duo Team > Planner > System Prompt', () => {
     // Planner CAN hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toContain(
-      'Available targets: architect, researcher, triage, reviewer, uiux-engineer, verifier, builder, user'
+      'Available targets: architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, builder, user'
     );
     // Researcher nudge points to the researcher handoff template rather than restating its criteria
     expect(prompt).toContain('Ground new work first');
@@ -296,7 +296,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - After reviewing builder output, deliver results to the user
       - **Only you can hand off to \`user\`**
 
-      **Team composition:** Duo team — you coordinate with \`architect\`, \`researcher\`, \`triage\`, \`reviewer\`, \`uiux-engineer\`, \`verifier\`, \`builder\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`architect\`, \`researcher\`, \`triage\`, \`reviewer\`, \`uiux-engineer\`, \`game-asset-designer\`, \`verifier\`, \`builder\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -335,6 +335,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       chatroom handoff view-template --from="planner" --to="triage" --mode="<chat|code|code:enhanced>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="researcher" --mode="<chat|code|code:enhanced>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="reviewer" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="game-asset-designer" --mode="<chat|code|code:enhanced>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="verifier" --mode="<chat|code|code:enhanced>" --team-id="duo"
       \`\`\`
       All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
@@ -420,7 +421,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
 
       ### Handoff Options
-      Available targets: architect, researcher, triage, reviewer, uiux-engineer, verifier, builder, user
+      Available targets: architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, builder, user
 
       ### Commands
 

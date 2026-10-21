@@ -46,6 +46,7 @@ chatroom handoff view-template --from="planner" --to="uiux-engineer" --mode="<ch
 chatroom handoff view-template --from="planner" --to="triage" --mode="<chat|code|code:enhanced>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="researcher" --mode="<chat|code|code:enhanced>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="reviewer" --mode="<chat|code|code:enhanced>" --team-id="duo"
+chatroom handoff view-template --from="planner" --to="game-asset-designer" --mode="<chat|code|code:enhanced>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="verifier" --mode="<chat|code|code:enhanced>" --team-id="duo"
 \`\`\`
 All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.

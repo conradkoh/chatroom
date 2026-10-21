@@ -2,8 +2,11 @@
  * Role-specific guidance aggregator for agent initialization prompts.
  */
 
+// The role-module imports mirror fromContext.ts by design; both dispatch tables stay local.
+// fallow-ignore-next-line code-duplication
 import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
+import { getGameAssetDesignerGuidance } from './game-asset-designer';
 import { getPlannerGuidance } from './planner';
 import { getResearcherGuidance } from './researcher';
 import { getReviewerGuidance } from './reviewer';
@@ -33,6 +36,8 @@ const ROLE_GUIDANCE_BY_ROLE: Record<string, (params: RoleSpecificGuidanceParams)
     getResearcherGuidance({ recipientRole, nativeIntegration }),
   reviewer: ({ recipientRole, nativeIntegration }) =>
     getReviewerGuidance({ recipientRole, nativeIntegration }),
+  'game-asset-designer': ({ recipientRole, nativeIntegration }) =>
+    getGameAssetDesignerGuidance({ recipientRole, nativeIntegration }),
   triage: ({ recipientRole, nativeIntegration }) =>
     getTriageGuidance({ recipientRole, nativeIntegration }),
   verifier: ({ recipientRole, nativeIntegration }) =>
