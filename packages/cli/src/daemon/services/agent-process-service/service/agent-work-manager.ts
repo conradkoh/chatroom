@@ -1092,11 +1092,7 @@ export class AgentWorkManager {
       return;
     }
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
-      this.cancelTurnFailureRelease({
-        chatroomId: notification.event.chatroomId,
-        role: notification.event.role,
-        taskId: notification.event.taskId,
-      });
+      // cancelTaskWork also clears the waiting backoff release and its marker.
       await this.cancelTaskWork(
         notification.event.chatroomId,
         notification.event.role,
