@@ -56,6 +56,9 @@ import { runNativeInjectionEffect } from '../../task-service/service/native-task
 /** Starts allowed for one uncovered-turn restart: the first attempt plus two retries. */
 const MAX_RESPAWN_START_ATTEMPTS = 3;
 
+/** Upper bound for agent-restart retry intervals (native harnesses). */
+const AGENT_RESTART_RETRY_MAX_INTERVAL_MS = 10 * 60_000;
+
 /** Nudge sends allowed for one uncovered turn end: the first try plus two retries, then escalate. */
 const MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS = 3;
 
@@ -432,7 +435,7 @@ export class AgentWorkManager {
   private scheduleRecoveryRetry(chatroomId: string, role: string): void {
     const gate = this.recoveryGates.get(recoveryKey(chatroomId, role));
     if (!gate || gate.retryTimer || this.disposed) return;
-    const delay = Math.min(30_000, 1_000 * 2 ** gate.retryAttempts++);
+    const delay = Math.min(AGENT_RESTART_RETRY_MAX_INTERVAL_MS, 1_000 * 2 ** gate.retryAttempts++);
     gate.retryTimer = setTimeout(() => {
       gate.retryTimer = undefined;
       void this.recoverStoppedRole({ chatroomId, role, mode: 'automatic' }).catch(
@@ -950,7 +953,10 @@ export class AgentWorkManager {
   private armRespawnStartRetry(key: string, pending: PendingRespawnStart): void {
     if (this.disposed) return;
     // Same backoff shape as scheduleRecoveryRetry: the first retry waits 1s.
-    const delay = Math.min(30_000, 1_000 * 2 ** (pending.attempts - 1));
+    const delay = Math.min(
+      AGENT_RESTART_RETRY_MAX_INTERVAL_MS,
+      1_000 * 2 ** (pending.attempts - 1)
+    );
     pending.timer = setTimeout(() => {
       pending.timer = undefined;
       void this.retryRespawnStart(key, pending.restartId).catch((error: unknown) => {

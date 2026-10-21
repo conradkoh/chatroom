@@ -605,6 +605,48 @@ describe('AgentWorkManager', () => {
     service.dispose();
   });
 
+  test('recovery retries cap their interval at ten minutes', async () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = Date.now();
+      const recoveryTimes: number[] = [];
+      const recoverInFlightTasks = vi.fn(async () => {
+        recoveryTimes.push(Date.now() - startedAt);
+        throw new Error('status read failed');
+      });
+      const service = createService({
+        recoverInFlightTasks,
+        agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+      });
+      await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
+      (
+        service as unknown as {
+          scheduleRecoveryRetry(chatroomId: string, role: string): void;
+        }
+      ).scheduleRecoveryRetry('room-1', 'builder');
+
+      // 1s, 2s, 4s ... 512s, then the 10-minute cap for every later retry.
+      const delays = [
+        1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 512_000, 600_000,
+        600_000,
+      ];
+      for (const delay of delays) {
+        await vi.advanceTimersByTimeAsync(delay);
+      }
+
+      expect(recoveryTimes).toEqual([
+        1_000, 3_000, 7_000, 15_000, 31_000, 63_000, 127_000, 255_000, 511_000, 1_023_000,
+        1_623_000, 2_223_000,
+      ]);
+      for (let index = 1; index < recoveryTimes.length; index += 1) {
+        expect(recoveryTimes[index] - recoveryTimes[index - 1]).toBeLessThanOrEqual(600_000);
+      }
+      service.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('a failed turn records a failure, never consults the ladder, and defers the release', async () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
