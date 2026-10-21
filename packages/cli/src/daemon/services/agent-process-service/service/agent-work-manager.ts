@@ -487,6 +487,24 @@ export class AgentWorkManager {
       console.error(
         `[NativeDelivery:turn-failed-release-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
+      await this.retryReleaseAfterFailure(key);
+    }
+  }
+
+  /**
+   * A failed backend release counts like another turn failure: retry with the
+   * next backoff delay, or let the task service park the task once the cap is
+   * reached. Nothing is left without a timer, a marker, or a park.
+   */
+  private async retryReleaseAfterFailure(key: TurnFailureReleaseKey): Promise<void> {
+    try {
+      const { attempts, exceeded } = await this.deps.taskService.recordTurnFailure(key);
+      if (exceeded) return;
+      this.scheduleTurnFailureRelease(key, attempts, 'release-retry');
+    } catch (error) {
+      console.error(
+        `[NativeDelivery:turn-failed-release-retry-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+      );
     }
   }
 

@@ -1015,6 +1015,87 @@ describe('AgentWorkManager', () => {
     }
   });
 
+  test('a failed deferred release retries with the next backoff delay', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('backend unavailable'))
+        .mockResolvedValue({ released: true, status: 'pending', updatedAt: 1700000000000 });
+      const recordTurnFailure = vi
+        .fn()
+        .mockResolvedValueOnce({ attempts: 1, exceeded: false })
+        .mockResolvedValueOnce({ attempts: 2, exceeded: false });
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        recordTurnFailure,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      expect(recordTurnFailure).toHaveBeenCalledTimes(2);
+      expect(recordTurnFailure).toHaveBeenLastCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+
+      // The second release waits the second delay, not the first.
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('a release that keeps failing parks after the cap and leaves no timer', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => {
+        throw new Error('backend unavailable');
+      });
+      let attempts = 0;
+      const recordTurnFailure = vi.fn(async () => {
+        attempts += 1;
+        return { attempts, exceeded: attempts >= 8 };
+      });
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        recordTurnFailure,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      // 5 + 10 + 20 + 40 + 80 + 160 + 300 seconds of retries.
+      await vi.advanceTimersByTimeAsync(615_000);
+
+      expect(attempts).toBe(8);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(7);
+      expect(vi.getTimerCount()).toBe(0);
+
+      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(7);
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   test('skips the release when the task is no longer current when the timer fires', async () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
