@@ -220,6 +220,9 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   // task lifecycle end, never by a successful re-arm.
   const rearmCycleCounts = new Map<string, number>();
   const rearmTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  // Slice 1 backoff releases still waiting in the agent work manager. Automatic
+  // recovery must not release these early; manual recovery still may.
+  const pendingTurnFailureReleases = new Set<string>();
   const redeliveryKey = (chatroomId: string, role: string, taskId: string): string =>
     `${chatroomId}:${role.toLowerCase()}:${taskId}`;
 
@@ -759,6 +762,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
       for (const timer of rearmTimers.values()) clearTimeout(timer);
       rearmTimers.clear();
       rearmCycleCounts.clear();
+      pendingTurnFailureReleases.clear();
       if (bootstrapRecoveryTimer) clearTimeout(bootstrapRecoveryTimer);
       bootstrapRecoveryTimer = undefined;
       stopInboxWatch?.();
@@ -870,7 +874,16 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           }
           if (mode === 'automatic') {
             const tracking = { chatroomId: task.chatroomId, role: taskRole, taskId: task.taskId };
-            if (isRedeliveryExhausted(tracking)) {
+            const key = redeliveryKey(task.chatroomId, taskRole, task.taskId);
+            // Exhausted keys already imply a re-arm cooldown, but check the timer
+            // explicitly so the guard does not depend on that invariant. A slice-1
+            // backoff release waiting in the work manager is also off limits to
+            // automatic recovery; manual (explicit) recovery deliberately bypasses both.
+            if (
+              isRedeliveryExhausted(tracking) ||
+              rearmTimers.has(key) ||
+              pendingTurnFailureReleases.has(key)
+            ) {
               skipped += 1;
               continue;
             }
@@ -976,6 +989,12 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     isRedeliveryExhausted,
     clearRedeliveryTracking: ({ chatroomId, role }) => {
       clearRoleRedeliveryTracking(chatroomId, role);
+    },
+    markTurnFailureReleasePending: ({ chatroomId, role, taskId }) => {
+      pendingTurnFailureReleases.add(redeliveryKey(chatroomId, role, taskId));
+    },
+    clearTurnFailureReleasePending: ({ chatroomId, role, taskId }) => {
+      pendingTurnFailureReleases.delete(redeliveryKey(chatroomId, role, taskId));
     },
     forgetStaleTask,
   };

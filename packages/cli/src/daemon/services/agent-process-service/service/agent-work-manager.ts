@@ -167,7 +167,10 @@ export class AgentWorkManager {
    * `chatroom:role:taskId`. In-memory on purpose: a daemon restart clears both
    * the timers and the in-memory attempt budget (known limitation).
    */
-  private readonly turnFailureReleaseTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly turnFailureReleaseTimers = new Map<
+    string,
+    { readonly key: TurnFailureReleaseKey; readonly timer: ReturnType<typeof setTimeout> }
+  >();
   private disposed = false;
 
   constructor(private readonly deps: AgentWorkManagerDependencies) {
@@ -205,6 +208,8 @@ export class AgentWorkManager {
       resetTurnTracking: deps.taskService.resetTurnTracking,
       isRedeliveryExhausted: deps.taskService.isRedeliveryExhausted,
       clearRedeliveryTracking: deps.taskService.clearRedeliveryTracking,
+      markTurnFailureReleasePending: deps.taskService.markTurnFailureReleasePending,
+      clearTurnFailureReleasePending: deps.taskService.clearTurnFailureReleasePending,
       forgetStaleTask: deps.taskService.forgetStaleTask,
       loadAssignedTaskForAction: deps.taskService.loadAssignedTaskForAction,
       deliverNativeTask: (task, harnessSessionId, onTaskDelivered, isCurrent) =>
@@ -443,12 +448,16 @@ export class AgentWorkManager {
     this.cancelTurnFailureRelease(key);
     const keyStr = turnFailureReleaseKey(key);
     const delay = computeBackoffDelay(attempt);
+    // Tell the task service a release is waiting so automatic recovery does not
+    // bypass the remaining backoff.
+    this.deps.taskService.markTurnFailureReleasePending(key);
     const timer = setTimeout(() => {
       this.turnFailureReleaseTimers.delete(keyStr);
+      this.deps.taskService.clearTurnFailureReleasePending(key);
       if (this.disposed) return;
       void this.releaseAfterTurnFailureBackoff(key);
     }, delay);
-    this.turnFailureReleaseTimers.set(keyStr, timer);
+    this.turnFailureReleaseTimers.set(keyStr, { key, timer });
     console.log(
       `[NativeDelivery:turn-failure-backoff] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} turn=${turnId} attempt=${attempt} delayMs=${delay}`
     );
@@ -484,19 +493,21 @@ export class AgentWorkManager {
   /** Stops a pending provider-failure release. A no-op when nothing is pending. */
   private cancelTurnFailureRelease(key: TurnFailureReleaseKey): void {
     const keyStr = turnFailureReleaseKey(key);
-    const timer = this.turnFailureReleaseTimers.get(keyStr);
-    if (timer === undefined) return;
-    clearTimeout(timer);
+    const entry = this.turnFailureReleaseTimers.get(keyStr);
+    if (entry === undefined) return;
+    clearTimeout(entry.timer);
     this.turnFailureReleaseTimers.delete(keyStr);
+    this.deps.taskService.clearTurnFailureReleasePending(key);
   }
 
   /** Stops every pending provider-failure release for one role. */
   private cancelTurnFailureReleasesForRole(chatroomId: string, role: string): void {
     const prefix = `${chatroomId}:${role.toLowerCase()}:`;
-    for (const [key, timer] of [...this.turnFailureReleaseTimers]) {
-      if (!key.startsWith(prefix)) continue;
-      clearTimeout(timer);
-      this.turnFailureReleaseTimers.delete(key);
+    for (const [keyStr, entry] of [...this.turnFailureReleaseTimers]) {
+      if (!keyStr.startsWith(prefix)) continue;
+      clearTimeout(entry.timer);
+      this.turnFailureReleaseTimers.delete(keyStr);
+      this.deps.taskService.clearTurnFailureReleasePending(entry.key);
     }
   }
 
@@ -979,7 +990,10 @@ export class AgentWorkManager {
 
   dispose(): void {
     this.disposed = true;
-    for (const timer of this.turnFailureReleaseTimers.values()) clearTimeout(timer);
+    for (const entry of this.turnFailureReleaseTimers.values()) {
+      clearTimeout(entry.timer);
+      this.deps.taskService.clearTurnFailureReleasePending(entry.key);
+    }
     this.turnFailureReleaseTimers.clear();
     for (const pending of this.respawnStartRetries.values()) {
       if (pending.timer) clearTimeout(pending.timer);

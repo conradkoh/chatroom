@@ -29,6 +29,8 @@ function createService(
     ) => Promise<{ attempts: number; exceeded: boolean }>;
     readonly isRedeliveryExhausted?: () => boolean;
     readonly clearRedeliveryTracking?: () => void;
+    readonly markTurnFailureReleasePending?: ReturnType<typeof vi.fn>;
+    readonly clearTurnFailureReleasePending?: ReturnType<typeof vi.fn>;
     readonly forgetStaleTask?: ReturnType<typeof vi.fn>;
     readonly loadAssignedTaskForAction?: (args: Record<string, string>) => Promise<unknown>;
     readonly initialTasks?: readonly AssignedTask[];
@@ -126,6 +128,8 @@ function createService(
       resetTurnTracking: options.resetTurnTracking ?? vi.fn(),
       isRedeliveryExhausted: options.isRedeliveryExhausted ?? (() => false),
       clearRedeliveryTracking: options.clearRedeliveryTracking ?? (() => undefined),
+      markTurnFailureReleasePending: options.markTurnFailureReleasePending ?? vi.fn(),
+      clearTurnFailureReleasePending: options.clearTurnFailureReleasePending ?? vi.fn(),
       explainNativeDeliveryBlock: () => null,
     } as never,
   });
@@ -901,6 +905,43 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('marks the backoff release for auto-recovery and clears the marker when it fires', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const markTurnFailureReleasePending = vi.fn();
+      const clearTurnFailureReleasePending = vi.fn();
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        markTurnFailureReleasePending,
+        clearTurnFailureReleasePending,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      expect(markTurnFailureReleasePending).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      expect(clearTurnFailureReleasePending).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(clearTurnFailureReleasePending).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      service.dispose();
     } finally {
       random.mockRestore();
       vi.useRealTimers();

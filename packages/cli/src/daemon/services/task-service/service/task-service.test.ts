@@ -1494,6 +1494,31 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
     }
   });
 
+  test('automatic recovery skips a task waiting on a slice-1 backoff release', async () => {
+    const mutation = rearmMutation();
+    const query = vi.fn(async () => [activeTask({ taskId: args.taskId })]);
+    const service = trackerService(mutation, query);
+    seedInProgress(service);
+
+    service.markTurnFailureReleasePending(args);
+    await expect(service.recoverInFlightTasks({ mode: 'automatic' })).resolves.toEqual({
+      released: 0,
+      skipped: 1,
+    });
+    expect(releaseCalls(mutation)).toHaveLength(0);
+
+    service.markTurnFailureReleasePending(args);
+    await expect(
+      service.recoverInFlightTasks({
+        chatroomId: args.chatroomId,
+        role: args.role,
+        mode: 'explicit',
+      })
+    ).resolves.toEqual({ released: 1, skipped: 0 });
+    expect(releaseCalls(mutation)).toHaveLength(1);
+    service.stopTaskInbox();
+  });
+
   test('stopping the service clears pending re-arm timers', async () => {
     vi.useFakeTimers();
     try {
