@@ -647,6 +647,207 @@ describe('AgentWorkManager', () => {
     }
   });
 
+  const beginRespawnStartRetries = (service: AgentWorkManager, harness: string): void => {
+    (
+      service as unknown as {
+        beginRespawnStartRetries(input: {
+          chatroomId: string;
+          role: string;
+          workingDir: string;
+          startInput: unknown;
+        }): void;
+      }
+    ).beginRespawnStartRetries({
+      chatroomId: 'room-1',
+      role: 'builder',
+      workingDir: '/test',
+      startInput: {
+        chatroomId: 'room-1',
+        role: 'builder',
+        agentHarness: harness,
+        model: 'test-model',
+        workingDir: '/test',
+        reason: 'daemon.respawn',
+        wantResume: false,
+      },
+    });
+  };
+
+  test('native harness respawn retries double to the ten-minute cap and never give up', async () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = Date.now();
+      const startTimes: number[] = [];
+      const startAgent = vi.fn(async () => {
+        startTimes.push(Date.now() - startedAt);
+        return { success: false, error: 'rate_limited' };
+      });
+      const service = createService({
+        startAgent,
+        agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+      });
+
+      // The initial start already failed before retries are armed, as in production.
+      await startAgent();
+      beginRespawnStartRetries(service, 'cursor-sdk');
+
+      const delays = [
+        1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 512_000, 600_000,
+        600_000,
+      ];
+      for (const delay of delays) {
+        await vi.advanceTimersByTimeAsync(delay);
+      }
+
+      expect(startTimes).toEqual([
+        0, 1_000, 3_000, 7_000, 15_000, 31_000, 63_000, 127_000, 255_000, 511_000, 1_023_000,
+        1_623_000, 2_223_000,
+      ]);
+      // No give-up after three attempts.
+      expect(startTimes.length).toBeGreaterThan(4);
+      service.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('CLI-driven harness respawn retries still stop after three attempts', async () => {
+    vi.useFakeTimers();
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const startedAt = Date.now();
+      const startTimes: number[] = [];
+      const startAgent = vi.fn(async () => {
+        startTimes.push(Date.now() - startedAt);
+        return { success: false, error: 'rate_limited' };
+      });
+      const service = createService({
+        startAgent,
+        agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
+      });
+
+      await startAgent();
+      beginRespawnStartRetries(service, 'opencode');
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(startTimes).toEqual([0, 1_000, 3_000]);
+      expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
+      expect(vi.getTimerCount()).toBe(0);
+      service.dispose();
+    } finally {
+      errorLog.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  const cancelCases: readonly {
+    readonly label: string;
+    readonly startResult: { success: boolean };
+    readonly isStopped: () => boolean;
+    readonly slot: (() => { state: 'running'; pid: number } | undefined) | undefined;
+  }[] = [
+    {
+      label: 'a started retry',
+      startResult: { success: true },
+      isStopped: () => false,
+      slot: undefined,
+    },
+    {
+      label: 'stop_requested',
+      startResult: { success: false },
+      isStopped: () => true,
+      slot: undefined,
+    },
+    {
+      label: 'agent_already_running',
+      startResult: { success: false },
+      isStopped: () => false,
+      slot: () => ({ state: 'running' as const, pid: 7 }),
+    },
+  ];
+
+  test.each(cancelCases)(
+    'native respawn retries cancel on $label',
+    async ({ startResult, isStopped, slot }) => {
+      vi.useFakeTimers();
+      try {
+        const startAgent = vi.fn(async () => startResult);
+        const service = createService({
+          startAgent,
+          isStopRequested: isStopped,
+          getSlot: slot ?? (() => undefined),
+          agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+        });
+        beginRespawnStartRetries(service, 'cursor-sdk');
+        expect(vi.getTimerCount()).toBe(1);
+
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        expect(vi.getTimerCount()).toBe(0);
+        service.dispose();
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  test('native respawn retries cancel on supersede and dispose', async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
+      const service = createService({
+        startAgent,
+        agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+      });
+      beginRespawnStartRetries(service, 'cursor-sdk');
+      beginRespawnStartRetries(service, 'cursor-sdk');
+      expect(log.mock.calls.join('\n')).toContain('reason=superseded_by_new_restart');
+      // The replacement intent still has one timer; dispose clears it.
+      expect(vi.getTimerCount()).toBe(1);
+
+      service.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      log.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('CLI-driven recovery retries keep the 30-second interval cap', async () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = Date.now();
+      const recoveryTimes: number[] = [];
+      const recoverInFlightTasks = vi.fn(async () => {
+        recoveryTimes.push(Date.now() - startedAt);
+        throw new Error('status read failed');
+      });
+      const service = createService({
+        recoverInFlightTasks,
+        agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
+      });
+      await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
+      (
+        service as unknown as {
+          scheduleRecoveryRetry(chatroomId: string, role: string): void;
+        }
+      ).scheduleRecoveryRetry('room-1', 'builder');
+
+      for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]) {
+        await vi.advanceTimersByTimeAsync(delay);
+      }
+
+      expect(recoveryTimes).toEqual([1_000, 3_000, 7_000, 15_000, 31_000, 61_000, 91_000]);
+      service.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('a failed turn records a failure, never consults the ladder, and defers the release', async () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);

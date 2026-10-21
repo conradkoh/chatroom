@@ -417,20 +417,24 @@ describe('uncovered-turn ladder, end to end', () => {
       }
     });
 
-    test('a start that fails three times stops after three starts, logs exhaustion, and leaves the task pending', async () => {
+    test('a start that keeps failing retries indefinitely for native harnesses', async () => {
       vi.useFakeTimers();
       const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       try {
-        const { agents, d } = await restartWithFailingStart(3);
+        const { agents, d } = await restartWithFailingStart(100);
 
         await vi.advanceTimersByTimeAsync(1_000);
         await vi.advanceTimersByTimeAsync(2_000);
         await vi.advanceTimersByTimeAsync(60_000);
 
-        expect(agents.starts).toHaveLength(3);
-        expect(errors).toHaveBeenCalledWith(
-          expect.stringContaining('[NativeDelivery:uncovered-restart-failed] attempts exhausted')
-        );
+        // Native harnesses no longer stop after three starts and never log exhaustion.
+        expect(agents.starts.length).toBeGreaterThan(3);
+        expect(errors.mock.calls.join('\n')).not.toContain('attempts exhausted');
+
+        // The interval is capped, but retries continue past the old 30s bound.
+        await vi.advanceTimersByTimeAsync(600_000 * 2);
+        expect(agents.starts.length).toBeGreaterThan(7);
+        expect(errors.mock.calls.join('\n')).not.toContain('attempts exhausted');
         expect(d.taskService.taskInboxState.getForRole(CHATROOM, ROLE, TASK_ID)?.status).toBe(
           'pending'
         );
