@@ -357,6 +357,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
 
   const parkTask = async (
     args: { chatroomId: string; role: string; taskId: string },
+    reason: 'provider_failure' | 'uncovered_turn',
     attempts?: number
   ): Promise<void> => {
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
@@ -366,7 +367,12 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     console.log(
       `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}${attemptsSuffix} — release/redelivery stopped; agent restart (user.start) resets`
     );
-    scheduleRedeliveryRearm({ ...args, key });
+    // Only provider failures are safe to redeliver automatically. A task parked
+    // by the uncovered-turn ladder may repeat side effects if replayed, so it
+    // stays parked until a user restart.
+    if (reason === 'provider_failure') {
+      scheduleRedeliveryRearm({ ...args, key });
+    }
   };
 
   /**
@@ -387,7 +393,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     const attempts = recordedAttempts + 1;
     turnFailureCounts.set(key, attempts);
     if (attempts < TURN_FAILURE_RETRY_CAP) return { attempts, exceeded: false };
-    await parkTask(args, attempts);
+    await parkTask(args, 'provider_failure', attempts);
     return { attempts, exceeded: true };
   };
 
@@ -414,7 +420,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     if (decision.action === 'restart-session') {
       uncoveredLadder.set(key, withSessionRestart(entry));
     } else if (decision.action === 'park') {
-      await parkTask(args);
+      await parkTask(args, 'uncovered_turn');
     }
     return decision;
   };

@@ -1438,6 +1438,38 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
     }
   });
 
+  test('an uncovered-turn park never schedules an automatic re-arm', async () => {
+    vi.useFakeTimers();
+    try {
+      const mutation = rearmMutation();
+      const service = trackerService(mutation);
+      seedInProgress(service);
+
+      expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+        action: 'nudge',
+      });
+      service.confirmNudgeSent({ ...args, sessionKey: '1:a' });
+      expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+        action: 'restart-session',
+      });
+      expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '2:b' })).toEqual({
+        action: 'nudge',
+      });
+      service.confirmNudgeSent({ ...args, sessionKey: '2:b' });
+      expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '2:b' })).toEqual({
+        action: 'park',
+      });
+
+      expect(service.isRedeliveryExhausted(args)).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(16 * 60 * 60_000);
+      expect(releaseCalls(mutation)).toHaveLength(0);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('a user restart cancels the timer and resets the budget to 15 minutes', async () => {
     vi.useFakeTimers();
     try {
