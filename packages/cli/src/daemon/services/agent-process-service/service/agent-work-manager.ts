@@ -1072,8 +1072,14 @@ export class AgentWorkManager {
       );
     }
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskAssigned) {
-      // A fresh assignment for this role supersedes any waiting release.
-      this.cancelTurnFailureReleasesForRole(notification.event.chatroomId, notification.event.role);
+      // Only the assigned task can be superseded. A waiting release for another
+      // task of this role must still fire; its callback re-checks the task and
+      // releases the superseded task.
+      this.cancelTurnFailureRelease({
+        chatroomId: notification.event.chatroomId,
+        role: notification.event.role,
+        taskId: notification.event.taskId,
+      });
     }
     if (notification.event.task?.status === 'completed') {
       this.cancelTurnFailureRelease({

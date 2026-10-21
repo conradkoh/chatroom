@@ -811,7 +811,7 @@ describe('AgentWorkManager', () => {
     }
   });
 
-  test('cancels a waiting release when a new task is assigned to the role', async () => {
+  test('a new task assigned to the role does not cancel the superseded task release', async () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
     try {
@@ -820,9 +820,16 @@ describe('AgentWorkManager', () => {
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
+      const markTurnFailureReleasePending = vi.fn();
+      const clearTurnFailureReleasePending = vi.fn();
       const inbox = new TaskInboxState();
       inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        markTurnFailureReleasePending,
+        clearTurnFailureReleasePending,
+        taskInboxState: inbox,
+      });
       service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
       await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
@@ -837,9 +844,69 @@ describe('AgentWorkManager', () => {
           task: pendingTask('task-2'),
         },
       } as never);
+
+      // task-1 is superseded but still in flight, so its release must still fire.
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      expect(clearTurnFailureReleasePending).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('a TaskAssigned for the same task id cancels that task waiting release', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const clearTurnFailureReleasePending = vi.fn();
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        clearTurnFailureReleasePending,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      await service.handleTaskServiceNotification({
+        kind: 'inbox-event',
+        event: {
+          eventType: 'task_assigned',
+          eventId: 'event-reassigned',
+          chatroomId: 'room-1',
+          role: 'builder',
+          taskId: 'task-1',
+          task: pendingTask('task-1'),
+        },
+      } as never);
+      expect(vi.getTimerCount()).toBe(0);
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      expect(clearTurnFailureReleasePending).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
       service.dispose();
     } finally {
       random.mockRestore();
