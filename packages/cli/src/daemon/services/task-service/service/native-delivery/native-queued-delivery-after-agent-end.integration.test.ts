@@ -35,6 +35,7 @@ import {
   type SerializedAgentOperations,
 } from '../../../agent-process-service/index.js';
 import type { NativeDeliverySessionHandles } from '../../../service-interfaces.js';
+import type { TaskService } from '../../index.js';
 import { buildNativeInjectionPrompt, shouldDeliverNativeTask } from '../../index.js';
 
 type NativeTaskDeliverySessionDeps = NativeDeliverySessionHandles & { convexUrl: string };
@@ -187,8 +188,8 @@ describe('native queued delivery after agent_end', () => {
       }),
     };
     const taskService = {
-      subscribe: (listener: (notification: never) => Promise<unknown>) => {
-        taskListener = listener as typeof taskListener;
+      subscribe: (listener: Parameters<TaskService['subscribe']>[0]) => {
+        taskListener = listener as unknown as typeof taskListener;
         return () => {
           taskListener = undefined;
         };
@@ -198,15 +199,17 @@ describe('native queued delivery after agent_end', () => {
       listTasksForRole: (room: string, role: string) => inbox.listForRole(room, role as never),
       listAllTasks: () => inbox.listAll(),
       taskInboxState: inbox,
-      recoverInFlightTasks: vi.fn(async (args: { role: string }) => {
-        expect(slotByRole.get(args.role)?.state).toBe('running');
-        backendStatuses.set(builderTask.taskId, 'pending');
-        inbox.markStatus(chatroomId, 'builder', builderTask.taskId, 'pending', 1_700_000_000_001);
-        slotByRole.set('builder', makeNativeSlot('idle'));
-        return { released: 1, skipped: 0 };
-      }),
-      loadAssignedTaskForAction: vi.fn(async ({ taskId }: { taskId: string }) =>
-        assignedById.get(taskId)
+      recoverInFlightTasks: vi.fn(
+        async (args: { chatroomId?: string; role?: string; mode: 'automatic' | 'explicit' }) => {
+          expect(slotByRole.get(args.role ?? '')?.state).toBe('running');
+          backendStatuses.set(builderTask.taskId, 'pending');
+          inbox.markStatus(chatroomId, 'builder', builderTask.taskId, 'pending', 1_700_000_000_001);
+          slotByRole.set('builder', makeNativeSlot('idle'));
+          return { released: 1, skipped: 0 };
+        }
+      ),
+      loadAssignedTaskForAction: vi.fn(
+        async ({ taskId }: { taskId: string }) => assignedById.get(taskId) ?? null
       ),
       recordDeliveryFailure: vi.fn(),
       clearDeliveryFailure: vi.fn(),
@@ -222,8 +225,7 @@ describe('native queued delivery after agent_end', () => {
       clearRedeliveryTracking: vi.fn(),
       forgetStaleTask: vi.fn(),
       handleAgentTurnProgress: vi.fn(),
-      explainNativeDeliveryBlock: () => null,
-    } as never;
+    } satisfies Partial<TaskService>;
     const configurationService = {
       get: (_room: string, _role: string) => ({
         agentHarness: 'cursor-sdk',
@@ -266,7 +268,7 @@ describe('native queued delivery after agent_end', () => {
         taskInboxState: state,
         agentTaskState: createAgentTaskStateService(),
         lifecycleOutbox: { enqueue: async () => undefined },
-        taskService,
+        taskService: taskService as never,
       });
     const inboxEvent = (taskId: string, role: string, eventId: string) => ({
       kind: 'inbox-event' as const,
@@ -416,8 +418,8 @@ describe('native queued delivery after agent_end', () => {
       notifier: { subscribe: () => () => undefined } as never,
     });
     const taskService = {
-      subscribe: (listener: (notification: never) => Promise<unknown>) => {
-        taskListener = listener as typeof taskListener;
+      subscribe: (listener: Parameters<TaskService['subscribe']>[0]) => {
+        taskListener = listener as unknown as typeof taskListener;
         return () => {
           taskListener = undefined;
         };
@@ -429,7 +431,7 @@ describe('native queued delivery after agent_end', () => {
       listAllTasks: () => inbox.listAll(),
       taskInboxState: inbox,
       recoverInFlightTasks: vi.fn(
-        async (args: { chatroomId: string; role: string; mode: string }) => {
+        async (args: { chatroomId?: string; role?: string; mode: 'automatic' | 'explicit' }) => {
           expect(args).toEqual({ chatroomId, role, mode: 'explicit' });
           expect(slot.current.state).toBe('idle');
           expect(inbox.getForRole(chatroomId, role, task.taskId)?.status).toBe('pending');
@@ -451,8 +453,7 @@ describe('native queued delivery after agent_end', () => {
       clearRedeliveryTracking: vi.fn(),
       forgetStaleTask: vi.fn(),
       handleAgentTurnProgress: vi.fn(),
-      explainNativeDeliveryBlock: () => null,
-    };
+    } satisfies Partial<TaskService>;
     const workManager = new AgentWorkManager({
       configurationService: {
         get: () => ({
