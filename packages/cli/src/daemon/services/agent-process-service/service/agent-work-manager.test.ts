@@ -784,9 +784,14 @@ describe('AgentWorkManager', () => {
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
+      const clearTurnFailureReleasePending = vi.fn();
       const inbox = new TaskInboxState();
       inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        clearTurnFailureReleasePending,
+        taskInboxState: inbox,
+      });
       service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
       await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
@@ -804,6 +809,57 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      expect(clearTurnFailureReleasePending).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
+      service.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('cancels a waiting release when the task completes', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+        released: true,
+        status: 'pending' as const,
+        updatedAt: 1700000000000,
+      }));
+      const clearTurnFailureReleasePending = vi.fn();
+      const inbox = new TaskInboxState();
+      inbox.upsert([inProgressTask('task-1')]);
+      const service = createService({
+        releaseTaskAfterTurnFailure,
+        clearTurnFailureReleasePending,
+        taskInboxState: inbox,
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+
+      await service.handleTaskServiceNotification({
+        kind: 'inbox-event',
+        event: {
+          eventType: 'task_updated',
+          eventId: 'event-completed',
+          chatroomId: 'room-1',
+          role: 'builder',
+          taskId: 'task-1',
+          task: { ...inProgressTask('task-1'), status: 'completed' },
+        },
+      } as never);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+      expect(clearTurnFailureReleasePending).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+      });
       service.dispose();
     } finally {
       random.mockRestore();
@@ -998,8 +1054,10 @@ describe('AgentWorkManager', () => {
         }));
         const inbox = new TaskInboxState();
         inbox.upsert([inProgressTask('task-1')]);
+        const clearTurnFailureReleasePending = vi.fn();
         const service = createService({
           releaseTaskAfterTurnFailure,
+          clearTurnFailureReleasePending,
           taskInboxState: inbox,
           onAgentStarted: (handler) => {
             startedHandler = handler as never;
@@ -1016,6 +1074,11 @@ describe('AgentWorkManager', () => {
         await vi.advanceTimersByTimeAsync(60_000);
 
         expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+        expect(clearTurnFailureReleasePending).toHaveBeenCalledWith({
+          chatroomId: 'room-1',
+          role: 'builder',
+          taskId: 'task-1',
+        });
         service.dispose();
       }
     } finally {
@@ -1038,8 +1101,11 @@ describe('AgentWorkManager', () => {
       const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
       service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
       await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
 
       service.dispose();
+      // Dispose clears the timer itself, not just the disposed guard.
+      expect(vi.getTimerCount()).toBe(0);
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();

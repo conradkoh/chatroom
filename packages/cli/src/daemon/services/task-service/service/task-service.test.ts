@@ -1273,7 +1273,7 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
     taskId = args.taskId
   ): void => {
     (service.taskInboxState as unknown as TaskInboxState).upsert([
-      activeTask({ taskId, status: 'in_progress' }),
+      activeTask({ taskId, status: 'in_progress', updatedAt: Date.now() }),
     ]);
   };
 
@@ -1420,7 +1420,9 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
       for (let cycle = 0; cycle < MAX_REARM_CYCLES; cycle += 1) {
         if (cycle > 0) markInProgress(service);
         await exhaustTurnFailures(service, args);
-        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[cycle]);
+        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[cycle] - 1);
+        expect(releaseCalls(mutation)).toHaveLength(cycle);
+        await vi.advanceTimersByTimeAsync(1);
       }
       expect(releaseCalls(mutation)).toHaveLength(MAX_REARM_CYCLES);
 
@@ -1499,39 +1501,68 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
     ['TaskDeleted', WorkspaceTaskInboxEventType.TaskDeleted, 'completed'],
     ['completed TaskUpdated', WorkspaceTaskInboxEventType.TaskUpdated, 'completed'],
     ['TaskAssigned', WorkspaceTaskInboxEventType.TaskAssigned, 'pending'],
-  ] as const)('a %s inbox event cancels the pending re-arm', async (_label, eventType, status) => {
-    vi.useFakeTimers();
-    try {
-      const mutation = rearmMutation();
-      const event = {
-        _id: `event-${eventType}`,
-        machineId: 'machine-1',
-        chatroomId: args.chatroomId,
-        taskId: args.taskId,
-        role: args.role,
-        eventType,
-        status: WorkspaceTaskInboxEventStatus.Pending,
-        createdAt: 3_000,
-        task: { ...activeTask({ taskId: args.taskId }), status, updatedAt: 3_000 },
-      } as never;
-      const query = vi
-        .fn()
-        .mockResolvedValueOnce([activeTask({ taskId: args.taskId })])
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([event]);
-      const service = trackerService(mutation, query);
-      seedInProgress(service);
-      await exhaustTurnFailures(service, args);
+  ] as const)(
+    'a %s inbox event clears the timer and resets the re-arm budget',
+    async (_label, eventType, status) => {
+      vi.useFakeTimers();
+      try {
+        const mutation = rearmMutation();
+        const event = {
+          _id: `event-${eventType}`,
+          machineId: 'machine-1',
+          chatroomId: args.chatroomId,
+          taskId: args.taskId,
+          role: args.role,
+          eventType,
+          status: WorkspaceTaskInboxEventStatus.Pending,
+          createdAt: 3_000,
+          task: { ...activeTask({ taskId: args.taskId }), status, updatedAt: 3_000 },
+        } as never;
+        const query = vi
+          .fn()
+          .mockResolvedValueOnce([activeTask({ taskId: args.taskId })])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([event]);
+        const service = trackerService(mutation, query);
+        // Acknowledge inbox events so the delivery retry watcher adds no timers.
+        service.subscribe((notification) => ({
+          handledEventIds: notification.kind === 'inbox-event' ? [notification.event.eventId] : [],
+        }));
 
-      await service.startTaskInbox();
-      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
+        // Use two cycles first so a missing budget reset is observable: the
+        // third park's timer is 60 minutes, not 15.
+        seedInProgress(service);
+        await exhaustTurnFailures(service, args);
+        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+        markInProgress(service);
+        await exhaustTurnFailures(service, args);
+        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1]);
+        markInProgress(service);
+        await exhaustTurnFailures(service, args);
+        expect(releaseCalls(mutation)).toHaveLength(2);
 
-      expect(releaseCalls(mutation)).toHaveLength(0);
-      service.stopTaskInbox();
-    } finally {
-      vi.useRealTimers();
+        const timersBeforeEvent = vi.getTimerCount();
+        expect(timersBeforeEvent).toBeGreaterThan(0);
+
+        await service.startTaskInbox();
+
+        // The re-arm timer must be gone even though the task is still parked.
+        expect(vi.getTimerCount()).toBeLessThan(timersBeforeEvent);
+
+        // Re-seed the task in flight and park again: a reset budget waits 15
+        // minutes, not the 60 the third cycle would have used.
+        seedInProgress(service);
+        await exhaustTurnFailures(service, args);
+        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0] - 1);
+        expect(releaseCalls(mutation)).toHaveLength(2);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(releaseCalls(mutation)).toHaveLength(3);
+        service.stopTaskInbox();
+      } finally {
+        vi.useRealTimers();
+      }
     }
-  });
+  );
 
   test('skips the re-arm when a different task is now in flight', async () => {
     vi.useFakeTimers();
@@ -1559,20 +1590,32 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
     }
   });
 
-  test('automatic recovery skips a task in re-arm cooldown; manual recovery releases it', async () => {
+  test('automatic recovery skips a task in re-arm cooldown; manual recovery cancels and resets it', async () => {
     vi.useFakeTimers();
     try {
       const mutation = rearmMutation();
       const query = vi.fn(async () => [activeTask({ taskId: args.taskId })]);
       const service = trackerService(mutation, query);
+
+      // Use two cycles so a missing budget reset is observable.
       seedInProgress(service);
       await exhaustTurnFailures(service, args);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+      markInProgress(service);
+      await exhaustTurnFailures(service, args);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1]);
+      markInProgress(service);
+      await exhaustTurnFailures(service, args);
+      expect(releaseCalls(mutation)).toHaveLength(2);
+
+      const timersBeforeRecovery = vi.getTimerCount();
+      expect(timersBeforeRecovery).toBeGreaterThan(0);
 
       await expect(service.recoverInFlightTasks({ mode: 'automatic' })).resolves.toEqual({
         released: 0,
         skipped: 1,
       });
-      expect(releaseCalls(mutation)).toHaveLength(0);
+      expect(releaseCalls(mutation)).toHaveLength(2);
 
       await expect(
         service.recoverInFlightTasks({
@@ -1581,11 +1624,17 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
           mode: 'explicit',
         })
       ).resolves.toEqual({ released: 1, skipped: 0 });
-      expect(releaseCalls(mutation)).toHaveLength(1);
+      expect(releaseCalls(mutation)).toHaveLength(3);
+      // The 60-minute timer is gone after explicit recovery.
+      expect(vi.getTimerCount()).toBeLessThan(timersBeforeRecovery);
 
-      // Explicit recovery cancels the cooldown, so no second release follows.
-      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
-      expect(releaseCalls(mutation)).toHaveLength(1);
+      // The budget is reset: the next park waits 15 minutes again.
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0] - 1);
+      expect(releaseCalls(mutation)).toHaveLength(3);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseCalls(mutation)).toHaveLength(4);
       service.stopTaskInbox();
     } finally {
       vi.useRealTimers();
