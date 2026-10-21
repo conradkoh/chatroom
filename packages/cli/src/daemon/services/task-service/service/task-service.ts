@@ -85,6 +85,18 @@ export type WorkspaceTaskInboxEvent =
       readonly eventType: WorkspaceTaskInboxEventType.TaskDeleted;
     });
 
+/**
+ * Automatic re-arm delays after a task is parked as `redelivery_exhausted`.
+ * The budget is bounded: after the last cycle the task stays parked until a
+ * user restart. In-memory, like the rest of the redelivery tracking, so a
+ * daemon restart clears both the timer and the cycle count.
+ */
+// Exported for the re-arm tests and as the documented re-arm contract.
+// fallow-ignore-next-line unused-export
+export const REARM_DELAYS_MS = [15 * 60_000, 30 * 60_000, 60 * 60_000] as const;
+// fallow-ignore-next-line unused-export
+export const MAX_REARM_CYCLES = REARM_DELAYS_MS.length;
+
 export type TaskServiceNotification =
   | {
       readonly kind: 'bootstrap';
@@ -203,8 +215,110 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const turnFailureCounts = new Map<string, number>();
   const uncoveredLadder = new Map<string, UncoveredTurnLadderEntry>();
   const redeliveryExhaustedKeys = new Set<string>();
+  // Automatic re-arm after exhaustion: cycles already used and the pending timer
+  // per key. Bounded by MAX_REARM_CYCLES and only reset by a user restart or a
+  // task lifecycle end, never by a successful re-arm.
+  const rearmCycleCounts = new Map<string, number>();
+  const rearmTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const redeliveryKey = (chatroomId: string, role: string, taskId: string): string =>
     `${chatroomId}:${role.toLowerCase()}:${taskId}`;
+
+  /** Stops the pending re-arm timer for one key, if any. */
+  const clearRearmTimer = (key: string): void => {
+    const timer = rearmTimers.get(key);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    rearmTimers.delete(key);
+  };
+
+  /** Cancels the timer and forgets the cycles used. Only user restart / lifecycle end resets the budget. */
+  const resetRearmBudget = (key: string): void => {
+    clearRearmTimer(key);
+    rearmCycleCounts.delete(key);
+  };
+
+  /**
+   * Arms the next bounded re-arm for a parked task. A successful cycle does not
+   * reset the cycle count: the third park after the third cycle stays parked.
+   */
+  const scheduleRedeliveryRearm = (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+    key: string;
+  }): void => {
+    if (inboxStopped) return;
+    const { key } = args;
+    const cycles = rearmCycleCounts.get(key) ?? 0;
+    if (cycles >= MAX_REARM_CYCLES) {
+      console.log(
+        `[NativeDelivery:redelivery-rearm-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} cycles=${MAX_REARM_CYCLES}`
+      );
+      return;
+    }
+    clearRearmTimer(key);
+    const delay = REARM_DELAYS_MS[cycles];
+    const timer = setTimeout(() => {
+      rearmTimers.delete(key);
+      void runRedeliveryRearm({ ...args, delay, cycle: cycles + 1 });
+    }, delay);
+    rearmTimers.set(key, timer);
+  };
+
+  /**
+   * Runs one re-arm cycle: re-check the task is still the in-flight work, then
+   * give it a fresh failure budget and release it for redelivery. Never restarts
+   * the agent process.
+   */
+  const runRedeliveryRearm = async (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+    key: string;
+    delay: number;
+    cycle: number;
+  }): Promise<void> => {
+    const { chatroomId, role, taskId, key } = args;
+    const current = taskInboxState.getForRole(chatroomId, role, taskId);
+    if (!current || current.status !== 'in_progress' || !redeliveryExhaustedKeys.has(key)) {
+      console.log(
+        `[NativeDelivery:redelivery-rearm-skipped] reason=task_not_current chatroom=${chatroomId} role=${role} task=${taskId} status=${current?.status ?? 'missing'}`
+      );
+      return;
+    }
+
+    rearmCycleCounts.set(key, args.cycle);
+    redeliveryExhaustedKeys.delete(key);
+    turnFailureCounts.delete(key);
+
+    try {
+      await gateway.clearDeliveryFailure({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId,
+      });
+    } catch (error) {
+      console.warn(
+        `[TaskService] redelivery-rearm clear failure failed chatroom=${chatroomId} role=${role} task=${taskId}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+
+    try {
+      await releaseTask({ chatroomId, role, taskId });
+    } catch (error) {
+      console.error(
+        `[TaskService] redelivery-rearm release failed chatroom=${chatroomId} role=${role} task=${taskId} cycle=${args.cycle}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      // Keep the task parked and try the next cycle rather than stranding it active.
+      redeliveryExhaustedKeys.add(key);
+      scheduleRedeliveryRearm(args);
+      return;
+    }
+
+    console.log(
+      `[NativeDelivery:redelivery-rearm] cycle=${args.cycle}/${MAX_REARM_CYCLES} chatroom=${chatroomId} role=${role} task=${taskId} delayMs=${args.delay}`
+    );
+  };
 
   const parkTask = async (
     args: { chatroomId: string; role: string; taskId: string },
@@ -228,6 +342,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     console.log(
       `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}${attemptsSuffix} — release/redelivery stopped; agent restart (user.start) resets`
     );
+    scheduleRedeliveryRearm({ ...args, key });
   };
 
   /**
@@ -312,6 +427,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     turnFailureCounts.delete(key);
     uncoveredLadder.delete(key);
     redeliveryExhaustedKeys.delete(key);
+    resetRearmBudget(key);
   };
   const forgetStaleTask = ({
     chatroomId,
@@ -363,6 +479,12 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     }
     for (const key of [...redeliveryExhaustedKeys]) {
       if (key.startsWith(prefix)) redeliveryExhaustedKeys.delete(key);
+    }
+    for (const key of [...rearmTimers.keys()]) {
+      if (key.startsWith(prefix)) resetRearmBudget(key);
+    }
+    for (const key of [...rearmCycleCounts.keys()]) {
+      if (key.startsWith(prefix)) rearmCycleCounts.delete(key);
     }
   };
 
@@ -634,6 +756,9 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
     stopTaskInbox: () => {
       inboxStopped = true;
+      for (const timer of rearmTimers.values()) clearTimeout(timer);
+      rearmTimers.clear();
+      rearmCycleCounts.clear();
       if (bootstrapRecoveryTimer) clearTimeout(bootstrapRecoveryTimer);
       bootstrapRecoveryTimer = undefined;
       stopInboxWatch?.();
