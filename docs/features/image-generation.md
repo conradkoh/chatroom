@@ -158,8 +158,7 @@ selected model's terms yourself before using an asset in production.
 ## Limits
 
 - **Text-to-image only.** The command generates one image per invocation. It
-  does not do image editing, video, audio, or 3D. For sheet workflows, see
-  [image-slicing.md](image-slicing.md).
+  does not do image editing, video, audio, or 3D.
 - **No segmentation.** Segment-anything (SAM) style masks and cutouts are not
   supported.
 - **The default model ignores `--aspect-ratio`.** `fal-ai/flux-2/flash` takes
