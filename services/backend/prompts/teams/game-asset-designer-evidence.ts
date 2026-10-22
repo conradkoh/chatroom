@@ -20,9 +20,6 @@ export const GAME_ASSET_EVIDENCE_LABEL_LIST = GAME_ASSET_EVIDENCE_LABELS.map(
 export const GAME_ASSET_NEVER_CLAIM_RULE =
   'Never claim a polycount, texel density, loudness, color space, or visual-quality result without `measured` or `inspected` evidence. Numeric results (polycount, texel density, resolution, loudness, true peak, sample rate, bit depth) and color-space slot checks require `measured`; `inspected` covers only visual or audible judgments. A budget or target you write into the spec is a requirement and is labelled `specified`, not a result.';
 
-/** Backwards-compatible alias so existing consumers keep importing one rule. */
-export const GAME_ASSET_EVIDENCE_RULE = GAME_ASSET_NEVER_CLAIM_RULE;
-
 /** A checklist item may only be graded pass or fail on checked evidence. */
 export const GAME_ASSET_RESULT_RULE =
   'A checklist item is `pass` or `fail` only with `measured` or `inspected` evidence. Otherwise record it as `not checked` and keep its label (`specified` or `unverified`).';

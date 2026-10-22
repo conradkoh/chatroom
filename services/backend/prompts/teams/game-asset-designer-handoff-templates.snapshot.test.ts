@@ -27,11 +27,13 @@ const reportHeadings = [
   '## Target and assumptions',
   '## Asset manifest',
   '## Quality checklist results',
+  '## Acceptance criteria results',
   '## Style consistency',
   '## Files created',
   '## Sources',
   '## Open questions',
   '## Not verified',
+  '## Recommended next step',
 ];
 
 describe('game asset designer handoff template snapshots', () => {
@@ -54,7 +56,10 @@ describe('game asset designer handoff template snapshots', () => {
     expect(template).toContain('## Assets requested');
     expect(template).toContain('## Budgets and conventions');
     expect(template).toContain('## Style reference');
+    expect(template).toContain('## Spec consumer');
+    expect(template).toContain('## Existing assets');
     expect(template).toContain('## Deliverable mode');
+    expect(template).toContain('## Output location');
     expect(template).toContain('## Acceptance criteria');
     expect(template).toContain('Instructions (not part of the message):');
     expect(template).toContain('Instructions after the body (not part of the message):');

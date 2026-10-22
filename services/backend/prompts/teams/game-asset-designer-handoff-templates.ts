@@ -1,6 +1,8 @@
 import {
+  GAME_ASSET_EVIDENCE_DEFINITIONS,
   GAME_ASSET_EVIDENCE_LABEL_LIST,
-  GAME_ASSET_EVIDENCE_RULE,
+  GAME_ASSET_NEVER_CLAIM_RULE,
+  GAME_ASSET_RESULT_RULE,
 } from './game-asset-designer-evidence';
 import { handoffCommand } from '../cli/handoff/command';
 import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
@@ -11,7 +13,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Ask for a specification and report only unless you explicitly request generation.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Ask for a specification and report only unless you explicitly request generation.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -20,7 +22,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <engine and version; genre and camera; platform tier (mobile, PC, console, VR); render pipeline if known>
 
 ## Assets requested
-<numbered list; each item: asset name, category (3D model, PBR textures, 2D sprite/UI, audio, other), purpose, quantity or variants>
+<numbered list with stable IDs \`A01\`, \`A02\`…; each item: asset name, category (3D model, PBR textures, 2D sprite/UI, audio, other), purpose, quantity or variants>
 
 ## Budgets and conventions
 <triangle budget per LOD, texel density or pixel grid, texture resolution and atlas limits, loudness target, naming convention, folder layout; or \`Not specified.\`>
@@ -28,22 +30,29 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ## Style reference
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
+## Spec consumer
+<who produces or integrates these assets from the spec: \`builder\`, \`uiux-engineer\`, an external artist, or \`user\`>
+
+## Existing assets
+<repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
+
 ## Deliverable mode
-<\`spec only\` or \`spec and generate\`; if generating, the allowed tools and the exact output directory>
+<\`spec only\` (default) or \`spec and generate\`; if generating, list the allowed tools here>
+
+## Output location
+<the exact repository directory the designer may write to; required for \`spec and generate\`; \`None.\` for \`spec only\`>
 
 ## Acceptance criteria
 <what must be true for the planner to accept the delivery>
 
-Instructions after the body (not part of the message): Use this template only under the conditions below; the body above ends at \`## Acceptance criteria\`.
+Instructions after the body (not part of the message): run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Acceptance criteria\`.
 
 ### When to use the game asset designer
 - the request creates or changes game art or audio assets (models, textures, sprites, UI art, sound effects);
 - assets must meet engine import conventions or budgets before a builder integrates them;
 - the user asks for an asset spec, style sheet, or asset audit.
 
-Skip it for code-only work or for a trivial asset rename.
-
-After completing the work, the game asset designer must return its delivery report to \`${entryPoint}\` with the normal handoff command.
+Skip it for code-only work, for a trivial asset rename, and for non-game UI icons or illustrations (use \`uiux-engineer\`).
 
 \`\`\`bash
 ${handoffCommand({
@@ -61,19 +70,22 @@ export function getGameAssetDesignerToEntryPointHandoffTemplate(
 ): string {
   const entryPoint = query.toRole;
 
-  return `Instructions (not part of the message): Return a complete asset delivery report for the request the planner named. State only what you established. Label every checked property with one evidence label: ${GAME_ASSET_EVIDENCE_LABEL_LIST}. ${GAME_ASSET_EVIDENCE_RULE} Do not edit source code or write outside the named output location. Use the exact sections below, in this order.
+  return `Instructions (not part of the message): Return a complete asset delivery report for the request the planner named. State only what you established. Label every checked property with one evidence label: ${GAME_ASSET_EVIDENCE_LABEL_LIST}. Definitions: ${GAME_ASSET_EVIDENCE_DEFINITIONS} ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE} Do not edit source code or write outside the named output location. In \`spec only\` you write no files. Use the exact sections below, in this order. If you are blocked or need a clarification, send the same sections with Summary starting \`Blocked:\` and every section you could not reach written as \`Not started.\`
 
 ## Summary
-<one to three sentences: what was delivered, whether it is spec only or includes files, and the count of failed or unverified checks>
+<one to three sentences: what was delivered, whether it is spec only or includes files, and the count of \`fail\` and \`not checked\` items>
 
 ## Target and assumptions
-<engine, version, platform tier, style reference used; each assumption you made and why>
+<each assumption you made and why; each deviation from the planner's target or budgets; or \`None.\`>
 
 ## Asset manifest
-<one entry per asset: name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings>
+<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator (tool + version + command or seed)>
 
 ## Quality checklist results
-<per asset: each applicable checklist item as \`pass\`, \`fail\`, or \`n/a\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>
+<per asset: each applicable checklist item as \`pass\`, \`fail\`, \`n/a\`, or \`not checked\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>
+
+## Acceptance criteria results
+<each planner acceptance criterion as \`met\`, \`not met\`, or \`not checked\`, with its evidence label>
 
 ## Style consistency
 <how the set matches the style reference; deviations; what was compared and how>
@@ -85,10 +97,13 @@ export function getGameAssetDesignerToEntryPointHandoffTemplate(
 <URLs for engine or platform rules relied on, with version or date checked>
 
 ## Open questions
-<clarifications needed from the planner, each with a recommended default; write exactly \`None.\` if none>
+<each clarification needed from the planner with a recommended default; write exactly \`None.\` if none>
 
 ## Not verified
 <every property you could not measure or inspect; write exactly \`None.\` if none>
+
+## Recommended next step
+<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (integrate, or apply the listed import settings), \`uiux-engineer\` (place the listed UI art in a screen design), or \`planner\` (decision needed on an open question); then the affected asset IDs>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 
