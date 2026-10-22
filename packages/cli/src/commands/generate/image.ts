@@ -27,7 +27,7 @@ export type ImageOutputFormat = 'png' | 'jpeg' | 'webp';
  * Error type for generate-image failures. Messages may name the request id and
  * result URL (so a paid result can be recovered) but never the API key.
  */
-class GenerateImageError extends Error {
+export class GenerateImageError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'GenerateImageError';
