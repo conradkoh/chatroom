@@ -13,14 +13,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultGenerateImageDeps } from './deps.js';
 import type { GenerateImageDeps } from './deps.js';
 
-const { subscribeMock } = vi.hoisted(() => ({ subscribeMock: vi.fn() }));
+const { subscribeMock, configMock } = vi.hoisted(() => ({
+  subscribeMock: vi.fn(),
+  configMock: vi.fn(),
+}));
 
 vi.mock('@fal-ai/client', async (importOriginal) => {
   const actual = await importOriginal<typeof FalModule>();
-  return { ...actual, fal: { ...actual.fal, subscribe: subscribeMock } };
+  return { ...actual, fal: { ...actual.fal, subscribe: subscribeMock, config: configMock } };
 });
 
-const FAL_KEY = 'fal-key-sentinel-never-printed';
+const FAL_API_KEY = 'fal-api-key-sentinel-never-printed';
 const IMAGE_URL = 'https://fal.test/generated/hero.png';
 
 async function captureError(promise: Promise<unknown>): Promise<Error> {
@@ -36,13 +39,14 @@ describe('createDefaultGenerateImageDeps', () => {
   let deps: GenerateImageDeps;
 
   beforeEach(() => {
-    process.env.FAL_KEY = FAL_KEY;
+    process.env.FAL_API_KEY = FAL_API_KEY;
     subscribeMock.mockReset();
+    configMock.mockReset();
     deps = createDefaultGenerateImageDeps();
   });
 
   afterEach(() => {
-    delete process.env.FAL_KEY;
+    delete process.env.FAL_API_KEY;
     vi.unstubAllGlobals();
   });
 
@@ -67,6 +71,34 @@ describe('createDefaultGenerateImageDeps', () => {
     });
   });
 
+  it('passes FAL_API_KEY to the SDK credentials explicitly without leaking it', async () => {
+    subscribeMock.mockResolvedValue({
+      data: { images: [{ url: IMAGE_URL }] },
+      requestId: 'req-1',
+    });
+
+    await deps.falSubscribe('fal-ai/flux/dev', { prompt: 'x' });
+
+    expect(configMock).toHaveBeenCalledWith({ credentials: FAL_API_KEY });
+
+    subscribeMock.mockRejectedValue(
+      new ApiError({ message: 'Bad Request', status: 400, body: {}, requestId: 'req-400' })
+    );
+    const error = await captureError(deps.falSubscribe('fal-ai/flux/dev', { prompt: 'x' }));
+    expect(error.message.includes(FAL_API_KEY)).toBe(false);
+  });
+
+  it('refuses to call the SDK when FAL_API_KEY is missing', async () => {
+    delete process.env.FAL_API_KEY;
+    const keylessDeps = createDefaultGenerateImageDeps();
+
+    await expect(keylessDeps.falSubscribe('fal-ai/flux/dev', { prompt: 'x' })).rejects.toThrow(
+      'FAL_API_KEY is not set'
+    );
+    expect(configMock).not.toHaveBeenCalled();
+    expect(subscribeMock).not.toHaveBeenCalled();
+  });
+
   it('surfaces validation field errors, status and requestId', async () => {
     subscribeMock.mockRejectedValue(
       new ValidationError({
@@ -86,7 +118,7 @@ describe('createDefaultGenerateImageDeps', () => {
     expect(error.message).toContain('HTTP 422');
     expect(error.message).toContain('prompt: String should have at most 1000 chars');
     expect(error.message).toContain('req-422');
-    expect(error.message.includes(FAL_KEY)).toBe(false);
+    expect(error.message.includes(FAL_API_KEY)).toBe(false);
   });
 
   it('surfaces ApiError body messages and requestId', async () => {
@@ -104,7 +136,7 @@ describe('createDefaultGenerateImageDeps', () => {
     expect(error.message).toContain('HTTP 400');
     expect(error.message).toContain('invalid model id');
     expect(error.message).toContain('req-400');
-    expect(error.message.includes(FAL_KEY)).toBe(false);
+    expect(error.message.includes(FAL_API_KEY)).toBe(false);
   });
 
   it('rejects a result whose data.images is not an array', async () => {

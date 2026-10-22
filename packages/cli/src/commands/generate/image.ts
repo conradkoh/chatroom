@@ -78,8 +78,8 @@ export interface GenerateImageManifest {
  */
 const LICENSING = 'unverified' as const;
 
-const FAL_KEY_MISSING_MESSAGE =
-  'FAL_KEY is not set. Set FAL_KEY in your environment to generate images with fal. (FAL_KEY_ID/FAL_KEY_SECRET are not supported by this command.)';
+export const FAL_API_KEY_MISSING_MESSAGE =
+  'FAL_API_KEY is not set. Set FAL_API_KEY in your environment to generate images with fal. (FAL_KEY_ID/FAL_KEY_SECRET are not supported by this command.)';
 
 /** File extensions we can reason about when validating --output-format. */
 const EXTENSION_FORMATS: Record<string, ImageOutputFormat> = {
@@ -105,8 +105,8 @@ function requireSupportedPlatform(platform: GenerateImagePlatform): void {
 
 /** fal has no keyless path: fail before any validation or network call. */
 function requireFalKey(deps: GenerateImageDeps): void {
-  if (!deps.env.FAL_KEY) {
-    throw new Error(FAL_KEY_MISSING_MESSAGE);
+  if (!deps.env.FAL_API_KEY) {
+    throw new Error(FAL_API_KEY_MISSING_MESSAGE);
   }
 }
 

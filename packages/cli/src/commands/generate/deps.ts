@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 
 import { ApiError, ValidationError, fal } from '@fal-ai/client';
 
-import { GenerateImageError } from './image.js';
+import { GenerateImageError, FAL_API_KEY_MISSING_MESSAGE } from './image.js';
 
 /** The subset of a fal image result the generate command depends on. */
 export interface FalImageResult {
@@ -33,7 +33,7 @@ export interface FalImageResult {
 export type PathStatus = 'missing' | 'file' | 'directory';
 
 export interface GenerateImageDeps {
-  /** Process environment; read for FAL_KEY. Never persisted or logged. */
+  /** Process environment; read for FAL_API_KEY. Never persisted or logged. */
   env: Record<string, string | undefined>;
   /** Queue submit + poll for one model, returning the completed result. */
   falSubscribe: (model: string, input: Record<string, unknown>) => Promise<FalImageResult>;
@@ -207,11 +207,21 @@ function describeFalError(err: unknown): string {
 
 /**
  * Adapter around the official fal SDK. `fal.subscribe` performs queue submit +
- * poll; the SDK reads FAL_KEY from the environment itself, so the key never
- * passes through this code.
+ * poll. The SDK's built-in credential resolver does not read `FAL_API_KEY`, so
+ * the key is passed to `fal.config` explicitly and never logged.
  */
-function createFalSubscribe(): GenerateImageDeps['falSubscribe'] {
+function createFalSubscribe(
+  env: Record<string, string | undefined>
+): GenerateImageDeps['falSubscribe'] {
   return async (model, input) => {
+    const credentials = env.FAL_API_KEY;
+    if (!credentials) {
+      // Defense in depth: image.ts guards first, and this keeps a direct
+      // adapter call from silently falling back to the SDK's environment lookup.
+      throw new GenerateImageError(FAL_API_KEY_MISSING_MESSAGE);
+    }
+    fal.config({ credentials });
+
     let raw: unknown;
     try {
       raw = await fal.subscribe(model, {
@@ -274,9 +284,10 @@ async function fetchBytes(url: string): Promise<Uint8Array> {
 }
 
 export function createDefaultGenerateImageDeps(): GenerateImageDeps {
+  const env = process.env;
   return {
-    env: process.env,
-    falSubscribe: createFalSubscribe(),
+    env,
+    falSubscribe: createFalSubscribe(env),
     fetchBytes,
     writeFile: writeFileBytes,
     writeJson: writeJsonFile,

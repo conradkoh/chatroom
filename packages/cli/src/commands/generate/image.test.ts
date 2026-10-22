@@ -14,7 +14,7 @@ import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
 import { generateImage } from './image.js';
 import type { GenerateImagePlatform } from './image.js';
 
-const FAL_KEY = 'fal-key-should-never-be-written';
+const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const OUT_PATH = '/tmp/generated/hero.png';
 const IMAGE_URL = 'https://fal.test/generated/hero.png';
 const IMAGE_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -31,7 +31,7 @@ function falResult(overrides: { seed?: number } = {}): FalImageResult {
 
 function createDeps(overrides: Partial<GenerateImageDeps> = {}): GenerateImageDeps {
   return {
-    env: { FAL_KEY },
+    env: { FAL_API_KEY },
     falSubscribe: vi.fn().mockResolvedValue(falResult()),
     fetchBytes: vi.fn().mockResolvedValue(IMAGE_BYTES),
     writeFile: vi.fn().mockResolvedValue(undefined),
@@ -60,15 +60,24 @@ async function captureError(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe('generateImage', () => {
-  it('rejects when FAL_KEY is missing and makes no fal call', async () => {
+  it('rejects when FAL_API_KEY is missing and makes no fal call', async () => {
     const deps = createDeps({ env: {} });
 
     const error = await captureError(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps));
 
-    expect(error.message).toContain('FAL_KEY is not set');
+    expect(error.message).toContain('FAL_API_KEY is not set');
     expect(error.message).toContain('FAL_KEY_ID/FAL_KEY_SECRET are not supported');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.fetchBytes).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to the old FAL_KEY name', async () => {
+    const deps = createDeps({ env: { FAL_KEY: 'old-name-only' } });
+
+    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
+      'FAL_API_KEY is not set'
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
   it('rejects an empty prompt', async () => {
@@ -140,7 +149,7 @@ describe('generateImage', () => {
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
-  it('writes the image bytes and a manifest that never contains FAL_KEY', async () => {
+  it('writes the image bytes and a manifest that never contains FAL_API_KEY', async () => {
     const deps = createDeps();
 
     const result = await generateImage(
@@ -193,7 +202,7 @@ describe('generateImage', () => {
     });
     expect(manifest.generatedAt).toBe('2026-01-02T03:04:05.000Z');
     expect(manifest.licensing).toBe('unverified');
-    expect(JSON.stringify(manifest).includes(FAL_KEY)).toBe(false);
+    expect(JSON.stringify(manifest).includes(FAL_API_KEY)).toBe(false);
 
     const writeJsonCalls = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls;
     expect(writeJsonCalls[0]?.[0]).toBe(`${OUT_PATH}.json`);
@@ -317,7 +326,7 @@ describe('generateImage', () => {
     expect(error.message).toContain('req-123');
     expect(error.message).toContain(IMAGE_URL);
     expect(error.message).toContain('network down');
-    expect(error.message.includes(FAL_KEY)).toBe(false);
+    expect(error.message.includes(FAL_API_KEY)).toBe(false);
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
@@ -331,7 +340,7 @@ describe('generateImage', () => {
     expect(error.message).toContain('req-123');
     expect(error.message).toContain(IMAGE_URL);
     expect(error.message).toContain('disk full');
-    expect(error.message.includes(FAL_KEY)).toBe(false);
+    expect(error.message.includes(FAL_API_KEY)).toBe(false);
   });
 
   it('prefers the seed echoed back by fal over the requested seed', async () => {
