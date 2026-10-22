@@ -65,7 +65,7 @@ function agentsSection(page: Page) {
 
 function offlineRoleButtons(section: Locator) {
   return section.getByRole('button', {
-    name: /^[\w-]+: OFFLINE\. Click to view all agents\.$/,
+    name: /^[\w-]+: OFFLINE\. Click to configure\.$/,
   });
 }
 
@@ -110,7 +110,7 @@ async function assertEphemeralSidebarGroup(section: Locator, team: CanonicalTeam
     'xpath=following-sibling::div[.//*[@role="button"]]'
   );
   const ephemeralButtons = ephemeralRows.getByRole('button', {
-    name: /^[\w-]+: OFFLINE\. Click to view all agents\.$/,
+    name: /^[\w-]+: OFFLINE\. Click to configure\.$/,
   });
   await expect(ephemeralButtons).toHaveCount(team.ephemeralRoles.length);
   expect(
