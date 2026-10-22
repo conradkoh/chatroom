@@ -58,7 +58,11 @@ import { runNativeInjectionEffect } from '../../task-service/service/native-task
 import { isCliDrivenHarness } from '../domain/usecase/is-cli-driven-harness.js';
 import { restartRetryMaxIntervalMs } from '../domain/usecase/restart-retry-interval.js';
 
-/** Starts allowed for one uncovered-turn restart: the first attempt plus two retries. */
+/**
+ * Starts allowed for one CLI-driven uncovered-turn restart: the first attempt
+ * plus two retries. Native SDK harnesses retry indefinitely with the cap from
+ * restartRetryMaxIntervalMs; see isCliDrivenHarness for the split.
+ */
 const MAX_RESPAWN_START_ATTEMPTS = 3;
 
 /** Nudge sends allowed for one uncovered turn end: the first try plus two retries, then escalate. */

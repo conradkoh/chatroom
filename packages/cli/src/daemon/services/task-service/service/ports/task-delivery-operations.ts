@@ -52,9 +52,9 @@ export interface TaskDeliveryOperations {
   isRedeliveryExhausted(args: { chatroomId: string; role: string; taskId: string }): boolean;
   clearRedeliveryTracking(args: { chatroomId: string; role: string }): void;
   /**
-   * Marks a slice-1 backoff release as waiting in the work manager. Automatic
-   * recovery skips the task until the timer fires or is cancelled; explicit
-   * recovery ignores the marker.
+   * Marks a provider-failure backoff release as waiting in the work manager.
+   * Automatic recovery skips the task until the timer fires or is cancelled;
+   * explicit recovery ignores the marker.
    */
   markTurnFailureReleasePending(args: { chatroomId: string; role: string; taskId: string }): void;
   clearTurnFailureReleasePending(args: { chatroomId: string; role: string; taskId: string }): void;

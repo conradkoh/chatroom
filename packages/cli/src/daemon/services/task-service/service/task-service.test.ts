@@ -1641,7 +1641,7 @@ describe('TaskService automatic re-arm after redelivery exhaustion', () => {
     }
   });
 
-  test('automatic recovery skips a task waiting on a slice-1 backoff release', async () => {
+  test('automatic recovery skips a task waiting on a provider-failure backoff release', async () => {
     const mutation = rearmMutation();
     const query = vi.fn(async () => [activeTask({ taskId: args.taskId })]);
     const service = trackerService(mutation, query);

@@ -95,10 +95,11 @@ const BOOTSTRAP_RECOVERY_BACKOFF: BackoffOptions = { baseMs: 1_000, maxMs: 30_00
 /**
  * Automatic re-arm delays after a task is parked as `redelivery_exhausted`.
  * The budget is bounded: after the last cycle the task stays parked until a
- * user restart. In-memory, like the rest of the redelivery tracking, so a
- * daemon restart clears both the timer and the cycle count.
+ * user restart or explicit recovery. In-memory, like the rest of the redelivery
+ * tracking, so a daemon restart clears both the timer and the cycle count.
  */
-// Exported for the re-arm tests and as the documented re-arm contract.
+// Exported so the re-arm tests and docs can reference the schedule; the daemon
+// reads these exports directly.
 // fallow-ignore-next-line unused-export
 export const REARM_DELAYS_MS = [15 * 60_000, 30 * 60_000, 60 * 60_000] as const;
 // fallow-ignore-next-line unused-export
@@ -214,10 +215,13 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   //    the budget in seconds.
   //  - uncoveredLadder: completed turns that end without a covering handoff.
   //    Nudge once per session, then restart the session once, then park.
-  // Parking is the same for both: the key enters redeliveryExhaustedKeys and the
-  // backend records 'redelivery_exhausted' once.
-  // Reset on fresh task activity (task_assigned / completed / deleted) and on
-  // user.start. Daemon-authored transitions (release, claim) do NOT reset anything.
+  // Parking adds the key to redeliveryExhaustedKeys and records
+  // 'redelivery_exhausted' on the backend once. Only the provider_failure park
+  // arms an automatic re-arm; an uncovered_turn park stays parked because
+  // replaying it could repeat side effects.
+  // Reset on fresh task activity (task_assigned / completed / deleted), on
+  // user.start, and on explicit recovery. Daemon-authored transitions (release,
+  // claim) do NOT reset anything.
   const TURN_FAILURE_RETRY_CAP = 8;
   const turnFailureCounts = new Map<string, number>();
   const uncoveredLadder = new Map<string, UncoveredTurnLadderEntry>();
@@ -227,8 +231,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   // task lifecycle end, never by a successful re-arm.
   const rearmCycleCounts = new Map<string, number>();
   const rearmTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  // Slice 1 backoff releases still waiting in the agent work manager. Automatic
-  // recovery must not release these early; manual recovery still may.
+  // Provider-failure backoff releases still waiting in the agent work manager.
+  // Automatic recovery must not release these early; explicit recovery still may.
   const pendingTurnFailureReleases = new Set<string>();
   const redeliveryKey = (chatroomId: string, role: string, taskId: string): string =>
     `${chatroomId}:${role.toLowerCase()}:${taskId}`;
@@ -371,12 +375,17 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     redeliveryExhaustedKeys.add(key);
     await recordExhaustedOnBackend(args);
     const attemptsSuffix = attempts === undefined ? '' : ` attempts=${attempts}`;
+    const rearmCycles = rearmCycleCounts.get(key) ?? 0;
+    const rearmDelay =
+      reason === 'provider_failure' && rearmCycles < MAX_REARM_CYCLES
+        ? REARM_DELAYS_MS[rearmCycles]
+        : undefined;
     console.log(
-      `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}${attemptsSuffix} — release/redelivery stopped; agent restart (user.start) resets`
+      `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}${attemptsSuffix} reason=${reason} rearm=${rearmDelay ?? 'none'} — release/redelivery stopped; user.start or explicit recovery resets`
     );
     // Only provider failures are safe to redeliver automatically. A task parked
     // by the uncovered-turn ladder may repeat side effects if replayed, so it
-    // stays parked until a user restart.
+    // stays parked until a user restart or explicit recovery.
     if (reason === 'provider_failure') {
       scheduleRedeliveryRearm({ ...args, key });
     }
@@ -910,9 +919,10 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
             const tracking = { chatroomId: task.chatroomId, role: taskRole, taskId: task.taskId };
             const key = redeliveryKey(task.chatroomId, taskRole, task.taskId);
             // Exhausted keys already imply a re-arm cooldown, but check the timer
-            // explicitly so the guard does not depend on that invariant. A slice-1
-            // backoff release waiting in the work manager is also off limits to
-            // automatic recovery; manual (explicit) recovery deliberately bypasses both.
+            // explicitly so the guard does not depend on that invariant. A
+            // provider-failure backoff release waiting in the work manager is also
+            // off limits to automatic recovery; manual (explicit) recovery
+            // deliberately bypasses both.
             if (
               isRedeliveryExhausted(tracking) ||
               rearmTimers.has(key) ||
