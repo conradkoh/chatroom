@@ -122,6 +122,19 @@ describe('createDefaultSliceImageDeps', () => {
     await expect(deps.pathStatus(dir)).resolves.toBe('directory');
   });
 
+  it('stats inputs by kind and size without reading them', async () => {
+    const deps = createDefaultSliceImageDeps();
+    const filePath = join(dir, 'file.txt');
+    await writeFile(filePath, 'hello', 'utf8');
+
+    await expect(deps.statInput(filePath)).resolves.toEqual({ kind: 'file', size: 5 });
+    await expect(deps.statInput(dir)).resolves.toMatchObject({ kind: 'directory' });
+    await expect(deps.statInput(join(dir, 'nope'))).resolves.toEqual({
+      kind: 'missing',
+      size: 0,
+    });
+  });
+
   it('creates nested directories', async () => {
     const deps = createDefaultSliceImageDeps();
     const nested = join(dir, 'a', 'b', 'c');

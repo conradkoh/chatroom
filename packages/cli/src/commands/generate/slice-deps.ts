@@ -31,6 +31,12 @@ export interface FileIdentity {
   ino: number;
 }
 
+/** Classify an input path and report its size without opening it. */
+export interface InputStat {
+  kind: 'file' | 'directory' | 'other' | 'missing';
+  size: number;
+}
+
 /** Decoded image in RGBA 8-bit order, `data.length === width * height * 4`. */
 export interface DecodedImage {
   width: number;
@@ -40,6 +46,8 @@ export interface DecodedImage {
 
 export interface SliceImageDeps {
   pathStatus: (path: string) => Promise<PathStatus>;
+  /** Classify a path and report its size without opening it. */
+  statInput: (path: string) => Promise<InputStat>;
   readFile: (path: string) => Promise<Uint8Array>;
   /** `undefined` when the path is missing; throws when the JSON is invalid. */
   readJsonIfExists: (path: string) => Promise<unknown | undefined>;
@@ -83,6 +91,28 @@ async function pathStatus(path: string): Promise<PathStatus> {
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return 'missing';
+    }
+    throw err;
+  }
+}
+
+/** `stat` before reading so FIFOs, devices, and oversized inputs are refused. */
+function classifyStat(stats: {
+  isDirectory(): boolean;
+  isFile(): boolean;
+  size: number;
+}): InputStat {
+  if (stats.isDirectory()) return { kind: 'directory', size: stats.size };
+  if (stats.isFile()) return { kind: 'file', size: stats.size };
+  return { kind: 'other', size: stats.size };
+}
+
+async function statInput(path: string): Promise<InputStat> {
+  try {
+    return classifyStat(await stat(path));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { kind: 'missing', size: 0 };
     }
     throw err;
   }
@@ -158,6 +188,7 @@ async function writeJsonFile(
 export function createDefaultSliceImageDeps(): SliceImageDeps {
   return {
     pathStatus,
+    statInput,
     readFile,
     readJsonIfExists,
     decodePng,

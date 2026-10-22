@@ -21,6 +21,8 @@ export const MAX_TILES = 256;
 export const MAX_GRID_DIMENSION = 64;
 export const MAX_SOURCE_PIXELS = 100_000_000;
 export const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
+/** generate-image sidecars are small; anything larger is ignored as unreadable. */
+const MAX_SIDECAR_BYTES = 1024 * 1024;
 
 /** PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A. */
 const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -494,13 +496,21 @@ export async function sliceImage(
   const force = opts.force === true;
   const dryRun = opts.dryRun === true;
 
-  // 2. The source must be a file, not a directory or a missing path.
-  const status = await deps.pathStatus(inPath);
-  if (status === 'missing') {
+  // 2. The source must be a regular file, checked by stat before we read it.
+  const inputStat = await deps.statInput(inPath);
+  if (inputStat.kind === 'missing') {
     throw new SliceImageError(`--in not found: ${inPath}`);
   }
-  if (status === 'directory') {
+  if (inputStat.kind === 'directory') {
     throw new SliceImageError(`--in is a directory: ${inPath}. Pass a PNG file path.`);
+  }
+  if (inputStat.kind === 'other') {
+    throw new SliceImageError(`--in is not a regular file: ${inPath}. Pass a PNG file path.`);
+  }
+  if (inputStat.size > MAX_SOURCE_BYTES) {
+    throw new SliceImageError(
+      `--in is ${inputStat.size} bytes; the maximum is ${MAX_SOURCE_BYTES} bytes (64 MiB).`
+    );
   }
 
   // 3. Read and size-check the sheet, then prove it is a PNG before decoding.
@@ -592,15 +602,28 @@ export async function sliceImage(
 
   let sourceManifest: SliceSourceManifest | null = null;
   try {
-    const rawManifest = await deps.readJsonIfExists(sourceManifestPath);
-    if (rawManifest === undefined) {
+    const manifestStat = await deps.statInput(sourceManifestPath);
+    if (manifestStat.kind === 'missing') {
       warnings.push(
         `No generate-image manifest at ${sourceManifestPath}; tile manifests record the sheet hash only.`
       );
+    } else if (manifestStat.kind !== 'file') {
+      warnings.push(`Ignoring ${sourceManifestPath}: it is not a regular file.`);
+    } else if (manifestStat.size > MAX_SIDECAR_BYTES) {
+      warnings.push(
+        `Ignoring ${sourceManifestPath}: ${manifestStat.size} bytes is larger than the ${MAX_SIDECAR_BYTES}-byte sidecar limit.`
+      );
     } else {
-      const parsed = parseSourceManifest(rawManifest, sheetSha, sourceManifestPath);
-      sourceManifest = parsed.manifest;
-      warnings.push(...parsed.warnings);
+      const rawManifest = await deps.readJsonIfExists(sourceManifestPath);
+      if (rawManifest === undefined) {
+        warnings.push(
+          `No generate-image manifest at ${sourceManifestPath}; tile manifests record the sheet hash only.`
+        );
+      } else {
+        const parsed = parseSourceManifest(rawManifest, sheetSha, sourceManifestPath);
+        sourceManifest = parsed.manifest;
+        warnings.push(...parsed.warnings);
+      }
     }
   } catch (err) {
     warnings.push(`Ignoring ${sourceManifestPath}: ${errorMessage(err)}`);

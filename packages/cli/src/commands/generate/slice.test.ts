@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PathStatus } from './deps.js';
-import type { SliceImageDeps } from './slice-deps.js';
+import type { InputStat, SliceImageDeps } from './slice-deps.js';
 import {
   computeSliceGrid,
   MAX_SOURCE_BYTES,
@@ -86,6 +86,7 @@ function fakeEncode(image: { width: number; height: number; data: Uint8Array }):
 function createDeps(overrides: Partial<SliceImageDeps> = {}): SliceImageDeps {
   return {
     pathStatus: defaultPathStatus(),
+    statInput: defaultStatInput(),
     readFile: vi.fn().mockResolvedValue(SHEET_BYTES),
     readJsonIfExists: vi.fn().mockResolvedValue(undefined),
     decodePng: vi.fn(() => makeImage(4, 4)),
@@ -99,6 +100,15 @@ function createDeps(overrides: Partial<SliceImageDeps> = {}): SliceImageDeps {
     decoderVersion: '6.0.0',
     ...overrides,
   };
+}
+
+/** The sheet and its sidecar are regular files; every other path is missing. */
+function defaultStatInput(): SliceImageDeps['statInput'] {
+  return vi.fn(async (path: string): Promise<InputStat> => {
+    if (path === IN_PATH) return { kind: 'file', size: SHEET_BYTES.byteLength };
+    if (path === `${IN_PATH}.json`) return { kind: 'file', size: 2 };
+    return { kind: 'missing', size: 0 };
+  });
 }
 
 /** The sheet has an identity; every other path is missing. */
@@ -512,6 +522,41 @@ describe('sliceImage', () => {
       expect(result.tiles).toHaveLength(3);
     });
 
+    it('ignores an oversized sidecar without reading it', async () => {
+      const readJsonIfExists = vi.fn().mockResolvedValue(generateImageManifest);
+      const deps = createDeps({
+        readJsonIfExists,
+        statInput: vi.fn(async (path: string): Promise<InputStat> => {
+          if (path === IN_PATH) return { kind: 'file', size: SHEET_BYTES.byteLength };
+          if (path === `${IN_PATH}.json`) return { kind: 'file', size: 1024 * 1024 + 1 };
+          return { kind: 'missing', size: 0 };
+        }),
+      });
+
+      const result = await sliceImage(opts, deps);
+
+      expect(readJsonIfExists).not.toHaveBeenCalled();
+      expect(result.warnings.some((warning) => warning.includes('sidecar limit'))).toBe(true);
+      expect(result.tiles).toHaveLength(3);
+    });
+
+    it('ignores a sidecar that is not a regular file', async () => {
+      const readJsonIfExists = vi.fn().mockResolvedValue(generateImageManifest);
+      const deps = createDeps({
+        readJsonIfExists,
+        statInput: vi.fn(async (path: string): Promise<InputStat> => {
+          if (path === IN_PATH) return { kind: 'file', size: SHEET_BYTES.byteLength };
+          if (path === `${IN_PATH}.json`) return { kind: 'other', size: 0 };
+          return { kind: 'missing', size: 0 };
+        }),
+      });
+
+      const result = await sliceImage(opts, deps);
+
+      expect(readJsonIfExists).not.toHaveBeenCalled();
+      expect(result.warnings.some((warning) => warning.includes('not a regular file'))).toBe(true);
+    });
+
     it('copies provenance and records a matching hash', async () => {
       const deps = createDeps({
         readJsonIfExists: vi.fn().mockResolvedValue(generateImageManifest),
@@ -563,23 +608,54 @@ describe('sliceImage', () => {
     }
 
     it('refuses a missing --in', async () => {
-      const deps = createDeps({ pathStatus: vi.fn().mockResolvedValue('missing') });
+      const deps = createDeps({
+        statInput: vi.fn().mockResolvedValue({ kind: 'missing', size: 0 } satisfies InputStat),
+      });
 
       const error = await captureError(sliceImage(opts, deps));
 
       expect(error).toBeInstanceOf(SliceImageError);
       expect(error.message).toBe(`--in not found: ${IN_PATH}`);
       expectNothingWritten(deps);
+      expect(deps.readFile).not.toHaveBeenCalled();
     });
 
     it('refuses a directory --in', async () => {
-      const deps = createDeps({ pathStatus: pathStatusFor({ [IN_PATH]: 'directory' }) });
+      const deps = createDeps({
+        statInput: vi.fn().mockResolvedValue({ kind: 'directory', size: 0 } satisfies InputStat),
+      });
 
       const error = await captureError(sliceImage(opts, deps));
 
       expect(error.message).toContain('--in is a directory');
       expectNothingWritten(deps);
       expect(deps.readFile).not.toHaveBeenCalled();
+    });
+
+    it('refuses a non-regular --in without reading it', async () => {
+      const deps = createDeps({
+        statInput: vi.fn().mockResolvedValue({ kind: 'other', size: 0 } satisfies InputStat),
+      });
+
+      const error = await captureError(sliceImage(opts, deps));
+
+      expect(error.message).toContain('--in is not a regular file');
+      expect(deps.readFile).not.toHaveBeenCalled();
+      expectNothingWritten(deps);
+    });
+
+    it('refuses an oversized --in before reading it', async () => {
+      const deps = createDeps({
+        statInput: vi
+          .fn()
+          .mockResolvedValue({ kind: 'file', size: MAX_SOURCE_BYTES + 1 } satisfies InputStat),
+      });
+
+      const error = await captureError(sliceImage(opts, deps));
+
+      expect(error.message).toContain('maximum is 67108864 bytes');
+      expect(deps.readFile).not.toHaveBeenCalled();
+      expectNothingWritten(deps);
     });
 
     it('refuses non-PNG bytes', async () => {
@@ -733,7 +809,10 @@ describe('sliceImage', () => {
     it('refuses a case-variant output by file identity, even with --force', async () => {
       const heroIn = resolve('/tmp/sheets/Hero.png');
       const deps = createDeps({
-        pathStatus: pathStatusFor({ [heroIn]: 'file' }),
+        statInput: vi.fn(async (path: string): Promise<InputStat> => {
+          if (path === heroIn) return { kind: 'file', size: SHEET_BYTES.byteLength };
+          return { kind: 'missing', size: 0 };
+        }),
         fileIdentity: fileIdentityFor({
           [heroIn]: SOURCE_IDENTITY,
           [resolve('/tmp/sheets/hero.png')]: SOURCE_IDENTITY,
