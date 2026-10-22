@@ -13,7 +13,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal (the only generator for now)\`. Do not name any other generator.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -40,7 +40,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
 
 ## Allowed tools
-<the generators the designer may run, or \`Any tool available in the designer's shell.\`; say which>
+\`chatroom generate-image --platform=fal (the only generator for now)\`
 
 ## Allowed edit paths
 <repository-relative paths the designer may edit; \`None.\` for none>
@@ -88,7 +88,7 @@ export function getGameAssetDesignerToEntryPointHandoffTemplate(
 <each assumption you made and why; each deviation from the planner's target or budgets; or \`None.\`>
 
 ## Asset manifest
-<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator (tool + version + command or seed)>
+<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, and \`--seed\` values) and the \`<out>.json\` manifest path>
 
 ## Quality checklist results
 <per asset: each applicable checklist item as \`pass\`, \`fail\`, \`n/a\`, or \`not checked\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>
