@@ -15,6 +15,7 @@ import type { SliceImageDeps } from './slice-deps.js';
 import {
   computeSliceGrid,
   MAX_SOURCE_BYTES,
+  readPngDimensions,
   resolveTileNames,
   sliceImage,
   SliceImageError,
@@ -25,7 +26,21 @@ vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');
 });
 
-const SHEET_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+/** Minimal PNG bytes with a valid IHDR header for the given dimensions. */
+function pngBytes(width: number, height: number): Uint8Array {
+  const bytes = new Uint8Array(33);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(8, 13);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12); // IHDR
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  bytes[24] = 8; // bit depth
+  bytes[25] = 6; // RGBA
+  return bytes;
+}
+
+const SHEET_BYTES = pngBytes(4, 4);
 const SHEET_SHA = createHash('sha256').update(SHEET_BYTES).digest('hex');
 const IN_PATH = resolve('/tmp/sheets/sheet.png');
 const OUT_DIR = resolve('/tmp/tiles');
@@ -110,6 +125,22 @@ async function captureError(promise: Promise<unknown>): Promise<Error> {
 function fileCalls(mock: unknown): string[] {
   return (mock as ReturnType<typeof vi.fn>).mock.calls.map((call) => String(call[0]));
 }
+
+describe('readPngDimensions', () => {
+  it('reads width and height from IHDR', () => {
+    expect(readPngDimensions(pngBytes(1024, 768))).toEqual({ width: 1024, height: 768 });
+  });
+
+  it('returns null for a truncated header', () => {
+    expect(readPngDimensions(pngBytes(4, 4).subarray(0, 23))).toBeNull();
+  });
+
+  it('returns null when the first chunk is not IHDR', () => {
+    const bytes = pngBytes(4, 4);
+    bytes[12] = 0x58;
+    expect(readPngDimensions(bytes)).toBeNull();
+  });
+});
 
 describe('computeSliceGrid', () => {
   it('divides 1024x768 into a 4x3 grid of 256x256 cells', () => {
@@ -542,6 +573,56 @@ describe('sliceImage', () => {
       expect(error.message).toContain('--in is not a PNG');
       expectNothingWritten(deps);
       expect(deps.decodePng).not.toHaveBeenCalled();
+    });
+
+    it('refuses an oversized sheet from IHDR before decoding', async () => {
+      const deps = createDeps({
+        readFile: vi.fn().mockResolvedValue(pngBytes(30_000, 30_000)),
+        decodePng: vi.fn(() => {
+          throw new Error('decode must not run');
+        }),
+      });
+
+      const error = await captureError(sliceImage(opts, deps));
+
+      expect(error.message).toContain('900000000 pixels');
+      expect(error.message).toContain('maximum is 100000000 pixels');
+      expect(deps.decodePng).not.toHaveBeenCalled();
+      expectNothingWritten(deps);
+    });
+
+    it('refuses a truncated header without decoding', async () => {
+      const truncated = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
+      const deps = createDeps({
+        readFile: vi.fn().mockResolvedValue(truncated),
+      });
+
+      const error = await captureError(sliceImage(opts, deps));
+
+      expect(error.message).toBe('Could not decode --in as PNG: missing or invalid IHDR header.');
+      expect(deps.decodePng).not.toHaveBeenCalled();
+      expectNothingWritten(deps);
+    });
+
+    it('refuses zero dimensions without decoding', async () => {
+      const deps = createDeps({ readFile: vi.fn().mockResolvedValue(pngBytes(0, 0)) });
+
+      const error = await captureError(sliceImage(opts, deps));
+
+      expect(error.message).toContain('invalid dimensions 0x0');
+      expect(deps.decodePng).not.toHaveBeenCalled();
+      expectNothingWritten(deps);
+    });
+
+    it('refuses decoded data that is not RGBA', async () => {
+      const deps = createDeps({
+        decodePng: vi.fn(() => ({ width: 2, height: 2, data: new Uint8Array(3) })),
+      });
+
+      const error = await captureError(sliceImage(opts, deps));
+
+      expect(error.message).toContain('expected 16 RGBA bytes, got 3');
+      expectNothingWritten(deps);
     });
 
     it('refuses bytes larger than 64 MiB', async () => {

@@ -8,7 +8,7 @@
  */
 
 // The constants and manifest types are part of the public slice API (tests and
-// future callers import them), and sliceImage is a linear 10-step pipeline.
+// future callers import them), and sliceImage is a linear pipeline.
 // fallow-ignore-file unused-export complexity
 
 import { createHash } from 'node:crypto';
@@ -321,6 +321,24 @@ function hasPngMagic(bytes: Uint8Array): boolean {
   return PNG_MAGIC.every((byte, index) => bytes[index] === byte);
 }
 
+/**
+ * Read width and height from the PNG IHDR chunk without decoding pixels.
+ *
+ * pngjs allocates from the declared dimensions before any of our checks run,
+ * so a hostile sheet could be a decompression bomb. This header read lets the
+ * caller refuse oversized images before handing bytes to the decoder.
+ * Returns null when the bytes are too short or do not start with IHDR.
+ */
+export function readPngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  // 8 magic bytes + 4 length bytes + 4 type bytes + 8 dimension bytes.
+  if (bytes.length < 24) return null;
+  if (bytes[12] !== 0x49 || bytes[13] !== 0x48 || bytes[14] !== 0x44 || bytes[15] !== 0x52) {
+    return null;
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return { width: view.getUint32(16), height: view.getUint32(20) };
+}
+
 /** Copy one tile out of the RGBA source. No scaling, padding, or trimming. */
 function cropTile(
   image: { width: number; height: number; data: Uint8Array },
@@ -480,7 +498,23 @@ export async function sliceImage(
     );
   }
 
-  // 4. Decode in memory. A malformed PNG is a clear input error.
+  // 4. Refuse an oversized sheet from its IHDR before pngjs allocates pixels.
+  const dimensions = readPngDimensions(bytes);
+  if (dimensions === null) {
+    throw new SliceImageError('Could not decode --in as PNG: missing or invalid IHDR header.');
+  }
+  if (dimensions.width === 0 || dimensions.height === 0) {
+    throw new SliceImageError(
+      `--in has invalid dimensions ${dimensions.width}x${dimensions.height}.`
+    );
+  }
+  if (dimensions.width * dimensions.height > MAX_SOURCE_PIXELS) {
+    throw new SliceImageError(
+      `--in is ${dimensions.width}x${dimensions.height} (${dimensions.width * dimensions.height} pixels); the maximum is ${MAX_SOURCE_PIXELS} pixels.`
+    );
+  }
+
+  // 5. Decode in memory. A malformed PNG is a clear input error.
   let image: { width: number; height: number; data: Uint8Array };
   try {
     image = deps.decodePng(bytes);
@@ -492,9 +526,14 @@ export async function sliceImage(
       `--in is ${image.width}x${image.height} (${image.width * image.height} pixels); the maximum is ${MAX_SOURCE_PIXELS} pixels.`
     );
   }
+  if (image.data.length !== image.width * image.height * 4) {
+    throw new SliceImageError(
+      `Could not decode --in as PNG: expected ${image.width * image.height * 4} RGBA bytes, got ${image.data.length}.`
+    );
+  }
   const sheetSha = sha256(bytes);
 
-  // 5. Geometry, names, and every output path.
+  // 6. Geometry, names, and every output path.
   const grid = computeSliceGrid({
     width: image.width,
     height: image.height,
@@ -525,7 +564,7 @@ export async function sliceImage(
     .filter((cell) => (names[cell.index] ?? '').length === 0)
     .map((cell) => cell.index);
 
-  // 6. Read the optional generate-image sidecar. It never blocks a slice.
+  // 7. Read the optional generate-image sidecar. It never blocks a slice.
   const warnings: string[] = [];
   if (grid.droppedRight > 0 || grid.droppedBottom > 0) {
     warnings.push(
@@ -558,14 +597,14 @@ export async function sliceImage(
     manifest: sourceManifest,
   };
 
-  // 7. Refuse every unwritable output before a single byte is written.
+  // 8. Refuse every unwritable output before a single byte is written.
   const allOutputPaths = [
     ...outputs.flatMap((output) => [output.path, output.manifestPath]),
     indexPath,
   ];
   await preflightOutputs(deps, allOutputPaths, new Set([inPath, sourceManifestPath]), force);
 
-  // 8. Crop and encode everything in memory. Any failure leaves the disk alone.
+  // 9. Crop and encode everything in memory. Any failure leaves the disk alone.
   const encoded = outputs.map((output) => {
     const cropped = cropTile(image, output.cell);
     let encodedBytes: Uint8Array;
@@ -602,10 +641,10 @@ export async function sliceImage(
     warnings,
   };
 
-  // 9. A dry run reports exactly what would happen, but creates nothing.
+  // 10. A dry run reports exactly what would happen, but creates nothing.
   if (dryRun) return result;
 
-  // 10. Write tiles in index order, then the sheet index last.
+  // 11. Write tiles in index order, then the sheet index last.
   await deps.ensureDir(outDir);
   const slicedAt = deps.now().toISOString();
   const decoder = `pngjs@${deps.decoderVersion}`;
