@@ -57,14 +57,15 @@ function makeImage(
   const data = new Uint8Array(width * height * 4);
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const offset = (y * width + x) * 4;
-      data[offset] = x & 255;
-      data[offset + 1] = y & 255;
-      data[offset + 2] = (x >> 8) | ((y >> 8) << 4);
-      data[offset + 3] = 255;
+      data.set(sheetPixel(x, y), (y * width + x) * 4);
     }
   }
   return { width, height, data };
+}
+
+/** The pixel value `makeImage` stores at (x, y), computed from its contract. */
+function sheetPixel(x: number, y: number): number[] {
+  return [x & 255, y & 255, (x >> 8) | ((y >> 8) << 4), 255];
 }
 
 const encoder = new TextEncoder();
@@ -438,7 +439,19 @@ describe('sliceImage', () => {
       output: {
         path: resolve('/tmp/tiles/goblin.png'),
         sha256: createHash('sha256')
-          .update(fakeEncode(cropFrom(makeImage(4, 4), 0, 2, 2, 2)))
+          .update(
+            fakeEncode({
+              width: 2,
+              height: 2,
+              // Row 1, col 0 of makeImage(4, 4), read from the pixel contract.
+              data: Uint8Array.from([
+                ...sheetPixel(0, 2),
+                ...sheetPixel(1, 2),
+                ...sheetPixel(0, 3),
+                ...sheetPixel(1, 3),
+              ]),
+            })
+          )
           .digest('hex'),
         contentType: 'image/png',
         bytes: goblinBytes.byteLength,
@@ -772,6 +785,16 @@ describe('sliceImage', () => {
       expectNothingWritten(deps);
     });
 
+    it('refuses --names together with --prefix before decoding', async () => {
+      const deps = createDeps();
+
+      const error = await captureError(sliceImage({ ...opts, prefix: 'sheet' }, deps));
+
+      expect(error.message).toBe('--names and --prefix are mutually exclusive.');
+      expect(deps.decodePng).not.toHaveBeenCalled();
+      expectNothingWritten(deps);
+    });
+
     it('refuses an existing tile png without --force', async () => {
       const deps = createDeps({
         pathStatus: pathStatusFor({ [resolve('/tmp/tiles/hero.png')]: 'file' }),
@@ -1050,20 +1073,3 @@ describe('sliceImage', () => {
     });
   });
 });
-
-/** Crop helper mirroring the production crop, used to compute expected hashes. */
-function cropFrom(
-  image: { width: number; height: number; data: Uint8Array },
-  x: number,
-  y: number,
-  width: number,
-  height: number
-): { width: number; height: number; data: Uint8Array } {
-  const rowBytes = width * 4;
-  const data = new Uint8Array(rowBytes * height);
-  for (let row = 0; row < height; row += 1) {
-    const start = ((y + row) * image.width + x) * 4;
-    data.set(image.data.subarray(start, start + rowBytes), row * rowBytes);
-  }
-  return { width, height, data };
-}
