@@ -4,9 +4,10 @@ import {
 } from '@workspace/backend/src/domain/entities/chatroom-workspace-task-inbox.js';
 import { describe, expect, test, vi } from 'vitest';
 
-import { createTaskService } from './task-service.js';
+import { createTaskService, MAX_REARM_CYCLES, REARM_DELAYS_MS } from './task-service.js';
 import { api } from '../../../../api.js';
 import { TaskAssigneeType } from '../../../domain/entities/assigned-task.js';
+import type { TaskInboxState } from '../../../infrastructure/inbox/task-inbox-state.js';
 import { createInMemoryTaskHandoffRepository } from '../infrastructure/repository/task-handoff-repository.js';
 
 function backendRow() {
@@ -26,6 +27,21 @@ function backendRow() {
     },
     taskContent: 'Do the thing',
   };
+}
+
+/** Mirrors TURN_FAILURE_RETRY_CAP in task-service.ts: eight provider failures park the task. */
+const TURN_FAILURE_RETRY_CAP = 8;
+
+/** Records failures until the cap is reached, returning the final result. */
+async function exhaustTurnFailures(
+  service: ReturnType<typeof createTaskService>,
+  args: { chatroomId: string; role: string; taskId: string }
+): Promise<{ attempts: number; exceeded: boolean }> {
+  let result: { attempts: number; exceeded: boolean } = { attempts: 0, exceeded: false };
+  for (let attempt = 1; attempt <= TURN_FAILURE_RETRY_CAP; attempt += 1) {
+    result = await service.recordTurnFailure(args);
+  }
+  return result;
 }
 
 function activeTask(overrides: Record<string, unknown> = {}) {
@@ -158,9 +174,7 @@ describe('TaskService.recoverInFlightTasks', () => {
       handoffRepository: repository,
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'exhausted' };
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
+    await exhaustTurnFailures(service, exhaustedArgs);
 
     await expect(service.recoverInFlightTasks({ mode: 'automatic' })).resolves.toEqual({
       released: 1,
@@ -188,9 +202,7 @@ describe('TaskService.recoverInFlightTasks', () => {
       handoffRepository: repository,
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'covered' };
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
+    await exhaustTurnFailures(service, exhaustedArgs);
     expect(service.isRedeliveryExhausted(exhaustedArgs)).toBe(true);
 
     await expect(
@@ -405,9 +417,7 @@ describe('TaskService inbox consumption', () => {
 
     await service.startTaskInbox();
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
+    await exhaustTurnFailures(service, args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     service.forgetStaleTask(args);
@@ -587,9 +597,7 @@ describe('TaskService inbox consumption', () => {
       },
     });
     const exhaustedArgs = { chatroomId: 'room-1', role: 'builder', taskId: 'exhausted' };
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
-    await service.recordTurnFailure(exhaustedArgs);
+    await exhaustTurnFailures(service, exhaustedArgs);
 
     await service.startTaskInbox();
 
@@ -958,27 +966,31 @@ describe('TaskService inbox consumption', () => {
   });
 });
 
-describe('TaskService redelivery attempt cap (plan V2)', () => {
-  function trackerService(mutation: ReturnType<typeof vi.fn>, query?: ReturnType<typeof vi.fn>) {
-    return createTaskService({
-      sessionId: 'session-1',
-      machineId: 'machine-1',
-      convexUrl: 'http://test:3210',
-      configurationService: { get: () => undefined } as never,
-      handoffRepository: createInMemoryTaskHandoffRepository(),
-      backend: { mutation, query: query ?? vi.fn().mockResolvedValue([]) },
-    } as never);
-  }
+function trackerService(mutation: ReturnType<typeof vi.fn>, query?: ReturnType<typeof vi.fn>) {
+  return createTaskService({
+    sessionId: 'session-1',
+    machineId: 'machine-1',
+    convexUrl: 'http://test:3210',
+    configurationService: { get: () => undefined } as never,
+    handoffRepository: createInMemoryTaskHandoffRepository(),
+    backend: { mutation, query: query ?? vi.fn().mockResolvedValue([]) },
+  } as never);
+}
 
+describe('TaskService redelivery attempt cap (plan V2)', () => {
   test('caps consecutive uncovered turn ends and records the failure once', async () => {
     const mutation = vi.fn().mockResolvedValue({ recorded: true });
     const service = trackerService(mutation);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
 
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    for (let attempt = 1; attempt < TURN_FAILURE_RETRY_CAP; attempt += 1) {
+      expect(await service.recordTurnFailure(args)).toEqual({ attempts: attempt, exceeded: false });
+    }
     expect(service.isRedeliveryExhausted(args)).toBe(false);
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
+    expect(await service.recordTurnFailure(args)).toEqual({
+      attempts: TURN_FAILURE_RETRY_CAP,
+      exceeded: true,
+    });
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     // At the cap: failure recorded exactly once, further turns stay exhausted.
@@ -987,7 +999,10 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     );
     expect(recordCalls).toHaveLength(1);
     expect(recordCalls[0][1]).toMatchObject({ taskId: 'task-1', reason: 'redelivery_exhausted' });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
+    expect(await service.recordTurnFailure(args)).toEqual({
+      attempts: TURN_FAILURE_RETRY_CAP,
+      exceeded: true,
+    });
     expect(
       mutation.mock.calls.filter(
         ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
@@ -995,18 +1010,35 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     ).toHaveLength(1);
   });
 
+  test('a burst of three failures no longer parks the task under the raised cap', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+    const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+    // The production incident spent the old cap of three inside 2-9 seconds while
+    // the provider was still failing. Three failures must now leave the task live.
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 2, exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 3, exceeded: false });
+
+    expect(service.isRedeliveryExhausted(args)).toBe(false);
+    expect(
+      mutation.mock.calls.filter(
+        ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+      )
+    ).toHaveLength(0);
+  });
+
   test('a user-initiated agent restart resets the exhausted cycle', async () => {
     const mutation = vi.fn().mockResolvedValue({ recorded: true });
     const service = trackerService(mutation);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
+    await exhaustTurnFailures(service, args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     service.clearRedeliveryTracking({ chatroomId: 'room-1', role: 'builder' });
     expect(service.isRedeliveryExhausted(args)).toBe(false);
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, exceeded: false });
   });
 
   test('a completed inbox event clears tracking for the task', async () => {
@@ -1031,9 +1063,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
       .mockResolvedValueOnce([event]); // bootstrap pending events
     const service = trackerService(mutation, query);
     const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
-    await service.recordTurnFailure(args);
+    await exhaustTurnFailures(service, args);
     expect(service.isRedeliveryExhausted(args)).toBe(true);
 
     await service.startTaskInbox();
@@ -1094,7 +1124,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
       action: 'nudge',
     });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, exceeded: false });
     expect(service.isRedeliveryExhausted(args)).toBe(false);
     expect(redeliveryExhaustedWrites(mutation)).toHaveLength(0);
   });
@@ -1112,9 +1142,13 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
       action: 'restart-session',
     });
 
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: false });
-    expect(await service.recordTurnFailure(args)).toEqual({ exceeded: true });
+    for (let attempt = 1; attempt < TURN_FAILURE_RETRY_CAP; attempt += 1) {
+      expect(await service.recordTurnFailure(args)).toEqual({ attempts: attempt, exceeded: false });
+    }
+    expect(await service.recordTurnFailure(args)).toEqual({
+      attempts: TURN_FAILURE_RETRY_CAP,
+      exceeded: true,
+    });
     expect(service.isRedeliveryExhausted(args)).toBe(true);
     expect(redeliveryExhaustedWrites(mutation)).toHaveLength(1);
   });
@@ -1129,7 +1163,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     await service.recordTurnFailure(counted);
     await service.recordTurnFailure(counted);
     service.resetTurnTracking(counted);
-    expect(await service.recordTurnFailure(counted)).toEqual({ exceeded: false });
+    expect(await service.recordTurnFailure(counted)).toEqual({ attempts: 1, exceeded: false });
 
     service.confirmNudgeSent({ ...nudged, sessionKey: '1:a' });
     service.resetTurnTracking(nudged);
@@ -1137,9 +1171,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
       action: 'nudge',
     });
 
-    await service.recordTurnFailure(parked);
-    await service.recordTurnFailure(parked);
-    await service.recordTurnFailure(parked);
+    await exhaustTurnFailures(service, parked);
     service.resetTurnTracking(parked);
     expect(service.isRedeliveryExhausted(parked)).toBe(true);
   });
@@ -1151,9 +1183,7 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     const plannerNudged = { chatroomId: 'room-1', role: 'planner', taskId: 'task-3' };
 
     service.confirmNudgeSent({ ...builderNudged, sessionKey: '1:a' });
-    await service.recordTurnFailure(builderParked);
-    await service.recordTurnFailure(builderParked);
-    await service.recordTurnFailure(builderParked);
+    await exhaustTurnFailures(service, builderParked);
     service.confirmNudgeSent({ ...plannerNudged, sessionKey: '1:a' });
 
     service.clearRedeliveryTracking({ chatroomId: 'room-1', role: 'builder' });
@@ -1197,5 +1227,459 @@ describe('TaskService redelivery attempt cap (plan V2)', () => {
     expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
       action: 'restart-session',
     });
+  });
+});
+
+describe('TaskService automatic re-arm after redelivery exhaustion', () => {
+  const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+
+  const rearmMutation = () =>
+    vi.fn(async (_fn: unknown, callArgs: unknown) => {
+      const args = callArgs as { chatroomId?: string; role?: string };
+      if (args.chatroomId !== undefined && args.role !== undefined) {
+        return { released: true, status: 'pending', updatedAt: 4_000 };
+      }
+      return { recorded: true, cleared: true, processed: true };
+    });
+
+  // Convex `api.*` function references are proxies, so identify calls by shape.
+  const releaseCalls = (mutation: ReturnType<typeof vi.fn>) =>
+    mutation.mock.calls.filter(([, callArgs]) => {
+      const args = callArgs as { chatroomId?: string; role?: string };
+      return args.chatroomId !== undefined && args.role !== undefined;
+    });
+  const clearCalls = (mutation: ReturnType<typeof vi.fn>) =>
+    mutation.mock.calls.filter(([, callArgs]) => {
+      const args = callArgs as {
+        machineId?: string;
+        taskId?: string;
+        reason?: string;
+        chatroomId?: string;
+      };
+      return (
+        args.machineId !== undefined &&
+        args.taskId !== undefined &&
+        args.reason === undefined &&
+        args.chatroomId === undefined
+      );
+    });
+  const exhaustionWrites = (mutation: ReturnType<typeof vi.fn>) =>
+    mutation.mock.calls.filter(
+      ([, callArgs]) => (callArgs as { reason?: string }).reason === 'redelivery_exhausted'
+    );
+
+  const seedInProgress = (
+    service: ReturnType<typeof createTaskService>,
+    taskId = args.taskId
+  ): void => {
+    (service.taskInboxState as unknown as TaskInboxState).upsert([
+      activeTask({ taskId, status: 'in_progress', updatedAt: Date.now() }),
+    ]);
+  };
+
+  const markInProgress = (
+    service: ReturnType<typeof createTaskService>,
+    taskId = args.taskId
+  ): void => {
+    (service.taskInboxState as unknown as TaskInboxState).markStatus(
+      args.chatroomId,
+      args.role,
+      taskId,
+      'in_progress',
+      Date.now()
+    );
+  };
+
+  test('re-arms at 15 minutes, clears the backend failure, and restores the failure budget', async () => {
+    vi.useFakeTimers();
+    try {
+      const mutation = rearmMutation();
+      const service = trackerService(mutation);
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+      expect(service.isRedeliveryExhausted(args)).toBe(true);
+      expect(exhaustionWrites(mutation)).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0] - 1);
+      expect(releaseCalls(mutation)).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(releaseCalls(mutation)).toHaveLength(1);
+      expect(clearCalls(mutation)).toHaveLength(1);
+      expect(exhaustionWrites(mutation)).toHaveLength(1);
+      expect(service.isRedeliveryExhausted(args)).toBe(false);
+      // The re-armed task starts again at attempt 1 of the full cap.
+      expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, exceeded: false });
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a re-arm whose release throws re-records exhaustion and arms the next cycle', async () => {
+    vi.useFakeTimers();
+    try {
+      let releaseAttempts = 0;
+      const mutation = vi.fn(async (_fn: unknown, callArgs: unknown) => {
+        const call = callArgs as { chatroomId?: string; role?: string };
+        if (call.chatroomId !== undefined && call.role !== undefined) {
+          releaseAttempts += 1;
+          throw new Error('backend unavailable');
+        }
+        return { recorded: true, cleared: true, processed: true };
+      });
+      const service = trackerService(mutation);
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+      expect(exhaustionWrites(mutation)).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+
+      expect(releaseAttempts).toBe(1);
+      // The optimistic clear is compensated with a fresh exhaustion record.
+      expect(exhaustionWrites(mutation)).toHaveLength(2);
+      expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+      // The next cycle uses the second delay.
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1] - 1);
+      expect(releaseAttempts).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseAttempts).toBe(2);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a re-arm whose release returns released=false re-records exhaustion and arms the next cycle', async () => {
+    vi.useFakeTimers();
+    try {
+      let releaseAttempts = 0;
+      const mutation = vi.fn(async (_fn: unknown, callArgs: unknown) => {
+        const call = callArgs as { chatroomId?: string; role?: string };
+        if (call.chatroomId !== undefined && call.role !== undefined) {
+          releaseAttempts += 1;
+          return { released: false, status: 'in_progress', updatedAt: 5_000 };
+        }
+        return { recorded: true, cleared: true, processed: true };
+      });
+      const service = trackerService(mutation);
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+
+      expect(releaseCalls(mutation)).toHaveLength(1);
+      expect(exhaustionWrites(mutation)).toHaveLength(2);
+      expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1]);
+      expect(releaseAttempts).toBe(2);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('the second park waits 30 minutes, not 15', async () => {
+    vi.useFakeTimers();
+    try {
+      const mutation = rearmMutation();
+      const service = trackerService(mutation);
+      seedInProgress(service);
+
+      await exhaustTurnFailures(service, args);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+      expect(releaseCalls(mutation)).toHaveLength(1);
+
+      markInProgress(service);
+      await exhaustTurnFailures(service, args);
+
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0] - 1);
+      expect(releaseCalls(mutation)).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseCalls(mutation)).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1] - REARM_DELAYS_MS[0] - 1);
+      expect(releaseCalls(mutation)).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseCalls(mutation)).toHaveLength(2);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('the fourth park stays parked after the three-cycle budget is used', async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const mutation = rearmMutation();
+      const service = trackerService(mutation);
+      seedInProgress(service);
+
+      for (let cycle = 0; cycle < MAX_REARM_CYCLES; cycle += 1) {
+        if (cycle > 0) markInProgress(service);
+        await exhaustTurnFailures(service, args);
+        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[cycle] - 1);
+        expect(releaseCalls(mutation)).toHaveLength(cycle);
+        await vi.advanceTimersByTimeAsync(1);
+      }
+      expect(releaseCalls(mutation)).toHaveLength(MAX_REARM_CYCLES);
+
+      markInProgress(service);
+      await exhaustTurnFailures(service, args);
+      expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
+      expect(releaseCalls(mutation)).toHaveLength(MAX_REARM_CYCLES);
+      expect(log.mock.calls.join('\n')).toContain('redelivery-rearm-exhausted');
+      service.stopTaskInbox();
+    } finally {
+      log.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('an uncovered-turn park never schedules an automatic re-arm', async () => {
+    vi.useFakeTimers();
+    try {
+      const mutation = rearmMutation();
+      const service = trackerService(mutation);
+      seedInProgress(service);
+
+      expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+        action: 'nudge',
+      });
+      service.confirmNudgeSent({ ...args, sessionKey: '1:a' });
+      expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+        action: 'restart-session',
+      });
+      expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '2:b' })).toEqual({
+        action: 'nudge',
+      });
+      service.confirmNudgeSent({ ...args, sessionKey: '2:b' });
+      expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '2:b' })).toEqual({
+        action: 'park',
+      });
+
+      expect(service.isRedeliveryExhausted(args)).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(16 * 60 * 60_000);
+      expect(releaseCalls(mutation)).toHaveLength(0);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a user restart cancels the timer and resets the budget to 15 minutes', async () => {
+    vi.useFakeTimers();
+    try {
+      const mutation = rearmMutation();
+      const service = trackerService(mutation);
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+
+      service.clearRedeliveryTracking({ chatroomId: args.chatroomId, role: args.role });
+      expect(service.isRedeliveryExhausted(args)).toBe(false);
+      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
+      expect(releaseCalls(mutation)).toHaveLength(0);
+
+      markInProgress(service);
+      await exhaustTurnFailures(service, args);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0] - 1);
+      expect(releaseCalls(mutation)).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseCalls(mutation)).toHaveLength(1);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test.each([
+    ['TaskDeleted', WorkspaceTaskInboxEventType.TaskDeleted, 'completed'],
+    ['completed TaskUpdated', WorkspaceTaskInboxEventType.TaskUpdated, 'completed'],
+    ['TaskAssigned', WorkspaceTaskInboxEventType.TaskAssigned, 'pending'],
+  ] as const)(
+    'a %s inbox event clears the timer and resets the re-arm budget',
+    async (_label, eventType, status) => {
+      vi.useFakeTimers();
+      try {
+        const mutation = rearmMutation();
+        const event = {
+          _id: `event-${eventType}`,
+          machineId: 'machine-1',
+          chatroomId: args.chatroomId,
+          taskId: args.taskId,
+          role: args.role,
+          eventType,
+          status: WorkspaceTaskInboxEventStatus.Pending,
+          createdAt: 3_000,
+          task: { ...activeTask({ taskId: args.taskId }), status, updatedAt: 3_000 },
+        } as never;
+        const query = vi
+          .fn()
+          .mockResolvedValueOnce([activeTask({ taskId: args.taskId })])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([event]);
+        const service = trackerService(mutation, query);
+        // Acknowledge inbox events so the delivery retry watcher adds no timers.
+        service.subscribe((notification) => ({
+          handledEventIds: notification.kind === 'inbox-event' ? [notification.event.eventId] : [],
+        }));
+
+        // Use two cycles first so a missing budget reset is observable: the
+        // third park's timer is 60 minutes, not 15.
+        seedInProgress(service);
+        await exhaustTurnFailures(service, args);
+        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+        markInProgress(service);
+        await exhaustTurnFailures(service, args);
+        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1]);
+        markInProgress(service);
+        await exhaustTurnFailures(service, args);
+        expect(releaseCalls(mutation)).toHaveLength(2);
+
+        const timersBeforeEvent = vi.getTimerCount();
+        expect(timersBeforeEvent).toBeGreaterThan(0);
+
+        await service.startTaskInbox();
+
+        // The re-arm timer must be gone even though the task is still parked.
+        expect(vi.getTimerCount()).toBeLessThan(timersBeforeEvent);
+
+        // Re-seed the task in flight and park again: a reset budget waits 15
+        // minutes, not the 60 the third cycle would have used.
+        seedInProgress(service);
+        await exhaustTurnFailures(service, args);
+        await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0] - 1);
+        expect(releaseCalls(mutation)).toHaveLength(2);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(releaseCalls(mutation)).toHaveLength(3);
+        service.stopTaskInbox();
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  test('skips the re-arm when a different task is now in flight', async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const mutation = rearmMutation();
+      const service = trackerService(mutation);
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+
+      (service.taskInboxState as unknown as TaskInboxState).remove(
+        args.chatroomId,
+        args.role,
+        args.taskId,
+        Date.now()
+      );
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+
+      expect(releaseCalls(mutation)).toHaveLength(0);
+      expect(log.mock.calls.join('\n')).toContain('redelivery-rearm-skipped');
+      service.stopTaskInbox();
+    } finally {
+      log.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('automatic recovery skips a task in re-arm cooldown; manual recovery cancels and resets it', async () => {
+    vi.useFakeTimers();
+    try {
+      const mutation = rearmMutation();
+      const query = vi.fn(async () => [activeTask({ taskId: args.taskId })]);
+      const service = trackerService(mutation, query);
+
+      // Use two cycles so a missing budget reset is observable.
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0]);
+      markInProgress(service);
+      await exhaustTurnFailures(service, args);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[1]);
+      markInProgress(service);
+      await exhaustTurnFailures(service, args);
+      expect(releaseCalls(mutation)).toHaveLength(2);
+
+      const timersBeforeRecovery = vi.getTimerCount();
+      expect(timersBeforeRecovery).toBeGreaterThan(0);
+
+      await expect(service.recoverInFlightTasks({ mode: 'automatic' })).resolves.toEqual({
+        released: 0,
+        skipped: 1,
+      });
+      expect(releaseCalls(mutation)).toHaveLength(2);
+
+      await expect(
+        service.recoverInFlightTasks({
+          chatroomId: args.chatroomId,
+          role: args.role,
+          mode: 'explicit',
+        })
+      ).resolves.toEqual({ released: 1, skipped: 0 });
+      expect(releaseCalls(mutation)).toHaveLength(3);
+      // The 60-minute timer is gone after explicit recovery.
+      expect(vi.getTimerCount()).toBeLessThan(timersBeforeRecovery);
+
+      // The budget is reset: the next park waits 15 minutes again.
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+      await vi.advanceTimersByTimeAsync(REARM_DELAYS_MS[0] - 1);
+      expect(releaseCalls(mutation)).toHaveLength(3);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseCalls(mutation)).toHaveLength(4);
+      service.stopTaskInbox();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('automatic recovery skips a task waiting on a provider-failure backoff release', async () => {
+    const mutation = rearmMutation();
+    const query = vi.fn(async () => [activeTask({ taskId: args.taskId })]);
+    const service = trackerService(mutation, query);
+    seedInProgress(service);
+
+    service.markTurnFailureReleasePending(args);
+    await expect(service.recoverInFlightTasks({ mode: 'automatic' })).resolves.toEqual({
+      released: 0,
+      skipped: 1,
+    });
+    expect(releaseCalls(mutation)).toHaveLength(0);
+
+    service.markTurnFailureReleasePending(args);
+    await expect(
+      service.recoverInFlightTasks({
+        chatroomId: args.chatroomId,
+        role: args.role,
+        mode: 'explicit',
+      })
+    ).resolves.toEqual({ released: 1, skipped: 0 });
+    expect(releaseCalls(mutation)).toHaveLength(1);
+    service.stopTaskInbox();
+  });
+
+  test('stopping the service clears pending re-arm timers', async () => {
+    vi.useFakeTimers();
+    try {
+      const mutation = rearmMutation();
+      const service = trackerService(mutation);
+      seedInProgress(service);
+      await exhaustTurnFailures(service, args);
+
+      service.stopTaskInbox();
+      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
+
+      expect(releaseCalls(mutation)).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

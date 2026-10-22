@@ -19,6 +19,10 @@ import {
 import { AGENT_SLOT_STATE } from '../../../domain/entities/agent-slot.js';
 import { ACTIVE_TASK_STATUSES, type AssignedTask } from '../../../domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../domain/usecase/check-agent-slot.js';
+import {
+  computeBackoffDelay,
+  REDELIVERY_BACKOFF_OPTIONS,
+} from '../../../domain/usecase/compute-backoff-delay.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../../entry/daemon-services.js';
 import type { TaskInboxStateReader } from '../../../infrastructure/inbox/task-inbox-state.js';
 import type { AgentConfigRegistry } from '../../chatroom-workspace-configuration-service/index.js';
@@ -51,8 +55,14 @@ import {
 import type { TaskDeliveryService } from '../../task-service/service/native-delivery/task-delivery-service.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from '../../task-service/service/native-task-injector.js';
+import { isCliDrivenHarness } from '../domain/usecase/is-cli-driven-harness.js';
+import { restartRetryMaxIntervalMs } from '../domain/usecase/restart-retry-interval.js';
 
-/** Starts allowed for one uncovered-turn restart: the first attempt plus two retries. */
+/**
+ * Starts allowed for one CLI-driven uncovered-turn restart: the first attempt
+ * plus two retries. Native SDK harnesses retry indefinitely with the cap from
+ * restartRetryMaxIntervalMs; see isCliDrivenHarness for the split.
+ */
 const MAX_RESPAWN_START_ATTEMPTS = 3;
 
 /** Nudge sends allowed for one uncovered turn end: the first try plus two retries, then escalate. */
@@ -61,18 +71,28 @@ const MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS = 3;
 /** Delay before retrying a nudge whose delivery mutex was busy, to let the holder release it. */
 const UNCOVERED_NUDGE_RETRY_MS = 250;
 
+/** Consecutive release-retry accounting failures before parking; guards an infinite loop. */
+const MAX_TURN_FAILURE_ACCOUNTING_FAILURES = 5;
+
+/** Deterministic retry ladders for daemon-owned restarts. */
+const RECOVERY_RETRY_BACKOFF = { baseMs: 1_000, maxMs: 30_000, jitter: 0 } as const;
+const RESPAWN_RETRY_BASE_MS = 1_000;
+
 interface RespawnStartRequest {
   readonly chatroomId: string;
   readonly role: string;
   readonly workingDir: string;
   readonly startInput: EnsureAgentProcessInput;
+  /** Decided from the harness; recomputed when configuration changes. See isCliDrivenHarness. */
+  readonly cliDriven: boolean;
 }
 
 /** A respawn whose start failed and still has retries left. */
 interface PendingRespawnStart {
   /** Identifies this restart intent. A retry runs only while the same intent is pending. */
   readonly restartId: number;
-  readonly request: RespawnStartRequest;
+  /** Re-resolved from configuration before each attempt. */
+  request: RespawnStartRequest;
   /** Start calls made so far, including the first attempt inside the restart. */
   attempts: number;
   timer?: ReturnType<typeof setTimeout> | undefined;
@@ -94,6 +114,33 @@ export type AgentWorkPass =
 
 export type AgentTaskDeliveredHandler = (args: TaskDeliveryLifecycleArgs) => void;
 
+/**
+ * The task-service surface the work manager reads. Narrowing the dependency to
+ * this Pick keeps production wiring and test doubles honest about the ports the
+ * manager actually uses.
+ */
+export type AgentWorkManagerTaskService = Pick<
+  TaskService,
+  | 'subscribe'
+  | 'recoverInFlightTasks'
+  | 'releaseTaskAfterTurnFailure'
+  | 'recordDeliveryFailure'
+  | 'clearDeliveryFailure'
+  | 'recordTurnFailure'
+  | 'parkTurnFailure'
+  | 'decideUncoveredTurnEnd'
+  | 'confirmNudgeSent'
+  | 'resetTurnTracking'
+  | 'isRedeliveryExhausted'
+  | 'clearRedeliveryTracking'
+  | 'markTurnFailureReleasePending'
+  | 'clearTurnFailureReleasePending'
+  | 'forgetStaleTask'
+  | 'loadAssignedTaskForAction'
+  | 'getLatestHandoff'
+  | 'handleAgentTurnProgress'
+>;
+
 export interface AgentWorkManagerDependencies {
   /** Workspace configuration source for delivery-time agent runtime config. */
   readonly configurationService: AgentConfigRegistry;
@@ -106,7 +153,7 @@ export interface AgentWorkManagerDependencies {
   readonly taskInboxState: TaskInboxStateReader;
   readonly agentTaskState: AgentTaskStateService;
   readonly lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
-  readonly taskService: TaskService;
+  readonly taskService: AgentWorkManagerTaskService;
 }
 
 type RoleRecoveryGate = {
@@ -120,6 +167,16 @@ type RoleRecoveryGate = {
 
 const recoveryKey = (chatroomId: string, role: string): string =>
   `${chatroomId}:${role.toLowerCase()}`;
+
+/** Identifies a provider-failure release that is waiting out its backoff delay. */
+type TurnFailureReleaseKey = {
+  readonly chatroomId: string;
+  readonly role: string;
+  readonly taskId: string;
+};
+
+const turnFailureReleaseKey = ({ chatroomId, role, taskId }: TurnFailureReleaseKey): string =>
+  `${chatroomId}:${role.toLowerCase()}:${taskId}`;
 
 /** Identifies one harness session of one agent process. A new key re-arms the uncovered-turn nudge. */
 const sessionKeyFor = (pid: number, harnessSessionId: string | undefined): string =>
@@ -151,6 +208,17 @@ export class AgentWorkManager {
   /** Respawn starts that failed and still have retries, per role. Cleared on success, exhaustion, or cancellation. */
   private readonly respawnStartRetries = new Map<string, PendingRespawnStart>();
   private respawnRestartSeq = 0;
+  /** Consecutive accounting failures per task, so a broken task service cannot loop forever. */
+  private readonly turnFailureAccountingFailures = new Map<string, number>();
+  /**
+   * Provider-failure releases waiting out their exponential backoff, keyed by
+   * `chatroom:role:taskId`. In-memory on purpose: a daemon restart clears both
+   * the timers and the in-memory attempt budget (known limitation).
+   */
+  private readonly turnFailureReleaseTimers = new Map<
+    string,
+    { readonly key: TurnFailureReleaseKey; readonly timer: ReturnType<typeof setTimeout> }
+  >();
   private disposed = false;
 
   constructor(private readonly deps: AgentWorkManagerDependencies) {
@@ -183,11 +251,14 @@ export class AgentWorkManager {
       recordDeliveryFailure: deps.taskService.recordDeliveryFailure,
       clearDeliveryFailure: deps.taskService.clearDeliveryFailure,
       recordTurnFailure: deps.taskService.recordTurnFailure,
+      parkTurnFailure: deps.taskService.parkTurnFailure,
       decideUncoveredTurnEnd: deps.taskService.decideUncoveredTurnEnd,
       confirmNudgeSent: deps.taskService.confirmNudgeSent,
       resetTurnTracking: deps.taskService.resetTurnTracking,
       isRedeliveryExhausted: deps.taskService.isRedeliveryExhausted,
       clearRedeliveryTracking: deps.taskService.clearRedeliveryTracking,
+      markTurnFailureReleasePending: deps.taskService.markTurnFailureReleasePending,
+      clearTurnFailureReleasePending: deps.taskService.clearTurnFailureReleasePending,
       forgetStaleTask: deps.taskService.forgetStaleTask,
       loadAssignedTaskForAction: deps.taskService.loadAssignedTaskForAction,
       deliverNativeTask: (task, harnessSessionId, onTaskDelivered, isCurrent) =>
@@ -241,6 +312,11 @@ export class AgentWorkManager {
         chatroomId: event.chatroomId,
         role: event.role,
       });
+    }
+    // A user start/restart supersedes any provider-failure release still waiting
+    // out its backoff; the counter and the timer reset together.
+    if (event.reason === 'user.start' || event.reason === 'user.restart') {
+      this.cancelTurnFailureReleasesForRole(event.chatroomId, event.role);
     }
     await this.requestReconcile({
       chatroomId: event.chatroomId,
@@ -315,13 +391,34 @@ export class AgentWorkManager {
     mode: 'automatic' | 'explicit';
   }): Promise<{ released: number }> {
     const key = recoveryKey(args.chatroomId, args.role);
-    const gate = this.recoveryGates.get(key);
+    let gate = this.recoveryGates.get(key);
     if (!gate)
       throw new Error(`role recovery gate not prepared for ${args.role}@${args.chatroomId}`);
-    if (gate.recoveryPromise) return gate.recoveryPromise;
+
+    // An explicit request must not reuse an automatic run: the automatic selector
+    // skipped tasks whose backoff marker was set, so its result is not an
+    // explicit recovery. Let it finish, re-open the gate if it closed it, then
+    // run a fresh explicit pass below.
+    while (gate.recoveryPromise) {
+      if (args.mode !== 'explicit') return gate.recoveryPromise;
+      await gate.recoveryPromise.catch(() => undefined);
+      if (!this.recoveryGates.has(key)) {
+        await this.prepareRoleRecovery({ chatroomId: args.chatroomId, role: args.role });
+      }
+      const nextGate = this.recoveryGates.get(key);
+      if (!nextGate)
+        throw new Error(`role recovery gate not prepared for ${args.role}@${args.chatroomId}`);
+      gate = nextGate;
+    }
+
     gate.recoveryPromise = (async () => {
       await gate.drainPromise;
       const result = await this.deps.taskService.recoverInFlightTasks(args);
+      // Only after an explicit recovery actually succeeded may its waiting
+      // releases be cancelled. A throw above leaves them armed.
+      if (args.mode === 'explicit') {
+        this.cancelTurnFailureReleasesForRole(args.chatroomId, args.role);
+      }
       if (this.recoveryGates.get(key) === gate) {
         if (gate.retryTimer) clearTimeout(gate.retryTimer);
         this.recoveryGates.delete(key);
@@ -358,7 +455,7 @@ export class AgentWorkManager {
   private scheduleRecoveryRetry(chatroomId: string, role: string): void {
     const gate = this.recoveryGates.get(recoveryKey(chatroomId, role));
     if (!gate || gate.retryTimer || this.disposed) return;
-    const delay = Math.min(30_000, 1_000 * 2 ** gate.retryAttempts++);
+    const delay = computeBackoffDelay(gate.retryAttempts++ + 1, RECOVERY_RETRY_BACKOFF);
     gate.retryTimer = setTimeout(() => {
       gate.retryTimer = undefined;
       void this.recoverStoppedRole({ chatroomId, role, mode: 'automatic' }).catch(
@@ -373,37 +470,180 @@ export class AgentWorkManager {
   }
 
   /**
-   * Plan V2 shared turn-end recovery: counts the uncovered turn end toward the
-   * consecutive-attempt cap, then releases the task unless the cap is hit.
-   * Returns the outcome so each call site applies its own disposition
-   * (`exceeded` keeps the task parked; a release failure holds the slot).
+   * Plan V2 shared turn-end recovery: counts the provider failure toward the
+   * consecutive-attempt cap, then schedules the release after an exponential
+   * backoff instead of releasing inside the turn-ended handler. Waiting keeps
+   * the task `in_progress` (not deliverable) while the provider recovers.
+   * Returns `exceeded` when the task was parked and no release is scheduled.
    */
   private async recoverTaskAfterTurnFailure(
     event: AgentTurnEndedEvent,
-    activeTask: { taskId: string },
-    phase: 'turn-failed' | 'turn-ended'
-  ): Promise<'released' | 'exceeded' | 'recovery-failed'> {
+    activeTask: { taskId: string }
+  ): Promise<'scheduled' | 'exceeded'> {
     const { chatroomId, role } = event;
-    const { exceeded } = await this.deps.taskService.recordTurnFailure({
+    const { attempts, exceeded } = await this.deps.taskService.recordTurnFailure({
       chatroomId,
       role,
       taskId: activeTask.taskId,
     });
-    if (exceeded) return 'exceeded';
-
-    try {
-      await this.deps.taskService.releaseTaskAfterTurnFailure({
+    if (exceeded) {
+      // Parking supersedes any release still waiting from an earlier failure.
+      this.cancelTurnFailureRelease({
         chatroomId,
         role,
         taskId: activeTask.taskId,
       });
+      return 'exceeded';
+    }
+
+    this.scheduleTurnFailureRelease(
+      { chatroomId, role, taskId: activeTask.taskId },
+      attempts,
+      event.completion.turnId,
+      'turn-failure'
+    );
+    return 'scheduled';
+  }
+
+  /**
+   * Waits the provider-failure backoff before releasing the task back to
+   * `pending`. A newer failure for the same task replaces the pending timer so
+   * only the latest attempt's delay applies.
+   */
+  private scheduleTurnFailureRelease(
+    key: TurnFailureReleaseKey,
+    attempt: number,
+    turnId: string,
+    source: 'turn-failure' | 'release-retry'
+  ): void {
+    if (this.disposed) return;
+    const keyStr = turnFailureReleaseKey(key);
+    // A fresh turn failure starts a new accounting streak. A retry keeps the
+    // streak so consecutive accounting failures eventually park the task.
+    if (source === 'turn-failure') this.turnFailureAccountingFailures.delete(keyStr);
+    this.cancelTurnFailureRelease(key);
+    const delay = computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS);
+    // Tell the task service a release is waiting so automatic recovery does not
+    // bypass the remaining backoff.
+    this.deps.taskService.markTurnFailureReleasePending(key);
+    const timer = setTimeout(() => {
+      this.turnFailureReleaseTimers.delete(keyStr);
+      this.deps.taskService.clearTurnFailureReleasePending(key);
+      if (this.disposed) return;
+      void this.releaseAfterTurnFailureBackoff(key, attempt);
+    }, delay);
+    this.turnFailureReleaseTimers.set(keyStr, { key, timer });
+    console.log(
+      `[NativeDelivery:turn-failure-backoff] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} turn=${turnId} attempt=${attempt} delayMs=${delay}`
+    );
+  }
+
+  /**
+   * Releases a task whose backoff elapsed, but only while it is still the same
+   * in-flight task for this role. The turn-ended handler cleared the active
+   * task state, so the inbox read model (task id + `in_progress`) is the
+   * authority here.
+   */
+  private async releaseAfterTurnFailureBackoff(
+    key: TurnFailureReleaseKey,
+    attempt: number
+  ): Promise<void> {
+    const current = this.deps.taskInboxState.getForRole(key.chatroomId, key.role, key.taskId);
+    if (!current || current.status !== 'in_progress') {
+      console.log(
+        `[NativeDelivery:turn-failure-release-skipped] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} reason=task_not_current status=${current?.status ?? 'missing'}`
+      );
+      return;
+    }
+    const activeTask = this.deps.agentTaskState.get({
+      chatroomId: key.chatroomId,
+      role: key.role,
+    });
+    if (activeTask?.taskId === key.taskId) {
+      console.log(
+        `[NativeDelivery:turn-failure-release-skipped] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} reason=task_active`
+      );
+      return;
+    }
+    try {
+      await this.deps.taskService.releaseTaskAfterTurnFailure({
+        chatroomId: key.chatroomId,
+        role: key.role,
+        taskId: key.taskId,
+      });
+      this.turnFailureAccountingFailures.delete(turnFailureReleaseKey(key));
     } catch (error) {
       console.error(
-        `[NativeDelivery:${phase}-recovery-error] chatroom=${chatroomId} role=${role} task=${activeTask.taskId} turn=${event.completion.turnId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+        `[NativeDelivery:turn-failed-release-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
-      return 'recovery-failed';
+      await this.retryReleaseAfterFailure(key, attempt);
     }
-    return 'released';
+  }
+
+  /**
+   * A failed backend release counts like another turn failure: retry with the
+   * next backoff delay, or let the task service park the task once the cap is
+   * reached. Nothing is left without a timer, a marker, or a park.
+   */
+  private async retryReleaseAfterFailure(
+    key: TurnFailureReleaseKey,
+    previousAttempt: number
+  ): Promise<void> {
+    const keyStr = turnFailureReleaseKey(key);
+    try {
+      const { attempts, exceeded } = await this.deps.taskService.recordTurnFailure(key);
+      this.turnFailureAccountingFailures.delete(keyStr);
+      if (exceeded) return;
+      this.scheduleTurnFailureRelease(key, attempts, 'release-retry', 'release-retry');
+    } catch (error) {
+      console.error(
+        `[NativeDelivery:turn-failed-release-retry-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+      );
+      const failures = (this.turnFailureAccountingFailures.get(keyStr) ?? 0) + 1;
+      this.turnFailureAccountingFailures.set(keyStr, failures);
+      if (failures >= MAX_TURN_FAILURE_ACCOUNTING_FAILURES) {
+        this.turnFailureAccountingFailures.delete(keyStr);
+        this.cancelTurnFailureRelease(key);
+        console.error(
+          `[NativeDelivery:turn-failure-accounting-stalled] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} failures=${failures}`
+        );
+        try {
+          await this.deps.taskService.parkTurnFailure(key);
+        } catch (parkError) {
+          console.error(
+            `[NativeDelivery:turn-failure-park-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${parkError instanceof Error ? (parkError.stack ?? parkError.message) : String(parkError)}`
+          );
+        }
+        return;
+      }
+      // Failure accounting itself failed. Nothing has been parked or released,
+      // so keep the timer armed with the previous delay rather than stranding
+      // the task without a timer, marker, or park.
+      this.scheduleTurnFailureRelease(key, previousAttempt, 'release-retry', 'release-retry');
+    }
+  }
+
+  /** Stops a pending provider-failure release. A no-op when nothing is pending. */
+  private cancelTurnFailureRelease(key: TurnFailureReleaseKey): void {
+    const keyStr = turnFailureReleaseKey(key);
+    const entry = this.turnFailureReleaseTimers.get(keyStr);
+    if (entry === undefined) return;
+    clearTimeout(entry.timer);
+    this.turnFailureReleaseTimers.delete(keyStr);
+    this.turnFailureAccountingFailures.delete(keyStr);
+    this.deps.taskService.clearTurnFailureReleasePending(key);
+  }
+
+  /** Stops every pending provider-failure release for one role. */
+  private cancelTurnFailureReleasesForRole(chatroomId: string, role: string): void {
+    const prefix = `${chatroomId}:${role.toLowerCase()}:`;
+    for (const [keyStr, entry] of [...this.turnFailureReleaseTimers]) {
+      if (!keyStr.startsWith(prefix)) continue;
+      clearTimeout(entry.timer);
+      this.turnFailureReleaseTimers.delete(keyStr);
+      this.turnFailureAccountingFailures.delete(keyStr);
+      this.deps.taskService.clearTurnFailureReleasePending(entry.key);
+    }
   }
 
   async handleAgentTurnEnded(event: AgentTurnEndedEvent): Promise<AgentTurnDisposition> {
@@ -419,15 +659,13 @@ export class AgentWorkManager {
       );
       if (activeTask) {
         // Plan V2: a failed turn without a covering handoff counts toward the
-        // consecutive-attempt cap; at the cap the release is skipped and the
-        // task is parked with a user-visible delivery failure.
-        const recovery = await this.recoverTaskAfterTurnFailure(event, activeTask, 'turn-failed');
+        // consecutive-attempt cap; at the cap the task is parked with a
+        // user-visible delivery failure. Below the cap the release is deferred
+        // by exponential backoff, so the attempt budget spans a provider outage.
+        const recovery = await this.recoverTaskAfterTurnFailure(event, activeTask);
         if (recovery === 'exceeded') {
           this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
           return { kind: 'release-slot' };
-        }
-        if (recovery === 'recovery-failed') {
-          return { kind: 'hold-slot', reason: 'task-recovery-failed' };
         }
         this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
       }
@@ -718,8 +956,10 @@ export class AgentWorkManager {
     }
 
     if (outcome.kind === 'start-failed') {
+      const cliDriven = isCliDrivenHarness(startInput.agentHarness);
+      const attemptLabel = cliDriven ? `1 of ${MAX_RESPAWN_START_ATTEMPTS}` : '1';
       console.error(
-        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} attempt=1 of ${MAX_RESPAWN_START_ATTEMPTS} error=${outcome.error}`
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} attempt=${attemptLabel} error=${outcome.error}`
       );
       this.beginRespawnStartRetries({ chatroomId, role, workingDir, startInput });
     }
@@ -745,8 +985,13 @@ export class AgentWorkManager {
   }
 
   /** Records a failed respawn start and arms the first retry. The ladder is not re-run. */
-  private beginRespawnStartRetries(request: RespawnStartRequest): void {
+  private beginRespawnStartRetries(input: Omit<RespawnStartRequest, 'cliDriven'>): void {
     if (this.disposed) return;
+    // Decided from the harness; recomputed if configuration changes mid-retry.
+    const request: RespawnStartRequest = {
+      ...input,
+      cliDriven: isCliDrivenHarness(input.startInput.agentHarness),
+    };
     const key = recoveryKey(request.chatroomId, request.role);
     this.cancelRespawnStart(key, 'superseded_by_new_restart');
     this.respawnRestartSeq += 1;
@@ -761,14 +1006,33 @@ export class AgentWorkManager {
 
   private armRespawnStartRetry(key: string, pending: PendingRespawnStart): void {
     if (this.disposed) return;
-    // Same backoff shape as scheduleRecoveryRetry: the first retry waits 1s.
-    const delay = Math.min(30_000, 1_000 * 2 ** (pending.attempts - 1));
+    // The first retry waits 1s; CLI-driven harnesses keep the old 30s cap.
+    const delay = computeBackoffDelay(pending.attempts, {
+      baseMs: RESPAWN_RETRY_BASE_MS,
+      maxMs: restartRetryMaxIntervalMs(pending.request.cliDriven),
+      jitter: 0,
+    });
     pending.timer = setTimeout(() => {
       pending.timer = undefined;
       void this.retryRespawnStart(key, pending.restartId).catch((error: unknown) => {
+        const current = this.respawnStartRetries.get(key);
+        const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
         console.error(
-          `[NativeDelivery:uncovered-restart-error] chatroom=${pending.request.chatroomId} role=${pending.request.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+          `[NativeDelivery:uncovered-restart-error] chatroom=${pending.request.chatroomId} role=${pending.request.role} error=${message}`
         );
+        if (!current || current.restartId !== pending.restartId || this.disposed) return;
+        current.attempts += 1;
+        if (current.request.cliDriven && current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
+          this.respawnStartRetries.delete(key);
+          console.error(
+            `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${current.request.chatroomId} role=${current.request.role} attempts=${current.attempts} error=${message}`
+          );
+          return;
+        }
+        console.error(
+          `[NativeDelivery:uncovered-restart-error-retry] chatroom=${current.request.chatroomId} role=${current.request.role} attempt=${current.attempts} error=${message}`
+        );
+        this.armRespawnStartRetry(key, current);
       });
     }, delay);
   }
@@ -777,7 +1041,7 @@ export class AgentWorkManager {
   private async retryRespawnStart(key: string, restartId: number): Promise<void> {
     const pending = this.respawnStartRetries.get(key);
     if (!pending || pending.restartId !== restartId || this.disposed) return;
-    const { chatroomId, role, workingDir, startInput } = pending.request;
+    const { chatroomId, role } = pending.request;
     if (this.deps.agentMgr.isStopRequested(chatroomId, role)) {
       this.cancelRespawnStart(key, 'stop_requested');
       return;
@@ -787,6 +1051,46 @@ export class AgentWorkManager {
       this.cancelRespawnStart(key, 'agent_already_running');
       return;
     }
+
+    // Re-resolve configuration every attempt: the user may have changed the
+    // model/harness/workspace, or removed the config entirely.
+    const config = this.deps.configurationService.get(chatroomId, role);
+    if (!config) {
+      // The registry loads asynchronously on boot. A missing config while it is
+      // still syncing is not a removal: keep the retry armed and wait.
+      if (this.deps.configurationService.state?.(chatroomId, role) === 'syncing') {
+        console.log(
+          `[NativeDelivery:uncovered-restart-config-syncing] chatroom=${chatroomId} role=${role} attempts=${pending.attempts}`
+        );
+        this.armRespawnStartRetry(key, pending);
+        return;
+      }
+      this.cancelRespawnStart(key, 'config_removed');
+      return;
+    }
+    const previous = pending.request;
+    if (
+      config.agentHarness !== previous.startInput.agentHarness ||
+      config.model !== previous.startInput.model ||
+      config.workingDir !== previous.workingDir
+    ) {
+      const startInput: EnsureAgentProcessInput = {
+        ...previous.startInput,
+        agentHarness: config.agentHarness as AgentHarness,
+        model: config.model,
+        workingDir: config.workingDir,
+      };
+      pending.request = {
+        ...previous,
+        workingDir: config.workingDir,
+        startInput,
+        cliDriven: isCliDrivenHarness(config.agentHarness),
+      };
+      console.log(
+        `[NativeDelivery:uncovered-restart-config-changed] chatroom=${chatroomId} role=${role} harness=${config.agentHarness} model=${config.model} workingDir=${config.workingDir}`
+      );
+    }
+    const { workingDir, startInput } = pending.request;
 
     const outcome = await this.deps.runSerializedForAgent(
       { chatroomId, role, workingDir },
@@ -818,15 +1122,18 @@ export class AgentWorkManager {
       return;
     }
     current.attempts += 1;
-    if (current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
+    if (current.request.cliDriven && current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
       this.respawnStartRetries.delete(key);
       console.error(
         `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${chatroomId} role=${role} attempts=${current.attempts} error=${outcome.error}`
       );
       return;
     }
+    const attemptLabel = current.request.cliDriven
+      ? `${current.attempts} of ${MAX_RESPAWN_START_ATTEMPTS}`
+      : `${current.attempts}`;
     console.error(
-      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} attempt=${current.attempts} of ${MAX_RESPAWN_START_ATTEMPTS} error=${outcome.error}`
+      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} attempt=${attemptLabel} error=${outcome.error}`
     );
     this.armRespawnStartRetry(key, current);
   }
@@ -887,6 +1194,12 @@ export class AgentWorkManager {
 
   dispose(): void {
     this.disposed = true;
+    for (const entry of this.turnFailureReleaseTimers.values()) {
+      clearTimeout(entry.timer);
+      this.deps.taskService.clearTurnFailureReleasePending(entry.key);
+    }
+    this.turnFailureReleaseTimers.clear();
+    this.turnFailureAccountingFailures.clear();
     for (const pending of this.respawnStartRetries.values()) {
       if (pending.timer) clearTimeout(pending.timer);
       pending.timer = undefined;
@@ -952,11 +1265,29 @@ export class AgentWorkManager {
       return;
     }
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
+      // cancelTaskWork also clears the waiting backoff release and its marker.
       await this.cancelTaskWork(
         notification.event.chatroomId,
         notification.event.role,
         notification.event.taskId
       );
+    }
+    if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskAssigned) {
+      // Only the assigned task can be superseded. A waiting release for another
+      // task of this role must still fire; its callback re-checks the task and
+      // releases the superseded task.
+      this.cancelTurnFailureRelease({
+        chatroomId: notification.event.chatroomId,
+        role: notification.event.role,
+        taskId: notification.event.taskId,
+      });
+    }
+    if (notification.event.task?.status === 'completed') {
+      this.cancelTurnFailureRelease({
+        chatroomId: notification.event.chatroomId,
+        role: notification.event.role,
+        taskId: notification.event.taskId,
+      });
     }
     if (notification.event.eventType === WorkspaceTaskInboxEventType.TaskDeleted) {
       return { handledEventIds: [notification.event.eventId] };
@@ -1020,6 +1351,7 @@ export class AgentWorkManager {
   }
 
   private async cancelTaskWork(chatroomId: string, role: string, taskId: string): Promise<void> {
+    this.cancelTurnFailureRelease({ chatroomId, role, taskId });
     const activeTask = this.deps.agentTaskState.get({ chatroomId, role });
     if (activeTask?.taskId !== taskId) return;
 

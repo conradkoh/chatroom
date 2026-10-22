@@ -24,12 +24,14 @@ export interface TaskDeliveryOperations {
     taskId: string,
     expectedReason?: TaskDeliveryFailureReason
   ): Promise<boolean>;
-  /** Counts a provider failure; `exceeded` stops release/redelivery. */
+  /** Counts a provider failure; `attempts` is 1-based, `exceeded` stops release/redelivery. */
   recordTurnFailure(args: {
     chatroomId: string;
     role: string;
     taskId: string;
-  }): Promise<{ exceeded: boolean }>;
+  }): Promise<{ attempts: number; exceeded: boolean }>;
+  /** Parks a task through the provider-failure park path (records redelivery_exhausted). */
+  parkTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<void>;
   /** Next ladder step for a completed turn with no covering handoff. Parks when exhausted. */
   decideUncoveredTurnEnd(args: {
     chatroomId: string;
@@ -49,6 +51,13 @@ export interface TaskDeliveryOperations {
   resetTurnTracking(args: { chatroomId: string; role: string; taskId: string }): void;
   isRedeliveryExhausted(args: { chatroomId: string; role: string; taskId: string }): boolean;
   clearRedeliveryTracking(args: { chatroomId: string; role: string }): void;
+  /**
+   * Marks a provider-failure backoff release as waiting in the work manager.
+   * Automatic recovery skips the task until the timer fires or is cancelled;
+   * explicit recovery ignores the marker.
+   */
+  markTurnFailureReleasePending(args: { chatroomId: string; role: string; taskId: string }): void;
+  clearTurnFailureReleasePending(args: { chatroomId: string; role: string; taskId: string }): void;
   /** Evicts a task proven absent from the authoritative backend. */
   forgetStaleTask(args: { chatroomId: string; role: string; taskId: string }): void;
   loadAssignedTaskForAction(args: {

@@ -11,6 +11,10 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
 import {
+  computeBackoffDelay,
+  REDELIVERY_BACKOFF_OPTIONS,
+} from '../../../../domain/usecase/compute-backoff-delay.js';
+import {
   AgentWorkManager,
   createAgentTaskStateService,
   type AgentStartedEvent,
@@ -309,23 +313,40 @@ describe('uncovered-turn ladder, end to end', () => {
     d.dispose();
   });
 
-  test('(c) three failed turns park at the failure cap, with no nudge and no restart', async () => {
-    const d = createDaemon();
-    await d.start();
-    await vi.waitFor(() => expect(d.injections()).toHaveLength(1));
+  test('(c) eight failed turns park at the raised failure cap, with no nudge and no restart', async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const d = createDaemon();
+      await d.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(d.injections()).toHaveLength(1);
 
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      await d.turnEnded('failed', `fail-${attempt}`);
-      if (attempt < 3) {
-        // A failed turn releases the task; the next start redelivers it.
-        await d.start();
-        await vi.waitFor(() => expect(d.injections()).toHaveLength(attempt + 1));
+      // The cap is 8 provider failures; each release waits the attempt's backoff
+      // before the task becomes pending again and is redelivered.
+      for (let attempt = 1; attempt <= 8; attempt += 1) {
+        await d.turnEnded('failed', `fail-${attempt}`);
+        if (attempt < 8) {
+          expect(d.exhaustedWrites()).toHaveLength(0);
+          await vi.advanceTimersByTimeAsync(
+            computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS, () => 0.5)
+          );
+          await vi.advanceTimersByTimeAsync(0);
+          // A start redelivers the now-pending task (as the next daemon pass would).
+          await d.start();
+          await vi.advanceTimersByTimeAsync(0);
+          expect(d.injections()).toHaveLength(attempt + 1);
+        }
       }
+
+      expect(d.exhaustedWrites()).toHaveLength(1);
+      expect(d.nudges()).toHaveLength(0);
+      expect(d.agents.starts).toHaveLength(0);
+      d.dispose();
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
     }
-    await vi.waitFor(() => expect(d.exhaustedWrites()).toHaveLength(1));
-    expect(d.nudges()).toHaveLength(0);
-    expect(d.agents.starts).toHaveLength(0);
-    d.dispose();
   });
 
   test('(c) after one nudge, failed turns do not reset the nudge budget: the next uncovered end restarts', async () => {
@@ -401,20 +422,24 @@ describe('uncovered-turn ladder, end to end', () => {
       }
     });
 
-    test('a start that fails three times stops after three starts, logs exhaustion, and leaves the task pending', async () => {
+    test('a start that keeps failing retries indefinitely for native harnesses', async () => {
       vi.useFakeTimers();
       const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       try {
-        const { agents, d } = await restartWithFailingStart(3);
+        const { agents, d } = await restartWithFailingStart(100);
 
         await vi.advanceTimersByTimeAsync(1_000);
         await vi.advanceTimersByTimeAsync(2_000);
         await vi.advanceTimersByTimeAsync(60_000);
 
-        expect(agents.starts).toHaveLength(3);
-        expect(errors).toHaveBeenCalledWith(
-          expect.stringContaining('[NativeDelivery:uncovered-restart-failed] attempts exhausted')
-        );
+        // Native harnesses no longer stop after three starts and never log exhaustion.
+        expect(agents.starts.length).toBeGreaterThan(3);
+        expect(errors.mock.calls.join('\n')).not.toContain('attempts exhausted');
+
+        // The interval is capped, but retries continue past the old 30s bound.
+        await vi.advanceTimersByTimeAsync(600_000 * 2);
+        expect(agents.starts.length).toBeGreaterThan(7);
+        expect(errors.mock.calls.join('\n')).not.toContain('attempts exhausted');
         expect(d.taskService.taskInboxState.getForRole(CHATROOM, ROLE, TASK_ID)?.status).toBe(
           'pending'
         );

@@ -29,8 +29,7 @@ export interface AgentTurnEndedEvent {
   readonly completion: TurnCompletionResult;
 }
 
-export type AgentTurnDisposition =
-  { readonly kind: 'release-slot' } | { readonly kind: 'hold-slot'; readonly reason: string };
+export type AgentTurnDisposition = { readonly kind: 'release-slot' };
 
 export type AgentTurnEndedHandler = (
   event: AgentTurnEndedEvent

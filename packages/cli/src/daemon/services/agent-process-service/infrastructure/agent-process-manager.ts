@@ -982,13 +982,6 @@ export class AgentProcessManager {
       const dispositions = await Promise.all(
         [...this.agentTurnEndedHandlers].map((handler) => handler(event))
       );
-      const held = dispositions.find((disposition) => disposition?.kind === 'hold-slot');
-      if (held?.kind === 'hold-slot') {
-        console.warn(
-          `[AgentProcessManager] Native turn slot held after ${completionStatus}: role=${opts.role} pid=${opts.pid} reason=${held.reason}`
-        );
-        return;
-      }
       if (
         completionStatus !== 'completed' &&
         !dispositions.some((disposition) => disposition?.kind === 'release-slot')
