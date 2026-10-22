@@ -163,6 +163,7 @@ describe('agents.requestChatroomAgentOperation', () => {
       'uiux-engineer',
       'researcher',
       'reviewer',
+      'game-asset-designer',
       'verifier',
     ];
     expect(result.skipped).toEqual(

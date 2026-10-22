@@ -10,6 +10,8 @@ import { getPlannerArchitectChatTemplate } from './planner-architect-chat';
 import { getPlannerArchitectCodeTemplate } from './planner-architect-code';
 import { getPlannerBuilderChatTemplate } from './planner-builder-chat';
 import { getPlannerBuilderCodeTemplate } from './planner-builder-code';
+import { getPlannerGameAssetDesignerChatTemplate } from './planner-game-asset-designer-chat';
+import { getPlannerGameAssetDesignerCodeTemplate } from './planner-game-asset-designer-code';
 import { getPlannerResearcherChatTemplate } from './planner-researcher-chat';
 import { getPlannerResearcherCodeTemplate } from './planner-researcher-code';
 import { getPlannerReviewerChatTemplate } from './planner-reviewer-chat';
@@ -37,6 +39,7 @@ export const duoPlannerHandoffContract = {
     'triage',
     'researcher',
     'reviewer',
+    'game-asset-designer',
     'verifier',
   ],
   returnsTo: [
@@ -47,6 +50,7 @@ export const duoPlannerHandoffContract = {
     'triage',
     'researcher',
     'reviewer',
+    'game-asset-designer',
     'verifier',
   ],
   outboundTemplates: {
@@ -73,6 +77,10 @@ export const duoPlannerHandoffContract = {
     reviewer: handoffTemplateByMode({
       chat: getPlannerReviewerChatTemplate,
       code: getPlannerReviewerCodeTemplate,
+    }),
+    'game-asset-designer': handoffTemplateByMode({
+      chat: getPlannerGameAssetDesignerChatTemplate,
+      code: getPlannerGameAssetDesignerCodeTemplate,
     }),
     verifier: handoffTemplateByMode({
       chat: getPlannerVerifierChatTemplate,

@@ -101,6 +101,21 @@ export const BUILTIN_ROLE_TEMPLATES = {
     defaultHandoffTarget: 'planner',
   },
 
+  'game-asset-designer': {
+    role: 'game-asset-designer',
+    title: 'Game Asset Designer',
+    description:
+      'You are the game asset designer responsible for specifying production-quality game assets (and producing them when the planner allows); you do not implement application code.',
+    responsibilities: [
+      'Recover the target, asset request, style reference, and budgets from the planner brief',
+      'Inspect the repository for existing assets, naming and folder conventions, and engine import configuration',
+      'Write one manifest entry per asset covering format, units, pivot, LODs, textures, atlases, and audio',
+      'Self-check each asset against the quality checklist and label every claim with its evidence label',
+      'Hand one asset delivery report to the planner, separating assumptions and unverified properties from established results',
+    ],
+    defaultHandoffTarget: 'planner',
+  },
+
   verifier: {
     role: 'verifier',
     title: 'Verifier',

@@ -143,7 +143,7 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
 });
 
 describe('listHandoffTemplatePairs', () => {
-  test('lists the 15 duo pairs in contract order', () => {
+  test('lists the 17 duo pairs in contract order', () => {
     expect(listHandoffTemplatePairs('duo')).toEqual([
       { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
@@ -152,12 +152,14 @@ describe('listHandoffTemplatePairs', () => {
       { teamId: 'duo', fromRole: 'planner', toRole: 'triage' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'researcher' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'reviewer' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'game-asset-designer' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'verifier' },
       { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'architect', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'researcher', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'reviewer', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'uiux-engineer', toRole: 'planner' },
+      { teamId: 'duo', fromRole: 'game-asset-designer', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'triage', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'verifier', toRole: 'planner' },
     ]);
@@ -199,8 +201,8 @@ describe('renderHandoffTemplate — callout and pair-title invariants', () => {
     ...listHandoffTemplatePairs('solo'),
   ] as const;
 
-  test('covers every permanent pair (15 duo + 9 solo)', () => {
-    expect(ALL_PAIRS).toHaveLength(24);
+  test('covers every permanent pair (17 duo + 9 solo)', () => {
+    expect(ALL_PAIRS).toHaveLength(26);
   });
 
   for (const pair of ALL_PAIRS) {

@@ -885,8 +885,8 @@ describe('handoff-templates > conversation mode chat', () => {
 describe('handoff-templates > pair-addressed rendering invariants', () => {
   const allPairs = [...listHandoffTemplatePairs('duo'), ...listHandoffTemplatePairs('solo')];
 
-  test('all 24 permanent pairs render one callout followed by exactly one pair title line', () => {
-    expect(allPairs).toHaveLength(24);
+  test('all 26 permanent pairs render one callout followed by exactly one pair title line', () => {
+    expect(allPairs).toHaveLength(26);
 
     for (const pair of allPairs) {
       const label = `${pair.teamId}:${pair.fromRole}->${pair.toRole}`;

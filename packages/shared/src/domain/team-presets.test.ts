@@ -25,7 +25,7 @@ describe('team presets', () => {
       name: 'Duo',
       structureId: 'duo@1',
       description:
-        'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, and verifier roles',
+        'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
       roles: [
         'planner',
         'architect',
@@ -33,6 +33,7 @@ describe('team presets', () => {
         'triage',
         'reviewer',
         'uiux-engineer',
+        'game-asset-designer',
         'verifier',
         'builder',
       ],
@@ -79,6 +80,7 @@ describe('team presets', () => {
               { role: 'triage', lifecycle: 'ephemeral', optional: true },
               { role: 'reviewer', lifecycle: 'ephemeral', optional: true },
               { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
+              { role: 'game-asset-designer', lifecycle: 'ephemeral', optional: true },
               { role: 'verifier', lifecycle: 'ephemeral', optional: true },
               { role: 'builder', lifecycle: 'permanent', optional: false },
             ]
@@ -150,6 +152,7 @@ describe('team presets', () => {
         'triage',
         'reviewer',
         'uiux-engineer',
+        'game-asset-designer',
         'verifier',
         'builder',
       ],
@@ -166,6 +169,7 @@ describe('team presets', () => {
         'triage',
         'reviewer',
         'uiux-engineer',
+        'game-asset-designer',
         'verifier',
         'builder',
       ],
@@ -204,6 +208,7 @@ describe('team presets', () => {
             'triage',
             'reviewer',
             'uiux-engineer',
+            'game-asset-designer',
             'verifier',
           ].includes(role)
             ? 'ephemeral'
@@ -214,6 +219,7 @@ describe('team presets', () => {
             'triage',
             'reviewer',
             'uiux-engineer',
+            'game-asset-designer',
             'verifier',
           ].includes(role),
         })),

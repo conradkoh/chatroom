@@ -71,6 +71,7 @@ describe('appendNativeDeliveryHandoffTemplates — pair headings in returnsTo or
       'planner→triage',
       'planner→researcher',
       'planner→reviewer',
+      'planner→game-asset-designer',
       'planner→verifier',
     ]);
   });
