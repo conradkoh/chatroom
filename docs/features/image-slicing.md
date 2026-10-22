@@ -40,8 +40,9 @@ Sliced /path/to/assets/sprites/dungeon/dungeon-12.png (768,512 256x256)
 Index /path/to/assets/sprites/dungeon/dungeon.slices.json
 ```
 
-`--out-dir` is created if it does not exist. Files are written only after every
-grid, decode, crop, and encode step succeeds, so a failed slice writes nothing.
+`--out-dir` is created if it does not exist. A refused or failed-before-write
+slice writes nothing. A mid-run write failure lists the files already written
+and leaves them in place.
 
 ### Grammar
 
@@ -162,8 +163,8 @@ Nothing is written when the command refuses. Refusals include:
   without `--force`. Every conflict is listed in one error.
 - An output path would overwrite the source sheet or its sidecar. This is
   refused even with `--force`.
-- A write fails mid-run. The error names the failed path and every file already
-  written. Existing files are not deleted.
+- A mid-run write failure names the failed path, lists the files already
+  written, and leaves them in place.
 
 ## Limits
 
@@ -181,7 +182,9 @@ Nothing is written when the command refuses. Refusals include:
   opaque tiles unless you generate with a model that supports transparency.
 - **Local and offline.** The command makes no network call and does not read
   `FAL_API_KEY`.
-- **Deterministic bytes.** The same input and options produce identical tile
-  bytes; only `slicedAt` changes between runs.
+- **Deterministic for a given toolchain.** The same input, options, CLI
+  version, and pngjs/Node build produce identical tile bytes; another runtime
+  may produce different compressed bytes. The tile and index manifests embed
+  absolute paths, and `slicedAt` changes between runs.
 - **Unverified licensing.** Tile and index manifests always record
   `licensing: unverified`. Check the model's terms before shipping assets.
