@@ -8,3 +8,7 @@ Application-specific (non-framework) documentation.
 - **Reference PR (Phase 1b):** [PR #94](https://github.com/conradkoh/next-convex-starter-app/pull/94) — canonical diff for `roleNames` multi-role assignment
 - Backend: `services/backend/application/README.md`
 - Frontend: `apps/webapp/src/application/README.md`
+
+## Image generation
+
+- **Guide:** [Set up and use `chatroom generate-image`](../features/image-generation.md)
