@@ -6,6 +6,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -62,9 +63,10 @@ describe('generateImage', () => {
   it('rejects when FAL_KEY is missing and makes no fal call', async () => {
     const deps = createDeps({ env: {} });
 
-    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
-      'FAL_KEY is not set'
-    );
+    const error = await captureError(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps));
+
+    expect(error.message).toContain('FAL_KEY is not set');
+    expect(error.message).toContain('FAL_KEY_ID/FAL_KEY_SECRET are not supported');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.fetchBytes).not.toHaveBeenCalled();
   });
@@ -253,6 +255,39 @@ describe('generateImage', () => {
       'is a directory'
     );
     expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('rejects an output format that disagrees with the file extension', async () => {
+    const deps = createDeps();
+
+    await expect(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, outputFormat: 'webp' }, deps)
+    ).rejects.toThrow('--output-format webp does not match the --out extension .png');
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('treats .jpg and .jpeg as matching the jpeg output format', async () => {
+    const deps = createDeps();
+
+    await generateImage(
+      { prompt: 'a hero', out: '/tmp/generated/hero.jpg', outputFormat: 'jpeg' },
+      deps
+    );
+
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('records the resolved output path in the manifest', async () => {
+    const deps = createDeps();
+    const relativeOut = 'relative/hero.png';
+
+    await generateImage({ prompt: 'a hero', out: relativeOut }, deps);
+
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(manifest.output).toMatchObject({ path: resolve(relativeOut) });
   });
 
   it('creates the parent directory before calling fal', async () => {

@@ -8,6 +8,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { extname, resolve } from 'node:path';
 
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 
@@ -78,7 +79,15 @@ export interface GenerateImageManifest {
 const LICENSING = 'unverified' as const;
 
 const FAL_KEY_MISSING_MESSAGE =
-  'FAL_KEY is not set. Set it in your environment to generate images with fal.';
+  'FAL_KEY is not set. Set FAL_KEY in your environment to generate images with fal. (FAL_KEY_ID/FAL_KEY_SECRET are not supported by this command.)';
+
+/** File extensions we can reason about when validating --output-format. */
+const EXTENSION_FORMATS: Record<string, ImageOutputFormat> = {
+  '.png': 'png',
+  '.jpg': 'jpeg',
+  '.jpeg': 'jpeg',
+  '.webp': 'webp',
+};
 
 function resolvePlatform(platform: GenerateImagePlatform | undefined): GenerateImagePlatform {
   return platform ?? DEFAULT_GENERATE_IMAGE_PLATFORM;
@@ -199,8 +208,21 @@ async function saveImage(
   }
 }
 
-/** Prefer the seed fal resolved; fall back to the requested seed. */
-function resolveSeed(
+/**
+ * A mismatched extension makes the file claim to be a format it is not, so
+ * reject it before the paid call. Unknown extensions are left alone.
+ */
+function requireFormatMatchesExtension(outPath: string, format: ImageOutputFormat): void {
+  const extension = extname(outPath).toLowerCase();
+  const expected = EXTENSION_FORMATS[extension];
+  if (expected !== undefined && expected !== format) {
+    throw new GenerateImageError(
+      `--output-format ${format} does not match the --out extension ${extension}. Use --output-format ${expected} or rename the output.`
+    );
+  }
+}
+
+/** Prefer the seed fal resolved; fall back to the requested seed. */ function resolveSeed(
   resultSeed: number | undefined,
   requestedSeed: number | undefined
 ): number | null {
@@ -251,7 +273,10 @@ export async function generateImage(
   requireFalKey(deps);
 
   const prompt = requireNonEmpty(opts.prompt, '--prompt must not be empty.');
-  const outPath = requireNonEmpty(opts.out, '--out must not be empty.');
+  const outPath = resolve(requireNonEmpty(opts.out, '--out must not be empty.'));
+  if (opts.outputFormat !== undefined) {
+    requireFormatMatchesExtension(outPath, opts.outputFormat);
+  }
   const manifestPath = `${outPath}.json`;
 
   // Preflight before the paid call: refuse unwritable outputs, then create the
