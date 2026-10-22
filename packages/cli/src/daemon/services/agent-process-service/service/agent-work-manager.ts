@@ -499,7 +499,8 @@ export class AgentWorkManager {
     this.scheduleTurnFailureRelease(
       { chatroomId, role, taskId: activeTask.taskId },
       attempts,
-      event.completion.turnId
+      event.completion.turnId,
+      'turn-failure'
     );
     return 'scheduled';
   }
@@ -512,11 +513,15 @@ export class AgentWorkManager {
   private scheduleTurnFailureRelease(
     key: TurnFailureReleaseKey,
     attempt: number,
-    turnId: string
+    turnId: string,
+    source: 'turn-failure' | 'release-retry'
   ): void {
     if (this.disposed) return;
-    this.cancelTurnFailureRelease(key);
     const keyStr = turnFailureReleaseKey(key);
+    // A fresh turn failure starts a new accounting streak. A retry keeps the
+    // streak so consecutive accounting failures eventually park the task.
+    if (source === 'turn-failure') this.turnFailureAccountingFailures.delete(keyStr);
+    this.cancelTurnFailureRelease(key);
     const delay = computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS);
     // Tell the task service a release is waiting so automatic recovery does not
     // bypass the remaining backoff.
@@ -566,6 +571,7 @@ export class AgentWorkManager {
         role: key.role,
         taskId: key.taskId,
       });
+      this.turnFailureAccountingFailures.delete(turnFailureReleaseKey(key));
     } catch (error) {
       console.error(
         `[NativeDelivery:turn-failed-release-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
@@ -588,7 +594,7 @@ export class AgentWorkManager {
       const { attempts, exceeded } = await this.deps.taskService.recordTurnFailure(key);
       this.turnFailureAccountingFailures.delete(keyStr);
       if (exceeded) return;
-      this.scheduleTurnFailureRelease(key, attempts, 'release-retry');
+      this.scheduleTurnFailureRelease(key, attempts, 'release-retry', 'release-retry');
     } catch (error) {
       console.error(
         `[NativeDelivery:turn-failed-release-retry-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
@@ -613,7 +619,7 @@ export class AgentWorkManager {
       // Failure accounting itself failed. Nothing has been parked or released,
       // so keep the timer armed with the previous delay rather than stranding
       // the task without a timer, marker, or park.
-      this.scheduleTurnFailureRelease(key, previousAttempt, 'release-retry');
+      this.scheduleTurnFailureRelease(key, previousAttempt, 'release-retry', 'release-retry');
     }
   }
 

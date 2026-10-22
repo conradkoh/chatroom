@@ -1914,6 +1914,67 @@ describe('AgentWorkManager', () => {
     });
   });
 
+  test('a successful release restarts the accounting-failure streak', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        let recordCalls = 0;
+        let releaseCalls = 0;
+        const releaseTaskAfterTurnFailure = vi.fn(async () => {
+          releaseCalls += 1;
+          if (releaseCalls !== 3) throw new Error('backend unavailable');
+          return { released: true, status: 'pending' as const, updatedAt: 1700000000000 };
+        });
+        const recordTurnFailure = vi.fn(async () => {
+          recordCalls += 1;
+          if (recordCalls === 2 || recordCalls === 3 || recordCalls >= 5) {
+            throw new Error('accounting failed');
+          }
+          return { attempts: recordCalls === 1 ? 1 : 2, exceeded: false };
+        });
+        const parkTurnFailure = vi.fn(async () => undefined);
+        const { service } = await armFailedTurnRelease({
+          releaseTaskAfterTurnFailure,
+          recordTurnFailure,
+          parkTurnFailure,
+        });
+
+        // Two accounting failures, then the third release succeeds.
+        await vi.advanceTimersByTimeAsync(5_000);
+        await vi.advanceTimersByTimeAsync(5_000);
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(3);
+        expect(parkTurnFailure).not.toHaveBeenCalled();
+
+        // A later turn failure starts a new streak: three more accounting
+        // failures must not reach the five-failure cap.
+        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+        await service.handleAgentTurnEnded(
+          failedTurnEvent({
+            eventId: 'turn-2',
+            completion: {
+              turnId: 'turn-2',
+              status: 'failed',
+              source: 'provider.transport',
+              error: 'boom',
+            },
+          }) as never
+        );
+        for (const delay of [10_000, 10_000, 10_000]) {
+          await vi.advanceTimersByTimeAsync(delay);
+        }
+
+        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(6);
+        expect(parkTurnFailure).not.toHaveBeenCalled();
+        expect(errorLog.mock.calls.join('\n')).not.toContain('turn-failure-accounting-stalled');
+        expect(vi.getTimerCount()).toBe(1);
+        service.dispose();
+      } finally {
+        errorLog.mockRestore();
+      }
+    });
+  });
+
   test('a release that keeps failing parks after the cap and leaves no timer', async () => {
     await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => {
