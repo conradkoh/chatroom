@@ -234,4 +234,27 @@ describe('chatroom slice-image wiring', () => {
       expect(help).toContain(flag);
     }
   });
+
+  it('documents grammar, rules, outputs, and worked examples in help output', () => {
+    const program = createProgram();
+    const command = program.commands[0];
+    let help = '';
+    command?.configureOutput({
+      writeOut: (text) => {
+        help += text;
+      },
+    });
+    command?.outputHelp();
+
+    expect(help).toContain(
+      'chatroom slice-image --in <path> --out-dir <dir> --cols <n> --rows <n> [--margin <px>] [--gutter <px>] [--names <a,b,,c,...> | --prefix <text>] [--allow-remainder] [--force] [--dry-run]'
+    );
+    expect(help).toContain('--allow-remainder');
+    expect(help).toContain('--names');
+    expect(help).toContain('<stem>.slices.json');
+    expect(help).toContain('--cols 4 --rows 3');
+    expect(help).toContain('256x256');
+    expect(help).toContain('512x384');
+    expect(help).toContain('341x384');
+  });
 });

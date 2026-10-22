@@ -17,6 +17,47 @@ import type { SliceImageOptions } from './slice.js';
 
 const DECIMAL_INTEGER = /^\d+$/;
 
+/**
+ * Help text after the option list. This is the reference users and agents read,
+ * so it states the full grammar, naming, output, and refusal rules without
+ * pointing at repo docs.
+ */
+const HELP_AFTER = `
+Usage:
+  chatroom slice-image --in <path> --out-dir <dir> --cols <n> --rows <n> [--margin <px>] [--gutter <px>] [--names <a,b,,c,...> | --prefix <text>] [--allow-remainder] [--force] [--dry-run]
+
+Grid:
+  The sheet width must divide evenly by --cols and its height by --rows, or
+  pass --allow-remainder to drop the leftover pixels on the right and bottom.
+  --margin skips pixels on all four sides and --gutter sits between adjacent
+  cells; both shrink the usable area, and every tile keeps the same size.
+
+Naming:
+  --names is row-major with one entry per cell. An empty entry skips that cell.
+  Names must match ^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$ and be unique
+  case-insensitively. --names and --prefix are mutually exclusive. Without
+  either flag, names default to <stem>-01, <stem>-02, and so on.
+
+Outputs:
+  <name>.png per tile, <name>.png.json for its manifest, and <stem>.slices.json
+  for the index, which is written last. Nothing is written when the command
+  refuses an input or an output.
+
+Refusals:
+  Existing outputs without --force are refused, and every conflict is listed.
+  An output that is the source sheet or its .json sidecar is refused even with
+  --force, as is any output path that is a symbolic link. Non-PNG input is
+  refused. Slicing is local: no network call and no FAL_API_KEY are needed.
+
+Examples (default 1024x768 sheet):
+  chatroom slice-image --in sheet.png --out-dir tiles --cols 4 --rows 3
+    -> 12 tiles, each 256x256
+  chatroom slice-image --in sheet.png --out-dir tiles --cols 2 --rows 2
+    -> 4 tiles, each 512x384
+  chatroom slice-image --in sheet.png --out-dir tiles --cols 3 --rows 2 --allow-remainder
+    -> 6 tiles, each 341x384; 1 pixel is dropped on the right
+`;
+
 function parsePositiveInt(value: string): number {
   const parsed = Number(value);
   if (
@@ -98,6 +139,7 @@ export function registerSliceImageCommand(program: Command): void {
     .option('--allow-remainder', 'Drop leftover pixels on the right/bottom instead of refusing')
     .option('--force', 'Overwrite existing tile images and manifests')
     .option('--dry-run', 'Report the tiles without writing anything')
+    .addHelpText('after', HELP_AFTER)
     .action(async (options: SliceImageCliOptions) => {
       try {
         // pngjs is only needed when the command actually runs.
