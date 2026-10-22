@@ -63,6 +63,7 @@ export function registerGenerateImageCommand(program: Command): void {
       parseOutputFormat
     )
     .option('--seed <n>', 'Seed for the random number generator', parseSeed)
+    .option('--force', 'Overwrite existing output and manifest files')
     .action(
       async (options: {
         prompt: string;
@@ -72,6 +73,7 @@ export function registerGenerateImageCommand(program: Command): void {
         aspectRatio?: string | undefined;
         outputFormat?: ImageOutputFormat | undefined;
         seed?: number | undefined;
+        force?: boolean | undefined;
       }) => {
         try {
           // The fal SDK is only needed when the command actually runs.
@@ -85,6 +87,7 @@ export function registerGenerateImageCommand(program: Command): void {
               aspectRatio: options.aspectRatio,
               outputFormat: options.outputFormat,
               seed: options.seed,
+              force: options.force,
             },
             createDefaultGenerateImageDeps()
           );

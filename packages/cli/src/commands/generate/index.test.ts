@@ -136,6 +136,22 @@ describe('chatroom generate-image wiring', () => {
     });
   });
 
+  it('forwards --force when provided', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--force']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ force: true });
+  });
+
+  it('does not forward --force when omitted', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ force: undefined });
+  });
+
   it('documents the flags in help output', () => {
     const program = createProgram();
     const command = program.commands[0];
@@ -150,6 +166,7 @@ describe('chatroom generate-image wiring', () => {
       '--aspect-ratio',
       '--output-format',
       '--seed',
+      '--force',
     ]);
   });
 

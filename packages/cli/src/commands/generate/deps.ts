@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
@@ -28,6 +28,8 @@ export interface FalImageResult {
   requestId: string;
 }
 
+export type PathStatus = 'missing' | 'file' | 'directory';
+
 export interface GenerateImageDeps {
   /** Process environment; read for FAL_KEY. Never persisted or logged. */
   env: Record<string, string | undefined>;
@@ -35,10 +37,14 @@ export interface GenerateImageDeps {
   falSubscribe: (model: string, input: Record<string, unknown>) => Promise<FalImageResult>;
   /** Download the generated file bytes. */
   fetchBytes: (url: string) => Promise<Uint8Array>;
-  /** Write the image bytes; implementations create parent directories. */
+  /** Write the image bytes. Parent directories are created by `ensureParentDir`. */
   writeFile: (path: string, bytes: Uint8Array) => Promise<void>;
   /** Write the JSON sidecar manifest. */
   writeJson: (path: string, value: unknown) => Promise<void>;
+  /** Classify an output path without creating anything. */
+  pathStatus: (path: string) => Promise<PathStatus>;
+  /** Create the directory that will hold the output, before generation starts. */
+  ensureParentDir: (path: string) => Promise<void>;
   now: () => Date;
   /** Installed `@fal-ai/client` version, recorded in the manifest. */
   sdkVersion: string;
@@ -69,14 +75,29 @@ function createFalSubscribe(): GenerateImageDeps['falSubscribe'] {
   };
 }
 
-async function writeFileCreatingParents(path: string, bytes: Uint8Array): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
+async function writeFileBytes(path: string, bytes: Uint8Array): Promise<void> {
   await writeFile(path, bytes);
 }
 
-async function writeJsonCreatingParents(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
+async function writeJsonFile(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+/** Classify a path without creating it; anything that is not a dir counts as a file. */
+async function pathStatus(path: string): Promise<PathStatus> {
+  try {
+    const stats = await stat(path);
+    return stats.isDirectory() ? 'directory' : 'file';
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return 'missing';
+    }
+    throw err;
+  }
+}
+
+async function ensureParentDir(path: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
 }
 
 async function fetchBytes(url: string): Promise<Uint8Array> {
@@ -94,8 +115,10 @@ export function createDefaultGenerateImageDeps(): GenerateImageDeps {
     env: process.env,
     falSubscribe: createFalSubscribe(),
     fetchBytes,
-    writeFile: writeFileCreatingParents,
-    writeJson: writeJsonCreatingParents,
+    writeFile: writeFileBytes,
+    writeJson: writeJsonFile,
+    pathStatus,
+    ensureParentDir,
     now: () => new Date(),
     sdkVersion: readInstalledSdkVersion(),
   };

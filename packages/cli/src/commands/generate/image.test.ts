@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { FalImageResult, GenerateImageDeps } from './deps.js';
+import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
 import { generateImage } from './image.js';
 import type { GenerateImagePlatform } from './image.js';
 
@@ -35,10 +35,27 @@ function createDeps(overrides: Partial<GenerateImageDeps> = {}): GenerateImageDe
     fetchBytes: vi.fn().mockResolvedValue(IMAGE_BYTES),
     writeFile: vi.fn().mockResolvedValue(undefined),
     writeJson: vi.fn().mockResolvedValue(undefined),
+    pathStatus: vi.fn().mockResolvedValue('missing'),
+    ensureParentDir: vi.fn().mockResolvedValue(undefined),
     now: () => new Date('2026-01-02T03:04:05.000Z'),
     sdkVersion: '1.10.1',
     ...overrides,
   };
+}
+
+/** pathStatus fake backed by an explicit map; anything unlisted is missing. */
+function pathStatusFor(entries: Record<string, PathStatus>): GenerateImageDeps['pathStatus'] {
+  return vi.fn(async (path: string) => entries[path] ?? 'missing');
+}
+
+/** Await a promise expected to reject and return the error. */
+async function captureError(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise;
+  } catch (err) {
+    return err as Error;
+  }
+  throw new Error('expected the call to reject');
 }
 
 describe('generateImage', () => {
@@ -195,6 +212,87 @@ describe('generateImage', () => {
     expect(manifest.input).not.toHaveProperty('output_format');
     expect(manifest.input).not.toHaveProperty('seed');
     expect(manifest.seed).toBeNull();
+  });
+
+  it('refuses to overwrite an existing output without --force', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
+
+    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
+      `--out already exists: ${OUT_PATH}. Pass --force to overwrite.`
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
+  });
+
+  it('refuses to overwrite an existing manifest without --force', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [`${OUT_PATH}.json`]: 'file' }),
+    });
+
+    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
+      'Manifest already exists'
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('overwrites an existing output when --force is passed', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [OUT_PATH]: 'file', [`${OUT_PATH}.json`]: 'file' }),
+    });
+
+    await generateImage({ prompt: 'a hero', out: OUT_PATH, force: true }, deps);
+
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, IMAGE_BYTES);
+  });
+
+  it('refuses a directory output before generation', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'directory' }) });
+
+    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
+      'is a directory'
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('creates the parent directory before calling fal', async () => {
+    const deps = createDeps();
+
+    await generateImage({ prompt: 'a hero', out: OUT_PATH }, deps);
+
+    const ensureOrder = (deps.ensureParentDir as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    const subscribeOrder = (deps.falSubscribe as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    expect(deps.ensureParentDir).toHaveBeenCalledWith(OUT_PATH);
+    expect(ensureOrder).toBeLessThan(subscribeOrder as number);
+  });
+
+  it('keeps the paid result recoverable when the download fails', async () => {
+    const deps = createDeps({
+      fetchBytes: vi.fn().mockRejectedValue(new Error('network down')),
+    });
+
+    const error = await captureError(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps));
+
+    expect(error.message).toContain('req-123');
+    expect(error.message).toContain(IMAGE_URL);
+    expect(error.message).toContain('network down');
+    expect(error.message.includes(FAL_KEY)).toBe(false);
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('keeps the paid result recoverable when the image write fails', async () => {
+    const deps = createDeps({
+      writeFile: vi.fn().mockRejectedValue(new Error('disk full')),
+    });
+
+    const error = await captureError(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps));
+
+    expect(error.message).toContain('req-123');
+    expect(error.message).toContain(IMAGE_URL);
+    expect(error.message).toContain('disk full');
+    expect(error.message.includes(FAL_KEY)).toBe(false);
   });
 
   it('prefers the seed echoed back by fal over the requested seed', async () => {

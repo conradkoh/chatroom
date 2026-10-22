@@ -12,7 +12,6 @@ import { createHash } from 'node:crypto';
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 
 export const DEFAULT_IMAGE_MODEL = 'fal-ai/nano-banana-2';
-
 /**
  * Generation platforms the CLI can call today. New platforms are added here
  * and dispatched in `generateImage`; the flag and manifest field already exist
@@ -24,6 +23,17 @@ export const DEFAULT_GENERATE_IMAGE_PLATFORM: GenerateImagePlatform = 'fal';
 
 export type ImageOutputFormat = 'png' | 'jpeg' | 'webp';
 
+/**
+ * Error type for generate-image failures. Messages may name the request id and
+ * result URL (so a paid result can be recovered) but never the API key.
+ */
+class GenerateImageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GenerateImageError';
+  }
+}
+
 export interface GenerateImageOptions {
   prompt: string;
   out: string;
@@ -32,6 +42,8 @@ export interface GenerateImageOptions {
   aspectRatio?: string | undefined;
   outputFormat?: ImageOutputFormat | undefined;
   seed?: number | undefined;
+  /** Allow replacing an existing output or manifest file. */
+  force?: boolean | undefined;
 }
 
 export interface GenerateImageResult {
@@ -118,9 +130,73 @@ function requireImage(
 ): { url: string; content_type?: string | undefined } {
   const image = images[0];
   if (!image?.url) {
-    throw new Error(`fal returned no image for model ${model}`);
+    throw new GenerateImageError(`fal returned no image for model ${model}`);
   }
   return image;
+}
+
+/**
+ * Refuse to clobber an existing file or write over a directory unless the user
+ * asked with --force. Runs before the paid fal call.
+ */
+async function requireWritablePath(
+  deps: GenerateImageDeps,
+  path: string,
+  label: string,
+  force: boolean
+): Promise<void> {
+  const status = await deps.pathStatus(path);
+  if (status === 'directory') {
+    throw new GenerateImageError(`${label} is a directory: ${path}. Pass a file path.`);
+  }
+  if (status === 'file' && !force) {
+    throw new GenerateImageError(`${label} already exists: ${path}. Pass --force to overwrite.`);
+  }
+}
+
+async function requireWritableOutput(
+  deps: GenerateImageDeps,
+  outPath: string,
+  manifestPath: string,
+  force: boolean
+): Promise<void> {
+  await requireWritablePath(deps, outPath, '--out', force);
+  await requireWritablePath(deps, manifestPath, 'Manifest', force);
+}
+
+/**
+ * Failures after a successful (paid) generation still name the request id and
+ * image URL so the result can be recovered manually.
+ */
+function recoveryMessage(action: string, err: unknown, requestId: string, url: string): string {
+  const detail = err instanceof Error ? err.message : String(err);
+  return `Failed to ${action} generated image for request ${requestId} (${url}): ${detail}. The generated image can still be recovered from that URL.`;
+}
+
+async function downloadImage(
+  deps: GenerateImageDeps,
+  requestId: string,
+  url: string
+): Promise<Uint8Array> {
+  try {
+    return await deps.fetchBytes(url);
+  } catch (err) {
+    throw new GenerateImageError(recoveryMessage('download', err, requestId, url));
+  }
+}
+
+async function saveImage(
+  deps: GenerateImageDeps,
+  outPath: string,
+  bytes: Uint8Array,
+  requestId: string,
+  url: string
+): Promise<void> {
+  try {
+    await deps.writeFile(outPath, bytes);
+  } catch (err) {
+    throw new GenerateImageError(recoveryMessage('save', err, requestId, url));
+  }
 }
 
 /** Prefer the seed fal resolved; fall back to the requested seed. */
@@ -176,17 +252,23 @@ export async function generateImage(
 
   const prompt = requireNonEmpty(opts.prompt, '--prompt must not be empty.');
   const outPath = requireNonEmpty(opts.out, '--out must not be empty.');
+  const manifestPath = `${outPath}.json`;
+
+  // Preflight before the paid call: refuse unwritable outputs, then create the
+  // parent directory so a successful generation cannot fail on a missing dir.
+  await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
+  await deps.ensureParentDir(outPath);
+
   const model = opts.model ?? DEFAULT_IMAGE_MODEL;
   const input = buildInput(prompt, opts);
 
   const result = await deps.falSubscribe(model, input);
   const image = requireImage(result.data.images, model);
 
-  const bytes = await deps.fetchBytes(image.url);
-  await deps.writeFile(outPath, bytes);
+  const bytes = await downloadImage(deps, result.requestId, image.url);
+  await saveImage(deps, outPath, bytes, result.requestId, image.url);
 
   const sha256 = createHash('sha256').update(bytes).digest('hex');
-  const manifestPath = `${outPath}.json`;
   await deps.writeJson(
     manifestPath,
     buildManifest({
