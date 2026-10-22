@@ -16,9 +16,6 @@ vi.mock('./CommandQueuePanel', () => ({
 vi.mock('./TeamSelectorDropdown', () => ({
   TeamSelectorDropdown: () => <div data-testid="team-selector" />,
 }));
-vi.mock('./UnifiedAgentListModal', () => ({
-  UnifiedAgentListModal: () => null,
-}));
 
 const lifecycle = {
   teamId: 'duo',
