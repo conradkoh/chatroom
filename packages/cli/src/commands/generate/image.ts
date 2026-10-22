@@ -12,8 +12,6 @@ import { createHash } from 'node:crypto';
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 
 export const DEFAULT_IMAGE_MODEL = 'fal-ai/nano-banana-2';
-export const DEFAULT_ASPECT_RATIO = 'auto';
-export const DEFAULT_OUTPUT_FORMAT = 'png';
 
 /**
  * Generation platforms the CLI can call today. New platforms are added here
@@ -99,11 +97,16 @@ function requireNonEmpty(value: string, message: string): string {
   return trimmed;
 }
 
+/**
+ * Only send the fields the user actually passed. Model defaults differ (for
+ * example some models reject `auto` aspect ratios or have no aspect ratio at
+ * all), so the manifest records exactly what went over the wire.
+ */
 function buildInput(prompt: string, opts: GenerateImageOptions): Record<string, unknown> {
   return {
     prompt,
-    aspect_ratio: opts.aspectRatio ?? DEFAULT_ASPECT_RATIO,
-    output_format: opts.outputFormat ?? DEFAULT_OUTPUT_FORMAT,
+    ...(opts.aspectRatio !== undefined ? { aspect_ratio: opts.aspectRatio } : {}),
+    ...(opts.outputFormat !== undefined ? { output_format: opts.outputFormat } : {}),
     ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
   };
 }

@@ -9,10 +9,8 @@
 import { InvalidArgumentError, type Command } from 'commander';
 
 import {
-  DEFAULT_ASPECT_RATIO,
   DEFAULT_GENERATE_IMAGE_PLATFORM,
   DEFAULT_IMAGE_MODEL,
-  DEFAULT_OUTPUT_FORMAT,
   GENERATE_IMAGE_PLATFORMS,
   generateImage,
 } from './image.js';
@@ -57,14 +55,12 @@ export function registerGenerateImageCommand(program: Command): void {
     .option('--model <id>', 'Model id on the selected platform', DEFAULT_IMAGE_MODEL)
     .option(
       '--aspect-ratio <ratio>',
-      'Aspect ratio, e.g. 1:1, 4:3, 16:9, 9:16',
-      DEFAULT_ASPECT_RATIO
+      'Aspect ratio, e.g. 1:1, 4:3, 16:9, 9:16 (omitted = model default)'
     )
     .option(
       '--output-format <format>',
-      'Output format: png, jpeg, or webp',
-      parseOutputFormat,
-      DEFAULT_OUTPUT_FORMAT
+      'Output format: png, jpeg, or webp (omitted = model default)',
+      parseOutputFormat
     )
     .option('--seed <n>', 'Seed for the random number generator', parseSeed)
     .action(
@@ -73,8 +69,8 @@ export function registerGenerateImageCommand(program: Command): void {
         out: string;
         platform: GenerateImagePlatform;
         model: string;
-        aspectRatio: string;
-        outputFormat: ImageOutputFormat;
+        aspectRatio?: string | undefined;
+        outputFormat?: ImageOutputFormat | undefined;
         seed?: number | undefined;
       }) => {
         try {

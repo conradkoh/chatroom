@@ -178,20 +178,21 @@ describe('generateImage', () => {
     expect(deps.writeJson).toHaveBeenCalledWith(`${OUT_PATH}.json`, manifest);
   });
 
-  it('omits seed from input when not provided and defaults the model fields', async () => {
+  it('sends only the prompt when no optional fields are given', async () => {
     const deps = createDeps();
 
     await generateImage({ prompt: 'a castle', out: OUT_PATH }, deps);
 
     expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/nano-banana-2', {
       prompt: 'a castle',
-      aspect_ratio: 'auto',
-      output_format: 'png',
     });
     const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
       string,
       unknown
     >;
+    expect(manifest.input).toEqual({ prompt: 'a castle' });
+    expect(manifest.input).not.toHaveProperty('aspect_ratio');
+    expect(manifest.input).not.toHaveProperty('output_format');
     expect(manifest.input).not.toHaveProperty('seed');
     expect(manifest.seed).toBeNull();
   });

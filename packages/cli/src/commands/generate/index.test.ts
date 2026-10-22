@@ -106,6 +106,36 @@ describe('chatroom generate-image wiring', () => {
     expect(generateImageMock).not.toHaveBeenCalled();
   });
 
+  it('does not forward aspect-ratio or output-format when omitted', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+
+    const forwarded = generateImageMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(forwarded.aspectRatio).toBeUndefined();
+    expect(forwarded.outputFormat).toBeUndefined();
+  });
+
+  it('forwards aspect-ratio and output-format when provided', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.png',
+      '--aspect-ratio',
+      '1:1',
+      '--output-format',
+      'webp',
+    ]);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({
+      aspectRatio: '1:1',
+      outputFormat: 'webp',
+    });
+  });
+
   it('documents the flags in help output', () => {
     const program = createProgram();
     const command = program.commands[0];
