@@ -7,13 +7,16 @@
  * about `@fal-ai/client` and `node:fs/promises`.
  */
 
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { ApiError, ValidationError, fal } from '@fal-ai/client';
 
+import { pathStatus, writeFileBytes, writeJsonFile, type PathStatus } from './fs-helpers.js';
 import { GenerateImageError, FAL_API_KEY_MISSING_MESSAGE } from './image.js';
 import { readInstalledPackageVersion } from './package-version.js';
+
+export type { PathStatus } from './fs-helpers.js';
 
 /** The subset of a fal image result the generate command depends on. */
 export interface FalImageResult {
@@ -28,8 +31,6 @@ export interface FalImageResult {
   };
   requestId: string;
 }
-
-export type PathStatus = 'missing' | 'file' | 'directory';
 
 export interface GenerateImageDeps {
   /** Process environment; read for FAL_API_KEY. Never persisted or logged. */
@@ -215,27 +216,6 @@ function createFalSubscribe(
 }
 
 // ─── filesystem and download helpers ───────────────────────────────────────
-
-async function writeFileBytes(path: string, bytes: Uint8Array): Promise<void> {
-  await writeFile(path, bytes);
-}
-
-async function writeJsonFile(path: string, value: unknown): Promise<void> {
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-}
-
-/** Classify a path without creating it; anything that is not a dir counts as a file. */
-async function pathStatus(path: string): Promise<PathStatus> {
-  try {
-    const stats = await stat(path);
-    return stats.isDirectory() ? 'directory' : 'file';
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return 'missing';
-    }
-    throw err;
-  }
-}
 
 async function ensureParentDir(path: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });

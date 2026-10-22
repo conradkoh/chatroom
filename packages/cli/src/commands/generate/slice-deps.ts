@@ -1,29 +1,26 @@
 /**
  * Slice Deps — dependency boundary for `chatroom slice-image`.
  *
- * This is the only slice module that imports `pngjs` and `node:fs/promises`.
- * It must not import `./deps.js` at runtime (that module loads the fal SDK);
- * only the `PathStatus` type is shared, so the command stays offline and does
- * not need `FAL_API_KEY`.
+ * This is the only slice module that imports `pngjs`. It must not import
+ * `./deps.js` at runtime (that module loads the fal SDK); filesystem helpers
+ * come from the fal-free `fs-helpers.js`, so the command stays offline and
+ * does not need `FAL_API_KEY`.
  */
 
-// pathStatus and the JSON writers intentionally mirror generate/deps.ts so the
-// slice command can reuse the same semantics without importing the fal SDK.
-// fallow-ignore-file code-duplication
-
-import { lstat, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, stat } from 'node:fs/promises';
 
 import pngjs from 'pngjs';
 
-import type { PathStatus } from './deps.js';
+import {
+  pathStatus,
+  writeFileBytes,
+  writeJsonFile,
+  type PathStatus,
+  type WriteOptions,
+} from './fs-helpers.js';
 import { readInstalledPackageVersion } from './package-version.js';
 
 const { PNG } = pngjs;
-
-/** Options for the two write helpers. `exclusive` uses the `wx` flag. */
-export interface WriteOptions {
-  exclusive?: boolean | undefined;
-}
 
 /** Filesystem identity used to compare paths across case and symlink aliases. */
 export interface FileIdentity {
@@ -81,19 +78,6 @@ function encodePng(image: DecodedImage): Uint8Array {
   const png = new PNG({ width: image.width, height: image.height });
   png.data = Buffer.from(image.data);
   return PNG.sync.write(png, { colorType: 6, deflateLevel: 9, filterType: -1 });
-}
-
-/** Classify a path without creating it; anything that is not a dir counts as a file. */
-async function pathStatus(path: string): Promise<PathStatus> {
-  try {
-    const stats = await stat(path);
-    return stats.isDirectory() ? 'directory' : 'file';
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return 'missing';
-    }
-    throw err;
-  }
 }
 
 /** `stat` before reading so FIFOs, devices, and oversized inputs are refused. */
@@ -158,31 +142,6 @@ async function isSymlink(path: string): Promise<boolean> {
 
 async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
-}
-
-async function writeFileBytes(
-  path: string,
-  bytes: Uint8Array,
-  options: WriteOptions = {}
-): Promise<void> {
-  if (options.exclusive === true) {
-    await writeFile(path, bytes, { flag: 'wx' });
-    return;
-  }
-  await writeFile(path, bytes);
-}
-
-async function writeJsonFile(
-  path: string,
-  value: unknown,
-  options: WriteOptions = {}
-): Promise<void> {
-  const text = `${JSON.stringify(value, null, 2)}\n`;
-  if (options.exclusive === true) {
-    await writeFile(path, text, { encoding: 'utf8', flag: 'wx' });
-    return;
-  }
-  await writeFile(path, text, 'utf8');
 }
 
 export function createDefaultSliceImageDeps(): SliceImageDeps {
