@@ -51,16 +51,16 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="game-asset-designer" --ne
 - Units and axes match the target (glTF: meters, +Y up, front +Z); scale is applied (identity scale) and a real-world size is stated.
 - Pivot/origin follows the declared policy; LODs share the base pivot and alignment.
 - Clean topology: no n-gons or non-manifold edges unless declared, no flipped normals or inverted winding (glTF: counter-clockwise front faces), consistent normals and tangents (MikkTSpace).
-- Triangle count per LOD is within budget; LOD naming matches the engine (Unity \`_LOD0\`, \`_LOD1\`; Unreal import LODs; Godot suffix hints).
+- Triangle count per LOD is within budget; LOD naming matches the engine (Unity \`_LOD0\`, \`_LOD1\`; Unreal LODs share the base pivot and alignment and are imported per the FBX import options; Godot generates LODs at import, so declare the Generate LODs setting instead of a suffix).
 - UVs: non-overlapping unique layout where textures are unique, island padding, consistent texel density, no stretched islands; a second UV set if the engine needs baked lighting.
 - Collision and sockets use the engine's naming (Unreal \`UBX_\`/\`UCP_\`/\`USP_\`/\`UCX_\` + mesh name and \`SOCKET_\` + mesh name; Godot \`-col\`/\`-convcolonly\` suffixes).
-- Skinned meshes: bone count within budget, at most 4 influences per vertex, no leftover IK helpers, a named rest pose.
+- Skinned meshes: bone count within budget, influences per vertex within the declared budget (commonly 4, marked \`unverified\`; glTF allows more via \`JOINTS_1\`), no leftover IK helpers, a named rest pose.
 
 **PBR materials and textures**
 - Metallic-roughness workflow with documented channel packing (glTF: roughness in G, metallic in B, occlusion in R).
-- Color space: base color and emissive sRGB; normal, roughness, metallic, occlusion, masks linear. State the normal map Y convention.
-- Base color values stay in a physically plausible range (non-metal roughly 30–240 sRGB per channel); metallic is near binary.
-- Resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two on mobile Unreal); compression format named.
+- Color space: base color and emissive sRGB; normal, roughness, metallic, occlusion, masks linear. State the normal map Y convention. In glTF, color space is set by the material slot that references the image, not by embedded PNG chunks. Verify the slot for each map: \`baseColorTexture\` and \`emissiveTexture\` are sRGB; \`metallicRoughnessTexture\`, \`occlusionTexture\` and \`normalTexture\` are linear.
+- Base color values stay in a physically plausible range (community starting range roughly 30–240 sRGB per channel for non-metals; the request's budget overrides it); metallic is near binary.
+- Resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming, for example Unreal; confirm for the target engine version); compression format named.
 - Tiling textures wrap without a visible seam; no baked-in lighting or text in base color unless declared.
 - Maps in one set share texel density, value range, and naming (\`T_Name_BaseColor\`, \`_Normal\`, \`_ORM\`).
 
@@ -72,7 +72,7 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="game-asset-designer" --ne
 - Export PNG (lossless with alpha); name states size and frame count where relevant.
 
 **Audio**
-- Loudness measured against the platform target stated in the request (for example console -24 LUFS, mobile -18 LUFS, true peak at or below -1 dBTP); no clipping.
+- Loudness measured against the platform target stated in the request (for example console -24 LUFS, mobile -18 LUFS, true peak at or below -1 dBTP); no clipping. Measure with a tool: \`ffmpeg -i <file> -af ebur128=peak=true -f null -\` for integrated loudness and true peak; \`ffprobe <file>\` for sample rate, bit depth and channels; for glTF, \`gltf-transform inspect <file>\` (quote the command's actual output). Cite the platform source. If the request does not state the target, mark the loudness target \`unverified\` and name the source. Mobile targets vary (-18 vs -16 LUFS).
 - Sample rate, bit depth, channel count, loop points, and format stated; short noisy SFX use PCM or ADPCM, long audio uses compressed or streamed formats, per the engine's guidance.
 
 ### Scope boundary
