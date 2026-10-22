@@ -7,14 +7,13 @@
  * about `@fal-ai/client` and `node:fs/promises`.
  */
 
-import { readFileSync } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 
 import { ApiError, ValidationError, fal } from '@fal-ai/client';
 
 import { GenerateImageError, FAL_API_KEY_MISSING_MESSAGE } from './image.js';
+import { readInstalledPackageVersion } from './package-version.js';
 
 /** The subset of a fal image result the generate command depends on. */
 export interface FalImageResult {
@@ -54,27 +53,6 @@ export interface GenerateImageDeps {
 
 /** Server-side timeout for the queued generation (the SDK takes seconds). */
 const SUBSCRIBE_TIMEOUT_SECONDS = 300;
-
-const UNKNOWN_SDK_VERSION = 'unknown';
-
-/**
- * Read the installed SDK version from its own package.json.
- *
- * Resolving the entry point (rather than importing `@fal-ai/client/package.json`)
- * works because the package's `exports` map only exposes `.` and `./endpoints`.
- * A broken install must not break generation, so failure records `unknown`.
- */
-function readInstalledSdkVersion(): string {
-  try {
-    const require = createRequire(import.meta.url);
-    const entryPath = require.resolve('@fal-ai/client');
-    const packageJsonPath = join(dirname(entryPath), '..', 'package.json');
-    const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: unknown };
-    return typeof pkg.version === 'string' ? pkg.version : UNKNOWN_SDK_VERSION;
-  } catch {
-    return UNKNOWN_SDK_VERSION;
-  }
-}
 
 // ─── fal result validation ─────────────────────────────────────────────────
 
@@ -294,6 +272,6 @@ export function createDefaultGenerateImageDeps(): GenerateImageDeps {
     pathStatus,
     ensureParentDir,
     now: () => new Date(),
-    sdkVersion: readInstalledSdkVersion(),
+    sdkVersion: readInstalledPackageVersion('@fal-ai/client'),
   };
 }

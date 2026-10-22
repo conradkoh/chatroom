@@ -37,6 +37,7 @@
     "effect": "4.0.1",
     "ignore": "^7.0.0",
     "jsonc-parser": "^3.3.1",
+    "pngjs": "6.0.0",
     "socket.io": "^4.8.1",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
@@ -47,6 +48,7 @@
     "@tanstack/react-query": "^5.80.7",
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^5.1.0",
