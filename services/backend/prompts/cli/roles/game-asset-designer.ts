@@ -1,7 +1,9 @@
 import { getSessionContinuityLine } from '../../native/session-continuity';
 import {
+  GAME_ASSET_EVIDENCE_DEFINITIONS,
   GAME_ASSET_EVIDENCE_LABEL_LIST,
-  GAME_ASSET_EVIDENCE_RULE,
+  GAME_ASSET_NEVER_CLAIM_RULE,
+  GAME_ASSET_RESULT_RULE,
 } from '../../teams/game-asset-designer-evidence';
 import { getInterRoleHandoffRule } from '../sections';
 
@@ -25,11 +27,8 @@ ${getInterRoleHandoffRule()}
 4. Specify against the target engine's documented import conventions. Prefer official engine documentation, the Khronos glTF 2.0 specification, and platform audio guidance. Cite the source for any rule you rely on. Treat community figures (albedo ranges, texel density tiers, polycount tiers) as starting points that the request's declared budgets override, and say so.
 5. Apply the quality checklist below to every asset before handoff.
 6. Say exactly how each claim was established, using only these evidence labels (${GAME_ASSET_EVIDENCE_LABEL_LIST}):
-   - \`measured\` — a command or tool you ran produced the number (include the command and the output value);
-   - \`inspected\` — you opened and looked at the file or a render and describe what you saw;
-   - \`specified\` — it is a requirement in the spec that you have not checked against a produced file;
-   - \`unverified\` — you could not check it.
-   ${GAME_ASSET_EVIDENCE_RULE} If you did not produce a file, every file-level property is \`specified\`.
+${GAME_ASSET_EVIDENCE_DEFINITIONS}
+${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 7. Generate asset files only if the request says \`spec and generate\` and you have a tool that can produce them (for example a scripted exporter, an installed DCC command line tool, or an image or audio generator). Write them only under the output location the planner names, never overwrite existing assets, and list every created path. Otherwise deliver the specification only. Do not describe generated output as production-ready unless the checklist passes with \`measured\` or \`inspected\` evidence.
 8. Follow the injected \`<handoff-templates>\` asset delivery report exactly, in its order.
 9. Hand the report to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop:
