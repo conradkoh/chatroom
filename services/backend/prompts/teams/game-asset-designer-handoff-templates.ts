@@ -40,7 +40,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
 
 ## Allowed tools
-\`chatroom generate-image --platform=fal (the only generator for now)\`
+\`chatroom generate-image --platform=fal (the only generator for now)\`. For sheets, use \`--model fal-ai/flux-2\`; do not use the default \`fal-ai/flux-2/flash\` for sheets because its layout adherence is poor. The default remains acceptable for single images.
 
 ## Allowed edit paths
 <repository-relative paths the designer may edit; \`None.\` for none>
