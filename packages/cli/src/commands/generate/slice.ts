@@ -14,7 +14,7 @@
 import { createHash } from 'node:crypto';
 import { basename, extname, join, resolve } from 'node:path';
 
-import type { SliceImageDeps } from './slice-deps.js';
+import type { FileIdentity, SliceImageDeps } from './slice-deps.js';
 
 export const SLICE_TOOL = 'chatroom slice-image' as const;
 export const MAX_TILES = 256;
@@ -422,26 +422,44 @@ function formatConflicts(conflicts: OutputConflict[]): string {
 }
 
 /**
- * Preflight every output path before any write. Directories and paths that
- * collide with the source sheet or its manifest are always refused; existing
- * files are refused unless `--force` was passed.
+ * Preflight every output path before any write. Directories, symbolic links,
+ * paths that resolve to the source sheet or its manifest, and existing files
+ * without `--force` are all refused. Identity checks use `stat`, so a case
+ * variant, hard link, or symlinked directory cannot overwrite the source.
  */
 async function preflightOutputs(
   deps: SliceImageDeps,
   paths: string[],
   sourcePaths: ReadonlySet<string>,
+  sourceIdentities: readonly (FileIdentity | null)[],
   force: boolean
 ): Promise<void> {
+  const matchesSourceIdentity = (identity: FileIdentity): boolean =>
+    sourceIdentities.some(
+      (source) => source !== null && source.dev === identity.dev && source.ino === identity.ino
+    );
+
   const conflicts: OutputConflict[] = [];
   for (const path of paths) {
     if (sourcePaths.has(path)) {
       conflicts.push({ path, reason: 'this is the source sheet or its manifest' });
       continue;
     }
+    if (await deps.isSymlink(path)) {
+      conflicts.push({ path, reason: 'this is a symbolic link' });
+      continue;
+    }
     const status = await deps.pathStatus(path);
     if (status === 'directory') {
       conflicts.push({ path, reason: 'a directory is in the way' });
-    } else if (status === 'file' && !force) {
+      continue;
+    }
+    const identity = await deps.fileIdentity(path);
+    if (identity !== null && matchesSourceIdentity(identity)) {
+      conflicts.push({ path, reason: 'this resolves to the source sheet or its manifest' });
+      continue;
+    }
+    if (status === 'file' && !force) {
       conflicts.push({ path, reason: 'already exists' });
     }
   }
@@ -602,7 +620,17 @@ export async function sliceImage(
     ...outputs.flatMap((output) => [output.path, output.manifestPath]),
     indexPath,
   ];
-  await preflightOutputs(deps, allOutputPaths, new Set([inPath, sourceManifestPath]), force);
+  const sourceIdentities = [
+    await deps.fileIdentity(inPath),
+    await deps.fileIdentity(sourceManifestPath),
+  ];
+  await preflightOutputs(
+    deps,
+    allOutputPaths,
+    new Set([inPath, sourceManifestPath]),
+    sourceIdentities,
+    force
+  );
 
   // 9. Crop and encode everything in memory. Any failure leaves the disk alone.
   const encoded = outputs.map((output) => {
@@ -649,6 +677,7 @@ export async function sliceImage(
   const slicedAt = deps.now().toISOString();
   const decoder = `pngjs@${deps.decoderVersion}`;
   const written: string[] = [];
+  const writeOptions = { exclusive: !force };
 
   const write = async (path: string, action: () => Promise<void>): Promise<void> => {
     try {
@@ -693,8 +722,8 @@ export async function sliceImage(
       slicedAt,
       licensing: LICENSING,
     };
-    await write(tile.path, () => deps.writeFile(tile.path, tile.encodedBytes));
-    await write(tile.manifestPath, () => deps.writeJson(tile.manifestPath, manifest));
+    await write(tile.path, () => deps.writeFile(tile.path, tile.encodedBytes, writeOptions));
+    await write(tile.manifestPath, () => deps.writeJson(tile.manifestPath, manifest, writeOptions));
   }
 
   const index: SliceIndexManifest = {
@@ -724,7 +753,7 @@ export async function sliceImage(
     slicedAt,
     licensing: LICENSING,
   };
-  await write(indexPath, () => deps.writeJson(indexPath, index));
+  await write(indexPath, () => deps.writeJson(indexPath, index, writeOptions));
 
   return result;
 }

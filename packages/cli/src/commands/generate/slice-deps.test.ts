@@ -6,7 +6,7 @@
  * and the filesystem helper semantics used by slice-image.
  */
 
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { link, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createDefaultSliceImageDeps } from './slice-deps.js';
 import type { DecodedImage } from './slice-deps.js';
+import { sliceImage } from './slice.js';
 
 const { PNG } = pngjs;
 
@@ -147,6 +148,78 @@ describe('createDefaultSliceImageDeps', () => {
     await deps.writeFile(path, bytes);
 
     expect(Array.from(await readFile(path))).toEqual([9, 8, 7]);
+  });
+
+  it('refuses an exclusive write to an existing file', async () => {
+    const deps = createDefaultSliceImageDeps();
+    const path = join(dir, 'existing.bin');
+    await writeFile(path, 'old');
+
+    const error = await captureError(
+      deps.writeFile(path, new Uint8Array([1]), { exclusive: true })
+    );
+
+    expect((error as NodeJS.ErrnoException).code).toBe('EEXIST');
+    await expect(readFile(path, 'utf8')).resolves.toBe('old');
+  });
+
+  it('identifies aliases of the same file and detects symlinks', async () => {
+    const deps = createDefaultSliceImageDeps();
+    const target = join(dir, 'target.txt');
+    const hardLink = join(dir, 'hard.txt');
+    const symbolicLink = join(dir, 'soft.txt');
+    await writeFile(target, 'same bytes');
+    await link(target, hardLink);
+    await symlink(target, symbolicLink);
+
+    const targetIdentity = await deps.fileIdentity(target);
+    expect(targetIdentity).not.toBeNull();
+    await expect(deps.fileIdentity(hardLink)).resolves.toEqual(targetIdentity);
+    await expect(deps.fileIdentity(symbolicLink)).resolves.toEqual(targetIdentity);
+    await expect(deps.fileIdentity(join(dir, 'missing'))).resolves.toBeNull();
+
+    await expect(deps.isSymlink(symbolicLink)).resolves.toBe(true);
+    await expect(deps.isSymlink(target)).resolves.toBe(false);
+    await expect(deps.isSymlink(join(dir, 'missing'))).resolves.toBe(false);
+  });
+
+  it('detects a dangling symlink as a symlink', async () => {
+    const deps = createDefaultSliceImageDeps();
+    const dangling = join(dir, 'dangling.txt');
+    await symlink(join(dir, 'does-not-exist.txt'), dangling);
+
+    await expect(deps.isSymlink(dangling)).resolves.toBe(true);
+    await expect(deps.fileIdentity(dangling)).resolves.toBeNull();
+  });
+
+  it('refuses a symlink named as an output', async () => {
+    const deps = createDefaultSliceImageDeps();
+    const sheetPath = join(dir, 'sheet.png');
+    const outDir = join(dir, 'out');
+    await writeFile(sheetPath, deps.encodePng(image(2, 2, () => [1, 2, 3, 255])));
+    await mkdir(outDir);
+    await symlink(join(dir, 'elsewhere.png'), join(outDir, 'tile.png'));
+
+    const error = await captureError(
+      sliceImage({ in: sheetPath, outDir, cols: 1, rows: 1, names: ['tile'], force: true }, deps)
+    );
+
+    expect(error.message).toContain('this is a symbolic link');
+  });
+
+  it('refuses a dangling symlink named as an output', async () => {
+    const deps = createDefaultSliceImageDeps();
+    const sheetPath = join(dir, 'sheet.png');
+    const outDir = join(dir, 'out');
+    await writeFile(sheetPath, deps.encodePng(image(2, 2, () => [1, 2, 3, 255])));
+    await mkdir(outDir);
+    await symlink(join(dir, 'missing-target.png'), join(outDir, 'tile.png'));
+
+    const error = await captureError(
+      sliceImage({ in: sheetPath, outDir, cols: 1, rows: 1, names: ['tile'], force: true }, deps)
+    );
+
+    expect(error.message).toContain('this is a symbolic link');
   });
 
   it('reports the installed pngjs version', () => {

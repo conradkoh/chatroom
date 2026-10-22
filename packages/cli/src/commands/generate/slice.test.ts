@@ -69,6 +69,7 @@ function makeImage(
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const SOURCE_IDENTITY = { dev: 1, ino: 100 };
 
 /** Recognisable, deterministic bytes with the crop's first and last pixel. */
 function fakeEncode(image: { width: number; height: number; data: Uint8Array }): Uint8Array {
@@ -92,10 +93,17 @@ function createDeps(overrides: Partial<SliceImageDeps> = {}): SliceImageDeps {
     ensureDir: vi.fn().mockResolvedValue(undefined),
     writeFile: vi.fn().mockResolvedValue(undefined),
     writeJson: vi.fn().mockResolvedValue(undefined),
+    fileIdentity: defaultFileIdentity(),
+    isSymlink: vi.fn().mockResolvedValue(false),
     now: () => new Date('2026-01-02T03:04:05.000Z'),
     decoderVersion: '6.0.0',
     ...overrides,
   };
+}
+
+/** The sheet has an identity; every other path is missing. */
+function defaultFileIdentity(): SliceImageDeps['fileIdentity'] {
+  return vi.fn(async (path: string) => (path === IN_PATH ? SOURCE_IDENTITY : null));
 }
 
 /** The sheet exists; every other path is missing. */
@@ -109,6 +117,17 @@ function pathStatusFor(entries: Record<string, PathStatus>): SliceImageDeps['pat
     const entry = entries[path];
     if (entry !== undefined) return entry;
     return path === IN_PATH ? 'file' : 'missing';
+  });
+}
+
+/** fileIdentity fake: the sheet always resolves to SOURCE_IDENTITY. */
+function fileIdentityFor(
+  entries: Record<string, { dev: number; ino: number } | null>
+): SliceImageDeps['fileIdentity'] {
+  return vi.fn(async (path: string) => {
+    const entry = entries[path];
+    if (entry !== undefined) return entry;
+    return path === IN_PATH ? SOURCE_IDENTITY : null;
   });
 }
 
@@ -711,6 +730,82 @@ describe('sliceImage', () => {
       expectNothingWritten(deps);
     });
 
+    it('refuses a case-variant output by file identity, even with --force', async () => {
+      const heroIn = resolve('/tmp/sheets/Hero.png');
+      const deps = createDeps({
+        pathStatus: pathStatusFor({ [heroIn]: 'file' }),
+        fileIdentity: fileIdentityFor({
+          [heroIn]: SOURCE_IDENTITY,
+          [resolve('/tmp/sheets/hero.png')]: SOURCE_IDENTITY,
+        }),
+      });
+
+      const error = await captureError(
+        sliceImage(
+          {
+            in: heroIn,
+            outDir: resolve('/tmp/sheets'),
+            cols: 1,
+            rows: 1,
+            names: ['hero'],
+            force: true,
+          },
+          deps
+        )
+      );
+
+      expect(error.message).toContain(
+        `${resolve('/tmp/sheets/hero.png')}: this resolves to the source sheet or its manifest`
+      );
+      expectNothingWritten(deps);
+    });
+
+    it('refuses an output that is the same file as the source, even with --force', async () => {
+      const deps = createDeps({
+        fileIdentity: fileIdentityFor({ [resolve('/tmp/tiles/hero.png')]: SOURCE_IDENTITY }),
+      });
+
+      const error = await captureError(
+        sliceImage(
+          { in: IN_PATH, outDir: OUT_DIR, cols: 1, rows: 1, names: ['hero'], force: true },
+          deps
+        )
+      );
+
+      expect(error.message).toContain('resolves to the source sheet or its manifest');
+      expectNothingWritten(deps);
+    });
+
+    it('refuses a symlinked output, even with --force', async () => {
+      const symlinkPath = resolve('/tmp/tiles/hero.png');
+      const deps = createDeps({
+        isSymlink: vi.fn(async (path: string) => path === symlinkPath),
+      });
+
+      const error = await captureError(
+        sliceImage(
+          { in: IN_PATH, outDir: OUT_DIR, cols: 1, rows: 1, names: ['hero'], force: true },
+          deps
+        )
+      );
+
+      expect(error.message).toContain(`${symlinkPath}: this is a symbolic link`);
+      expectNothingWritten(deps);
+    });
+
+    it('refuses a dangling symlink output before pathStatus calls it missing', async () => {
+      const symlinkPath = resolve('/tmp/tiles/hero.png');
+      const deps = createDeps({
+        pathStatus: pathStatusFor({ [symlinkPath]: 'missing' }),
+        isSymlink: vi.fn(async (path: string) => path === symlinkPath),
+      });
+
+      const error = await captureError(sliceImage(opts, deps));
+
+      expect(error.message).toContain(`${symlinkPath}: this is a symbolic link`);
+      expectNothingWritten(deps);
+    });
+
     it('lists every conflict in one error', async () => {
       const deps = createDeps({
         pathStatus: pathStatusFor({
@@ -740,6 +835,43 @@ describe('sliceImage', () => {
 
     expect(deps.writeFile).toHaveBeenCalledTimes(3);
     expect(deps.writeJson).toHaveBeenCalledTimes(4);
+  });
+
+  it('uses exclusive writes without --force and overwrites with it', async () => {
+    const safe = createDeps();
+
+    await sliceImage(opts, safe);
+
+    expect(safe.writeFile).toHaveBeenCalledWith(
+      resolve('/tmp/tiles/hero.png'),
+      expect.any(Uint8Array),
+      { exclusive: true }
+    );
+    expect(safe.writeJson).toHaveBeenCalledWith(
+      resolve('/tmp/tiles/sheet.slices.json'),
+      expect.anything(),
+      { exclusive: true }
+    );
+
+    const forced = createDeps({
+      pathStatus: pathStatusFor({
+        [resolve('/tmp/tiles/hero.png')]: 'file',
+        [resolve('/tmp/tiles/hero.png.json')]: 'file',
+      }),
+    });
+
+    await sliceImage({ ...opts, force: true }, forced);
+
+    expect(forced.writeFile).toHaveBeenCalledWith(
+      resolve('/tmp/tiles/hero.png'),
+      expect.any(Uint8Array),
+      { exclusive: false }
+    );
+    expect(forced.writeJson).toHaveBeenCalledWith(
+      resolve('/tmp/tiles/sheet.slices.json'),
+      expect.anything(),
+      { exclusive: false }
+    );
   });
 
   it('dry-run writes nothing but still reports tiles and refusals', async () => {
