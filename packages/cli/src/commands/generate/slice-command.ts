@@ -24,13 +24,17 @@ const DECIMAL_INTEGER = /^\d+$/;
  */
 const HELP_AFTER = `
 Usage:
-  chatroom slice-image --in <path> --out-dir <dir> --cols <n> --rows <n> [--margin <px>] [--gutter <px>] [--names <a,b,,c,...> | --prefix <text>] [--allow-remainder] [--force] [--dry-run]
+  chatroom slice-image --in <path> --out-dir <dir> --cols <n> --rows <n> [--margin <px>] [--gutter <px>] [--names <a,b,,c,...> | --prefix <text>] [--allow-remainder] [--allow-edge-content] [--force] [--dry-run]
 
 Grid:
   The sheet width must divide evenly by --cols and its height by --rows, or
   pass --allow-remainder to drop the leftover pixels on the right and bottom.
   --margin skips pixels on all four sides and --gutter sits between adjacent
   cells; both shrink the usable area, and every tile keeps the same size.
+  The sheet must hold one item per cell, with no artwork touching the cell
+  borders. The command refuses a sheet whose artwork crosses a border unless
+  --allow-edge-content is given. Item names are not checked against the picture;
+  inspect the tiles.
 
 Naming:
   --names is row-major with one entry per cell. An empty entry skips that cell.
@@ -49,7 +53,7 @@ Refusals:
   --force, as is any output path that is a symbolic link. Non-PNG input is
   refused. Slicing is local: no network call and no FAL_API_KEY are needed.
 
-Examples (default 1024x768 sheet):
+Examples (default 1024x768 sheet, only if the sheet matches that grid):
   chatroom slice-image --in sheet.png --out-dir tiles --cols 4 --rows 3
     -> 12 tiles, each 256x256
   chatroom slice-image --in sheet.png --out-dir tiles --cols 2 --rows 2

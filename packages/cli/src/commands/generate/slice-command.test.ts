@@ -230,6 +230,7 @@ describe('chatroom slice-image wiring', () => {
       '--names',
       '--prefix',
       '--allow-remainder',
+      '--allow-edge-content',
       '--force',
       '--dry-run',
     ]) {
@@ -249,14 +250,17 @@ describe('chatroom slice-image wiring', () => {
     command?.outputHelp();
 
     expect(help).toContain(
-      'chatroom slice-image --in <path> --out-dir <dir> --cols <n> --rows <n> [--margin <px>] [--gutter <px>] [--names <a,b,,c,...> | --prefix <text>] [--allow-remainder] [--force] [--dry-run]'
+      'chatroom slice-image --in <path> --out-dir <dir> --cols <n> --rows <n> [--margin <px>] [--gutter <px>] [--names <a,b,,c,...> | --prefix <text>] [--allow-remainder] [--allow-edge-content] [--force] [--dry-run]'
     );
     expect(help).toContain('--allow-remainder');
+    expect(help).toContain('--allow-edge-content');
     expect(help).toContain('--names');
     expect(help).toContain('<stem>.slices.json');
     expect(help).toContain('--cols 4 --rows 3');
     expect(help).toContain('256x256');
     expect(help).toContain('512x384');
     expect(help).toContain('341x384');
+    expect(help).toContain('The sheet must hold one item per cell');
+    expect(help).toContain('Item names are not checked against the picture');
   });
 });
