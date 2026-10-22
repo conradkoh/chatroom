@@ -1,8 +1,8 @@
 /**
- * `chatroom generate` — local asset generation commands.
+ * `chatroom generate-image` — local asset generation command.
  *
- * These commands call third-party generation APIs directly and never touch the
- * chatroom backend, so they live in the no-auth section of the CLI. Heavy
+ * This command calls a third-party generation API directly and never touches
+ * the chatroom backend, so it lives in the no-auth section of the CLI. Heavy
  * imports (the fal SDK) are loaded inside the action to keep CLI startup fast.
  */
 
@@ -33,13 +33,9 @@ function parseSeed(value: string): number {
   return seed;
 }
 
-export function registerGenerateCommand(program: Command): void {
-  const generateCommand = program
-    .command('generate')
-    .description('Generate local assets (no chatroom auth required)');
-
-  generateCommand
-    .command('image')
+export function registerGenerateImageCommand(program: Command): void {
+  program
+    .command('generate-image')
     .description('Generate one image with a fal model and write a JSON manifest next to it')
     .requiredOption('--prompt <text>', 'Text prompt describing the image')
     .requiredOption('--out <path>', 'Output image path (manifest is written to <path>.json)')

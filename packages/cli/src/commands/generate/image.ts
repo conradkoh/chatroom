@@ -1,5 +1,5 @@
 /**
- * Generate Image — pure logic for `chatroom generate image`.
+ * Generate Image — pure logic for `chatroom generate-image`.
  *
  * Generates one image through an injected fal subscriber, writes the bytes to
  * `out`, and writes a JSON sidecar manifest to `<out>.json`. No SDK, network,
@@ -34,7 +34,7 @@ export interface GenerateImageResult {
 
 /** Sidecar manifest written next to the generated image. */
 export interface GenerateImageManifest {
-  tool: 'chatroom generate image';
+  tool: 'chatroom generate-image';
   sdk: string;
   model: string;
   input: Record<string, unknown>;
@@ -117,7 +117,7 @@ function buildManifest(args: {
   sdkVersion: string;
 }): GenerateImageManifest {
   return {
-    tool: 'chatroom generate image',
+    tool: 'chatroom generate-image',
     sdk: `@fal-ai/client@${args.sdkVersion}`,
     model: args.model,
     input: args.input,

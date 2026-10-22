@@ -117,7 +117,7 @@ describe('generateImage', () => {
       string,
       unknown
     >;
-    expect(manifest.tool).toBe('chatroom generate image');
+    expect(manifest.tool).toBe('chatroom generate-image');
     expect(manifest.sdk).toBe('@fal-ai/client@1.10.1');
     expect(manifest.model).toBe('fal-ai/nano-banana-2');
     expect(manifest.input).toEqual({

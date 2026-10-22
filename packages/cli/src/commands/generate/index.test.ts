@@ -1,5 +1,5 @@
 /**
- * `chatroom generate image` wiring tests.
+ * `chatroom generate-image` wiring tests.
  *
  * Only failure paths are exercised: a valid parse would run the real command
  * and hit the network, so success behavior lives in image.test.ts.
@@ -8,20 +8,20 @@
 import { Command } from 'commander';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { registerGenerateCommand } from './index.js';
+import { registerGenerateImageCommand } from './index.js';
 
 function createProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  registerGenerateCommand(program);
+  registerGenerateImageCommand(program);
   return program;
 }
 
 async function parse(program: Command, args: string[]): Promise<unknown> {
-  return program.parseAsync(['node', 'chatroom', 'generate', 'image', ...args]);
+  return program.parseAsync(['node', 'chatroom', 'generate-image', ...args]);
 }
 
-describe('chatroom generate image wiring', () => {
+describe('chatroom generate-image wiring', () => {
   afterEach(() => {
     process.exitCode = undefined;
   });
@@ -55,10 +55,10 @@ describe('chatroom generate image wiring', () => {
 
   it('documents the flags in help output', () => {
     const program = createProgram();
-    const imageCommand = program.commands[0]?.commands[0];
+    const command = program.commands[0];
 
-    expect(imageCommand?.name()).toBe('image');
-    const flags = imageCommand?.options.map((option) => option.long) ?? [];
+    expect(command?.name()).toBe('generate-image');
+    const flags = command?.options.map((option) => option.long) ?? [];
     expect(flags).toEqual([
       '--prompt',
       '--out',
@@ -67,5 +67,22 @@ describe('chatroom generate image wiring', () => {
       '--output-format',
       '--seed',
     ]);
+  });
+
+  it('does not expose the old `generate image` group form', async () => {
+    const program = createProgram();
+
+    await expect(
+      program.parseAsync([
+        'node',
+        'chatroom',
+        'generate',
+        'image',
+        '--prompt',
+        'x',
+        '--out',
+        '/tmp/x.png',
+      ])
+    ).rejects.toMatchObject({ code: 'commander.unknownCommand' });
   });
 });
