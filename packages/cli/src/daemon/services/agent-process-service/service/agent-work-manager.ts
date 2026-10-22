@@ -208,13 +208,13 @@ export class AgentWorkManager {
   /** Respawn starts that failed and still have retries, per role. Cleared on success, exhaustion, or cancellation. */
   private readonly respawnStartRetries = new Map<string, PendingRespawnStart>();
   private respawnRestartSeq = 0;
+  /** Consecutive accounting failures per task, so a broken task service cannot loop forever. */
+  private readonly turnFailureAccountingFailures = new Map<string, number>();
   /**
    * Provider-failure releases waiting out their exponential backoff, keyed by
    * `chatroom:role:taskId`. In-memory on purpose: a daemon restart clears both
    * the timers and the in-memory attempt budget (known limitation).
    */
-  /** Consecutive accounting failures per task, so a broken task service cannot loop forever. */
-  private readonly turnFailureAccountingFailures = new Map<string, number>();
   private readonly turnFailureReleaseTimers = new Map<
     string,
     { readonly key: TurnFailureReleaseKey; readonly timer: ReturnType<typeof setTimeout> }
