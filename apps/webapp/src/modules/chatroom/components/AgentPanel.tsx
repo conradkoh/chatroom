@@ -3,7 +3,7 @@
 import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { ChevronRight, Users } from 'lucide-react';
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useMemo, memo } from 'react';
 
 import { CommandQueuePanel } from './AgentPanel/CommandQueuePanel';
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
@@ -20,13 +20,11 @@ import {
   getRowHighlightClass,
 } from './AgentPanel/AgentStatusRow';
 import { TeamSelectorDropdown } from './AgentPanel/TeamSelectorDropdown';
-import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { SIDEBAR_PREVIEW_LIMIT, SidebarSection } from './sidebar/SidebarSection';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 interface AgentPanelProps {
-  chatroomId: string;
   machineId: string | null | undefined;
   teamStructure: TeamStructure | null | undefined;
   lifecycle: TeamLifecycle | null | undefined;
@@ -37,8 +35,10 @@ interface AgentPanelProps {
   teams: readonly TeamConfigEntry[] | undefined;
   onTeamChange: ((team: TeamConfigEntry) => Promise<void>) | undefined;
   agentConfigs: AgentConfig[];
-  /** Called when user clicks an agent row — opens settings to agents tab */
-  onOpenAgents: (() => void) | undefined;
+  /** Opens the single-agent config modal for this role (any agent row). */
+  onOpenAgent: (role: string) => void;
+  /** Opens Settings → Agents tab (sidebar "View all"). */
+  onOpenAgents: () => void;
   hasRunningRemoteAgents: boolean;
   canStopRemoteAgents: boolean;
   onStartAllRemoteAgents: (() => void) | undefined;
@@ -55,7 +55,7 @@ interface AgentSidebarRowProps {
   agentStatus: AgentStatus | undefined;
   agentConfig: AgentConfig | undefined;
   isLoadingStatuses: boolean;
-  onOpen: () => void;
+  onOpen: (role: string) => void;
 }
 
 interface AgentSidebarInfoProps {
@@ -121,12 +121,13 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
         className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${getRowHighlightClass(statusVariant)}`}
         role="button"
         tabIndex={0}
-        aria-label={`${role}: ${isLoadingStatuses ? 'Loading...' : statusLabel}. Click to view all agents.`}
-        onClick={onOpen}
+        aria-label={`${role}: ${isLoadingStatuses ? 'Loading...' : statusLabel}. Click to configure.`}
+        data-testid={`agent-sidebar-row-${role}`}
+        onClick={() => onOpen(role)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onOpen();
+            onOpen(role);
           }
         }}
       >
@@ -156,7 +157,6 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
 // ─── AgentPanel ──────────────────────────────────────────────────────────────
 
 export const AgentPanel = memo(function AgentPanel({
-  chatroomId,
   machineId,
   teamStructure,
   lifecycle,
@@ -167,6 +167,7 @@ export const AgentPanel = memo(function AgentPanel({
   teams,
   onTeamChange,
   agentConfigs,
+  onOpenAgent,
   onOpenAgents,
   hasRunningRemoteAgents,
   canStopRemoteAgents,
@@ -176,8 +177,6 @@ export const AgentPanel = memo(function AgentPanel({
   isStoppingAgents,
   isStartingAllAgents,
 }: AgentPanelProps) {
-  const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
-
   const displayRoles = useMemo(() => {
     const base = teamStructure?.roles.map(({ role }) => role) ?? [];
     return base.filter((role) => role !== 'user');
@@ -210,21 +209,6 @@ export const AgentPanel = memo(function AgentPanel({
     statusReadModel
   );
 
-  // Open agent list — if onOpenAgents is provided, open settings to agents tab;
-  // otherwise fall back to the standalone UnifiedAgentListModal
-  const openAgentListModal = useCallback(() => {
-    if (onOpenAgents) {
-      onOpenAgents();
-    } else {
-      setIsAgentListModalOpen(true);
-    }
-  }, [onOpenAgents]);
-
-  // Close unified agent list modal
-  const closeAgentListModal = useCallback(() => {
-    setIsAgentListModalOpen(false);
-  }, []);
-
   const renderAgentRows = (roles: string[]) =>
     roles.map((role) => (
       <AgentSidebarRow
@@ -233,7 +217,7 @@ export const AgentPanel = memo(function AgentPanel({
         agentStatus={agentStatuses.find((a) => a.role === role)}
         agentConfig={latestAgentConfigByRole.get(role.toLowerCase())}
         isLoadingStatuses={isLoadingStatuses}
-        onOpen={openAgentListModal}
+        onOpen={onOpenAgent}
       />
     ));
 
@@ -308,14 +292,7 @@ export const AgentPanel = memo(function AgentPanel({
           </>
         )}
       </div>
-      <SidebarSection.ViewMore count={hiddenPermanentRoleCount} onClick={openAgentListModal} />
-
-      {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}
-      <UnifiedAgentListModal
-        isOpen={isAgentListModalOpen}
-        onClose={closeAgentListModal}
-        chatroomId={chatroomId}
-      />
+      <SidebarSection.ViewMore count={hiddenPermanentRoleCount} onClick={onOpenAgents} />
     </SidebarSection.Root>
   );
 });

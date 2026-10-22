@@ -29,6 +29,18 @@ const lifecycle = {
 };
 
 const duoStructure = getTeamStructure({ teamId: 'duo' });
+const previewOverflowStructure = {
+  ...duoStructure,
+  roles: [
+    { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+    { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+    { role: 'analyst', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+    { role: 'tester', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
+    { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+    { role: 'triage', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+    { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+  ],
+};
 const pinnedTeamFacts = [
   {
     teamId: 'duo',
@@ -51,7 +63,6 @@ const pinnedTeamFacts = [
 ] as const;
 
 const panelProps = {
-  chatroomId: 'room1',
   machineId: null,
   lifecycle,
   statusReadModel: [],
@@ -61,7 +72,8 @@ const panelProps = {
   teams: undefined,
   onTeamChange: undefined,
   agentConfigs: [],
-  onOpenAgents: undefined,
+  onOpenAgent: vi.fn(),
+  onOpenAgents: vi.fn(),
   hasRunningRemoteAgents: false,
   canStopRemoteAgents: false,
   onStartAllRemoteAgents: undefined,
@@ -149,14 +161,47 @@ describe('AgentPanel', () => {
     }
   );
 
-  it('opens the agent settings callback from the triage row', () => {
+  it('opens the single-agent config callback from the triage row', () => {
+    const onOpenAgent = vi.fn();
     const onOpenAgents = vi.fn();
-    render(<AgentPanel {...panelProps} teamStructure={duoStructure} onOpenAgents={onOpenAgents} />);
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        onOpenAgent={onOpenAgent}
+        onOpenAgents={onOpenAgents}
+      />
+    );
     const triage = screen.getByLabelText(/triage:/i);
     fireEvent.click(triage);
     fireEvent.keyDown(triage, { key: 'Enter' });
     fireEvent.keyDown(triage, { key: ' ' });
-    expect(onOpenAgents).toHaveBeenCalledTimes(3);
+    expect(onOpenAgent).toHaveBeenCalledTimes(3);
+    for (const call of onOpenAgent.mock.calls) {
+      expect(call).toEqual(['triage']);
+    }
+    expect(onOpenAgents).not.toHaveBeenCalled();
+  });
+
+  it('opens the single-agent config callback from a permanent row', () => {
+    const onOpenAgent = vi.fn();
+    render(<AgentPanel {...panelProps} teamStructure={duoStructure} onOpenAgent={onOpenAgent} />);
+    fireEvent.click(screen.getByTestId('agent-sidebar-row-planner'));
+    expect(onOpenAgent).toHaveBeenCalledTimes(1);
+    expect(onOpenAgent).toHaveBeenCalledWith('planner');
+  });
+
+  it('opens Settings agents from the View More action', () => {
+    const onOpenAgents = vi.fn();
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={previewOverflowStructure}
+        onOpenAgents={onOpenAgents}
+      />
+    );
+    fireEvent.click(screen.getByText('View More (1 more items)'));
+    expect(onOpenAgents).toHaveBeenCalledTimes(1);
   });
 
   it('keeps declared rows visible while status data is loading', () => {
@@ -193,20 +238,7 @@ describe('AgentPanel', () => {
   });
 
   it('keeps all ephemeral agents visible when permanent agents exceed the preview limit', () => {
-    const expandedStructure = {
-      ...duoStructure,
-      roles: [
-        { role: 'planner', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-        { role: 'builder', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-        { role: 'analyst', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-        { role: 'tester', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-        { role: 'architect', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-        { role: 'triage', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-        { role: 'uiux-engineer', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-      ],
-    };
-
-    render(<AgentPanel {...panelProps} teamStructure={expandedStructure} />);
+    render(<AgentPanel {...panelProps} teamStructure={previewOverflowStructure} />);
 
     expect(screen.getByText('Agents (7)')).toBeInTheDocument();
     expect(screen.getByText('Ephemeral (3)')).toBeInTheDocument();

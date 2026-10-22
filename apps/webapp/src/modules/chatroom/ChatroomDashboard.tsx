@@ -138,6 +138,14 @@ const AgentSettingsModal = dynamic(
   { loading: () => null }
 );
 
+const AgentConfigModal = dynamic(
+  () =>
+    import('./components/AgentPanel/AgentConfigModal').then((m) => ({
+      default: m.AgentConfigModal,
+    })),
+  { loading: () => null }
+);
+
 const SetupChecklistModal = dynamic(
   () =>
     import('./components/SetupChecklistModal').then((m) => ({ default: m.SetupChecklistModal })),
@@ -1650,6 +1658,22 @@ function ChatroomDashboardContent({
     setSettingsModalOpen(true);
   }, []);
 
+  // Sticky role: never cleared on close, so the modal does not flash empty during the exit animation.
+  const [agentConfigRole, setAgentConfigRole] = useState<string | null>(null);
+  const [isAgentConfigOpen, setIsAgentConfigOpen] = useState(false);
+
+  const handleOpenAgent = useCallback((role: string) => {
+    setAgentConfigRole(role);
+    setIsAgentConfigOpen(true);
+  }, []);
+
+  const handleCloseAgent = useCallback(() => setIsAgentConfigOpen(false), []);
+
+  const handleAgentViewAll = useCallback(() => {
+    setIsAgentConfigOpen(false);
+    handleOpenAgents();
+  }, [handleOpenAgents]);
+
   const handleCloseSettings = useCallback(() => {
     setSettingsModalOpen(false);
     setSettingsInitialTab(undefined);
@@ -2010,7 +2034,6 @@ function ChatroomDashboardContent({
               `}
                     >
                       <AgentPanel
-                        chatroomId={chatroomId}
                         machineId={activeWorkspace?.machineId}
                         teamStructure={agentPanelData.teamStructure}
                         lifecycle={lifecycle}
@@ -2021,6 +2044,7 @@ function ChatroomDashboardContent({
                         teams={teams}
                         onTeamChange={handleTeamChange}
                         agentConfigs={agentPanelData.machineConfigs}
+                        onOpenAgent={handleOpenAgent}
                         onOpenAgents={handleOpenAgents}
                         hasRunningRemoteAgents={hasRunningRemoteAgents}
                         canStopRemoteAgents={chatroomStatus?.canStop ?? false}
@@ -2056,6 +2080,16 @@ function ChatroomDashboardContent({
                   currentTeamRoles={teamRoles}
                   initialTab={settingsInitialTab}
                 />
+
+                {agentConfigRole !== null && (
+                  <AgentConfigModal
+                    isOpen={isAgentConfigOpen}
+                    onClose={handleCloseAgent}
+                    chatroomId={chatroomId}
+                    role={agentConfigRole}
+                    onViewAllAgents={handleAgentViewAll}
+                  />
+                )}
 
                 <FileSelectorModal
                   files={fileSelector.files}
