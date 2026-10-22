@@ -12,10 +12,8 @@
 
 import { InvalidArgumentError, type Command } from 'commander';
 
-import { sliceImage } from './slice.js';
+import { MAX_GRID_DIMENSION, sliceImage } from './slice.js';
 import type { SliceImageOptions } from './slice.js';
-
-const MAX_GRID_DIMENSION = 64;
 
 function parsePositiveInt(value: string): number {
   const parsed = Number(value);

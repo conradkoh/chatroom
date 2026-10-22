@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PathStatus } from './deps.js';
+import type { SliceImageDeps } from './slice-deps.js';
 import {
   computeSliceGrid,
   MAX_SOURCE_BYTES,
@@ -18,7 +19,6 @@ import {
   sliceImage,
   SliceImageError,
 } from './slice.js';
-import type { SliceImageDeps } from './slice-deps.js';
 
 // slice-image must never load the fal SDK or read FAL_API_KEY.
 vi.mock('@fal-ai/client', () => {
@@ -50,11 +50,6 @@ function makeImage(
     }
   }
   return { width, height, data };
-}
-
-function pixelAt(image: { width: number; data: Uint8Array }, x: number, y: number): number[] {
-  const offset = (y * image.width + x) * 4;
-  return Array.from(image.data.subarray(offset, offset + 4));
 }
 
 const encoder = new TextEncoder();
@@ -462,6 +457,7 @@ describe('sliceImage', () => {
 
       const result = await sliceImage(opts, deps);
 
+      expect(result.warnings).toHaveLength(1);
       expect(result.warnings.some((warning) => warning.includes('Ignoring'))).toBe(true);
       expect(result.tiles).toHaveLength(3);
     });

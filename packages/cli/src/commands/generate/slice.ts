@@ -357,14 +357,6 @@ function parseSourceManifest(
   sheetSha: string,
   manifestPath: string
 ): ParsedSourceManifest {
-  if (raw === undefined) {
-    return {
-      manifest: null,
-      warnings: [
-        `No generate-image manifest at ${manifestPath}; tile manifests record the sheet hash only.`,
-      ],
-    };
-  }
   if (!isRecord(raw)) {
     return {
       manifest: null,
@@ -541,23 +533,29 @@ export async function sliceImage(
     );
   }
 
-  let rawManifest: unknown;
+  let sourceManifest: SliceSourceManifest | null = null;
   try {
-    rawManifest = await deps.readJsonIfExists(sourceManifestPath);
+    const rawManifest = await deps.readJsonIfExists(sourceManifestPath);
+    if (rawManifest === undefined) {
+      warnings.push(
+        `No generate-image manifest at ${sourceManifestPath}; tile manifests record the sheet hash only.`
+      );
+    } else {
+      const parsed = parseSourceManifest(rawManifest, sheetSha, sourceManifestPath);
+      sourceManifest = parsed.manifest;
+      warnings.push(...parsed.warnings);
+    }
   } catch (err) {
     warnings.push(`Ignoring ${sourceManifestPath}: ${errorMessage(err)}`);
-    rawManifest = undefined;
   }
-  const parsed = parseSourceManifest(rawManifest, sheetSha, sourceManifestPath);
-  warnings.push(...parsed.warnings);
   const source: SliceSourceInfo = {
     path: inPath,
     sha256: sheetSha,
     bytes: bytes.byteLength,
     width: image.width,
     height: image.height,
-    manifestPath: parsed.manifest === null ? null : sourceManifestPath,
-    manifest: parsed.manifest,
+    manifestPath: sourceManifest === null ? null : sourceManifestPath,
+    manifest: sourceManifest,
   };
 
   // 7. Refuse every unwritable output before a single byte is written.
