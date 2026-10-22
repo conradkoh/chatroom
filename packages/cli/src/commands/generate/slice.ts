@@ -7,19 +7,18 @@
  * untouched until every validation, decode, crop, and encode step has passed.
  */
 
-// The constants and manifest types are part of the public slice API (tests and
-// future callers import them), and sliceImage is a linear pipeline.
-// fallow-ignore-file unused-export complexity
-
 import { createHash } from 'node:crypto';
 import { basename, extname, join, resolve } from 'node:path';
 
 import type { FileIdentity, SliceImageDeps } from './slice-deps.js';
 
-export const SLICE_TOOL = 'chatroom slice-image' as const;
-export const MAX_TILES = 256;
+const SLICE_TOOL = 'chatroom slice-image' as const;
+const MAX_TILES = 256;
 export const MAX_GRID_DIMENSION = 64;
-export const MAX_SOURCE_PIXELS = 100_000_000;
+const MAX_SOURCE_PIXELS = 100_000_000;
+// Only the unit tests import these validated helpers; tests are outside the
+// fallow graph.
+// fallow-ignore-next-line unused-export
 export const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
 /** generate-image sidecars are small; anything larger is ignored as unreadable. */
 const MAX_SIDECAR_BYTES = 1024 * 1024;
@@ -30,6 +29,7 @@ const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
 /** fal's terms do not grant verified commercial rights, so tiles stay unverified. */
 const LICENSING = 'unverified' as const;
 
+// fallow-ignore-next-line unused-export
 export class SliceImageError extends Error {
   constructor(message: string) {
     super(message);
@@ -55,7 +55,7 @@ export interface SliceImageOptions {
   dryRun?: boolean | undefined;
 }
 
-export interface SliceTile {
+interface SliceTile {
   /** 0-based, row-major. */
   index: number;
   row: number;
@@ -68,7 +68,7 @@ export interface SliceTile {
   name: string;
 }
 
-export interface SliceGrid {
+interface SliceGrid {
   tileWidth: number;
   tileHeight: number;
   droppedRight: number;
@@ -76,7 +76,7 @@ export interface SliceGrid {
   cells: Pick<SliceTile, 'index' | 'row' | 'col' | 'x' | 'y' | 'width' | 'height'>[];
 }
 
-export interface SliceImageResult {
+interface SliceImageResult {
   dryRun: boolean;
   sheet: { path: string; sha256: string; width: number; height: number };
   tileSize: { width: number; height: number };
@@ -91,7 +91,7 @@ export interface SliceImageResult {
 }
 
 /** The subset of a `generate-image` manifest copied into a tile manifest. */
-export interface SliceSourceManifest {
+interface SliceSourceManifest {
   platform: unknown;
   model: unknown;
   requestId: unknown;
@@ -101,7 +101,7 @@ export interface SliceSourceManifest {
   sha256Matches: boolean | null;
 }
 
-export interface SliceSourceInfo {
+interface SliceSourceInfo {
   path: string;
   sha256: string;
   bytes: number;
@@ -111,7 +111,7 @@ export interface SliceSourceInfo {
   manifest: SliceSourceManifest | null;
 }
 
-export interface SliceTileManifest {
+interface SliceTileManifest {
   tool: typeof SLICE_TOOL;
   decoder: string;
   source: SliceSourceInfo;
@@ -138,7 +138,7 @@ export interface SliceTileManifest {
   licensing: typeof LICENSING;
 }
 
-export interface SliceIndexManifest {
+interface SliceIndexManifest {
   tool: typeof SLICE_TOOL;
   decoder: string;
   source: SliceSourceInfo;
@@ -179,6 +179,7 @@ function padWidth(tileCount: number): number {
   return Math.max(2, String(tileCount).length);
 }
 
+// fallow-ignore-next-line complexity
 function requireInteger(value: number, label: string, min: number, max?: number): number {
   if (!Number.isInteger(value)) {
     throw new SliceImageError(`${label} must be an integer.`);
@@ -205,6 +206,7 @@ function requireNonEmptyPath(value: string, label: string): string {
  * and are reported rather than spread across tiles, so every tile is exactly
  * `tileWidth x tileHeight` with no resampling or padding.
  */
+// fallow-ignore-next-line unused-export complexity
 export function computeSliceGrid(args: {
   width: number;
   height: number;
@@ -273,6 +275,7 @@ function requireOutputNameFits(name: string): string {
  * An empty string skips that cell. Explicit names are validated before any
  * work so a name cannot escape `--out-dir`. Default names are `<prefix>-NN`.
  */
+// fallow-ignore-next-line unused-export complexity
 export function resolveTileNames(args: {
   cols: number;
   rows: number;
@@ -346,6 +349,7 @@ function hasPngMagic(bytes: Uint8Array): boolean {
  * caller refuse oversized images before handing bytes to the decoder.
  * Returns null when the bytes are too short or do not start with IHDR.
  */
+// fallow-ignore-next-line unused-export complexity
 export function readPngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
   // 8 magic bytes + 4 length bytes + 4 type bytes + 8 dimension bytes.
   if (bytes.length < 24) return null;
@@ -387,6 +391,7 @@ interface ParsedSourceManifest {
  * Unknown or malformed shapes are ignored with a warning; they must not stop a
  * local, free slice.
  */
+// fallow-ignore-next-line complexity
 function parseSourceManifest(
   raw: unknown,
   sheetSha: string,
@@ -444,6 +449,7 @@ function formatConflicts(conflicts: OutputConflict[]): string {
  * without `--force` are all refused. Identity checks use `stat`, so a case
  * variant, hard link, or symlinked directory cannot overwrite the source.
  */
+// fallow-ignore-next-line complexity
 async function preflightOutputs(
   deps: SliceImageDeps,
   paths: string[],
@@ -489,6 +495,9 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+// The pipeline is a linear sequence of validated stages; splitting it would
+// spread the "nothing is written before every check passes" invariant.
+// fallow-ignore-next-line complexity
 export async function sliceImage(
   opts: SliceImageOptions,
   deps: SliceImageDeps
