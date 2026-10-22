@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 import { generateImage } from './image.js';
+import type { GenerateImagePlatform } from './image.js';
 
 const FAL_KEY = 'fal-key-should-never-be-written';
 const OUT_PATH = '/tmp/generated/hero.png';
@@ -67,6 +68,43 @@ describe('generateImage', () => {
       '--out must not be empty'
     );
     expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unsupported platform before calling fal', async () => {
+    const deps = createDeps();
+
+    await expect(
+      generateImage(
+        { prompt: 'a hero', out: OUT_PATH, platform: 'replicate' as GenerateImagePlatform },
+        deps
+      )
+    ).rejects.toThrow('unsupported platform: replicate');
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.fetchBytes).not.toHaveBeenCalled();
+  });
+
+  it('defaults the platform to fal', async () => {
+    const deps = createDeps();
+
+    await generateImage({ prompt: 'a castle', out: OUT_PATH }, deps);
+
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(manifest.platform).toBe('fal');
+  });
+
+  it('records an explicitly selected fal platform', async () => {
+    const deps = createDeps();
+
+    await generateImage({ prompt: 'a castle', out: OUT_PATH, platform: 'fal' }, deps);
+
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(manifest.platform).toBe('fal');
   });
 
   it('rejects when fal returns no image', async () => {

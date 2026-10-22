@@ -10,13 +10,22 @@ import { InvalidArgumentError, type Command } from 'commander';
 
 import {
   DEFAULT_ASPECT_RATIO,
+  DEFAULT_GENERATE_IMAGE_PLATFORM,
   DEFAULT_IMAGE_MODEL,
   DEFAULT_OUTPUT_FORMAT,
+  GENERATE_IMAGE_PLATFORMS,
   generateImage,
 } from './image.js';
-import type { ImageOutputFormat } from './image.js';
+import type { GenerateImagePlatform, ImageOutputFormat } from './image.js';
 
 const OUTPUT_FORMATS: readonly ImageOutputFormat[] = ['png', 'jpeg', 'webp'];
+
+function parsePlatform(value: string): GenerateImagePlatform {
+  if (!GENERATE_IMAGE_PLATFORMS.includes(value as GenerateImagePlatform)) {
+    throw new InvalidArgumentError(`must be one of ${GENERATE_IMAGE_PLATFORMS.join(', ')}`);
+  }
+  return value as GenerateImagePlatform;
+}
 
 function parseOutputFormat(value: string): ImageOutputFormat {
   if (!OUTPUT_FORMATS.includes(value as ImageOutputFormat)) {
@@ -39,7 +48,13 @@ export function registerGenerateImageCommand(program: Command): void {
     .description('Generate one image with a fal model and write a JSON manifest next to it')
     .requiredOption('--prompt <text>', 'Text prompt describing the image')
     .requiredOption('--out <path>', 'Output image path (manifest is written to <path>.json)')
-    .option('--model <id>', 'fal model id', DEFAULT_IMAGE_MODEL)
+    .option(
+      '--platform <name>',
+      'Generation platform: fal',
+      parsePlatform,
+      DEFAULT_GENERATE_IMAGE_PLATFORM
+    )
+    .option('--model <id>', 'Model id on the selected platform', DEFAULT_IMAGE_MODEL)
     .option(
       '--aspect-ratio <ratio>',
       'Aspect ratio, e.g. 1:1, 4:3, 16:9, 9:16',
@@ -56,6 +71,7 @@ export function registerGenerateImageCommand(program: Command): void {
       async (options: {
         prompt: string;
         out: string;
+        platform: GenerateImagePlatform;
         model: string;
         aspectRatio: string;
         outputFormat: ImageOutputFormat;
@@ -68,6 +84,7 @@ export function registerGenerateImageCommand(program: Command): void {
             {
               prompt: options.prompt,
               out: options.out,
+              platform: options.platform,
               model: options.model,
               aspectRatio: options.aspectRatio,
               outputFormat: options.outputFormat,

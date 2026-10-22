@@ -1,14 +1,27 @@
 /**
  * `chatroom generate-image` wiring tests.
  *
- * Only failure paths are exercised: a valid parse would run the real command
- * and hit the network, so success behavior lives in image.test.ts.
+ * Failure paths are exercised against real commander wiring; successful parses
+ * run against a mocked `generateImage` so nothing hits the network. The pure
+ * generation behavior lives in image.test.ts.
  */
 
 import { Command } from 'commander';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as ImageModule from './image.js';
 import { registerGenerateImageCommand } from './index.js';
+
+const { generateImageMock } = vi.hoisted(() => ({ generateImageMock: vi.fn() }));
+
+vi.mock('./image.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof ImageModule>();
+  return { ...actual, generateImage: generateImageMock };
+});
+
+vi.mock('./deps.js', () => ({
+  createDefaultGenerateImageDeps: () => ({}),
+}));
 
 function createProgram(): Command {
   const program = new Command();
@@ -22,8 +35,19 @@ async function parse(program: Command, args: string[]): Promise<unknown> {
 }
 
 describe('chatroom generate-image wiring', () => {
+  beforeEach(() => {
+    generateImageMock.mockReset();
+    generateImageMock.mockResolvedValue({
+      outPath: '/tmp/x.png',
+      manifestPath: '/tmp/x.png.json',
+      sha256: 'deadbeef',
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
   afterEach(() => {
     process.exitCode = undefined;
+    vi.restoreAllMocks();
   });
 
   it('requires --prompt and --out', async () => {
@@ -53,6 +77,35 @@ describe('chatroom generate-image wiring', () => {
     ).rejects.toMatchObject({ code: 'commander.invalidArgument' });
   });
 
+  it('accepts --platform=fal and forwards it', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--platform=fal']);
+
+    expect(generateImageMock).toHaveBeenCalledTimes(1);
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ platform: 'fal' });
+  });
+
+  it('defaults --platform to fal', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ platform: 'fal' });
+  });
+
+  it('rejects an unsupported --platform before running', async () => {
+    const program = createProgram();
+
+    await expect(
+      parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--platform', 'replicate'])
+    ).rejects.toMatchObject({
+      code: 'commander.invalidArgument',
+      message: expect.stringContaining('must be one of fal'),
+    });
+    expect(generateImageMock).not.toHaveBeenCalled();
+  });
+
   it('documents the flags in help output', () => {
     const program = createProgram();
     const command = program.commands[0];
@@ -62,6 +115,7 @@ describe('chatroom generate-image wiring', () => {
     expect(flags).toEqual([
       '--prompt',
       '--out',
+      '--platform',
       '--model',
       '--aspect-ratio',
       '--output-format',

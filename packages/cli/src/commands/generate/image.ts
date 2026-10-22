@@ -15,11 +15,21 @@ export const DEFAULT_IMAGE_MODEL = 'fal-ai/nano-banana-2';
 export const DEFAULT_ASPECT_RATIO = 'auto';
 export const DEFAULT_OUTPUT_FORMAT = 'png';
 
+/**
+ * Generation platforms the CLI can call today. New platforms are added here
+ * and dispatched in `generateImage`; the flag and manifest field already exist
+ * so adding one does not change the command shape.
+ */
+export const GENERATE_IMAGE_PLATFORMS = ['fal'] as const;
+export type GenerateImagePlatform = (typeof GENERATE_IMAGE_PLATFORMS)[number];
+export const DEFAULT_GENERATE_IMAGE_PLATFORM: GenerateImagePlatform = 'fal';
+
 export type ImageOutputFormat = 'png' | 'jpeg' | 'webp';
 
 export interface GenerateImageOptions {
   prompt: string;
   out: string;
+  platform?: GenerateImagePlatform | undefined;
   model?: string | undefined;
   aspectRatio?: string | undefined;
   outputFormat?: ImageOutputFormat | undefined;
@@ -34,6 +44,7 @@ export interface GenerateImageResult {
 
 /** Sidecar manifest written next to the generated image. */
 export interface GenerateImageManifest {
+  platform: GenerateImagePlatform;
   tool: 'chatroom generate-image';
   sdk: string;
   model: string;
@@ -58,6 +69,20 @@ const LICENSING = 'unverified' as const;
 
 const FAL_KEY_MISSING_MESSAGE =
   'FAL_KEY is not set. Set it in your environment to generate images with fal.';
+
+function resolvePlatform(platform: GenerateImagePlatform | undefined): GenerateImagePlatform {
+  return platform ?? DEFAULT_GENERATE_IMAGE_PLATFORM;
+}
+
+/**
+ * The single platform dispatch point. Only platforms listed in
+ * `GENERATE_IMAGE_PLATFORMS` are wired; adding one starts here.
+ */
+function requireSupportedPlatform(platform: GenerateImagePlatform): void {
+  if (!GENERATE_IMAGE_PLATFORMS.includes(platform)) {
+    throw new Error(`unsupported platform: ${platform}`);
+  }
+}
 
 /** fal has no keyless path: fail before any validation or network call. */
 function requireFalKey(deps: GenerateImageDeps): void {
@@ -104,6 +129,7 @@ function resolveSeed(
 }
 
 function buildManifest(args: {
+  platform: GenerateImagePlatform;
   model: string;
   input: Record<string, unknown>;
   requestId: string | undefined;
@@ -117,6 +143,7 @@ function buildManifest(args: {
   sdkVersion: string;
 }): GenerateImageManifest {
   return {
+    platform: args.platform,
     tool: 'chatroom generate-image',
     sdk: `@fal-ai/client@${args.sdkVersion}`,
     model: args.model,
@@ -138,6 +165,10 @@ export async function generateImage(
   opts: GenerateImageOptions,
   deps: GenerateImageDeps
 ): Promise<GenerateImageResult> {
+  const platform = resolvePlatform(opts.platform);
+  // Pure check: reject an unwired platform before touching the environment or network.
+  requireSupportedPlatform(platform);
+
   requireFalKey(deps);
 
   const prompt = requireNonEmpty(opts.prompt, '--prompt must not be empty.');
@@ -156,6 +187,7 @@ export async function generateImage(
   await deps.writeJson(
     manifestPath,
     buildManifest({
+      platform,
       model,
       input,
       requestId: result.requestId,
