@@ -20,12 +20,18 @@ interface WorkspaceInlineAgentListPanelProps {
   chatroomId: string;
   variant?: 'plain' | 'bordered';
   emptyClassName?: string;
+  /** When set, render only this role's card (single-agent config modal). */
+  role?: string;
+  /** Used by the role-missing state in single-role mode. */
+  onViewAllAgents?: () => void;
 }
 
 export const WorkspaceInlineAgentListPanel = memo(function WorkspaceInlineAgentListPanel({
   chatroomId,
   variant = 'plain',
   emptyClassName,
+  role,
+  onViewAllAgents,
 }: WorkspaceInlineAgentListPanelProps) {
   const { workspace, agents, isLoading: isLoadingDirectory } = useWorkspaceAgentDirectory();
   const promptsContext = useContext(PromptsContext);
@@ -75,6 +81,36 @@ export const WorkspaceInlineAgentListPanel = memo(function WorkspaceInlineAgentL
     );
   }
 
+  // Single-role mode narrows only the rendered cards. `roles` stays the full
+  // directory so InlineAgentCard's allRoles (stats tabs) and the batch restart
+  // query still cover every agent in the team.
+  const visibleAgents = role
+    ? agents.filter((agent) => agent.role.toLowerCase() === role.toLowerCase())
+    : agents;
+
+  if (role && visibleAgents.length === 0) {
+    return (
+      <div
+        data-testid="agent-config-missing"
+        className="flex flex-col items-center justify-center gap-3 p-8 text-xs text-chatroom-text-muted uppercase tracking-wide text-center"
+      >
+        <span>
+          <span className="text-chatroom-text-primary font-bold">{role}</span> is not in the current
+          team
+        </span>
+        {onViewAllAgents && (
+          <button
+            type="button"
+            onClick={onViewAllAgents}
+            className="text-[10px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+          >
+            All agents →
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (agents.length === 0) {
     return (
       <div
@@ -92,7 +128,7 @@ export const WorkspaceInlineAgentListPanel = memo(function WorkspaceInlineAgentL
     <WorkspaceInlineAgentCards
       chatroomId={chatroomId}
       workspaceId={workspace._registryId}
-      agents={agents}
+      agents={visibleAgents}
       roles={roles}
       generatePrompt={generatePrompt}
       restartSummaryMap={restartSummaryMap}
@@ -146,7 +182,7 @@ const WorkspaceInlineAgentCards = memo(function WorkspaceInlineAgentCards({
   return (
     <AgentControlDataProvider value={controlData}>
       {renderCards(permanentAgents)}
-      {ephemeralAgents.length > 0 && (
+      {permanentAgents.length > 0 && ephemeralAgents.length > 0 && (
         <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted border-t border-chatroom-border">
           Ephemeral ({ephemeralAgents.length})
         </div>

@@ -65,7 +65,7 @@ function agentsSection(page: Page) {
 
 function offlineRoleButtons(section: Locator) {
   return section.getByRole('button', {
-    name: /^[\w-]+: OFFLINE\. Click to view all agents\.$/,
+    name: /^[\w-]+: OFFLINE\. Click to configure\.$/,
   });
 }
 
@@ -87,13 +87,13 @@ async function assertAllSidebarRows(section: Locator, team: CanonicalTeam): Prom
   );
   expect(accessibleNames).toEqual(
     [...team.permanentRoles, ...team.ephemeralRoles].map(
-      (role) => `${role}: OFFLINE. Click to view all agents.`
+      (role) => `${role}: OFFLINE. Click to configure.`
     )
   );
 
   for (const role of team.roles) {
     const row = section.getByRole('button', {
-      name: `${role}: OFFLINE. Click to view all agents.`,
+      name: `${role}: OFFLINE. Click to configure.`,
       exact: true,
     });
     await expect(row).toHaveCount(1);
@@ -110,22 +110,20 @@ async function assertEphemeralSidebarGroup(section: Locator, team: CanonicalTeam
     'xpath=following-sibling::div[.//*[@role="button"]]'
   );
   const ephemeralButtons = ephemeralRows.getByRole('button', {
-    name: /^[\w-]+: OFFLINE\. Click to view all agents\.$/,
+    name: /^[\w-]+: OFFLINE\. Click to configure\.$/,
   });
   await expect(ephemeralButtons).toHaveCount(team.ephemeralRoles.length);
   expect(
     await ephemeralButtons.evaluateAll((buttons) =>
       buttons.map((button) => button.getAttribute('aria-label'))
     )
-  ).toEqual(team.ephemeralRoles.map((role) => `${role}: OFFLINE. Click to view all agents.`));
+  ).toEqual(team.ephemeralRoles.map((role) => `${role}: OFFLINE. Click to configure.`));
 
   const permanentRowsBeforeHeading = await ephemeralHeading.evaluate((heading) => {
     const section = heading.closest('section');
     if (!section) return 0;
     return Array.from(
-      section.querySelectorAll<HTMLElement>(
-        '[role="button"][aria-label$="Click to view all agents."]'
-      )
+      section.querySelectorAll<HTMLElement>('[role="button"][aria-label$="Click to configure."]')
     ).filter((row) =>
       Boolean(row.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING)
     ).length;
@@ -271,6 +269,14 @@ test.describe('Builtin agent sidebar', { tag: [TAG_DOWNSTREAM] }, () => {
       await page.goto(`/app/chatroom?id=${chatroomId}`);
       await dismissSetupWorkspace(page);
       await assertSidebarRoles(page, team);
+
+      await page.getByTestId('agent-sidebar-row-triage').click();
+      const configModal = page.getByTestId('agent-config-modal');
+      await expect(configModal).toBeVisible();
+      await expect(page.getByTestId('agent-config-modal-role')).toHaveText('triage');
+      await configModal.getByRole('button', { name: 'Close' }).click();
+      await expect(configModal).toHaveCount(0);
+
       expect(
         await client.query(api.agents.listLastSentLaunchRequests, { sessionId, chatroomId })
       ).toEqual([]);
