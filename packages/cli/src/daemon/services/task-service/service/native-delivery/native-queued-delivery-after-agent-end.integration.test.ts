@@ -477,7 +477,7 @@ describe('native queued delivery after agent_end', () => {
       taskInboxState: inbox,
       agentTaskState: createAgentTaskStateService(),
       lifecycleOutbox: { enqueue: async (fact) => logEvents.push(fact as Record<string, unknown>) },
-      taskService: taskService as never,
+      taskService: taskService,
     });
     const inboxEvent = {
       kind: 'inbox-event' as const,

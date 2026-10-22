@@ -197,6 +197,68 @@ const flushTimers = (): Promise<void> => new Promise((resolve) => setTimeout(res
 
 const runningSlot = () => ({ state: 'running' as const, pid: 42, harnessSessionId: 'sess-1' });
 
+/**
+ * Runs a fake-timer test with Math.random pinned to its neutral value so a
+ * jittered backoff delay is exactly its capped exponential value.
+ */
+const withFakeTimersAndNeutralJitter = async (fn: () => Promise<void> | void): Promise<void> => {
+  vi.useFakeTimers();
+  const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+  try {
+    await fn();
+  } finally {
+    random.mockRestore();
+    vi.useRealTimers();
+  }
+};
+
+/** Seeds the active task and ends a failed turn, arming the provider-failure release. */
+const armFailedTurnRelease = async (
+  options: Parameters<typeof createService>[0] = {},
+  overrides?: Record<string, unknown>
+): Promise<{ service: AgentWorkManager; inbox: TaskInboxState }> => {
+  const inbox = options.taskInboxState ?? new TaskInboxState();
+  inbox.upsert([inProgressTask('task-1')]);
+  const service = createService({ ...options, taskInboxState: inbox });
+  service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+  await service.handleAgentTurnEnded(failedTurnEvent(overrides) as never);
+  return { service, inbox };
+};
+
+/** A service whose uncovered-turn ladder always takes the restart step. */
+const createRestartService = (
+  options: Parameters<typeof createService>[0] = {}
+): AgentWorkManager => {
+  // The respawn stop removes the running slot, as the real manager does; the
+  // retry pre-check therefore sees no running agent unless a test overrides it.
+  let slot: ReturnType<typeof runningSlot> | undefined = runningSlot();
+  return createService({
+    getSlot: () => slot,
+    stopAgent: vi.fn(async () => {
+      slot = undefined;
+      return { success: true };
+    }),
+    decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+    initialTasks: [pendingTask('task-1')],
+    ...options,
+  });
+};
+
+/**
+ * Ends an uncovered turn so the out-of-band restart runs and its first start
+ * attempt fails, leaving the respawn retry ladder armed.
+ */
+const armRespawnStartRetries = async (
+  service: AgentWorkManager,
+  event: Record<string, unknown> = completedTurnEvent()
+): Promise<void> => {
+  service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+  await service.handleAgentTurnEnded(event as never);
+  // The restart is scheduled out of band; flush its timer and promise chain.
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(0);
+};
+
 describe('AgentWorkManager', () => {
   test('releases a completed turn while a previous lifecycle send is blocked', async () => {
     const machineId = `test-turn-outbox-${Date.now()}-${Math.random()}`;
@@ -448,15 +510,11 @@ describe('AgentWorkManager', () => {
       decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
       initialTasks: [pendingTask('task-1')],
     });
-    const internals = service as unknown as {
-      prepareRoleRecovery(args: unknown): Promise<void>;
-      recoverStoppedRole(args: unknown): Promise<{ released: number }>;
-    };
-    vi.spyOn(internals, 'prepareRoleRecovery').mockImplementation(async () => {
+    vi.spyOn(service, 'prepareRoleRecovery').mockImplementation(async () => {
       calls.push('prepare');
     });
-    vi.spyOn(internals, 'recoverStoppedRole').mockImplementation(async (args: unknown) => {
-      calls.push(`recover:${(args as { mode: string }).mode}`);
+    vi.spyOn(service, 'recoverStoppedRole').mockImplementation(async (args) => {
+      calls.push(`recover:${args.mode}`);
       return { released: 1 };
     });
     service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
@@ -502,50 +560,58 @@ describe('AgentWorkManager', () => {
   });
 
   test('a restart does nothing when the slot changed before the serialized section ran', async () => {
-    const stopAgent = vi.fn(async () => ({ success: true }));
-    const startAgent = vi.fn(async () => ({ success: true }));
-    const service = createService({
-      agentConfig: restartConfig,
-      getSlot: () => ({ state: 'running', pid: 43, harnessSessionId: 'sess-1' }),
-      stopAgent,
-      startAgent,
-      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
-      initialTasks: [pendingTask('task-1')],
+    await withFakeTimersAndNeutralJitter(async () => {
+      const stopAgent = vi.fn(async () => ({ success: true }));
+      const startAgent = vi.fn(async () => ({ success: true }));
+      const recoverInFlightTasks = vi.fn(async () => ({ released: 0, skipped: 0 }));
+      const service = createService({
+        agentConfig: restartConfig,
+        getSlot: () => ({ state: 'running', pid: 43, harnessSessionId: 'sess-1' }),
+        stopAgent,
+        startAgent,
+        recoverInFlightTasks,
+        decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+        initialTasks: [pendingTask('task-1')],
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(completedTurnEvent() as never);
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(stopAgent).not.toHaveBeenCalled();
+      expect(startAgent).not.toHaveBeenCalled();
+      expect(recoverInFlightTasks).not.toHaveBeenCalled();
+      service.dispose();
     });
-    const scheduleRecoveryRetry = vi.spyOn(service as never, 'scheduleRecoveryRetry');
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-
-    await service.handleAgentTurnEnded(completedTurnEvent() as never);
-    await flushTimers();
-
-    expect(stopAgent).not.toHaveBeenCalled();
-    expect(startAgent).not.toHaveBeenCalled();
-    expect(scheduleRecoveryRetry).not.toHaveBeenCalled();
-    service.dispose();
   });
 
   test('a restart does nothing when a stop was requested before the serialized section ran', async () => {
-    const stopAgent = vi.fn(async () => ({ success: true }));
-    const startAgent = vi.fn(async () => ({ success: true }));
-    const service = createService({
-      agentConfig: restartConfig,
-      getSlot: runningSlot,
-      isStopRequested: () => true,
-      stopAgent,
-      startAgent,
-      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
-      initialTasks: [pendingTask('task-1')],
+    await withFakeTimersAndNeutralJitter(async () => {
+      const stopAgent = vi.fn(async () => ({ success: true }));
+      const startAgent = vi.fn(async () => ({ success: true }));
+      const recoverInFlightTasks = vi.fn(async () => ({ released: 0, skipped: 0 }));
+      const service = createService({
+        agentConfig: restartConfig,
+        getSlot: runningSlot,
+        isStopRequested: () => true,
+        stopAgent,
+        startAgent,
+        recoverInFlightTasks,
+        decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+        initialTasks: [pendingTask('task-1')],
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+
+      await service.handleAgentTurnEnded(completedTurnEvent() as never);
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(stopAgent).not.toHaveBeenCalled();
+      expect(startAgent).not.toHaveBeenCalled();
+      expect(recoverInFlightTasks).not.toHaveBeenCalled();
+      service.dispose();
     });
-    const scheduleRecoveryRetry = vi.spyOn(service as never, 'scheduleRecoveryRetry');
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-
-    await service.handleAgentTurnEnded(completedTurnEvent() as never);
-    await flushTimers();
-
-    expect(stopAgent).not.toHaveBeenCalled();
-    expect(startAgent).not.toHaveBeenCalled();
-    expect(scheduleRecoveryRetry).not.toHaveBeenCalled();
-    service.dispose();
   });
 
   test('a rejected start is logged, never re-runs the ladder, and does not throw', async () => {
@@ -569,26 +635,35 @@ describe('AgentWorkManager', () => {
   });
 
   test('a stop failure inside the restart keeps the recovery gate and schedules a retry without throwing', async () => {
-    const decideUncoveredTurnEnd = vi.fn(async () => ({ action: 'restart-session' as const }));
-    const service = createService({
-      agentConfig: restartConfig,
-      getSlot: runningSlot,
-      stopAgent: vi.fn(async () => {
-        throw new Error('stop failed');
-      }),
-      decideUncoveredTurnEnd,
-      initialTasks: [pendingTask('task-1')],
-    });
-    const scheduleRecoveryRetry = vi.spyOn(service as never, 'scheduleRecoveryRetry');
-    service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await withFakeTimersAndNeutralJitter(async () => {
+      const decideUncoveredTurnEnd = vi.fn(async () => ({ action: 'restart-session' as const }));
+      const recoverInFlightTasks = vi.fn(async () => ({ released: 0, skipped: 0 }));
+      const service = createService({
+        agentConfig: restartConfig,
+        getSlot: runningSlot,
+        stopAgent: vi.fn(async () => {
+          throw new Error('stop failed');
+        }),
+        decideUncoveredTurnEnd,
+        recoverInFlightTasks,
+        initialTasks: [pendingTask('task-1')],
+      });
+      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
-    await expect(service.handleAgentTurnEnded(completedTurnEvent() as never)).resolves.toEqual({
-      kind: 'release-slot',
-    });
-    await vi.waitFor(() => expect(scheduleRecoveryRetry).toHaveBeenCalledWith('room-1', 'builder'));
+      await expect(service.handleAgentTurnEnded(completedTurnEvent() as never)).resolves.toEqual({
+        kind: 'release-slot',
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(recoverInFlightTasks).not.toHaveBeenCalled();
 
-    expect(decideUncoveredTurnEnd).toHaveBeenCalledTimes(1);
-    service.dispose();
+      // The failed stop leaves the recovery gate prepared; its retry runs
+      // recovery again after the one-second first backoff step.
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(recoverInFlightTasks).toHaveBeenCalledTimes(1);
+
+      expect(decideUncoveredTurnEnd).toHaveBeenCalledTimes(1);
+      service.dispose();
+    });
   });
 
   test('a park decision sends no nudge and no restart', async () => {
@@ -616,84 +691,87 @@ describe('AgentWorkManager', () => {
   });
 
   test('recovery retries cap their interval at thirty seconds', async () => {
-    vi.useFakeTimers();
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const startedAt = Date.now();
       const recoveryTimes: number[] = [];
       const recoverInFlightTasks = vi.fn(async () => {
         recoveryTimes.push(Date.now() - startedAt);
         throw new Error('status read failed');
       });
+      let onSessionLost: ((event: never) => void) | undefined;
       const service = createService({
         recoverInFlightTasks,
         agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+        getSlot: () => ({ state: 'running', pid: 41 }),
+        onSessionLost: (handler) => {
+          onSessionLost = handler;
+        },
       });
-      await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
-      (
-        service as unknown as {
-          scheduleRecoveryRetry(chatroomId: string, role: string): void;
-        }
-      ).scheduleRecoveryRetry('room-1', 'builder');
+
+      // The session-lost entry point runs the first automatic pass, which fails
+      // and arms the retry ladder.
+      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(recoveryTimes).toEqual([0]);
 
       // 1s, 2s, 4s, 8s, 16s, then the 30-second cap for every later retry.
-      const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000];
-      for (const delay of delays) {
+      for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]) {
         await vi.advanceTimersByTimeAsync(delay);
       }
 
-      expect(recoveryTimes).toEqual([1_000, 3_000, 7_000, 15_000, 31_000, 61_000, 91_000]);
+      expect(recoveryTimes).toEqual([0, 1_000, 3_000, 7_000, 15_000, 31_000, 61_000, 91_000]);
       for (let index = 1; index < recoveryTimes.length; index += 1) {
         expect(recoveryTimes[index] - recoveryTimes[index - 1]).toBeLessThanOrEqual(30_000);
       }
       service.dispose();
-    } finally {
-      vi.useRealTimers();
-    }
+    });
   });
 
-  const beginRespawnStartRetries = (service: AgentWorkManager, harness: string): void => {
-    (
-      service as unknown as {
-        beginRespawnStartRetries(input: {
-          chatroomId: string;
-          role: string;
-          workingDir: string;
-          startInput: unknown;
-        }): void;
+  test('CLI-driven recovery retries keep the 30-second interval cap', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const startedAt = Date.now();
+      const recoveryTimes: number[] = [];
+      const recoverInFlightTasks = vi.fn(async () => {
+        recoveryTimes.push(Date.now() - startedAt);
+        throw new Error('status read failed');
+      });
+      let onSessionLost: ((event: never) => void) | undefined;
+      const service = createService({
+        recoverInFlightTasks,
+        agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
+        getSlot: () => ({ state: 'running', pid: 41 }),
+        onSessionLost: (handler) => {
+          onSessionLost = handler;
+        },
+      });
+
+      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
+      await vi.advanceTimersByTimeAsync(0);
+
+      for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]) {
+        await vi.advanceTimersByTimeAsync(delay);
       }
-    ).beginRespawnStartRetries({
-      chatroomId: 'room-1',
-      role: 'builder',
-      workingDir: '/test',
-      startInput: {
-        chatroomId: 'room-1',
-        role: 'builder',
-        agentHarness: harness,
-        model: 'test-model',
-        workingDir: '/test',
-        reason: 'daemon.respawn',
-        wantResume: false,
-      },
+
+      expect(recoveryTimes).toEqual([0, 1_000, 3_000, 7_000, 15_000, 31_000, 61_000, 91_000]);
+      service.dispose();
     });
-  };
+  });
 
   test('native harness respawn retries double to the ten-minute cap and never give up', async () => {
-    vi.useFakeTimers();
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const startedAt = Date.now();
       const startTimes: number[] = [];
       const startAgent = vi.fn(async () => {
         startTimes.push(Date.now() - startedAt);
         return { success: false, error: 'rate_limited' };
       });
-      const service = createService({
+      const service = createRestartService({
         startAgent,
         agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
       });
 
-      // The initial start already failed before retries are armed, as in production.
-      await startAgent();
-      beginRespawnStartRetries(service, 'cursor-sdk');
+      await armRespawnStartRetries(service);
+      expect(startAgent).toHaveBeenCalledTimes(1);
 
       const delays = [
         1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 512_000, 600_000,
@@ -707,155 +785,262 @@ describe('AgentWorkManager', () => {
         0, 1_000, 3_000, 7_000, 15_000, 31_000, 63_000, 127_000, 255_000, 511_000, 1_023_000,
         1_623_000, 2_223_000,
       ]);
-      // No give-up after three attempts.
-      expect(startTimes.length).toBeGreaterThan(4);
       service.dispose();
-    } finally {
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('CLI-driven harness respawn retries still stop after three attempts', async () => {
-    vi.useFakeTimers();
-    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    try {
-      const startedAt = Date.now();
-      const startTimes: number[] = [];
-      const startAgent = vi.fn(async () => {
-        startTimes.push(Date.now() - startedAt);
-        return { success: false, error: 'rate_limited' };
-      });
-      const service = createService({
-        startAgent,
-        agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
-      });
-
-      await startAgent();
-      beginRespawnStartRetries(service, 'opencode');
-
-      await vi.advanceTimersByTimeAsync(1_000);
-      await vi.advanceTimersByTimeAsync(2_000);
-      await vi.advanceTimersByTimeAsync(60_000);
-
-      expect(startTimes).toEqual([0, 1_000, 3_000]);
-      expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
-      expect(vi.getTimerCount()).toBe(0);
-      service.dispose();
-    } finally {
-      errorLog.mockRestore();
-      vi.useRealTimers();
-    }
-  });
-
-  const cancelCases: readonly {
-    readonly label: string;
-    readonly startResult: { success: boolean };
-    readonly isStopped: () => boolean;
-    readonly slot: (() => { state: 'running'; pid: number } | undefined) | undefined;
-  }[] = [
-    {
-      label: 'a started retry',
-      startResult: { success: true },
-      isStopped: () => false,
-      slot: undefined,
-    },
-    {
-      label: 'stop_requested',
-      startResult: { success: false },
-      isStopped: () => true,
-      slot: undefined,
-    },
-    {
-      label: 'agent_already_running',
-      startResult: { success: false },
-      isStopped: () => false,
-      slot: () => ({ state: 'running' as const, pid: 7 }),
-    },
-  ];
-
-  test.each(cancelCases)(
-    'native respawn retries cancel on $label',
-    async ({ startResult, isStopped, slot }) => {
-      vi.useFakeTimers();
+    await withFakeTimersAndNeutralJitter(async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       try {
-        const startAgent = vi.fn(async () => startResult);
-        const service = createService({
-          startAgent,
-          isStopRequested: isStopped,
-          getSlot: slot ?? (() => undefined),
-          agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+        const startedAt = Date.now();
+        const startTimes: number[] = [];
+        const startAgent = vi.fn(async () => {
+          startTimes.push(Date.now() - startedAt);
+          return { success: false, error: 'rate_limited' };
         });
-        beginRespawnStartRetries(service, 'cursor-sdk');
-        expect(vi.getTimerCount()).toBe(1);
+        const service = createRestartService({
+          startAgent,
+          agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
+        });
 
+        await armRespawnStartRetries(service);
         await vi.advanceTimersByTimeAsync(1_000);
+        await vi.advanceTimersByTimeAsync(2_000);
+        await vi.advanceTimersByTimeAsync(60_000);
 
+        expect(startTimes).toEqual([0, 1_000, 3_000]);
+        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
         expect(vi.getTimerCount()).toBe(0);
         service.dispose();
       } finally {
-        vi.useRealTimers();
+        errorLog.mockRestore();
       }
-    }
-  );
+    });
+  });
 
-  test('native respawn retries cancel on supersede and dispose', async () => {
-    vi.useFakeTimers();
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    try {
-      const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
-      const service = createService({
+  test('native respawn retries stop once a retry starts the agent', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const startAgent = vi
+        .fn()
+        .mockResolvedValueOnce({ success: false, error: 'rate_limited' })
+        .mockResolvedValue({ success: true });
+      const service = createRestartService({
         startAgent,
         agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
       });
-      beginRespawnStartRetries(service, 'cursor-sdk');
-      beginRespawnStartRetries(service, 'cursor-sdk');
-      expect(log.mock.calls.join('\n')).toContain('reason=superseded_by_new_restart');
-      // The replacement intent still has one timer; dispose clears it.
+
+      await armRespawnStartRetries(service);
       expect(vi.getTimerCount()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(startAgent).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+      service.dispose();
+    });
+  });
+
+  test('native respawn retries stop on stop_requested', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      let stopRequested = false;
+      const startAgent = vi.fn(async () => {
+        stopRequested = true;
+        return { success: false, error: 'rate_limited' };
+      });
+      const service = createRestartService({
+        startAgent,
+        isStopRequested: () => stopRequested,
+        agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+      });
+
+      await armRespawnStartRetries(service);
+      expect(vi.getTimerCount()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(vi.getTimerCount()).toBe(0);
+      service.dispose();
+    });
+  });
+
+  test('native respawn retries stop when the agent is already running', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      let slot: { state: 'running'; pid: number; harnessSessionId?: string } | undefined =
+        runningSlot();
+      const startAgent = vi.fn(async () => {
+        slot = { state: 'running', pid: 7 };
+        return { success: false, error: 'rate_limited' };
+      });
+      const service = createRestartService({
+        startAgent,
+        getSlot: () => slot,
+        agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+      });
+
+      await armRespawnStartRetries(service);
+      expect(vi.getTimerCount()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(vi.getTimerCount()).toBe(0);
+      service.dispose();
+    });
+  });
+
+  test('a newer restart supersedes pending respawn retries', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        let slot: ReturnType<typeof runningSlot> | undefined = runningSlot();
+        const service = createRestartService({
+          getSlot: () => slot,
+          stopAgent: vi.fn(async () => {
+            slot = undefined;
+            return { success: true };
+          }),
+          startAgent: vi.fn(async () => ({ success: false, error: 'rate_limited' })),
+          agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+        });
+
+        await armRespawnStartRetries(service);
+        // A fresh agent appears before the next turn ends, so the new restart
+        // supersedes the pending retry intent.
+        slot = runningSlot();
+        await armRespawnStartRetries(service);
+        expect(log.mock.calls.join('\n')).toContain('reason=superseded_by_new_restart');
+        // The replacement intent still has one timer; dispose clears it.
+        expect(vi.getTimerCount()).toBe(1);
+
+        service.dispose();
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        log.mockRestore();
+      }
+    });
+  });
+
+  test('dispose cancels pending respawn retries', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
+      const service = createRestartService({
+        startAgent,
+        agentConfig: { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' },
+      });
+
+      await armRespawnStartRetries(service);
 
       service.dispose();
       expect(vi.getTimerCount()).toBe(0);
-    } finally {
-      log.mockRestore();
-      vi.useRealTimers();
-    }
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(startAgent).toHaveBeenCalledTimes(1);
+    });
   });
 
-  test('CLI-driven recovery retries keep the 30-second interval cap', async () => {
-    vi.useFakeTimers();
-    try {
-      const startedAt = Date.now();
-      const recoveryTimes: number[] = [];
-      const recoverInFlightTasks = vi.fn(async () => {
-        recoveryTimes.push(Date.now() - startedAt);
-        throw new Error('status read failed');
-      });
-      const service = createService({
-        recoverInFlightTasks,
-        agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
-      });
-      await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
-      (
-        service as unknown as {
-          scheduleRecoveryRetry(chatroomId: string, role: string): void;
-        }
-      ).scheduleRecoveryRetry('room-1', 'builder');
+  test('respawn retries cancel on config removal before the next start', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
+        let config: { agentHarness: string; model: string; workingDir: string } | undefined = {
+          agentHarness: 'cursor-sdk',
+          model: 'test-model',
+          workingDir: '/test',
+        };
+        const service = createRestartService({
+          startAgent,
+          agentConfig: () => config,
+        });
 
-      for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]) {
-        await vi.advanceTimersByTimeAsync(delay);
+        await armRespawnStartRetries(service);
+        expect(startAgent).toHaveBeenCalledTimes(1);
+        config = undefined;
+
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        expect(startAgent).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(0);
+        expect(log.mock.calls.join('\n')).toContain(
+          'chatroom=room-1 role=builder attempts=1 reason=config_removed'
+        );
+        service.dispose();
+      } finally {
+        log.mockRestore();
       }
+    });
+  });
 
-      expect(recoveryTimes).toEqual([1_000, 3_000, 7_000, 15_000, 31_000, 61_000, 91_000]);
+  test('respawn retries rebuild the start input from a changed config', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const startModels: string[] = [];
+      const startAgent = vi.fn(async (input: { model: string }) => {
+        startModels.push(input.model);
+        return { success: false, error: 'rate_limited' };
+      });
+      let config = { agentHarness: 'cursor-sdk', model: 'model-1', workingDir: '/test' };
+      const service = createRestartService({
+        startAgent,
+        agentConfig: () => config,
+      });
+
+      await armRespawnStartRetries(service);
+      expect(startModels).toEqual(['model-1']);
+
+      config = { ...config, model: 'model-2' };
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(startModels).toEqual(['model-1', 'model-2']);
       service.dispose();
-    } finally {
-      vi.useRealTimers();
-    }
+    });
+  });
+
+  test('automatic recovery rejection still lets a waiting explicit recovery run', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      let rejectAutomatic!: (error: Error) => void;
+      const automaticRun = new Promise<{ released: number; skipped: number }>(
+        (_resolve, reject) => {
+          rejectAutomatic = reject;
+        }
+      );
+      const recoverInFlightTasks = vi
+        .fn()
+        .mockImplementationOnce(() => automaticRun)
+        .mockResolvedValueOnce({ released: 1, skipped: 0 });
+      const { service } = await armFailedTurnRelease({ recoverInFlightTasks });
+      await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
+
+      const automatic = service.recoverStoppedRole({
+        chatroomId: 'room-1',
+        role: 'builder',
+        mode: 'automatic',
+      });
+      await Promise.resolve();
+      const explicit = service.recoverStoppedRole({
+        chatroomId: 'room-1',
+        role: 'builder',
+        mode: 'explicit',
+      });
+
+      rejectAutomatic(new Error('backend unavailable'));
+      await expect(automatic).rejects.toThrow('backend unavailable');
+      await expect(explicit).resolves.toEqual({ released: 1 });
+
+      expect(recoverInFlightTasks).toHaveBeenCalledTimes(2);
+      expect(recoverInFlightTasks.mock.calls[1][0]).toEqual({
+        chatroomId: 'room-1',
+        role: 'builder',
+        mode: 'explicit',
+      });
+      expect(vi.getTimerCount()).toBe(0);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      service.dispose();
+    });
   });
 
   test('a failed turn records a failure, never consults the ladder, and defers the release', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
@@ -863,17 +1048,11 @@ describe('AgentWorkManager', () => {
       }));
       const recordTurnFailure = vi.fn(async () => ({ attempts: 1, exceeded: false }));
       const decideUncoveredTurnEnd = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         recordTurnFailure,
         releaseTaskAfterTurnFailure,
         decideUncoveredTurnEnd,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
       expect(recordTurnFailure).toHaveBeenCalledWith({
         chatroomId: 'room-1',
@@ -894,16 +1073,11 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('the second failure waits the second backoff delay, not the first', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
@@ -913,16 +1087,10 @@ describe('AgentWorkManager', () => {
         .fn()
         .mockResolvedValueOnce({ attempts: 1, exceeded: false })
         .mockResolvedValueOnce({ attempts: 2, exceeded: false });
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         recordTurnFailure,
         releaseTaskAfterTurnFailure,
-        taskInboxState: inbox,
       });
-
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
       await vi.advanceTimersByTimeAsync(5_000);
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
 
@@ -944,16 +1112,11 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('applies the cap to failed turns without a covering handoff and cancels the last timer', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
@@ -979,16 +1142,11 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(10 * 60_000);
       expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('releases on the documented schedule before parking the eighth failure', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const startedAt = Date.now();
       const releaseTimes: number[] = [];
       const releaseTaskAfterTurnFailure = vi.fn(async () => {
@@ -1018,31 +1176,21 @@ describe('AgentWorkManager', () => {
       // +80s, +160s, +300s. The eighth failure parks and schedules nothing.
       expect(releaseTimes).toEqual([5_000, 15_000, 35_000, 75_000, 155_000, 315_000, 615_000]);
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('cancels a waiting release when the task is deleted', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
       const clearTurnFailureReleasePending = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         clearTurnFailureReleasePending,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
       await service.handleTaskServiceNotification({
         kind: 'inbox-event',
@@ -1064,31 +1212,21 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('cancels a waiting release when the task completes', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
       const clearTurnFailureReleasePending = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         clearTurnFailureReleasePending,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
       await service.handleTaskServiceNotification({
         kind: 'inbox-event',
@@ -1110,16 +1248,11 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('a new task assigned to the role does not cancel the superseded task release', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
@@ -1127,16 +1260,11 @@ describe('AgentWorkManager', () => {
       }));
       const markTurnFailureReleasePending = vi.fn();
       const clearTurnFailureReleasePending = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         markTurnFailureReleasePending,
         clearTurnFailureReleasePending,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
       await service.handleTaskServiceNotification({
         kind: 'inbox-event',
@@ -1165,31 +1293,21 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('a TaskAssigned for the same task id cancels that task waiting release', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
       const clearTurnFailureReleasePending = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         clearTurnFailureReleasePending,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
       expect(vi.getTimerCount()).toBeGreaterThan(0);
 
       await service.handleTaskServiceNotification({
@@ -1213,61 +1331,45 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('does not release when the task is the role active task when the timer fires', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    try {
-      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
-        released: true,
-        status: 'pending' as const,
-        updatedAt: 1700000000000,
-      }));
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+    await withFakeTimersAndNeutralJitter(async () => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+          released: true,
+          status: 'pending' as const,
+          updatedAt: 1700000000000,
+        }));
+        const { service } = await armFailedTurnRelease({ releaseTaskAfterTurnFailure });
 
-      // A new turn has started on the same task before the release fires.
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await vi.advanceTimersByTimeAsync(5_000);
+        // A new turn has started on the same task before the release fires.
+        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+        await vi.advanceTimersByTimeAsync(5_000);
 
-      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
-      expect(log.mock.calls.join('\n')).toContain('reason=task_active');
-      service.dispose();
-    } finally {
-      log.mockRestore();
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+        expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+        expect(log.mock.calls.join('\n')).toContain('reason=task_active');
+        service.dispose();
+      } finally {
+        log.mockRestore();
+      }
+    });
   });
 
   test('explicit recovery cancels a waiting backoff release', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
       const clearTurnFailureReleasePending = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         clearTurnFailureReleasePending,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
       await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
       await service.recoverStoppedRole({
@@ -1284,16 +1386,11 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('explicit recovery waits for an in-flight automatic run and releases its waiting task', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       let resolveAutomatic!: (value: { released: number; skipped: number }) => void;
       const automaticRun = new Promise<{ released: number; skipped: number }>((resolve) => {
         resolveAutomatic = resolve;
@@ -1308,16 +1405,11 @@ describe('AgentWorkManager', () => {
         updatedAt: 1700000000000,
       }));
       const clearTurnFailureReleasePending = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         recoverInFlightTasks,
         releaseTaskAfterTurnFailure,
         clearTurnFailureReleasePending,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
       await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
 
       const automatic = service.recoverStoppedRole({
@@ -1353,16 +1445,11 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(60_000);
       expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('a rejected explicit recovery keeps the waiting release armed', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const recoverInFlightTasks = vi.fn(async () => {
         throw new Error('backend unavailable');
       });
@@ -1371,15 +1458,10 @@ describe('AgentWorkManager', () => {
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         recoverInFlightTasks,
         releaseTaskAfterTurnFailure,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
       await service.prepareRoleRecovery({ chatroomId: 'room-1', role: 'builder' });
 
       await expect(
@@ -1398,31 +1480,21 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('an explicit recovery without a gate does not cancel the waiting release', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
       const clearTurnFailureReleasePending = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         clearTurnFailureReleasePending,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
       await expect(
         service.recoverStoppedRole({
@@ -1440,16 +1512,11 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('cancels a waiting release on a user start and on a user restart', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       for (const reason of [AgentStartReasonCode.USER_START, AgentStartReasonCode.USER_RESTART]) {
         let startedHandler: ((event: never) => Promise<void>) | undefined;
         const releaseTaskAfterTurnFailure = vi.fn(async () => ({
@@ -1486,26 +1553,17 @@ describe('AgentWorkManager', () => {
         });
         service.dispose();
       }
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('cancels a waiting release on dispose', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+      const { service } = await armFailedTurnRelease({ releaseTaskAfterTurnFailure });
       expect(vi.getTimerCount()).toBeGreaterThan(0);
 
       service.dispose();
@@ -1514,28 +1572,17 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('marks the backoff release for auto-recovery and clears the marker when it fires', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const markTurnFailureReleasePending = vi.fn();
       const clearTurnFailureReleasePending = vi.fn();
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         markTurnFailureReleasePending,
         clearTurnFailureReleasePending,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
       expect(markTurnFailureReleasePending).toHaveBeenCalledWith({
         chatroomId: 'room-1',
@@ -1551,16 +1598,11 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('a failed deferred release retries with the next backoff delay', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi
         .fn()
         .mockRejectedValueOnce(new Error('backend unavailable'))
@@ -1569,16 +1611,10 @@ describe('AgentWorkManager', () => {
         .fn()
         .mockResolvedValueOnce({ attempts: 1, exceeded: false })
         .mockResolvedValueOnce({ attempts: 2, exceeded: false });
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         recordTurnFailure,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
       await vi.advanceTimersByTimeAsync(5_000);
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
       expect(recordTurnFailure).toHaveBeenCalledTimes(2);
@@ -1594,16 +1630,11 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('reschedules with the previous delay when failure recording throws', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi
         .fn()
         .mockRejectedValueOnce(new Error('backend unavailable'))
@@ -1612,16 +1643,10 @@ describe('AgentWorkManager', () => {
         .fn()
         .mockResolvedValueOnce({ attempts: 1, exceeded: false })
         .mockRejectedValueOnce(new Error('record failed'));
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         recordTurnFailure,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
       await vi.advanceTimersByTimeAsync(5_000);
 
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
@@ -1633,62 +1658,49 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('stops release retries and parks after five consecutive accounting failures', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    try {
-      const releaseTaskAfterTurnFailure = vi.fn(async () => {
-        throw new Error('backend unavailable');
-      });
-      const recordTurnFailure = vi
-        .fn()
-        .mockResolvedValueOnce({ attempts: 1, exceeded: false })
-        .mockRejectedValue(new Error('accounting failed'));
-      const parkTurnFailure = vi.fn(async () => undefined);
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
-        releaseTaskAfterTurnFailure,
-        recordTurnFailure,
-        parkTurnFailure,
-        taskInboxState: inbox,
-      });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await withFakeTimersAndNeutralJitter(async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const releaseTaskAfterTurnFailure = vi.fn(async () => {
+          throw new Error('backend unavailable');
+        });
+        const recordTurnFailure = vi
+          .fn()
+          .mockResolvedValueOnce({ attempts: 1, exceeded: false })
+          .mockRejectedValue(new Error('accounting failed'));
+        const parkTurnFailure = vi.fn(async () => undefined);
+        const { service } = await armFailedTurnRelease({
+          releaseTaskAfterTurnFailure,
+          recordTurnFailure,
+          parkTurnFailure,
+        });
+        await vi.advanceTimersByTimeAsync(5_000 * 5);
 
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
-      await vi.advanceTimersByTimeAsync(5_000 * 5);
+        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(5);
+        expect(parkTurnFailure).toHaveBeenCalledTimes(1);
+        expect(parkTurnFailure).toHaveBeenCalledWith({
+          chatroomId: 'room-1',
+          role: 'builder',
+          taskId: 'task-1',
+        });
+        expect(vi.getTimerCount()).toBe(0);
+        expect(errorLog.mock.calls.join('\n')).toContain('turn-failure-accounting-stalled');
 
-      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(5);
-      expect(parkTurnFailure).toHaveBeenCalledTimes(1);
-      expect(parkTurnFailure).toHaveBeenCalledWith({
-        chatroomId: 'room-1',
-        role: 'builder',
-        taskId: 'task-1',
-      });
-      expect(vi.getTimerCount()).toBe(0);
-      expect(errorLog.mock.calls.join('\n')).toContain('turn-failure-accounting-stalled');
-
-      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
-      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(5);
-      service.dispose();
-    } finally {
-      errorLog.mockRestore();
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+        await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
+        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(5);
+        service.dispose();
+      } finally {
+        errorLog.mockRestore();
+      }
+    });
   });
 
   test('a release that keeps failing parks after the cap and leaves no timer', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => {
         throw new Error('backend unavailable');
       });
@@ -1697,16 +1709,10 @@ describe('AgentWorkManager', () => {
         attempts += 1;
         return { attempts, exceeded: attempts >= 8 };
       });
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
+      const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         recordTurnFailure,
-        taskInboxState: inbox,
       });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
       // 5 + 10 + 20 + 40 + 80 + 160 + 300 seconds of retries.
       await vi.advanceTimersByTimeAsync(615_000);
 
@@ -1717,39 +1723,30 @@ describe('AgentWorkManager', () => {
       await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(7);
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('skips the release when the task is no longer current when the timer fires', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    try {
-      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
-        released: true,
-        status: 'pending' as const,
-        updatedAt: 1700000000000,
-      }));
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({ releaseTaskAfterTurnFailure, taskInboxState: inbox });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-      await service.handleAgentTurnEnded(failedTurnEvent() as never);
+    await withFakeTimersAndNeutralJitter(async () => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const releaseTaskAfterTurnFailure = vi.fn(async () => ({
+          released: true,
+          status: 'pending' as const,
+          updatedAt: 1700000000000,
+        }));
+        const { service, inbox } = await armFailedTurnRelease({ releaseTaskAfterTurnFailure });
 
-      inbox.remove('room-1', 'builder', 'task-1', Date.now());
-      await vi.advanceTimersByTimeAsync(60_000);
+        inbox.remove('room-1', 'builder', 'task-1', Date.now());
+        await vi.advanceTimersByTimeAsync(60_000);
 
-      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
-      expect(log.mock.calls.join('\n')).toContain('reason=task_not_current');
-      service.dispose();
-    } finally {
-      log.mockRestore();
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+        expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
+        expect(log.mock.calls.join('\n')).toContain('reason=task_not_current');
+        service.dispose();
+      } finally {
+        log.mockRestore();
+      }
+    });
   });
 
   test('a user.start agent restart clears redelivery tracking', async () => {
@@ -2431,9 +2428,7 @@ describe('AgentWorkManager', () => {
   });
 
   test('failed turn with an active task schedules the exact task release after backoff', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       const releaseTaskAfterTurnFailure = vi.fn(async () => ({
         released: true,
         status: 'pending' as const,
@@ -2465,16 +2460,11 @@ describe('AgentWorkManager', () => {
         taskId: 'task-1',
       });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('failed-turn disposition resolves before the deferred backend release', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    try {
+    await withFakeTimersAndNeutralJitter(async () => {
       let resolveRecovery!: (value: {
         released: boolean;
         status: 'pending';
@@ -2501,44 +2491,39 @@ describe('AgentWorkManager', () => {
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
       resolveRecovery({ released: true, status: 'pending', updatedAt: 1700000000000 });
       service.dispose();
-    } finally {
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+    });
   });
 
   test('a deferred release rejection is logged after the slot was already released', async () => {
-    vi.useFakeTimers();
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    try {
-      const releaseTaskAfterTurnFailure = vi.fn(async () => {
-        throw new Error('backend unavailable');
-      });
-      const enqueueFact = vi.fn(async () => undefined);
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
-        releaseTaskAfterTurnFailure,
-        enqueueFact,
-        taskInboxState: inbox,
-      });
-      service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
+    await withFakeTimersAndNeutralJitter(async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const releaseTaskAfterTurnFailure = vi.fn(async () => {
+          throw new Error('backend unavailable');
+        });
+        const enqueueFact = vi.fn(async () => undefined);
+        const inbox = new TaskInboxState();
+        inbox.upsert([inProgressTask('task-1')]);
+        const service = createService({
+          releaseTaskAfterTurnFailure,
+          enqueueFact,
+          taskInboxState: inbox,
+        });
+        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
 
-      const disposition = await service.handleAgentTurnEnded(failedTurnEvent() as never);
+        const disposition = await service.handleAgentTurnEnded(failedTurnEvent() as never);
 
-      expect(disposition).toEqual({ kind: 'release-slot' });
-      expect(enqueueFact).toHaveBeenCalled();
+        expect(disposition).toEqual({ kind: 'release-slot' });
+        expect(enqueueFact).toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(5_000);
-      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
-      expect(errorLog.mock.calls.join('\n')).toContain('turn-failed-release-error');
-      service.dispose();
-    } finally {
-      errorLog.mockRestore();
-      random.mockRestore();
-      vi.useRealTimers();
-    }
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
+        expect(errorLog.mock.calls.join('\n')).toContain('turn-failed-release-error');
+        service.dispose();
+      } finally {
+        errorLog.mockRestore();
+      }
+    });
   });
 
   test('failed turn with no active task records the fact and releases the slot', async () => {
@@ -2620,14 +2605,10 @@ describe('AgentWorkManager', () => {
         }),
         initialTasks: [pendingTask('task-1')],
       });
-      const internals = service as unknown as {
-        prepareRoleRecovery(args: unknown): Promise<void>;
-        recoverStoppedRole(args: unknown): Promise<{ released: number }>;
-      };
-      vi.spyOn(internals, 'prepareRoleRecovery').mockImplementation(async () => {
+      vi.spyOn(service, 'prepareRoleRecovery').mockImplementation(async () => {
         calls.push('prepare');
       });
-      vi.spyOn(internals, 'recoverStoppedRole').mockImplementation(async () => {
+      vi.spyOn(service, 'recoverStoppedRole').mockImplementation(async () => {
         calls.push('recover');
         return { released: 1 };
       });
