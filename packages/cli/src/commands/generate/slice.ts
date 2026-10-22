@@ -7,6 +7,10 @@
  * untouched until every validation, decode, crop, and encode step has passed.
  */
 
+// The constants and manifest types are part of the public slice API (tests and
+// future callers import them), and sliceImage is a linear 10-step pipeline.
+// fallow-ignore-file unused-export complexity
+
 import { createHash } from 'node:crypto';
 import { basename, extname, join, resolve } from 'node:path';
 
@@ -67,7 +71,7 @@ export interface SliceGrid {
   tileHeight: number;
   droppedRight: number;
   droppedBottom: number;
-  cells: Array<Pick<SliceTile, 'index' | 'row' | 'col' | 'x' | 'y' | 'width' | 'height'>>;
+  cells: Pick<SliceTile, 'index' | 'row' | 'col' | 'x' | 'y' | 'width' | 'height'>[];
 }
 
 export interface SliceImageResult {
@@ -77,7 +81,7 @@ export interface SliceImageResult {
   droppedRemainder: { right: number; bottom: number };
   outDir: string;
   /** sha256 is always the real hash of the encoded tile, even under `dryRun`. */
-  tiles: Array<SliceTile & { path: string; manifestPath: string; sha256: string }>;
+  tiles: (SliceTile & { path: string; manifestPath: string; sha256: string })[];
   /** 0-based indexes of skipped cells. */
   skipped: number[];
   indexPath: string;
@@ -146,7 +150,7 @@ export interface SliceIndexManifest {
     droppedRight: number;
     droppedBottom: number;
   };
-  tiles: Array<{
+  tiles: {
     index: number;
     row: number;
     col: number;
@@ -154,7 +158,7 @@ export interface SliceIndexManifest {
     path: string;
     manifestPath: string;
     sha256: string;
-  }>;
+  }[];
   skipped: number[];
   slicedAt: string;
   licensing: typeof LICENSING;

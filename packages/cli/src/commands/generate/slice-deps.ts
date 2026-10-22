@@ -7,6 +7,10 @@
  * not need `FAL_API_KEY`.
  */
 
+// pathStatus and the JSON writers intentionally mirror generate/deps.ts so the
+// slice command can reuse the same semantics without importing the fal SDK.
+// fallow-ignore-file code-duplication
+
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 
 import pngjs from 'pngjs';

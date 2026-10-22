@@ -6,6 +6,10 @@
  * import is loaded inside the action to keep CLI startup fast.
  */
 
+// printResult is a flat sequence of console lines; splitting it further would
+// obscure the output contract.
+// fallow-ignore-file complexity
+
 import { InvalidArgumentError, type Command } from 'commander';
 
 import { sliceImage } from './slice.js';
