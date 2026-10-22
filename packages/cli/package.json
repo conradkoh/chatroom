@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.133.0",
+  "version": "1.134.0",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
@@ -24,6 +24,7 @@
     "@connectrpc/connect-node": "^1.6.1",
     "@cursor/sdk": "1.0.28",
     "@earendil-works/pi-coding-agent": "1.2.0",
+    "@fal-ai/client": "1.10.1",
     "@llamaindex/liteparse": "^1.4.2",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@openai/codex": "0.159.2",
