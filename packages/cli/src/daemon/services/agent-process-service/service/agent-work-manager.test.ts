@@ -63,14 +63,17 @@ function createService(
     readonly recordDeliveryFailure?: ReturnType<typeof vi.fn>;
     readonly stopAgent?: ReturnType<typeof vi.fn>;
     readonly recoverInFlightTasks?: ReturnType<typeof vi.fn>;
+    readonly configState?: () => 'ready' | 'syncing' | 'absent';
   } = {}
 ): AgentWorkManager {
   const taskInboxState = options.taskInboxState ?? new TaskInboxState();
+  const configState = options.configState;
   taskInboxState.upsert(options.initialTasks ?? []);
   return new AgentWorkManager({
     configurationService: {
       get: () =>
         typeof options.agentConfig === 'function' ? options.agentConfig() : options.agentConfig,
+      ...(configState ? { state: () => configState() } : {}),
     } as never,
     agentMgr: {
       subscribeAgentTurnEnded: (handler: (event: never) => Promise<unknown>) => {
@@ -964,6 +967,49 @@ describe('AgentWorkManager', () => {
         expect(log.mock.calls.join('\n')).toContain(
           'chatroom=room-1 role=builder attempts=1 reason=config_removed'
         );
+        service.dispose();
+      } finally {
+        log.mockRestore();
+      }
+    });
+  });
+
+  test('respawn retries wait while the config registry is syncing', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
+        let config: { agentHarness: string; model: string; workingDir: string } | undefined = {
+          agentHarness: 'cursor-sdk',
+          model: 'test-model',
+          workingDir: '/test',
+        };
+        let state: 'ready' | 'syncing' | 'absent' = 'ready';
+        const service = createRestartService({
+          startAgent,
+          agentConfig: () => config,
+          configState: () => state,
+        });
+
+        await armRespawnStartRetries(service);
+        expect(startAgent).toHaveBeenCalledTimes(1);
+
+        config = undefined;
+        state = 'syncing';
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        const logs = log.mock.calls.join('\n');
+        expect(logs).toContain('uncovered-restart-config-syncing');
+        expect(logs).not.toContain('reason=config_removed');
+        expect(startAgent).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(1);
+
+        // Once the registry is ready the same retry proceeds.
+        config = { agentHarness: 'cursor-sdk', model: 'test-model', workingDir: '/test' };
+        state = 'ready';
+        await vi.advanceTimersByTimeAsync(1_000);
+
+        expect(startAgent).toHaveBeenCalledTimes(2);
         service.dispose();
       } finally {
         log.mockRestore();

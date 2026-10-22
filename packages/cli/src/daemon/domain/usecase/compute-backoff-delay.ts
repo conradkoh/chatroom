@@ -1,16 +1,17 @@
 /**
- * Exponential backoff for provider-failure redelivery.
+ * Shared exponential backoff for daemon-owned retry ladders.
  *
- * A failed provider turn releases the task back to `pending`; releasing it
- * immediately spends the attempt budget while the provider is still failing.
- * The delay before each release grows by a factor of two and is capped so a
- * multi-minute outage is absorbed without parking the task.
+ * Callers pass their own bounds: provider-failure redelivery (5s base, 5min cap,
+ * ±20% jitter), role recovery (1s to 30s, deterministic), bootstrap recovery
+ * (1s to 30s, deterministic), and respawn starts (1s base, 10min SDK cap or
+ * 30s CLI cap, deterministic). The delay doubles per attempt and is capped so
+ * an outage is absorbed without giving up.
  */
 // The bounds are part of the helper's public contract (imported by its tests).
 // fallow-ignore-next-line unused-export
-export const RETRY_BACKOFF_BASE_MS = 5_000;
+export const REDELIVERY_BACKOFF_BASE_MS = 5_000;
 // fallow-ignore-next-line unused-export
-export const RETRY_BACKOFF_MAX_MS = 5 * 60_000;
+export const REDELIVERY_BACKOFF_MAX_MS = 5 * 60_000;
 
 export interface BackoffOptions {
   baseMs: number;
@@ -21,8 +22,8 @@ export interface BackoffOptions {
 
 /** The provider-failure redelivery schedule: 5s base, 5min cap, ±20%. */
 export const REDELIVERY_BACKOFF_OPTIONS: BackoffOptions = {
-  baseMs: RETRY_BACKOFF_BASE_MS,
-  maxMs: RETRY_BACKOFF_MAX_MS,
+  baseMs: REDELIVERY_BACKOFF_BASE_MS,
+  maxMs: REDELIVERY_BACKOFF_MAX_MS,
   jitter: 0.2,
 };
 

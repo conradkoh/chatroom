@@ -1056,6 +1056,15 @@ export class AgentWorkManager {
     // model/harness/workspace, or removed the config entirely.
     const config = this.deps.configurationService.get(chatroomId, role);
     if (!config) {
+      // The registry loads asynchronously on boot. A missing config while it is
+      // still syncing is not a removal: keep the retry armed and wait.
+      if (this.deps.configurationService.state?.(chatroomId, role) === 'syncing') {
+        console.log(
+          `[NativeDelivery:uncovered-restart-config-syncing] chatroom=${chatroomId} role=${role} attempts=${pending.attempts}`
+        );
+        this.armRespawnStartRetry(key, pending);
+        return;
+      }
       this.cancelRespawnStart(key, 'config_removed');
       return;
     }
@@ -1077,7 +1086,7 @@ export class AgentWorkManager {
         startInput,
         cliDriven: isCliDrivenHarness(config.agentHarness),
       };
-      console.info(
+      console.log(
         `[NativeDelivery:uncovered-restart-config-changed] chatroom=${chatroomId} role=${role} harness=${config.agentHarness} model=${config.model} workingDir=${config.workingDir}`
       );
     }
