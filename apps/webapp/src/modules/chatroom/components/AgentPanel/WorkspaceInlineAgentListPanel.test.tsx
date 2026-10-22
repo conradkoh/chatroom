@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -220,5 +220,73 @@ describe('WorkspaceInlineAgentListPanel canonical directory rendering', () => {
     render(<WorkspaceInlineAgentListPanel chatroomId={workspaceContext.chatroomId} />);
 
     expect(screen.getByText('No agents in team structure')).toBeInTheDocument();
+  });
+
+  it('renders exactly one card and no ephemeral subheader in single-role mode', () => {
+    mockBoundaries(getTeamStructure({ teamId: 'duo' }));
+    const { container } = render(
+      <WorkspaceInlineAgentListPanel chatroomId={workspaceContext.chatroomId} role="triage" />
+    );
+
+    expect(screen.getByText('triage', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText('planner', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Ephemeral \(/)).not.toBeInTheDocument();
+    expect(container.querySelectorAll('div.border-b')).toHaveLength(1);
+  });
+
+  it('matches the requested role case-insensitively', () => {
+    mockBoundaries(getTeamStructure({ teamId: 'duo' }));
+    render(
+      <WorkspaceInlineAgentListPanel chatroomId={workspaceContext.chatroomId} role="TRIAGE" />
+    );
+
+    expect(screen.getByText('triage', { exact: true })).toBeInTheDocument();
+  });
+
+  it('renders the role-missing state with a View all action when the role is not in the team', () => {
+    mockBoundaries(getTeamStructure({ teamId: 'duo' }));
+    const onViewAllAgents = vi.fn();
+    render(
+      <WorkspaceInlineAgentListPanel
+        chatroomId={workspaceContext.chatroomId}
+        role="ghost"
+        onViewAllAgents={onViewAllAgents}
+      />
+    );
+
+    expect(screen.getByTestId('agent-config-missing')).toHaveTextContent(
+      'ghost is not in the current team'
+    );
+    fireEvent.click(screen.getByText('All agents →'));
+    expect(onViewAllAgents).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders Loading agents in single-role mode while the directory loads', () => {
+    mockBoundaries(undefined);
+    mocks.workspace = { ...workspaceContext, isLoading: true };
+    render(
+      <WorkspaceInlineAgentListPanel chatroomId={workspaceContext.chatroomId} role="triage" />
+    );
+
+    expect(screen.getByText('Loading agents...')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-config-missing')).not.toBeInTheDocument();
+  });
+
+  it('renders No active workspace in single-role mode without a workspace', () => {
+    mockBoundaries(getTeamStructure({ teamId: 'duo' }));
+    mocks.workspace = { ...workspaceContext, activeWorkspace: null };
+    render(
+      <WorkspaceInlineAgentListPanel chatroomId={workspaceContext.chatroomId} role="triage" />
+    );
+
+    expect(screen.getByText('No active workspace')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-config-missing')).not.toBeInTheDocument();
+  });
+
+  it('keeps the ephemeral subheader for a mixed team when no role is requested', () => {
+    mockBoundaries(getTeamStructure({ teamId: 'duo' }));
+    render(<WorkspaceInlineAgentListPanel chatroomId={workspaceContext.chatroomId} />);
+
+    expect(screen.getByText('Ephemeral (7)')).toBeInTheDocument();
   });
 });
