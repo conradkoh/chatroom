@@ -995,6 +995,221 @@ describe('AgentWorkManager', () => {
     });
   });
 
+  /**
+   * A restart service whose serialized sections run normally except for the
+   * calls listed in `failCalls` (1-based), which reject before the start.
+   */
+  const createSerializedFailureService = (args: {
+    config: () => { agentHarness: string; model: string; workingDir: string };
+    startAgent: ReturnType<typeof vi.fn>;
+    failCalls: readonly number[];
+  }): AgentWorkManager => {
+    let slot: ReturnType<typeof runningSlot> | undefined = runningSlot();
+    let serializedCalls = 0;
+    return createService({
+      getSlot: () => slot,
+      agentConfig: args.config,
+      runSerializedForAgent: (async (
+        _key: unknown,
+        _options: unknown,
+        operation: (ops: unknown, context: { signal: AbortSignal }) => unknown
+      ) => {
+        serializedCalls += 1;
+        if (args.failCalls.includes(serializedCalls)) throw new Error('serialized failure');
+        return operation(
+          {
+            startAgent: args.startAgent,
+            stopAgent: vi.fn(async () => {
+              slot = undefined;
+              return { success: true };
+            }),
+          },
+          { signal: new AbortController().signal }
+        );
+      }) as never,
+      startAgent: args.startAgent,
+      decideUncoveredTurnEnd: vi.fn(async () => ({ action: 'restart-session' as const })),
+      initialTasks: [pendingTask('task-1')],
+    });
+  };
+
+  test('an unexpected retry error re-arms the next respawn attempt', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const startedAt = Date.now();
+        const startTimes: number[] = [];
+        const startAgent = vi.fn(async () => {
+          startTimes.push(Date.now() - startedAt);
+          return { success: false, error: 'rate_limited' };
+        });
+        const config = {
+          agentHarness: 'cursor-sdk',
+          model: 'test-model',
+          workingDir: '/test',
+        };
+        const service = createSerializedFailureService({
+          config: () => config,
+          startAgent,
+          failCalls: [2],
+        });
+
+        await armRespawnStartRetries(service);
+        expect(startTimes).toEqual([0]);
+
+        // The first retry's serialized section throws before it can start.
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(errorLog.mock.calls.join('\n')).toContain('uncovered-restart-error-retry');
+        expect(vi.getTimerCount()).toBe(1);
+
+        // The re-armed retry still runs, one backoff step later.
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(startTimes).toEqual([0, 3_000]);
+        service.dispose();
+      } finally {
+        errorLog.mockRestore();
+      }
+    });
+  });
+
+  test('unexpected retry errors keep re-arming for an SDK harness', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
+        const config = {
+          agentHarness: 'cursor-sdk',
+          model: 'test-model',
+          workingDir: '/test',
+        };
+        const service = createSerializedFailureService({
+          config: () => config,
+          startAgent,
+          failCalls: [2, 3, 4, 5, 6],
+        });
+
+        await armRespawnStartRetries(service);
+        for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000]) {
+          await vi.advanceTimersByTimeAsync(delay);
+        }
+
+        expect(startAgent).toHaveBeenCalledTimes(1);
+        expect(errorLog.mock.calls.join('\n').match(/uncovered-restart-error-retry/g)).toHaveLength(
+          5
+        );
+        expect(vi.getTimerCount()).toBe(1);
+        service.dispose();
+      } finally {
+        errorLog.mockRestore();
+      }
+    });
+  });
+
+  test('unexpected retry errors still stop at the CLI attempt cap', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
+        const config = {
+          agentHarness: 'opencode',
+          model: 'test-model',
+          workingDir: '/test',
+        };
+        const service = createSerializedFailureService({
+          config: () => config,
+          startAgent,
+          failCalls: [2, 3],
+        });
+
+        await armRespawnStartRetries(service);
+        await vi.advanceTimersByTimeAsync(1_000);
+        await vi.advanceTimersByTimeAsync(2_000);
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(startAgent).toHaveBeenCalledTimes(1);
+        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
+        expect(vi.getTimerCount()).toBe(0);
+        service.dispose();
+      } finally {
+        errorLog.mockRestore();
+      }
+    });
+  });
+
+  test('a harness change from SDK to CLI applies the CLI attempt bound', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const startedAt = Date.now();
+        const startTimes: number[] = [];
+        const startAgent = vi.fn(async () => {
+          startTimes.push(Date.now() - startedAt);
+          return { success: false, error: 'rate_limited' };
+        });
+        let config = {
+          agentHarness: 'cursor-sdk',
+          model: 'test-model',
+          workingDir: '/test',
+        };
+        const service = createRestartService({
+          startAgent,
+          agentConfig: () => config,
+        });
+
+        await armRespawnStartRetries(service);
+        expect(startTimes).toEqual([0]);
+
+        config = { ...config, agentHarness: 'opencode' };
+        await vi.advanceTimersByTimeAsync(1_000);
+        await vi.advanceTimersByTimeAsync(2_000);
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(startTimes).toEqual([0, 1_000, 3_000]);
+        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
+        expect(vi.getTimerCount()).toBe(0);
+        service.dispose();
+      } finally {
+        errorLog.mockRestore();
+      }
+    });
+  });
+
+  test('a harness change from CLI to SDK keeps retrying past the CLI bound', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const startedAt = Date.now();
+      const startTimes: number[] = [];
+      const startAgent = vi.fn(async () => {
+        startTimes.push(Date.now() - startedAt);
+        return { success: false, error: 'rate_limited' };
+      });
+      let config = {
+        agentHarness: 'opencode',
+        model: 'test-model',
+        workingDir: '/test',
+      };
+      const service = createRestartService({
+        startAgent,
+        agentConfig: () => config,
+      });
+
+      await armRespawnStartRetries(service);
+      expect(startTimes).toEqual([0]);
+
+      config = { ...config, agentHarness: 'cursor-sdk' };
+      for (const delay of [
+        1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 512_000,
+      ]) {
+        await vi.advanceTimersByTimeAsync(delay);
+      }
+
+      expect(startTimes).toEqual([
+        0, 1_000, 3_000, 7_000, 15_000, 31_000, 63_000, 127_000, 255_000, 511_000, 1_023_000,
+      ]);
+      expect(vi.getTimerCount()).toBe(1);
+      service.dispose();
+    });
+  });
+
   test('automatic recovery rejection still lets a waiting explicit recovery run', async () => {
     await withFakeTimersAndNeutralJitter(async () => {
       let rejectAutomatic!: (error: Error) => void;

@@ -83,7 +83,7 @@ interface RespawnStartRequest {
   readonly role: string;
   readonly workingDir: string;
   readonly startInput: EnsureAgentProcessInput;
-  /** Decided once when the restart is requested; see isCliDrivenHarness. */
+  /** Decided from the harness; recomputed when configuration changes. See isCliDrivenHarness. */
   readonly cliDriven: boolean;
 }
 
@@ -981,7 +981,7 @@ export class AgentWorkManager {
   /** Records a failed respawn start and arms the first retry. The ladder is not re-run. */
   private beginRespawnStartRetries(input: Omit<RespawnStartRequest, 'cliDriven'>): void {
     if (this.disposed) return;
-    // Decide once, at the start: CLI-driven agents keep the bounded ladder.
+    // Decided from the harness; recomputed if configuration changes mid-retry.
     const request: RespawnStartRequest = {
       ...input,
       cliDriven: isCliDrivenHarness(input.startInput.agentHarness),
@@ -1003,15 +1003,30 @@ export class AgentWorkManager {
     // The first retry waits 1s; CLI-driven harnesses keep the old 30s cap.
     const delay = computeBackoffDelay(pending.attempts, {
       baseMs: RESPAWN_RETRY_BASE_MS,
-      maxMs: restartRetryMaxIntervalMs(pending.request.startInput.agentHarness),
+      maxMs: restartRetryMaxIntervalMs(pending.request.cliDriven),
       jitter: 0,
     });
     pending.timer = setTimeout(() => {
       pending.timer = undefined;
       void this.retryRespawnStart(key, pending.restartId).catch((error: unknown) => {
+        const current = this.respawnStartRetries.get(key);
+        const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
         console.error(
-          `[NativeDelivery:uncovered-restart-error] chatroom=${pending.request.chatroomId} role=${pending.request.role} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+          `[NativeDelivery:uncovered-restart-error] chatroom=${pending.request.chatroomId} role=${pending.request.role} error=${message}`
         );
+        if (!current || current.restartId !== pending.restartId || this.disposed) return;
+        current.attempts += 1;
+        if (current.request.cliDriven && current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
+          this.respawnStartRetries.delete(key);
+          console.error(
+            `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${current.request.chatroomId} role=${current.request.role} attempts=${current.attempts} error=${message}`
+          );
+          return;
+        }
+        console.error(
+          `[NativeDelivery:uncovered-restart-error-retry] chatroom=${current.request.chatroomId} role=${current.request.role} attempt=${current.attempts} error=${message}`
+        );
+        this.armRespawnStartRetry(key, current);
       });
     }, delay);
   }
@@ -1054,6 +1069,7 @@ export class AgentWorkManager {
         ...previous,
         workingDir: config.workingDir,
         startInput,
+        cliDriven: isCliDrivenHarness(config.agentHarness),
       };
       console.info(
         `[NativeDelivery:uncovered-restart-config-changed] chatroom=${chatroomId} role=${role} harness=${config.agentHarness} model=${config.model} workingDir=${config.workingDir}`

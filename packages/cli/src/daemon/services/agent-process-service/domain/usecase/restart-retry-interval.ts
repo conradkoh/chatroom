@@ -1,5 +1,3 @@
-import { isCliDrivenHarness } from './is-cli-driven-harness.js';
-
 /** Upper bound for native (SDK) agent-restart retry intervals. */
 // Exported as the documented restart-retry contract (tests and docs).
 // fallow-ignore-next-line unused-export
@@ -10,13 +8,13 @@ export const AGENT_RESTART_RETRY_MAX_INTERVAL_MS = 10 * 60_000;
 export const CLI_RESTART_RETRY_MAX_INTERVAL_MS = 30_000;
 
 /**
- * Restart-retry interval cap for a harness.
+ * Restart-retry interval cap for a respawn request.
  *
- * Native SDK harnesses (and unknown harnesses, which the daemon owns) use the
- * 10-minute cap. CLI-driven harnesses keep the older 30-second cap.
+ * The caller decides `cliDriven` once from `isCliDrivenHarness` and recomputes
+ * it when configuration changes, so both the cap and the CLI attempt bound come
+ * from that single field. SDK harnesses (and unknown harnesses, which the
+ * daemon owns) use the 10-minute cap; CLI-driven harnesses keep 30 seconds.
  */
-export function restartRetryMaxIntervalMs(harness: string | undefined): number {
-  return isCliDrivenHarness(harness)
-    ? CLI_RESTART_RETRY_MAX_INTERVAL_MS
-    : AGENT_RESTART_RETRY_MAX_INTERVAL_MS;
+export function restartRetryMaxIntervalMs(cliDriven: boolean): number {
+  return cliDriven ? CLI_RESTART_RETRY_MAX_INTERVAL_MS : AGENT_RESTART_RETRY_MAX_INTERVAL_MS;
 }
