@@ -9,15 +9,72 @@
 import { link, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
 
 import pngjs from 'pngjs';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDefaultSliceImageDeps } from './slice-deps.js';
 import type { DecodedImage } from './slice-deps.js';
 import { sliceImage } from './slice.js';
 
+// The real adapter (and the command path that uses it) must never load fal.
+vi.mock('@fal-ai/client', () => {
+  throw new Error('must not load fal');
+});
+
 const { PNG } = pngjs;
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function chunk(type: string, data: Buffer): Buffer {
+  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const out = Buffer.alloc(body.length + 8);
+  out.writeUInt32BE(data.length, 0);
+  body.copy(out, 4);
+  out.writeUInt32BE(crc32(body), out.length - 4);
+  return out;
+}
+
+/** Build a PNG with arbitrary IHDR fields, chunks, and scanline data. */
+function buildRawPng(args: {
+  width: number;
+  height: number;
+  bitDepth: number;
+  colorType: number;
+  raw: Buffer;
+  interlace?: boolean;
+  extraChunks?: Buffer[];
+}): Buffer {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(args.width, 0);
+  ihdr.writeUInt32BE(args.height, 4);
+  ihdr[8] = args.bitDepth;
+  ihdr[9] = args.colorType;
+  if (args.interlace === true) ihdr[12] = 1;
+  return Buffer.concat([
+    PNG_SIGNATURE,
+    chunk('IHDR', ihdr),
+    ...(args.extraChunks ?? []),
+    chunk('IDAT', deflateSync(args.raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+function pixel(x: number, y: number): number[] {
+  return [x * 100, y * 100, 50, 255];
+}
 
 function image(
   width: number,
@@ -75,6 +132,130 @@ describe('createDefaultSliceImageDeps', () => {
 
     expect(decoded.data).toHaveLength(2 * 4);
     expect(Array.from(decoded.data)).toEqual([255, 0, 0, 255, 0, 255, 0, 255]);
+  });
+
+  it('rescales 16-bit RGBA to 8-bit RGBA', () => {
+    const deps = createDefaultSliceImageDeps();
+    const values = new Uint16Array([65535, 0, 0, 65535, 0, 65535, 0, 32768]);
+    const png = new PNG({ width: 2, height: 1 });
+    png.data = Buffer.from(values.buffer);
+    const bytes = PNG.sync.write(png, {
+      bitDepth: 16,
+      colorType: 6,
+      inputColorType: 6,
+      inputHasAlpha: true,
+    });
+
+    const decoded = deps.decodePng(bytes);
+
+    expect(decoded.width).toBe(2);
+    expect(decoded.height).toBe(1);
+    expect(decoded.data).toHaveLength(2 * 4);
+    expect(Array.from(decoded.data)).toEqual([255, 0, 0, 255, 0, 255, 0, 128]);
+  });
+
+  it('rescales 16-bit RGB to 8-bit RGBA', () => {
+    const deps = createDefaultSliceImageDeps();
+    const values = new Uint16Array([65535, 0, 0, 0, 65535, 0]);
+    const png = new PNG({ width: 2, height: 1 });
+    png.data = Buffer.from(values.buffer);
+    const bytes = PNG.sync.write(png, {
+      bitDepth: 16,
+      colorType: 2,
+      inputColorType: 2,
+      inputHasAlpha: false,
+    });
+
+    const decoded = deps.decodePng(bytes);
+
+    expect(decoded.data).toHaveLength(2 * 4);
+    expect(Array.from(decoded.data)).toEqual([255, 0, 0, 255, 0, 255, 0, 255]);
+  });
+
+  it('decodes greyscale (colorType 0) to RGBA', () => {
+    const deps = createDefaultSliceImageDeps();
+    const rgba = image(2, 1, (x) => (x === 0 ? [100, 100, 100, 255] : [200, 200, 200, 255]));
+    const png = new PNG({ width: 2, height: 1, colorType: 0 });
+    png.data = Buffer.from(rgba.data);
+    const bytes = PNG.sync.write(png, { colorType: 0, inputColorType: 6, inputHasAlpha: true });
+
+    const decoded = deps.decodePng(bytes);
+
+    expect(decoded.data).toHaveLength(2 * 4);
+    expect(Array.from(decoded.data)).toEqual([100, 100, 100, 255, 200, 200, 200, 255]);
+  });
+
+  it('decodes greyscale+alpha (colorType 4) to RGBA', () => {
+    const deps = createDefaultSliceImageDeps();
+    const rgba = image(2, 1, (x) => (x === 0 ? [60, 60, 60, 255] : [120, 120, 120, 128]));
+    const png = new PNG({ width: 2, height: 1, colorType: 4 });
+    png.data = Buffer.from(rgba.data);
+    const bytes = PNG.sync.write(png, { colorType: 4, inputColorType: 6, inputHasAlpha: true });
+
+    const decoded = deps.decodePng(bytes);
+
+    expect(decoded.data).toHaveLength(2 * 4);
+    expect(Array.from(decoded.data)).toEqual([60, 60, 60, 255, 120, 120, 120, 128]);
+  });
+
+  it('decodes a palette PNG with tRNS alpha', () => {
+    const deps = createDefaultSliceImageDeps();
+    const palette = Buffer.from([255, 0, 0, 0, 255, 0, 0, 0, 255]);
+    const transparency = Buffer.from([255, 255, 128]);
+    const raw = Buffer.from([
+      0,
+      0,
+      1, // row 0: filter, index 0, index 1
+      0,
+      2,
+      0, // row 1: filter, index 2, index 0
+    ]);
+    const bytes = buildRawPng({
+      width: 2,
+      height: 2,
+      bitDepth: 8,
+      colorType: 3,
+      raw,
+      extraChunks: [chunk('PLTE', palette), chunk('tRNS', transparency)],
+    });
+
+    const decoded = deps.decodePng(bytes);
+
+    expect(decoded.data).toHaveLength(2 * 2 * 4);
+    expect(Array.from(decoded.data)).toEqual([
+      255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 128, 255, 0, 0, 255,
+    ]);
+  });
+
+  it('decodes an interlaced 8-bit RGBA PNG', () => {
+    const deps = createDefaultSliceImageDeps();
+    const raw = Buffer.concat([
+      Buffer.from([0]), // pass 1 filter
+      Buffer.from(pixel(0, 0)),
+      Buffer.from([0]), // pass 6 filter
+      Buffer.from(pixel(1, 0)),
+      Buffer.from([0]), // pass 7 filter
+      Buffer.from(pixel(0, 1)),
+      Buffer.from(pixel(1, 1)),
+    ]);
+    const bytes = buildRawPng({
+      width: 2,
+      height: 2,
+      bitDepth: 8,
+      colorType: 6,
+      interlace: true,
+      raw,
+    });
+
+    const decoded = deps.decodePng(bytes);
+
+    expect(decoded.data).toHaveLength(2 * 2 * 4);
+    expect(Array.from(decoded.data)).toEqual([
+      ...pixel(0, 0),
+      ...pixel(1, 0),
+      ...pixel(0, 1),
+      ...pixel(1, 1),
+    ]);
   });
 
   it('preserves alpha from an RGBA PNG', () => {

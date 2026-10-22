@@ -9,8 +9,13 @@
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type * as SliceModule from './slice.js';
 import { registerSliceImageCommand } from './slice-command.js';
+import type * as SliceModule from './slice.js';
+
+// The command must never load the fal SDK, even transitively.
+vi.mock('@fal-ai/client', () => {
+  throw new Error('must not load fal');
+});
 
 const { sliceImageMock } = vi.hoisted(() => ({ sliceImageMock: vi.fn() }));
 
