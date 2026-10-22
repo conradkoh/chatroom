@@ -47,7 +47,29 @@ describe('chatroom generate-image wiring', () => {
 
   afterEach(() => {
     process.exitCode = undefined;
+    delete process.env.FAL_KEY;
     vi.restoreAllMocks();
+  });
+
+  it('reports action failures on stderr with exitCode 1 and never prints FAL_KEY', async () => {
+    const key = 'fal-key-sentinel-do-not-print';
+    process.env.FAL_KEY = key;
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    generateImageMock.mockRejectedValue(new Error('generation exploded'));
+
+    const program = createProgram();
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+
+    expect(errorSpy).toHaveBeenCalled();
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain('generation exploded');
+    expect(process.exitCode).toBe(1);
+    expect(logSpy).not.toHaveBeenCalled();
+
+    const printed = [...errorSpy.mock.calls, ...logSpy.mock.calls]
+      .flat()
+      .map((value) => String(value));
+    expect(printed.some((line) => line.includes(key))).toBe(false);
   });
 
   it('requires --prompt and --out', async () => {
@@ -152,13 +174,14 @@ describe('chatroom generate-image wiring', () => {
     expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ force: undefined });
   });
 
-  it('documents the flags in help output', () => {
+  it('lists the flags and description in help output', () => {
     const program = createProgram();
     const command = program.commands[0];
 
     expect(command?.name()).toBe('generate-image');
-    const flags = command?.options.map((option) => option.long) ?? [];
-    expect(flags).toEqual([
+    const help = command?.helpInformation() ?? '';
+    expect(help).toContain('Generate one image with a fal model');
+    for (const flag of [
       '--prompt',
       '--out',
       '--platform',
@@ -167,7 +190,12 @@ describe('chatroom generate-image wiring', () => {
       '--output-format',
       '--seed',
       '--force',
-    ]);
+    ]) {
+      expect(help).toContain(flag);
+    }
+    // Model defaults differ, so these must not be forced by the CLI.
+    expect(help).not.toContain('(default: "auto")');
+    expect(help).not.toContain('(default: "png")');
   });
 
   it('does not expose the old `generate image` group form', async () => {

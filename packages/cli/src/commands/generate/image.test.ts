@@ -194,15 +194,19 @@ describe('generateImage', () => {
     expect(manifest.generatedAt).toBe('2026-01-02T03:04:05.000Z');
     expect(manifest.licensing).toBe('unverified');
     expect(JSON.stringify(manifest).includes(FAL_KEY)).toBe(false);
-    expect(deps.writeJson).toHaveBeenCalledWith(`${OUT_PATH}.json`, manifest);
+
+    const writeJsonCalls = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls;
+    expect(writeJsonCalls[0]?.[0]).toBe(`${OUT_PATH}.json`);
+    expect(writeJsonCalls[0]?.[1]).toEqual(manifest);
   });
 
   it('sends only the prompt when no optional fields are given', async () => {
     const deps = createDeps();
 
-    await generateImage({ prompt: 'a castle', out: OUT_PATH }, deps);
+    // fal-ai/flux/dev has no aspect_ratio, so CLI-side defaults would break it.
+    await generateImage({ prompt: 'a castle', out: OUT_PATH, model: 'fal-ai/flux/dev' }, deps);
 
-    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/nano-banana-2', {
+    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/flux/dev', {
       prompt: 'a castle',
     });
     const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
