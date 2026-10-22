@@ -15,9 +15,16 @@ import { InvalidArgumentError, type Command } from 'commander';
 import { MAX_GRID_DIMENSION, sliceImage } from './slice.js';
 import type { SliceImageOptions } from './slice.js';
 
+const DECIMAL_INTEGER = /^\d+$/;
+
 function parsePositiveInt(value: string): number {
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_GRID_DIMENSION) {
+  if (
+    !DECIMAL_INTEGER.test(value) ||
+    !Number.isInteger(parsed) ||
+    parsed < 1 ||
+    parsed > MAX_GRID_DIMENSION
+  ) {
     throw new InvalidArgumentError(`must be an integer between 1 and ${MAX_GRID_DIMENSION}`);
   }
   return parsed;
@@ -25,7 +32,7 @@ function parsePositiveInt(value: string): number {
 
 function parseNonNegativeInt(value: string): number {
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
+  if (!DECIMAL_INTEGER.test(value) || !Number.isInteger(parsed) || parsed < 0) {
     throw new InvalidArgumentError('must be a non-negative integer');
   }
   return parsed;

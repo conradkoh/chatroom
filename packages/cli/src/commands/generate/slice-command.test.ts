@@ -105,7 +105,10 @@ describe('chatroom slice-image wiring', () => {
     ['--rows', '0'],
     ['--rows', '65'],
     ['--margin', '-1'],
+    ['--margin', ''],
     ['--gutter', '1.5'],
+    ['--cols', '0x10'],
+    ['--cols', '1e1'],
   ])('rejects %s %s before slicing', async (flag, value) => {
     const program = createProgram();
 

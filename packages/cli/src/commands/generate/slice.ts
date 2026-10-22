@@ -174,7 +174,7 @@ function sha256(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-/** The next power-of-two digit width, with a floor of two digits. */
+/** Zero-pad width: decimal digits in the tile count, with a floor of two. */
 function padWidth(tileCount: number): number {
   return Math.max(2, String(tileCount).length);
 }
@@ -254,6 +254,18 @@ export function computeSliceGrid(args: {
 }
 
 const SAFE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/;
+/** Longest output path component we allow: `<name>.slices.json`. */
+const MAX_OUTPUT_NAME_LENGTH = 200;
+
+function requireOutputNameFits(name: string): string {
+  const longest = `${name}.slices.json`;
+  if (longest.length > MAX_OUTPUT_NAME_LENGTH) {
+    throw new SliceImageError(
+      `Output name "${longest}" is ${longest.length} characters; the maximum is ${MAX_OUTPUT_NAME_LENGTH}. Use a shorter --prefix.`
+    );
+  }
+  return name;
+}
 
 /**
  * Resolve one output stem per cell, row-major.
@@ -280,7 +292,7 @@ export function resolveTileNames(args: {
     const width = padWidth(expected);
     return Array.from({ length: expected }, (_, index) => {
       const padded = String(index + 1).padStart(width, '0');
-      return `${prefix}-${padded}`;
+      return requireOutputNameFits(`${prefix}-${padded}`);
     });
   }
 
@@ -315,7 +327,10 @@ export function resolveTileNames(args: {
     throw new SliceImageError('--names must contain at least one non-empty name.');
   }
 
-  return names.map((name) => name.trim());
+  return names.map((name) => {
+    const trimmed = name.trim();
+    return trimmed.length === 0 ? '' : requireOutputNameFits(trimmed);
+  });
 }
 
 function hasPngMagic(bytes: Uint8Array): boolean {

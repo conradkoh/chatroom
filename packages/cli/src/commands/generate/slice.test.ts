@@ -342,6 +342,12 @@ describe('resolveTileNames', () => {
   it('refuses a prefix with nothing safe left', () => {
     expect(() => resolveTileNames({ cols: 1, rows: 1, prefix: '...' })).toThrow(/--prefix/);
   });
+
+  it('refuses a prefix whose output names exceed the length limit', () => {
+    expect(() => resolveTileNames({ cols: 1, rows: 1, prefix: 'a'.repeat(300) })).toThrow(
+      /Output name .* is 315 characters; the maximum is 200/
+    );
+  });
 });
 
 describe('sliceImage', () => {
@@ -717,6 +723,17 @@ describe('sliceImage', () => {
       const error = await captureError(sliceImage(opts, deps));
 
       expect(error.message).toContain('expected 16 RGBA bytes, got 3');
+      expectNothingWritten(deps);
+    });
+
+    it('refuses an over-long prefix before any write', async () => {
+      const deps = createDeps();
+
+      const error = await captureError(
+        sliceImage({ ...opts, names: undefined, prefix: 'a'.repeat(300) }, deps)
+      );
+
+      expect(error.message).toContain('maximum is 200');
       expectNothingWritten(deps);
     });
 
