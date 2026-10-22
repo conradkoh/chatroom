@@ -13,7 +13,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Ask for a specification and report only unless you explicitly request generation.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -37,7 +37,16 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
 
 ## Deliverable mode
-<\`spec only\` (default) or \`spec and generate\`; if generating, list the allowed tools here>
+<\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
+
+## Allowed tools
+<the generators the designer may run, or \`Any tool available in the designer's shell.\`; say which>
+
+## Allowed edit paths
+<repository-relative paths the designer may edit; \`None.\` for none>
+
+## Commit
+<\`None.\` or the commit message and the paths to commit>
 
 ## Output location
 <the exact repository directory the designer may write to; required for \`spec and generate\`; \`None.\` for \`spec only\`>
@@ -70,7 +79,7 @@ export function getGameAssetDesignerToEntryPointHandoffTemplate(
 ): string {
   const entryPoint = query.toRole;
 
-  return `Instructions (not part of the message): Return a complete asset delivery report for the request the planner named. State only what you established. Label every checked property with one evidence label: ${GAME_ASSET_EVIDENCE_LABEL_LIST}. Definitions: ${GAME_ASSET_EVIDENCE_DEFINITIONS} ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE} Do not edit source code or write outside the named output location. In \`spec only\` you write no files. Use the exact sections below, in this order. If you are blocked or need a clarification, send the same sections with Summary starting \`Blocked:\` and every section you could not reach written as \`Not started.\`
+  return `Instructions (not part of the message): Return a complete asset delivery report for the request the planner named. State only what you established. Label every checked property with one evidence label: ${GAME_ASSET_EVIDENCE_LABEL_LIST}. Definitions: ${GAME_ASSET_EVIDENCE_DEFINITIONS} ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE} Write only under the named output location and the named edit paths. In \`spec only\` you write no files. Use the exact sections below, in this order. If you are blocked or need a clarification, send the same sections with Summary starting \`Blocked:\` and every section you could not reach written as \`Not started.\`
 
 ## Summary
 <one to three sentences: what was delivered, whether it is spec only or includes files, and the count of \`fail\` and \`not checked\` items>
@@ -90,8 +99,11 @@ export function getGameAssetDesignerToEntryPointHandoffTemplate(
 ## Style consistency
 <how the set matches the style reference; deviations; what was compared and how>
 
-## Files created
+## Created and edited paths
 <repository-relative paths and a one-line description each; write exactly \`None.\` for spec only>
+
+## Commits
+<write exactly \`None.\` if none; otherwise one line per commit: \`<sha> <message>\`>
 
 ## Sources
 <URLs for engine or platform rules relied on, with version or date checked>

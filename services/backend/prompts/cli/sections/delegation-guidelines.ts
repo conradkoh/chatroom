@@ -41,7 +41,7 @@ Break features into small, focused slices, then delegate them to the builder one
 
 **UI/UX work:** The UI/UX engineer owns the design. Request its markup, classes, and styles for the implementation brief.
 
-**Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is.
+**Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is. Game asset files and the asset-integration edits that go with them go to \`game-asset-designer\` (see the game assets rule).
 
 **Decision flow:**
 \`\`\`mermaid

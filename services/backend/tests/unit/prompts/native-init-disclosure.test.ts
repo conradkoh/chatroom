@@ -27,9 +27,11 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * then from 14700 to admit the review-on-demand delegation rule (~250 characters),
  * then from 15000 to admit the game-assets-via-designer delegation rule (~270 characters),
  * then from 15500 to admit the expanded game-assets-via-designer boundary, routing,
- * and evidence-acceptance rule (~700 characters).
+ * and evidence-acceptance rule (~700 characters),
+ * then from 16000 to admit the asset-generation and asset-integration routing rule
+ * that replaces it (~300 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 16000;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 16500;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];
