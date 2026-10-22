@@ -45,7 +45,7 @@ Instructions (not part of the message): Return a complete asset delivery report 
 <every property you could not measure or inspect; write exactly \`None.\` if none>
 
 ## Recommended next step
-<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (integrate, or apply the listed import settings), \`uiux-engineer\` (place the listed UI art in a screen design), or \`planner\` (decision needed on an open question); then the affected asset IDs>
+<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (integrate, or apply the listed import settings), \`uiux-engineer\` (layout, component, or styling changes only, never asset files), or \`planner\` (decision needed on an open question); then the affected asset IDs>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`planner\` with the complete body above, then stop.
 
@@ -81,7 +81,7 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Spec consumer
-<who produces or integrates these assets from the spec: \`builder\`, \`uiux-engineer\`, an external artist, or \`user\`>
+<who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
 
 ## Existing assets
 <repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
@@ -107,11 +107,11 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 Instructions after the body (not part of the message): run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Acceptance criteria\`.
 
 ### When to use the game asset designer
-- the request creates or changes game art or audio assets (models, textures, sprites, UI art, sound effects);
+- the request creates or changes any asset file: game art or audio (models, textures, sprites, UI art, sound effects), or non-game UI icons and illustrations;
 - assets must meet engine import conventions or budgets before a builder integrates them;
 - the user asks for an asset spec, style sheet, or asset audit.
 
-Skip it for code-only work, for a trivial asset rename, and for non-game UI icons or illustrations (use \`uiux-engineer\`).
+Skip it for code-only work and for a trivial asset rename. Non-game UI icons and illustrations also go to this role; they are not sent to \`uiux-engineer\`.
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="planner" --next-role="game-asset-designer" << 'CHATROOM_HANDOFF_END'
