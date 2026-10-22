@@ -181,6 +181,8 @@ describe('chatroom generate-image wiring', () => {
     expect(command?.name()).toBe('generate-image');
     const help = command?.helpInformation() ?? '';
     expect(help).toContain('Generate one image with a fal model');
+    const modelOption = command?.options.find((option) => option.long === '--model');
+    expect(modelOption?.description).toContain('Recommended');
     for (const flag of [
       '--prompt',
       '--out',

@@ -12,7 +12,7 @@ import { extname, resolve } from 'node:path';
 
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 
-export const DEFAULT_IMAGE_MODEL = 'fal-ai/nano-banana-2';
+export const DEFAULT_IMAGE_MODEL = 'fal-ai/flux-2/flash';
 /**
  * Generation platforms the CLI can call today. New platforms are added here
  * and dispatched in `generateImage`; the flag and manifest field already exist

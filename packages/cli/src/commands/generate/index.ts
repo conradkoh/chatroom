@@ -52,10 +52,14 @@ export function registerGenerateImageCommand(program: Command): void {
       parsePlatform,
       DEFAULT_GENERATE_IMAGE_PLATFORM
     )
-    .option('--model <id>', 'Model id on the selected platform', DEFAULT_IMAGE_MODEL)
+    .option(
+      '--model <id>',
+      `fal model id. Recommended and default: ${DEFAULT_IMAGE_MODEL}`,
+      DEFAULT_IMAGE_MODEL
+    )
     .option(
       '--aspect-ratio <ratio>',
-      'Aspect ratio, e.g. 1:1, 4:3, 16:9, 9:16 (omitted = model default)'
+      `Aspect ratio, e.g. 1:1, 4:3, 16:9, 9:16 (omitted = model default). Not supported by the default model ${DEFAULT_IMAGE_MODEL}, which uses its own image size`
     )
     .option(
       '--output-format <format>',

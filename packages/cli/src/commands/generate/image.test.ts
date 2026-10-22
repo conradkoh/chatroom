@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
-import { generateImage } from './image.js';
+import { DEFAULT_IMAGE_MODEL, generateImage } from './image.js';
 import type { GenerateImagePlatform } from './image.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
@@ -60,6 +60,10 @@ async function captureError(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe('generateImage', () => {
+  it('defaults to the recommended FLUX 2 Flash model', () => {
+    expect(DEFAULT_IMAGE_MODEL).toBe('fal-ai/flux-2/flash');
+  });
+
   it('rejects when FAL_API_KEY is missing and makes no fal call', async () => {
     const deps = createDeps({ env: {} });
 
@@ -144,7 +148,7 @@ describe('generateImage', () => {
     });
 
     await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
-      'fal returned no image for model fal-ai/nano-banana-2'
+      'fal returned no image for model fal-ai/flux-2/flash'
     );
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
@@ -156,7 +160,7 @@ describe('generateImage', () => {
       {
         prompt: 'a knight in a forest',
         out: OUT_PATH,
-        model: 'fal-ai/nano-banana-2',
+        model: 'fal-ai/flux-2/flash',
         aspectRatio: '1:1',
         outputFormat: 'png',
         seed: 42,
@@ -171,7 +175,7 @@ describe('generateImage', () => {
       sha256: expectedSha,
     });
 
-    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/nano-banana-2', {
+    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/flux-2/flash', {
       prompt: 'a knight in a forest',
       aspect_ratio: '1:1',
       output_format: 'png',
@@ -185,7 +189,7 @@ describe('generateImage', () => {
     >;
     expect(manifest.tool).toBe('chatroom generate-image');
     expect(manifest.sdk).toBe('@fal-ai/client@1.10.1');
-    expect(manifest.model).toBe('fal-ai/nano-banana-2');
+    expect(manifest.model).toBe('fal-ai/flux-2/flash');
     expect(manifest.input).toEqual({
       prompt: 'a knight in a forest',
       aspect_ratio: '1:1',
