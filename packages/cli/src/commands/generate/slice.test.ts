@@ -818,6 +818,23 @@ describe('sliceImage', () => {
       expectNothingWritten(deps);
     });
 
+    it('refuses a sidecar-only collision without --force and lists the json path', async () => {
+      // Only hero.png.json exists; hero.png is missing on disk.
+      const jsonPath = resolve('/tmp/tiles/hero.png.json');
+      const deps = createDeps({
+        pathStatus: pathStatusFor({ [jsonPath]: 'file' }),
+      });
+
+      const error = await captureError(
+        sliceImage({ in: IN_PATH, outDir: OUT_DIR, cols: 1, rows: 1, names: ['hero'] }, deps)
+      );
+
+      expect(error).toBeInstanceOf(SliceImageError);
+      expect(error.message).toContain(`${jsonPath}: already exists`);
+      expect(error.message).toContain('Pass --force to overwrite.');
+      expectNothingWritten(deps);
+    });
+
     it('refuses a directory in the way', async () => {
       const deps = createDeps({
         pathStatus: pathStatusFor({ [resolve('/tmp/tiles/goblin.png')]: 'directory' }),
