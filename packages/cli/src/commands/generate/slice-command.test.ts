@@ -130,6 +130,7 @@ describe('chatroom slice-image wiring', () => {
       '--names',
       'a,,c',
       '--allow-remainder',
+      '--allow-edge-content',
       '--force',
       '--dry-run',
     ]);
@@ -144,6 +145,7 @@ describe('chatroom slice-image wiring', () => {
       names: ['a', '', 'c'],
       prefix: undefined,
       allowRemainder: true,
+      allowEdgeContent: true,
       force: true,
       dryRun: true,
     });

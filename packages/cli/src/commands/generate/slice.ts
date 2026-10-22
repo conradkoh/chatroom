@@ -51,6 +51,8 @@ export interface SliceImageOptions {
   /** Output stem prefix when `names` is absent; defaults to the sheet file stem. */
   prefix?: string | undefined;
   allowRemainder?: boolean | undefined;
+  /** Skip the check that refuses sheets whose artwork crosses cell borders. */
+  allowEdgeContent?: boolean | undefined;
   force?: boolean | undefined;
   dryRun?: boolean | undefined;
 }
@@ -491,6 +493,146 @@ async function preflightOutputs(
   }
 }
 
+/** Any channel differing by more than this counts as artwork, not background. */
+const EDGE_CONTENT_THRESHOLD = 25;
+/** The error names at most this many offending cells. */
+const MAX_REPORTED_EDGE_CELLS = 10;
+
+type Rgb = [number, number, number];
+
+interface EdgeCounts {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/** Most frequent opaque colour on the sheet's outermost 1-px border. */
+// fallow-ignore-next-line complexity
+function mostFrequentBorderColor(image: {
+  width: number;
+  height: number;
+  data: Uint8Array;
+}): Rgb | null {
+  const { width, height, data } = image;
+  const counts = new Map<number, number>();
+  // fallow-ignore-next-line complexity
+  const add = (x: number, y: number): void => {
+    const offset = (y * width + x) * 4;
+    if (data[offset + 3] === 0) return;
+    const red = data[offset] ?? 0;
+    const green = data[offset + 1] ?? 0;
+    const blue = data[offset + 2] ?? 0;
+    const key = (red << 16) | (green << 8) | blue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  };
+  for (let x = 0; x < width; x += 1) {
+    add(x, 0);
+    if (height > 1) add(x, height - 1);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    add(0, y);
+    if (width > 1) add(width - 1, y);
+  }
+
+  let best: number | null = null;
+  let bestCount = -1;
+  for (const [key, count] of counts) {
+    if (count > bestCount) {
+      best = key;
+      bestCount = count;
+    }
+  }
+  if (best === null) return null;
+  return [(best >> 16) & 0xff, (best >> 8) & 0xff, best & 0xff];
+}
+
+/**
+ * Count foreground pixels on one cell's border. The sheet's own outer border is
+ * excluded: it is where the background estimate came from and is not a cell
+ * boundary between two items.
+ */
+// fallow-ignore-next-line complexity
+function countCellEdgeForeground(
+  image: { width: number; height: number; data: Uint8Array },
+  cell: { x: number; y: number; width: number; height: number },
+  background: Rgb
+): EdgeCounts {
+  const { width, height, data } = image;
+  // fallow-ignore-next-line complexity
+  const isForeground = (x: number, y: number): boolean => {
+    if (x === 0 || y === 0 || x === width - 1 || y === height - 1) return false;
+    const offset = (y * width + x) * 4;
+    if ((data[offset + 3] ?? 0) === 0) return false;
+    const red = data[offset] ?? 0;
+    const green = data[offset + 1] ?? 0;
+    const blue = data[offset + 2] ?? 0;
+    const difference = Math.max(
+      Math.abs(red - background[0]),
+      Math.abs(green - background[1]),
+      Math.abs(blue - background[2])
+    );
+    return difference > EDGE_CONTENT_THRESHOLD;
+  };
+
+  const lastX = cell.x + cell.width - 1;
+  const lastY = cell.y + cell.height - 1;
+  const counts: EdgeCounts = { top: 0, bottom: 0, left: 0, right: 0 };
+  for (let x = cell.x; x <= lastX; x += 1) {
+    if (isForeground(x, cell.y)) counts.top += 1;
+    if (isForeground(x, lastY)) counts.bottom += 1;
+  }
+  for (let y = cell.y; y <= lastY; y += 1) {
+    if (isForeground(cell.x, y)) counts.left += 1;
+    if (isForeground(lastX, y)) counts.right += 1;
+  }
+  return counts;
+}
+
+/**
+ * Refuse sheets whose artwork touches an internal cell border.
+ *
+ * A generated sheet that does not match an equal-cell grid is cut through its
+ * artwork; this check turns that silent damage into a clear refusal. Faint
+ * drawn separators stay below the colour threshold, and a genuinely
+ * full-bleed/tileable sheet can opt out with `--allow-edge-content`.
+ */
+// fallow-ignore-next-line complexity
+function requireNoEdgeContent(args: {
+  image: { width: number; height: number; data: Uint8Array };
+  cells: SliceGrid['cells'];
+  names: string[];
+  cols: number;
+  rows: number;
+}): void {
+  const background = mostFrequentBorderColor(args.image);
+  if (background === null) return;
+
+  const offenders: { index: number; counts: EdgeCounts }[] = [];
+  let activeCells = 0;
+  for (const cell of args.cells) {
+    if ((args.names[cell.index] ?? '').length === 0) continue;
+    activeCells += 1;
+    const counts = countCellEdgeForeground(args.image, cell, background);
+    if (counts.top + counts.bottom + counts.left + counts.right > 0) {
+      offenders.push({ index: cell.index, counts });
+    }
+  }
+  if (offenders.length === 0) return;
+
+  const shown = offenders
+    .slice(0, MAX_REPORTED_EDGE_CELLS)
+    .map(
+      ({ index, counts }) =>
+        `${index + 1} (top ${counts.top}px, bottom ${counts.bottom}px, left ${counts.left}px, right ${counts.right}px)`
+    );
+  const remaining = offenders.length - shown.length;
+  const cellList = remaining > 0 ? `${shown.join(', ')}, and ${remaining} more` : shown.join(', ');
+  throw new SliceImageError(
+    `Artwork crosses cell borders in ${offenders.length} of ${activeCells} cells (cells: ${cellList}). The sheet probably does not match a ${args.cols}x${args.rows} grid of equal cells. Regenerate the sheet with one separate item per cell and no drawn grid lines, or pass --allow-edge-content to slice anyway.`
+  );
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -615,6 +757,19 @@ export async function sliceImage(
   const skipped = grid.cells
     .filter((cell) => (names[cell.index] ?? '').length === 0)
     .map((cell) => cell.index);
+
+  // 6b. Refuse artwork that crosses an internal cell border before any preflight
+  // or encode work, and before a dry run reports success. Skipped cells do not
+  // count, so a caller can deliberately omit an unusable cell.
+  if (opts.allowEdgeContent !== true) {
+    requireNoEdgeContent({
+      image,
+      cells: grid.cells,
+      names,
+      cols,
+      rows,
+    });
+  }
 
   // 7. Read the optional generate-image sidecar. It never blocks a slice.
   const warnings: string[] = [];

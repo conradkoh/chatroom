@@ -68,6 +68,55 @@ function sheetPixel(x: number, y: number): number[] {
   return [x & 255, y & 255, (x >> 8) | ((y >> 8) << 4), 255];
 }
 
+const SHEET_BACKGROUND: readonly [number, number, number, number] = [220, 220, 220, 255];
+const ITEM_COLOR: readonly [number, number, number, number] = [200, 40, 40, 255];
+
+type TestImage = { width: number; height: number; data: Uint8Array };
+
+function blankSheet(width: number, height: number): TestImage {
+  const data = new Uint8Array(width * height * 4);
+  for (let offset = 0; offset < data.length; offset += 4) {
+    data.set(SHEET_BACKGROUND, offset);
+  }
+  return { width, height, data };
+}
+
+function fillRect(
+  image: TestImage,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rgba: readonly [number, number, number, number]
+): void {
+  for (let row = y; row < y + height; row += 1) {
+    for (let col = x; col < x + width; col += 1) {
+      image.data.set(rgba, (row * image.width + col) * 4);
+    }
+  }
+}
+
+/** 8x8 sheet, 2x2 grid, one inset 2x2 item per cell with a clean border. */
+function cleanSheet(): TestImage {
+  const image = blankSheet(8, 8);
+  for (const [x, y] of [
+    [1, 1],
+    [5, 1],
+    [1, 5],
+    [5, 5],
+  ] as const) {
+    fillRect(image, x, y, 2, 2, ITEM_COLOR);
+  }
+  return image;
+}
+
+/** 8x8 sheet with one item spanning the border between cells 1 and 2. */
+function crossingSheet(): TestImage {
+  const image = blankSheet(8, 8);
+  fillRect(image, 3, 1, 2, 2, ITEM_COLOR);
+  return image;
+}
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SOURCE_IDENTITY = { dev: 1, ino: 100 };
@@ -1087,6 +1136,80 @@ describe('sliceImage', () => {
       tileHeight: 4,
       droppedRight: 1,
       droppedBottom: 0,
+    });
+  });
+
+  describe('edge content guard', () => {
+    const guardOpts = {
+      in: IN_PATH,
+      outDir: OUT_DIR,
+      cols: 2,
+      rows: 2,
+      names: ['hero', 'sword', 'goblin', 'orc'],
+    };
+
+    function guardDeps(image: TestImage): SliceImageDeps {
+      return createDeps({
+        readFile: vi.fn().mockResolvedValue(pngBytes(8, 8)),
+        decodePng: vi.fn(() => image),
+      });
+    }
+
+    it('refuses a sheet whose artwork crosses a cell border and writes nothing', async () => {
+      const deps = guardDeps(crossingSheet());
+
+      const error = await captureError(sliceImage(guardOpts, deps));
+
+      expect(error).toBeInstanceOf(SliceImageError);
+      expect(error.message).toContain('Artwork crosses cell borders in 2 of 4 cells');
+      expect(error.message).toContain('cells: 1 (top 0px, bottom 0px, left 0px, right 2px)');
+      expect(error.message).toContain('2 (top 0px, bottom 0px, left 2px, right 0px)');
+      expect(error.message).toContain('does not match a 2x2 grid of equal cells');
+      expect(error.message).toContain('--allow-edge-content');
+      expect(deps.ensureDir).not.toHaveBeenCalled();
+      expect(deps.writeFile).not.toHaveBeenCalled();
+      expect(deps.writeJson).not.toHaveBeenCalled();
+    });
+
+    it('slices the same crossing sheet when --allow-edge-content is set', async () => {
+      const deps = guardDeps(crossingSheet());
+
+      const result = await sliceImage({ ...guardOpts, allowEdgeContent: true }, deps);
+
+      expect(result.tiles).toHaveLength(4);
+      expect(deps.writeFile).toHaveBeenCalledTimes(4);
+    });
+
+    it('accepts a sheet whose artwork stays inside every cell border', async () => {
+      const deps = guardDeps(cleanSheet());
+
+      const result = await sliceImage(guardOpts, deps);
+
+      expect(result.tiles).toHaveLength(4);
+      expect(deps.writeFile).toHaveBeenCalledTimes(4);
+    });
+
+    it('refuses a crossing sheet under --dry-run', async () => {
+      const deps = guardDeps(crossingSheet());
+
+      const error = await captureError(sliceImage({ ...guardOpts, dryRun: true }, deps));
+
+      expect(error.message).toContain('Artwork crosses cell borders');
+      expect(deps.ensureDir).not.toHaveBeenCalled();
+      expect(deps.writeFile).not.toHaveBeenCalled();
+      expect(deps.writeJson).not.toHaveBeenCalled();
+    });
+
+    it('does not count a crossing in a skipped cell', async () => {
+      // The item crosses only cell 2's left border, and cell 2 is skipped.
+      const image = blankSheet(8, 8);
+      fillRect(image, 4, 1, 1, 2, ITEM_COLOR);
+      const deps = guardDeps(image);
+
+      const result = await sliceImage({ ...guardOpts, names: ['hero', '', 'goblin', 'orc'] }, deps);
+
+      expect(result.tiles.map((tile) => tile.name)).toEqual(['hero', 'goblin', 'orc']);
+      expect(deps.writeFile).toHaveBeenCalledTimes(3);
     });
   });
 });

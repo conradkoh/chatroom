@@ -36,19 +36,48 @@ function cellColor(row: number, col: number): number[] {
   return [10 + row * 40, 20 + col * 30, 30 + (row * COLS + col) * 15, 255];
 }
 
-/** A 4x3 sheet with one distinct colour per cell and one translucent cell. */
+/** A 4x3 sheet with a clean background border and one inset colour per cell. */
 function buildSheet(): Sheet {
   const width = COLS * CELL_WIDTH;
   const height = ROWS * CELL_HEIGHT;
   const image = new PNG({ width, height });
+  const background: [number, number, number, number] = [230, 230, 230, 255];
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const row = Math.floor(y / CELL_HEIGHT);
-      const col = Math.floor(x / CELL_WIDTH);
-      const color = cellColor(row, col);
+      image.data.set(background, (y * width + x) * 4);
+    }
+  }
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      const [r, g, b] = cellColor(row, col);
       // Cell (row 1, col 2) is translucent to prove alpha is preserved.
       const alpha = row === 1 && col === 2 ? 200 : 255;
-      image.data.set([color[0] ?? 0, color[1] ?? 0, color[2] ?? 0, alpha], (y * width + x) * 4);
+      const left = col * CELL_WIDTH + 3;
+      const top = row * CELL_HEIGHT + 2;
+      for (let y = top; y < top + CELL_HEIGHT - 4; y += 1) {
+        for (let x = left; x < left + CELL_WIDTH - 6; x += 1) {
+          image.data.set([r ?? 0, g ?? 0, b ?? 0, alpha], (y * width + x) * 4);
+        }
+      }
+    }
+  }
+  const bytes = PNG.sync.write(image, { colorType: 6, deflateLevel: 9 });
+  return { bytes, sha256: createHash('sha256').update(bytes).digest('hex'), image };
+}
+
+/** 32x32 sheet with one item straddling the border between the left and right cells. */
+function buildCrossingSheet(): Sheet {
+  const width = 32;
+  const height = 32;
+  const image = new PNG({ width, height });
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      image.data.set([230, 230, 230, 255], (y * width + x) * 4);
+    }
+  }
+  for (let y = 6; y < 10; y += 1) {
+    for (let x = 14; x < 18; x += 1) {
+      image.data.set([200, 40, 40, 255], (y * width + x) * 4);
     }
   }
   const bytes = PNG.sync.write(image, { colorType: 6, deflateLevel: 9 });
@@ -166,7 +195,7 @@ describe('chatroom slice-image (end-to-end)', () => {
       decoder: string;
       source: { sha256: string; manifestPath: string; manifest: { requestId: string } };
       grid: Record<string, number>;
-      tiles: Array<{ index: number; row: number; col: number; name: string; sha256: string }>;
+      tiles: { index: number; row: number; col: number; name: string; sha256: string }[];
       skipped: number[];
       licensing: string;
     };
@@ -239,7 +268,8 @@ describe('chatroom slice-image (end-to-end)', () => {
     expect(cropPixels(translucent, 0, 0, CELL_WIDTH, CELL_HEIGHT)).toEqual(
       cropPixels(sheet.image, 2 * CELL_WIDTH, CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)
     );
-    expect(pixelAt(translucent, 0, 0)[3]).toBe(200);
+    expect(pixelAt(translucent, 0, 0)[3]).toBe(255);
+    expect(pixelAt(translucent, 3, 2)[3]).toBe(200);
 
     const rerun = runCli([
       '--in',
@@ -266,7 +296,7 @@ describe('chatroom slice-image (end-to-end)', () => {
     expect(refused.stderr).toContain('--allow-remainder');
     await expect(exists(remainderDir)).resolves.toBe(false);
 
-    const allowed = runCli([...baseArgs, '--allow-remainder']);
+    const allowed = runCli([...baseArgs, '--allow-remainder', '--allow-edge-content']);
     expect(allowed.status).toBe(0);
 
     const index = JSON.parse(await readFile(join(remainderDir, 'sheet.slices.json'), 'utf8')) as {
@@ -278,5 +308,37 @@ describe('chatroom slice-image (end-to-end)', () => {
       droppedRight: 4,
       droppedBottom: 0,
     });
+  }, 30_000);
+
+  it('refuses artwork crossing cell borders and slices with --allow-edge-content', async () => {
+    const crossing = buildCrossingSheet();
+    const crossingPath = join(dir, 'crossing.png');
+    const crossingOut = join(dir, 'crossing-tiles');
+    await writeFile(crossingPath, crossing.bytes);
+
+    const args = [
+      '--in',
+      crossingPath,
+      '--out-dir',
+      crossingOut,
+      '--cols',
+      '2',
+      '--rows',
+      '2',
+      '--names',
+      'a,b,c,d',
+    ];
+
+    const refused = runCli(args);
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain('Artwork crosses cell borders in 2 of 4 cells');
+    expect(refused.stderr).toContain('--allow-edge-content');
+    await expect(exists(crossingOut)).resolves.toBe(false);
+
+    const allowed = runCli([...args, '--allow-edge-content']);
+    expect(allowed.status).toBe(0);
+    for (const name of ['a', 'b', 'c', 'd']) {
+      await expect(exists(join(crossingOut, `${name}.png`))).resolves.toBe(true);
+    }
   }, 30_000);
 });

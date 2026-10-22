@@ -94,6 +94,7 @@ interface SliceImageCliOptions {
   names?: string[] | undefined;
   prefix?: string | undefined;
   allowRemainder?: boolean | undefined;
+  allowEdgeContent?: boolean | undefined;
   force?: boolean | undefined;
   dryRun?: boolean | undefined;
 }
@@ -137,6 +138,10 @@ export function registerSliceImageCommand(program: Command): void {
     )
     .option('--prefix <text>', 'Prefix for default names (default: sheet file stem)')
     .option('--allow-remainder', 'Drop leftover pixels on the right/bottom instead of refusing')
+    .option(
+      '--allow-edge-content',
+      'Skip the check that refuses sheets whose artwork crosses cell borders (for full-bleed or tileable art)'
+    )
     .option('--force', 'Overwrite existing tile images and manifests')
     .option('--dry-run', 'Report the tiles without writing anything')
     .addHelpText('after', HELP_AFTER)
@@ -154,6 +159,7 @@ export function registerSliceImageCommand(program: Command): void {
           names: options.names,
           prefix: options.prefix,
           allowRemainder: options.allowRemainder,
+          allowEdgeContent: options.allowEdgeContent,
           force: options.force,
           dryRun: options.dryRun,
         };
