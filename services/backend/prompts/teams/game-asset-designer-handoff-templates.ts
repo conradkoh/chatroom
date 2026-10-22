@@ -13,7 +13,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal (the only generator for now)\`. Do not name any other generator.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -31,7 +31,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Spec consumer
-<who produces or integrates these assets from the spec: \`builder\`, \`uiux-engineer\`, an external artist, or \`user\`>
+<who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
 
 ## Existing assets
 <repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
@@ -40,7 +40,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
 
 ## Allowed tools
-<the generators the designer may run, or \`Any tool available in the designer's shell.\`; say which>
+\`chatroom generate-image --platform=fal (the only generator for now)\`
 
 ## Allowed edit paths
 <repository-relative paths the designer may edit; \`None.\` for none>
@@ -57,11 +57,11 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 Instructions after the body (not part of the message): run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Acceptance criteria\`.
 
 ### When to use the game asset designer
-- the request creates or changes game art or audio assets (models, textures, sprites, UI art, sound effects);
+- the request creates or changes any asset file: game art or audio (models, textures, sprites, UI art, sound effects), or non-game UI icons and illustrations;
 - assets must meet engine import conventions or budgets before a builder integrates them;
 - the user asks for an asset spec, style sheet, or asset audit.
 
-Skip it for code-only work, for a trivial asset rename, and for non-game UI icons or illustrations (use \`uiux-engineer\`).
+Skip it for code-only work and for a trivial asset rename. Non-game UI icons and illustrations also go to this role; they are not sent to \`uiux-engineer\`.
 
 \`\`\`bash
 ${handoffCommand({
@@ -88,7 +88,7 @@ export function getGameAssetDesignerToEntryPointHandoffTemplate(
 <each assumption you made and why; each deviation from the planner's target or budgets; or \`None.\`>
 
 ## Asset manifest
-<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator (tool + version + command or seed)>
+<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, and \`--seed\` values) and the \`<out>.json\` manifest path>
 
 ## Quality checklist results
 <per asset: each applicable checklist item as \`pass\`, \`fail\`, \`n/a\`, or \`not checked\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>
@@ -115,7 +115,7 @@ export function getGameAssetDesignerToEntryPointHandoffTemplate(
 <every property you could not measure or inspect; write exactly \`None.\` if none>
 
 ## Recommended next step
-<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (integrate, or apply the listed import settings), \`uiux-engineer\` (place the listed UI art in a screen design), or \`planner\` (decision needed on an open question); then the affected asset IDs>
+<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (integrate, or apply the listed import settings), \`uiux-engineer\` (layout, component, or styling changes only, never asset files), or \`planner\` (decision needed on an open question); then the affected asset IDs>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 

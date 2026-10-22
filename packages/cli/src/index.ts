@@ -9,6 +9,7 @@
 
 import { Command } from 'commander';
 
+import { registerGenerateImageCommand } from './commands/generate/index.js';
 import { registerChatroomRoleCommand } from './commands/register-chatroom-role-command.js';
 import { collectMultiValueOption } from './utils/multi-value-option.js';
 import { readHeredocOrFileContent } from './utils/read-heredoc-or-file-content.js';
@@ -177,6 +178,12 @@ toolCommand
     console.log(result.message);
     process.exit(result.success ? 0 : 1);
   });
+
+// ============================================================================
+// GENERATE-IMAGE COMMAND (no auth required — local asset generation)
+// ============================================================================
+
+registerGenerateImageCommand(program);
 
 // ============================================================================
 // CHATROOM COMMANDS (auth required unless --skip-auth)
