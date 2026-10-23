@@ -1,7 +1,7 @@
 # Image Generation (`chatroom generate-image`)
 
 **Status:** Implemented
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-10-23
 
 ---
 
@@ -154,6 +154,42 @@ Every image gets a `<out>.json` sidecar with the provenance of the generation:
 `licensing` stays `unverified` because the command makes no claim about the
 licence or commercial rights of generated output. Check fal's terms and the
 selected model's terms yourself before using an asset in production.
+
+## Background removal (fal.ai)
+
+`remove-image-background-fal` cuts one subject out of a PNG with
+[fal-ai/birefnet/v2](https://fal.ai/models/fal-ai/birefnet/v2) in `Matting` mode
+and writes a PNG with alpha plus a `<out>.json` manifest:
+
+```bash
+chatroom remove-image-background-fal \
+  --in assets/sprites/health-potion.png \
+  --out assets/sprites/health-potion-cutout.png
+```
+
+| Option    | Meaning                                     |
+| --------- | ------------------------------------------- |
+| `--in`    | Input PNG (required)                        |
+| `--out`   | Output PNG with alpha (required)            |
+| `--force` | Replace an existing output and its manifest |
+
+The source is sent as a base64 data URI, so there is no separate upload step.
+The output is always a PNG with alpha. The command prints the output path, the
+manifest path, and the fal request id, and the manifest records the model, mode,
+source and output SHA-256 hashes, and the request id.
+
+- **Input cap:** 8 MiB.
+- **Result cap:** 32 MiB; anything larger is rejected before writing.
+- **Billing:** fal bills this model per compute-second. Check the model page and
+  your fal dashboard for the current rate.
+- **Licensing:** `unverified`, as with `generate-image`. Check the
+  [fal model page](https://fal.ai/models/fal-ai/birefnet/v2) and fal's terms
+  before using an asset in production.
+
+The local `remove-image-background` command is different: it is colour-key only,
+runs offline, and needs no `FAL_API_KEY`. Use it for flat, uniform backgrounds.
+The fal command handles photographic or textured backgrounds where colour
+keying fails.
 
 ## Limits
 
