@@ -11,6 +11,7 @@ import { Command } from 'commander';
 
 import { registerGenerateImageCommand } from './commands/generate/index.js';
 import { registerRemoveImageBackgroundCommand } from './commands/generate/remove-background-command.js';
+import { registerRemoveImageBackgroundFalCommand } from './commands/generate/remove-background-fal-command.js';
 import { registerSliceImageCommand } from './commands/generate/slice-command.js';
 import { registerChatroomRoleCommand } from './commands/register-chatroom-role-command.js';
 import { collectMultiValueOption } from './utils/multi-value-option.js';
@@ -193,6 +194,7 @@ registerGenerateImageCommand(program);
 
 registerSliceImageCommand(program);
 registerRemoveImageBackgroundCommand(program);
+registerRemoveImageBackgroundFalCommand(program);
 
 // ============================================================================
 // CHATROOM COMMANDS (auth required unless --skip-auth)

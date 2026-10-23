@@ -198,7 +198,6 @@ function describeFalError(err: unknown): string {
  * model shape (`images[]` for text-to-image, `image` for BiRefNet), so each
  * caller narrows the raw result itself.
  */
-// fallow-ignore-next-line unused-export
 export function createFalRawSubscribe(
   env: Record<string, string | undefined>
 ): (model: string, input: Record<string, unknown>) => Promise<unknown> {
@@ -248,7 +247,6 @@ function requireImageContentType(response: Response): void {
   }
 }
 
-// fallow-ignore-next-line unused-export
 export async function fetchBytes(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) {
