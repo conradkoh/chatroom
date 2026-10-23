@@ -29,7 +29,6 @@ export const FAL_BACKGROUND_MODE = 'Matting' as const;
 /** Base64 input is ~4/3 of bytes; keep the request body well under fal limits. */
 // fallow-ignore-next-line unused-export
 export const MAX_FAL_INPUT_BYTES = 8 * 1024 * 1024;
-// fallow-ignore-next-line unused-export
 export const MAX_FAL_RESULT_BYTES = 32 * 1024 * 1024;
 
 const TOOL = 'chatroom remove-image-background-fal' as const;
@@ -58,11 +57,12 @@ export interface RemoveBackgroundFalDeps {
   env: Record<string, string | undefined>;
   /** Raw fal queue submit + poll. The result is narrowed by this module. */
   falSubscribe: (model: string, input: Record<string, unknown>) => Promise<unknown>;
-  /** Download the returned PNG. */
+  /** Download the returned PNG with an early size cap. */
   fetchBytes: (url: string) => Promise<Uint8Array>;
   /** Read the source PNG; the caller checks the size first. */
   readInput: (path: string) => Promise<Uint8Array>;
-  statInput: (path: string) => Promise<{ size: number }>;
+  /** Classify an input path and report its size without opening it. */
+  statInput: (path: string) => Promise<InputStat>;
   pathStatus: (path: string) => Promise<PathStatus>;
   writeFile: (path: string, bytes: Uint8Array) => Promise<void>;
   writeJson: (path: string, value: unknown) => Promise<void>;
@@ -71,6 +71,12 @@ export interface RemoveBackgroundFalDeps {
   now: () => Date;
   /** Installed `@fal-ai/client` version, recorded in the manifest. */
   sdkVersion: string;
+}
+
+/** Input classification; `other` covers FIFOs, devices, and sockets. */
+export interface InputStat {
+  kind: 'file' | 'directory' | 'other' | 'missing';
+  size: number;
 }
 
 export interface RemoveBackgroundFalResult {
@@ -106,15 +112,18 @@ export function validateBackgroundResult(raw: unknown): FalBackgroundResult {
   return { requestId, data: { image: { url } } };
 }
 
-/** Reject a source before the paid call: missing, non-file, oversized, or non-PNG. */
+/** Reject a source before the paid call: missing, non-regular, oversized, or non-PNG. */
 // fallow-ignore-next-line complexity
 async function requireSource(path: string, deps: RemoveBackgroundFalDeps): Promise<Uint8Array> {
-  const status = await deps.pathStatus(path);
-  if (status === 'missing') throw new RemoveBackgroundFalError(`Input not found: ${path}`);
-  if (status !== 'file') {
-    throw new RemoveBackgroundFalError(`Input is not a regular file: ${path}`);
-  }
+  // `stat` classifies the path, so a FIFO or device is refused before any read.
   const stats = await deps.statInput(path);
+  if (stats.kind === 'missing') throw new RemoveBackgroundFalError(`Input not found: ${path}`);
+  if (stats.kind === 'directory') {
+    throw new RemoveBackgroundFalError(`Input is a directory: ${path}. Pass a PNG file path.`);
+  }
+  if (stats.kind !== 'file') {
+    throw new RemoveBackgroundFalError(`Input is not a regular file: ${path}.`);
+  }
   if (stats.size > MAX_FAL_INPUT_BYTES) {
     throw new RemoveBackgroundFalError(
       `${path} is ${stats.size} bytes; the maximum fal input is ${MAX_FAL_INPUT_BYTES} bytes (8 MiB).`
@@ -140,21 +149,47 @@ async function requireSource(path: string, deps: RemoveBackgroundFalDeps): Promi
   return bytes;
 }
 
-/** Refuse to clobber an existing file unless the user asked with --force. */
-async function requireWritableOutput(
+/**
+ * Refuse to clobber an existing file unless the user asked with --force.
+ * A directory is always a conflict, even with --force.
+ */
+async function requireWritablePath(
   path: string,
+  label: string,
   force: boolean,
   deps: RemoveBackgroundFalDeps
 ): Promise<void> {
   const status = await deps.pathStatus(path);
   if (status === 'directory') {
-    throw new RemoveBackgroundFalError(`--out is a directory: ${path}. Pass a file path.`);
+    throw new RemoveBackgroundFalError(`${label} is a directory: ${path}. Pass a file path.`);
   }
   if (status === 'file' && !force) {
     throw new RemoveBackgroundFalError(
-      `Output already exists: ${path}. Pass --force to overwrite.`
+      `${label} already exists: ${path}. Pass --force to overwrite.`
     );
   }
+}
+
+/** Both outputs are preflighted before the paid call, as in generate-image. */
+async function requireWritableOutputs(
+  outPath: string,
+  manifestPath: string,
+  force: boolean,
+  deps: RemoveBackgroundFalDeps
+): Promise<void> {
+  await requireWritablePath(outPath, '--out', force, deps);
+  await requireWritablePath(manifestPath, 'Manifest', force, deps);
+}
+
+/** A manifest write failure happens after the paid call, so name the request id. */
+function manifestSaveMessage(
+  err: unknown,
+  requestId: string,
+  outPath: string,
+  manifestPath: string
+): string {
+  const detail = err instanceof Error ? err.message : String(err);
+  return `Failed to save manifest ${manifestPath} for request ${requestId} (output ${outPath}): ${detail}. The image was written but its manifest is missing.`;
 }
 
 /** Failures after the paid call still name the request id so the result can be recovered. */
@@ -166,9 +201,9 @@ function recoveryMessage(action: string, err: unknown, requestId: string, url: s
 /**
  * Cut the subject out of one PNG with fal BiRefNet and write the alpha PNG.
  *
- * Stage order is the safety contract: the key, input, and output are all
- * validated before the paid call, and nothing is written until the downloaded
- * bytes are within the size cap and are actually a PNG.
+ * Stage order is the safety contract: the key, input, output, and manifest are
+ * all validated before the paid call, and nothing is written until the
+ * downloaded bytes are within the size cap and are actually a PNG.
  */
 // fallow-ignore-next-line complexity
 export async function removeBackgroundFal(
@@ -182,8 +217,14 @@ export async function removeBackgroundFal(
 
   const inPath = resolve(options.in);
   const outPath = resolve(options.out);
+  const manifestPath = `${outPath}.json`;
+  if (inPath === outPath) {
+    throw new RemoveBackgroundFalError(
+      `--in and --out are the same file: ${inPath}. Choose a different output path.`
+    );
+  }
   const source = await requireSource(inPath, deps);
-  await requireWritableOutput(outPath, options.force === true, deps);
+  await requireWritableOutputs(outPath, manifestPath, options.force === true, deps);
 
   // Strings pass through the SDK unchanged, so the data URI is the request body.
   const dataUri = `data:image/png;base64,${Buffer.from(source).toString('base64')}`;
@@ -214,7 +255,6 @@ export async function removeBackgroundFal(
     );
   }
 
-  const manifestPath = `${outPath}.json`;
   const outputSha256 = sha256(bytes);
   const manifest = {
     platform: 'fal' as const,
@@ -245,7 +285,13 @@ export async function removeBackgroundFal(
   } catch (err) {
     throw new RemoveBackgroundFalError(recoveryMessage('save', err, result.requestId, imageUrl));
   }
-  await deps.writeJson(manifestPath, manifest);
+  try {
+    await deps.writeJson(manifestPath, manifest);
+  } catch (err) {
+    throw new RemoveBackgroundFalError(
+      manifestSaveMessage(err, result.requestId, outPath, manifestPath)
+    );
+  }
 
   return {
     outPath,

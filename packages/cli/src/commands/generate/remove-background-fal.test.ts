@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import type { PathStatus } from './fs-helpers.js';
 import {
   FAL_BACKGROUND_MODE,
   FAL_BACKGROUND_MODEL,
@@ -57,7 +58,7 @@ function createDeps(overrides: Partial<RemoveBackgroundFalDeps> = {}): RemoveBac
     falSubscribe: vi.fn().mockResolvedValue(result()),
     fetchBytes: vi.fn().mockResolvedValue(pngBytes()),
     readInput: vi.fn().mockResolvedValue(pngBytes()),
-    statInput: vi.fn().mockResolvedValue({ size: 33 }),
+    statInput: vi.fn().mockResolvedValue({ kind: 'file', size: 33 }),
     pathStatus: vi.fn(async (path: string) => (path === IN_PATH ? 'file' : 'missing')),
     writeFile: vi.fn().mockResolvedValue(undefined),
     writeJson: vi.fn().mockResolvedValue(undefined),
@@ -75,6 +76,11 @@ async function captureError(promise: Promise<unknown>): Promise<Error> {
     return err as Error;
   }
   throw new Error('expected the call to reject');
+}
+
+/** pathStatus fake backed by an explicit map; anything unlisted is missing. */
+function pathStatusFor(entries: Record<string, PathStatus>): RemoveBackgroundFalDeps['pathStatus'] {
+  return vi.fn(async (path: string) => entries[path] ?? 'missing');
 }
 
 describe('removeBackgroundFal', () => {
@@ -136,7 +142,9 @@ describe('removeBackgroundFal', () => {
     const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
 
     expect(error.message).toContain('FAL_API_KEY is not set');
+    expect(deps.pathStatus).not.toHaveBeenCalled();
     expect(deps.statInput).not.toHaveBeenCalled();
+    expect(deps.readInput).not.toHaveBeenCalled();
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.fetchBytes).not.toHaveBeenCalled();
   });
@@ -148,7 +156,7 @@ describe('removeBackgroundFal', () => {
 
     const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
 
-    expect(error.message).toBe(`Output already exists: ${OUT_PATH}. Pass --force to overwrite.`);
+    expect(error.message).toBe(`--out already exists: ${OUT_PATH}. Pass --force to overwrite.`);
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
@@ -161,20 +169,115 @@ describe('removeBackgroundFal', () => {
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, expect.any(Uint8Array));
   });
 
+  it('rejects an existing manifest without --force before the paid call', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [OUT_PATH]: 'missing', [`${OUT_PATH}.json`]: 'file' }),
+    });
+
+    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+
+    expect(error.message).toBe(
+      `Manifest already exists: ${OUT_PATH}.json. Pass --force to overwrite.`
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('rejects a manifest path that is a directory before the paid call', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [OUT_PATH]: 'missing', [`${OUT_PATH}.json`]: 'directory' }),
+    });
+
+    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+
+    expect(error.message).toBe(`Manifest is a directory: ${OUT_PATH}.json. Pass a file path.`);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('overwrites an existing manifest with --force', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [OUT_PATH]: 'file', [`${OUT_PATH}.json`]: 'file' }),
+    });
+
+    await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, force: true }, deps);
+
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+    expect(deps.writeJson).toHaveBeenCalledWith(`${OUT_PATH}.json`, expect.any(Object));
+  });
+
+  it('rejects an --out path that is a directory before the paid call', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'directory' }) });
+
+    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+
+    expect(error.message).toBe(`--out is a directory: ${OUT_PATH}. Pass a file path.`);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a fal failure and writes nothing', async () => {
+    const deps = createDeps({
+      falSubscribe: vi.fn().mockRejectedValue(new Error('fal request failed (HTTP 500)')),
+    });
+
+    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+
+    expect(error.message).toContain('fal request failed (HTTP 500)');
+    expect(deps.fetchBytes).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('names the request id and output path when the manifest write fails', async () => {
+    const deps = createDeps({
+      writeJson: vi.fn().mockRejectedValue(new Error('EISDIR: illegal operation on a directory')),
+    });
+
+    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+
+    expect(error.message).toContain(`Failed to save manifest ${OUT_PATH}.json`);
+    expect(error.message).toContain('request req-1');
+    expect(error.message).toContain(OUT_PATH);
+    expect(error.message).toContain('EISDIR');
+  });
+
   it('rejects a missing input before the paid call', async () => {
     const deps = createDeps({
-      pathStatus: vi.fn(async () => 'missing' as const),
+      statInput: vi.fn().mockResolvedValue({ kind: 'missing', size: 0 }),
     });
 
     const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
 
     expect(error.message).toBe(`Input not found: ${IN_PATH}`);
+    expect(deps.readInput).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-regular input before reading it or calling fal', async () => {
+    const deps = createDeps({
+      statInput: vi.fn().mockResolvedValue({ kind: 'other', size: 0 }),
+    });
+
+    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+
+    expect(error.message).toBe(`Input is not a regular file: ${IN_PATH}.`);
+    expect(deps.readInput).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('rejects the same --in and --out path before the paid call', async () => {
+    const deps = createDeps();
+
+    const error = await captureError(removeBackgroundFal({ in: OUT_PATH, out: OUT_PATH }, deps));
+
+    expect(error.message).toBe(
+      `--in and --out are the same file: ${OUT_PATH}. Choose a different output path.`
+    );
+    expect(deps.statInput).not.toHaveBeenCalled();
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
   it('rejects an input larger than the fal cap before the paid call', async () => {
     const deps = createDeps({
-      statInput: vi.fn().mockResolvedValue({ size: MAX_FAL_INPUT_BYTES + 1 }),
+      statInput: vi.fn().mockResolvedValue({ kind: 'file', size: MAX_FAL_INPUT_BYTES + 1 }),
     });
 
     const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));

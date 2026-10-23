@@ -46,14 +46,19 @@ function sha256(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-function buildDeps(download: Uint8Array): RemoveBackgroundFalDeps {
+function buildDeps(
+  download: Uint8Array,
+  falSubscribe?: RemoveBackgroundFalDeps['falSubscribe']
+): RemoveBackgroundFalDeps {
   const slice = createDefaultSliceImageDeps();
   return {
     env: { FAL_API_KEY },
-    falSubscribe: async () => ({
-      requestId: 'req-e2e',
-      data: { image: { url: IMAGE_URL } },
-    }),
+    falSubscribe:
+      falSubscribe ??
+      (async () => ({
+        requestId: 'req-e2e',
+        data: { image: { url: IMAGE_URL } },
+      })),
     fetchBytes: async () => download,
     readInput: slice.readFile,
     statInput: slice.statInput,
@@ -156,7 +161,13 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
   });
 
   it('refuses a second run without --force and overwrites with --force', async () => {
+    const falSubscribe = vi.fn(async () => ({
+      requestId: 'req-e2e',
+      data: { image: { url: IMAGE_URL } },
+    }));
+    depsHolder.current = buildDeps(buildPng(6, 5, 200), falSubscribe);
     await run(['--in', inputPath, '--out', outputPath]);
+    expect(falSubscribe).toHaveBeenCalledTimes(1);
     vi.mocked(console.error).mockClear();
     process.exitCode = undefined;
 
@@ -164,11 +175,36 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
 
     expect(process.exitCode).toBe(1);
     expect(String(vi.mocked(console.error).mock.calls[0]?.[0])).toContain('already exists');
+    // The refused run never reaches the paid call.
+    expect(falSubscribe).toHaveBeenCalledTimes(1);
 
     process.exitCode = undefined;
     await run(['--in', inputPath, '--out', outputPath, '--force']);
     expect(process.exitCode).toBeUndefined();
+    expect(falSubscribe).toHaveBeenCalledTimes(2);
     expect(await readFile(outputPath)).toEqual(Buffer.from(buildPng(6, 5, 200)));
+  });
+
+  it('refuses to overwrite an existing manifest without --force', async () => {
+    await run(['--in', inputPath, '--out', outputPath]);
+    // Remove only the PNG; the leftover manifest must still block the next run.
+    await rm(outputPath);
+    const falSubscribe = vi.fn(async () => ({
+      requestId: 'req-e2e',
+      data: { image: { url: IMAGE_URL } },
+    }));
+    depsHolder.current = buildDeps(buildPng(6, 5, 200), falSubscribe);
+    vi.mocked(console.error).mockClear();
+    process.exitCode = undefined;
+
+    await run(['--in', inputPath, '--out', outputPath]);
+
+    expect(process.exitCode).toBe(1);
+    expect(String(vi.mocked(console.error).mock.calls[0]?.[0])).toContain(
+      'Manifest already exists'
+    );
+    expect(falSubscribe).not.toHaveBeenCalled();
+    await expect(readFile(outputPath)).rejects.toThrow();
   });
 
   it('refuses a non-PNG input before calling fal', async () => {
