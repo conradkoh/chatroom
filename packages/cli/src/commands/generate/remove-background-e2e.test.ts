@@ -234,7 +234,7 @@ describe('chatroom remove-image-background (end-to-end)', () => {
 
 const fixtureDir =
   process.env.CHATROOM_BG_FIXTURE_DIR ??
-  join(process.env.HOME ?? '', 'Downloads/slice-image-nanobanana2-20261022-193147/nb2/tiles');
+  join(process.env.HOME ?? '', 'Downloads/2026-10-22-193147_slice-image-nanobanana2/nb2/tiles');
 const potionFixture = join(fixtureDir, 'potion.png');
 const fixtureAvailable = await exists(potionFixture).catch(() => false);
 
