@@ -21,6 +21,7 @@ export const GAME_ASSET_RULES: readonly string[] = [
   'Write only under `Output location` and `Allowed edit paths`; never overwrite or delete unless the brief names the path.',
   'Mark `pass` or `fail` only with `measured` or `inspected` evidence (labels below).',
   'Run `<command> --help` before first use of `slice-image` or `remove-image-background`.',
+  'Always pass `--trim` to `chatroom remove-image-background`; use `--trim-padding` only when the brief names a padding.',
 ];
 
 export const GAME_ASSET_PROOF_OF_PRINCIPLES: readonly string[] = GAME_ASSET_RULES.map(
@@ -28,7 +29,6 @@ export const GAME_ASSET_PROOF_OF_PRINCIPLES: readonly string[] = GAME_ASSET_RULE
 );
 
 /** `- R1 <rule>` lines used inside the role prompt's RULES block. */
-// fallow-ignore-next-line unused-export
 export function formatGameAssetRules(): string {
   return GAME_ASSET_RULES.map((rule, index) => `- R${index + 1} ${rule}`).join('\n');
 }

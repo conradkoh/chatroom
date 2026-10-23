@@ -23,6 +23,7 @@ Instructions (not part of the message): Return a complete asset delivery report 
 - [ ] Write only under \`Output location\` and \`Allowed edit paths\`; never overwrite or delete unless the brief names the path. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Mark \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence (labels below). — <evidence: command lines, grid values, or naming map reference>
 - [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding. — <evidence: command lines, grid values, or naming map reference>
 
 ## Proof of Completion
 - [ ] <one checkbox per brief acceptance criterion; state the evidence label required (measured or inspected)>
@@ -133,7 +134,8 @@ Larger only as \`CxR (requested by user: "<quote>")\`.
 - [ ] Never pass \`--names\` to \`slice-image\`; assign names only with \`remove-image-background --map\` or \`--out\`.
 - [ ] Write only under \`Output location\` and \`Allowed edit paths\`; never overwrite or delete unless the brief names the path.
 - [ ] Mark \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence (labels below).
-- [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`.   <!-- planner may append lines -->
+- [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`.
+- [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding.   <!-- planner may append lines -->
 
 ## Proof of Completion
 - [ ] <one checkbox per acceptance criterion; state the evidence label required (measured or inspected)>

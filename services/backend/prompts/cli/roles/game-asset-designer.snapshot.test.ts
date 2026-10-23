@@ -39,6 +39,12 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).toContain('Proof of Completion');
     expect(guidance).toContain('P8');
     expect(guidance).toContain('remove-image-background --help');
+    expect(guidance).toContain('R9');
+    expect(guidance).toContain('--trim');
+    expect(guidance).toContain(
+      'remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim'
+    );
+    expect(guidance).toContain('--out <Output location>/<name>.png --trim');
     expect(guidance).toContain('2x2');
     expect(guidance).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);
 
