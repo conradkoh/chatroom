@@ -129,12 +129,16 @@ describe('removeBackgroundFal', () => {
       input: {
         source: 'potion.png',
         sourceBytes: source.byteLength,
+        width: 16,
+        height: 12,
       },
       requestId: 'req-1',
       output: {
         path: OUT_PATH,
         bytes: output.byteLength,
         contentType: 'image/png',
+        width: 16,
+        height: 12,
       },
       generatedAt: '2026-10-23T01:02:03.000Z',
       licensing: 'unverified',
@@ -147,7 +151,10 @@ describe('removeBackgroundFal', () => {
 
   it('sends the BiRefNet Matting input for --engine birefnet', async () => {
     const source = pngBytes(16, 12);
-    const deps = createDeps({ readInput: vi.fn().mockResolvedValue(source) });
+    const deps = createDeps({
+      readInput: vi.fn().mockResolvedValue(source),
+      fetchBytes: vi.fn().mockResolvedValue(pngBytes(16, 12)),
+    });
 
     await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, engine: 'birefnet' }, deps);
 
@@ -167,6 +174,68 @@ describe('removeBackgroundFal', () => {
     expect(manifest.model).toBe(BIFNET_MODEL);
     expect(manifest.input).toMatchObject({ mode: 'Matting', output_format: 'png' });
   });
+
+  it.each(ENGINES)(
+    'writes a $engine result whose dimensions match the input',
+    async ({ engine }) => {
+      const source = pngBytes(16, 12);
+      const download = pngBytes(16, 12);
+      const deps = createDeps({
+        readInput: vi.fn().mockResolvedValue(source),
+        fetchBytes: vi.fn().mockResolvedValue(download),
+      });
+
+      await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, engine }, deps);
+
+      expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, download);
+      const manifest = vi.mocked(deps.writeJson).mock.calls[0]?.[1] as {
+        input: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
+      expect(manifest.input).toMatchObject({ width: 16, height: 12 });
+      expect(manifest.output).toMatchObject({ width: 16, height: 12 });
+    }
+  );
+
+  it('rejects a result whose dimensions differ from the input before writing', async () => {
+    const deps = createDeps({
+      readInput: vi.fn().mockResolvedValue(pngBytes(8, 8)),
+      fetchBytes: vi.fn().mockResolvedValue(pngBytes(9, 8)),
+    });
+
+    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+
+    expect(error.message).toContain('request req-1');
+    expect(error.message).toContain(IMAGE_URL);
+    expect(error.message).toContain('result is 9x8');
+    expect(error.message).toContain('input is 8x8');
+    expect(error.message).toContain(OUT_PATH);
+    expect(error.message).toContain('--engine birefnet');
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it.each(ENGINES)(
+    'rejects an unreadable $engine result PNG before writing',
+    async ({ engine }) => {
+      // PNG magic alone is not a decodable header, so readPngDimensions returns null.
+      const deps = createDeps({
+        fetchBytes: vi.fn().mockResolvedValue(new Uint8Array([...PNG_SIGNATURE, 1, 2, 3])),
+      });
+
+      const error = await captureError(
+        removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, engine }, deps)
+      );
+
+      expect(error.message).toContain('could not read the result PNG dimensions');
+      expect(error.message).toContain('input is 8x8');
+      expect(deps.ensureParentDir).not.toHaveBeenCalled();
+      expect(deps.writeFile).not.toHaveBeenCalled();
+      expect(deps.writeJson).not.toHaveBeenCalled();
+    }
+  );
 
   it('rejects a missing FAL_API_KEY before touching the source or fal', async () => {
     const deps = createDeps({ env: {} });

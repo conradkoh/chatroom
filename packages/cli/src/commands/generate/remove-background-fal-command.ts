@@ -60,6 +60,8 @@ Refusals:
 Limits:
   One image per invocation; there is no directory mode and no --model switch.
   The downloaded result must be a PNG no larger than 32 MiB.
+  The output PNG must match the input's width and height. A mismatch fails
+  without writing anything.
 
 Examples:
   chatroom remove-image-background-fal --in tiles/potion.png --out assets/potion.png

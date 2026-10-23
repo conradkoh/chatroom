@@ -199,6 +199,10 @@ model, the source and output SHA-256 hashes, and the request id.
 
 - **Input cap:** 8 MiB.
 - **Result cap:** 32 MiB; anything larger is rejected before writing.
+- **Dimensions:** the output must match the input's width and height. A
+  mismatch fails without writing anything, because a resized tile sheet would
+  shift every tile's grid position. Re-run with `--engine birefnet`, or resize
+  the sheet so the engine accepts it; the command refuses rather than resizing.
 - **Licensing:** `unverified` in the manifest for both engines, as with
   `generate-image`. Check the
   [bria model page](https://fal.ai/models/fal-ai/bria/background/remove), the

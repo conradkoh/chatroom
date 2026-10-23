@@ -165,6 +165,7 @@ describe('chatroom remove-image-background-fal wiring', () => {
     expect(help).toContain('chatroom remove-image-background');
     expect(help).toContain('8 MiB');
     expect(help).toContain('32 MiB');
+    expect(help).toContain("must match the input's width and height");
     expect(help).toContain('about $0.018');
     expect(help).toContain('per compute-second');
     expect(help).toContain(

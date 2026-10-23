@@ -145,6 +145,8 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
         source: 'potion.png',
         sourceBytes: source.byteLength,
         sourceSha256: sha256(source),
+        width: 6,
+        height: 5,
       },
       requestId: 'req-e2e',
       output: {
@@ -152,6 +154,8 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
         sha256: sha256(download),
         bytes: download.byteLength,
         contentType: 'image/png',
+        width: 6,
+        height: 5,
       },
       generatedAt: '2026-10-23T04:05:06.000Z',
       licensing: 'unverified',
@@ -248,6 +252,20 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
     );
     expect(falSubscribe).not.toHaveBeenCalled();
     await expect(readFile(outputPath)).rejects.toThrow();
+  });
+
+  it('rejects a resized result without writing the PNG or manifest', async () => {
+    depsHolder.current = buildDeps(buildPng(7, 5, 200));
+
+    await run(['--in', inputPath, '--out', outputPath]);
+
+    expect(process.exitCode).toBe(1);
+    const message = String(vi.mocked(console.error).mock.calls[0]?.[0]);
+    expect(message).toContain('result is 7x5');
+    expect(message).toContain('input is 6x5');
+    expect(message).toContain('--engine birefnet');
+    await expect(readFile(outputPath)).rejects.toThrow();
+    await expect(readFile(`${outputPath}.json`)).rejects.toThrow();
   });
 
   it('refuses a non-PNG input before calling fal', async () => {

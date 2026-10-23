@@ -136,7 +136,10 @@ export function validateBackgroundResult(raw: unknown, model: string): FalBackgr
 
 /** Reject a source before the paid call: missing, non-regular, oversized, or non-PNG. */
 // fallow-ignore-next-line complexity
-async function requireSource(path: string, deps: RemoveBackgroundFalDeps): Promise<Uint8Array> {
+async function requireSource(
+  path: string,
+  deps: RemoveBackgroundFalDeps
+): Promise<{ bytes: Uint8Array; width: number; height: number }> {
   // `stat` classifies the path, so a FIFO or device is refused before any read.
   const stats = await deps.statInput(path);
   if (stats.kind === 'missing') throw new RemoveBackgroundFalError(`Input not found: ${path}`);
@@ -168,7 +171,35 @@ async function requireSource(path: string, deps: RemoveBackgroundFalDeps): Promi
       `${path} is ${dimensions.width}x${dimensions.height}; the maximum is ${MAX_SOURCE_PIXELS} pixels.`
     );
   }
-  return bytes;
+  return { bytes, width: dimensions.width, height: dimensions.height };
+}
+
+/**
+ * A tile sheet that comes back at a different size would shift every tile's grid
+ * position, so a mismatched result is rejected before anything is written.
+ * `--engine birefnet` is the escape hatch when an engine insists on resizing.
+ */
+function requireMatchingDimensions(args: {
+  bytes: Uint8Array;
+  input: { width: number; height: number };
+  requestId: string;
+  imageUrl: string;
+  outPath: string;
+}): { width: number; height: number } {
+  const result = readPngDimensions(args.bytes);
+  const recovery = `The result can still be recovered from that URL.`;
+  const hint = `Re-run with --engine birefnet, or resize the sheet so the engine accepts it.`;
+  if (result === null) {
+    throw new RemoveBackgroundFalError(
+      `Failed to use image for request ${args.requestId} (${args.imageUrl}): could not read the result PNG dimensions; the input is ${args.input.width}x${args.input.height} and ${args.outPath} was not written. ${hint} ${recovery}`
+    );
+  }
+  if (result.width !== args.input.width || result.height !== args.input.height) {
+    throw new RemoveBackgroundFalError(
+      `Failed to use image for request ${args.requestId} (${args.imageUrl}): result is ${result.width}x${result.height}, but the input is ${args.input.width}x${args.input.height}; ${args.outPath} was not written. ${hint} ${recovery}`
+    );
+  }
+  return result;
 }
 
 /**
@@ -226,7 +257,8 @@ function recoveryMessage(action: string, err: unknown, requestId: string, url: s
  *
  * Stage order is the safety contract: the key, input, output, and manifest are
  * all validated before the paid call, and nothing is written until the
- * downloaded bytes are within the size cap and are actually a PNG.
+ * downloaded bytes are within the size cap, are actually a PNG, and match the
+ * input dimensions.
  */
 // fallow-ignore-next-line complexity
 export async function removeBackgroundFal(
@@ -252,7 +284,7 @@ export async function removeBackgroundFal(
   await requireWritableOutputs(outPath, manifestPath, options.force === true, deps);
 
   // Strings pass through the SDK unchanged, so the data URI is the request body.
-  const dataUri = `data:image/png;base64,${Buffer.from(source).toString('base64')}`;
+  const dataUri = `data:image/png;base64,${Buffer.from(source.bytes).toString('base64')}`;
   const raw = await deps.falSubscribe(spec.model, spec.buildInput(dataUri));
   const result = validateBackgroundResult(raw, spec.model);
   const imageUrl = result.data.image.url;
@@ -275,6 +307,13 @@ export async function removeBackgroundFal(
       `Downloaded file is not a PNG (request ${result.requestId}, ${imageUrl}).`
     );
   }
+  const outputDimensions = requireMatchingDimensions({
+    bytes,
+    input: source,
+    requestId: result.requestId,
+    imageUrl,
+    outPath,
+  });
 
   const outputSha256 = sha256(bytes);
   const manifest = {
@@ -288,8 +327,10 @@ export async function removeBackgroundFal(
       // takes only `image_url`, which the manifest never records.
       ...(engine === 'birefnet' ? { mode: 'Matting' as const, output_format: 'png' as const } : {}),
       source: basename(inPath),
-      sourceBytes: source.byteLength,
-      sourceSha256: sha256(source),
+      sourceBytes: source.bytes.byteLength,
+      sourceSha256: sha256(source.bytes),
+      width: source.width,
+      height: source.height,
     },
     requestId: result.requestId,
     output: {
@@ -297,6 +338,8 @@ export async function removeBackgroundFal(
       sha256: outputSha256,
       bytes: bytes.byteLength,
       contentType: 'image/png',
+      width: outputDimensions.width,
+      height: outputDimensions.height,
     },
     generatedAt: deps.now().toISOString(),
     licensing: LICENSING,
