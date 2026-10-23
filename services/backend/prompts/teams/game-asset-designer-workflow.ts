@@ -5,13 +5,6 @@
  * the designer's checks, and the delivery report cannot drift apart.
  */
 
-// fallow-ignore-next-line unused-export
-export const GAME_ASSET_DEFAULT_SHEET_GRID = '2x2';
-// fallow-ignore-next-line unused-export
-export const GAME_ASSET_DEFAULT_IMAGE_MODEL_RULE =
-  'generate only with chatroom generate-image --platform=fal; use the CLI default model unless the brief names one';
-
-// fallow-ignore-next-line unused-export
 export const GAME_ASSET_RULES: readonly string[] = [
   'Generate only with `chatroom generate-image --platform=fal`, using the CLI default model unless the brief names one.',
   'Process images only with `chatroom slice-image` and `chatroom remove-image-background`; no other tool, script, or remote service.',
@@ -31,10 +24,6 @@ export const GAME_ASSET_RULES: readonly string[] = [
   'Generate only when the brief names an output location and allowed tools.',
 ];
 
-export const GAME_ASSET_PROOF_OF_PRINCIPLES: readonly string[] = GAME_ASSET_RULES.map(
-  (rule) => rule
-);
-
 /** `- R1 <rule>` lines used inside the role prompt's RULES block. */
 export function formatGameAssetRules(): string {
   return GAME_ASSET_RULES.map((rule, index) => `- R${index + 1} ${rule}`).join('\n');
@@ -42,5 +31,5 @@ export function formatGameAssetRules(): string {
 
 /** `- [ ] <rule>` lines used by the brief's and report's proof block. */
 export function formatProofOfPrinciples(): string {
-  return GAME_ASSET_PROOF_OF_PRINCIPLES.map((rule) => `- [ ] ${rule}`).join('\n');
+  return GAME_ASSET_RULES.map((rule) => `- [ ] ${rule}`).join('\n');
 }

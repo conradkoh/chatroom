@@ -4,10 +4,7 @@ import {
   GAME_ASSET_NEVER_CLAIM_RULE,
   GAME_ASSET_RESULT_RULE,
 } from './game-asset-designer-evidence';
-import {
-  GAME_ASSET_PROOF_OF_PRINCIPLES,
-  formatProofOfPrinciples,
-} from './game-asset-designer-workflow';
+import { GAME_ASSET_RULES, formatProofOfPrinciples } from './game-asset-designer-workflow';
 import { handoffCommand } from '../cli/handoff/command';
 import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 
@@ -67,12 +64,12 @@ Larger only as \`CxR (requested by user: "<quote>")\`.
 <the exact repository directory the designer may write to; required for \`spec and generate\`; \`None.\` for \`spec only\`>
 
 ## Proof of Principles
-${formatProofOfPrinciples()}   <!-- planner may append lines -->
+${formatProofOfPrinciples()}
 
 ## Proof of Completion
 - [ ] <one checkbox per acceptance criterion; state the evidence label required (measured or inspected)>
 
-Instructions after the body (not part of the message): run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Proof of Completion\`.
+Instructions after the body (not part of the message): the planner may append extra Proof of Principles lines if needed. Run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Proof of Completion\`.
 
 ### When to use the game asset designer
 - the request creates or changes any asset file: game art or audio (models, textures, sprites, UI art, sound effects), or non-game UI icons and illustrations;
@@ -91,7 +88,7 @@ ${handoffCommand({
 \`\`\``;
 }
 
-const PROOF_OF_PRINCIPLES_REPORT = GAME_ASSET_PROOF_OF_PRINCIPLES.map(
+const PROOF_OF_PRINCIPLES_REPORT = GAME_ASSET_RULES.map(
   (rule) => `- [ ] ${rule} — <evidence: command lines, grid values, or naming map reference>`
 ).join('\n');
 

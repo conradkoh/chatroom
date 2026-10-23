@@ -8,7 +8,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  BORDER_NOISE_REFUSAL_RATIO,
   DEFAULT_MIN_AREA_PERCENT,
   DEFAULT_TOLERANCE,
   keyBackground,
@@ -268,11 +267,5 @@ describe('keyBackground', () => {
 
     expect(result.contentBox).toEqual({ x: 8, y: 3, width: 4, height: 3 });
     expect(result.centerOffset).toEqual({ x: 0, y: -0.5 });
-  });
-
-  it('exposes the documented defaults and refusal ratio', () => {
-    expect(DEFAULT_TOLERANCE).toBe(24);
-    expect(DEFAULT_MIN_AREA_PERCENT).toBe(0.5);
-    expect(BORDER_NOISE_REFUSAL_RATIO).toBe(0.02);
   });
 });

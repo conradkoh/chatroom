@@ -155,12 +155,12 @@ Larger only as \`CxR (requested by user: "<quote>")\`.
 - [ ] Never switch generators.
 - [ ] Describe generated output as production-ready only when every checklist item for it passes with \`measured\` or \`inspected\` evidence.
 - [ ] Commit only when the brief names the paths and the commit message.
-- [ ] Generate only when the brief names an output location and allowed tools.   <!-- planner may append lines -->
+- [ ] Generate only when the brief names an output location and allowed tools.
 
 ## Proof of Completion
 - [ ] <one checkbox per acceptance criterion; state the evidence label required (measured or inspected)>
 
-Instructions after the body (not part of the message): run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Proof of Completion\`.
+Instructions after the body (not part of the message): the planner may append extra Proof of Principles lines if needed. Run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Proof of Completion\`.
 
 ### When to use the game asset designer
 - the request creates or changes any asset file: game art or audio (models, textures, sprites, UI art, sound effects), or non-game UI icons and illustrations;

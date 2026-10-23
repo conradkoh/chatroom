@@ -534,13 +534,6 @@ async function preflight(
   if (conflicts.length > 0) throw new RemoveBackgroundError(formatConflicts(conflicts));
 }
 
-/**
- * Key every input tile and write the isolated assets plus manifests.
- *
- * Stage order is the safety contract: no filesystem write happens until every
- * input is loaded, keyed, encoded, and preflighted, and until the caller is not
- * in dry-run mode.
- */
 function encodeAsset(
   image: DecodedTile,
   keyed: Extract<KeyResult, { ok: true }>,

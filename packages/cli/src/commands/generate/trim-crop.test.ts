@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cropRgba, MAX_TRIM_PADDING, trimRect } from './trim-crop.js';
+import { cropRgba, trimRect } from './trim-crop.js';
 
 function solidCanvas(width: number, height: number): Uint8Array {
   const data = new Uint8Array(width * height * 4);
@@ -75,9 +75,5 @@ describe('cropRgba', () => {
     expect(Array.from(cropped)).toEqual(
       Array.from(data.subarray((3 * 4 + 2) * 4, (3 * 4 + 2) * 4 + 4))
     );
-  });
-
-  it('documents the padding cap', () => {
-    expect(MAX_TRIM_PADDING).toBe(64);
   });
 });
