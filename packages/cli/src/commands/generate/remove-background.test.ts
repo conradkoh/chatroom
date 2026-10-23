@@ -566,6 +566,22 @@ describe('removeImageBackground', () => {
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
+  it('does not read prototype properties for an unmapped constructor stem', async () => {
+    const constructorPath = resolve('/tiles/constructor.png');
+    const deps = createDeps(
+      { [constructorPath]: tileFile() },
+      { listDir: vi.fn().mockResolvedValue(['constructor.png']) }
+    );
+
+    const result = await removeImageBackground(dirOptions(), deps);
+
+    expect(result.assets[0]?.assignedName).toBe('constructor');
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as {
+      naming: { assignedBy: string };
+    };
+    expect(manifest.naming.assignedBy).toBe('source-stem');
+  });
+
   it('warns when a tile has more than one region', async () => {
     const image = solidTile(10, 10);
     // Clear the middle columns so two blobs remain, each above 0.5%.

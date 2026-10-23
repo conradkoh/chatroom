@@ -320,7 +320,10 @@ function assignNames(
   const seen = new Map<string, string>();
   // fallow-ignore-next-line complexity
   return tiles.map((tile) => {
-    const mapped = opts.map?.[tile.stem];
+    const mapped =
+      opts.map !== undefined && Object.hasOwn(opts.map, tile.stem)
+        ? opts.map[tile.stem]
+        : undefined;
     const assignedBy = mapped === undefined ? 'source-stem' : 'map';
     const assignedName = requireSafeName(
       mapped ?? tile.stem,

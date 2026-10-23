@@ -37,6 +37,7 @@ function runCli(args: string[]): CliRun {
     cwd: CLI_ROOT,
     env,
     encoding: 'utf8',
+    timeout: 25_000,
   });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }

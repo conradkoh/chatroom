@@ -133,6 +133,16 @@ describe('chatroom remove-image-background wiring', () => {
     });
   });
 
+  it('accepts prototype-named map keys', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--in-dir', '/tiles', '--out-dir', '/assets', '--map', 'constructor=x']);
+
+    const map = (removeMock.mock.calls[0]?.[0] as { map: Record<string, string> }).map;
+    expect(Object.hasOwn(map, 'constructor')).toBe(true);
+    expect(map.constructor).toBe('x');
+  });
+
   it('defaults tolerance to 24 and min-area to 0.5', async () => {
     const program = createProgram();
 

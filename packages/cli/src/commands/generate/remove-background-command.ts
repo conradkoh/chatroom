@@ -47,7 +47,7 @@ function parseTrimPadding(value: string): number {
 
 // fallow-ignore-next-line complexity
 function parseMap(value: string): Record<string, string> {
-  const map: Record<string, string> = {};
+  const map: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const entry of value.split(',')) {
     const separator = entry.indexOf('=');
     if (separator < 0) {
@@ -58,7 +58,7 @@ function parseMap(value: string): Record<string, string> {
     if (key.length === 0 || name.length === 0) {
       throw new InvalidArgumentError(`entry "${entry}" must have a non-empty tile and name`);
     }
-    if (map[key] !== undefined) {
+    if (Object.hasOwn(map, key)) {
       throw new InvalidArgumentError(`duplicate tile "${key}"`);
     }
     map[key] = name;
