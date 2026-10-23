@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * Border flood-fill background keying.
  *
@@ -11,6 +10,7 @@
 
 export const DEFAULT_TOLERANCE = 24;
 export const DEFAULT_MIN_AREA_PERCENT = 0.5;
+// fallow-ignore-next-line unused-export
 export const BORDER_NOISE_REFUSAL_RATIO = 0.02;
 
 export interface KeyOptions {

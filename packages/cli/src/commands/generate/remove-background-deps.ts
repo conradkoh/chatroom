@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * Dependency boundary for `chatroom remove-image-background`.
  *
@@ -15,7 +14,6 @@ export interface RemoveImageBackgroundDeps extends SliceImageDeps {
   listDir: (dir: string) => Promise<string[]>;
 }
 
-// fallow-ignore-next-line unused-export
 export function createDefaultRemoveImageBackgroundDeps(): RemoveImageBackgroundDeps {
   return {
     ...createDefaultSliceImageDeps(),

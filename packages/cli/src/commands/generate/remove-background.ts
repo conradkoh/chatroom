@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * `chatroom remove-image-background` orchestration.
  *
@@ -30,6 +29,7 @@ import {
 } from './local-image-common.js';
 import type { RemoveImageBackgroundDeps } from './remove-background-deps.js';
 
+// fallow-ignore-next-line unused-export
 export class RemoveBackgroundError extends Error {
   constructor(message: string) {
     super(message);
