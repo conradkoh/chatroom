@@ -193,10 +193,15 @@ function describeFalError(err: unknown): string {
  * Adapter around the official fal SDK. `fal.subscribe` performs queue submit +
  * poll. The SDK's built-in credential resolver does not read `FAL_API_KEY`, so
  * the key is passed to `fal.config` explicitly and never logged.
+ *
+ * The result is returned unvalidated: command-specific validators differ by
+ * model shape (`images[]` for text-to-image, `image` for BiRefNet), so each
+ * caller narrows the raw result itself.
  */
-function createFalSubscribe(
+// fallow-ignore-next-line unused-export
+export function createFalRawSubscribe(
   env: Record<string, string | undefined>
-): GenerateImageDeps['falSubscribe'] {
+): (model: string, input: Record<string, unknown>) => Promise<unknown> {
   return async (model, input) => {
     const credentials = env.FAL_API_KEY;
     if (!credentials) {
@@ -206,9 +211,8 @@ function createFalSubscribe(
     }
     fal.config({ credentials });
 
-    let raw: unknown;
     try {
-      raw = await fal.subscribe(model, {
+      return await fal.subscribe(model, {
         input,
         logs: false,
         startTimeout: SUBSCRIBE_TIMEOUT_SECONDS,
@@ -216,8 +220,17 @@ function createFalSubscribe(
     } catch (err) {
       throw new GenerateImageError(describeFalError(err));
     }
-    return validateFalResult(raw);
   };
+}
+
+/**
+ * `generate-image` adapter: raw fal result narrowed to the `images[]` shape.
+ */
+function createFalSubscribe(
+  env: Record<string, string | undefined>
+): GenerateImageDeps['falSubscribe'] {
+  const subscribe = createFalRawSubscribe(env);
+  return async (model, input) => validateFalResult(await subscribe(model, input));
 }
 
 // ─── filesystem and download helpers ───────────────────────────────────────
@@ -235,7 +248,8 @@ function requireImageContentType(response: Response): void {
   }
 }
 
-async function fetchBytes(url: string): Promise<Uint8Array> {
+// fallow-ignore-next-line unused-export
+export async function fetchBytes(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new GenerateImageError(
