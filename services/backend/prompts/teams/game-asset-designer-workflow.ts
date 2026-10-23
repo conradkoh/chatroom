@@ -22,6 +22,7 @@ export const GAME_ASSET_RULES: readonly string[] = [
   'Mark `pass` or `fail` only with `measured` or `inspected` evidence (labels below).',
   'Run `<command> --help` before first use of `slice-image` or `remove-image-background`.',
   'Always pass `--trim` to `chatroom remove-image-background`; use `--trim-padding` only when the brief names a padding.',
+  'Positioned sheets use exact layout JSON for the model that supports it (currently `fal-ai/moss-image`): the layout goes in `--prompt`, and `image_size` must equal the canvas the coordinates use. Bboxes are `[y_min,x_min,y_max,x_max]` in pixels from the canvas centre, y down, x right. `enable_prompt_expansion` is false for positioned layouts. Use `--output-format png`. Never pass `--aspect-ratio` to moss. Do not add model-specific values that the brief does not name.',
 ];
 
 export const GAME_ASSET_PROOF_OF_PRINCIPLES: readonly string[] = GAME_ASSET_RULES.map(

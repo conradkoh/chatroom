@@ -24,6 +24,7 @@ Instructions (not part of the message): Return a complete asset delivery report 
 - [ ] Mark \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence (labels below). — <evidence: command lines, grid values, or naming map reference>
 - [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Positioned sheets use exact layout JSON for the model that supports it (currently \`fal-ai/moss-image\`): the layout goes in \`--prompt\`, and \`image_size\` must equal the canvas the coordinates use. Bboxes are \`[y_min,x_min,y_max,x_max]\` in pixels from the canvas centre, y down, x right. \`enable_prompt_expansion\` is false for positioned layouts. Use \`--output-format png\`. Never pass \`--aspect-ratio\` to moss. Do not add model-specific values that the brief does not name. — <evidence: command lines, grid values, or naming map reference>
 
 ## Proof of Completion
 - [ ] <one checkbox per brief acceptance criterion; state the evidence label required (measured or inspected)>
@@ -100,6 +101,12 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 ## Style reference
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
+## Model
+<the CLI default \`fal-ai/flux-2/flash\`, or \`fal-ai/moss-image\` when the brief names it>
+
+## Model parameters
+<a JSON object as text passed to \`generate-image --input\`; \`Not specified.\` if none>
+
 ## Spec consumer
 <who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
 
@@ -135,7 +142,8 @@ Larger only as \`CxR (requested by user: "<quote>")\`.
 - [ ] Write only under \`Output location\` and \`Allowed edit paths\`; never overwrite or delete unless the brief names the path.
 - [ ] Mark \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence (labels below).
 - [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`.
-- [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding.   <!-- planner may append lines -->
+- [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding.
+- [ ] Positioned sheets use exact layout JSON for the model that supports it (currently \`fal-ai/moss-image\`): the layout goes in \`--prompt\`, and \`image_size\` must equal the canvas the coordinates use. Bboxes are \`[y_min,x_min,y_max,x_max]\` in pixels from the canvas centre, y down, x right. \`enable_prompt_expansion\` is false for positioned layouts. Use \`--output-format png\`. Never pass \`--aspect-ratio\` to moss. Do not add model-specific values that the brief does not name.   <!-- planner may append lines -->
 
 ## Proof of Completion
 - [ ] <one checkbox per acceptance criterion; state the evidence label required (measured or inspected)>

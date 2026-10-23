@@ -66,6 +66,9 @@ describe('game asset designer handoff template snapshots', () => {
     expect(report).toContain('## Proof of Principles');
     expect(report).toContain('## Proof of Completion');
     expect(report).toContain('## Naming map');
+    expect(brief).toContain('## Model');
+    expect(brief).toContain('## Model parameters');
+    expect(brief).toContain('fal-ai/moss-image');
     expect(brief).toContain('Always pass `--trim` to `chatroom remove-image-background`');
     expect(report).toContain('Always pass `--trim` to `chatroom remove-image-background`');
     expect(`${brief}\n${report}`).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);

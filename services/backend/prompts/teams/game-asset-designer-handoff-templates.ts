@@ -34,6 +34,12 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ## Style reference
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
+## Model
+<the CLI default \`fal-ai/flux-2/flash\`, or \`fal-ai/moss-image\` when the brief names it>
+
+## Model parameters
+<a JSON object as text passed to \`generate-image --input\`; \`Not specified.\` if none>
+
 ## Spec consumer
 <who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
 
