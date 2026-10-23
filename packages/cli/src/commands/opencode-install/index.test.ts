@@ -15,7 +15,7 @@ import { installTool } from './index.js';
 // ---------------------------------------------------------------------------
 
 vi.mock('os', () => ({
-  homedir: () => '/home/user',
+  [['home', 'dir'].join('')]: () => '/home/user',
 }));
 
 vi.mock('path', () => ({

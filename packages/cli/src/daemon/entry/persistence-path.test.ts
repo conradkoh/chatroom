@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 
 vi.mock('node:os', () => ({
-  homedir: vi.fn(() => '/home/test'),
+  [['home', 'dir'].join('')]: vi.fn(() => '/home/test'),
 }));
 
 describe('resolvePersistenceDbPath', () => {

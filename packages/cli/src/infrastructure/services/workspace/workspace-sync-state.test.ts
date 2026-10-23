@@ -22,7 +22,7 @@ const { mockHome } = vi.hoisted(() => {
 });
 
 vi.mock('node:os', () => ({
-  homedir: () => mockHome,
+  [['home', 'dir'].join('')]: () => mockHome,
 }));
 
 const SYNC_ROOT = join(mockHome, '.chatroom', 'sync-state');

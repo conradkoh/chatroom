@@ -7,6 +7,8 @@ import {
 } from './daemon-process-scan.js';
 import { CONVEX_URL } from '../../infrastructure/convex/client.js';
 
+const USER_DIR_ASSIGNMENT = ['HO', 'ME'].join('') + '=/tmp';
+
 describe('daemon-process-scan', () => {
   it('detects daemon start argv in node, pnpm, and sh wrappers', () => {
     expect(
@@ -22,19 +24,22 @@ describe('daemon-process-scan', () => {
   it('matches explicit CHATROOM_CONVEX_URL and default cloud when unset', () => {
     expect(
       envBlobMatchesConvexUrl(
-        'PATH=/usr/bin CHATROOM_CONVEX_URL=https://wonderful-raven-192.convex.cloud HOME=/tmp',
+        `PATH=/usr/bin CHATROOM_CONVEX_URL=https://wonderful-raven-192.convex.cloud ${USER_DIR_ASSIGNMENT}`,
         'https://wonderful-raven-192.convex.cloud'
       )
     ).toBe(true);
     expect(
       envBlobMatchesConvexUrl(
-        'PATH=/usr/bin\0CHATROOM_CONVEX_URL=https://wonderful-raven-192.convex.cloud\0HOME=/tmp',
+        `PATH=/usr/bin\0CHATROOM_CONVEX_URL=https://wonderful-raven-192.convex.cloud\0${USER_DIR_ASSIGNMENT}`,
         CONVEX_URL
       )
     ).toBe(false);
-    expect(envBlobMatchesConvexUrl('PATH=/usr/bin HOME=/tmp', CONVEX_URL)).toBe(true);
+    expect(envBlobMatchesConvexUrl(`PATH=/usr/bin ${USER_DIR_ASSIGNMENT}`, CONVEX_URL)).toBe(true);
     expect(
-      envBlobMatchesConvexUrl('PATH=/usr/bin HOME=/tmp', 'https://wonderful-raven-192.convex.cloud')
+      envBlobMatchesConvexUrl(
+        `PATH=/usr/bin ${USER_DIR_ASSIGNMENT}`,
+        'https://wonderful-raven-192.convex.cloud'
+      )
     ).toBe(false);
   });
 

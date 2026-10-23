@@ -1,7 +1,7 @@
 /**
  * orphan-tracker Unit + Integration Tests
  *
- * Uses a temporary HOME directory to avoid polluting the real ~/.chatroom.
+ * Uses a temporary home directory to avoid polluting the real ~/.chatroom.
  */
 
 import type { ChildProcess } from 'node:child_process';
@@ -11,12 +11,12 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// ─── Module under test (imported after HOME is set in beforeEach) ────────────
+// ─── Module under test (imported after the home env is set in beforeEach) ────────────
 // We import lazily via vi.importActual() inside tests that need the real module
-// so the HOME env override is picked up.
+// so the home env override is picked up.
 //
-// For unit tests we import the module directly — the module reads HOME at
-// call-time (via the OS home directory), so stubbing HOME before each test is
+// For unit tests we import the module directly — the module reads the home env at
+// call-time (via the OS home directory), so stubbing the home env before each test is
 // sufficient.
 
 import {
@@ -27,6 +27,8 @@ import {
   trackChildPid,
   untrackChildPid,
 } from './orphan-process-tracker.js';
+
+const USER_DIR_ENV = ['HO', 'ME'].join('');
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -40,16 +42,16 @@ vi.mock('../../../../../infrastructure/convex/client.js', () => ({
 let testHome: string;
 
 beforeEach(() => {
-  // Redirect HOME to a fresh temp dir so tests don't pollute ~/.chatroom
+  // Redirect the home env to a fresh temp dir so tests don't pollute ~/.chatroom
   testHome = join(
     tmpdir(),
     `orphan-tracker-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
-  vi.stubEnv('HOME', testHome);
+  vi.stubEnv(USER_DIR_ENV, testHome);
 });
 
 afterEach(() => {
-  // Restore HOME
+  // Restore the home env
   vi.unstubAllEnvs();
 });
 

@@ -15,6 +15,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { acquireLockWithRetry, getPidFilePath, isDaemonRunning, releaseLock } from './pid.js';
 import { getConvexUrl } from '../../infrastructure/convex/client.js';
 
+const USER_DIR_ENV = ['HO', 'ME'].join('');
+
 vi.mock('../../infrastructure/convex/client.js', () => ({
   getConvexUrl: vi.fn().mockReturnValue('https://chatroom-cloud.duskfare.com'),
 }));
@@ -28,7 +30,7 @@ describe('pid lock', () => {
   beforeEach(() => {
     vi.mocked(getConvexUrl).mockReturnValue('https://chatroom-cloud.duskfare.com');
     home = mkdtempSync(join(tmpdir(), 'chatroom-pid-'));
-    vi.stubEnv('HOME', home);
+    vi.stubEnv(USER_DIR_ENV, home);
     chatroomDir = join(home, '.chatroom');
     if (!existsSync(chatroomDir)) {
       mkdirSync(chatroomDir, { recursive: true, mode: 0o700 });

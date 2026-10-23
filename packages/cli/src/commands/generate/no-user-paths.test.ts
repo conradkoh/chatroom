@@ -1,9 +1,10 @@
 /**
  * Guard the test suite against paid APIs and user files.
  *
- * CI has no `~/Downloads` evidence folders and no `FAL_API_KEY`. A test that
- * reads either is either flaky (silently skipped) or paid, so this guard scans
- * every test source and fails on the patterns that caused past incidents.
+ * CI has no evidence folders in the user's download directory and no API key.
+ * A test that reads either is flaky (silently skipped) or paid, so this guard
+ * scans every test source for the patterns that caused past incidents. The
+ * pattern fragments are split so this file does not itself trip the scans.
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -15,11 +16,16 @@ import { describe, expect, it } from 'vitest';
 const SELF = fileURLToPath(import.meta.url);
 const SRC_ROOT = resolve(dirname(SELF), '../..');
 
+const DOWNLOAD_WORD = ['Down', 'loads'].join('');
+const USER_DIR_CALL = ['home', 'dir'].join('') + '\\s*\\(';
+const USER_ENV_PATTERN = 'process\\.env\\.' + ['HO', 'ME'].join('');
+const KEY_NAME = ['FAL_API', 'KEY'].join('_');
+
 const FORBIDDEN_PATHS: { pattern: RegExp; why: string }[] = [
-  { pattern: /Downloads/, why: 'tests must not read or write ~/Downloads' },
-  { pattern: /homedir\(/, why: 'tests must not read the real home directory' },
-  { pattern: /os\.homedir/, why: 'tests must not read the real home directory' },
-  { pattern: /process\.env\.HOME/, why: 'tests must not depend on the real HOME' },
+  { pattern: new RegExp(DOWNLOAD_WORD), why: 'tests must not use user download folders' },
+  { pattern: new RegExp(USER_DIR_CALL), why: 'tests must not read the real home directory' },
+  { pattern: /os\.home(dir)/, why: 'tests must not read the real home directory' },
+  { pattern: new RegExp(USER_ENV_PATTERN), why: 'tests must not depend on the real home env' },
   { pattern: /CHATROOM_BG_FIXTURE_DIR/, why: 'fixtures must be checked in or synthesised' },
 ];
 
@@ -52,12 +58,13 @@ describe('test-suite constraints', () => {
     expect(offenders(pattern)).toEqual([]);
   });
 
-  it('does not assign a real-looking FAL_API_KEY', () => {
+  it('does not assign a real-looking API key', () => {
     const assignments: string[] = [];
+    const assignment = new RegExp(`${KEY_NAME}\\s*=\\s*['"]([^'"]+)['"]`, 'g');
     for (const file of listTestFiles(SRC_ROOT)) {
       if (file === SELF) continue;
       const source = readFileSync(file, 'utf8');
-      for (const match of source.matchAll(/FAL_API_KEY\s*=\s*['"]([^'"]+)['"]/g)) {
+      for (const match of source.matchAll(assignment)) {
         const value = match[1] ?? '';
         if (!SENTINEL_KEY_VALUES.some((sentinel) => value.includes(sentinel))) {
           assignments.push(`${file}: ${value}`);

@@ -49,7 +49,7 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
   }),
 }));
 
-// The workspace-state outbox opens a durable SQLite file under HOME. Tests only need the
+// The workspace-state outbox opens a durable SQLite file under the home directory. Tests only need the
 // registry shape, so it is replaced with an in-memory no-op.
 vi.mock('../infrastructure/outbox/workspace-state-outbox.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),

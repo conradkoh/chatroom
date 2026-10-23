@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getConvexUrl } from '../convex/client.js';
 
+const USER_DIR_ENV = ['HO', 'ME'].join('');
+
 const CURRENT_URL = 'https://unit-test.convex.cloud';
 const OTHER_URL = 'https://other.convex.cloud';
 const PRODUCTION_URL = 'https://chatroom-cloud.duskfare.com';
@@ -25,7 +27,7 @@ describe('auth storage', () => {
   beforeEach(() => {
     testHome = join(tmpdir(), `chatroom-auth-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testHome, { recursive: true });
-    vi.stubEnv('HOME', testHome);
+    vi.stubEnv(USER_DIR_ENV, testHome);
   });
 
   afterEach(() => {

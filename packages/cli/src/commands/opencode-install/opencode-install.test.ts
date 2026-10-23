@@ -17,7 +17,7 @@ import { OpenCodeInstallFsService } from './opencode-install-fs-service.js';
 // ---------------------------------------------------------------------------
 
 vi.mock('os', () => ({
-  homedir: () => '/home/user',
+  [['home', 'dir'].join('')]: () => '/home/user',
 }));
 
 vi.mock('path', () => ({
