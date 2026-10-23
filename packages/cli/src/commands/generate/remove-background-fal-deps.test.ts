@@ -11,6 +11,7 @@ import type * as FalModule from '@fal-ai/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDefaultRemoveBackgroundFalDeps } from './remove-background-fal-deps.js';
+import { MAX_FAL_RESULT_BYTES } from './remove-background-fal.js';
 
 const { subscribeMock, configMock } = vi.hoisted(() => ({
   subscribeMock: vi.fn(),
@@ -46,6 +47,7 @@ describe('createDefaultRemoveBackgroundFalDeps', () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllGlobals();
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -76,5 +78,47 @@ describe('createDefaultRemoveBackgroundFalDeps', () => {
     await expect(readFile(outputPath)).resolves.toEqual(Buffer.from([4, 5, 6]));
     await expect(readFile(`${outputPath}.json`, 'utf8')).resolves.toBe('{\n  "ok": true\n}\n');
     expect(deps.now()).toBeInstanceOf(Date);
+  });
+
+  it('rejects an oversized content-length before reading the body', async () => {
+    const arrayBuffer = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get: (name: string) =>
+            name === 'content-length' ? String(MAX_FAL_RESULT_BYTES + 1) : 'image/png',
+        },
+        arrayBuffer,
+      })
+    );
+    const deps = createDefaultRemoveBackgroundFalDeps();
+
+    await expect(deps.fetchBytes('https://fal.test/cutout.png')).rejects.toThrow(
+      `maximum is ${MAX_FAL_RESULT_BYTES} bytes (32 MiB)`
+    );
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it('downloads an image whose content-length is within the cap', async () => {
+    const bytes = new Uint8Array([9, 8, 7]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get: (name: string) => (name === 'content-length' ? '3' : 'image/png'),
+        },
+        arrayBuffer: async () => bytes.buffer,
+      })
+    );
+    const deps = createDefaultRemoveBackgroundFalDeps();
+
+    await expect(deps.fetchBytes('https://fal.test/cutout.png')).resolves.toEqual(bytes);
   });
 });
