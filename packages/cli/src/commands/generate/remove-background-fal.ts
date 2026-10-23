@@ -1,10 +1,11 @@
 /**
  * `chatroom remove-image-background-fal` orchestration.
  *
- * Sends one PNG to fal's BiRefNet model as a base64 data URI and writes the
- * returned PNG (with alpha) plus a JSON manifest. This is the online sibling of
- * the local colour-key `remove-image-background` command; it never shares that
- * command's code so the local pass stays fal-free.
+ * Sends one PNG to a fal background-removal model as a base64 data URI and
+ * writes the returned PNG (with alpha) plus a JSON manifest. `bria` is the
+ * default; `birefnet` keeps the previous BiRefNet Matting path available. This
+ * is the online sibling of the local colour-key `remove-image-background`
+ * command; it never shares that command's code so the local pass stays fal-free.
  *
  * Every dependency (SDK, network, filesystem, clock) is injected, so the unit
  * tests run offline and no paid call is made without a real `FAL_API_KEY`.
@@ -22,10 +23,31 @@ import {
   sha256,
 } from './local-image-common.js';
 
+export type BackgroundEngine = 'bria' | 'birefnet';
+export const DEFAULT_BACKGROUND_ENGINE: BackgroundEngine = 'bria';
+
+interface EngineSpec {
+  readonly model: string;
+  buildInput(imageDataUri: string): Record<string, unknown>;
+}
+
+/**
+ * Engine table. `buildInput` is the only engine-specific request shape:
+ * BiRefNet needs its Matting mode and PNG output, while Bria's background
+ * removal returns PNG with alpha from `image_url` alone.
+ */
 // fallow-ignore-next-line unused-export
-export const FAL_BACKGROUND_MODEL = 'fal-ai/birefnet/v2' as const;
-// fallow-ignore-next-line unused-export
-export const FAL_BACKGROUND_MODE = 'Matting' as const;
+export const BACKGROUND_ENGINES: Record<BackgroundEngine, EngineSpec> = {
+  bria: {
+    model: 'fal-ai/bria/background/remove',
+    buildInput: (image_url) => ({ image_url }),
+  },
+  birefnet: {
+    model: 'fal-ai/birefnet/v2',
+    buildInput: (image_url) => ({ image_url, model: 'Matting', output_format: 'png' }),
+  },
+};
+
 /** Base64 input is ~4/3 of bytes; keep the request body well under fal limits. */
 // fallow-ignore-next-line unused-export
 export const MAX_FAL_INPUT_BYTES = 8 * 1024 * 1024;
@@ -49,6 +71,8 @@ class RemoveBackgroundFalError extends Error {
 export interface RemoveBackgroundFalOptions {
   in: string;
   out: string;
+  /** Background-removal backend; defaults to `DEFAULT_BACKGROUND_ENGINE`. */
+  engine?: BackgroundEngine | undefined;
   force?: boolean | undefined;
 }
 
@@ -94,15 +118,13 @@ export interface FalBackgroundResult {
 }
 
 /**
- * BiRefNet returns a single `data.image` object, unlike text-to-image models
+ * Both engines return a single `data.image` object, unlike text-to-image models
  * that return `data.images[]`. Any other shape is treated as a fal-side
  * failure, and the message matches the generate-image wording.
  */
 // fallow-ignore-next-line unused-export complexity
-export function validateBackgroundResult(raw: unknown): FalBackgroundResult {
-  const unexpected = new RemoveBackgroundFalError(
-    `fal returned no image for ${FAL_BACKGROUND_MODEL}`
-  );
+export function validateBackgroundResult(raw: unknown, model: string): FalBackgroundResult {
+  const unexpected = new RemoveBackgroundFalError(`fal returned no image for ${model}`);
   if (!isRecord(raw)) throw unexpected;
   const { requestId, data } = raw;
   if (typeof requestId !== 'string' || requestId.length === 0) throw unexpected;
@@ -199,7 +221,8 @@ function recoveryMessage(action: string, err: unknown, requestId: string, url: s
 }
 
 /**
- * Cut the subject out of one PNG with fal BiRefNet and write the alpha PNG.
+ * Cut the subject out of one PNG with the selected fal engine and write the
+ * alpha PNG.
  *
  * Stage order is the safety contract: the key, input, output, and manifest are
  * all validated before the paid call, and nothing is written until the
@@ -215,6 +238,8 @@ export async function removeBackgroundFal(
     throw new RemoveBackgroundFalError(FAL_API_KEY_MISSING_MESSAGE);
   }
 
+  const engine = options.engine ?? DEFAULT_BACKGROUND_ENGINE;
+  const spec = BACKGROUND_ENGINES[engine];
   const inPath = resolve(options.in);
   const outPath = resolve(options.out);
   const manifestPath = `${outPath}.json`;
@@ -228,12 +253,8 @@ export async function removeBackgroundFal(
 
   // Strings pass through the SDK unchanged, so the data URI is the request body.
   const dataUri = `data:image/png;base64,${Buffer.from(source).toString('base64')}`;
-  const raw = await deps.falSubscribe(FAL_BACKGROUND_MODEL, {
-    image_url: dataUri,
-    model: FAL_BACKGROUND_MODE,
-    output_format: 'png',
-  });
-  const result = validateBackgroundResult(raw);
+  const raw = await deps.falSubscribe(spec.model, spec.buildInput(dataUri));
+  const result = validateBackgroundResult(raw, spec.model);
   const imageUrl = result.data.image.url;
 
   let bytes: Uint8Array;
@@ -260,10 +281,12 @@ export async function removeBackgroundFal(
     platform: 'fal' as const,
     tool: TOOL,
     sdk: `@fal-ai/client@${deps.sdkVersion}`,
-    model: FAL_BACKGROUND_MODEL,
+    engine,
+    model: spec.model,
     input: {
-      mode: FAL_BACKGROUND_MODE,
-      output_format: 'png',
+      // BiRefNet's mode and explicit PNG output are part of the request; Bria
+      // takes only `image_url`, which the manifest never records.
+      ...(engine === 'birefnet' ? { mode: 'Matting' as const, output_format: 'png' as const } : {}),
       source: basename(inPath),
       sourceBytes: source.byteLength,
       sourceSha256: sha256(source),

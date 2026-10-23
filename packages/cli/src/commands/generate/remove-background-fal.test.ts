@@ -10,12 +10,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PathStatus } from './fs-helpers.js';
 import {
-  FAL_BACKGROUND_MODE,
-  FAL_BACKGROUND_MODEL,
+  DEFAULT_BACKGROUND_ENGINE,
   MAX_FAL_INPUT_BYTES,
   MAX_FAL_RESULT_BYTES,
   removeBackgroundFal,
   validateBackgroundResult,
+  type BackgroundEngine,
   type RemoveBackgroundFalDeps,
 } from './remove-background-fal.js';
 
@@ -27,6 +27,13 @@ const FAL_API_KEY = 'fal-key-sentinel-never-printed';
 const IN_PATH = '/tiles/potion.png';
 const OUT_PATH = '/assets/potion.png';
 const IMAGE_URL = 'https://fal.test/cutout.png';
+const BRIA_MODEL = 'fal-ai/bria/background/remove';
+const BIFNET_MODEL = 'fal-ai/birefnet/v2';
+
+const ENGINES: { engine: BackgroundEngine; model: string }[] = [
+  { engine: 'bria', model: BRIA_MODEL },
+  { engine: 'birefnet', model: BIFNET_MODEL },
+];
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
@@ -84,7 +91,7 @@ function pathStatusFor(entries: Record<string, PathStatus>): RemoveBackgroundFal
 }
 
 describe('removeBackgroundFal', () => {
-  it('sends a BiRefNet data-URI request and writes the PNG and manifest', async () => {
+  it('defaults to bria and sends only image_url', async () => {
     const source = pngBytes(16, 12);
     const output = pngBytes(16, 12);
     const deps = createDeps({
@@ -95,11 +102,12 @@ describe('removeBackgroundFal', () => {
     const saved = await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps);
 
     const expectedDataUri = `data:image/png;base64,${Buffer.from(source).toString('base64')}`;
-    expect(deps.falSubscribe).toHaveBeenCalledWith(FAL_BACKGROUND_MODEL, {
+    expect(DEFAULT_BACKGROUND_ENGINE).toBe('bria');
+    expect(deps.falSubscribe).toHaveBeenCalledWith(BRIA_MODEL, {
       image_url: expectedDataUri,
-      model: 'Matting',
-      output_format: 'png',
     });
+    const request = vi.mocked(deps.falSubscribe).mock.calls[0]?.[1] ?? {};
+    expect(Object.keys(request)).toEqual(['image_url']);
     expect(deps.fetchBytes).toHaveBeenCalledWith(IMAGE_URL);
     expect(deps.ensureParentDir).toHaveBeenCalledWith(OUT_PATH);
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, output);
@@ -116,10 +124,9 @@ describe('removeBackgroundFal', () => {
       platform: 'fal',
       tool: 'chatroom remove-image-background-fal',
       sdk: '@fal-ai/client@1.10.1',
-      model: 'fal-ai/birefnet/v2',
+      engine: 'bria',
+      model: BRIA_MODEL,
       input: {
-        mode: 'Matting',
-        output_format: 'png',
         source: 'potion.png',
         sourceBytes: source.byteLength,
       },
@@ -132,8 +139,33 @@ describe('removeBackgroundFal', () => {
       generatedAt: '2026-10-23T01:02:03.000Z',
       licensing: 'unverified',
     });
+    expect((manifest.input as Record<string, unknown>).mode).toBeUndefined();
+    expect((manifest.input as Record<string, unknown>).output_format).toBeUndefined();
     expect(JSON.stringify(manifest).includes(FAL_API_KEY)).toBe(false);
     expect(JSON.stringify(manifest).includes('data:image/png;base64,')).toBe(false);
+  });
+
+  it('sends the BiRefNet Matting input for --engine birefnet', async () => {
+    const source = pngBytes(16, 12);
+    const deps = createDeps({ readInput: vi.fn().mockResolvedValue(source) });
+
+    await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, engine: 'birefnet' }, deps);
+
+    const expectedDataUri = `data:image/png;base64,${Buffer.from(source).toString('base64')}`;
+    expect(deps.falSubscribe).toHaveBeenCalledWith(BIFNET_MODEL, {
+      image_url: expectedDataUri,
+      model: 'Matting',
+      output_format: 'png',
+    });
+
+    const manifest = vi.mocked(deps.writeJson).mock.calls[0]?.[1] as {
+      engine: string;
+      model: string;
+      input: Record<string, unknown>;
+    };
+    expect(manifest.engine).toBe('birefnet');
+    expect(manifest.model).toBe(BIFNET_MODEL);
+    expect(manifest.input).toMatchObject({ mode: 'Matting', output_format: 'png' });
   });
 
   it('rejects a missing FAL_API_KEY before touching the source or fal', async () => {
@@ -316,6 +348,22 @@ describe('removeBackgroundFal', () => {
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
+  it.each(ENGINES)(
+    'rejects malformed $engine results and writes nothing',
+    async ({ engine, model }) => {
+      const deps = createDeps({ falSubscribe: vi.fn().mockResolvedValue({ requestId: 'req-1' }) });
+
+      const error = await captureError(
+        removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, engine }, deps)
+      );
+
+      expect(error.message).toContain(`fal returned no image for ${model}`);
+      expect(deps.fetchBytes).not.toHaveBeenCalled();
+      expect(deps.writeFile).not.toHaveBeenCalled();
+      expect(deps.writeJson).not.toHaveBeenCalled();
+    }
+  );
+
   it.each([
     ['no data', { requestId: 'req-1' }],
     ['no image', { requestId: 'req-1', data: {} }],
@@ -328,30 +376,34 @@ describe('removeBackgroundFal', () => {
 
     const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
 
-    expect(error.message).toContain('fal returned no image for fal-ai/birefnet/v2');
+    expect(error.message).toContain(`fal returned no image for ${BRIA_MODEL}`);
     expect(deps.fetchBytes).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
     expect(deps.writeJson).not.toHaveBeenCalled();
   });
 
-  it('rejects a downloaded result larger than the cap without writing', async () => {
+  it.each(ENGINES)('rejects an oversized $engine download without writing', async ({ engine }) => {
     const deps = createDeps({
       fetchBytes: vi.fn().mockResolvedValue(new Uint8Array(MAX_FAL_RESULT_BYTES + 1)),
     });
 
-    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+    const error = await captureError(
+      removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, engine }, deps)
+    );
 
     expect(error.message).toContain(`maximum is ${MAX_FAL_RESULT_BYTES} bytes`);
     expect(deps.writeFile).not.toHaveBeenCalled();
     expect(deps.writeJson).not.toHaveBeenCalled();
   });
 
-  it('rejects a downloaded result that is not a PNG without writing', async () => {
+  it.each(ENGINES)('rejects a non-PNG $engine download without writing', async ({ engine }) => {
     const deps = createDeps({
       fetchBytes: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])),
     });
 
-    const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
+    const error = await captureError(
+      removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, engine }, deps)
+    );
 
     expect(error.message).toContain('Downloaded file is not a PNG');
     expect(deps.writeFile).not.toHaveBeenCalled();
@@ -373,12 +425,12 @@ describe('removeBackgroundFal', () => {
 });
 
 describe('validateBackgroundResult', () => {
-  it('narrows a BiRefNet result to the image url', () => {
-    expect(validateBackgroundResult(result())).toEqual({
-      requestId: 'req-1',
-      data: { image: { url: IMAGE_URL } },
-    });
-    expect(FAL_BACKGROUND_MODE).toBe('Matting');
-    expect(FAL_BACKGROUND_MODEL).toBe('fal-ai/birefnet/v2');
+  it('narrows a background result to the image url for either model', () => {
+    for (const model of [BRIA_MODEL, BIFNET_MODEL]) {
+      expect(validateBackgroundResult(result(), model)).toEqual({
+        requestId: 'req-1',
+        data: { image: { url: IMAGE_URL } },
+      });
+    }
   });
 });

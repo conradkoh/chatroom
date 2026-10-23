@@ -103,9 +103,13 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('writes the downloaded PNG and a manifest that keeps provenance but not the key', async () => {
+  it('writes the bria cut-out and a manifest that keeps provenance but not the key', async () => {
     const download = buildPng(6, 5, 200);
-    depsHolder.current = buildDeps(download);
+    const falSubscribe = vi.fn(async () => ({
+      requestId: 'req-e2e',
+      data: { image: { url: IMAGE_URL } },
+    }));
+    depsHolder.current = buildDeps(download, falSubscribe);
     const source = await readFile(inputPath);
 
     await run(['--in', inputPath, '--out', outputPath]);
@@ -113,11 +117,17 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
     expect(process.exitCode).toBeUndefined();
     expect(await readFile(outputPath)).toEqual(Buffer.from(download));
 
+    const dataUri = `data:image/png;base64,${Buffer.from(source).toString('base64')}`;
+    expect(falSubscribe).toHaveBeenCalledWith('fal-ai/bria/background/remove', {
+      image_url: dataUri,
+    });
+
     const manifestText = await readFile(`${outputPath}.json`, 'utf8');
     const manifest = JSON.parse(manifestText) as {
       platform: string;
       tool: string;
       sdk: string;
+      engine: string;
       model: string;
       input: Record<string, unknown>;
       requestId: string;
@@ -129,10 +139,9 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
       platform: 'fal',
       tool: 'chatroom remove-image-background-fal',
       sdk: '@fal-ai/client@1.10.1',
-      model: 'fal-ai/birefnet/v2',
+      engine: 'bria',
+      model: 'fal-ai/bria/background/remove',
       input: {
-        mode: 'Matting',
-        output_format: 'png',
         source: 'potion.png',
         sourceBytes: source.byteLength,
         sourceSha256: sha256(source),
@@ -147,6 +156,8 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
       generatedAt: '2026-10-23T04:05:06.000Z',
       licensing: 'unverified',
     });
+    expect(manifest.input.mode).toBeUndefined();
+    expect(manifest.input.output_format).toBeUndefined();
     expect(manifestText.includes(FAL_API_KEY)).toBe(false);
     expect(manifestText.includes('data:image/png;base64,')).toBe(false);
     expect(manifestText.includes(IMAGE_URL)).toBe(false);
@@ -158,6 +169,38 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
     expect(output).toContain(`Removed background ${outputPath}`);
     expect(output).toContain(`Manifest ${outputPath}.json`);
     expect(output).toContain('Request req-e2e');
+  });
+
+  it('runs the previous BiRefNet Matting backend with --engine birefnet', async () => {
+    const source = await readFile(inputPath);
+    const falSubscribe = vi.fn(async () => ({
+      requestId: 'req-birefnet',
+      data: { image: { url: IMAGE_URL } },
+    }));
+    depsHolder.current = buildDeps(buildPng(6, 5, 200), falSubscribe);
+
+    await run(['--in', inputPath, '--out', outputPath, '--engine', 'birefnet']);
+
+    expect(process.exitCode).toBeUndefined();
+    const dataUri = `data:image/png;base64,${Buffer.from(source).toString('base64')}`;
+    expect(falSubscribe).toHaveBeenCalledWith('fal-ai/birefnet/v2', {
+      image_url: dataUri,
+      model: 'Matting',
+      output_format: 'png',
+    });
+
+    const manifest = JSON.parse(await readFile(`${outputPath}.json`, 'utf8')) as {
+      engine: string;
+      model: string;
+      input: Record<string, unknown>;
+      requestId: string;
+    };
+    expect(manifest).toMatchObject({
+      engine: 'birefnet',
+      model: 'fal-ai/birefnet/v2',
+      input: { mode: 'Matting', output_format: 'png' },
+      requestId: 'req-birefnet',
+    });
   });
 
   it('refuses a second run without --force and overwrites with --force', async () => {

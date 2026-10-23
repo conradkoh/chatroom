@@ -70,7 +70,7 @@ describe('chatroom remove-image-background-fal wiring', () => {
     expect(removeMock).not.toHaveBeenCalled();
   });
 
-  it('maps --in, --out, and --force to the orchestrator', async () => {
+  it('maps --in, --out, and --force to the orchestrator with the default engine', async () => {
     const program = createProgram();
 
     await parse(program, ['--in', '/tiles/a.png', '--out', '/assets/a.png', '--force']);
@@ -78,8 +78,33 @@ describe('chatroom remove-image-background-fal wiring', () => {
     expect(removeMock.mock.calls[0]?.[0]).toEqual({
       in: '/tiles/a.png',
       out: '/assets/a.png',
+      engine: 'bria',
       force: true,
     });
+  });
+
+  it('passes --engine birefnet through to the orchestrator', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--in',
+      '/tiles/a.png',
+      '--out',
+      '/assets/a.png',
+      '--engine',
+      'birefnet',
+    ]);
+
+    expect(removeMock.mock.calls[0]?.[0]).toMatchObject({ engine: 'birefnet' });
+  });
+
+  it('rejects an unknown engine before running', async () => {
+    const program = createProgram();
+
+    await expect(
+      parse(program, ['--in', '/tiles/a.png', '--out', '/assets/a.png', '--engine', 'magic'])
+    ).rejects.toMatchObject({ code: 'commander.invalidArgument' });
+    expect(removeMock).not.toHaveBeenCalled();
   });
 
   it('prints the output, manifest, and request id without the key', async () => {
@@ -132,15 +157,21 @@ describe('chatroom remove-image-background-fal wiring', () => {
     });
     command?.outputHelp();
 
-    expect(help).toContain('chatroom remove-image-background-fal --in <png> --out <png> [--force]');
+    expect(help).toContain('chatroom remove-image-background-fal --in <png> --out <png>');
+    expect(help).toContain('--engine <bria|birefnet>');
+    expect(help).toContain('fal-ai/bria/background/remove');
     expect(help).toContain('fal-ai/birefnet/v2');
     expect(help).toContain('Matting');
     expect(help).toContain('chatroom remove-image-background');
     expect(help).toContain('8 MiB');
     expect(help).toContain('32 MiB');
-    expect(help).toContain('billed to your fal account');
+    expect(help).toContain('about $0.018');
+    expect(help).toContain('per compute-second');
     expect(help).toContain(
       'remove-image-background-fal --in tiles/potion.png --out assets/potion.png'
+    );
+    expect(help).toContain(
+      'remove-image-background-fal --in tiles/potion.png --out assets/potion.png --engine birefnet'
     );
   });
 });
