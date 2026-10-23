@@ -394,15 +394,31 @@ describe('generateImage', () => {
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
-  it('treats .jpg and .jpeg as matching the jpeg output format', async () => {
-    const deps = createDeps();
+  it.each(['.jpg', '.jpeg', '.JPG'])(
+    'refuses the unsupported JPEG extension %s before generation',
+    async (extension) => {
+      const deps = createDeps();
 
-    await generateImage(
-      { prompt: 'a hero', out: '/tmp/generated/hero.jpg', outputFormat: 'jpeg' },
-      deps
-    );
+      await expect(
+        generateImage({ prompt: 'a hero', out: `/tmp/generated/hero${extension}` }, deps)
+      ).rejects.toThrow(
+        `Unsupported output extension ${extension.toLowerCase()}. Use .png or .webp (transparency-capable).`
+      );
+      expect(deps.falSubscribe).not.toHaveBeenCalled();
+    }
+  );
 
-    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+  it('accepts png and webp outputs', async () => {
+    for (const [out, format] of [
+      ['/tmp/generated/hero.png', 'png'],
+      ['/tmp/generated/hero.webp', 'webp'],
+    ] as const) {
+      const deps = createDeps();
+
+      await generateImage({ prompt: 'a hero', out, outputFormat: format }, deps);
+
+      expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+    }
   });
 
   it('records the resolved output path in the manifest', async () => {

@@ -22,7 +22,7 @@ export const GENERATE_IMAGE_PLATFORMS = ['fal'] as const;
 export type GenerateImagePlatform = (typeof GENERATE_IMAGE_PLATFORMS)[number];
 export const DEFAULT_GENERATE_IMAGE_PLATFORM: GenerateImagePlatform = 'fal';
 
-export type ImageOutputFormat = 'png' | 'jpeg' | 'webp';
+export type ImageOutputFormat = 'png' | 'webp';
 
 /**
  * Error type for generate-image failures. Messages may name the request id and
@@ -86,10 +86,11 @@ export const FAL_API_KEY_MISSING_MESSAGE =
 /** File extensions we can reason about when validating --output-format. */
 const EXTENSION_FORMATS: Record<string, ImageOutputFormat> = {
   '.png': 'png',
-  '.jpg': 'jpeg',
-  '.jpeg': 'jpeg',
   '.webp': 'webp',
 };
+
+/** Formats the command no longer writes, even if the model supports them. */
+const UNSUPPORTED_OUTPUT_EXTENSIONS = new Set(['.jpg', '.jpeg']);
 
 function resolvePlatform(platform: GenerateImagePlatform | undefined): GenerateImagePlatform {
   return platform ?? DEFAULT_GENERATE_IMAGE_PLATFORM;
@@ -264,6 +265,19 @@ async function saveImage(
 }
 
 /**
+ * JPEG cannot carry transparency, so the command refuses it outright: writing a
+ * model-default PNG to a .jpg path would mislabel the file. Unknown extensions
+ * are still left alone, matching the format check below.
+ */
+function requireSupportedExtension(outPath: string): void {
+  const extension = extname(outPath).toLowerCase();
+  if (!UNSUPPORTED_OUTPUT_EXTENSIONS.has(extension)) return;
+  throw new GenerateImageError(
+    `Unsupported output extension ${extension}. Use .png or .webp (transparency-capable).`
+  );
+}
+
+/**
  * A mismatched extension makes the file claim to be a format it is not, so
  * reject it before the paid call. Unknown extensions are left alone.
  *
@@ -333,6 +347,7 @@ export async function generateImage(
 
   const prompt = requireNonEmpty(opts.prompt, '--prompt must not be empty.');
   const outPath = resolve(requireNonEmpty(opts.out, '--out must not be empty.'));
+  requireSupportedExtension(outPath);
   if (opts.outputFormat !== undefined) {
     requireFormatMatchesExtension(outPath, opts.outputFormat);
   }
