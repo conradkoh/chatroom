@@ -222,6 +222,35 @@ describe('keyBackground', () => {
     }
   });
 
+  it('drops a ring-shaped speck without erasing the item inside its box', () => {
+    const image = makeImage(60, 60);
+    fillRect(image, 13, 12, 14, 14, [200, 40, 40, 255]);
+    // A C-shaped ring whose bounding box covers the item; it stays separate and
+    // does not enclose background because it is open at the bottom.
+    fillRect(image, 10, 6, 20, 2, [40, 60, 200, 255]);
+    fillRect(image, 10, 6, 2, 25, [40, 60, 200, 255]);
+    fillRect(image, 28, 6, 2, 25, [40, 60, 200, 255]);
+
+    const result = expectOk(key(image, { minAreaPercent: 5 }));
+
+    expect(result.components).toBe(1);
+    expect(result.foregroundPixels).toBe(196);
+    expect(result.contentBox).toEqual({ x: 13, y: 12, width: 14, height: 14 });
+  });
+
+  it('drops an L-shaped speck without cutting a hole in a concave item', () => {
+    const image = makeImage(40, 40);
+    fillRect(image, 18, 12, 12, 20, [200, 40, 40, 255]);
+    fillRect(image, 8, 8, 25, 3, [40, 60, 200, 255]);
+    fillRect(image, 8, 8, 3, 17, [40, 60, 200, 255]);
+
+    const result = expectOk(key(image, { minAreaPercent: 10 }));
+
+    expect(result.components).toBe(1);
+    expect(result.foregroundPixels).toBe(240);
+    expect(result.contentBox).toEqual({ x: 18, y: 12, width: 12, height: 20 });
+  });
+
   it('is byte-deterministic', () => {
     const image = discImage();
 

@@ -218,13 +218,20 @@ function candidateMask(image: Image, isBackground: Uint8Array): Uint8Array {
 
 /** 8-connected components of the candidate mask, in deterministic scan order. */
 // fallow-ignore-next-line complexity
-function labelComponents(mask: Uint8Array, width: number, height: number): Component[] {
+function labelComponents(
+  mask: Uint8Array,
+  width: number,
+  height: number
+): { components: Component[]; labels: Int32Array } {
   const seen = new Uint8Array(mask.length);
+  const labels = new Int32Array(mask.length);
   const components: Component[] = [];
   for (let start = 0; start < mask.length; start += 1) {
     if (mask[start] === 0 || seen[start] === 1) continue;
+    const label = components.length + 1;
     const stack = [start];
     seen[start] = 1;
+    labels[start] = label;
     const component: Component = { area: 0, x0: width, y0: height, x1: -1, y1: -1 };
     while (stack.length > 0) {
       const index = stack.pop() ?? 0;
@@ -238,13 +245,14 @@ function labelComponents(mask: Uint8Array, width: number, height: number): Compo
       forEachNeighbour(index, width, height, (neighbour) => {
         if (mask[neighbour] === 1 && seen[neighbour] === 0) {
           seen[neighbour] = 1;
+          labels[neighbour] = label;
           stack.push(neighbour);
         }
       });
     }
     components.push(component);
   }
-  return components;
+  return { components, labels };
 }
 
 /** A kept pixel's alpha is feathered only where it touches keyed background. */
@@ -279,27 +287,30 @@ function dropSpecks(
   candidates: Uint8Array,
   isBackground: Uint8Array,
   components: Component[],
-  minArea: number,
-  width: number
+  labels: Int32Array,
+  minArea: number
 ): KeptMasks {
   const kept: Component[] = [];
   const dropped: Component[] = [];
-  let droppedPixels = 0;
-  for (const component of components) {
-    if (component.area >= minArea) {
-      kept.push(component);
-      continue;
+  const droppedLabels = new Set<number>();
+  components.forEach((component, index) => {
+    if (component.area >= minArea) kept.push(component);
+    else {
+      dropped.push(component);
+      droppedLabels.add(index + 1);
     }
-    dropped.push(component);
-    droppedPixels += component.area;
-    for (let y = component.y0; y <= component.y1; y += 1) {
-      for (let x = component.x0; x <= component.x1; x += 1) {
-        const index = y * width + x;
-        if (candidates[index] === 1) {
-          candidates[index] = 0;
-          isBackground[index] = 1;
-        }
-      }
+  });
+  if (droppedLabels.size === 0) return { kept, dropped, droppedPixels: 0 };
+
+  // Clear only pixels whose own label belongs to a dropped component. Clearing
+  // the component's bounding box would erase any kept item inside that box.
+  let droppedPixels = 0;
+  for (let index = 0; index < candidates.length; index += 1) {
+    if (!droppedLabels.has(labels[index] ?? 0)) continue;
+    if (candidates[index] === 1) {
+      candidates[index] = 0;
+      isBackground[index] = 1;
+      droppedPixels += 1;
     }
   }
   return { kept, dropped, droppedPixels };
@@ -376,10 +387,51 @@ function renderKept(
   };
 }
 
+function buildKeySuccess(args: {
+  data: Uint8Array;
+  background: [number, number, number];
+  components: Component[];
+  dropped: Component[];
+  droppedPixels: number;
+  stats: RenderStats;
+  pixelCount: number;
+  width: number;
+  height: number;
+}): Extract<KeyResult, { ok: true }> {
+  const { stats, width, height } = args;
+  const regions: KeyedRegion[] = [...args.components]
+    .sort((a, b) => b.area - a.area)
+    .slice(0, 8)
+    .map((component) => ({
+      x: component.x0,
+      y: component.y0,
+      width: component.x1 - component.x0 + 1,
+      height: component.y1 - component.y0 + 1,
+      area: component.area,
+    }));
+  const centreX = (stats.contentBox.x + stats.contentBox.x + stats.contentBox.width - 1) / 2;
+  const centreY = (stats.contentBox.y + stats.contentBox.y + stats.contentBox.height - 1) / 2;
+  return {
+    ok: true,
+    data: args.data,
+    background: args.background,
+    components: args.components.length,
+    regions,
+    foregroundPixels: stats.foregroundPixels,
+    foregroundRatio: stats.foregroundPixels / args.pixelCount,
+    droppedSpecks: { count: args.dropped.length, pixels: args.droppedPixels },
+    enclosedBackgroundLike: stats.enclosedBackgroundLike,
+    contentBox: stats.contentBox,
+    centerOffset: { x: centreX - (width - 1) / 2, y: centreY - (height - 1) / 2 },
+    touchesTileEdge: stats.touchesTileEdge,
+  };
+}
+
 /**
  * Key one RGBA tile. Expected failures are returned as `{ ok: false }` so the
  * caller can name the file without exception plumbing.
  */
+// fallow-ignore-next-line complexity
 export function keyBackground(image: Image, opts: KeyOptions): KeyResult {
   const { width, height, data } = image;
   const pixelCount = width * height;
@@ -393,12 +445,13 @@ export function keyBackground(image: Image, opts: KeyOptions): KeyResult {
   const isBackground = floodBackground(image, prepared.distance, border, opts.tolerance);
   const candidates = candidateMask(image, isBackground);
   const minArea = Math.ceil((opts.minAreaPercent / 100) * pixelCount);
+  const { components, labels } = labelComponents(candidates, width, height);
   const { kept, dropped, droppedPixels } = dropSpecks(
     candidates,
     isBackground,
-    labelComponents(candidates, width, height),
-    minArea,
-    width
+    components,
+    labels,
+    minArea
   );
   if (kept.length === 0) {
     return {
@@ -408,31 +461,24 @@ export function keyBackground(image: Image, opts: KeyOptions): KeyResult {
   }
 
   const stats = renderKept(image, candidates, isBackground, prepared.distance, opts.tolerance);
-  const regions: KeyedRegion[] = [...kept]
-    .sort((a, b) => b.area - a.area)
-    .slice(0, 8)
-    .map((component) => ({
-      x: component.x0,
-      y: component.y0,
-      width: component.x1 - component.x0 + 1,
-      height: component.y1 - component.y0 + 1,
-      area: component.area,
-    }));
-  const centreX = (stats.contentBox.x + stats.contentBox.x + stats.contentBox.width - 1) / 2;
-  const centreY = (stats.contentBox.y + stats.contentBox.y + stats.contentBox.height - 1) / 2;
-
-  return {
-    ok: true,
+  if (stats.foregroundPixels === 0) {
+    return {
+      ok: false,
+      message: 'no foreground found after keying; the tile is empty or --tolerance is too high',
+    };
+  }
+  if (stats.contentBox.width <= 0 || stats.contentBox.height <= 0) {
+    return { ok: false, message: 'no foreground found; the content box is empty' };
+  }
+  return buildKeySuccess({
     data: stats.data,
     background: prepared.background,
-    components: kept.length,
-    regions,
-    foregroundPixels: stats.foregroundPixels,
-    foregroundRatio: stats.foregroundPixels / pixelCount,
-    droppedSpecks: { count: dropped.length, pixels: droppedPixels },
-    enclosedBackgroundLike: stats.enclosedBackgroundLike,
-    contentBox: stats.contentBox,
-    centerOffset: { x: centreX - (width - 1) / 2, y: centreY - (height - 1) / 2 },
-    touchesTileEdge: stats.touchesTileEdge,
-  };
+    components: kept,
+    dropped,
+    droppedPixels,
+    stats,
+    pixelCount,
+    width,
+    height,
+  });
 }
