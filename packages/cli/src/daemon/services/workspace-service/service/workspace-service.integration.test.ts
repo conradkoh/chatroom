@@ -415,7 +415,6 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
   let tmp: string;
   let home: string;
   let repo: string;
-  let originalHome: string | undefined;
   const open: Harness[] = [];
 
   /** Starts a harness and tracks it so afterEach can stop it even when a test fails. */
@@ -438,8 +437,7 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
     await mkdir(home, { recursive: true });
     await mkdir(repo, { recursive: true });
 
-    originalHome = process.env.HOME;
-    process.env.HOME = home;
+    vi.stubEnv('HOME', home);
 
     await execFileAsync('git', ['init', '-q', '--bare', remote]);
     await execFileAsync('git', ['init', '-q', '-b', 'main', repo]);
@@ -455,7 +453,7 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
       await harness.service.stopAll();
       await harness.registry.stopAll();
     }
-    process.env.HOME = originalHome;
+    vi.unstubAllEnvs();
     await rm(tmp, { recursive: true, force: true });
   });
 

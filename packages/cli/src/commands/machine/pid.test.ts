@@ -1,5 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,16 +19,19 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
   getConvexUrl: vi.fn().mockReturnValue('https://chatroom-cloud.duskfare.com'),
 }));
 
-const CHATROOM_DIR = join(homedir(), '.chatroom');
-
 describe('pid lock', () => {
+  let home: string;
+  let chatroomDir: string;
   let pidPath: string;
   let errorSpy: { mockRestore: () => void };
 
   beforeEach(() => {
     vi.mocked(getConvexUrl).mockReturnValue('https://chatroom-cloud.duskfare.com');
-    if (!existsSync(CHATROOM_DIR)) {
-      mkdirSync(CHATROOM_DIR, { recursive: true, mode: 0o700 });
+    home = mkdtempSync(join(tmpdir(), 'chatroom-pid-'));
+    vi.stubEnv('HOME', home);
+    chatroomDir = join(home, '.chatroom');
+    if (!existsSync(chatroomDir)) {
+      mkdirSync(chatroomDir, { recursive: true, mode: 0o700 });
     }
     pidPath = getPidFilePath();
     if (existsSync(pidPath)) {
@@ -36,6 +47,8 @@ describe('pid lock', () => {
       unlinkSync(pidPath);
     }
     errorSpy.mockRestore();
+    vi.unstubAllEnvs();
+    rmSync(home, { recursive: true, force: true });
   });
 
   it('acquires lock when no PID file exists', async () => {

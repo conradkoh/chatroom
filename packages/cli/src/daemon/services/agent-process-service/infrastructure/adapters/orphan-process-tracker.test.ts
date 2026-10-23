@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // so the HOME env override is picked up.
 //
 // For unit tests we import the module directly — the module reads HOME at
-// call-time (via homedir()), so patching process.env.HOME before each test is
+// call-time (via the OS home directory), so stubbing HOME before each test is
 // sufficient.
 
 import {
@@ -37,22 +37,20 @@ vi.mock('../../../../../infrastructure/convex/client.js', () => ({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-let originalHome: string | undefined;
 let testHome: string;
 
 beforeEach(() => {
   // Redirect HOME to a fresh temp dir so tests don't pollute ~/.chatroom
-  originalHome = process.env.HOME;
   testHome = join(
     tmpdir(),
     `orphan-tracker-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
-  process.env.HOME = testHome;
+  vi.stubEnv('HOME', testHome);
 });
 
 afterEach(() => {
   // Restore HOME
-  process.env.HOME = originalHome;
+  vi.unstubAllEnvs();
 });
 
 // ─── A. trackChildPid / untrackChildPid ──────────────────────────────────────

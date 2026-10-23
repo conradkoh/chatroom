@@ -13,7 +13,7 @@ import { installToolEffect, type InstallToolError, type ToolInstallOptions } fro
 import { OpenCodeInstallFsService } from './opencode-install-fs-service.js';
 
 // ---------------------------------------------------------------------------
-// Mock modules (for os.homedir and path.join used in installToolEffect)
+// Mock modules (for the home directory and path.join used in installToolEffect)
 // ---------------------------------------------------------------------------
 
 vi.mock('os', () => ({

@@ -11,7 +11,7 @@ import type { OpenCodeInstallDeps } from './deps.js';
 import { installTool } from './index.js';
 
 // ---------------------------------------------------------------------------
-// Mock modules (for os.homedir and path.join used in installTool)
+// Mock modules (for the home directory and path.join used in installTool)
 // ---------------------------------------------------------------------------
 
 vi.mock('os', () => ({

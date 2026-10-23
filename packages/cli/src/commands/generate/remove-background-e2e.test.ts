@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,15 +64,6 @@ function alphaAt(image: InstanceType<typeof PNG>, x: number, y: number): number 
 function pixelAt(image: InstanceType<typeof PNG>, x: number, y: number): number[] {
   const offset = (y * image.width + x) * 4;
   return Array.from(image.data.subarray(offset, offset + 4));
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 describe('chatroom remove-image-background (end-to-end)', () => {
@@ -232,36 +223,87 @@ describe('chatroom remove-image-background (end-to-end)', () => {
   }, 30_000);
 });
 
-const fixtureDir =
-  process.env.CHATROOM_BG_FIXTURE_DIR ??
-  join(process.env.HOME ?? '', 'Downloads/2026-10-22-193147_slice-image-nanobanana2/nb2/tiles');
-const potionFixture = join(fixtureDir, 'potion.png');
-const fixtureAvailable = await exists(potionFixture).catch(() => false);
+/** A synthetic potion-like tile: jittered grey-blue background and rounded blob. */
+function buildPotionLikeTile(): {
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+  foregroundPixels: number;
+  contentBox: { x: number; y: number; width: number; height: number };
+  centerOffset: { x: number; y: number };
+  background: [number, number, number];
+} {
+  const width = 64;
+  const height = 48;
+  const background: [number, number, number] = [210, 225, 235];
+  const image = new PNG({ width, height });
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const onBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+      const jitter = onBorder ? 0 : (x + y) % 2 === 0 ? 5 : -5;
+      image.data.set(
+        [background[0] + jitter, background[1] + jitter, background[2] + jitter, 255],
+        (y * width + x) * 4
+      );
+    }
+  }
+  let foregroundPixels = 0;
+  let x0 = width;
+  let y0 = height;
+  let x1 = -1;
+  let y1 = -1;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const distance = Math.hypot(x - 32, y - 24);
+      if (distance > 13) continue;
+      // Solid core plus a one-pixel anti-aliased rim, both far from the background.
+      image.data.set(
+        distance <= 12 ? [200, 60, 40, 255] : [205, 142, 137, 255],
+        (y * width + x) * 4
+      );
+      foregroundPixels += 1;
+      x0 = Math.min(x0, x);
+      y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x);
+      y1 = Math.max(y1, y);
+    }
+  }
+  return {
+    bytes: PNG.sync.write(image, { colorType: 6, deflateLevel: 9 }),
+    width,
+    height,
+    foregroundPixels,
+    contentBox: { x: x0, y: y0, width: x1 - x0 + 1, height: y1 - y0 + 1 },
+    centerOffset: { x: (x0 + x1) / 2 - (width - 1) / 2, y: (y0 + y1) / 2 - (height - 1) / 2 },
+    background,
+  };
+}
 
-describe.skipIf(!fixtureAvailable)('real potion tile', () => {
+describe('synthetic potion-like tile', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'chatroom-remove-bg-real-'));
+    dir = await mkdtemp(join(tmpdir(), 'chatroom-remove-bg-synthetic-'));
   });
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('matches the measured potion keying values at defaults', async () => {
+  it('matches the values derived from the synthetic construction', async () => {
+    const expected = buildPotionLikeTile();
     const input = join(dir, 'potion.png');
-    await copyFile(potionFixture, input);
+    await writeFile(input, expected.bytes);
     const output = join(dir, 'potion-isolated.png');
 
     const run = runCli(['remove-image-background', '--in', input, '--out', output]);
     expect(run.status).toBe(0);
 
     const image = PNG.sync.read(await readFile(output));
-    expect(image.width).toBe(352);
-    expect(image.height).toBe(256);
+    expect(image.width).toBe(expected.width);
+    expect(image.height).toBe(expected.height);
     expect(alphaAt(image, 0, 0)).toBe(0);
-    expect(alphaAt(image, 176, 128)).toBe(255);
+    expect(alphaAt(image, 32, 24)).toBe(255);
 
     const manifest = JSON.parse(await readFile(`${output}.json`, 'utf8')) as {
       keying: { background: number[] };
@@ -272,56 +314,10 @@ describe.skipIf(!fixtureAvailable)('real potion tile', () => {
         centerOffset: Record<string, number>;
       };
     };
-    expect(manifest.keying.background).toEqual([193, 199, 206]);
+    expect(manifest.keying.background).toEqual(expected.background);
     expect(manifest.result.components).toBe(1);
-    expect(manifest.result.foregroundPixels).toBe(19806);
-    expect(manifest.result.contentBox).toEqual({ x: 105, y: 29, width: 142, height: 200 });
-    expect(manifest.result.centerOffset).toEqual({ x: 0, y: 1 });
-  }, 30_000);
-
-  it('trims the potion to 142x200 and 146x204 with padding 2', async () => {
-    const input = join(dir, 'potion.png');
-    await copyFile(potionFixture, input);
-    const zero = join(dir, 'potion-trim0.png');
-    const two = join(dir, 'potion-trim2.png');
-
-    expect(runCli(['remove-image-background', '--in', input, '--out', zero, '--trim']).status).toBe(
-      0
-    );
-    expect(
-      runCli([
-        'remove-image-background',
-        '--in',
-        input,
-        '--out',
-        two,
-        '--trim',
-        '--trim-padding',
-        '2',
-      ]).status
-    ).toBe(0);
-
-    const zeroImage = PNG.sync.read(await readFile(zero));
-    const twoImage = PNG.sync.read(await readFile(two));
-    expect({ width: zeroImage.width, height: zeroImage.height }).toEqual({
-      width: 142,
-      height: 200,
-    });
-    expect({ width: twoImage.width, height: twoImage.height }).toEqual({ width: 146, height: 204 });
-
-    const zeroManifest = JSON.parse(await readFile(`${zero}.json`, 'utf8')) as {
-      trim: { padding: number; rect: Record<string, number> };
-    };
-    const twoManifest = JSON.parse(await readFile(`${two}.json`, 'utf8')) as {
-      trim: { padding: number; rect: Record<string, number> };
-    };
-    expect(zeroManifest.trim).toMatchObject({
-      padding: 0,
-      rect: { x: 105, y: 29, width: 142, height: 200 },
-    });
-    expect(twoManifest.trim).toMatchObject({
-      padding: 2,
-      rect: { x: 103, y: 27, width: 146, height: 204 },
-    });
+    expect(manifest.result.foregroundPixels).toBe(expected.foregroundPixels);
+    expect(manifest.result.contentBox).toEqual(expected.contentBox);
+    expect(manifest.result.centerOffset).toEqual(expected.centerOffset);
   }, 30_000);
 });

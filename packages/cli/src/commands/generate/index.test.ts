@@ -57,7 +57,7 @@ describe('chatroom generate-image wiring', () => {
 
   it('reports action failures on stderr with exitCode 1 and never prints FAL_API_KEY', async () => {
     const key = 'fal-key-sentinel-do-not-print';
-    process.env.FAL_API_KEY = key;
+    process.env.FAL_API_KEY = 'fal-key-sentinel-do-not-print';
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     generateImageMock.mockRejectedValue(new Error('generation exploded'));
