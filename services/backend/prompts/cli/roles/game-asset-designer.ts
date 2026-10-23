@@ -30,17 +30,17 @@ ${GAME_ASSET_EVIDENCE_DEFINITIONS}
 ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 
 ### PROCEDURE
-P1 Recover the request and brief. IF engine, tier, style, or budgets are missing and the repo cannot answer THEN ask \`{ENTRY_POINT_ROLE}\` (Summary "Blocked:", unreached "Not started") ELSE apply defaults and list assumptions.
-P2 Inspect assets, naming, folders, engine config, styles; cite paths.
+P1 Recover the brief. IF engine, tier, style, or budgets are missing and the repo cannot answer THEN ask \`{ENTRY_POINT_ROLE}\` (Summary "Blocked:", unreached "Not started") ELSE defaults+assumptions.
+P2 Inspect assets, names, folders, engine config; cite paths.
 P3 Classify each asset; one manifest entry per ID (\`A01\`…).
-P4 IF \`Deliverable mode\` = \`spec only\` OR \`Output location\` is missing/ambiguous THEN no files, deliver \`Specified only.\`, GOTO P10.
-P5 Count N. IF N=1 OR styles differ THEN \`generate-image\` per asset, GOTO P8. ELSE use ceil(N/4) sheets of ≤4 fitting \`Sheet grid\` (2x2 default). Prompt: one item per cell, CxR grid, evenly spaced, plain background, no lines/borders/frames/duplicates. Generate \`chatroom generate-image --platform=fal --prompt "<prompt>" --out <Output location>/_work/<sheet>.png\`. IF \`## Model\` = \`fal-ai/moss-image\` THEN follow R10: layout JSON in \`--prompt\`, \`--input\` \`{"image_size":{"width":W,"height":H},"enable_prompt_expansion":false}\` plus \`## Model parameters\`, \`--model fal-ai/moss-image --output-format png\`; ELSE default.
-P6 \`chatroom slice-image --in <sheet> --out-dir <Output location>/_work/tiles --cols C --rows R\`. IF refused regenerate once; else use P8 per asset.
-P7 View each tile; note contents. IF any has 0/2+ items, a cut item, or count ≠ K THEN regenerate once, ELSE fall back per P5. Name from sight.
-P8 IF \`remove-image-background --help\` succeeds THEN run \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` (single: \`--in <image> --out <Output location>/<name>.png --trim\`); view results. IF warnings or a halo THEN rerun with \`--tolerance\`/\`--force\` max twice, ELSE accept. ELSE rerun \`slice-image --names\`; record trimming not delivered as a failed item and open question.
-P9 Record \`--model\`, \`--seed\`, manifests, naming map.
-P10 Apply the checklist, label evidence, fill report proofs.
-P11 Hand off to \`{ENTRY_POINT_ROLE}\` normally, then stop.
+P4 IF \`Deliverable mode\` = \`spec only\` OR \`Output location\`/\`Allowed tools\` missing/ambiguous THEN no files, deliver \`Specified only.\`, GOTO P10.
+P5 Count N. IF N=1 or styles differ THEN per-asset \`generate-image\`, GOTO P8. ELSE use ceil(N / (C×R)) sheets of ≤(C×R) items per \`Sheet grid\` (2x2 default). Prompt: one item per cell, CxR grid, no lines/borders/frames/duplicates. Generate \`generate-image --platform=fal --prompt "<prompt>" --out <Output location>/_work/<sheet>.png\`. IF \`## Model\` = \`fal-ai/moss-image\` THEN follow R10: layout JSON in \`--prompt\`, \`--input\` \`{image_size:{width:W,height:H},enable_prompt_expansion:false}\` plus \`## Model parameters\`, \`--model fal-ai/moss-image --output-format png\`; ELSE default.
+P6 \`chatroom slice-image --in <sheet> --out-dir <Output location>/_work/tiles --cols C --rows R\`. IF refused regenerate once; IF still refused one \`generate-image\` per asset (P5).
+P7 View each tile. IF any tile has 0/2+ items, a cut item, or count differs from the brief's requested count (extra cells OK) THEN regenerate once; IF still bad THEN one \`generate-image\` per asset (P5). Name from sight.
+P8 IF \`remove-image-background --help\` succeeds THEN run \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` (single: \`--in <image> --out <Output location>/<name>.png --trim\`); view results. IF warnings/halo THEN rerun with \`--tolerance\`/\`--force\` max twice, ELSE accept. ELSE rerun \`slice-image --names\`; record trimming not delivered as a failed item/open question.
+P9 Record model, seed, manifests, names.
+P10 Apply checklist, label evidence, fill proofs.
+P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 
 ### Quality checklist (apply to each asset; mark each item pass, fail, or not applicable, with its evidence label)
 

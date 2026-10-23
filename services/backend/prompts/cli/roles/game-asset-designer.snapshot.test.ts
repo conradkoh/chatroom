@@ -45,6 +45,13 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).toContain('enable_prompt_expansion');
     expect(guidance).toContain('pixels from the canvas centre');
     expect(guidance).toContain('fal-ai/moss-image');
+    expect(guidance).toContain('spec only');
+    expect(guidance).toContain('quote the exact error');
+    expect(guidance).toContain('Do not install or run any remote tool');
+    expect(guidance).toContain('Never switch generators');
+    expect(guidance).toContain('production-ready');
+    expect(guidance).toContain('Sheet grid');
+    expect(guidance).toContain('ceil(N / (C×R))');
     expect(guidance).toContain(
       'remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim'
     );
