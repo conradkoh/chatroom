@@ -7,24 +7,26 @@
  * untouched until every validation, decode, crop, and encode step has passed.
  */
 
-import { createHash } from 'node:crypto';
 import { basename, extname, join, resolve } from 'node:path';
 
+import {
+  MAX_SOURCE_BYTES,
+  MAX_SOURCE_PIXELS,
+  MAX_SIDECAR_BYTES,
+  SAFE_NAME,
+  errorMessage,
+  findOutputConflicts,
+  formatConflicts,
+  hasPngMagic,
+  isRecord,
+  readPngDimensions,
+  sha256,
+} from './local-image-common.js';
 import type { FileIdentity, SliceImageDeps } from './slice-deps.js';
 
 const SLICE_TOOL = 'chatroom slice-image' as const;
 const MAX_TILES = 256;
 export const MAX_GRID_DIMENSION = 64;
-const MAX_SOURCE_PIXELS = 100_000_000;
-// Only the unit tests import these validated helpers; tests are outside the
-// fallow graph.
-// fallow-ignore-next-line unused-export
-export const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
-/** generate-image sidecars are small; anything larger is ignored as unreadable. */
-const MAX_SIDECAR_BYTES = 1024 * 1024;
-
-/** PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A. */
-const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** fal's terms do not grant verified commercial rights, so tiles stay unverified. */
 const LICENSING = 'unverified' as const;
@@ -168,14 +170,6 @@ interface SliceIndexManifest {
   licensing: typeof LICENSING;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function sha256(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
-}
-
 /** Zero-pad width: decimal digits in the tile count, with a floor of two. */
 function padWidth(tileCount: number): number {
   return Math.max(2, String(tileCount).length);
@@ -257,7 +251,6 @@ export function computeSliceGrid(args: {
   return { tileWidth, tileHeight, droppedRight, droppedBottom, cells };
 }
 
-const SAFE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/;
 /** Longest output path component we allow: `<name>.slices.json`. */
 const MAX_OUTPUT_NAME_LENGTH = 200;
 
@@ -338,30 +331,6 @@ export function resolveTileNames(args: {
   });
 }
 
-function hasPngMagic(bytes: Uint8Array): boolean {
-  if (bytes.length < PNG_MAGIC.length) return false;
-  return PNG_MAGIC.every((byte, index) => bytes[index] === byte);
-}
-
-/**
- * Read width and height from the PNG IHDR chunk without decoding pixels.
- *
- * pngjs allocates from the declared dimensions before any of our checks run,
- * so a hostile sheet could be a decompression bomb. This header read lets the
- * caller refuse oversized images before handing bytes to the decoder.
- * Returns null when the bytes are too short or do not start with IHDR.
- */
-// fallow-ignore-next-line unused-export complexity
-export function readPngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
-  // 8 magic bytes + 4 length bytes + 4 type bytes + 8 dimension bytes.
-  if (bytes.length < 24) return null;
-  if (bytes[12] !== 0x49 || bytes[13] !== 0x48 || bytes[14] !== 0x44 || bytes[15] !== 0x52) {
-    return null;
-  }
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return { width: view.getUint32(16), height: view.getUint32(20) };
-}
-
 /** Copy one tile out of the RGBA source. No scaling, padding, or trimming. */
 function cropTile(
   image: { width: number; height: number; data: Uint8Array },
@@ -430,28 +399,12 @@ function parseSourceManifest(
   };
 }
 
-interface OutputConflict {
-  path: string;
-  reason: string;
-}
-
-/** Format every conflict at once, capped so one noisy directory stays readable. */
-function formatConflicts(conflicts: OutputConflict[]): string {
-  const shown = conflicts.slice(0, 10);
-  const lines = shown.map((conflict) => `- ${conflict.path}: ${conflict.reason}`);
-  if (conflicts.length > shown.length) {
-    lines.push(`- and ${conflicts.length - shown.length} more`);
-  }
-  return `Refusing to write ${conflicts.length} output file(s):\n${lines.join('\n')}\nPass --force to overwrite.`;
-}
-
 /**
  * Preflight every output path before any write. Directories, symbolic links,
  * paths that resolve to the source sheet or its manifest, and existing files
  * without `--force` are all refused. Identity checks use `stat`, so a case
  * variant, hard link, or symlinked directory cannot overwrite the source.
  */
-// fallow-ignore-next-line complexity
 async function preflightOutputs(
   deps: SliceImageDeps,
   paths: string[],
@@ -459,35 +412,7 @@ async function preflightOutputs(
   sourceIdentities: readonly (FileIdentity | null)[],
   force: boolean
 ): Promise<void> {
-  const matchesSourceIdentity = (identity: FileIdentity): boolean =>
-    sourceIdentities.some(
-      (source) => source !== null && source.dev === identity.dev && source.ino === identity.ino
-    );
-
-  const conflicts: OutputConflict[] = [];
-  for (const path of paths) {
-    if (sourcePaths.has(path)) {
-      conflicts.push({ path, reason: 'this is the source sheet or its manifest' });
-      continue;
-    }
-    if (await deps.isSymlink(path)) {
-      conflicts.push({ path, reason: 'this is a symbolic link' });
-      continue;
-    }
-    const status = await deps.pathStatus(path);
-    if (status === 'directory') {
-      conflicts.push({ path, reason: 'a directory is in the way' });
-      continue;
-    }
-    const identity = await deps.fileIdentity(path);
-    if (identity !== null && matchesSourceIdentity(identity)) {
-      conflicts.push({ path, reason: 'this resolves to the source sheet or its manifest' });
-      continue;
-    }
-    if (status === 'file' && !force) {
-      conflicts.push({ path, reason: 'already exists' });
-    }
-  }
+  const conflicts = await findOutputConflicts(deps, paths, sourcePaths, sourceIdentities, force);
   if (conflicts.length > 0) {
     throw new SliceImageError(formatConflicts(conflicts));
   }
@@ -631,10 +556,6 @@ function requireNoEdgeContent(args: {
   throw new SliceImageError(
     `Artwork crosses cell borders in ${offenders.length} of ${activeCells} cells (cells: ${cellList}). The sheet probably does not match a ${args.cols}x${args.rows} grid of equal cells. Regenerate the sheet with one separate item per cell and no drawn grid lines, or pass --allow-edge-content to slice anyway.`
   );
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 // The pipeline is a linear sequence of validated stages; splitting it would
