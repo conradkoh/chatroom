@@ -81,7 +81,9 @@ function requireImageUrl(value: unknown): string {
 }
 
 function optionalString(value: unknown, field: string): string | undefined {
-  if (value === undefined) return undefined;
+  // fal models may echo optional metadata as null (moss-image does this for
+  // file_name), which is equivalent to omitting it.
+  if (value === undefined || value === null) return undefined;
   if (typeof value !== 'string') {
     throw invalidResult(`${field} is not a string`);
   }

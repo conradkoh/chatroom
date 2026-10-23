@@ -166,6 +166,18 @@ describe('createDefaultGenerateImageDeps', () => {
     );
   });
 
+  it('treats null optional image metadata as absent', async () => {
+    subscribeMock.mockResolvedValue({
+      data: { images: [{ url: IMAGE_URL, file_name: null, content_type: null }] },
+      requestId: 'req-ok',
+    });
+
+    await expect(deps.falSubscribe('fal-ai/flux/dev', { prompt: 'x' })).resolves.toEqual({
+      requestId: 'req-ok',
+      data: { images: [{ url: IMAGE_URL }] },
+    });
+  });
+
   it('rejects a non-numeric seed', async () => {
     subscribeMock.mockResolvedValue({
       data: { images: [{ url: IMAGE_URL }], seed: 'not-a-number' },
