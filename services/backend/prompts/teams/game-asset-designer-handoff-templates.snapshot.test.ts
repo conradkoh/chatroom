@@ -24,11 +24,13 @@ function renderPair(pair: HandoffTemplatePair): string {
 
 const reportHeadings = [
   '## Summary',
+  '## Proof of Principles',
+  '## Proof of Completion',
   '## Target and assumptions',
   '## Asset manifest',
   '## Quality checklist results',
-  '## Acceptance criteria results',
   '## Style consistency',
+  '## Naming map',
   '## Created and edited paths',
   '## Commits',
   '## Sources',
@@ -44,6 +46,33 @@ describe('game asset designer handoff template snapshots', () => {
       expect(renderPair(pair)).toMatchSnapshot();
     }
   );
+
+  test('brief and report use proof blocks, a sheet grid, and no flux-2 sheet model', () => {
+    const brief = renderPair({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'game-asset-designer',
+    });
+    const report = renderPair({
+      teamId: 'duo',
+      fromRole: 'game-asset-designer',
+      toRole: 'planner',
+    });
+
+    expect(brief).toContain('## Sheet grid');
+    expect(brief).toContain('2x2');
+    expect(brief).toContain('## Proof of Principles');
+    expect(brief).toContain('## Proof of Completion');
+    expect(report).toContain('## Proof of Principles');
+    expect(report).toContain('## Proof of Completion');
+    expect(report).toContain('## Naming map');
+    expect(brief).toContain('## Model');
+    expect(brief).toContain('## Model parameters');
+    expect(brief).toContain('fal-ai/moss-image');
+    expect(brief).toContain('Always pass `--trim` to `chatroom remove-image-background`');
+    expect(report).toContain('Always pass `--trim` to `chatroom remove-image-background`');
+    expect(`${brief}\n${report}`).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);
+  });
 
   test('planner delegation states the target, budgets, style reference, and deliverable mode', () => {
     const template = renderPair({
@@ -64,14 +93,16 @@ describe('game asset designer handoff template snapshots', () => {
     expect(template).toContain('## Allowed edit paths');
     expect(template).toContain('## Commit');
     expect(template).toContain('## Output location');
-    expect(template).toContain('## Acceptance criteria');
+    expect(template).toContain('## Sheet grid');
+    expect(template).toContain('## Proof of Principles');
+    expect(template).toContain('## Proof of Completion');
     expect(template).toContain('Instructions (not part of the message):');
     expect(template).toContain('Instructions after the body (not part of the message):');
     expect(template).toContain('### When to use the game asset designer');
     expect(template).toContain('spec only');
     expect(template).toContain('spec and generate');
     expect(template).toContain('next-role="game-asset-designer"');
-    expect(template.indexOf('## Acceptance criteria')).toBeLessThan(
+    expect(template.indexOf('## Proof of Completion')).toBeLessThan(
       template.indexOf('Instructions after the body (not part of the message):')
     );
     expect(template.indexOf('### When to use the game asset designer')).toBeGreaterThan(

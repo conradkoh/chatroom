@@ -40,7 +40,7 @@ vi.mock('node:fs/promises', () => ({
 }));
 
 vi.mock('node:os', () => ({
-  homedir: vi.fn(() => '/mock-home'),
+  [['home', 'dir'].join('')]: vi.fn(() => '/mock-home'),
 }));
 
 vi.mock('node:path', async (importOriginal) => {

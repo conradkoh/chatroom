@@ -26,4 +26,43 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
     expect(guidance).not.toContain('{SESSION_CONTINUITY}');
   });
+
+  test('uses the rules/procedure skeleton and the proof report sections', () => {
+    const guidance = getGameAssetDesignerGuidance({
+      nativeIntegration: false,
+      recipientRole: 'planner',
+    });
+
+    expect(guidance).toContain('### RULES');
+    expect(guidance).toContain('### PROCEDURE');
+    expect(guidance).toContain('Proof of Principles');
+    expect(guidance).toContain('Proof of Completion');
+    expect(guidance).toContain('P8');
+    expect(guidance).toContain('remove-image-background --help');
+    expect(guidance).toContain('R9');
+    expect(guidance).toContain('--trim');
+    expect(guidance).toContain('--input');
+    expect(guidance).toContain('enable_prompt_expansion');
+    expect(guidance).toContain('pixels from the canvas centre');
+    expect(guidance).toContain('fal-ai/moss-image');
+    expect(guidance).toContain('spec only');
+    expect(guidance).toContain('quote the exact error');
+    expect(guidance).toContain('Do not install or run any remote tool');
+    expect(guidance).toContain('Never switch generators');
+    expect(guidance).toContain('production-ready');
+    expect(guidance).toContain('Sheet grid');
+    expect(guidance).toContain('ceil(N / (C×R))');
+    expect(guidance).toContain(
+      'remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim'
+    );
+    expect(guidance).toContain('--out <Output location>/<name>.png --trim');
+    expect(guidance).toContain('2x2');
+    expect(guidance).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);
+
+    const procedure = guidance.slice(
+      guidance.indexOf('### PROCEDURE'),
+      guidance.indexOf('### Quality checklist')
+    );
+    expect(procedure.length).toBeLessThanOrEqual(2000);
+  });
 });

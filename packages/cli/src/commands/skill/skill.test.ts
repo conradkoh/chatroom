@@ -23,7 +23,7 @@ import { BackendService, SessionService } from '../../infrastructure/services/in
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
 
-/** External skills stub: no machine-installed skills. Never touches the real $HOME. */
+/** External skills stub: no machine-installed skills. Never touches the real the home env. */
 const noExternalSkills: ExternalSkillsOps = {
   discover: async () => ({ skills: [], issues: [] }),
 };

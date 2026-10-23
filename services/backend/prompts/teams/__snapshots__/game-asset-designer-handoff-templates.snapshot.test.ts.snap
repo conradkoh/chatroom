@@ -6,28 +6,55 @@ exports[`game asset designer handoff template snapshots > 'duo' 'game-asset-desi
 
 Handoff template \`game-asset-designer\` → \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Instructions (not part of the message): Return a complete asset delivery report for the request the planner named. State only what you established. Label every checked property with one evidence label: \`measured\`, \`inspected\`, \`specified\`, \`unverified\`. Definitions: - \`measured\` — a tool or script you ran on the actual file produced the number or read the metadata field; cite the command and its output value (this includes header or JSON values read by command).
+Instructions (not part of the message): Return a complete asset delivery report for the request the planner named. Label every checked property with one evidence label: \`measured\`, \`inspected\`, \`specified\`, \`unverified\`. Definitions: - \`measured\` — a tool or script you ran on the actual file produced the number or read the metadata field; cite the command and its output value (this includes header or JSON values read by command).
 - \`inspected\` — you opened the actual file or a render and made a qualitative observation (silhouette, seam, palette, style match); describe what you saw and give no numbers.
 - \`specified\` — a target or requirement from the brief or your own spec; no file was checked. A budget you write into a spec is \`specified\`.
-- \`unverified\` — a result that should have been checked but could not be (no file access, no tool, unreadable file), or a value someone else stated that you did not check; say why and name the source. Never claim a polycount, texel density, loudness, color space, or visual-quality result without \`measured\` or \`inspected\` evidence. Numeric results (polycount, texel density, resolution, loudness, true peak, sample rate, bit depth) and color-space slot checks require \`measured\`; \`inspected\` covers only visual or audible judgments. A budget or target you write into the spec is a requirement and is labelled \`specified\`, not a result. A checklist item is \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence. Otherwise record it as \`not checked\` and keep its label (\`specified\` or \`unverified\`). Write only under the named output location and the named edit paths. In \`spec only\` you write no files. Use the exact sections below, in this order. If you are blocked or need a clarification, send the same sections with Summary starting \`Blocked:\` and every section you could not reach written as \`Not started.\`
+- \`unverified\` — a result that should have been checked but could not be (no file access, no tool, unreadable file), or a value someone else stated that you did not check; say why and name the source. Never claim a polycount, texel density, loudness, color space, or visual-quality result without \`measured\` or \`inspected\` evidence. Numeric results (polycount, texel density, resolution, loudness, true peak, sample rate, bit depth) and color-space slot checks require \`measured\`; \`inspected\` covers only visual or audible judgments. A budget or target you write into the spec is a requirement and is labelled \`specified\`, not a result. A checklist item is \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence. Otherwise record it as \`not checked\` and keep its label (\`specified\` or \`unverified\`). Write only under the named output location and the named edit paths. In \`spec only\` you write no files. If you are blocked, send the same sections with Summary starting \`Blocked:\` and every section you could not reach written as \`Not started.\`
 
 ## Summary
 <one to three sentences: what was delivered, whether it is spec only or includes files, and the count of \`fail\` and \`not checked\` items>
+
+## Proof of Principles
+- [ ] Generate only with \`chatroom generate-image --platform=fal\`, using the CLI default model unless the brief names one. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Process images only with \`chatroom slice-image\` and \`chatroom remove-image-background\`; no other tool, script, or remote service. — <evidence: command lines, grid values, or naming map reference>
+- [ ] A sheet is at most the brief's \`Sheet grid\` (default 2x2); a larger grid needs a user request quoted in the brief. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Names come from looking at each tile, never from cell order or prompt order. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Never pass \`--names\` to \`slice-image\` except P8's fallback when \`remove-image-background --help\` fails; assign names only with \`remove-image-background --map\` or \`--out\`. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Write only under \`Output location\` and \`Allowed edit paths\`; never overwrite or delete unless the brief names the path. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Mark \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence (labels below). — <evidence: command lines, grid values, or naming map reference>
+- [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Positioned sheets use exact layout JSON for the model that supports it (currently \`fal-ai/moss-image\`): the layout goes in \`--prompt\`, and \`image_size\` must equal the canvas the coordinates use. Bboxes are \`[y_min,x_min,y_max,x_max]\` in pixels from the canvas centre, y down, x right. \`enable_prompt_expansion\` is false for positioned layouts. Use \`--output-format png\`. Never pass \`--aspect-ratio\` to moss. Do not add model-specific values that the brief does not name. — <evidence: command lines, grid values, or naming map reference>
+- [ ] If \`generate-image\` is missing, \`FAL_API_KEY\` is not set, or it fails, stop generation, deliver \`spec only\`, quote the exact error in Summary, and list it under Open questions. Do not retry in a loop. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Do not install or run any remote tool, script, or skill, and do not fetch generator code. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Never switch generators. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Describe generated output as production-ready only when every checklist item for it passes with \`measured\` or \`inspected\` evidence. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Commit only when the brief names the paths and the commit message. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Generate only when the brief names an output location and allowed tools. — <evidence: command lines, grid values, or naming map reference>
+
+## Proof of Completion
+- [ ] <one checkbox per brief acceptance criterion; state the evidence label required (measured or inspected)>
+- [ ] Every asset ID has a file or \`Specified only.\`
+- [ ] Every sliced asset was isolated with \`remove-image-background\` and \`inspected\`.
+- [ ] Manifests are listed in the asset manifest.
 
 ## Target and assumptions
 <each assumption you made and why; each deviation from the planner's target or budgets; or \`None.\`>
 
 ## Asset manifest
-<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, and \`--seed\` values) and the \`<out>.json\` manifest path>
+<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, and \`--seed\` values), the sheet and tile manifests, and the isolated asset manifest path>
 
 ## Quality checklist results
 <per asset: each applicable checklist item as \`pass\`, \`fail\`, \`n/a\`, or \`not checked\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>
 
-## Acceptance criteria results
-<each planner acceptance criterion as \`met\`, \`not met\`, or \`not checked\`, with its evidence label>
-
 ## Style consistency
 <how the set matches the style reference; deviations; what was compared and how>
+
+## Naming map
+| cell stem | seen | assigned name | path | inspection note |
+| --- | --- | --- | --- | --- |
+
+Write exactly \`None.\` if no sheet was used.
 
 ## Created and edited paths
 <repository-relative paths and a one-line description each; write exactly \`None.\` for spec only>
@@ -63,7 +90,7 @@ exports[`game asset designer handoff template snapshots > 'duo' 'planner' → 'g
 
 Handoff template \`planner\` → \`game-asset-designer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal (the only generator for now)\`. Do not name any other generator.
+Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal (default model), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -80,6 +107,12 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 ## Style reference
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
+## Model
+<the CLI default \`fal-ai/flux-2/flash\`, or \`fal-ai/moss-image\` when the brief names it>
+
+## Model parameters
+<a JSON object as text passed to \`generate-image --input\`; \`Not specified.\` if none>
+
 ## Spec consumer
 <who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
 
@@ -90,7 +123,7 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
 
 ## Allowed tools
-\`chatroom generate-image --platform=fal (the only generator for now)\`
+\`chatroom generate-image --platform=fal (default model), chatroom slice-image, chatroom remove-image-background\`
 
 ## Allowed edit paths
 <repository-relative paths the designer may edit; \`None.\` for none>
@@ -98,13 +131,36 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 ## Commit
 <\`None.\` or the commit message and the paths to commit>
 
+## Sheet grid
+2x2
+
+Larger only as \`CxR (requested by user: "<quote>")\`.
+
 ## Output location
 <the exact repository directory the designer may write to; required for \`spec and generate\`; \`None.\` for \`spec only\`>
 
-## Acceptance criteria
-<what must be true for the planner to accept the delivery>
+## Proof of Principles
+- [ ] Generate only with \`chatroom generate-image --platform=fal\`, using the CLI default model unless the brief names one.
+- [ ] Process images only with \`chatroom slice-image\` and \`chatroom remove-image-background\`; no other tool, script, or remote service.
+- [ ] A sheet is at most the brief's \`Sheet grid\` (default 2x2); a larger grid needs a user request quoted in the brief.
+- [ ] Names come from looking at each tile, never from cell order or prompt order.
+- [ ] Never pass \`--names\` to \`slice-image\` except P8's fallback when \`remove-image-background --help\` fails; assign names only with \`remove-image-background --map\` or \`--out\`.
+- [ ] Write only under \`Output location\` and \`Allowed edit paths\`; never overwrite or delete unless the brief names the path.
+- [ ] Mark \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence (labels below).
+- [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`.
+- [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding.
+- [ ] Positioned sheets use exact layout JSON for the model that supports it (currently \`fal-ai/moss-image\`): the layout goes in \`--prompt\`, and \`image_size\` must equal the canvas the coordinates use. Bboxes are \`[y_min,x_min,y_max,x_max]\` in pixels from the canvas centre, y down, x right. \`enable_prompt_expansion\` is false for positioned layouts. Use \`--output-format png\`. Never pass \`--aspect-ratio\` to moss. Do not add model-specific values that the brief does not name.
+- [ ] If \`generate-image\` is missing, \`FAL_API_KEY\` is not set, or it fails, stop generation, deliver \`spec only\`, quote the exact error in Summary, and list it under Open questions. Do not retry in a loop.
+- [ ] Do not install or run any remote tool, script, or skill, and do not fetch generator code.
+- [ ] Never switch generators.
+- [ ] Describe generated output as production-ready only when every checklist item for it passes with \`measured\` or \`inspected\` evidence.
+- [ ] Commit only when the brief names the paths and the commit message.
+- [ ] Generate only when the brief names an output location and allowed tools.
 
-Instructions after the body (not part of the message): run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Acceptance criteria\`.
+## Proof of Completion
+- [ ] <one checkbox per acceptance criterion; state the evidence label required (measured or inspected)>
+
+Instructions after the body (not part of the message): the planner may append extra Proof of Principles lines if needed. Run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Proof of Completion\`.
 
 ### When to use the game asset designer
 - the request creates or changes any asset file: game art or audio (models, textures, sprites, UI art, sound effects), or non-game UI icons and illustrations;

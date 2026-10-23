@@ -7,14 +7,16 @@
  * about `@fal-ai/client` and `node:fs/promises`.
  */
 
-import { readFileSync } from 'node:fs';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import { ApiError, ValidationError, fal } from '@fal-ai/client';
 
+import { pathStatus, writeFileBytes, writeJsonFile, type PathStatus } from './fs-helpers.js';
 import { GenerateImageError, FAL_API_KEY_MISSING_MESSAGE } from './image.js';
+import { readInstalledPackageVersion } from './package-version.js';
+
+export type { PathStatus } from './fs-helpers.js';
 
 /** The subset of a fal image result the generate command depends on. */
 export interface FalImageResult {
@@ -29,8 +31,6 @@ export interface FalImageResult {
   };
   requestId: string;
 }
-
-export type PathStatus = 'missing' | 'file' | 'directory';
 
 export interface GenerateImageDeps {
   /** Process environment; read for FAL_API_KEY. Never persisted or logged. */
@@ -50,31 +50,12 @@ export interface GenerateImageDeps {
   now: () => Date;
   /** Installed `@fal-ai/client` version, recorded in the manifest. */
   sdkVersion: string;
+  /** Surface a non-fatal warning (for example, extra returned images). */
+  warn: (message: string) => void;
 }
 
 /** Server-side timeout for the queued generation (the SDK takes seconds). */
 const SUBSCRIBE_TIMEOUT_SECONDS = 300;
-
-const UNKNOWN_SDK_VERSION = 'unknown';
-
-/**
- * Read the installed SDK version from its own package.json.
- *
- * Resolving the entry point (rather than importing `@fal-ai/client/package.json`)
- * works because the package's `exports` map only exposes `.` and `./endpoints`.
- * A broken install must not break generation, so failure records `unknown`.
- */
-function readInstalledSdkVersion(): string {
-  try {
-    const require = createRequire(import.meta.url);
-    const entryPath = require.resolve('@fal-ai/client');
-    const packageJsonPath = join(dirname(entryPath), '..', 'package.json');
-    const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: unknown };
-    return typeof pkg.version === 'string' ? pkg.version : UNKNOWN_SDK_VERSION;
-  } catch {
-    return UNKNOWN_SDK_VERSION;
-  }
-}
 
 // ─── fal result validation ─────────────────────────────────────────────────
 
@@ -102,7 +83,9 @@ function requireImageUrl(value: unknown): string {
 }
 
 function optionalString(value: unknown, field: string): string | undefined {
-  if (value === undefined) return undefined;
+  // fal models may echo optional metadata as null (moss-image does this for
+  // file_name), which is equivalent to omitting it.
+  if (value === undefined || value === null) return undefined;
   if (typeof value !== 'string') {
     throw invalidResult(`${field} is not a string`);
   }
@@ -110,7 +93,8 @@ function optionalString(value: unknown, field: string): string | undefined {
 }
 
 function requireSeed(value: unknown): number | undefined {
-  if (value === undefined) return undefined;
+  // Some models report "no seed" as null rather than omitting the field.
+  if (value === undefined || value === null) return undefined;
   if (typeof value !== 'number') {
     throw invalidResult('seed is not a number');
   }
@@ -238,27 +222,6 @@ function createFalSubscribe(
 
 // ─── filesystem and download helpers ───────────────────────────────────────
 
-async function writeFileBytes(path: string, bytes: Uint8Array): Promise<void> {
-  await writeFile(path, bytes);
-}
-
-async function writeJsonFile(path: string, value: unknown): Promise<void> {
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-}
-
-/** Classify a path without creating it; anything that is not a dir counts as a file. */
-async function pathStatus(path: string): Promise<PathStatus> {
-  try {
-    const stats = await stat(path);
-    return stats.isDirectory() ? 'directory' : 'file';
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return 'missing';
-    }
-    throw err;
-  }
-}
-
 async function ensureParentDir(path: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
 }
@@ -294,6 +257,7 @@ export function createDefaultGenerateImageDeps(): GenerateImageDeps {
     pathStatus,
     ensureParentDir,
     now: () => new Date(),
-    sdkVersion: readInstalledSdkVersion(),
+    sdkVersion: readInstalledPackageVersion('@fal-ai/client'),
+    warn: (message) => console.error(message),
   };
 }

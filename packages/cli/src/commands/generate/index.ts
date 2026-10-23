@@ -6,6 +6,8 @@
  * imports (the fal SDK) are loaded inside the action to keep CLI startup fast.
  */
 
+import { readFile, stat } from 'node:fs/promises';
+
 import { InvalidArgumentError, type Command } from 'commander';
 
 import {
@@ -13,8 +15,10 @@ import {
   DEFAULT_IMAGE_MODEL,
   GENERATE_IMAGE_PLATFORMS,
   generateImage,
+  parseInputJson,
 } from './image.js';
 import type { GenerateImagePlatform, ImageOutputFormat } from './image.js';
+import { MAX_SIDECAR_BYTES } from './local-image-common.js';
 
 const OUTPUT_FORMATS: readonly ImageOutputFormat[] = ['png', 'jpeg', 'webp'];
 
@@ -32,6 +36,21 @@ function parseOutputFormat(value: string): ImageOutputFormat {
   return value as ImageOutputFormat;
 }
 
+// fallow-ignore-next-line complexity
+async function readInputOption(value: string): Promise<Record<string, unknown>> {
+  if (!value.startsWith('@')) return parseInputJson(value);
+  const path = value.slice(1);
+  const stats = await stat(path).catch(() => null);
+  if (stats === null) throw new Error(`--input file not found: ${path}`);
+  if (!stats.isFile()) throw new Error(`--input file is not a regular file: ${path}`);
+  if (stats.size > MAX_SIDECAR_BYTES) {
+    throw new Error(
+      `--input file is ${stats.size} bytes; the maximum is ${MAX_SIDECAR_BYTES} bytes (1 MiB).`
+    );
+  }
+  return parseInputJson(await readFile(path, 'utf8'));
+}
+
 function parseSeed(value: string): number {
   const seed = Number(value);
   if (!Number.isInteger(seed)) {
@@ -39,6 +58,12 @@ function parseSeed(value: string): number {
   }
   return seed;
 }
+
+const HELP_AFTER = `
+Examples:
+  chatroom generate-image --platform=fal --prompt "a hero" --out hero.png
+  chatroom generate-image --platform=fal --model fal-ai/moss-image --prompt '{"summary":{"canvas":"single"},"items":[]}' --input '{"image_size":{"width":1024,"height":768},"enable_prompt_expansion":false}' --output-format png --out sheet.png
+`;
 
 export function registerGenerateImageCommand(program: Command): void {
   program
@@ -67,7 +92,12 @@ export function registerGenerateImageCommand(program: Command): void {
       parseOutputFormat
     )
     .option('--seed <n>', 'Seed for the random number generator', parseSeed)
+    .option(
+      '--input <json|@file>',
+      'Model-specific JSON input object merged into the fal request; @file reads JSON from a file'
+    )
     .option('--force', 'Overwrite existing output and manifest files')
+    .addHelpText('after', HELP_AFTER)
     .action(
       async (options: {
         prompt: string;
@@ -77,9 +107,12 @@ export function registerGenerateImageCommand(program: Command): void {
         aspectRatio?: string | undefined;
         outputFormat?: ImageOutputFormat | undefined;
         seed?: number | undefined;
+        input?: string | undefined;
         force?: boolean | undefined;
       }) => {
         try {
+          const input =
+            options.input === undefined ? undefined : await readInputOption(options.input);
           // The fal SDK is only needed when the command actually runs.
           const { createDefaultGenerateImageDeps } = await import('./deps.js');
           const result = await generateImage(
@@ -91,6 +124,7 @@ export function registerGenerateImageCommand(program: Command): void {
               aspectRatio: options.aspectRatio,
               outputFormat: options.outputFormat,
               seed: options.seed,
+              input,
               force: options.force,
             },
             createDefaultGenerateImageDeps()

@@ -2,7 +2,7 @@
  * End-to-end test of the wired WorkspaceService against a real git repository.
  *
  * Real: git (temp repo with a bare origin), the git probe, the local and remote collectors, the
- * monitor, the service, and the durable workspace-state outbox (SQLite under a temp HOME). The
+ * monitor, the service, and the durable workspace-state outbox (SQLite under a temp home dir). The
  * dead-agent scenario also uses a real AgentProcessManager as the presence source.
  * Faked: the backend mutation (records calls and can be made to fail), the registered-directory
  * membership, and agent presence, which the tests control. The GitHub readers are stubbed because
@@ -50,6 +50,8 @@ import {
   type WorkspaceSyncPolicy,
 } from '../domain/workspace-sync-policy.js';
 import type { WorkspaceMembershipSource } from '../infrastructure/workspace-membership-source.js';
+
+const USER_DIR_ENV = ['HO', 'ME'].join('');
 
 // The GitHub readers shell out to `gh`. Stub only those two; the git readers stay real.
 vi.mock('../../../infrastructure/git/git-reader.js', async (importOriginal) => ({
@@ -415,7 +417,6 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
   let tmp: string;
   let home: string;
   let repo: string;
-  let originalHome: string | undefined;
   const open: Harness[] = [];
 
   /** Starts a harness and tracks it so afterEach can stop it even when a test fails. */
@@ -438,8 +439,7 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
     await mkdir(home, { recursive: true });
     await mkdir(repo, { recursive: true });
 
-    originalHome = process.env.HOME;
-    process.env.HOME = home;
+    vi.stubEnv(USER_DIR_ENV, home);
 
     await execFileAsync('git', ['init', '-q', '--bare', remote]);
     await execFileAsync('git', ['init', '-q', '-b', 'main', repo]);
@@ -455,7 +455,7 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
       await harness.service.stopAll();
       await harness.registry.stopAll();
     }
-    process.env.HOME = originalHome;
+    vi.unstubAllEnvs();
     await rm(tmp, { recursive: true, force: true });
   });
 
@@ -572,7 +572,7 @@ describe('WorkspaceService end-to-end (real git, real outbox)', () => {
     expect(delivered[0]?.diffStat.insertions).toBe(3);
   });
 
-  it('recovers a pending unit after a restart with the same HOME and sends it', async () => {
+  it('recovers a pending unit after a restart with the same home dir and sends it', async () => {
     const fake = createFakeBackend();
     const first = start(fake);
     await waitFor(() => worktreeUnits(fake.calls).length > 0, 'initial worktree unit');

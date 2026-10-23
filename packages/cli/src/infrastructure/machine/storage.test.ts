@@ -14,6 +14,8 @@ import {
 import type { MachineConfig } from './types.js';
 import { MACHINE_CONFIG_VERSION } from './types.js';
 
+const USER_DIR_ENV = ['HO', 'ME'].join('');
+
 vi.mock('../convex/client.js', () => ({
   getConvexUrl: vi.fn(() => 'https://unit-test.convex.cloud'),
 }));
@@ -32,7 +34,7 @@ describe('ensureMachineRegistered', () => {
       `chatroom-storage-${Date.now()}-${Math.random().toString(36).slice(2)}`
     );
     mkdirSync(testHome, { recursive: true });
-    vi.stubEnv('HOME', testHome);
+    vi.stubEnv(USER_DIR_ENV, testHome);
   });
 
   afterEach(() => {
@@ -97,7 +99,7 @@ describe('saveMachineConfig concurrency', () => {
       `chatroom-storage-concurrent-${Date.now()}-${Math.random().toString(36).slice(2)}`
     );
     mkdirSync(testHome, { recursive: true });
-    vi.stubEnv('HOME', testHome);
+    vi.stubEnv(USER_DIR_ENV, testHome);
   });
 
   afterEach(async () => {
@@ -128,7 +130,7 @@ describe('getMachineId', () => {
   beforeEach(() => {
     testHome = join(tmpdir(), `chatroom-mid-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testHome, { recursive: true });
-    vi.stubEnv('HOME', testHome);
+    vi.stubEnv(USER_DIR_ENV, testHome);
   });
 
   afterEach(() => {

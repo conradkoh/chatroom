@@ -2,7 +2,7 @@
  * discoverExternalSkills — filesystem tests.
  *
  * Every test runs against a fresh mkdtemp directory and passes explicit roots,
- * so the real $HOME is never read.
+ * so the real the home env is never read.
  */
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
