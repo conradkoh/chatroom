@@ -89,7 +89,7 @@ const HELP_AFTER = `
 Usage:
   chatroom remove-image-background (--in <png> --out <png> | --in-dir <dir> --out-dir <dir>)
     [--map <tile=name,...>] [--tolerance <1-128>] [--min-area <percent>]
-    [--allow-edge-content] [--force] [--dry-run]
+    [--allow-edge-content] [--trim] [--trim-padding <px>] [--force] [--dry-run]
 
 Purpose:
   Run after chatroom slice-image. One input tile becomes one asset; the canvas
