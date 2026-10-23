@@ -26,4 +26,26 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
     expect(guidance).not.toContain('{SESSION_CONTINUITY}');
   });
+
+  test('uses the rules/procedure skeleton and the proof report sections', () => {
+    const guidance = getGameAssetDesignerGuidance({
+      nativeIntegration: false,
+      recipientRole: 'planner',
+    });
+
+    expect(guidance).toContain('### RULES');
+    expect(guidance).toContain('### PROCEDURE');
+    expect(guidance).toContain('Proof of Principles');
+    expect(guidance).toContain('Proof of Completion');
+    expect(guidance).toContain('P8');
+    expect(guidance).toContain('remove-image-background --help');
+    expect(guidance).toContain('2x2');
+    expect(guidance).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);
+
+    const procedure = guidance.slice(
+      guidance.indexOf('### PROCEDURE'),
+      guidance.indexOf('### Quality checklist')
+    );
+    expect(procedure.length).toBeLessThanOrEqual(2000);
+  });
 });
