@@ -8,6 +8,7 @@
 import { InvalidArgumentError, type Command } from 'commander';
 
 import { removeImageBackground, type RemoveBackgroundOptions } from './remove-background.js';
+import { MAX_TRIM_PADDING } from './trim-crop.js';
 
 const DECIMAL_INTEGER = /^\d+$/;
 const DECIMAL_PERCENT = /^\d+(?:\.\d+)?$/;
@@ -26,6 +27,20 @@ function parseMinArea(value: string): number {
   const parsed = Number(value);
   if (!DECIMAL_PERCENT.test(value) || !Number.isFinite(parsed) || parsed < 0 || parsed > 50) {
     throw new InvalidArgumentError('must be a number between 0 and 50');
+  }
+  return parsed;
+}
+
+// fallow-ignore-next-line complexity
+function parseTrimPadding(value: string): number {
+  const parsed = Number(value);
+  if (
+    !DECIMAL_INTEGER.test(value) ||
+    !Number.isInteger(parsed) ||
+    parsed < 0 ||
+    parsed > MAX_TRIM_PADDING
+  ) {
+    throw new InvalidArgumentError(`must be an integer between 0 and ${MAX_TRIM_PADDING}`);
   }
   return parsed;
 }
@@ -60,6 +75,8 @@ interface RemoveBackgroundCliOptions {
   tolerance: number;
   minArea: number;
   allowEdgeContent?: boolean | undefined;
+  trim?: boolean | undefined;
+  trimPadding?: number | undefined;
   force?: boolean | undefined;
   dryRun?: boolean | undefined;
 }
@@ -85,6 +102,12 @@ Algorithm:
   - Speck filter: 8-connected regions under --min-area percent are removed.
   - Edge ramp: kept pixels next to keyed background fade linearly from T to 2T.
 
+Trim:
+  --trim crops each asset to its opaque content. Use --trim-padding to keep a
+  border. The centre offset in the manifest is measured before the crop.
+  Trimmed assets differ in size, so use per-sprite pivots or bounds-based
+  placement.
+
 Naming:
   In single mode the output name is the stem of --out. In directory mode each
   tile uses its --map value when present, otherwise its own stem. Names must be
@@ -105,6 +128,8 @@ Examples:
   chatroom remove-image-background --in tiles/potion.png --out assets/potion.png
   chatroom remove-image-background --in-dir tiles --out-dir assets \\
     --map potion=potion_hd,sword=sword_hd --tolerance 20
+  chatroom remove-image-background --in-dir tiles --out-dir assets \\
+    --map items-01=potion --trim --trim-padding 2
 `;
 
 // fallow-ignore-next-line complexity
@@ -112,7 +137,7 @@ function printResult(result: Awaited<ReturnType<typeof removeImageBackground>>):
   for (const asset of result.assets) {
     const verb = result.dryRun ? 'Would isolate' : 'Isolated';
     console.log(
-      `${verb} ${asset.path} (${asset.components} region(s), content ${asset.contentBox.width}x${asset.contentBox.height} at ${asset.contentBox.x},${asset.contentBox.y}, offset ${asset.centerOffset.x},${asset.centerOffset.y}, bg ${asset.background.join(',')})`
+      `${verb} ${asset.path} (${asset.components} region(s), content ${asset.contentBox.width}x${asset.contentBox.height} at ${asset.contentBox.x},${asset.contentBox.y}, offset ${asset.centerOffset.x},${asset.centerOffset.y}, bg ${asset.background.join(',')}${asset.trimmed ? `, trimmed to ${asset.width}x${asset.height}` : ''})`
     );
     for (const warning of asset.warnings) console.error(`⚠️ ${warning}`);
   }
@@ -136,6 +161,12 @@ export function registerRemoveImageBackgroundCommand(program: Command): void {
       0.5
     )
     .option('--allow-edge-content', 'Keep artwork that touches the tile border')
+    .option('--trim', 'Crop each asset to its opaque content')
+    .option(
+      '--trim-padding <px>',
+      'Pixels kept around trimmed content (0-64, requires --trim)',
+      parseTrimPadding
+    )
     .option('--force', 'Overwrite existing outputs')
     .option('--dry-run', 'Report the assets without writing anything')
     .addHelpText('after', HELP_AFTER)
@@ -152,6 +183,8 @@ export function registerRemoveImageBackgroundCommand(program: Command): void {
           tolerance: options.tolerance,
           minArea: options.minArea,
           allowEdgeContent: options.allowEdgeContent,
+          trim: options.trim,
+          trimPadding: options.trimPadding,
           force: options.force,
           dryRun: options.dryRun,
         };

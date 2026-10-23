@@ -163,6 +163,51 @@ describe('chatroom remove-image-background (end-to-end)', () => {
     }
   }, 30_000);
 
+  it('trims to the content box with padding and keeps the pre-crop geometry', async () => {
+    const trimmedDir = join(dir, 'trimmed');
+    const run = runCli([
+      'remove-image-background',
+      '--in-dir',
+      tilesDir,
+      '--out-dir',
+      trimmedDir,
+      '--map',
+      'a=potion,b=sword',
+      '--trim',
+      '--trim-padding',
+      '2',
+    ]);
+
+    expect(run.status).toBe(0);
+    for (const name of ['potion', 'sword']) {
+      const assetPath = join(trimmedDir, `${name}.png`);
+      const image = PNG.sync.read(await readFile(assetPath));
+      expect(image.width).toBe(12);
+      expect(image.height).toBe(12);
+      expect(alphaAt(image, 0, 0)).toBe(0);
+      expect(alphaAt(image, 6, 6)).toBe(255);
+
+      const manifest = JSON.parse(await readFile(`${assetPath}.json`, 'utf8')) as {
+        trim: {
+          padding: number;
+          rect: Record<string, number>;
+          sizeBefore: Record<string, number>;
+          sizeAfter: Record<string, number>;
+        };
+        output: { width: number; height: number };
+        result: { contentBox: Record<string, number> };
+      };
+      expect(manifest.trim).toEqual({
+        padding: 2,
+        rect: { x: 2, y: 2, width: 12, height: 12 },
+        sizeBefore: { width: 16, height: 16 },
+        sizeAfter: { width: 12, height: 12 },
+      });
+      expect(manifest.output).toMatchObject({ width: 12, height: 12 });
+      expect(manifest.result.contentBox).toEqual({ x: 4, y: 4, width: 8, height: 8 });
+    }
+  }, 30_000);
+
   it('refuses a second run without --force and reproduces bytes with --force', async () => {
     const args = [
       'remove-image-background',
@@ -232,5 +277,51 @@ describe.skipIf(!fixtureAvailable)('real potion tile', () => {
     expect(manifest.result.foregroundPixels).toBe(19806);
     expect(manifest.result.contentBox).toEqual({ x: 105, y: 29, width: 142, height: 200 });
     expect(manifest.result.centerOffset).toEqual({ x: 0, y: 1 });
+  }, 30_000);
+
+  it('trims the potion to 142x200 and 146x204 with padding 2', async () => {
+    const input = join(dir, 'potion.png');
+    await copyFile(potionFixture, input);
+    const zero = join(dir, 'potion-trim0.png');
+    const two = join(dir, 'potion-trim2.png');
+
+    expect(runCli(['remove-image-background', '--in', input, '--out', zero, '--trim']).status).toBe(
+      0
+    );
+    expect(
+      runCli([
+        'remove-image-background',
+        '--in',
+        input,
+        '--out',
+        two,
+        '--trim',
+        '--trim-padding',
+        '2',
+      ]).status
+    ).toBe(0);
+
+    const zeroImage = PNG.sync.read(await readFile(zero));
+    const twoImage = PNG.sync.read(await readFile(two));
+    expect({ width: zeroImage.width, height: zeroImage.height }).toEqual({
+      width: 142,
+      height: 200,
+    });
+    expect({ width: twoImage.width, height: twoImage.height }).toEqual({ width: 146, height: 204 });
+
+    const zeroManifest = JSON.parse(await readFile(`${zero}.json`, 'utf8')) as {
+      trim: { padding: number; rect: Record<string, number> };
+    };
+    const twoManifest = JSON.parse(await readFile(`${two}.json`, 'utf8')) as {
+      trim: { padding: number; rect: Record<string, number> };
+    };
+    expect(zeroManifest.trim).toMatchObject({
+      padding: 0,
+      rect: { x: 105, y: 29, width: 142, height: 200 },
+    });
+    expect(twoManifest.trim).toMatchObject({
+      padding: 2,
+      rect: { x: 103, y: 27, width: 146, height: 204 },
+    });
   }, 30_000);
 });

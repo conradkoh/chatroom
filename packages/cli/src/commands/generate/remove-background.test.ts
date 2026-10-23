@@ -333,6 +333,7 @@ describe('removeImageBackground', () => {
         height: 8,
         hasAlpha: true,
       },
+      trim: null,
       isolatedAt: '2026-01-02T03:04:05.000Z',
       licensing: 'unverified',
     });
@@ -481,6 +482,72 @@ describe('removeImageBackground', () => {
     expect(error.message).toContain('disk full');
     expect(error.message).toContain(resolve('/out/a.png'));
     expect(error.message).toContain(resolve('/out/a.png.json'));
+  });
+
+  it('trims to the content box and reports the cropped size and trim metadata', async () => {
+    const deps = createDeps({ [A]: tileFile() });
+
+    const result = await removeImageBackground(singleOptions({ trim: true }), deps);
+
+    const encoded = (deps.writeFile as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Uint8Array;
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(result.assets[0]).toMatchObject({ trimmed: true, width: 4, height: 4 });
+    expect(manifest.output).toMatchObject({ width: 4, height: 4 });
+    expect(manifest.trim).toEqual({
+      padding: 0,
+      rect: { x: 2, y: 2, width: 4, height: 4 },
+      sizeBefore: { width: 8, height: 8 },
+      sizeAfter: { width: 4, height: 4 },
+    });
+    expect(manifest.output).toMatchObject({
+      sha256: createHash('sha256').update(encoded).digest('hex'),
+      bytes: encoded.byteLength,
+    });
+  });
+
+  it('applies trim padding and keeps the pre-crop content box and centre offset', async () => {
+    const deps = createDeps({ [A]: tileFile() });
+
+    const result = await removeImageBackground(singleOptions({ trim: true, trimPadding: 2 }), deps);
+
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as {
+      trim: Record<string, unknown>;
+      result: { contentBox: Record<string, number>; centerOffset: Record<string, number> };
+    };
+    expect(result.assets[0]).toMatchObject({ trimmed: true, width: 8, height: 8 });
+    expect(manifest.trim).toMatchObject({
+      padding: 2,
+      rect: { x: 0, y: 0, width: 8, height: 8 },
+    });
+    expect(manifest.result.contentBox).toEqual({ x: 2, y: 2, width: 4, height: 4 });
+    expect(manifest.result.centerOffset).toEqual({ x: 0, y: 0 });
+  });
+
+  it('refuses trimPadding without trim', async () => {
+    const deps = createDeps({ [A]: tileFile() });
+
+    const error = await captureError(
+      removeImageBackground(singleOptions({ trimPadding: 2 }), deps)
+    );
+
+    expect(error.message).toContain('--trim-padding is only valid with --trim');
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('dry run reports trimmed sizes without writing', async () => {
+    const deps = createDeps({ [A]: tileFile() });
+
+    const result = await removeImageBackground(
+      singleOptions({ trim: true, trimPadding: 1, dryRun: true }),
+      deps
+    );
+
+    expect(result.assets[0]).toMatchObject({ trimmed: true, width: 6, height: 6 });
+    expect(deps.ensureDir).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
   it('warns when a tile has more than one region', async () => {

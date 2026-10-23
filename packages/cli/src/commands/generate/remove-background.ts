@@ -28,6 +28,7 @@ import {
   sha256,
 } from './local-image-common.js';
 import type { RemoveImageBackgroundDeps } from './remove-background-deps.js';
+import { MAX_TRIM_PADDING, cropRgba, trimRect, type TrimRect } from './trim-crop.js';
 
 // fallow-ignore-next-line unused-export
 export class RemoveBackgroundError extends Error {
@@ -52,6 +53,10 @@ export interface RemoveBackgroundOptions {
   /** Percent 0..50; default 0.5. */
   minArea?: number | undefined;
   allowEdgeContent?: boolean | undefined;
+  /** Crop each asset to its keyed content box. */
+  trim?: boolean | undefined;
+  /** Pixels kept around the trimmed content; integer 0..64. */
+  trimPadding?: number | undefined;
   force?: boolean | undefined;
   dryRun?: boolean | undefined;
 }
@@ -69,6 +74,7 @@ export interface IsolatedAsset {
   contentBox: { x: number; y: number; width: number; height: number };
   centerOffset: { x: number; y: number };
   background: [number, number, number];
+  trimmed: boolean;
   warnings: string[];
 }
 
@@ -116,6 +122,13 @@ interface NamedTile extends InputTile {
   sidecar: ParsedSidecar;
 }
 
+interface TrimInfo {
+  padding: number;
+  rect: TrimRect;
+  sizeBefore: { width: number; height: number };
+  sizeAfter: { width: number; height: number };
+}
+
 interface PreparedAsset {
   tile: NamedTile;
   keyed: Extract<KeyResult, { ok: true }>;
@@ -123,6 +136,9 @@ interface PreparedAsset {
   sha256: string;
   path: string;
   manifestPath: string;
+  outputWidth: number;
+  outputHeight: number;
+  trim: TrimInfo | null;
   warnings: string[];
 }
 
@@ -162,6 +178,7 @@ function resolveMode(opts: RemoveBackgroundOptions): Mode {
 function requireRanges(opts: RemoveBackgroundOptions): {
   tolerance: number;
   minAreaPercent: number;
+  trimPadding: number;
 } {
   const tolerance = opts.tolerance ?? DEFAULT_TOLERANCE;
   if (!Number.isInteger(tolerance) || tolerance < 1 || tolerance > 128) {
@@ -171,7 +188,16 @@ function requireRanges(opts: RemoveBackgroundOptions): {
   if (!Number.isFinite(minAreaPercent) || minAreaPercent < 0 || minAreaPercent > 50) {
     throw new RemoveBackgroundError('--min-area must be a number between 0 and 50.');
   }
-  return { tolerance, minAreaPercent };
+  const trimPadding = opts.trimPadding ?? 0;
+  if (opts.trimPadding !== undefined && opts.trim !== true) {
+    throw new RemoveBackgroundError('--trim-padding is only valid with --trim.');
+  }
+  if (!Number.isInteger(trimPadding) || trimPadding < 0 || trimPadding > MAX_TRIM_PADDING) {
+    throw new RemoveBackgroundError(
+      `--trim-padding must be an integer between 0 and ${MAX_TRIM_PADDING}.`
+    );
+  }
+  return { tolerance, minAreaPercent, trimPadding };
 }
 
 async function enumerateInputs(
@@ -459,10 +485,11 @@ function buildManifest(
       sha256: asset.sha256,
       contentType: 'image/png' as const,
       bytes: encoded.byteLength,
-      width: tile.image.width,
-      height: tile.image.height,
+      width: asset.outputWidth,
+      height: asset.outputHeight,
       hasAlpha: true as const,
     },
+    trim: asset.trim,
     isolatedAt,
     licensing: 'unverified' as const,
   };
@@ -493,10 +520,54 @@ async function preflight(
  * input is loaded, keyed, encoded, and preflighted, and until the caller is not
  * in dry-run mode.
  */
+function encodeAsset(
+  image: DecodedTile,
+  keyed: Extract<KeyResult, { ok: true }>,
+  options: { trim: boolean; trimPadding: number },
+  deps: RemoveImageBackgroundDeps
+): {
+  encoded: Uint8Array;
+  outputWidth: number;
+  outputHeight: number;
+  trim: TrimInfo | null;
+} {
+  if (!options.trim) {
+    return {
+      encoded: deps.encodePng({ width: image.width, height: image.height, data: keyed.data }),
+      outputWidth: image.width,
+      outputHeight: image.height,
+      trim: null,
+    };
+  }
+  const rect = trimRect(keyed.contentBox, image.width, image.height, options.trimPadding);
+  const encoded = deps.encodePng({
+    width: rect.width,
+    height: rect.height,
+    data: cropRgba(keyed.data, image.width, rect),
+  });
+  return {
+    encoded,
+    outputWidth: rect.width,
+    outputHeight: rect.height,
+    trim: {
+      padding: options.trimPadding,
+      rect,
+      sizeBefore: { width: image.width, height: image.height },
+      sizeAfter: { width: rect.width, height: rect.height },
+    },
+  };
+}
+
 async function prepareAssets(
   named: ReturnType<typeof assignNames>,
   mode: Mode,
-  options: { tolerance: number; minAreaPercent: number; allowEdgeContent: boolean },
+  options: {
+    tolerance: number;
+    minAreaPercent: number;
+    allowEdgeContent: boolean;
+    trim: boolean;
+    trimPadding: number;
+  },
   deps: RemoveImageBackgroundDeps
 ): Promise<PreparedAsset[]> {
   const prepared: PreparedAsset[] = [];
@@ -514,11 +585,12 @@ async function prepareAssets(
         `Cannot remove the background from ${entry.tile.path}: ${keyed.message}`
       );
     }
-    const encoded = deps.encodePng({
-      width: entry.tile.image.width,
-      height: entry.tile.image.height,
-      data: keyed.data,
-    });
+    const { encoded, outputWidth, outputHeight, trim } = encodeAsset(
+      entry.tile.image,
+      keyed,
+      options,
+      deps
+    );
     const path =
       mode.kind === 'single' ? mode.outPath : join(mode.outDir, `${entry.assignedName}.png`);
     prepared.push({
@@ -528,6 +600,9 @@ async function prepareAssets(
       sha256: sha256(encoded),
       path,
       manifestPath: `${path}.json`,
+      outputWidth,
+      outputHeight,
+      trim,
       warnings: assetWarnings(entry.tile, keyed, sidecar.warnings),
     });
   }
@@ -542,12 +617,13 @@ function toAssets(prepared: PreparedAsset[]): IsolatedAsset[] {
     path: asset.path,
     manifestPath: asset.manifestPath,
     sha256: asset.sha256,
-    width: asset.tile.image.width,
-    height: asset.tile.image.height,
+    width: asset.outputWidth,
+    height: asset.outputHeight,
     components: asset.keyed.components,
     contentBox: asset.keyed.contentBox,
     centerOffset: asset.keyed.centerOffset,
     background: asset.keyed.background,
+    trimmed: asset.trim !== null,
     warnings: asset.warnings,
   }));
 }
@@ -604,8 +680,14 @@ export async function removeImageBackground(
   if (mode.kind === 'single' && opts.map !== undefined) {
     throw new RemoveBackgroundError('--map is only valid with --in-dir and --out-dir.');
   }
-  const { tolerance, minAreaPercent } = requireRanges(opts);
-  const options = { tolerance, minAreaPercent, allowEdgeContent: opts.allowEdgeContent === true };
+  const { tolerance, minAreaPercent, trimPadding } = requireRanges(opts);
+  const options = {
+    tolerance,
+    minAreaPercent,
+    allowEdgeContent: opts.allowEdgeContent === true,
+    trim: opts.trim === true,
+    trimPadding,
+  };
 
   const { inputs, ignoredNonPng } = await enumerateInputs(mode, deps);
   const tiles: InputTile[] = [];

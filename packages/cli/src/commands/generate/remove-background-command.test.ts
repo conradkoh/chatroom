@@ -42,6 +42,7 @@ const RESULT = {
       contentBox: { x: 105, y: 29, width: 142, height: 200 },
       centerOffset: { x: 0, y: 1 },
       background: [193, 199, 206] as [number, number, number],
+      trimmed: false,
       warnings: ['Dropped 1 speck(s) (3 px) in /tiles/potion.png.'],
     },
   ],
@@ -83,6 +84,8 @@ describe('chatroom remove-image-background wiring', () => {
     ['--map', 'a='],
     ['--map', '=b'],
     ['--map', 'a=b,a=c'],
+    ['--trim-padding', '65'],
+    ['--trim-padding', 'x'],
   ])('rejects %s %s before running', async (flag, value) => {
     const program = createProgram();
 
@@ -107,6 +110,9 @@ describe('chatroom remove-image-background wiring', () => {
       '--min-area',
       '1.5',
       '--allow-edge-content',
+      '--trim',
+      '--trim-padding',
+      '2',
       '--force',
       '--dry-run',
     ]);
@@ -120,6 +126,8 @@ describe('chatroom remove-image-background wiring', () => {
       tolerance: 20,
       minArea: 1.5,
       allowEdgeContent: true,
+      trim: true,
+      trimPadding: 2,
       force: true,
       dryRun: true,
     });
@@ -161,6 +169,18 @@ describe('chatroom remove-image-background wiring', () => {
     expect(output).toContain('Would isolate /assets/potion_hd.png');
   });
 
+  it('refuses --trim-padding without --trim through the orchestrator', async () => {
+    removeMock.mockRejectedValue(new Error('--trim-padding is only valid with --trim.'));
+    const program = createProgram();
+
+    await parse(program, ['--in', '/tiles/a.png', '--out', '/assets/a.png', '--trim-padding', '2']);
+
+    expect(String(vi.mocked(console.error).mock.calls[0]?.[0])).toBe(
+      '❌ --trim-padding is only valid with --trim.'
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
   it('reports failures on stderr, sets exitCode 1, and prints nothing to stdout', async () => {
     removeMock.mockRejectedValue(new Error('Pass either --in with --out'));
     const program = createProgram();
@@ -197,6 +217,10 @@ describe('chatroom remove-image-background wiring', () => {
     expect(help).toContain('canvas');
     expect(help).toContain('no colour decontamination');
     expect(help).toContain('no component splitting');
+    expect(help).toContain('Trim:');
+    expect(help).toContain('--trim crops each asset to its opaque content');
+    expect(help).toContain('--trim-padding');
+    expect(help).toContain('--map items-01=potion --trim --trim-padding 2');
     expect(help).toContain('FAL_API_KEY');
     expect(help).toContain('--map');
     expect(help).toContain('remove-image-background --in tiles/potion.png --out assets/potion.png');
