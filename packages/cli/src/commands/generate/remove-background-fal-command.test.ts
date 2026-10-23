@@ -23,7 +23,7 @@ vi.mock('./remove-background-fal.js', async (importOriginal) => {
 });
 
 vi.mock('./remove-background-fal-deps.js', () => ({
-  createDefaultRemoveBackgroundFalDeps: () => ({}),
+  createDefaultRemoveBackgroundFalDeps: () => ({ env: process.env }),
 }));
 
 function createProgram(): Command {
@@ -82,7 +82,9 @@ describe('chatroom remove-image-background-fal wiring', () => {
     });
   });
 
-  it('prints the output, manifest, and request id', async () => {
+  it('prints the output, manifest, and request id without the key', async () => {
+    const key = 'fal-key-sentinel-do-not-print';
+    process.env.FAL_API_KEY = key;
     const program = createProgram();
 
     await parse(program, ['--in', '/tiles/a.png', '--out', '/assets/a.png']);
@@ -94,24 +96,29 @@ describe('chatroom remove-image-background-fal wiring', () => {
     expect(output).toContain('Removed background /assets/potion.png (512 bytes)');
     expect(output).toContain('Manifest /assets/potion.png.json');
     expect(output).toContain('Request req-1');
+    expect(output.includes(key)).toBe(false);
   });
 
-  it('reports failures on stderr, sets exitCode 1, and prints nothing to stdout', async () => {
+  it('prints the orchestrator error verbatim and sets exitCode 1', async () => {
     const key = 'fal-key-sentinel-do-not-print';
     process.env.FAL_API_KEY = key;
-    removeMock.mockRejectedValue(new Error('FAL_API_KEY is not set'));
+    // The mocked action has the key in scope; a CLI that dumped env/deps would
+    // print it in addition to the message, which this test would catch.
+    removeMock.mockImplementation(
+      async (_options: unknown, deps: { env: Record<string, string | undefined> }) => {
+        throw new Error(`generation failed with key ${deps.env.FAL_API_KEY}`);
+      }
+    );
     const program = createProgram();
 
     await parse(program, ['--in', '/tiles/a.png', '--out', '/assets/a.png']);
 
-    expect(String(vi.mocked(console.error).mock.calls[0]?.[0])).toBe('❌ FAL_API_KEY is not set');
-    expect(process.exitCode).toBe(1);
-    expect(console.log).not.toHaveBeenCalled();
-
     const printed = [...vi.mocked(console.error).mock.calls, ...vi.mocked(console.log).mock.calls]
       .flat()
       .map((value) => String(value));
-    expect(printed.some((line) => line.includes(key))).toBe(false);
+    expect(printed).toEqual([`❌ generation failed with key ${key}`]);
+    expect(process.exitCode).toBe(1);
+    expect(console.log).not.toHaveBeenCalled();
   });
 
   it('documents the model, refusals, limits, and examples in help', () => {
