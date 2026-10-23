@@ -43,6 +43,8 @@ export interface GenerateImageOptions {
   aspectRatio?: string | undefined;
   outputFormat?: ImageOutputFormat | undefined;
   seed?: number | undefined;
+  /** Model-specific fal input merged into the request body. */
+  input?: Record<string, unknown> | undefined;
   /** Allow replacing an existing output or manifest file. */
   force?: boolean | undefined;
 }
@@ -118,14 +120,64 @@ function requireNonEmpty(value: string, message: string): string {
   return trimmed;
 }
 
+const INPUT_DEDICATED_FLAGS: Record<string, string> = {
+  prompt: '--prompt',
+  seed: '--seed',
+  output_format: '--output-format',
+  aspect_ratio: '--aspect-ratio',
+};
+
+/**
+ * Validate model-specific input without knowing any model's schema. Only keys
+ * that collide with dedicated flags (or the unsupported sync_mode) are refused.
+ */
+// fallow-ignore-next-line complexity
+function validateInputObject(input: Record<string, unknown>): void {
+  if ('sync_mode' in input && input.sync_mode !== undefined) {
+    throw new GenerateImageError(
+      '--input must not contain "sync_mode": it returns data URIs that this command cannot download. Omit it.'
+    );
+  }
+  for (const [key, flag] of Object.entries(INPUT_DEDICATED_FLAGS)) {
+    if (key in input && input[key] !== undefined) {
+      throw new GenerateImageError(`--input must not contain "${key}"; use ${flag} instead.`);
+    }
+  }
+}
+
+/** Parse `--input` inline JSON and require a plain object. */
+// fallow-ignore-next-line complexity
+export function parseInputJson(text: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    throw new GenerateImageError('--input must be valid JSON.');
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new GenerateImageError('--input must be a JSON object.');
+  }
+  const input = parsed as Record<string, unknown>;
+  validateInputObject(input);
+  return input;
+}
+
 /**
  * Only send the fields the user actually passed. Model defaults differ (for
  * example some models reject `auto` aspect ratios or have no aspect ratio at
  * all), so the manifest records exactly what went over the wire.
  */
+// fallow-ignore-next-line complexity
 function buildInput(prompt: string, opts: GenerateImageOptions): Record<string, unknown> {
+  if (opts.input !== undefined) {
+    if (typeof opts.input !== 'object' || opts.input === null || Array.isArray(opts.input)) {
+      throw new GenerateImageError('--input must be a JSON object.');
+    }
+    validateInputObject(opts.input);
+  }
   return {
     prompt,
+    ...(opts.input ?? {}),
     ...(opts.aspectRatio !== undefined ? { aspect_ratio: opts.aspectRatio } : {}),
     ...(opts.outputFormat !== undefined ? { output_format: opts.outputFormat } : {}),
     ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
@@ -211,6 +263,10 @@ async function saveImage(
 /**
  * A mismatched extension makes the file claim to be a format it is not, so
  * reject it before the paid call. Unknown extensions are left alone.
+ *
+ * Combined with resolveSeed below, this relies on --input being unable to carry
+ * output_format or seed: buildInput refuses both, so the dedicated flags remain
+ * the only source for the extension check and the recorded seed.
  */
 function requireFormatMatchesExtension(outPath: string, format: ImageOutputFormat): void {
   const extension = extname(outPath).toLowerCase();

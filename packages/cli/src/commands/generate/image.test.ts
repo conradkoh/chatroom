@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
-import { DEFAULT_IMAGE_MODEL, generateImage } from './image.js';
+import { DEFAULT_IMAGE_MODEL, generateImage, parseInputJson } from './image.js';
 import type { GenerateImagePlatform } from './image.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
@@ -211,6 +211,83 @@ describe('generateImage', () => {
     const writeJsonCalls = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls;
     expect(writeJsonCalls[0]?.[0]).toBe(`${OUT_PATH}.json`);
     expect(writeJsonCalls[0]?.[1]).toEqual(manifest);
+  });
+
+  it('merges --input into the fal body and the manifest', async () => {
+    const deps = createDeps();
+    const input = {
+      image_size: { width: 1024, height: 768 },
+      enable_prompt_expansion: false,
+      negative_prompt: 'blurry',
+    };
+
+    await generateImage(
+      {
+        prompt: 'a layout',
+        out: OUT_PATH,
+        model: 'fal-ai/moss-image',
+        input,
+        outputFormat: 'png',
+      },
+      deps
+    );
+
+    const expected = { prompt: 'a layout', ...input, output_format: 'png' };
+    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/moss-image', expected);
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(manifest.input).toEqual(expected);
+  });
+
+  it('does not let --input override the prompt or dedicated flags', async () => {
+    const deps = createDeps();
+
+    await expect(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { seed: 1 } }, deps)
+    ).rejects.toThrow('use --seed instead');
+    await expect(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { prompt: 'other' } }, deps)
+    ).rejects.toThrow('use --prompt instead');
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['seed', '--seed'],
+    ['output_format', '--output-format'],
+    ['aspect_ratio', '--aspect-ratio'],
+  ])('refuses the reserved input key %s and names %s', async (key, flag) => {
+    const deps = createDeps();
+
+    const error = await captureError(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { [key]: 'x' } }, deps)
+    );
+
+    expect(error.message).toContain(`"${key}"`);
+    expect(error.message).toContain(flag);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('refuses sync_mode in --input before calling fal', async () => {
+    const deps = createDeps();
+
+    const error = await captureError(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { sync_mode: true } }, deps)
+    );
+
+    expect(error.message).toContain('sync_mode');
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('parses inline input JSON and rejects invalid shapes', () => {
+    expect(parseInputJson('{"image_size":{"width":512,"height":512}}')).toEqual({
+      image_size: { width: 512, height: 512 },
+    });
+    expect(() => parseInputJson('not json')).toThrow('valid JSON');
+    expect(() => parseInputJson('[]')).toThrow('JSON object');
+    expect(() => parseInputJson('"text"')).toThrow('JSON object');
+    expect(() => parseInputJson('null')).toThrow('JSON object');
   });
 
   it('sends only the prompt when no optional fields are given', async () => {

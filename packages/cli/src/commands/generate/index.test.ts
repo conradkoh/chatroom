@@ -6,6 +6,10 @@
  * generation behavior lives in image.test.ts.
  */
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -158,6 +162,58 @@ describe('chatroom generate-image wiring', () => {
     });
   });
 
+  it('forwards inline --input as an object', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.png',
+      '--input',
+      '{"image_size":{"width":1024,"height":768},"enable_prompt_expansion":false}',
+    ]);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({
+      input: {
+        image_size: { width: 1024, height: 768 },
+        enable_prompt_expansion: false,
+      },
+    });
+  });
+
+  it('reads --input @file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'chatroom-input-'));
+    try {
+      const path = join(dir, 'input.json');
+      await writeFile(path, '{"image_size":{"width":512,"height":512}}', 'utf8');
+      const program = createProgram();
+
+      await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input', `@${path}`]);
+
+      expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({
+        input: { image_size: { width: 512, height: 512 } },
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ['invalid JSON', 'not-json'],
+    ['an array', '[]'],
+    ['a scalar', '"text"'],
+  ])('refuses %s in --input before calling fal', async (_label, value) => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input', value]);
+
+    expect(process.exitCode).toBe(1);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain('--input');
+    expect(generateImageMock).not.toHaveBeenCalled();
+  });
+
   it('forwards --force when provided', async () => {
     const program = createProgram();
 
@@ -191,6 +247,7 @@ describe('chatroom generate-image wiring', () => {
       '--aspect-ratio',
       '--output-format',
       '--seed',
+      '--input',
       '--force',
     ]) {
       expect(help).toContain(flag);
@@ -198,6 +255,17 @@ describe('chatroom generate-image wiring', () => {
     // Model defaults differ, so these must not be forced by the CLI.
     expect(help).not.toContain('(default: "auto")');
     expect(help).not.toContain('(default: "png")');
+    expect(help).toContain('--input <json|@file>');
+
+    let afterHelp = '';
+    command?.configureOutput({
+      writeOut: (text) => {
+        afterHelp += text;
+      },
+    });
+    command?.outputHelp();
+    expect(afterHelp).toContain('fal-ai/moss-image');
+    expect(afterHelp).toContain('enable_prompt_expansion');
   });
 
   it('does not expose the old `generate image` group form', async () => {
