@@ -406,6 +406,22 @@ describe('removeImageBackground', () => {
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
+  it('refuses the aggregate pixel budget before decoding any tile', async () => {
+    const deps = createDeps(
+      {
+        [A]: { bytes: pngBytes(8000, 8000), image: solidTile() },
+        [B]: { bytes: pngBytes(8000, 8000), image: solidTile() },
+      },
+      { listDir: vi.fn().mockResolvedValue(['a.png', 'b.png']) }
+    );
+
+    const error = await captureError(removeImageBackground(dirOptions(), deps));
+
+    expect(error.message).toContain('Inputs total 128000000 pixels');
+    expect(deps.decodePng).not.toHaveBeenCalled();
+    expect(deps.ensureDir).not.toHaveBeenCalled();
+  });
+
   it('aborts before any write when a later tile cannot be keyed', async () => {
     const deps = createDeps(
       { [A]: tileFile(), [B]: { ...tileFile(blankTile()), image: blankTile() } },

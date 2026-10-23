@@ -1174,6 +1174,23 @@ describe('sliceImage', () => {
       expect(deps.writeFile).toHaveBeenCalledTimes(4);
     });
 
+    it('accepts a clean sheet with a jittered background', async () => {
+      const image = blankSheet(8, 8);
+      for (let y = 0; y < 8; y += 1) {
+        for (let x = 0; x < 8; x += 1) {
+          const jitter = ((x * 7 + y * 11) % 11) - 5;
+          image.data.set([220 + jitter, 220 + jitter, 220 + jitter, 255], (y * 8 + x) * 4);
+        }
+      }
+      fillRect(image, 1, 1, 2, 2, ITEM_COLOR);
+      const deps = guardDeps(image);
+
+      const result = await sliceImage(guardOpts, deps);
+
+      expect(result.tiles).toHaveLength(4);
+      expect(deps.writeFile).toHaveBeenCalledTimes(4);
+    });
+
     it('accepts a sheet whose artwork stays inside every cell border', async () => {
       const deps = guardDeps(cleanSheet());
 

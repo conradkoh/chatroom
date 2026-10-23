@@ -6,7 +6,7 @@
  * generation behavior lives in image.test.ts.
  */
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -194,6 +194,41 @@ describe('chatroom generate-image wiring', () => {
       expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({
         input: { image_size: { width: 512, height: 512 } },
       });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a directory for --input @file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'chatroom-input-dir-'));
+    try {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const program = createProgram();
+
+      await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input', `@${dir}`]);
+
+      expect(process.exitCode).toBe(1);
+      expect(String(errorSpy.mock.calls[0]?.[0])).toContain('not a regular file');
+      expect(generateImageMock).not.toHaveBeenCalled();
+    } finally {
+      await mkdir(dir, { recursive: true }).catch(() => {});
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses an oversize --input file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'chatroom-input-big-'));
+    try {
+      const path = join(dir, 'input.json');
+      await writeFile(path, 'x'.repeat(1024 * 1024 + 1), 'utf8');
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const program = createProgram();
+
+      await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input', `@${path}`]);
+
+      expect(process.exitCode).toBe(1);
+      expect(String(errorSpy.mock.calls[0]?.[0])).toContain('maximum is 1048576 bytes');
+      expect(generateImageMock).not.toHaveBeenCalled();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -138,6 +138,9 @@ function validateInputObject(input: Record<string, unknown>): void {
       '--input must not contain "sync_mode": it returns data URIs that this command cannot download. Omit it.'
     );
   }
+  if ('num_images' in input && input.num_images !== undefined && input.num_images !== 1) {
+    throw new GenerateImageError('--input num_images must be 1; extra images are not saved.');
+  }
   for (const [key, flag] of Object.entries(INPUT_DEDICATED_FLAGS)) {
     if (key in input && input[key] !== undefined) {
       throw new GenerateImageError(`--input must not contain "${key}"; use ${flag} instead.`);
@@ -344,6 +347,9 @@ export async function generateImage(
   const input = buildInput(prompt, opts);
 
   const result = await deps.falSubscribe(model, input);
+  if (result.data.images.length > 1) {
+    deps.warn(`⚠️ fal returned ${result.data.images.length} images; only the first is saved.`);
+  }
   const image = requireImage(result.data.images, model);
 
   const bytes = await downloadImage(deps, result.requestId, image.url);

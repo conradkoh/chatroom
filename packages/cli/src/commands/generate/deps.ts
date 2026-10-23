@@ -50,6 +50,8 @@ export interface GenerateImageDeps {
   now: () => Date;
   /** Installed `@fal-ai/client` version, recorded in the manifest. */
   sdkVersion: string;
+  /** Surface a non-fatal warning (for example, extra returned images). */
+  warn: (message: string) => void;
 }
 
 /** Server-side timeout for the queued generation (the SDK takes seconds). */
@@ -91,7 +93,8 @@ function optionalString(value: unknown, field: string): string | undefined {
 }
 
 function requireSeed(value: unknown): number | undefined {
-  if (value === undefined) return undefined;
+  // Some models report "no seed" as null rather than omitting the field.
+  if (value === undefined || value === null) return undefined;
   if (typeof value !== 'number') {
     throw invalidResult('seed is not a number');
   }
@@ -255,5 +258,6 @@ export function createDefaultGenerateImageDeps(): GenerateImageDeps {
     ensureParentDir,
     now: () => new Date(),
     sdkVersion: readInstalledPackageVersion('@fal-ai/client'),
+    warn: (message) => console.error(message),
   };
 }

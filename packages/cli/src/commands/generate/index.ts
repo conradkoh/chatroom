@@ -6,7 +6,7 @@
  * imports (the fal SDK) are loaded inside the action to keep CLI startup fast.
  */
 
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 
 import { InvalidArgumentError, type Command } from 'commander';
 
@@ -18,6 +18,7 @@ import {
   parseInputJson,
 } from './image.js';
 import type { GenerateImagePlatform, ImageOutputFormat } from './image.js';
+import { MAX_SIDECAR_BYTES } from './local-image-common.js';
 
 const OUTPUT_FORMATS: readonly ImageOutputFormat[] = ['png', 'jpeg', 'webp'];
 
@@ -35,9 +36,19 @@ function parseOutputFormat(value: string): ImageOutputFormat {
   return value as ImageOutputFormat;
 }
 
+// fallow-ignore-next-line complexity
 async function readInputOption(value: string): Promise<Record<string, unknown>> {
-  const text = value.startsWith('@') ? await readFile(value.slice(1), 'utf8') : value;
-  return parseInputJson(text);
+  if (!value.startsWith('@')) return parseInputJson(value);
+  const path = value.slice(1);
+  const stats = await stat(path).catch(() => null);
+  if (stats === null) throw new Error(`--input file not found: ${path}`);
+  if (!stats.isFile()) throw new Error(`--input file is not a regular file: ${path}`);
+  if (stats.size > MAX_SIDECAR_BYTES) {
+    throw new Error(
+      `--input file is ${stats.size} bytes; the maximum is ${MAX_SIDECAR_BYTES} bytes (1 MiB).`
+    );
+  }
+  return parseInputJson(await readFile(path, 'utf8'));
 }
 
 function parseSeed(value: string): number {

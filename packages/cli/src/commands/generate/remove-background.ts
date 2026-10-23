@@ -227,10 +227,20 @@ async function enumerateInputs(
 }
 
 // fallow-ignore-next-line complexity
-async function loadInput(
+interface InspectedTile {
+  path: string;
+  stem: string;
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+}
+
+/** Read and validate PNG headers without decoding any pixels. */
+// fallow-ignore-next-line complexity
+async function inspectInput(
   input: { path: string; stem: string },
   deps: RemoveImageBackgroundDeps
-): Promise<InputTile> {
+): Promise<InspectedTile> {
   const stats = await deps.statInput(input.path);
   if (stats.kind === 'missing') throw new RemoveBackgroundError(`Input not found: ${input.path}`);
   if (stats.kind !== 'file') {
@@ -247,9 +257,7 @@ async function loadInput(
       `${input.path} is ${bytes.byteLength} bytes; the maximum is ${MAX_SOURCE_BYTES} bytes (64 MiB).`
     );
   }
-  if (!hasPngMagic(bytes)) {
-    throw new RemoveBackgroundError(`${input.path} is not a PNG.`);
-  }
+  if (!hasPngMagic(bytes)) throw new RemoveBackgroundError(`${input.path} is not a PNG.`);
   const dimensions = readPngDimensions(bytes);
   if (dimensions === null || dimensions.width === 0 || dimensions.height === 0) {
     throw new RemoveBackgroundError(`Could not decode ${input.path}: missing or invalid IHDR.`);
@@ -259,16 +267,26 @@ async function loadInput(
       `${input.path} is ${dimensions.width}x${dimensions.height}; the maximum is ${MAX_SOURCE_PIXELS} pixels.`
     );
   }
+  return { ...input, bytes, width: dimensions.width, height: dimensions.height };
+}
+
+function decodeInput(inspected: InspectedTile, deps: RemoveImageBackgroundDeps): InputTile {
   let image: DecodedTile;
   try {
-    image = deps.decodePng(bytes);
+    image = deps.decodePng(inspected.bytes);
   } catch (err) {
-    throw new RemoveBackgroundError(`Could not decode ${input.path}: ${errorMessage(err)}`);
+    throw new RemoveBackgroundError(`Could not decode ${inspected.path}: ${errorMessage(err)}`);
   }
   if (image.data.length !== image.width * image.height * 4) {
-    throw new RemoveBackgroundError(`Could not decode ${input.path}: expected RGBA data.`);
+    throw new RemoveBackgroundError(`Could not decode ${inspected.path}: expected RGBA data.`);
   }
-  return { ...input, bytes, image, sha256: sha256(bytes) };
+  return {
+    path: inspected.path,
+    stem: inspected.stem,
+    bytes: inspected.bytes,
+    image,
+    sha256: sha256(inspected.bytes),
+  };
 }
 
 function requireSafeName(name: string, context: string): string {
@@ -690,18 +708,19 @@ export async function removeImageBackground(
   };
 
   const { inputs, ignoredNonPng } = await enumerateInputs(mode, deps);
-  const tiles: InputTile[] = [];
+  const inspected: InspectedTile[] = [];
   let totalPixels = 0;
   for (const input of inputs) {
-    const tile = await loadInput(input, deps);
-    totalPixels += tile.image.width * tile.image.height;
-    tiles.push(tile);
+    const tile = await inspectInput(input, deps);
+    totalPixels += tile.width * tile.height;
+    inspected.push(tile);
   }
   if (totalPixels > MAX_SOURCE_PIXELS) {
     throw new RemoveBackgroundError(
       `Inputs total ${totalPixels} pixels; the maximum is ${MAX_SOURCE_PIXELS} pixels.`
     );
   }
+  const tiles = inspected.map((tile) => decodeInput(tile, deps));
 
   const prepared = await prepareAssets(assignNames(mode, opts, tiles), mode, options, deps);
   await preflight(

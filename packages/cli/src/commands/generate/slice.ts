@@ -420,6 +420,8 @@ async function preflightOutputs(
 
 /** Any channel differing by more than this counts as artwork, not background. */
 const EDGE_CONTENT_THRESHOLD = 25;
+/** Noise tolerated on each individual cell edge before it counts as artwork. */
+const MAX_EDGE_CONTENT_PIXELS_PER_EDGE = 1;
 /** The error names at most this many offending cells. */
 const MAX_REPORTED_EDGE_CELLS = 10;
 
@@ -432,7 +434,7 @@ interface EdgeCounts {
   right: number;
 }
 
-/** Most frequent opaque colour on the sheet's outermost 1-px border. */
+/** Per-channel median of the opaque colours on the sheet's outer 1-px border. */
 // fallow-ignore-next-line complexity
 function mostFrequentBorderColor(image: {
   width: number;
@@ -440,16 +442,16 @@ function mostFrequentBorderColor(image: {
   data: Uint8Array;
 }): Rgb | null {
   const { width, height, data } = image;
-  const counts = new Map<number, number>();
+  const red: number[] = [];
+  const green: number[] = [];
+  const blue: number[] = [];
   // fallow-ignore-next-line complexity
   const add = (x: number, y: number): void => {
     const offset = (y * width + x) * 4;
     if (data[offset + 3] === 0) return;
-    const red = data[offset] ?? 0;
-    const green = data[offset + 1] ?? 0;
-    const blue = data[offset + 2] ?? 0;
-    const key = (red << 16) | (green << 8) | blue;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    red.push(data[offset] ?? 0);
+    green.push(data[offset + 1] ?? 0);
+    blue.push(data[offset + 2] ?? 0);
   };
   for (let x = 0; x < width; x += 1) {
     add(x, 0);
@@ -459,17 +461,15 @@ function mostFrequentBorderColor(image: {
     add(0, y);
     if (width > 1) add(width - 1, y);
   }
-
-  let best: number | null = null;
-  let bestCount = -1;
-  for (const [key, count] of counts) {
-    if (count > bestCount) {
-      best = key;
-      bestCount = count;
-    }
-  }
-  if (best === null) return null;
-  return [(best >> 16) & 0xff, (best >> 8) & 0xff, best & 0xff];
+  if (red.length === 0) return null;
+  // fallow-ignore-next-line complexity
+  const median = (values: number[]): number => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
+    return Math.round(((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2);
+  };
+  return [median(red), median(green), median(blue)];
 }
 
 /**
@@ -539,7 +539,12 @@ function requireNoEdgeContent(args: {
     if ((args.names[cell.index] ?? '').length === 0) continue;
     activeCells += 1;
     const counts = countCellEdgeForeground(args.image, cell, background);
-    if (counts.top + counts.bottom + counts.left + counts.right > 0) {
+    if (
+      counts.top > MAX_EDGE_CONTENT_PIXELS_PER_EDGE ||
+      counts.bottom > MAX_EDGE_CONTENT_PIXELS_PER_EDGE ||
+      counts.left > MAX_EDGE_CONTENT_PIXELS_PER_EDGE ||
+      counts.right > MAX_EDGE_CONTENT_PIXELS_PER_EDGE
+    ) {
       offenders.push({ index: cell.index, counts });
     }
   }

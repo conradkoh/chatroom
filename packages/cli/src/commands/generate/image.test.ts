@@ -40,6 +40,7 @@ function createDeps(overrides: Partial<GenerateImageDeps> = {}): GenerateImageDe
     ensureParentDir: vi.fn().mockResolvedValue(undefined),
     now: () => new Date('2026-01-02T03:04:05.000Z'),
     sdkVersion: '1.10.1',
+    warn: vi.fn(),
     ...overrides,
   };
 }
@@ -278,6 +279,39 @@ describe('generateImage', () => {
 
     expect(error.message).toContain('sync_mode');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('allows num_images 1 but refuses extra images in --input', async () => {
+    const deps = createDeps();
+
+    await generateImage({ prompt: 'a hero', out: OUT_PATH, input: { num_images: 1 } }, deps);
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+
+    const refused = createDeps();
+    const error = await captureError(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { num_images: 2 } }, refused)
+    );
+    expect(error.message).toContain('num_images must be 1');
+    expect(refused.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('warns when fal returns more than one image and saves the first', async () => {
+    const deps = createDeps({
+      falSubscribe: vi.fn().mockResolvedValue({
+        data: {
+          images: [
+            { url: 'https://fal.test/first.png', content_type: 'image/png' },
+            { url: 'https://fal.test/second.png', content_type: 'image/png' },
+          ],
+        },
+        requestId: 'req-many',
+      }),
+    });
+
+    await generateImage({ prompt: 'a hero', out: OUT_PATH }, deps);
+
+    expect(deps.warn).toHaveBeenCalledWith('⚠️ fal returned 2 images; only the first is saved.');
+    expect(deps.fetchBytes).toHaveBeenCalledWith('https://fal.test/first.png');
   });
 
   it('parses inline input JSON and rejects invalid shapes', () => {
