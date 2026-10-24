@@ -13,6 +13,8 @@ import { extname, resolve } from 'node:path';
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 
 export const DEFAULT_IMAGE_MODEL = 'fal-ai/flux-2/flash';
+/** Image-to-image edit model used when `--input-image` is set and `--model` is omitted. */
+export const DEFAULT_IMAGE_EDIT_MODEL = 'fal-ai/flux-2/flash/edit';
 /**
  * Generation platforms the CLI can call today. New platforms are added here
  * and dispatched in `generateImage`; the flag and manifest field already exist
@@ -45,6 +47,8 @@ export interface GenerateImageOptions {
   seed?: number | undefined;
   /** Model-specific fal input merged into the request body. */
   input?: Record<string, unknown> | undefined;
+  /** Local image path or public http(s) URL to edit with the edit model. */
+  inputImage?: string | undefined;
   /** Allow replacing an existing output or manifest file. */
   force?: boolean | undefined;
 }
@@ -62,6 +66,8 @@ export interface GenerateImageManifest {
   sdk: string;
   model: string;
   input: Record<string, unknown>;
+  /** Source given by the user and the URL sent to fal; null without --input-image. */
+  inputImage: { source: string; url: string } | null;
   requestId: string | null;
   seed: number | null;
   output: {
@@ -126,7 +132,35 @@ const INPUT_DEDICATED_FLAGS: Record<string, string> = {
   seed: '--seed',
   output_format: '--output-format',
   aspect_ratio: '--aspect-ratio',
+  image_urls: '--input-image',
 };
+
+/**
+ * Content types for the input image extensions the edit model accepts. The
+ * type is derived from the extension and sent with the upload; bytes are never
+ * sniffed.
+ */
+const INPUT_IMAGE_CONTENT_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+
+/** Content type for a supported input image extension, or a clear error. */
+function inputImageContentType(path: string): string {
+  const extension = extname(path).toLowerCase();
+  const contentType = INPUT_IMAGE_CONTENT_TYPES[extension];
+  if (contentType === undefined) {
+    throw new GenerateImageError(
+      `Unsupported --input-image extension ${extension || '(none)'}. Use one of: ${Object.keys(INPUT_IMAGE_CONTENT_TYPES).join(', ')}.`
+    );
+  }
+  return contentType;
+}
+
+const HTTP_URL_PATTERN = /^https?:\/\//i;
 
 /**
  * Validate model-specific input without knowing any model's schema. Only keys
@@ -172,7 +206,11 @@ export function parseInputJson(text: string): Record<string, unknown> {
  * all), so the manifest records exactly what went over the wire.
  */
 // fallow-ignore-next-line complexity
-function buildInput(prompt: string, opts: GenerateImageOptions): Record<string, unknown> {
+function buildInput(
+  prompt: string,
+  opts: GenerateImageOptions,
+  imageUrl: string | undefined
+): Record<string, unknown> {
   if (opts.input !== undefined) {
     if (typeof opts.input !== 'object' || opts.input === null || Array.isArray(opts.input)) {
       throw new GenerateImageError('--input must be a JSON object.');
@@ -185,6 +223,7 @@ function buildInput(prompt: string, opts: GenerateImageOptions): Record<string, 
     ...(opts.aspectRatio !== undefined ? { aspect_ratio: opts.aspectRatio } : {}),
     ...(opts.outputFormat !== undefined ? { output_format: opts.outputFormat } : {}),
     ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
+    ...(imageUrl !== undefined ? { image_urls: [imageUrl] } : {}),
   };
 }
 
@@ -306,6 +345,7 @@ function buildManifest(args: {
   platform: GenerateImagePlatform;
   model: string;
   input: Record<string, unknown>;
+  inputImage: { source: string; url: string } | null;
   requestId: string | undefined;
   resultSeed: number | undefined;
   requestedSeed: number | undefined;
@@ -322,6 +362,7 @@ function buildManifest(args: {
     sdk: `@fal-ai/client@${args.sdkVersion}`,
     model: args.model,
     input: args.input,
+    inputImage: args.inputImage,
     requestId: args.requestId ?? null,
     seed: resolveSeed(args.resultSeed, args.requestedSeed),
     output: {
@@ -332,6 +373,85 @@ function buildManifest(args: {
     },
     generatedAt: args.generatedAt,
     licensing: LICENSING,
+  };
+}
+
+/**
+ * Resolve `--input-image` into a trimmed value. The edit model sizes output
+ * with `image_size`, so `--aspect-ratio` is refused before any file I/O.
+ */
+function resolveInputImageOption(opts: GenerateImageOptions): string | undefined {
+  if (opts.inputImage === undefined) return undefined;
+  if (opts.aspectRatio !== undefined) {
+    throw new GenerateImageError(
+      `--aspect-ratio is not supported with --input-image: ${DEFAULT_IMAGE_EDIT_MODEL} sizes its output with image_size. Pass --input '{"image_size":"landscape_4_3"}' instead.`
+    );
+  }
+  return requireNonEmpty(opts.inputImage, '--input-image must not be empty.');
+}
+
+interface PreparedInputImage {
+  /** The single value sent to fal in `image_urls`, or undefined without --input-image. */
+  url: string | undefined;
+  /** What the manifest records for provenance, or null without --input-image. */
+  record: { source: string; url: string } | null;
+}
+
+/**
+ * Preflight the input image before the paid call. A local file is checked and
+ * uploaded only after every other check has passed; a public http(s) URL is
+ * passed through untouched.
+ */
+async function prepareInputImage(
+  deps: GenerateImageDeps,
+  inputImage: string | undefined
+): Promise<PreparedInputImage> {
+  if (inputImage === undefined) return { url: undefined, record: null };
+  if (HTTP_URL_PATTERN.test(inputImage)) {
+    return { url: inputImage, record: { source: inputImage, url: inputImage } };
+  }
+  const localPath = resolve(inputImage);
+  // Resolve the content type first so an unsupported extension fails before
+  // any bytes are sent.
+  const contentType = inputImageContentType(localPath);
+  const status = await deps.pathStatus(localPath);
+  if (status !== 'file') {
+    throw new GenerateImageError(`--input-image is not a file: ${localPath}`);
+  }
+  const url = await deps.uploadFile(localPath, contentType);
+  return { url, record: { source: localPath, url } };
+}
+
+/** A completed generation whose bytes are already written to `outPath`. */
+interface SavedGeneration {
+  image: { url: string; content_type?: string | undefined };
+  bytes: Uint8Array;
+  sha256: string;
+  requestId: string;
+  seed: number | undefined;
+}
+
+/** Call fal once, then download and save the first image it returned. */
+async function generateAndSave(
+  deps: GenerateImageDeps,
+  model: string,
+  input: Record<string, unknown>,
+  outPath: string
+): Promise<SavedGeneration> {
+  const result = await deps.falSubscribe(model, input);
+  if (result.data.images.length > 1) {
+    deps.warn(`⚠️ fal returned ${result.data.images.length} images; only the first is saved.`);
+  }
+  const image = requireImage(result.data.images, model);
+
+  const bytes = await downloadImage(deps, result.requestId, image.url);
+  await saveImage(deps, outPath, bytes, result.requestId, image.url);
+  return {
+    image,
+    bytes,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    requestId: result.requestId,
+    seed: result.data.seed,
   };
 }
 
@@ -351,6 +471,7 @@ export async function generateImage(
   if (opts.outputFormat !== undefined) {
     requireFormatMatchesExtension(outPath, opts.outputFormat);
   }
+  const inputImage = resolveInputImageOption(opts);
   const manifestPath = `${outPath}.json`;
 
   // Preflight before the paid call: refuse unwritable outputs, then create the
@@ -358,36 +479,31 @@ export async function generateImage(
   await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
   await deps.ensureParentDir(outPath);
 
-  const model = opts.model ?? DEFAULT_IMAGE_MODEL;
-  const input = buildInput(prompt, opts);
+  const preparedInput = await prepareInputImage(deps, inputImage);
+  const model =
+    opts.model ??
+    (preparedInput.url !== undefined ? DEFAULT_IMAGE_EDIT_MODEL : DEFAULT_IMAGE_MODEL);
+  const input = buildInput(prompt, opts, preparedInput.url);
+  const saved = await generateAndSave(deps, model, input, outPath);
 
-  const result = await deps.falSubscribe(model, input);
-  if (result.data.images.length > 1) {
-    deps.warn(`⚠️ fal returned ${result.data.images.length} images; only the first is saved.`);
-  }
-  const image = requireImage(result.data.images, model);
-
-  const bytes = await downloadImage(deps, result.requestId, image.url);
-  await saveImage(deps, outPath, bytes, result.requestId, image.url);
-
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
   await deps.writeJson(
     manifestPath,
     buildManifest({
       platform,
       model,
       input,
-      requestId: result.requestId,
-      resultSeed: result.data.seed,
+      inputImage: preparedInput.record,
+      requestId: saved.requestId,
+      resultSeed: saved.seed,
       requestedSeed: opts.seed,
       outPath,
-      sha256,
-      contentType: image.content_type,
-      byteLength: bytes.byteLength,
+      sha256: saved.sha256,
+      contentType: saved.image.content_type,
+      byteLength: saved.bytes.byteLength,
       generatedAt: deps.now().toISOString(),
       sdkVersion: deps.sdkVersion,
     })
   );
 
-  return { outPath, manifestPath, sha256 };
+  return { outPath, manifestPath, sha256: saved.sha256 };
 }

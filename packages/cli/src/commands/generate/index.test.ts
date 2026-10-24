@@ -266,6 +266,22 @@ describe('chatroom generate-image wiring', () => {
     expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ force: undefined });
   });
 
+  it('forwards --input-image when provided', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input-image', './hero.png']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ inputImage: './hero.png' });
+  });
+
+  it('does not forward --input-image when omitted', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ inputImage: undefined });
+  });
+
   it('lists the flags and description in help output', () => {
     const program = createProgram();
     const command = program.commands[0];
@@ -284,10 +300,13 @@ describe('chatroom generate-image wiring', () => {
       '--output-format',
       '--seed',
       '--input',
+      '--input-image',
       '--force',
     ]) {
       expect(help).toContain(flag);
     }
+    const aspectOption = command?.options.find((option) => option.long === '--aspect-ratio');
+    expect(aspectOption?.description).toContain('Not supported with --input-image');
     // Model defaults differ, so these must not be forced by the CLI.
     expect(help).not.toContain('(default: "auto")');
     expect(help).not.toContain('(default: "png")');
@@ -302,6 +321,7 @@ describe('chatroom generate-image wiring', () => {
     command?.outputHelp();
     expect(afterHelp).toContain('fal-ai/flux-2/flash');
     expect(afterHelp).toContain('pixel-art potion');
+    expect(afterHelp).toContain('--input-image ./hero.png');
   });
 
   it('does not expose the old `generate image` group form', async () => {

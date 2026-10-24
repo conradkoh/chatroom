@@ -12,6 +12,7 @@ import { InvalidArgumentError, type Command } from 'commander';
 
 import {
   DEFAULT_GENERATE_IMAGE_PLATFORM,
+  DEFAULT_IMAGE_EDIT_MODEL,
   DEFAULT_IMAGE_MODEL,
   GENERATE_IMAGE_PLATFORMS,
   generateImage,
@@ -63,7 +64,50 @@ const HELP_AFTER = `
 Examples:
   chatroom generate-image --platform=fal --prompt "a hero" --out hero.png
   chatroom generate-image --platform=fal --prompt 'pixel-art potion, transparent-friendly flat background' --output-format png --out potion.png
+  chatroom generate-image --platform=fal --prompt "make the sky stormy" --input-image ./hero.png --out hero-stormy.png
 `;
+
+interface GenerateImageCliOptions {
+  prompt: string;
+  out: string;
+  platform: GenerateImagePlatform;
+  model?: string | undefined;
+  aspectRatio?: string | undefined;
+  outputFormat?: ImageOutputFormat | undefined;
+  seed?: number | undefined;
+  input?: string | undefined;
+  inputImage?: string | undefined;
+  force?: boolean | undefined;
+}
+
+/** Commander action body: parse input, run the generator, report failures. */
+async function runGenerateImage(options: GenerateImageCliOptions): Promise<void> {
+  try {
+    const input = options.input === undefined ? undefined : await readInputOption(options.input);
+    // The fal SDK is only needed when the command actually runs.
+    const { createDefaultGenerateImageDeps } = await import('./deps.js');
+    const result = await generateImage(
+      {
+        prompt: options.prompt,
+        out: options.out,
+        platform: options.platform,
+        model: options.model,
+        aspectRatio: options.aspectRatio,
+        outputFormat: options.outputFormat,
+        seed: options.seed,
+        input,
+        inputImage: options.inputImage,
+        force: options.force,
+      },
+      createDefaultGenerateImageDeps()
+    );
+    console.log(`Generated ${result.outPath}`);
+    console.log(`Manifest ${result.manifestPath}`);
+  } catch (err) {
+    console.error(`❌ ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+  }
+}
 
 export function registerGenerateImageCommand(program: Command): void {
   program
@@ -79,12 +123,11 @@ export function registerGenerateImageCommand(program: Command): void {
     )
     .option(
       '--model <id>',
-      `fal model id. Recommended and default: ${DEFAULT_IMAGE_MODEL}`,
-      DEFAULT_IMAGE_MODEL
+      `Recommended fal model id. Default: ${DEFAULT_IMAGE_MODEL}, or ${DEFAULT_IMAGE_EDIT_MODEL} with --input-image`
     )
     .option(
       '--aspect-ratio <ratio>',
-      `Aspect ratio, e.g. 1:1, 4:3, 16:9, 9:16 (omitted = model default). Not supported by the default model ${DEFAULT_IMAGE_MODEL}, which uses its own image size`
+      `Aspect ratio, e.g. 1:1, 4:3, 16:9, 9:16 (omitted = model default). Not supported by the default model ${DEFAULT_IMAGE_MODEL}, which uses its own image size. Not supported with --input-image`
     )
     .option(
       '--output-format <format>',
@@ -96,45 +139,11 @@ export function registerGenerateImageCommand(program: Command): void {
       '--input <json|@file>',
       'Model-specific JSON input object merged into the fal request; @file reads JSON from a file'
     )
+    .option(
+      '--input-image <path-or-url>',
+      `Edit an image with ${DEFAULT_IMAGE_EDIT_MODEL}. A local file (.png, .jpg, .jpeg, .webp, .gif) is uploaded to fal; an http(s) URL is passed through. Without --model, the edit model is used`
+    )
     .option('--force', 'Overwrite existing output and manifest files')
     .addHelpText('after', HELP_AFTER)
-    .action(
-      async (options: {
-        prompt: string;
-        out: string;
-        platform: GenerateImagePlatform;
-        model: string;
-        aspectRatio?: string | undefined;
-        outputFormat?: ImageOutputFormat | undefined;
-        seed?: number | undefined;
-        input?: string | undefined;
-        force?: boolean | undefined;
-      }) => {
-        try {
-          const input =
-            options.input === undefined ? undefined : await readInputOption(options.input);
-          // The fal SDK is only needed when the command actually runs.
-          const { createDefaultGenerateImageDeps } = await import('./deps.js');
-          const result = await generateImage(
-            {
-              prompt: options.prompt,
-              out: options.out,
-              platform: options.platform,
-              model: options.model,
-              aspectRatio: options.aspectRatio,
-              outputFormat: options.outputFormat,
-              seed: options.seed,
-              input,
-              force: options.force,
-            },
-            createDefaultGenerateImageDeps()
-          );
-          console.log(`Generated ${result.outPath}`);
-          console.log(`Manifest ${result.manifestPath}`);
-        } catch (err) {
-          console.error(`❌ ${err instanceof Error ? err.message : String(err)}`);
-          process.exitCode = 1;
-        }
-      }
-    );
+    .action(runGenerateImage);
 }

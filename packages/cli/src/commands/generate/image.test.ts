@@ -11,13 +11,21 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
-import { DEFAULT_IMAGE_MODEL, generateImage, parseInputJson } from './image.js';
+import {
+  DEFAULT_IMAGE_EDIT_MODEL,
+  DEFAULT_IMAGE_MODEL,
+  GenerateImageError,
+  generateImage,
+  parseInputJson,
+} from './image.js';
 import type { GenerateImagePlatform } from './image.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const OUT_PATH = '/tmp/generated/hero.png';
 const IMAGE_URL = 'https://fal.test/generated/hero.png';
 const UPLOADED_IMAGE_URL = 'https://fal.test/uploaded/hero.png';
+const INPUT_IMAGE = '/tmp/inputs/hero.png';
+const INPUT_IMAGE_URL = 'https://example.test/source/hero.png';
 const IMAGE_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
 function falResult(overrides: { seed?: number } = {}): FalImageResult {
@@ -260,6 +268,7 @@ describe('generateImage', () => {
     ['seed', '--seed'],
     ['output_format', '--output-format'],
     ['aspect_ratio', '--aspect-ratio'],
+    ['image_urls', '--input-image'],
   ])('refuses the reserved input key %s and names %s', async (key, flag) => {
     const deps = createDeps();
 
@@ -488,5 +497,148 @@ describe('generateImage', () => {
       unknown
     >;
     expect(manifest.seed).toBe(777);
+  });
+
+  it('edits a local image with the default edit model', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }) });
+
+    await generateImage(
+      { prompt: 'make the sky stormy', out: OUT_PATH, inputImage: INPUT_IMAGE },
+      deps
+    );
+
+    expect(deps.uploadFile).toHaveBeenCalledTimes(1);
+    expect(deps.uploadFile).toHaveBeenCalledWith(INPUT_IMAGE, 'image/png');
+    expect(deps.falSubscribe).toHaveBeenCalledWith(DEFAULT_IMAGE_EDIT_MODEL, {
+      prompt: 'make the sky stormy',
+      image_urls: [UPLOADED_IMAGE_URL],
+    });
+
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(manifest.model).toBe(DEFAULT_IMAGE_EDIT_MODEL);
+    expect(manifest.input).toEqual({
+      prompt: 'make the sky stormy',
+      image_urls: [UPLOADED_IMAGE_URL],
+    });
+    expect(manifest.inputImage).toEqual({ source: INPUT_IMAGE, url: UPLOADED_IMAGE_URL });
+  });
+
+  it('passes an http(s) input URL through without uploading', async () => {
+    const deps = createDeps();
+
+    await generateImage(
+      { prompt: 'make it night', out: OUT_PATH, inputImage: INPUT_IMAGE_URL },
+      deps
+    );
+
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).toHaveBeenCalledWith(DEFAULT_IMAGE_EDIT_MODEL, {
+      prompt: 'make it night',
+      image_urls: [INPUT_IMAGE_URL],
+    });
+
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(manifest.inputImage).toEqual({ source: INPUT_IMAGE_URL, url: INPUT_IMAGE_URL });
+  });
+
+  it('keeps text-to-image behaviour without --input-image', async () => {
+    const deps = createDeps();
+
+    await generateImage({ prompt: 'a castle', out: OUT_PATH }, deps);
+
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).toHaveBeenCalledWith(DEFAULT_IMAGE_MODEL, { prompt: 'a castle' });
+
+    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(manifest.model).toBe(DEFAULT_IMAGE_MODEL);
+    expect(manifest.input).not.toHaveProperty('image_urls');
+    expect(manifest.inputImage).toBeNull();
+  });
+
+  it('uses an explicit --model even with --input-image', async () => {
+    const explicitModel = 'fal-ai/some-other/edit';
+    const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }) });
+
+    await generateImage(
+      { prompt: 'restyle', out: OUT_PATH, inputImage: INPUT_IMAGE, model: explicitModel },
+      deps
+    );
+
+    expect(deps.falSubscribe).toHaveBeenCalledWith(explicitModel, {
+      prompt: 'restyle',
+      image_urls: [UPLOADED_IMAGE_URL],
+    });
+  });
+
+  it('rejects --aspect-ratio with --input-image before any upload or fal call', async () => {
+    const deps = createDeps();
+
+    const error = await captureError(
+      generateImage(
+        { prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE, aspectRatio: '1:1' },
+        deps
+      )
+    );
+
+    expect(error).toBeInstanceOf(GenerateImageError);
+    expect(error.message).toContain('--aspect-ratio is not supported with --input-image');
+    expect(error.message).toContain('image_size');
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it.each(['missing', 'directory'] as const)(
+    'rejects a local input image that is %s before uploading',
+    async (status) => {
+      const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: status }) });
+
+      const error = await captureError(
+        generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE }, deps)
+      );
+
+      expect(error.message).toContain(`--input-image is not a file: ${INPUT_IMAGE}`);
+      expect(deps.uploadFile).not.toHaveBeenCalled();
+      expect(deps.falSubscribe).not.toHaveBeenCalled();
+    }
+  );
+
+  it('rejects an unsupported input image extension before uploading', async () => {
+    const unsupported = '/tmp/inputs/hero.bmp';
+    const deps = createDeps({ pathStatus: pathStatusFor({ [unsupported]: 'file' }) });
+
+    const error = await captureError(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: unsupported }, deps)
+    );
+
+    expect(error.message).toContain('Unsupported --input-image extension .bmp');
+    expect(error.message).toContain('.png');
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an upload failure as GenerateImageError and never calls fal', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }),
+      uploadFile: vi
+        .fn()
+        .mockRejectedValue(new GenerateImageError(`Failed to upload input image ${INPUT_IMAGE}`)),
+    });
+
+    const error = await captureError(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE }, deps)
+    );
+
+    expect(error).toBeInstanceOf(GenerateImageError);
+    expect(error.message).toContain(`Failed to upload input image ${INPUT_IMAGE}`);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 });
