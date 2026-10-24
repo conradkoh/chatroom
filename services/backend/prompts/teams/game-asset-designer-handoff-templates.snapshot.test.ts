@@ -66,6 +66,7 @@ describe('game asset designer handoff template snapshots', () => {
     expect(report).toContain('## Proof of Principles');
     expect(report).toContain('## Proof of Completion');
     expect(report).toContain('## Naming map');
+    expect(report).toContain('`--input-image`');
     expect(brief).toContain('## Model');
     expect(brief).toContain('## Model parameters');
     expect(brief).toContain('fal-ai/flux-2/flash');
@@ -86,6 +87,7 @@ describe('game asset designer handoff template snapshots', () => {
     expect(template).toContain('## Assets requested');
     expect(template).toContain('## Budgets and conventions');
     expect(template).toContain('## Style reference');
+    expect(template).toContain('## Perspective');
     expect(template).toContain('## Spec consumer');
     expect(template).toContain('## Existing assets');
     expect(template).toContain('## Deliverable mode');
