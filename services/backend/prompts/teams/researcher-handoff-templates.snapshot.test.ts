@@ -49,7 +49,9 @@ describe('researcher handoff template snapshots', () => {
     expect(template).toContain('### When to research');
     expect(template).toContain('a new library, API, external service');
     expect(template).toContain('an unfamiliar subsystem');
-    expect(template).toContain('several plausible designs');
+    expect(template).toContain(
+      'several plausible approaches that depends on facts not yet in the repository'
+    );
     expect(template).toContain('Skip research when the change is a small, well-understood edit');
     expect(template).toContain('report only');
     expect(template).toContain('do not edit files');

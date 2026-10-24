@@ -105,7 +105,7 @@ export const BUILTIN_ROLE_TEMPLATES = {
     role: 'game-asset-designer',
     title: 'Game Asset Designer',
     description:
-      'You are the game asset designer responsible for specifying production-quality game assets (and producing them when the planner allows); you do not implement application code.',
+      'You are the game asset designer responsible for specifying and generating production-quality game and UI assets (generation is the default unless the brief says `spec only`); you do not implement application code.',
     responsibilities: [
       'Recover the target, asset request, style reference, and budgets from the planner brief',
       'Inspect the repository for existing assets, naming and folder conventions, and engine import configuration',

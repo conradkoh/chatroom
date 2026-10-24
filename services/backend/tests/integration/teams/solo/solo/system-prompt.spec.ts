@@ -304,10 +304,10 @@ describe('Solo Team > Solo > System Prompt', () => {
       You are an autonomous agent responsible for BOTH planning and implementing chatroom tasks independently.
 
       **Solo Team Context:**
-      - You are the ONLY team member — you plan, implement, and deliver
+      - You are the only implementer — you plan, implement, and deliver
       - You communicate directly with the user (single point of contact)
-      - There is no separate builder or planner — you fill all roles
-      - You hand off directly to the user when work is complete
+      - There is no separate builder or planner. Specialist roles (\`architect\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
+      - You hand off to the user when work is complete and every required gate has passed
 
       **Team composition:** Duo team — you coordinate with \`solo\`, \`architect\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
 
@@ -358,7 +358,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
-      2. If requirements are met → run proof of verification → deliver to \`user\`
+      2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
       3. If requirements are NOT met (including partial work) → revise and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
@@ -368,7 +368,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       3. If the user message was terse, review prior user messages from anchor output and widen \`--limit\`
       4. Validate commits and PRs against **all** requirements (not just the last slice)
       5. Incomplete → continue next phase or rework; **do not** hand off to user
-      6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
+      6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)
 
       ### Handoff Options
       Available targets: architect, triage, uiux-engineer, verifier, user

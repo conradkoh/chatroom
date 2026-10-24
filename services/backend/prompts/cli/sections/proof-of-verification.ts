@@ -29,5 +29,5 @@ export function getProofOfVerificationSection(params: HistoryRetrievalGuidancePa
 3. If the user message was terse, review prior user messages from anchor output and widen \`--limit\`
 4. Validate commits and PRs against **all** requirements (not just the last slice)
 5. Incomplete → continue next phase or rework; **do not** hand off to user
-6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)`;
+6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)`;
 }

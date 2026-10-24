@@ -32,7 +32,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Perspective
-<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not applicable.\` for 3D models and audio; or \`Not specified.\`>
+<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not Applicable.\` for 3D models and audio; or \`Not specified.\`>
 
 ## Model
 <\`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset>
@@ -79,7 +79,7 @@ Instructions after the body (not part of the message): the planner may append ex
 - assets must meet engine import conventions or budgets before a builder integrates them;
 - the user asks for an asset spec, style sheet, or asset audit.
 
-Skip it for code-only work and for a trivial asset rename. Non-game UI icons and illustrations also go to this role; they are not sent to \`uiux-engineer\`.
+Skip it for code-only work. Non-game UI icons and illustrations also go to this role; they are not sent to \`uiux-engineer\`.
 
 \`\`\`bash
 ${handoffCommand({

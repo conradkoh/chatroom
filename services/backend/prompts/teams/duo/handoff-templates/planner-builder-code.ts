@@ -12,7 +12,7 @@ import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance
 function getPlannerBuilderCodeBody(): string {
   return `${getDelegationBriefIntro()}
 
-**Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved design choice), hand off to \`researcher\` first and delegate only after its brief returns. Skip this for small, well-understood edits. The \`researcher\` handoff template defines the criteria.
+**Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved choice that depends on missing facts), hand off to \`researcher\` first and delegate only after its brief returns. Skip this when the \`researcher\` template's skip condition applies. The \`researcher\` handoff template defines the criteria.
 
 **Bug fixes:** if this slice fixes a reported bug, delegate only after a \`triage\` report for that bug has returned, and build the brief from its root cause and proposed fix. The \`triage\` handoff template defines the investigation.
 

@@ -35,7 +35,7 @@ describe('reviewer handoff template snapshots', () => {
     expect(template).toContain('### When to review');
     expect(template).toContain('a builder slice has just completed');
     expect(template).toContain('the user asks for a code review');
-    expect(template).toContain('Skip review for a trivial edit');
+    expect(template).toContain('Skip review only for an edit of a few lines in one file');
     expect(template).toContain('report only');
     expect(template).toContain('do not edit files');
     expect(template).toContain('next-role="reviewer"');

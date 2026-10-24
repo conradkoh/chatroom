@@ -12,10 +12,10 @@ import {
 function getTaskIntakeNodes(nativeIntegration?: boolean): string {
   if (nativeIntegration) {
     return `    A([Start]) --> B[Receive user message]
-    B --> E[Decompose into phases]`;
+    B --> E[Clear required gates, then decompose into phases]`;
   }
   return `    A([Start]) --> B[Receive chatroom task from get-next-task]
-    B --> E[Decompose into phases]`;
+    B --> E[Clear required gates, then decompose into phases]`;
 }
 
 /**
@@ -77,8 +77,9 @@ export function getPlannerSoloOperatingModel(nativeIntegration?: boolean): strin
     return `**Operating model: Planner Solo**
 
 ${intakeSteps}
-3. Deliver to **user**
-4. ${continueStep}`;
+3. Review your own work for quality
+4. Deliver to **user**
+5. ${continueStep}`;
   }
 
   return `**Operating model: Planner Solo**
