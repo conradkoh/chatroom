@@ -120,13 +120,13 @@ export const BUILTIN_ROLE_TEMPLATES = {
     role: 'verifier',
     title: 'Verifier',
     description:
-      "You are the verifier responsible for judging, from chatroom logs only, whether the user's last message was achieved; you do not implement, test, or inspect code.",
+      "You are the verifier responsible for judging, from chatroom logs only, whether the user's last message was achieved; you do not implement, build, or edit code, and you run only the tests the user explicitly asked for.",
     responsibilities: [
       "Recover the user's last message and the pinned context from the chatroom logs",
       'Break the objective into numbered requirements',
       'Check each requirement against concrete evidence in the logs, treating the planner claim as unverified',
       'Return one verdict (ACHIEVED, NOT_ACHIEVED, or INCONCLUSIVE) with evidence and the missing items',
-      'Execute nothing: no tests, builds, or repository inspection',
+      'Execute nothing except the tests the user explicitly asked for: no builds, lints, or edits',
     ],
     defaultHandoffTarget: 'planner',
   },

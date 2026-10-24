@@ -41,7 +41,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <a JSON object as text passed to \`generate-image --input\`; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none>
 
 ## Spec consumer
-<who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
+<who integrates these assets from the spec: \`builder\` (application logic outside the allowed edit paths) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
 
 ## Existing assets
 <repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
@@ -149,7 +149,7 @@ Write exactly \`None.\` if no sheet was used.
 <every property you could not measure or inspect; write exactly \`None.\` if none>
 
 ## Recommended next step
-<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (integrate, or apply the listed import settings), \`uiux-engineer\` (layout, component, or styling changes only, never asset files), or \`planner\` (decision needed on an open question); then the affected asset IDs>
+<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (application logic outside the allowed edit paths), \`uiux-engineer\` (layout, component, or styling changes only, never asset files), or \`planner\` (decision needed on an open question); then the affected asset IDs>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 
