@@ -62,7 +62,7 @@ function parseSeed(value: string): number {
 const HELP_AFTER = `
 Examples:
   chatroom generate-image --platform=fal --prompt "a hero" --out hero.png
-  chatroom generate-image --platform=fal --model fal-ai/moss-image --prompt '{"summary":{"canvas":"single"},"items":[]}' --input '{"image_size":{"width":1024,"height":768},"enable_prompt_expansion":false}' --output-format png --out sheet.png
+  chatroom generate-image --platform=fal --prompt 'pixel-art potion, transparent-friendly flat background' --output-format png --out potion.png
 `;
 
 export function registerGenerateImageCommand(program: Command): void {

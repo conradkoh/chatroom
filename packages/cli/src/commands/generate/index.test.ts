@@ -300,8 +300,8 @@ describe('chatroom generate-image wiring', () => {
       },
     });
     command?.outputHelp();
-    expect(afterHelp).toContain('fal-ai/moss-image');
-    expect(afterHelp).toContain('enable_prompt_expansion');
+    expect(afterHelp).toContain('fal-ai/flux-2/flash');
+    expect(afterHelp).toContain('pixel-art potion');
   });
 
   it('does not expose the old `generate image` group form', async () => {

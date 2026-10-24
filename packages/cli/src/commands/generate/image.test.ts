@@ -226,7 +226,7 @@ describe('generateImage', () => {
       {
         prompt: 'a layout',
         out: OUT_PATH,
-        model: 'fal-ai/moss-image',
+        model: 'fal-ai/flux-2/flash',
         input,
         outputFormat: 'png',
       },
@@ -234,7 +234,7 @@ describe('generateImage', () => {
     );
 
     const expected = { prompt: 'a layout', ...input, output_format: 'png' };
-    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/moss-image', expected);
+    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/flux-2/flash', expected);
     const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
       string,
       unknown
