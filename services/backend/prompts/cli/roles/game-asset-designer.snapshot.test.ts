@@ -41,10 +41,7 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).toContain('remove-image-background --help');
     expect(guidance).toContain('R9');
     expect(guidance).toContain('--trim');
-    expect(guidance).toContain('--input');
-    expect(guidance).toContain('enable_prompt_expansion');
-    expect(guidance).toContain('pixels from the canvas centre');
-    expect(guidance).toContain('fal-ai/moss-image');
+    expect(guidance).toContain('fal-ai/flux-2/flash');
     expect(guidance).toContain('spec only');
     expect(guidance).toContain('quote the exact error');
     expect(guidance).toContain('Do not install or run any remote tool');

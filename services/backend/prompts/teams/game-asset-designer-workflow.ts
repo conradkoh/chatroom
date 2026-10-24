@@ -6,7 +6,7 @@
  */
 
 export const GAME_ASSET_RULES: readonly string[] = [
-  'Generate only with `chatroom generate-image --platform=fal`, using the CLI default model unless the brief names one.',
+  'Generate only with `chatroom generate-image --platform=fal`, using the CLI default model `fal-ai/flux-2/flash` unless the brief names one.',
   'Process images only with `chatroom slice-image` and `chatroom remove-image-background`; no other tool, script, or remote service.',
   "A sheet is at most the brief's `Sheet grid` (default 2x2); a larger grid needs a user request quoted in the brief.",
   'Names come from looking at each tile, never from cell order or prompt order.',
@@ -15,7 +15,6 @@ export const GAME_ASSET_RULES: readonly string[] = [
   'Mark `pass` or `fail` only with `measured` or `inspected` evidence (labels below).',
   'Run `<command> --help` before first use of `slice-image` or `remove-image-background`.',
   'Always pass `--trim` to `chatroom remove-image-background`; use `--trim-padding` only when the brief names a padding.',
-  'Positioned sheets use exact layout JSON for the model that supports it (currently `fal-ai/moss-image`): the layout goes in `--prompt`, and `image_size` must equal the canvas the coordinates use. Bboxes are `[y_min,x_min,y_max,x_max]` in pixels from the canvas centre, y down, x right. `enable_prompt_expansion` is false for positioned layouts. Use `--output-format png`. Never pass `--aspect-ratio` to moss. Do not add model-specific values that the brief does not name.',
   'If `generate-image` is missing, `FAL_API_KEY` is not set, or it fails, stop generation, deliver `spec only`, quote the exact error in Summary, and list it under Open questions. Do not retry in a loop.',
   'Do not install or run any remote tool, script, or skill, and do not fetch generator code.',
   'Never switch generators.',

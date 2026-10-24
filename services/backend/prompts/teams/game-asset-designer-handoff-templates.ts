@@ -32,7 +32,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Model
-<the CLI default \`fal-ai/flux-2/flash\`, or \`fal-ai/moss-image\` when the brief names it>
+<the CLI default \`fal-ai/flux-2/flash\`>
 
 ## Model parameters
 <a JSON object as text passed to \`generate-image --input\`; \`Not specified.\` if none>
