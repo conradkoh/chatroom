@@ -180,6 +180,52 @@ The URL is written verbatim to `<out>.json` in both `inputImage.url` and
 assets that will be committed. An uploaded file's URL expires after one day, so
 the recorded `inputImage.url` and `input.image_urls` stop working after that.
 
+## Keep one perspective across a set
+
+Assets used together, such as the tiles of one level or the sprites of one
+character, should share one camera perspective. Neither `fal-ai/flux-2/flash`
+nor `fal-ai/flux-2/flash/edit` has a perspective parameter, so consistency comes
+from the prompt and the request settings. Check every result by eye, generate
+several variations, and keep only the ones that match.
+
+**Verified (fal and Black Forest Labs documentation):**
+
+- FLUX.2 has no negative prompt, and neither endpoint has a `negative_prompt`
+  field. Describe what you want rather than what to avoid. For example, write
+  `straight-on orthographic view, parallel edges, level camera, flat even
+lighting` instead of listing "perspective distortion, vanishing point,
+  fisheye, worm's-eye view, camera tilt".
+- Both endpoints accept `seed` and `image_size`. Their default sizes differ
+  (`landscape_4_3` for text-to-image, `square_hd` for editing), so pass the
+  same explicit `image_size` on every call in a set.
+
+**Not verified against FLUX.2 (community practice; no guarantee):**
+
+- Name one perspective and repeat it word for word in every prompt of the set:
+  `side view`, `front view`, `orthographic top-down`, `orthographic isometric`,
+  `dimetric 2:1`, or `three-quarter view`. fal and Black Forest Labs document
+  only `low angle`, `bird's-eye`, and `eye level` as camera-angle terms.
+- Add the same flattening terms to every prompt: `flat 2D game asset`,
+  `orthographic`, `no perspective`, `centered`, `plain background`,
+  `even lighting`. Terms phrased as "no …" are exclusions; FLUX.2 guidance
+  favours describing what you want, so prefer the positive terms if results
+  drift.
+- Reusing one `--seed` may reduce variation between calls, but fal does not
+  document same-seed reproducibility, and the same seed does not keep the
+  perspective when the prompt changes.
+- To match an existing asset, try `--input-image <existing-asset>` (see
+  [Editing an image](#editing-an-image)). The edit model is not documented to
+  carry a reference's perspective over to new content, and it may return a
+  modified copy of the input instead.
+
+```bash
+chatroom generate-image \
+  --prompt "health potion, orthographic front view, flat 2D game asset, centered, plain background, even lighting" \
+  --input '{"image_size":"square_hd"}' \
+  --seed 42 \
+  --out assets/sprites/health-potion.png
+```
+
 ## The manifest
 
 Every image gets a `<out>.json` sidecar with the provenance of the generation:
