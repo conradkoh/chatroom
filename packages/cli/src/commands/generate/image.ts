@@ -11,10 +11,12 @@ import { createHash } from 'node:crypto';
 import { extname, resolve } from 'node:path';
 
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
+import {
+  FLUX_2_FLASH_EDIT_MODEL,
+  getModelCapability,
+  type ModelCapability,
+} from './model-capabilities.js';
 
-export const DEFAULT_IMAGE_MODEL = 'fal-ai/flux-2/flash';
-/** Image-to-image edit model used when `--input-image` is set and `--model` is omitted. */
-export const DEFAULT_IMAGE_EDIT_MODEL = 'fal-ai/flux-2/flash/edit';
 /**
  * Generation platforms the CLI can call today. New platforms are added here
  * and dispatched in `generateImage`; the flag and manifest field already exist
@@ -41,7 +43,8 @@ export interface GenerateImageOptions {
   prompt: string;
   out: string;
   platform?: GenerateImagePlatform | undefined;
-  model?: string | undefined;
+  /** Required fal model id; the command has no default model. */
+  model: string;
   aspectRatio?: string | undefined;
   outputFormat?: ImageOutputFormat | undefined;
   seed?: number | undefined;
@@ -381,18 +384,54 @@ function buildManifest(args: {
   };
 }
 
-/**
- * Resolve `--input-image` into a trimmed value. The edit model sizes output
- * with `image_size`, so `--aspect-ratio` is refused before any file I/O.
- */
-function resolveInputImageOption(opts: GenerateImageOptions): string | undefined {
-  if (opts.inputImage === undefined) return undefined;
-  if (opts.aspectRatio !== undefined) {
+// fallow-ignore-next-line complexity
+function requireTaskPairing(
+  capability: ModelCapability,
+  model: string,
+  inputImage: string | undefined
+): void {
+  if (capability.task === 'image-edit' && inputImage === undefined) {
+    throw new GenerateImageError(`${model} edits an image; pass --input-image <path-or-url>.`);
+  }
+  if (capability.task === 'text-to-image' && inputImage !== undefined) {
     throw new GenerateImageError(
-      `--aspect-ratio is not supported with --input-image. Pass --input '{"image_size":"landscape_4_3"}' instead.`
+      `${model} does not take an input image; use --model ${FLUX_2_FLASH_EDIT_MODEL} with --input-image.`
     );
   }
-  return requireNonEmpty(opts.inputImage, '--input-image must not be empty.');
+}
+
+function requireAspectRatioSupport(
+  capability: ModelCapability,
+  model: string,
+  aspectRatio: string | undefined
+): void {
+  if (aspectRatio === undefined) return;
+  const support = capability.params.aspect_ratio;
+  if (support?.support !== 'unsupported') return;
+  throw new GenerateImageError(`--aspect-ratio is not supported by ${model}. ${support.reason}`);
+}
+
+/**
+ * Refuse known model/flag mismatches before any file I/O or network call.
+ * Unknown model ids are passed through unchanged, matching the CLI's promise
+ * to forward arbitrary fal models.
+ */
+function requireModelPairing(
+  model: string,
+  inputImage: string | undefined,
+  aspectRatio: string | undefined
+): void {
+  const capability = getModelCapability(model);
+  if (capability === undefined) return;
+  requireTaskPairing(capability, model, inputImage);
+  requireAspectRatioSupport(capability, model, aspectRatio);
+}
+
+/** Trim `--input-image`, or return undefined when the flag is absent. */
+function resolveInputImageOption(opts: GenerateImageOptions): string | undefined {
+  return opts.inputImage === undefined
+    ? undefined
+    : requireNonEmpty(opts.inputImage, '--input-image must not be empty.');
 }
 
 /** A validated input image: a public URL or a local file waiting to be uploaded. */
@@ -482,6 +521,7 @@ export async function generateImage(
 
   requireFalKey(deps);
 
+  const model = requireNonEmpty(opts.model, '--model must not be empty.');
   const prompt = requireNonEmpty(opts.prompt, '--prompt must not be empty.');
   const outPath = resolve(requireNonEmpty(opts.out, '--out must not be empty.'));
   requireSupportedExtension(outPath);
@@ -489,6 +529,7 @@ export async function generateImage(
     requireFormatMatchesExtension(outPath, opts.outputFormat);
   }
   const inputImage = resolveInputImageOption(opts);
+  requireModelPairing(model, inputImage, opts.aspectRatio);
   validateInputOption(opts);
   // Validate before creating the output directory; only the upload waits until
   // every output and format check has passed.
@@ -502,9 +543,6 @@ export async function generateImage(
 
   const preparedInput = await uploadInputImage(deps, inputTarget);
 
-  const model =
-    opts.model ??
-    (preparedInput.url !== undefined ? DEFAULT_IMAGE_EDIT_MODEL : DEFAULT_IMAGE_MODEL);
   const input = buildInput(prompt, opts, preparedInput.url);
   const saved = await generateAndSave(deps, model, input, outPath);
 

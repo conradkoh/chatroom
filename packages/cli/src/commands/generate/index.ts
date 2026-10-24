@@ -12,14 +12,13 @@ import { InvalidArgumentError, type Command } from 'commander';
 
 import {
   DEFAULT_GENERATE_IMAGE_PLATFORM,
-  DEFAULT_IMAGE_EDIT_MODEL,
-  DEFAULT_IMAGE_MODEL,
   GENERATE_IMAGE_PLATFORMS,
   generateImage,
   parseInputJson,
 } from './image.js';
 import type { GenerateImagePlatform, ImageOutputFormat } from './image.js';
 import { MAX_SIDECAR_BYTES } from './local-image-common.js';
+import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
 
 const OUTPUT_FORMATS: readonly ImageOutputFormat[] = ['png', 'webp'];
 
@@ -62,16 +61,16 @@ function parseSeed(value: string): number {
 
 const HELP_AFTER = `
 Examples:
-  chatroom generate-image --platform=fal --prompt "a hero" --out hero.png
-  chatroom generate-image --platform=fal --prompt 'pixel-art potion, transparent-friendly flat background' --output-format png --out potion.png
-  chatroom generate-image --platform=fal --prompt "make the sky stormy" --input-image ./hero.png --out hero-stormy.png
+  chatroom generate-image --platform=fal --model ${FLUX_2_FLASH_MODEL} --prompt "a hero" --out hero.png
+  chatroom generate-image --platform=fal --model ${FLUX_2_FLASH_MODEL} --prompt 'pixel-art potion, transparent-friendly flat background' --output-format png --out potion.png
+  chatroom generate-image --platform=fal --model ${FLUX_2_FLASH_EDIT_MODEL} --prompt "make the sky stormy" --input-image ./hero.png --out hero-stormy.png
 `;
 
 interface GenerateImageCliOptions {
   prompt: string;
   out: string;
   platform: GenerateImagePlatform;
-  model?: string | undefined;
+  model: string;
   aspectRatio?: string | undefined;
   outputFormat?: ImageOutputFormat | undefined;
   seed?: number | undefined;
@@ -121,13 +120,13 @@ export function registerGenerateImageCommand(program: Command): void {
       parsePlatform,
       DEFAULT_GENERATE_IMAGE_PLATFORM
     )
-    .option(
+    .requiredOption(
       '--model <id>',
-      `Recommended fal model id. Default: ${DEFAULT_IMAGE_MODEL}, or ${DEFAULT_IMAGE_EDIT_MODEL} with --input-image`
+      `fal model id (required), for example ${FLUX_2_FLASH_MODEL}, or ${FLUX_2_FLASH_EDIT_MODEL} with --input-image`
     )
     .option(
       '--aspect-ratio <ratio>',
-      `Aspect ratio, e.g. 1:1, 4:3, 16:9, 9:16 (omitted = model default). Not supported by the default model ${DEFAULT_IMAGE_MODEL}, which uses its own image size. Not supported with --input-image`
+      'Aspect ratio for models that take one, e.g. 1:1, 16:9 (omitted = model default). Rejected for models the CLI knows do not support it'
     )
     .option(
       '--output-format <format>',
@@ -141,7 +140,7 @@ export function registerGenerateImageCommand(program: Command): void {
     )
     .option(
       '--input-image <path-or-url>',
-      `Edit an image with ${DEFAULT_IMAGE_EDIT_MODEL}. A local file (.png, .jpg, .jpeg, .webp, .gif) is uploaded to fal; an http(s) URL is passed through. Without --model, the edit model is used`
+      `Image to edit: a local .png, .jpg, .jpeg, .webp, or .gif (uploaded to fal) or an http(s) URL. Requires an edit model such as ${FLUX_2_FLASH_EDIT_MODEL}`
     )
     .option('--force', 'Overwrite existing output and manifest files')
     .addHelpText('after', HELP_AFTER)

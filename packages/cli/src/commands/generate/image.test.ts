@@ -11,14 +11,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
-import {
-  DEFAULT_IMAGE_EDIT_MODEL,
-  DEFAULT_IMAGE_MODEL,
-  GenerateImageError,
-  generateImage,
-  parseInputJson,
-} from './image.js';
+import { GenerateImageError, generateImage, parseInputJson } from './image.js';
 import type { GenerateImagePlatform } from './image.js';
+import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const OUT_PATH = '/tmp/generated/hero.png';
@@ -71,14 +66,12 @@ async function captureError(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe('generateImage', () => {
-  it('defaults to the recommended FLUX 2 Flash model', () => {
-    expect(DEFAULT_IMAGE_MODEL).toBe('fal-ai/flux-2/flash');
-  });
-
   it('rejects when FAL_API_KEY is missing and makes no fal call', async () => {
     const deps = createDeps({ env: {} });
 
-    const error = await captureError(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps));
+    const error = await captureError(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    );
 
     expect(error.message).toContain('FAL_API_KEY is not set');
     expect(error.message).toContain('FAL_KEY_ID/FAL_KEY_SECRET are not supported');
@@ -89,27 +82,27 @@ describe('generateImage', () => {
   it('does not fall back to the old FAL_KEY name', async () => {
     const deps = createDeps({ env: { FAL_KEY: 'old-name-only' } });
 
-    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
-      'FAL_API_KEY is not set'
-    );
+    await expect(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    ).rejects.toThrow('FAL_API_KEY is not set');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
   it('rejects an empty prompt', async () => {
     const deps = createDeps();
 
-    await expect(generateImage({ prompt: '   ', out: OUT_PATH }, deps)).rejects.toThrow(
-      '--prompt must not be empty'
-    );
+    await expect(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: '   ', out: OUT_PATH }, deps)
+    ).rejects.toThrow('--prompt must not be empty');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
   it('rejects an empty out path', async () => {
     const deps = createDeps();
 
-    await expect(generateImage({ prompt: 'a hero', out: '  ' }, deps)).rejects.toThrow(
-      '--out must not be empty'
-    );
+    await expect(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: '  ' }, deps)
+    ).rejects.toThrow('--out must not be empty');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
@@ -118,7 +111,12 @@ describe('generateImage', () => {
 
     await expect(
       generateImage(
-        { prompt: 'a hero', out: OUT_PATH, platform: 'replicate' as GenerateImagePlatform },
+        {
+          model: FLUX_2_FLASH_MODEL,
+          prompt: 'a hero',
+          out: OUT_PATH,
+          platform: 'replicate' as GenerateImagePlatform,
+        },
         deps
       )
     ).rejects.toThrow('unsupported platform: replicate');
@@ -129,7 +127,7 @@ describe('generateImage', () => {
   it('defaults the platform to fal', async () => {
     const deps = createDeps();
 
-    await generateImage({ prompt: 'a castle', out: OUT_PATH }, deps);
+    await generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a castle', out: OUT_PATH }, deps);
 
     const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
       string,
@@ -141,7 +139,10 @@ describe('generateImage', () => {
   it('records an explicitly selected fal platform', async () => {
     const deps = createDeps();
 
-    await generateImage({ prompt: 'a castle', out: OUT_PATH, platform: 'fal' }, deps);
+    await generateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a castle', out: OUT_PATH, platform: 'fal' },
+      deps
+    );
 
     const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
       string,
@@ -158,9 +159,9 @@ describe('generateImage', () => {
       }),
     });
 
-    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
-      'fal returned no image for model fal-ai/flux-2/flash'
-    );
+    await expect(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    ).rejects.toThrow('fal returned no image for model fal-ai/flux-2/flash');
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
@@ -171,8 +172,7 @@ describe('generateImage', () => {
       {
         prompt: 'a knight in a forest',
         out: OUT_PATH,
-        model: 'fal-ai/flux-2/flash',
-        aspectRatio: '1:1',
+        model: FLUX_2_FLASH_MODEL,
         outputFormat: 'png',
         seed: 42,
       },
@@ -186,9 +186,8 @@ describe('generateImage', () => {
       sha256: expectedSha,
     });
 
-    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/flux-2/flash', {
+    expect(deps.falSubscribe).toHaveBeenCalledWith(FLUX_2_FLASH_MODEL, {
       prompt: 'a knight in a forest',
-      aspect_ratio: '1:1',
       output_format: 'png',
       seed: 42,
     });
@@ -200,10 +199,9 @@ describe('generateImage', () => {
     >;
     expect(manifest.tool).toBe('chatroom generate-image');
     expect(manifest.sdk).toBe('@fal-ai/client@1.10.1');
-    expect(manifest.model).toBe('fal-ai/flux-2/flash');
+    expect(manifest.model).toBe(FLUX_2_FLASH_MODEL);
     expect(manifest.input).toEqual({
       prompt: 'a knight in a forest',
-      aspect_ratio: '1:1',
       output_format: 'png',
       seed: 42,
     });
@@ -256,10 +254,16 @@ describe('generateImage', () => {
     const deps = createDeps();
 
     await expect(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { seed: 1 } }, deps)
+      generateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, input: { seed: 1 } },
+        deps
+      )
     ).rejects.toThrow('use --seed instead');
     await expect(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { prompt: 'other' } }, deps)
+      generateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, input: { prompt: 'other' } },
+        deps
+      )
     ).rejects.toThrow('use --prompt instead');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
@@ -274,7 +278,13 @@ describe('generateImage', () => {
 
     const error = await captureError(
       generateImage(
-        { prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE, input: { [key]: 'x' } },
+        {
+          model: FLUX_2_FLASH_EDIT_MODEL,
+          prompt: 'a hero',
+          out: OUT_PATH,
+          inputImage: INPUT_IMAGE,
+          input: { [key]: 'x' },
+        },
         deps
       )
     );
@@ -291,6 +301,7 @@ describe('generateImage', () => {
     const error = await captureError(
       generateImage(
         {
+          model: FLUX_2_FLASH_EDIT_MODEL,
           prompt: 'a hero',
           out: OUT_PATH,
           inputImage: INPUT_IMAGE,
@@ -311,7 +322,10 @@ describe('generateImage', () => {
     const deps = createDeps();
 
     const error = await captureError(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { sync_mode: true } }, deps)
+      generateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, input: { sync_mode: true } },
+        deps
+      )
     );
 
     expect(error.message).toContain('sync_mode');
@@ -321,12 +335,18 @@ describe('generateImage', () => {
   it('allows num_images 1 but refuses extra images in --input', async () => {
     const deps = createDeps();
 
-    await generateImage({ prompt: 'a hero', out: OUT_PATH, input: { num_images: 1 } }, deps);
+    await generateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, input: { num_images: 1 } },
+      deps
+    );
     expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
 
     const refused = createDeps();
     const error = await captureError(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { num_images: 2 } }, refused)
+      generateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, input: { num_images: 2 } },
+        refused
+      )
     );
     expect(error.message).toContain('num_images must be 1');
     expect(refused.falSubscribe).not.toHaveBeenCalled();
@@ -345,7 +365,7 @@ describe('generateImage', () => {
       }),
     });
 
-    await generateImage({ prompt: 'a hero', out: OUT_PATH }, deps);
+    await generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps);
 
     expect(deps.warn).toHaveBeenCalledWith('⚠️ fal returned 2 images; only the first is saved.');
     expect(deps.fetchBytes).toHaveBeenCalledWith('https://fal.test/first.png');
@@ -384,9 +404,9 @@ describe('generateImage', () => {
   it('refuses to overwrite an existing output without --force', async () => {
     const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
 
-    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
-      `--out already exists: ${OUT_PATH}. Pass --force to overwrite.`
-    );
+    await expect(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    ).rejects.toThrow(`--out already exists: ${OUT_PATH}. Pass --force to overwrite.`);
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.ensureParentDir).not.toHaveBeenCalled();
   });
@@ -396,9 +416,9 @@ describe('generateImage', () => {
       pathStatus: pathStatusFor({ [`${OUT_PATH}.json`]: 'file' }),
     });
 
-    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
-      'Manifest already exists'
-    );
+    await expect(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    ).rejects.toThrow('Manifest already exists');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
@@ -407,7 +427,10 @@ describe('generateImage', () => {
       pathStatus: pathStatusFor({ [OUT_PATH]: 'file', [`${OUT_PATH}.json`]: 'file' }),
     });
 
-    await generateImage({ prompt: 'a hero', out: OUT_PATH, force: true }, deps);
+    await generateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, force: true },
+      deps
+    );
 
     expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, IMAGE_BYTES);
@@ -416,9 +439,9 @@ describe('generateImage', () => {
   it('refuses a directory output before generation', async () => {
     const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'directory' }) });
 
-    await expect(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps)).rejects.toThrow(
-      'is a directory'
-    );
+    await expect(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    ).rejects.toThrow('is a directory');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
@@ -426,7 +449,10 @@ describe('generateImage', () => {
     const deps = createDeps();
 
     await expect(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, outputFormat: 'webp' }, deps)
+      generateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, outputFormat: 'webp' },
+        deps
+      )
     ).rejects.toThrow('--output-format webp does not match the --out extension .png');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
@@ -437,7 +463,10 @@ describe('generateImage', () => {
       const deps = createDeps();
 
       await expect(
-        generateImage({ prompt: 'a hero', out: `/tmp/generated/hero${extension}` }, deps)
+        generateImage(
+          { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: `/tmp/generated/hero${extension}` },
+          deps
+        )
       ).rejects.toThrow(
         `Unsupported output extension ${extension.toLowerCase()}. Use .png or .webp (transparency-capable).`
       );
@@ -452,7 +481,10 @@ describe('generateImage', () => {
     ] as const) {
       const deps = createDeps();
 
-      await generateImage({ prompt: 'a hero', out, outputFormat: format }, deps);
+      await generateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out, outputFormat: format },
+        deps
+      );
 
       expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
     }
@@ -462,7 +494,7 @@ describe('generateImage', () => {
     const deps = createDeps();
     const relativeOut = 'relative/hero.png';
 
-    await generateImage({ prompt: 'a hero', out: relativeOut }, deps);
+    await generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: relativeOut }, deps);
 
     const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
       string,
@@ -474,7 +506,7 @@ describe('generateImage', () => {
   it('creates the parent directory before calling fal', async () => {
     const deps = createDeps();
 
-    await generateImage({ prompt: 'a hero', out: OUT_PATH }, deps);
+    await generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps);
 
     const ensureOrder = (deps.ensureParentDir as ReturnType<typeof vi.fn>).mock
       .invocationCallOrder[0];
@@ -489,7 +521,9 @@ describe('generateImage', () => {
       fetchBytes: vi.fn().mockRejectedValue(new Error('network down')),
     });
 
-    const error = await captureError(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps));
+    const error = await captureError(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    );
 
     expect(error.message).toContain('req-123');
     expect(error.message).toContain(IMAGE_URL);
@@ -503,7 +537,9 @@ describe('generateImage', () => {
       writeFile: vi.fn().mockRejectedValue(new Error('disk full')),
     });
 
-    const error = await captureError(generateImage({ prompt: 'a hero', out: OUT_PATH }, deps));
+    const error = await captureError(
+      generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    );
 
     expect(error.message).toContain('req-123');
     expect(error.message).toContain(IMAGE_URL);
@@ -516,7 +552,10 @@ describe('generateImage', () => {
       falSubscribe: vi.fn().mockResolvedValue(falResult({ seed: 777 })),
     });
 
-    await generateImage({ prompt: 'a castle', out: OUT_PATH, seed: 42 }, deps);
+    await generateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a castle', out: OUT_PATH, seed: 42 },
+      deps
+    );
 
     const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
       string,
@@ -525,17 +564,22 @@ describe('generateImage', () => {
     expect(manifest.seed).toBe(777);
   });
 
-  it('edits a local image with the default edit model', async () => {
+  it('edits a local image with the edit model', async () => {
     const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }) });
 
     await generateImage(
-      { prompt: 'make the sky stormy', out: OUT_PATH, inputImage: INPUT_IMAGE },
+      {
+        model: FLUX_2_FLASH_EDIT_MODEL,
+        prompt: 'make the sky stormy',
+        out: OUT_PATH,
+        inputImage: INPUT_IMAGE,
+      },
       deps
     );
 
     expect(deps.uploadFile).toHaveBeenCalledTimes(1);
     expect(deps.uploadFile).toHaveBeenCalledWith(INPUT_IMAGE, 'image/png');
-    expect(deps.falSubscribe).toHaveBeenCalledWith(DEFAULT_IMAGE_EDIT_MODEL, {
+    expect(deps.falSubscribe).toHaveBeenCalledWith(FLUX_2_FLASH_EDIT_MODEL, {
       prompt: 'make the sky stormy',
       image_urls: [UPLOADED_IMAGE_URL],
     });
@@ -544,7 +588,7 @@ describe('generateImage', () => {
       string,
       unknown
     >;
-    expect(manifest.model).toBe(DEFAULT_IMAGE_EDIT_MODEL);
+    expect(manifest.model).toBe(FLUX_2_FLASH_EDIT_MODEL);
     expect(manifest.input).toEqual({
       prompt: 'make the sky stormy',
       image_urls: [UPLOADED_IMAGE_URL],
@@ -556,12 +600,17 @@ describe('generateImage', () => {
     const deps = createDeps();
 
     await generateImage(
-      { prompt: 'make it night', out: OUT_PATH, inputImage: INPUT_IMAGE_URL },
+      {
+        model: FLUX_2_FLASH_EDIT_MODEL,
+        prompt: 'make it night',
+        out: OUT_PATH,
+        inputImage: INPUT_IMAGE_URL,
+      },
       deps
     );
 
     expect(deps.uploadFile).not.toHaveBeenCalled();
-    expect(deps.falSubscribe).toHaveBeenCalledWith(DEFAULT_IMAGE_EDIT_MODEL, {
+    expect(deps.falSubscribe).toHaveBeenCalledWith(FLUX_2_FLASH_EDIT_MODEL, {
       prompt: 'make it night',
       image_urls: [INPUT_IMAGE_URL],
     });
@@ -571,23 +620,6 @@ describe('generateImage', () => {
       unknown
     >;
     expect(manifest.inputImage).toEqual({ source: INPUT_IMAGE_URL, url: INPUT_IMAGE_URL });
-  });
-
-  it('keeps text-to-image behaviour without --input-image', async () => {
-    const deps = createDeps();
-
-    await generateImage({ prompt: 'a castle', out: OUT_PATH }, deps);
-
-    expect(deps.uploadFile).not.toHaveBeenCalled();
-    expect(deps.falSubscribe).toHaveBeenCalledWith(DEFAULT_IMAGE_MODEL, { prompt: 'a castle' });
-
-    const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
-      string,
-      unknown
-    >;
-    expect(manifest.model).toBe(DEFAULT_IMAGE_MODEL);
-    expect(manifest.input).not.toHaveProperty('image_urls');
-    expect(manifest.inputImage).toBeNull();
   });
 
   it('uses an explicit --model even with --input-image', async () => {
@@ -605,22 +637,86 @@ describe('generateImage', () => {
     });
   });
 
-  it('rejects --aspect-ratio with --input-image before any upload or fal call', async () => {
+  it('rejects an empty --model before any file or fal work', async () => {
+    const deps = createDeps();
+
+    const error = await captureError(
+      generateImage({ model: '   ', prompt: 'a hero', out: OUT_PATH }, deps)
+    );
+
+    expect(error.message).toBe('--model must not be empty.');
+    expect(deps.pathStatus).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('rejects the edit model without --input-image before any file or fal work', async () => {
+    const deps = createDeps();
+
+    const error = await captureError(
+      generateImage({ model: FLUX_2_FLASH_EDIT_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    );
+
+    expect(error.message).toBe(
+      `${FLUX_2_FLASH_EDIT_MODEL} edits an image; pass --input-image <path-or-url>.`
+    );
+    expect(deps.pathStatus).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('rejects the text model with --input-image before any file or fal work', async () => {
     const deps = createDeps();
 
     const error = await captureError(
       generateImage(
-        { prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE, aspectRatio: '1:1' },
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE },
         deps
       )
     );
 
-    expect(error).toBeInstanceOf(GenerateImageError);
     expect(error.message).toBe(
-      `--aspect-ratio is not supported with --input-image. Pass --input '{"image_size":"landscape_4_3"}' instead.`
+      `${FLUX_2_FLASH_MODEL} does not take an input image; use --model ${FLUX_2_FLASH_EDIT_MODEL} with --input-image.`
     );
+    expect(deps.pathStatus).not.toHaveBeenCalled();
     expect(deps.uploadFile).not.toHaveBeenCalled();
     expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { model: FLUX_2_FLASH_MODEL, inputImage: undefined },
+    { model: FLUX_2_FLASH_EDIT_MODEL, inputImage: INPUT_IMAGE },
+  ])(
+    'rejects --aspect-ratio for $model before any file or fal work',
+    async ({ model, inputImage }) => {
+      const deps = createDeps();
+
+      const error = await captureError(
+        generateImage(
+          { model, prompt: 'a hero', out: OUT_PATH, inputImage, aspectRatio: '1:1' },
+          deps
+        )
+      );
+
+      expect(error.message).toContain(`--aspect-ratio is not supported by ${model}.`);
+      expect(deps.pathStatus).not.toHaveBeenCalled();
+      expect(deps.uploadFile).not.toHaveBeenCalled();
+      expect(deps.falSubscribe).not.toHaveBeenCalled();
+    }
+  );
+
+  it('passes --aspect-ratio through for an unknown model', async () => {
+    const deps = createDeps();
+
+    await generateImage(
+      { model: 'acme/custom', prompt: 'a hero', out: OUT_PATH, aspectRatio: '1:1' },
+      deps
+    );
+
+    expect(deps.falSubscribe).toHaveBeenCalledWith('acme/custom', {
+      prompt: 'a hero',
+      aspect_ratio: '1:1',
+    });
   });
 
   it.each(['missing', 'directory'] as const)(
@@ -629,7 +725,15 @@ describe('generateImage', () => {
       const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: status }) });
 
       const error = await captureError(
-        generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE }, deps)
+        generateImage(
+          {
+            model: FLUX_2_FLASH_EDIT_MODEL,
+            prompt: 'a hero',
+            out: OUT_PATH,
+            inputImage: INPUT_IMAGE,
+          },
+          deps
+        )
       );
 
       expect(error.message).toContain(`--input-image is not a file: ${INPUT_IMAGE}`);
@@ -643,7 +747,15 @@ describe('generateImage', () => {
     const deps = createDeps({ pathStatus: pathStatusFor({ [unsupported]: 'file' }) });
 
     const error = await captureError(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: unsupported }, deps)
+      generateImage(
+        {
+          model: FLUX_2_FLASH_EDIT_MODEL,
+          prompt: 'a hero',
+          out: OUT_PATH,
+          inputImage: unsupported,
+        },
+        deps
+      )
     );
 
     expect(error.message).toContain('Unsupported --input-image extension .bmp');
@@ -658,7 +770,15 @@ describe('generateImage', () => {
     });
 
     await expect(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE }, deps)
+      generateImage(
+        {
+          model: FLUX_2_FLASH_EDIT_MODEL,
+          prompt: 'a hero',
+          out: OUT_PATH,
+          inputImage: INPUT_IMAGE,
+        },
+        deps
+      )
     ).rejects.toThrow(`--out already exists: ${OUT_PATH}`);
 
     expect(deps.uploadFile).not.toHaveBeenCalled();
@@ -670,7 +790,13 @@ describe('generateImage', () => {
 
     await expect(
       generateImage(
-        { prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE, outputFormat: 'webp' },
+        {
+          model: FLUX_2_FLASH_EDIT_MODEL,
+          prompt: 'a hero',
+          out: OUT_PATH,
+          inputImage: INPUT_IMAGE,
+          outputFormat: 'webp',
+        },
         deps
       )
     ).rejects.toThrow('--output-format webp does not match the --out extension .png');
@@ -684,7 +810,12 @@ describe('generateImage', () => {
 
     await expect(
       generateImage(
-        { prompt: 'a hero', out: '/tmp/generated/hero.jpg', inputImage: INPUT_IMAGE },
+        {
+          model: FLUX_2_FLASH_EDIT_MODEL,
+          prompt: 'a hero',
+          out: '/tmp/generated/hero.jpg',
+          inputImage: INPUT_IMAGE,
+        },
         deps
       )
     ).rejects.toThrow('Unsupported output extension .jpg');
@@ -697,7 +828,15 @@ describe('generateImage', () => {
     const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'missing' }) });
 
     await expect(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE }, deps)
+      generateImage(
+        {
+          model: FLUX_2_FLASH_EDIT_MODEL,
+          prompt: 'a hero',
+          out: OUT_PATH,
+          inputImage: INPUT_IMAGE,
+        },
+        deps
+      )
     ).rejects.toThrow(`--input-image is not a file: ${INPUT_IMAGE}`);
 
     expect(deps.ensureParentDir).not.toHaveBeenCalled();
@@ -713,7 +852,15 @@ describe('generateImage', () => {
     });
 
     const error = await captureError(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE }, deps)
+      generateImage(
+        {
+          model: FLUX_2_FLASH_EDIT_MODEL,
+          prompt: 'a hero',
+          out: OUT_PATH,
+          inputImage: INPUT_IMAGE,
+        },
+        deps
+      )
     );
 
     expect(error).toBeInstanceOf(GenerateImageError);
