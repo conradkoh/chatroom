@@ -17,6 +17,7 @@ import type { GenerateImagePlatform } from './image.js';
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const OUT_PATH = '/tmp/generated/hero.png';
 const IMAGE_URL = 'https://fal.test/generated/hero.png';
+const UPLOADED_IMAGE_URL = 'https://fal.test/uploaded/hero.png';
 const IMAGE_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
 function falResult(overrides: { seed?: number } = {}): FalImageResult {
@@ -33,6 +34,7 @@ function createDeps(overrides: Partial<GenerateImageDeps> = {}): GenerateImageDe
   return {
     env: { FAL_API_KEY },
     falSubscribe: vi.fn().mockResolvedValue(falResult()),
+    uploadFile: vi.fn().mockResolvedValue(UPLOADED_IMAGE_URL),
     fetchBytes: vi.fn().mockResolvedValue(IMAGE_BYTES),
     writeFile: vi.fn().mockResolvedValue(undefined),
     writeJson: vi.fn().mockResolvedValue(undefined),
