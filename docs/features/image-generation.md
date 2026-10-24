@@ -1,7 +1,7 @@
 # Image Generation (`chatroom generate-image`)
 
 **Status:** Implemented
-**Last Updated:** 2026-10-23
+**Last Updated:** 2026-10-24
 
 ---
 
@@ -132,6 +132,48 @@ Only pass `--aspect-ratio` to models that support it; see
 | `--output-format`   | `png` or `webp` (omitted = the model's own default); both keep transparency |
 | `--seed <n>`        | Integer seed for reproducible output when the model supports it             |
 | `--force`           | Replace an existing output and manifest                                     |
+
+## Editing an image
+
+Pass `--input-image` to edit an existing image with
+`fal-ai/flux-2/flash/edit` instead of generating from text alone:
+
+```bash
+chatroom generate-image \
+  --prompt "make the sky stormy with distant lightning" \
+  --input-image ./assets/sprites/hero.png \
+  --out assets/sprites/hero-stormy.png
+```
+
+`--input-image` accepts two forms:
+
+- A local file with a `.png`, `.jpg`, `.jpeg`, `.webp`, or `.gif` extension. The
+  file is uploaded to fal storage with a one-day lifetime, and only the returned
+  URL is sent to the model. Any other extension is rejected before the upload.
+- A public `http(s)` URL. It is passed to fal unchanged, so it must be reachable
+  without authentication for the duration of the call.
+
+The default model with `--input-image` is `fal-ai/flux-2/flash/edit`. An explicit
+`--model` overrides it; only use another model that accepts `prompt` and
+`image_urls`.
+
+The edit model sizes its output with `image_size` (default `square_hd`), not an
+aspect ratio. `--aspect-ratio` is rejected with `--input-image` before the paid
+call. Pass `image_size` through `--input` instead; width and height must each be
+between 512 and 2048:
+
+```bash
+chatroom generate-image \
+  --prompt "make the sky stormy" \
+  --input-image ./assets/sprites/hero.png \
+  --input '{"image_size":{"width":1024,"height":768}}' \
+  --out assets/sprites/hero-stormy.png
+```
+
+The manifest records the input in `inputImage`: `source` is the local absolute
+path or the URL exactly as given, and `url` is the value sent to fal in
+`image_urls`. Without `--input-image`, `inputImage` is `null`. `image_urls` is
+reserved in `--input`; pass the input image with `--input-image` instead.
 
 ## The manifest
 
