@@ -35,6 +35,8 @@ describe('game asset designer guidance snapshots', () => {
 
     expect(guidance).toContain('### RULES');
     expect(guidance).toContain('### PROCEDURE');
+    expect(guidance).toContain('### Perspective consistency');
+    expect(guidance).toContain('Do not send `negative_prompt`');
     expect(guidance).toContain('Proof of Principles');
     expect(guidance).toContain('Proof of Completion');
     expect(guidance).toContain('P8');
