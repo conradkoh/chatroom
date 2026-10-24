@@ -192,8 +192,8 @@ several variations, and keep only the ones that match.
 
 - FLUX.2 has no negative prompt, and neither endpoint has a `negative_prompt`
   field. Describe what you want rather than what to avoid. For example, write
-  `straight-on orthographic view, parallel edges, level camera, flat even
-lighting` instead of listing "perspective distortion, vanishing point,
+  `straight-on orthographic view, parallel edges, level camera, flat even lighting`
+  instead of listing "perspective distortion, vanishing point,
   fisheye, worm's-eye view, camera tilt".
 - Both endpoints accept `seed` and `image_size`. Their default sizes differ
   (`landscape_4_3` for text-to-image, `square_hd` for editing), so pass the
@@ -314,7 +314,7 @@ keying fails.
   input image with `--input-image`. It does not do video, audio, or 3D.
 - **No segmentation.** Segment-anything (SAM) style masks and cutouts are not
   supported.
-- **The default models ignore `--aspect-ratio`.** `fal-ai/flux-2/flash` and
+- **The default models do not use `--aspect-ratio`.** `fal-ai/flux-2/flash` and
   `fal-ai/flux-2/flash/edit` size output with `image_size` (for example
   `square_hd`, `landscape_4_3`). There is no dedicated flag; pass it with
   `--input '{"image_size":"square_hd"}'`. `--aspect-ratio` is only useful with
