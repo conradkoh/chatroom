@@ -6,7 +6,7 @@
  */
 
 export const GAME_ASSET_RULES: readonly string[] = [
-  'Generate only with `chatroom generate-image --platform=fal`, using the CLI default model `fal-ai/flux-2/flash` unless the brief names one.',
+  "Generate only with `chatroom generate-image --platform=fal --model <Model>`, where <Model> is the brief's Model: `fal-ai/flux-2/flash` (FLUX 2 Flash), or `fal-ai/flux-2/flash/edit` with --input-image for reference edits.",
   'Process images only with `chatroom slice-image` and `chatroom remove-image-background`; no other tool, script, or remote service.',
   "A sheet is at most the brief's `Sheet grid` (default 2x2); a larger grid needs a user request quoted in the brief.",
   'Names come from looking at each tile, never from cell order or prompt order.',
@@ -21,6 +21,7 @@ export const GAME_ASSET_RULES: readonly string[] = [
   'Describe generated output as production-ready only when every checklist item for it passes with `measured` or `inspected` evidence.',
   'Commit only when the brief names the paths and the commit message.',
   'Generate only when the brief names an output location and allowed tools.',
+  'Before the first real call of each command shape (sheet, per-asset, or reference edit), run the same command with --dry-run and apply every constraint it prints; take model-specific constraints only from the dry run, never from memory.',
 ];
 
 /** `- R1 <rule>` lines used inside the role prompt's RULES block. */

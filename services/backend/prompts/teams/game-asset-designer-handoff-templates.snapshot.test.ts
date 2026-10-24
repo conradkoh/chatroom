@@ -47,7 +47,7 @@ describe('game asset designer handoff template snapshots', () => {
     }
   );
 
-  test('brief and report use proof blocks, a sheet grid, and no flux-2 sheet model', () => {
+  test('brief and report use proof blocks, a sheet grid, and only FLUX 2 Flash model ids', () => {
     const brief = renderPair({
       teamId: 'duo',
       fromRole: 'planner',
@@ -66,12 +66,16 @@ describe('game asset designer handoff template snapshots', () => {
     expect(report).toContain('## Proof of Principles');
     expect(report).toContain('## Proof of Completion');
     expect(report).toContain('## Naming map');
+    expect(report).toContain('`--input-image`');
     expect(brief).toContain('## Model');
     expect(brief).toContain('## Model parameters');
     expect(brief).toContain('fal-ai/flux-2/flash');
+    expect(brief).not.toContain('default model');
+    expect(brief).toContain('--dry-run');
     expect(brief).toContain('Always pass `--trim` to `chatroom remove-image-background`');
     expect(report).toContain('Always pass `--trim` to `chatroom remove-image-background`');
     expect(`${brief}\n${report}`).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);
+    expect(`${brief}\n${report}`).not.toMatch(/FLUX\.2|FLUX 2(?! Flash)/);
   });
 
   test('planner delegation states the target, budgets, style reference, and deliverable mode', () => {
@@ -86,6 +90,8 @@ describe('game asset designer handoff template snapshots', () => {
     expect(template).toContain('## Assets requested');
     expect(template).toContain('## Budgets and conventions');
     expect(template).toContain('## Style reference');
+    expect(template).toContain('## Perspective');
+    expect(template).toContain('no sheets');
     expect(template).toContain('## Spec consumer');
     expect(template).toContain('## Existing assets');
     expect(template).toContain('## Deliverable mode');

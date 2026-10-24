@@ -14,7 +14,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal (default model), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -31,11 +31,14 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ## Style reference
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
+## Perspective
+<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not applicable.\` for 3D models and audio; or \`Not specified.\`>
+
 ## Model
-<the CLI default \`fal-ai/flux-2/flash\`>
+<\`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset>
 
 ## Model parameters
-<a JSON object as text passed to \`generate-image --input\`; \`Not specified.\` if none>
+<a JSON object as text passed to \`generate-image --input\`; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none>
 
 ## Spec consumer
 <who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
@@ -47,7 +50,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
 
 ## Allowed tools
-\`chatroom generate-image --platform=fal (default model), chatroom slice-image, chatroom remove-image-background\`
+\`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`
 
 ## Allowed edit paths
 <repository-relative paths the designer may edit; \`None.\` for none>
@@ -116,7 +119,7 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 <each assumption you made and why; each deviation from the planner's target or budgets; or \`None.\`>
 
 ## Asset manifest
-<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, and \`--seed\` values), the sheet and tile manifests, and the isolated asset manifest path>
+<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, \`--seed\`, \`--input\`, and \`--input-image\` values), the sheet and tile manifests, and the isolated asset manifest path>
 
 ## Quality checklist results
 <per asset: each applicable checklist item as \`pass\`, \`fail\`, \`n/a\`, or \`not checked\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>

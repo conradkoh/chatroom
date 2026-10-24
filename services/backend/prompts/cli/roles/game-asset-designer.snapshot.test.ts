@@ -35,6 +35,14 @@ describe('game asset designer guidance snapshots', () => {
 
     expect(guidance).toContain('### RULES');
     expect(guidance).toContain('### PROCEDURE');
+    expect(guidance).toContain('### Perspective consistency');
+    expect(guidance).not.toContain('negative_prompt');
+    expect(guidance).toContain('--dry-run');
+    expect(guidance).toContain('--model <Model>');
+    expect(guidance).not.toContain('default model');
+    expect(guidance).not.toMatch(/FLUX\.2|FLUX 2(?! Flash)/);
+    expect(guidance).toContain('A mismatched item is regenerated individually');
+    expect(guidance).toContain('never use a sheet');
     expect(guidance).toContain('Proof of Principles');
     expect(guidance).toContain('Proof of Completion');
     expect(guidance).toContain('P8');
