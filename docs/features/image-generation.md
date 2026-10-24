@@ -264,13 +264,15 @@ keying fails.
 
 ## Limits
 
-- **Text-to-image only.** The command generates one image per invocation. It
-  does not do image editing, video, audio, or 3D.
+- **One image per invocation.** The command generates from text, or edits one
+  input image with `--input-image`. It does not do video, audio, or 3D.
 - **No segmentation.** Segment-anything (SAM) style masks and cutouts are not
   supported.
-- **The default model ignores `--aspect-ratio`.** `fal-ai/flux-2/flash` takes
-  its own `image_size` option (for example `square_hd`, `landscape_4_3`), which
-  this command does not expose yet. The flag is only useful with other models.
+- **The default models ignore `--aspect-ratio`.** `fal-ai/flux-2/flash` and
+  `fal-ai/flux-2/flash/edit` size output with `image_size` (for example
+  `square_hd`, `landscape_4_3`). There is no dedicated flag; pass it with
+  `--input '{"image_size":"square_hd"}'`. `--aspect-ratio` is only useful with
+  other models and is rejected with `--input-image`.
 - **PNG output by default.** The default model returns PNG without alpha.
 - **Paid calls.** Each successful generation is billed to your fal account.
 
