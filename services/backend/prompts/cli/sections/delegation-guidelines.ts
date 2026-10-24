@@ -64,7 +64,7 @@ flowchart TD
 
 - **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
 - **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **You own architecture and API shape; the UI/UX engineer owns UI/UX design.**
+- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work; the UI/UX engineer owns UI/UX design.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.

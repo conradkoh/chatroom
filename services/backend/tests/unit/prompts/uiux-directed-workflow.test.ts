@@ -53,7 +53,7 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
         );
         if (teamId === 'duo')
           expect(guidance).toContain(
-            'You own architecture and API shape; the UI/UX engineer owns UI/UX design.'
+            'Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work; the UI/UX engineer owns UI/UX design.'
           );
       }
   });
