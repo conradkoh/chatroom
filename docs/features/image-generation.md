@@ -175,6 +175,11 @@ path or the URL exactly as given, and `url` is the value sent to fal in
 `image_urls`. Without `--input-image`, `inputImage` is `null`. `image_urls` is
 reserved in `--input`; pass the input image with `--input-image` instead.
 
+The URL is written verbatim to `<out>.json` in both `inputImage.url` and
+`input.image_urls`, so do not use presigned or credential-bearing URLs for
+assets that will be committed. An uploaded file's URL expires after one day, so
+the recorded `inputImage.url` and `input.image_urls` stop working after that.
+
 ## The manifest
 
 Every image gets a `<out>.json` sidecar with the provenance of the generation:
@@ -184,6 +189,7 @@ Every image gets a `<out>.json` sidecar with the provenance of the generation:
 - `sdk` — the `@fal-ai/client` version used.
 - `model` — the fal model id.
 - `input` — exactly the fields sent to the model.
+- `inputImage` — `{ source, url }` for `--input-image`, otherwise `null`.
 - `requestId` — the fal request id, if returned.
 - `seed` — the seed fal resolved, else the requested seed, else `null`.
 - `output.path` — the absolute path of the written image.
