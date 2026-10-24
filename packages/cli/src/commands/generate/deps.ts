@@ -7,7 +7,7 @@
  * about `@fal-ai/client` and `node:fs/promises`.
  */
 
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { ApiError, ValidationError, fal } from '@fal-ai/client';
@@ -43,6 +43,12 @@ export interface GenerateImageDeps {
   writeFile: (path: string, bytes: Uint8Array) => Promise<void>;
   /** Write the JSON sidecar manifest. */
   writeJson: (path: string, value: unknown) => Promise<void>;
+  /**
+   * Upload a local file to fal storage and return its hosted URL. The bytes are
+   * sent with the given content type; `contentType` comes from the extension
+   * and is never sniffed.
+   */
+  uploadFile: (path: string, contentType: string) => Promise<string>;
   /** Classify an output path without creating anything. */
   pathStatus: (path: string) => Promise<PathStatus>;
   /** Create the directory that will hold the output, before generation starts. */
@@ -190,9 +196,23 @@ function describeFalError(err: unknown): string {
 }
 
 /**
+ * Point the SDK at the command's API key. The SDK's built-in credential
+ * resolver does not read `FAL_API_KEY`, so it is passed explicitly; the key is
+ * never logged or included in an error message.
+ */
+function configureFal(env: Record<string, string | undefined>): void {
+  const credentials = env.FAL_API_KEY;
+  if (!credentials) {
+    // Defense in depth: image.ts guards first, and this keeps a direct adapter
+    // call from silently falling back to the SDK's environment lookup.
+    throw new GenerateImageError(FAL_API_KEY_MISSING_MESSAGE);
+  }
+  fal.config({ credentials });
+}
+
+/**
  * Adapter around the official fal SDK. `fal.subscribe` performs queue submit +
- * poll. The SDK's built-in credential resolver does not read `FAL_API_KEY`, so
- * the key is passed to `fal.config` explicitly and never logged.
+ * poll.
  *
  * The result is returned unvalidated: command-specific validators differ by
  * model shape (`images[]` for text-to-image, `image` for BiRefNet), so each
@@ -202,13 +222,7 @@ export function createFalRawSubscribe(
   env: Record<string, string | undefined>
 ): (model: string, input: Record<string, unknown>) => Promise<unknown> {
   return async (model, input) => {
-    const credentials = env.FAL_API_KEY;
-    if (!credentials) {
-      // Defense in depth: image.ts guards first, and this keeps a direct
-      // adapter call from silently falling back to the SDK's environment lookup.
-      throw new GenerateImageError(FAL_API_KEY_MISSING_MESSAGE);
-    }
-    fal.config({ credentials });
+    configureFal(env);
 
     try {
       return await fal.subscribe(model, {
@@ -230,6 +244,27 @@ function createFalSubscribe(
 ): GenerateImageDeps['falSubscribe'] {
   const subscribe = createFalRawSubscribe(env);
   return async (model, input) => validateFalResult(await subscribe(model, input));
+}
+
+/**
+ * `generate-image` adapter: uploads an input image so the edit model can fetch
+ * it by URL. A one-day lifetime keeps the temporary object from accumulating.
+ */
+function createFalUploadFile(
+  env: Record<string, string | undefined>
+): GenerateImageDeps['uploadFile'] {
+  return async (path, contentType) => {
+    configureFal(env);
+    try {
+      const bytes = await readFile(path);
+      const blob = new Blob([new Uint8Array(bytes)], { type: contentType });
+      return await fal.storage.upload(blob, { lifecycle: { expiresIn: '1d' } });
+    } catch (err) {
+      throw new GenerateImageError(
+        `Failed to upload input image ${path}: ${describeFalError(err)}`
+      );
+    }
+  };
 }
 
 // ─── filesystem and download helpers ───────────────────────────────────────
@@ -263,6 +298,7 @@ export function createDefaultGenerateImageDeps(): GenerateImageDeps {
   return {
     env,
     falSubscribe: createFalSubscribe(env),
+    uploadFile: createFalUploadFile(env),
     fetchBytes,
     writeFile: writeFileBytes,
     writeJson: writeJsonFile,

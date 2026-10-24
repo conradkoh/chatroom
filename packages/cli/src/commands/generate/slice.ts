@@ -614,7 +614,7 @@ export async function sliceImage(
   }
   if (!hasPngMagic(bytes)) {
     throw new SliceImageError(
-      "--in is not a PNG. slice-image only reads PNG sheets; regenerate with 'chatroom generate-image --output-format png' (the default model returns PNG)."
+      "--in is not a PNG. slice-image only reads PNG sheets; regenerate with 'chatroom generate-image --model <id> --output-format png'."
     );
   }
 

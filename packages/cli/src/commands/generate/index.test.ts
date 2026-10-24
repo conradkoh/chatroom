@@ -15,12 +15,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as ImageModule from './image.js';
 import { registerGenerateImageCommand } from './index.js';
+import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
 
-const { generateImageMock } = vi.hoisted(() => ({ generateImageMock: vi.fn() }));
+const { generateImageMock, planGenerateImageMock, formatGenerateImagePlanMock } = vi.hoisted(
+  () => ({
+    generateImageMock: vi.fn(),
+    planGenerateImageMock: vi.fn(),
+    formatGenerateImagePlanMock: vi.fn(),
+  })
+);
 
 vi.mock('./image.js', async (importOriginal) => {
   const actual = await importOriginal<typeof ImageModule>();
-  return { ...actual, generateImage: generateImageMock };
+  return {
+    ...actual,
+    generateImage: generateImageMock,
+    planGenerateImage: planGenerateImageMock,
+    formatGenerateImagePlan: formatGenerateImagePlanMock,
+  };
 });
 
 vi.mock('./deps.js', () => ({
@@ -46,6 +58,10 @@ describe('chatroom generate-image wiring', () => {
       manifestPath: '/tmp/x.png.json',
       sha256: 'deadbeef',
     });
+    planGenerateImageMock.mockReset();
+    planGenerateImageMock.mockResolvedValue({ plan: true });
+    formatGenerateImagePlanMock.mockReset();
+    formatGenerateImagePlanMock.mockReturnValue('dry run plan');
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
@@ -63,7 +79,7 @@ describe('chatroom generate-image wiring', () => {
     generateImageMock.mockRejectedValue(new Error('generation exploded'));
 
     const program = createProgram();
-    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+    await parse(program, ['--model', FLUX_2_FLASH_MODEL, '--prompt', 'x', '--out', '/tmp/x.png']);
 
     expect(errorSpy).toHaveBeenCalled();
     expect(String(errorSpy.mock.calls[0]?.[0])).toContain('generation exploded');
@@ -79,19 +95,41 @@ describe('chatroom generate-image wiring', () => {
   it('requires --prompt and --out', async () => {
     const program = createProgram();
 
-    await expect(parse(program, ['--out', '/tmp/x.png'])).rejects.toMatchObject({
+    await expect(
+      parse(program, ['--model', FLUX_2_FLASH_MODEL, '--out', '/tmp/x.png'])
+    ).rejects.toMatchObject({
       code: 'commander.missingMandatoryOptionValue',
     });
-    await expect(parse(program, ['--prompt', 'x'])).rejects.toMatchObject({
+    await expect(
+      parse(program, ['--model', FLUX_2_FLASH_MODEL, '--prompt', 'x'])
+    ).rejects.toMatchObject({
       code: 'commander.missingMandatoryOptionValue',
     });
+  });
+
+  it('requires --model', async () => {
+    const program = createProgram();
+
+    await expect(parse(program, ['--prompt', 'x', '--out', '/tmp/x.png'])).rejects.toMatchObject({
+      code: 'commander.missingMandatoryOptionValue',
+    });
+    expect(generateImageMock).not.toHaveBeenCalled();
   });
 
   it.each(['gif', 'jpeg'])('rejects --output-format %s before running', async (format) => {
     const program = createProgram();
 
     await expect(
-      parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--output-format', format])
+      parse(program, [
+        '--model',
+        FLUX_2_FLASH_MODEL,
+        '--prompt',
+        'x',
+        '--out',
+        '/tmp/x.png',
+        '--output-format',
+        format,
+      ])
     ).rejects.toMatchObject({ code: 'commander.invalidArgument' });
     expect(generateImageMock).not.toHaveBeenCalled();
   });
@@ -100,14 +138,31 @@ describe('chatroom generate-image wiring', () => {
     const program = createProgram();
 
     await expect(
-      parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--seed', '1.5'])
+      parse(program, [
+        '--model',
+        FLUX_2_FLASH_MODEL,
+        '--prompt',
+        'x',
+        '--out',
+        '/tmp/x.png',
+        '--seed',
+        '1.5',
+      ])
     ).rejects.toMatchObject({ code: 'commander.invalidArgument' });
   });
 
   it('accepts --platform=fal and forwards it', async () => {
     const program = createProgram();
 
-    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--platform=fal']);
+    await parse(program, [
+      '--model',
+      FLUX_2_FLASH_MODEL,
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.png',
+      '--platform=fal',
+    ]);
 
     expect(generateImageMock).toHaveBeenCalledTimes(1);
     expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ platform: 'fal' });
@@ -116,7 +171,7 @@ describe('chatroom generate-image wiring', () => {
   it('defaults --platform to fal', async () => {
     const program = createProgram();
 
-    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+    await parse(program, ['--model', FLUX_2_FLASH_MODEL, '--prompt', 'x', '--out', '/tmp/x.png']);
 
     expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ platform: 'fal' });
   });
@@ -125,7 +180,16 @@ describe('chatroom generate-image wiring', () => {
     const program = createProgram();
 
     await expect(
-      parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--platform', 'replicate'])
+      parse(program, [
+        '--model',
+        FLUX_2_FLASH_MODEL,
+        '--prompt',
+        'x',
+        '--out',
+        '/tmp/x.png',
+        '--platform',
+        'replicate',
+      ])
     ).rejects.toMatchObject({
       code: 'commander.invalidArgument',
       message: expect.stringContaining('must be one of fal'),
@@ -136,7 +200,7 @@ describe('chatroom generate-image wiring', () => {
   it('does not forward aspect-ratio or output-format when omitted', async () => {
     const program = createProgram();
 
-    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+    await parse(program, ['--model', FLUX_2_FLASH_MODEL, '--prompt', 'x', '--out', '/tmp/x.png']);
 
     const forwarded = generateImageMock.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(forwarded.aspectRatio).toBeUndefined();
@@ -147,6 +211,8 @@ describe('chatroom generate-image wiring', () => {
     const program = createProgram();
 
     await parse(program, [
+      '--model',
+      FLUX_2_FLASH_MODEL,
       '--prompt',
       'x',
       '--out',
@@ -167,6 +233,8 @@ describe('chatroom generate-image wiring', () => {
     const program = createProgram();
 
     await parse(program, [
+      '--model',
+      FLUX_2_FLASH_MODEL,
       '--prompt',
       'x',
       '--out',
@@ -190,7 +258,16 @@ describe('chatroom generate-image wiring', () => {
       await writeFile(path, '{"image_size":{"width":512,"height":512}}', 'utf8');
       const program = createProgram();
 
-      await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input', `@${path}`]);
+      await parse(program, [
+        '--model',
+        FLUX_2_FLASH_MODEL,
+        '--prompt',
+        'x',
+        '--out',
+        '/tmp/x.png',
+        '--input',
+        `@${path}`,
+      ]);
 
       expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({
         input: { image_size: { width: 512, height: 512 } },
@@ -206,7 +283,16 @@ describe('chatroom generate-image wiring', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const program = createProgram();
 
-      await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input', `@${dir}`]);
+      await parse(program, [
+        '--model',
+        FLUX_2_FLASH_MODEL,
+        '--prompt',
+        'x',
+        '--out',
+        '/tmp/x.png',
+        '--input',
+        `@${dir}`,
+      ]);
 
       expect(process.exitCode).toBe(1);
       expect(String(errorSpy.mock.calls[0]?.[0])).toContain('not a regular file');
@@ -225,7 +311,16 @@ describe('chatroom generate-image wiring', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const program = createProgram();
 
-      await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input', `@${path}`]);
+      await parse(program, [
+        '--model',
+        FLUX_2_FLASH_MODEL,
+        '--prompt',
+        'x',
+        '--out',
+        '/tmp/x.png',
+        '--input',
+        `@${path}`,
+      ]);
 
       expect(process.exitCode).toBe(1);
       expect(String(errorSpy.mock.calls[0]?.[0])).toContain('maximum is 1048576 bytes');
@@ -243,7 +338,16 @@ describe('chatroom generate-image wiring', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const program = createProgram();
 
-    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--input', value]);
+    await parse(program, [
+      '--model',
+      FLUX_2_FLASH_MODEL,
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.png',
+      '--input',
+      value,
+    ]);
 
     expect(process.exitCode).toBe(1);
     expect(String(errorSpy.mock.calls[0]?.[0])).toContain('--input');
@@ -253,7 +357,15 @@ describe('chatroom generate-image wiring', () => {
   it('forwards --force when provided', async () => {
     const program = createProgram();
 
-    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--force']);
+    await parse(program, [
+      '--model',
+      FLUX_2_FLASH_MODEL,
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.png',
+      '--force',
+    ]);
 
     expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ force: true });
   });
@@ -261,9 +373,63 @@ describe('chatroom generate-image wiring', () => {
   it('does not forward --force when omitted', async () => {
     const program = createProgram();
 
-    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+    await parse(program, ['--model', FLUX_2_FLASH_MODEL, '--prompt', 'x', '--out', '/tmp/x.png']);
 
     expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ force: undefined });
+  });
+
+  it('forwards --input-image when provided', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      FLUX_2_FLASH_MODEL,
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.png',
+      '--input-image',
+      './hero.png',
+    ]);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ inputImage: './hero.png' });
+  });
+
+  it('does not forward --input-image when omitted', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--model', FLUX_2_FLASH_MODEL, '--prompt', 'x', '--out', '/tmp/x.png']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ inputImage: undefined });
+  });
+
+  it('forwards an explicit --model', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--model', 'fal-ai/flux/dev']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ model: 'fal-ai/flux/dev' });
+  });
+
+  it('runs --dry-run through the plan formatter without calling generateImage', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      FLUX_2_FLASH_MODEL,
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.png',
+      '--dry-run',
+    ]);
+
+    expect(planGenerateImageMock).toHaveBeenCalledTimes(1);
+    expect(formatGenerateImagePlanMock).toHaveBeenCalledWith({ plan: true });
+    expect(logSpy).toHaveBeenCalledWith('dry run plan');
+    expect(generateImageMock).not.toHaveBeenCalled();
+    expect(process.env.FAL_API_KEY).toBeUndefined();
   });
 
   it('lists the flags and description in help output', () => {
@@ -274,7 +440,8 @@ describe('chatroom generate-image wiring', () => {
     const help = command?.helpInformation() ?? '';
     expect(help).toContain('Generate one image with a fal model');
     const modelOption = command?.options.find((option) => option.long === '--model');
-    expect(modelOption?.description).toContain('Recommended');
+    expect(modelOption?.description).toContain('required');
+    expect(modelOption?.description).toContain(FLUX_2_FLASH_MODEL);
     for (const flag of [
       '--prompt',
       '--out',
@@ -284,10 +451,14 @@ describe('chatroom generate-image wiring', () => {
       '--output-format',
       '--seed',
       '--input',
+      '--input-image',
       '--force',
+      '--dry-run',
     ]) {
       expect(help).toContain(flag);
     }
+    const aspectOption = command?.options.find((option) => option.long === '--aspect-ratio');
+    expect(aspectOption?.description).toContain('Rejected for models the CLI knows');
     // Model defaults differ, so these must not be forced by the CLI.
     expect(help).not.toContain('(default: "auto")');
     expect(help).not.toContain('(default: "png")');
@@ -302,6 +473,8 @@ describe('chatroom generate-image wiring', () => {
     command?.outputHelp();
     expect(afterHelp).toContain('fal-ai/flux-2/flash');
     expect(afterHelp).toContain('pixel-art potion');
+    expect(afterHelp).toContain('--input-image ./hero.png');
+    expect(afterHelp).toContain(`--model ${FLUX_2_FLASH_EDIT_MODEL}`);
   });
 
   it('does not expose the old `generate image` group form', async () => {

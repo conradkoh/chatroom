@@ -1,17 +1,17 @@
 # Image Generation (`chatroom generate-image`)
 
 **Status:** Implemented
-**Last Updated:** 2026-10-23
+**Last Updated:** 2026-10-24
 
 ---
 
-`chatroom generate-image` generates one image from a text prompt with a fal
-text-to-image model and writes two files: the image at `--out`, and a JSON
-manifest at `<out>.json`.
+`chatroom generate-image` generates one image with a fal model and writes two
+files: the image at `--out`, and a JSON manifest at `<out>.json`.
 
-The recommended and default model is **`fal-ai/flux-2/flash`**, which produced
-the best sprite-sheet output in testing. It returns a 1024x768 PNG (4:3) with
-no alpha channel. You can pass a different fal model with `--model`.
+`--model` is required; there is no default. This guide uses FLUX 2 Flash:
+`fal-ai/flux-2/flash` to generate from text, and `fal-ai/flux-2/flash/edit` to
+edit an image with `--input-image`. Run a command with `--dry-run` first to see
+the request and the constraints the CLI knows for the model.
 
 The command talks to fal directly and does not require chatroom authentication.
 
@@ -82,6 +82,7 @@ chatroom generate-image --help
 
 ```bash
 chatroom generate-image \
+  --model fal-ai/flux-2/flash \
   --prompt "pixel-art health potion, red glass, 32x32 sprite" \
   --out assets/sprites/health-potion.png
 ```
@@ -101,6 +102,7 @@ Parent directories are created automatically.
 
 ```bash
 chatroom generate-image \
+  --model fal-ai/flux-2/flash \
   --prompt "pixel-art health potion, red glass, 32x32 sprite" \
   --out assets/sprites/health-potion.png \
   --force
@@ -108,30 +110,123 @@ chatroom generate-image \
 
 Without `--force`, the command refuses before making the paid fal call.
 
-### Choose another model
+### Choose the model
 
-`--model` accepts any fal text-to-image model id. The default,
-`fal-ai/flux-2/flash`, is recommended:
+Pass the model id with `--model`; the command fails without it
+(`error: required option '--model <id>' not specified`).
+
+| Model id                   | Use                                       |
+| -------------------------- | ----------------------------------------- |
+| `fal-ai/flux-2/flash`      | Generate from a text prompt               |
+| `fal-ai/flux-2/flash/edit` | Edit one image given with `--input-image` |
+
+`--input-image` requires an edit model, and `fal-ai/flux-2/flash/edit` requires
+`--input-image`; a mismatched pair is refused before any upload or fal call.
+Other fal model ids are passed through unchanged, but the CLI has no capability
+data for them. The manifest records exactly the input that was sent.
+
+### Check a request first (`--dry-run`)
+
+`--dry-run` runs every check the real command runs, then prints the model, the
+output paths, the exact request JSON, and the model's constraints, without
+uploading anything or calling fal. It does not need `FAL_API_KEY`.
+
+Each constraint line is `unsupported` (the model does not take that parameter),
+`unknown` (the CLI has no data for it), `default` (an unset parameter where the
+model's default applies), or `note`. A real call still sends an `unsupported`
+parameter and prints it as a warning, because fal's schema can change; only the
+model and flag pairing checks are errors.
 
 ```bash
-chatroom generate-image \
-  --prompt "isometric treasure chest, muted palette" \
-  --out assets/sprites/treasure-chest.png \
-  --model fal-ai/flux/dev \
-  --aspect-ratio 1:1
+chatroom generate-image --model fal-ai/flux-2/flash --prompt "pixel-art health potion" --out assets/sprites/health-potion.png --dry-run
 ```
-
-Only pass `--aspect-ratio` to models that support it; see
-[Limits](#limits). The manifest records exactly the input that was sent.
 
 ### Other options
 
-| Option              | Meaning                                                                     |
-| ------------------- | --------------------------------------------------------------------------- |
-| `--platform <name>` | Generation platform. Only `fal` is supported (default).                     |
-| `--output-format`   | `png` or `webp` (omitted = the model's own default); both keep transparency |
-| `--seed <n>`        | Integer seed for reproducible output when the model supports it             |
-| `--force`           | Replace an existing output and manifest                                     |
+| Option              | Meaning                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `--platform <name>` | Generation platform. Only `fal` is supported (default).                            |
+| `--output-format`   | `png` or `webp` (omitted = the model's own default); both keep transparency        |
+| `--seed <n>`        | Integer seed for reproducible output when the model supports it                    |
+| `--force`           | Replace an existing output and manifest                                            |
+| `--dry-run`         | Validate and print the request and the model's constraints; no upload, no fal call |
+
+## Editing an image
+
+Pass `--input-image` to edit an existing image with
+`--model fal-ai/flux-2/flash/edit` instead of generating from text alone:
+
+```bash
+chatroom generate-image \
+  --model fal-ai/flux-2/flash/edit \
+  --prompt "make the sky stormy with distant lightning" \
+  --input-image ./assets/sprites/hero.png \
+  --out assets/sprites/hero-stormy.png
+```
+
+`--input-image` accepts two forms:
+
+- A local file with a `.png`, `.jpg`, `.jpeg`, `.webp`, or `.gif` extension. The
+  file is uploaded to fal storage with a one-day lifetime, and only the returned
+  URL is sent to the model. Any other extension is rejected before the upload.
+- A public `http(s)` URL. It is passed to fal unchanged, so it must be reachable
+  without authentication for the duration of the call.
+
+`--input-image` requires an edit model such as `fal-ai/flux-2/flash/edit`. Pass
+size and other model parameters with `--input`; run the command with `--dry-run`
+to see which parameters the model takes and its defaults:
+
+```bash
+chatroom generate-image \
+  --model fal-ai/flux-2/flash/edit \
+  --prompt "make the sky stormy" \
+  --input-image ./assets/sprites/hero.png \
+  --input '{"image_size":"landscape_4_3"}' \
+  --out assets/sprites/hero-stormy.png
+```
+
+The manifest records the input in `inputImage`: `source` is the local absolute
+path or the URL exactly as given, and `url` is the value sent to fal in
+`image_urls`. Without `--input-image`, `inputImage` is `null`. `image_urls` is
+reserved in `--input`; pass the input image with `--input-image` instead.
+
+The URL is written verbatim to `<out>.json` in both `inputImage.url` and
+`input.image_urls`, so do not use presigned or credential-bearing URLs for
+assets that will be committed. An uploaded file's URL expires after one day, so
+the recorded `inputImage.url` and `input.image_urls` stop working after that.
+
+## Keep one perspective across a set
+
+Assets used together, such as the tiles of one level or the sprites of one
+character, should share one camera perspective. Consistency comes from the
+prompt and from sending the same request settings on every call. Run the first
+command of a set with `--dry-run` and follow its constraints. Check every result
+by eye, generate several variations, and keep only the ones that match.
+
+These prompt practices are community practice, not verified, with no guarantee:
+
+- Name one perspective and repeat it word for word in every prompt of the set:
+  `side view`, `front view`, `orthographic top-down`, `orthographic isometric`,
+  `dimetric 2:1`, or `three-quarter view`.
+- Add the same flattening terms to every prompt: `flat 2D game asset`,
+  `orthographic`, `no perspective`, `centered`, `plain background`,
+  `even lighting`.
+- Send the same `--input` JSON on every call, including one explicit size when
+  the dry run reports a size default.
+- Reusing one `--seed` may reduce variation between calls, but the same seed
+  does not keep the perspective when the prompt changes.
+- To match an existing asset, try `--model fal-ai/flux-2/flash/edit` with
+  `--input-image <existing-asset>`; the dry run lists what the edit model does
+  not guarantee.
+
+```bash
+chatroom generate-image \
+  --model fal-ai/flux-2/flash \
+  --prompt "health potion, orthographic front view, flat 2D game asset, centered, plain background, even lighting" \
+  --input '{"image_size":"square_hd"}' \
+  --seed 42 \
+  --out assets/sprites/health-potion.png
+```
 
 ## The manifest
 
@@ -142,6 +237,7 @@ Every image gets a `<out>.json` sidecar with the provenance of the generation:
 - `sdk` — the `@fal-ai/client` version used.
 - `model` — the fal model id.
 - `input` — exactly the fields sent to the model.
+- `inputImage` — `{ source, url }` for `--input-image`, otherwise `null`.
 - `requestId` — the fal request id, if returned.
 - `seed` — the seed fal resolved, else the requested seed, else `null`.
 - `output.path` — the absolute path of the written image.
@@ -216,14 +312,13 @@ keying fails.
 
 ## Limits
 
-- **Text-to-image only.** The command generates one image per invocation. It
-  does not do image editing, video, audio, or 3D.
+- **One image per invocation.** The command generates from text, or edits one
+  input image with `--input-image`. It does not do video, audio, or 3D.
 - **No segmentation.** Segment-anything (SAM) style masks and cutouts are not
   supported.
-- **The default model ignores `--aspect-ratio`.** `fal-ai/flux-2/flash` takes
-  its own `image_size` option (for example `square_hd`, `landscape_4_3`), which
-  this command does not expose yet. The flag is only useful with other models.
-- **PNG output by default.** The default model returns PNG without alpha.
+- **`--aspect-ratio` is checked against the model.** It is refused for models
+  the CLI knows do not take it, including both FLUX 2 Flash ids; `--dry-run`
+  names the size parameter to use instead.
 - **Paid calls.** Each successful generation is billed to your fal account.
 
 ## Troubleshooting
@@ -233,6 +328,11 @@ keying fails.
 The command found no `FAL_API_KEY` in the environment. Export it in the shell
 that runs the command and confirm with the check in [Setup](#setup). `FAL_KEY`
 is not read, so exporting that name has no effect.
+
+### `required option '--model <id>' not specified`
+
+`--model` has no default. Pass `--model fal-ai/flux-2/flash`, or `--model
+fal-ai/flux-2/flash/edit` with `--input-image`.
 
 ### `--out already exists`
 
