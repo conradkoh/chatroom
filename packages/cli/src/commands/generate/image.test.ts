@@ -11,7 +11,13 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
-import { GenerateImageError, generateImage, parseInputJson } from './image.js';
+import {
+  formatGenerateImagePlan,
+  GenerateImageError,
+  generateImage,
+  parseInputJson,
+  planGenerateImage,
+} from './image.js';
 import type { GenerateImagePlatform } from './image.js';
 import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
 
@@ -243,6 +249,7 @@ describe('generateImage', () => {
 
     const expected = { prompt: 'a layout', ...input, output_format: 'png' };
     expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/flux-2/flash', expected);
+    expect(deps.warn).toHaveBeenCalledWith(expect.stringContaining('negative_prompt'));
     const manifest = (deps.writeJson as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as Record<
       string,
       unknown
@@ -840,6 +847,92 @@ describe('generateImage', () => {
     ).rejects.toThrow(`--input-image is not a file: ${INPUT_IMAGE}`);
 
     expect(deps.ensureParentDir).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+  });
+
+  it('plans without FAL_API_KEY and makes no side effects', async () => {
+    const deps = createDeps({ env: {} });
+
+    const plan = await planGenerateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    expect(plan).toMatchObject({
+      platform: 'fal',
+      model: FLUX_2_FLASH_MODEL,
+      outPath: OUT_PATH,
+      manifestPath: `${OUT_PATH}.json`,
+      input: { prompt: 'a hero' },
+    });
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.fetchBytes).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('refuses an existing output while planning', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
+
+    await expect(
+      planGenerateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
+    ).rejects.toThrow(`--out already exists: ${OUT_PATH}`);
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unsupported output extension while planning', async () => {
+    const deps = createDeps();
+
+    await expect(
+      planGenerateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: '/tmp/generated/hero.jpg' },
+        deps
+      )
+    ).rejects.toThrow('Unsupported output extension .jpg');
+  });
+
+  it('formats a plan with the exact request and constraint disclosures', async () => {
+    const deps = createDeps();
+    const plan = await planGenerateImage(
+      {
+        model: FLUX_2_FLASH_MODEL,
+        prompt: 'a hero',
+        out: OUT_PATH,
+        input: { negative_prompt: 'blurry' },
+      },
+      deps
+    );
+
+    const text = formatGenerateImagePlan(plan);
+
+    expect(text).toContain(`Would generate ${OUT_PATH}`);
+    expect(text).toContain(`Model ${FLUX_2_FLASH_MODEL} (FLUX 2 Flash, text-to-image)`);
+    expect(text).toContain(JSON.stringify(plan.input, null, 2));
+    expect(text).toContain('- unsupported: negative_prompt (--input)');
+    expect(text).toContain('No upload or fal call was made.');
+  });
+
+  it('shows a placeholder URL for a local input image without uploading', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }) });
+
+    const plan = await planGenerateImage(
+      {
+        model: FLUX_2_FLASH_EDIT_MODEL,
+        prompt: 'a hero',
+        out: OUT_PATH,
+        inputImage: INPUT_IMAGE,
+      },
+      deps
+    );
+
+    const text = formatGenerateImagePlan(plan);
+
+    expect(text).toContain(
+      `Input image ${INPUT_IMAGE} (would be uploaded to fal storage, 1-day lifetime)`
+    );
+    expect(text).toContain(`<fal storage URL for ${INPUT_IMAGE}>`);
     expect(deps.uploadFile).not.toHaveBeenCalled();
   });
 

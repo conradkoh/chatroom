@@ -77,29 +77,35 @@ interface GenerateImageCliOptions {
   input?: string | undefined;
   inputImage?: string | undefined;
   force?: boolean | undefined;
+  dryRun?: boolean | undefined;
 }
 
 /** Commander action body: parse input, run the generator, report failures. */
+// fallow-ignore-next-line complexity
 async function runGenerateImage(options: GenerateImageCliOptions): Promise<void> {
   try {
     const input = options.input === undefined ? undefined : await readInputOption(options.input);
     // The fal SDK is only needed when the command actually runs.
     const { createDefaultGenerateImageDeps } = await import('./deps.js');
-    const result = await generateImage(
-      {
-        prompt: options.prompt,
-        out: options.out,
-        platform: options.platform,
-        model: options.model,
-        aspectRatio: options.aspectRatio,
-        outputFormat: options.outputFormat,
-        seed: options.seed,
-        input,
-        inputImage: options.inputImage,
-        force: options.force,
-      },
-      createDefaultGenerateImageDeps()
-    );
+    const deps = createDefaultGenerateImageDeps();
+    const generateOptions = {
+      prompt: options.prompt,
+      out: options.out,
+      platform: options.platform,
+      model: options.model,
+      aspectRatio: options.aspectRatio,
+      outputFormat: options.outputFormat,
+      seed: options.seed,
+      input,
+      inputImage: options.inputImage,
+      force: options.force,
+    };
+    if (options.dryRun === true) {
+      const { formatGenerateImagePlan, planGenerateImage } = await import('./image.js');
+      console.log(formatGenerateImagePlan(await planGenerateImage(generateOptions, deps)));
+      return;
+    }
+    const result = await generateImage(generateOptions, deps);
     console.log(`Generated ${result.outPath}`);
     console.log(`Manifest ${result.manifestPath}`);
   } catch (err) {
@@ -143,6 +149,10 @@ export function registerGenerateImageCommand(program: Command): void {
       `Image to edit: a local .png, .jpg, .jpeg, .webp, or .gif (uploaded to fal) or an http(s) URL. Requires an edit model such as ${FLUX_2_FLASH_EDIT_MODEL}`
     )
     .option('--force', 'Overwrite existing output and manifest files')
+    .option(
+      '--dry-run',
+      'Validate and print the request and the model constraints the CLI knows, without uploading or calling fal (FAL_API_KEY not needed)'
+    )
     .addHelpText('after', HELP_AFTER)
     .action(runGenerateImage);
 }

@@ -17,11 +17,22 @@ import type * as ImageModule from './image.js';
 import { registerGenerateImageCommand } from './index.js';
 import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
 
-const { generateImageMock } = vi.hoisted(() => ({ generateImageMock: vi.fn() }));
+const { generateImageMock, planGenerateImageMock, formatGenerateImagePlanMock } = vi.hoisted(
+  () => ({
+    generateImageMock: vi.fn(),
+    planGenerateImageMock: vi.fn(),
+    formatGenerateImagePlanMock: vi.fn(),
+  })
+);
 
 vi.mock('./image.js', async (importOriginal) => {
   const actual = await importOriginal<typeof ImageModule>();
-  return { ...actual, generateImage: generateImageMock };
+  return {
+    ...actual,
+    generateImage: generateImageMock,
+    planGenerateImage: planGenerateImageMock,
+    formatGenerateImagePlan: formatGenerateImagePlanMock,
+  };
 });
 
 vi.mock('./deps.js', () => ({
@@ -47,6 +58,10 @@ describe('chatroom generate-image wiring', () => {
       manifestPath: '/tmp/x.png.json',
       sha256: 'deadbeef',
     });
+    planGenerateImageMock.mockReset();
+    planGenerateImageMock.mockResolvedValue({ plan: true });
+    formatGenerateImagePlanMock.mockReset();
+    formatGenerateImagePlanMock.mockReturnValue('dry run plan');
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
@@ -396,6 +411,27 @@ describe('chatroom generate-image wiring', () => {
     expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ model: 'fal-ai/flux/dev' });
   });
 
+  it('runs --dry-run through the plan formatter without calling generateImage', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      FLUX_2_FLASH_MODEL,
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.png',
+      '--dry-run',
+    ]);
+
+    expect(planGenerateImageMock).toHaveBeenCalledTimes(1);
+    expect(formatGenerateImagePlanMock).toHaveBeenCalledWith({ plan: true });
+    expect(logSpy).toHaveBeenCalledWith('dry run plan');
+    expect(generateImageMock).not.toHaveBeenCalled();
+    expect(process.env.FAL_API_KEY).toBeUndefined();
+  });
+
   it('lists the flags and description in help output', () => {
     const program = createProgram();
     const command = program.commands[0];
@@ -417,6 +453,7 @@ describe('chatroom generate-image wiring', () => {
       '--input',
       '--input-image',
       '--force',
+      '--dry-run',
     ]) {
       expect(help).toContain(flag);
     }

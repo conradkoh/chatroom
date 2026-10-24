@@ -101,3 +101,97 @@ export function getModelCapability(id: string): ModelCapability | undefined {
     ? MODEL_CAPABILITIES[id]
     : undefined;
 }
+
+export type ConstraintDisclosure =
+  | { kind: 'unsupported'; key: string; source: 'flag' | 'input'; message: string }
+  | { kind: 'unknown'; key: string; message: string }
+  | { kind: 'default'; key: string; message: string }
+  | { kind: 'note'; message: string };
+
+function describeKey(
+  capability: ModelCapability,
+  key: string,
+  source: 'flag' | 'input'
+): ConstraintDisclosure[] {
+  const support = capability.params[key];
+  if (support === undefined) {
+    return [
+      {
+        kind: 'unknown',
+        key,
+        message: `not in the CLI's capability data for ${capability.id}; not checked.`,
+      },
+    ];
+  }
+  if (support.support === 'unsupported') {
+    return [{ kind: 'unsupported', key, source, message: support.reason }];
+  }
+  return [];
+}
+
+function describeInputKeys(
+  capability: ModelCapability,
+  input: Record<string, unknown>
+): ConstraintDisclosure[] {
+  const disclosures: ConstraintDisclosure[] = [];
+  for (const key of Object.keys(input)) {
+    if (key === 'aspect_ratio') continue;
+    disclosures.push(...describeKey(capability, key, 'input'));
+  }
+  return disclosures;
+}
+
+function describeFlagKeys(
+  capability: ModelCapability,
+  flags: { aspectRatio?: string | undefined }
+): ConstraintDisclosure[] {
+  return flags.aspectRatio === undefined ? [] : describeKey(capability, 'aspect_ratio', 'flag');
+}
+
+function describeDefaults(
+  capability: ModelCapability,
+  input: Record<string, unknown>
+): ConstraintDisclosure[] {
+  return Object.entries(capability.params).flatMap(([key, support]) => {
+    if (support.support !== 'supported' || support.default === undefined) return [];
+    if (input[key] !== undefined) return [];
+    return [
+      {
+        kind: 'default' as const,
+        key,
+        message: `${key} is not set; the model default ${support.default} applies. Set one explicit value for every call of a set.`,
+      },
+    ];
+  });
+}
+
+function describeNotes(capability: ModelCapability): ConstraintDisclosure[] {
+  return capability.notes.map((message) => ({ kind: 'note', message }));
+}
+
+/**
+ * Explain the parameters the CLI knows the model does not take, cannot
+ * classify, or will default. The notes carry the remaining model-specific
+ * caveats; callers use this only for reporting, never to rewrite a real call.
+ */
+export function describeConstraints(
+  model: string,
+  input: Record<string, unknown>,
+  flags: { aspectRatio?: string | undefined }
+): ConstraintDisclosure[] {
+  const capability = getModelCapability(model);
+  if (capability === undefined) {
+    return [
+      {
+        kind: 'note',
+        message: `The CLI has no capability data for ${model}; no constraints were checked.`,
+      },
+    ];
+  }
+  return [
+    ...describeInputKeys(capability, input),
+    ...describeFlagKeys(capability, flags),
+    ...describeDefaults(capability, input),
+    ...describeNotes(capability),
+  ];
+}

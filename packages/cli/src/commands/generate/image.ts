@@ -12,8 +12,10 @@ import { extname, resolve } from 'node:path';
 
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 import {
+  describeConstraints,
   FLUX_2_FLASH_EDIT_MODEL,
   getModelCapability,
+  type ConstraintDisclosure,
   type ModelCapability,
 } from './model-capabilities.js';
 
@@ -435,8 +437,20 @@ function resolveInputImageOption(opts: GenerateImageOptions): string | undefined
 }
 
 /** A validated input image: a public URL or a local file waiting to be uploaded. */
-type InputImageTarget =
+export type InputImageTarget =
   { kind: 'url'; url: string } | { kind: 'file'; path: string; contentType: string };
+
+/** The request the CLI would send, plus the pending upload and disclosures. */
+export interface GenerateImagePlan {
+  platform: GenerateImagePlatform;
+  model: string;
+  outPath: string;
+  manifestPath: string;
+  /** Request body; a local input image shows a storage placeholder. */
+  input: Record<string, unknown>;
+  inputTarget: InputImageTarget | undefined;
+  disclosures: ConstraintDisclosure[];
+}
 
 interface PreparedInputImage {
   /** The single value sent to fal in `image_urls`, or undefined without --input-image. */
@@ -465,6 +479,12 @@ async function validateInputImage(
   return { kind: 'file', path: localPath, contentType };
 }
 
+/** The value shown for image_urls before a local file is uploaded. */
+function planInputImageUrl(target: InputImageTarget | undefined): string | undefined {
+  if (target === undefined) return undefined;
+  return target.kind === 'url' ? target.url : `<fal storage URL for ${target.path}>`;
+}
+
 /** Upload a validated local file, if any, and return the value for image_urls. */
 async function uploadInputImage(
   deps: GenerateImageDeps,
@@ -476,6 +496,84 @@ async function uploadInputImage(
   }
   const url = await deps.uploadFile(target.path, target.contentType);
   return { url, record: { source: target.path, url } };
+}
+
+/**
+ * Run every preflight check and build the request without a paid call. The
+ * plan performs no upload and no fal request, so `--dry-run` can use it
+ * without `FAL_API_KEY`.
+ */
+export async function planGenerateImage(
+  opts: GenerateImageOptions,
+  deps: GenerateImageDeps
+): Promise<GenerateImagePlan> {
+  const platform = resolvePlatform(opts.platform);
+  // Pure check: reject an unwired platform before touching the environment or network.
+  requireSupportedPlatform(platform);
+
+  const model = requireNonEmpty(opts.model, '--model must not be empty.');
+  const prompt = requireNonEmpty(opts.prompt, '--prompt must not be empty.');
+  const outPath = resolve(requireNonEmpty(opts.out, '--out must not be empty.'));
+  requireSupportedExtension(outPath);
+  if (opts.outputFormat !== undefined) {
+    requireFormatMatchesExtension(outPath, opts.outputFormat);
+  }
+  const inputImage = resolveInputImageOption(opts);
+  requireModelPairing(model, inputImage, opts.aspectRatio);
+  validateInputOption(opts);
+  const inputTarget = await validateInputImage(deps, inputImage);
+  const manifestPath = `${outPath}.json`;
+
+  // Refuse unwritable outputs before the paid call.
+  await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
+
+  const input = buildInput(prompt, opts, planInputImageUrl(inputTarget));
+  return {
+    platform,
+    model,
+    outPath,
+    manifestPath,
+    input,
+    inputTarget,
+    disclosures: describeConstraints(model, input, { aspectRatio: opts.aspectRatio }),
+  };
+}
+
+/** A flag name for a disclosure key, used in dry-run output. */
+function disclosureFlag(key: string): '--aspect-ratio' | '--input' {
+  return key === 'aspect_ratio' ? '--aspect-ratio' : '--input';
+}
+
+function formatDisclosure(disclosure: ConstraintDisclosure): string {
+  if (disclosure.kind === 'unsupported' || disclosure.kind === 'unknown') {
+    return `- ${disclosure.kind}: ${disclosure.key} (${disclosureFlag(disclosure.key)}) — ${disclosure.message}`;
+  }
+  return `- ${disclosure.kind}: ${disclosure.message}`;
+}
+
+function formatInputImageLine(target: InputImageTarget | undefined): string | undefined {
+  if (target === undefined) return undefined;
+  return target.kind === 'url'
+    ? `Input image ${target.url} (passed through)`
+    : `Input image ${target.path} (would be uploaded to fal storage, 1-day lifetime)`;
+}
+
+/** Render a plan for `--dry-run`: paths, request, and known constraints. */
+export function formatGenerateImagePlan(plan: GenerateImagePlan): string {
+  const capability = getModelCapability(plan.model);
+  const lines = [
+    `Would generate ${plan.outPath}`,
+    `Manifest ${plan.manifestPath}`,
+    capability === undefined
+      ? `Model ${plan.model} (no capability data)`
+      : `Model ${plan.model} (${capability.name}, ${capability.task})`,
+  ];
+  const inputLine = formatInputImageLine(plan.inputTarget);
+  if (inputLine !== undefined) lines.push(inputLine);
+  lines.push('Request:', JSON.stringify(plan.input, null, 2), 'Constraints:');
+  for (const disclosure of plan.disclosures) lines.push(formatDisclosure(disclosure));
+  lines.push('No upload or fal call was made.');
+  return lines.join('\n');
 }
 
 /** A completed generation whose bytes are already written to `outPath`. */
@@ -515,48 +613,37 @@ export async function generateImage(
   opts: GenerateImageOptions,
   deps: GenerateImageDeps
 ): Promise<GenerateImageResult> {
-  const platform = resolvePlatform(opts.platform);
-  // Pure check: reject an unwired platform before touching the environment or network.
-  requireSupportedPlatform(platform);
-
   requireFalKey(deps);
+  const plan = await planGenerateImage(opts, deps);
 
-  const model = requireNonEmpty(opts.model, '--model must not be empty.');
-  const prompt = requireNonEmpty(opts.prompt, '--prompt must not be empty.');
-  const outPath = resolve(requireNonEmpty(opts.out, '--out must not be empty.'));
-  requireSupportedExtension(outPath);
-  if (opts.outputFormat !== undefined) {
-    requireFormatMatchesExtension(outPath, opts.outputFormat);
+  for (const disclosure of plan.disclosures) {
+    if (disclosure.kind === 'unsupported') {
+      deps.warn(`⚠️ ${disclosure.key}: ${disclosure.message}`);
+    }
   }
-  const inputImage = resolveInputImageOption(opts);
-  requireModelPairing(model, inputImage, opts.aspectRatio);
-  validateInputOption(opts);
-  // Validate before creating the output directory; only the upload waits until
-  // every output and format check has passed.
-  const inputTarget = await validateInputImage(deps, inputImage);
-  const manifestPath = `${outPath}.json`;
 
-  // Preflight before the paid call: refuse unwritable outputs, then create the
-  // parent directory so a successful generation cannot fail on a missing dir.
-  await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
-  await deps.ensureParentDir(outPath);
+  // Preflight before the paid call: create the parent directory so a
+  // successful generation cannot fail on a missing dir.
+  await deps.ensureParentDir(plan.outPath);
+  const preparedInput = await uploadInputImage(deps, plan.inputTarget);
 
-  const preparedInput = await uploadInputImage(deps, inputTarget);
-
-  const input = buildInput(prompt, opts, preparedInput.url);
-  const saved = await generateAndSave(deps, model, input, outPath);
+  const input =
+    preparedInput.url === undefined
+      ? plan.input
+      : { ...plan.input, image_urls: [preparedInput.url] };
+  const saved = await generateAndSave(deps, plan.model, input, plan.outPath);
 
   await deps.writeJson(
-    manifestPath,
+    plan.manifestPath,
     buildManifest({
-      platform,
-      model,
+      platform: plan.platform,
+      model: plan.model,
       input,
       inputImage: preparedInput.record,
       requestId: saved.requestId,
       resultSeed: saved.seed,
       requestedSeed: opts.seed,
-      outPath,
+      outPath: plan.outPath,
       sha256: saved.sha256,
       contentType: saved.image.content_type,
       byteLength: saved.bytes.byteLength,
@@ -565,5 +652,5 @@ export async function generateImage(
     })
   );
 
-  return { outPath, manifestPath, sha256: saved.sha256 };
+  return { outPath: plan.outPath, manifestPath: plan.manifestPath, sha256: saved.sha256 };
 }
