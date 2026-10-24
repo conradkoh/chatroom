@@ -44,7 +44,7 @@ function getDuoPlannerContext(_ctx: SelectorContext): string {
  - You are the entry point — you communicate directly with the user
  - You coordinate with the builder for implementation tasks
  - You are ultimately accountable for all work quality
- - After reviewing builder output, deliver results to the user
+ - After reviewing builder output, complete any required review and verifier-gate steps before delivering results to the user
  - **Only you can hand off to \`user\`**`;
 }
 

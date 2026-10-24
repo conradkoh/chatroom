@@ -18,9 +18,9 @@ export function appendEnhanceModeGuidance(lines: string[]): void {
   lines.push(
     '',
     '<enhance-mode>',
-    '## Enhance Mode (Planner Design Authority)',
+    '## Enhance Mode (Planner Design Direction)',
     '',
-    '**Treat this planner task as the direct design authority before implementation or delegation.** Recover the authoritative user request and relevant history, then inspect repository evidence and established conventions.',
+    '**Treat this planner task as the design owner before implementation or delegation, except that backend contracts, APIs, and schema/persistence design belong to `architect`.** Recover the authoritative user request and relevant history, then inspect repository evidence and established conventions.',
     '**Choose exactly one recommended design.** Cover the complete frontend and user flows. For backend contracts, APIs, or schema/persistence, hand off to `architect` first and adopt its design. State the important risks, tests, and ordered implementation sequence before continuing the normal planner coordination and delegation workflow.',
     'If UI/UX input is useful, delegate to `uiux-engineer`. Use the normal team handoff flow; do not create a separate design task or use a special handoff ceremony.',
     '</enhance-mode>'
