@@ -255,9 +255,9 @@ function createFalUploadFile(
 ): GenerateImageDeps['uploadFile'] {
   return async (path, contentType) => {
     configureFal(env);
-    const bytes = await readFile(path);
-    const blob = new Blob([new Uint8Array(bytes)], { type: contentType });
     try {
+      const bytes = await readFile(path);
+      const blob = new Blob([new Uint8Array(bytes)], { type: contentType });
       return await fal.storage.upload(blob, { lifecycle: { expiresIn: '1d' } });
     } catch (err) {
       throw new GenerateImageError(

@@ -6,25 +6,52 @@
  * mapping is tested against the SDK's actual shapes. No network calls are made.
  */
 
-import { ApiError, ValidationError } from '@fal-ai/client';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type * as FalModule from '@fal-ai/client';
+import { ApiError, ValidationError } from '@fal-ai/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createDefaultGenerateImageDeps, createFalRawSubscribe } from './deps.js';
 import type { GenerateImageDeps } from './deps.js';
+import { GenerateImageError } from './image.js';
 
-const { subscribeMock, configMock } = vi.hoisted(() => ({
+const { subscribeMock, configMock, uploadMock } = vi.hoisted(() => ({
   subscribeMock: vi.fn(),
   configMock: vi.fn(),
+  uploadMock: vi.fn(),
 }));
 
 vi.mock('@fal-ai/client', async (importOriginal) => {
   const actual = await importOriginal<typeof FalModule>();
-  return { ...actual, fal: { ...actual.fal, subscribe: subscribeMock, config: configMock } };
+  return {
+    ...actual,
+    fal: {
+      ...actual.fal,
+      subscribe: subscribeMock,
+      config: configMock,
+      storage: { ...actual.fal.storage, upload: uploadMock },
+    },
+  };
 });
 
 const FAL_API_KEY = 'fal-api-key-sentinel-never-printed';
 const IMAGE_URL = 'https://fal.test/generated/hero.png';
+const UPLOADED_URL = 'https://fal.test/uploaded/hero.png';
+
+/** Temp dirs created by a test, removed in afterEach. */
+const tempDirs: string[] = [];
+
+/** Write bytes to a fresh temp file and return its absolute path. */
+async function writeTempFile(bytes: Uint8Array, name = 'input.png'): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'chatroom-upload-'));
+  tempDirs.push(dir);
+  const path = join(dir, name);
+  await writeFile(path, bytes);
+  return path;
+}
 
 async function captureError(promise: Promise<unknown>): Promise<Error> {
   try {
@@ -42,12 +69,14 @@ describe('createDefaultGenerateImageDeps', () => {
     process.env.FAL_API_KEY = FAL_API_KEY;
     subscribeMock.mockReset();
     configMock.mockReset();
+    uploadMock.mockReset();
     deps = createDefaultGenerateImageDeps();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.FAL_API_KEY;
     vi.unstubAllGlobals();
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
   it('reports the installed SDK version', () => {
@@ -113,6 +142,89 @@ describe('createDefaultGenerateImageDeps', () => {
     );
     expect(configMock).not.toHaveBeenCalled();
     expect(subscribeMock).not.toHaveBeenCalled();
+  });
+
+  it('uploads a file with its content type and a one-day lifetime', async () => {
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const path = await writeTempFile(bytes);
+    uploadMock.mockResolvedValue(UPLOADED_URL);
+
+    await expect(deps.uploadFile(path, 'image/png')).resolves.toBe(UPLOADED_URL);
+
+    expect(uploadMock).toHaveBeenCalledTimes(1);
+    const [blob, options] = uploadMock.mock.calls[0] as [Blob, unknown];
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe('image/png');
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(bytes);
+    expect(options).toEqual({ lifecycle: { expiresIn: '1d' } });
+    expect(configMock).toHaveBeenCalledWith({ credentials: FAL_API_KEY });
+  });
+
+  it('wraps an ApiError upload rejection', async () => {
+    const path = await writeTempFile(new Uint8Array([1, 2, 3]));
+    uploadMock.mockRejectedValue(
+      new ApiError({
+        message: 'Bad Request',
+        status: 400,
+        body: { message: 'upload denied' },
+        requestId: 'req-upload-400',
+      })
+    );
+
+    const error = await captureError(deps.uploadFile(path, 'image/png'));
+
+    expect(error).toBeInstanceOf(GenerateImageError);
+    expect(error.message.startsWith(`Failed to upload input image ${path}`)).toBe(true);
+    expect(error.message).toContain('HTTP 400');
+    expect(error.message).toContain('upload denied');
+    expect(error.message).toContain('req-upload-400');
+    expect(error.message.includes(FAL_API_KEY)).toBe(false);
+  });
+
+  it('wraps a ValidationError upload rejection', async () => {
+    const path = await writeTempFile(new Uint8Array([1, 2, 3]));
+    uploadMock.mockRejectedValue(
+      new ValidationError({
+        message: 'Unprocessable Entity',
+        status: 422,
+        body: {
+          detail: [{ loc: ['file'], msg: 'File too large', type: 'value_error' }],
+        },
+        requestId: 'req-upload-422',
+      })
+    );
+
+    const error = await captureError(deps.uploadFile(path, 'image/png'));
+
+    expect(error).toBeInstanceOf(GenerateImageError);
+    expect(error.message.startsWith(`Failed to upload input image ${path}`)).toBe(true);
+    expect(error.message).toContain('HTTP 422');
+    expect(error.message).toContain('file: File too large');
+    expect(error.message).toContain('req-upload-422');
+    expect(error.message.includes(FAL_API_KEY)).toBe(false);
+  });
+
+  it('refuses to upload without FAL_API_KEY before reading the file', async () => {
+    delete process.env.FAL_API_KEY;
+    const keylessDeps = createDefaultGenerateImageDeps();
+
+    const error = await captureError(keylessDeps.uploadFile('/no/such/file.png', 'image/png'));
+
+    expect(error).toBeInstanceOf(GenerateImageError);
+    expect(error.message).toContain('FAL_API_KEY is not set');
+    expect(configMock).not.toHaveBeenCalled();
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it('wraps a read failure in GenerateImageError', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'chatroom-upload-dir-'));
+    tempDirs.push(dir);
+
+    const error = await captureError(deps.uploadFile(dir, 'image/png'));
+
+    expect(error).toBeInstanceOf(GenerateImageError);
+    expect(error.message.startsWith(`Failed to upload input image ${dir}`)).toBe(true);
+    expect(uploadMock).not.toHaveBeenCalled();
   });
 
   it('surfaces validation field errors, status and requestId', async () => {
