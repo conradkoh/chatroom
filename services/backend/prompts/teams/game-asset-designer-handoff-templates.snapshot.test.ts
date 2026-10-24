@@ -47,7 +47,7 @@ describe('game asset designer handoff template snapshots', () => {
     }
   );
 
-  test('brief and report use proof blocks, a sheet grid, and no flux-2 sheet model', () => {
+  test('brief and report use proof blocks, a sheet grid, and only FLUX 2 Flash model ids', () => {
     const brief = renderPair({
       teamId: 'duo',
       fromRole: 'planner',
@@ -70,9 +70,12 @@ describe('game asset designer handoff template snapshots', () => {
     expect(brief).toContain('## Model');
     expect(brief).toContain('## Model parameters');
     expect(brief).toContain('fal-ai/flux-2/flash');
+    expect(brief).not.toContain('default model');
+    expect(brief).toContain('--dry-run');
     expect(brief).toContain('Always pass `--trim` to `chatroom remove-image-background`');
     expect(report).toContain('Always pass `--trim` to `chatroom remove-image-background`');
     expect(`${brief}\n${report}`).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);
+    expect(`${brief}\n${report}`).not.toMatch(/FLUX\.2|FLUX 2(?! Flash)/);
   });
 
   test('planner delegation states the target, budgets, style reference, and deliverable mode', () => {

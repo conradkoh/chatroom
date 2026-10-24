@@ -15,7 +15,7 @@ Instructions (not part of the message): Return a complete asset delivery report 
 <one to three sentences: what was delivered, whether it is spec only or includes files, and the count of \`fail\` and \`not checked\` items>
 
 ## Proof of Principles
-- [ ] Generate only with \`chatroom generate-image --platform=fal\`, using the CLI default model \`fal-ai/flux-2/flash\` unless the brief names one. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Generate only with \`chatroom generate-image --platform=fal --model <Model>\`, where <Model> is the brief's Model: \`fal-ai/flux-2/flash\` (FLUX 2 Flash), or \`fal-ai/flux-2/flash/edit\` with --input-image for reference edits. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Process images only with \`chatroom slice-image\` and \`chatroom remove-image-background\`; no other tool, script, or remote service. — <evidence: command lines, grid values, or naming map reference>
 - [ ] A sheet is at most the brief's \`Sheet grid\` (default 2x2); a larger grid needs a user request quoted in the brief. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Names come from looking at each tile, never from cell order or prompt order. — <evidence: command lines, grid values, or naming map reference>
@@ -30,6 +30,7 @@ Instructions (not part of the message): Return a complete asset delivery report 
 - [ ] Describe generated output as production-ready only when every checklist item for it passes with \`measured\` or \`inspected\` evidence. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Commit only when the brief names the paths and the commit message. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Generate only when the brief names an output location and allowed tools. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Before the first real call of each command shape (sheet, per-asset, or reference edit), run the same command with --dry-run and apply every constraint it prints; take model-specific constraints only from the dry run, never from memory. — <evidence: command lines, grid values, or naming map reference>
 
 ## Proof of Completion
 - [ ] <one checkbox per brief acceptance criterion; state the evidence label required (measured or inspected)>
@@ -89,7 +90,7 @@ exports[`game asset designer handoff template snapshots > 'duo' 'planner' → 'g
 
 Handoff template \`planner\` → \`game-asset-designer\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal (default model), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator.
+Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -110,10 +111,10 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 <one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not applicable.\` for 3D models and audio; or \`Not specified.\`>
 
 ## Model
-<the CLI default \`fal-ai/flux-2/flash\`; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset>
+<\`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset>
 
 ## Model parameters
-<a JSON object as text passed to \`generate-image --input\`; for a set, include one explicit \`image_size\` (for example \`{"image_size":"square_hd"}\`) so every call uses the same size; \`Not specified.\` if none>
+<a JSON object as text passed to \`generate-image --input\`; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none>
 
 ## Spec consumer
 <who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
@@ -125,7 +126,7 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
 
 ## Allowed tools
-\`chatroom generate-image --platform=fal (default model), chatroom slice-image, chatroom remove-image-background\`
+\`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`
 
 ## Allowed edit paths
 <repository-relative paths the designer may edit; \`None.\` for none>
@@ -142,7 +143,7 @@ Larger only as \`CxR (requested by user: "<quote>")\`.
 <the exact repository directory the designer may write to; required for \`spec and generate\`; \`None.\` for \`spec only\`>
 
 ## Proof of Principles
-- [ ] Generate only with \`chatroom generate-image --platform=fal\`, using the CLI default model \`fal-ai/flux-2/flash\` unless the brief names one.
+- [ ] Generate only with \`chatroom generate-image --platform=fal --model <Model>\`, where <Model> is the brief's Model: \`fal-ai/flux-2/flash\` (FLUX 2 Flash), or \`fal-ai/flux-2/flash/edit\` with --input-image for reference edits.
 - [ ] Process images only with \`chatroom slice-image\` and \`chatroom remove-image-background\`; no other tool, script, or remote service.
 - [ ] A sheet is at most the brief's \`Sheet grid\` (default 2x2); a larger grid needs a user request quoted in the brief.
 - [ ] Names come from looking at each tile, never from cell order or prompt order.
@@ -157,6 +158,7 @@ Larger only as \`CxR (requested by user: "<quote>")\`.
 - [ ] Describe generated output as production-ready only when every checklist item for it passes with \`measured\` or \`inspected\` evidence.
 - [ ] Commit only when the brief names the paths and the commit message.
 - [ ] Generate only when the brief names an output location and allowed tools.
+- [ ] Before the first real call of each command shape (sheet, per-asset, or reference edit), run the same command with --dry-run and apply every constraint it prints; take model-specific constraints only from the dry run, never from memory.
 
 ## Proof of Completion
 - [ ] <one checkbox per acceptance criterion; state the evidence label required (measured or inspected)>
