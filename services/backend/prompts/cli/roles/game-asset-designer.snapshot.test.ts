@@ -37,6 +37,8 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).toContain('### PROCEDURE');
     expect(guidance).toContain('### Perspective consistency');
     expect(guidance).toContain('Do not send `negative_prompt`');
+    expect(guidance).toContain('A mismatched item is regenerated individually');
+    expect(guidance).toContain('never use a sheet');
     expect(guidance).toContain('Proof of Principles');
     expect(guidance).toContain('Proof of Completion');
     expect(guidance).toContain('P8');
