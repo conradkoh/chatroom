@@ -15,7 +15,7 @@ Instructions (not part of the message): Return a complete asset delivery report 
 <one to three sentences: what was delivered, whether it is spec only or includes files, and the count of \`fail\` and \`not checked\` items>
 
 ## Proof of Principles
-- [ ] Generate only with \`chatroom generate-image --platform=fal\`, using the CLI default model unless the brief names one. — <evidence: command lines, grid values, or naming map reference>
+- [ ] Generate only with \`chatroom generate-image --platform=fal\`, using the CLI default model \`fal-ai/flux-2/flash\` unless the brief names one. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Process images only with \`chatroom slice-image\` and \`chatroom remove-image-background\`; no other tool, script, or remote service. — <evidence: command lines, grid values, or naming map reference>
 - [ ] A sheet is at most the brief's \`Sheet grid\` (default 2x2); a larger grid needs a user request quoted in the brief. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Names come from looking at each tile, never from cell order or prompt order. — <evidence: command lines, grid values, or naming map reference>
@@ -24,7 +24,6 @@ Instructions (not part of the message): Return a complete asset delivery report 
 - [ ] Mark \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence (labels below). — <evidence: command lines, grid values, or naming map reference>
 - [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding. — <evidence: command lines, grid values, or naming map reference>
-- [ ] Positioned sheets use exact layout JSON for the model that supports it (currently \`fal-ai/moss-image\`): the layout goes in \`--prompt\`, and \`image_size\` must equal the canvas the coordinates use. Bboxes are \`[y_min,x_min,y_max,x_max]\` in pixels from the canvas centre, y down, x right. \`enable_prompt_expansion\` is false for positioned layouts. Use \`--output-format png\`. Never pass \`--aspect-ratio\` to moss. Do not add model-specific values that the brief does not name. — <evidence: command lines, grid values, or naming map reference>
 - [ ] If \`generate-image\` is missing, \`FAL_API_KEY\` is not set, or it fails, stop generation, deliver \`spec only\`, quote the exact error in Summary, and list it under Open questions. Do not retry in a loop. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Do not install or run any remote tool, script, or skill, and do not fetch generator code. — <evidence: command lines, grid values, or naming map reference>
 - [ ] Never switch generators. — <evidence: command lines, grid values, or naming map reference>
@@ -108,7 +107,7 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Model
-<the CLI default \`fal-ai/flux-2/flash\`, or \`fal-ai/moss-image\` when the brief names it>
+<the CLI default \`fal-ai/flux-2/flash\`>
 
 ## Model parameters
 <a JSON object as text passed to \`generate-image --input\`; \`Not specified.\` if none>
@@ -140,7 +139,7 @@ Larger only as \`CxR (requested by user: "<quote>")\`.
 <the exact repository directory the designer may write to; required for \`spec and generate\`; \`None.\` for \`spec only\`>
 
 ## Proof of Principles
-- [ ] Generate only with \`chatroom generate-image --platform=fal\`, using the CLI default model unless the brief names one.
+- [ ] Generate only with \`chatroom generate-image --platform=fal\`, using the CLI default model \`fal-ai/flux-2/flash\` unless the brief names one.
 - [ ] Process images only with \`chatroom slice-image\` and \`chatroom remove-image-background\`; no other tool, script, or remote service.
 - [ ] A sheet is at most the brief's \`Sheet grid\` (default 2x2); a larger grid needs a user request quoted in the brief.
 - [ ] Names come from looking at each tile, never from cell order or prompt order.
@@ -149,7 +148,6 @@ Larger only as \`CxR (requested by user: "<quote>")\`.
 - [ ] Mark \`pass\` or \`fail\` only with \`measured\` or \`inspected\` evidence (labels below).
 - [ ] Run \`<command> --help\` before first use of \`slice-image\` or \`remove-image-background\`.
 - [ ] Always pass \`--trim\` to \`chatroom remove-image-background\`; use \`--trim-padding\` only when the brief names a padding.
-- [ ] Positioned sheets use exact layout JSON for the model that supports it (currently \`fal-ai/moss-image\`): the layout goes in \`--prompt\`, and \`image_size\` must equal the canvas the coordinates use. Bboxes are \`[y_min,x_min,y_max,x_max]\` in pixels from the canvas centre, y down, x right. \`enable_prompt_expansion\` is false for positioned layouts. Use \`--output-format png\`. Never pass \`--aspect-ratio\` to moss. Do not add model-specific values that the brief does not name.
 - [ ] If \`generate-image\` is missing, \`FAL_API_KEY\` is not set, or it fails, stop generation, deliver \`spec only\`, quote the exact error in Summary, and list it under Open questions. Do not retry in a loop.
 - [ ] Do not install or run any remote tool, script, or skill, and do not fetch generator code.
 - [ ] Never switch generators.

@@ -10,7 +10,7 @@ import { ApiError, ValidationError } from '@fal-ai/client';
 import type * as FalModule from '@fal-ai/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createDefaultGenerateImageDeps } from './deps.js';
+import { createDefaultGenerateImageDeps, createFalRawSubscribe } from './deps.js';
 import type { GenerateImageDeps } from './deps.js';
 
 const { subscribeMock, configMock } = vi.hoisted(() => ({
@@ -66,6 +66,22 @@ describe('createDefaultGenerateImageDeps', () => {
     });
     expect(subscribeMock).toHaveBeenCalledWith('fal-ai/flux/dev', {
       input: { prompt: 'x' },
+      logs: false,
+      startTimeout: 300,
+    });
+  });
+
+  it('returns the raw result from the unvalidated subscriber', async () => {
+    const raw = { data: { image: { url: IMAGE_URL } }, requestId: 'req-raw' };
+    subscribeMock.mockResolvedValue(raw);
+
+    const subscribe = createFalRawSubscribe(process.env);
+
+    await expect(
+      subscribe('fal-ai/birefnet/v2', { image_url: 'data:image/png;base64,AA==' })
+    ).resolves.toEqual(raw);
+    expect(subscribeMock).toHaveBeenCalledWith('fal-ai/birefnet/v2', {
+      input: { image_url: 'data:image/png;base64,AA==' },
       logs: false,
       startTimeout: 300,
     });

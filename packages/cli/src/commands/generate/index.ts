@@ -20,7 +20,7 @@ import {
 import type { GenerateImagePlatform, ImageOutputFormat } from './image.js';
 import { MAX_SIDECAR_BYTES } from './local-image-common.js';
 
-const OUTPUT_FORMATS: readonly ImageOutputFormat[] = ['png', 'jpeg', 'webp'];
+const OUTPUT_FORMATS: readonly ImageOutputFormat[] = ['png', 'webp'];
 
 function parsePlatform(value: string): GenerateImagePlatform {
   if (!GENERATE_IMAGE_PLATFORMS.includes(value as GenerateImagePlatform)) {
@@ -62,7 +62,7 @@ function parseSeed(value: string): number {
 const HELP_AFTER = `
 Examples:
   chatroom generate-image --platform=fal --prompt "a hero" --out hero.png
-  chatroom generate-image --platform=fal --model fal-ai/moss-image --prompt '{"summary":{"canvas":"single"},"items":[]}' --input '{"image_size":{"width":1024,"height":768},"enable_prompt_expansion":false}' --output-format png --out sheet.png
+  chatroom generate-image --platform=fal --prompt 'pixel-art potion, transparent-friendly flat background' --output-format png --out potion.png
 `;
 
 export function registerGenerateImageCommand(program: Command): void {
@@ -88,7 +88,7 @@ export function registerGenerateImageCommand(program: Command): void {
     )
     .option(
       '--output-format <format>',
-      'Output format: png, jpeg, or webp (omitted = model default)',
+      'Output format: png or webp (omitted = model default)',
       parseOutputFormat
     )
     .option('--seed <n>', 'Seed for the random number generator', parseSeed)

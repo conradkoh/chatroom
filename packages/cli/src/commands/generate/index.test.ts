@@ -87,12 +87,13 @@ describe('chatroom generate-image wiring', () => {
     });
   });
 
-  it('rejects an unknown --output-format before running', async () => {
+  it.each(['gif', 'jpeg'])('rejects --output-format %s before running', async (format) => {
     const program = createProgram();
 
     await expect(
-      parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--output-format', 'gif'])
+      parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--output-format', format])
     ).rejects.toMatchObject({ code: 'commander.invalidArgument' });
+    expect(generateImageMock).not.toHaveBeenCalled();
   });
 
   it('rejects a non-integer --seed before running', async () => {
@@ -299,8 +300,8 @@ describe('chatroom generate-image wiring', () => {
       },
     });
     command?.outputHelp();
-    expect(afterHelp).toContain('fal-ai/moss-image');
-    expect(afterHelp).toContain('enable_prompt_expansion');
+    expect(afterHelp).toContain('fal-ai/flux-2/flash');
+    expect(afterHelp).toContain('pixel-art potion');
   });
 
   it('does not expose the old `generate image` group form', async () => {

@@ -1,7 +1,7 @@
 # Image Generation (`chatroom generate-image`)
 
 **Status:** Implemented
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-10-23
 
 ---
 
@@ -126,12 +126,12 @@ Only pass `--aspect-ratio` to models that support it; see
 
 ### Other options
 
-| Option              | Meaning                                                         |
-| ------------------- | --------------------------------------------------------------- |
-| `--platform <name>` | Generation platform. Only `fal` is supported (default).         |
-| `--output-format`   | `png`, `jpeg`, or `webp` (omitted = the model's own default)    |
-| `--seed <n>`        | Integer seed for reproducible output when the model supports it |
-| `--force`           | Replace an existing output and manifest                         |
+| Option              | Meaning                                                                     |
+| ------------------- | --------------------------------------------------------------------------- |
+| `--platform <name>` | Generation platform. Only `fal` is supported (default).                     |
+| `--output-format`   | `png` or `webp` (omitted = the model's own default); both keep transparency |
+| `--seed <n>`        | Integer seed for reproducible output when the model supports it             |
+| `--force`           | Replace an existing output and manifest                                     |
 
 ## The manifest
 
@@ -154,6 +154,65 @@ Every image gets a `<out>.json` sidecar with the provenance of the generation:
 `licensing` stays `unverified` because the command makes no claim about the
 licence or commercial rights of generated output. Check fal's terms and the
 selected model's terms yourself before using an asset in production.
+
+## Background removal (fal.ai)
+
+`remove-image-background-fal` cuts one subject out of a PNG with
+[fal-ai/bria/background/remove](https://fal.ai/models/fal-ai/bria/background/remove)
+by default and writes a PNG with alpha plus a `<out>.json` manifest:
+
+```bash
+chatroom remove-image-background-fal \
+  --in assets/sprites/health-potion.png \
+  --out assets/sprites/health-potion-cutout.png
+```
+
+| Option     | Meaning                                     |
+| ---------- | ------------------------------------------- |
+| `--in`     | Input PNG (required)                        |
+| `--out`    | Output PNG with alpha (required)            |
+| `--engine` | `bria` (default) or `birefnet`              |
+| `--force`  | Replace an existing output and its manifest |
+
+The default `bria` engine calls
+[fal-ai/bria/background/remove](https://fal.ai/models/fal-ai/bria/background/remove).
+fal lists a fixed price of about $0.018 per call (read 2026-10-23); check the
+model page and your fal dashboard for the current rate. The optional prompt
+mode is not exposed, so that per-call price is the one this command uses.
+
+Pass `--engine birefnet` to run the previous backend,
+[fal-ai/birefnet/v2](https://fal.ai/models/fal-ai/birefnet/v2) in `Matting` mode:
+
+```bash
+chatroom remove-image-background-fal \
+  --in assets/sprites/health-potion.png \
+  --out assets/sprites/health-potion-cutout.png \
+  --engine birefnet
+```
+
+birefnet is billed per compute-second rather than per call.
+
+The source is sent as a base64 data URI, so there is no separate upload step.
+Both engines write a PNG with alpha. The command prints the output path, the
+manifest path, and the fal request id. The manifest records the engine, the
+model, the source and output SHA-256 hashes, and the request id.
+
+- **Input cap:** 8 MiB.
+- **Result cap:** 32 MiB; anything larger is rejected before writing.
+- **Dimensions:** the output must match the input's width and height. A
+  mismatch fails without writing anything, because a resized tile sheet would
+  shift every tile's grid position. Re-run with `--engine birefnet`, or resize
+  the sheet so the engine accepts it; the command refuses rather than resizing.
+- **Licensing:** `unverified` in the manifest for both engines, as with
+  `generate-image`. Check the
+  [bria model page](https://fal.ai/models/fal-ai/bria/background/remove), the
+  [BiRefNet model page](https://fal.ai/models/fal-ai/birefnet/v2), and fal's
+  terms before using an asset in production.
+
+The local `remove-image-background` command is different: it is colour-key only,
+runs offline, and needs no `FAL_API_KEY`. Use it for flat, uniform backgrounds.
+The fal command handles photographic or textured backgrounds where colour
+keying fails.
 
 ## Limits
 
