@@ -32,7 +32,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Perspective
-<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); \`Not applicable.\` for 3D models and audio; or \`Not specified.\`>
+<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not applicable.\` for 3D models and audio; or \`Not specified.\`>
 
 ## Model
 <the CLI default \`fal-ai/flux-2/flash\`; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset>

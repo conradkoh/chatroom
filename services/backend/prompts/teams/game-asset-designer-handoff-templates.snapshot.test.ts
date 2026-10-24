@@ -88,6 +88,7 @@ describe('game asset designer handoff template snapshots', () => {
     expect(template).toContain('## Budgets and conventions');
     expect(template).toContain('## Style reference');
     expect(template).toContain('## Perspective');
+    expect(template).toContain('no sheets');
     expect(template).toContain('## Spec consumer');
     expect(template).toContain('## Existing assets');
     expect(template).toContain('## Deliverable mode');
