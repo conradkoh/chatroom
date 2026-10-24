@@ -19,6 +19,7 @@ import {
   formatConflicts,
   hasPngMagic,
   isRecord,
+  median,
   readPngDimensions,
   sha256,
 } from './local-image-common.js';
@@ -462,13 +463,6 @@ function mostFrequentBorderColor(image: {
     if (width > 1) add(width - 1, y);
   }
   if (red.length === 0) return null;
-  // fallow-ignore-next-line complexity
-  const median = (values: number[]): number => {
-    const sorted = [...values].sort((a, b) => a - b);
-    const middle = Math.floor(sorted.length / 2);
-    if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
-    return Math.round(((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2);
-  };
   return [median(red), median(green), median(blue)];
 }
 

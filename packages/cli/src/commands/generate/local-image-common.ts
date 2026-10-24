@@ -31,6 +31,18 @@ export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * Median of a non-empty numeric sample. Odd lengths take the middle value;
+ * even lengths average the two middle values and round to an integer.
+ */
+// fallow-ignore-next-line complexity
+export function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
+  return Math.round(((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2);
+}
+
 export function hasPngMagic(bytes: Uint8Array): boolean {
   if (bytes.length < PNG_MAGIC.length) return false;
   return PNG_MAGIC.every((byte, index) => bytes[index] === byte);

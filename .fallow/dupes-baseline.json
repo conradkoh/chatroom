@@ -160,7 +160,6 @@
     "services/backend/src/domain/usecase/agent/get-last-sent-launch-request.ts:36-46|services/backend/src/domain/usecase/agent/get-last-sent-launch-request.ts:59-67",
     "services/backend/src/domain/usecase/agent/project-agent-role-status-read-model.ts:178-190|services/backend/src/domain/usecase/agent/project-agent-role-status-read-model.ts:86-101",
     "services/backend/src/domain/usecase/agent/request-agent-restart.ts:59-63|services/backend/src/domain/usecase/agent/start-agent.ts:170-174",
-    "services/backend/src/domain/usecase/workspace/project-observed-workspace-view.ts:16-20|services/backend/src/domain/usecase/workspace/remove-workspace.ts:76-82",
-    "packages/cli/src/commands/generate/background-key.ts:76-80|packages/cli/src/commands/generate/slice.ts:466-470"
+    "services/backend/src/domain/usecase/workspace/project-observed-workspace-view.ts:16-20|services/backend/src/domain/usecase/workspace/remove-workspace.ts:76-82"
   ]
 }

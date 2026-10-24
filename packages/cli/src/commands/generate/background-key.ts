@@ -8,6 +8,8 @@
  * clock is used here.
  */
 
+import { median } from './local-image-common.js';
+
 export const DEFAULT_TOLERANCE = 24;
 export const DEFAULT_MIN_AREA_PERCENT = 0.5;
 // fallow-ignore-next-line unused-export
@@ -70,14 +72,6 @@ function borderCoordinates(width: number, height: number): [number, number][] {
     if (width > 1) coordinates.push([width - 1, y]);
   }
   return coordinates;
-}
-
-// fallow-ignore-next-line complexity
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
-  return Math.round(((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2);
 }
 
 /** Visit all 8 neighbours that fall inside the image. */
