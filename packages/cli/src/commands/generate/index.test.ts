@@ -14,6 +14,7 @@ import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as ImageModule from './image.js';
+import { DEFAULT_IMAGE_MODEL } from './image.js';
 import { registerGenerateImageCommand } from './index.js';
 
 const { generateImageMock } = vi.hoisted(() => ({ generateImageMock: vi.fn() }));
@@ -282,6 +283,22 @@ describe('chatroom generate-image wiring', () => {
     expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ inputImage: undefined });
   });
 
+  it('does not forward --model when omitted', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ model: undefined });
+  });
+
+  it('forwards an explicit --model', async () => {
+    const program = createProgram();
+
+    await parse(program, ['--prompt', 'x', '--out', '/tmp/x.png', '--model', 'fal-ai/flux/dev']);
+
+    expect(generateImageMock.mock.calls[0]?.[0]).toMatchObject({ model: 'fal-ai/flux/dev' });
+  });
+
   it('lists the flags and description in help output', () => {
     const program = createProgram();
     const command = program.commands[0];
@@ -291,6 +308,7 @@ describe('chatroom generate-image wiring', () => {
     expect(help).toContain('Generate one image with a fal model');
     const modelOption = command?.options.find((option) => option.long === '--model');
     expect(modelOption?.description).toContain('Recommended');
+    expect(modelOption?.description).toContain(DEFAULT_IMAGE_MODEL);
     for (const flag of [
       '--prompt',
       '--out',
