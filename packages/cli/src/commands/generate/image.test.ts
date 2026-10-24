@@ -270,14 +270,40 @@ describe('generateImage', () => {
     ['aspect_ratio', '--aspect-ratio'],
     ['image_urls', '--input-image'],
   ])('refuses the reserved input key %s and names %s', async (key, flag) => {
-    const deps = createDeps();
+    const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }) });
 
     const error = await captureError(
-      generateImage({ prompt: 'a hero', out: OUT_PATH, input: { [key]: 'x' } }, deps)
+      generateImage(
+        { prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE, input: { [key]: 'x' } },
+        deps
+      )
     );
 
     expect(error.message).toContain(`"${key}"`);
     expect(error.message).toContain(flag);
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('rejects reserved --input keys before uploading or creating the output directory', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }) });
+
+    const error = await captureError(
+      generateImage(
+        {
+          prompt: 'a hero',
+          out: OUT_PATH,
+          inputImage: INPUT_IMAGE,
+          input: { image_urls: ['https://example.test/other.png'] },
+        },
+        deps
+      )
+    );
+
+    expect(error.message).toContain('"image_urls"');
+    expect(error.message).toContain('use --input-image instead');
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
@@ -590,8 +616,9 @@ describe('generateImage', () => {
     );
 
     expect(error).toBeInstanceOf(GenerateImageError);
-    expect(error.message).toContain('--aspect-ratio is not supported with --input-image');
-    expect(error.message).toContain('image_size');
+    expect(error.message).toBe(
+      `--aspect-ratio is not supported with --input-image. Pass --input '{"image_size":"landscape_4_3"}' instead.`
+    );
     expect(deps.uploadFile).not.toHaveBeenCalled();
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
@@ -623,6 +650,58 @@ describe('generateImage', () => {
     expect(error.message).toContain('.png');
     expect(deps.uploadFile).not.toHaveBeenCalled();
     expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('checks an existing output before uploading the input image', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file', [OUT_PATH]: 'file' }),
+    });
+
+    await expect(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE }, deps)
+    ).rejects.toThrow(`--out already exists: ${OUT_PATH}`);
+
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
+  });
+
+  it('checks the output format before uploading the input image', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }) });
+
+    await expect(
+      generateImage(
+        { prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE, outputFormat: 'webp' },
+        deps
+      )
+    ).rejects.toThrow('--output-format webp does not match the --out extension .png');
+
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
+  });
+
+  it('checks the output extension before uploading the input image', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }) });
+
+    await expect(
+      generateImage(
+        { prompt: 'a hero', out: '/tmp/generated/hero.jpg', inputImage: INPUT_IMAGE },
+        deps
+      )
+    ).rejects.toThrow('Unsupported output extension .jpg');
+
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
+  });
+
+  it('validates the input image before creating the output directory', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'missing' }) });
+
+    await expect(
+      generateImage({ prompt: 'a hero', out: OUT_PATH, inputImage: INPUT_IMAGE }, deps)
+    ).rejects.toThrow(`--input-image is not a file: ${INPUT_IMAGE}`);
+
+    expect(deps.ensureParentDir).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
   });
 
   it('surfaces an upload failure as GenerateImageError and never calls fal', async () => {

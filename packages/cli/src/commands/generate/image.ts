@@ -183,8 +183,11 @@ function validateInputObject(input: Record<string, unknown>): void {
   }
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /** Parse `--input` inline JSON and require a plain object. */
-// fallow-ignore-next-line complexity
 export function parseInputJson(text: string): Record<string, unknown> {
   let parsed: unknown;
   try {
@@ -192,12 +195,11 @@ export function parseInputJson(text: string): Record<string, unknown> {
   } catch {
     throw new GenerateImageError('--input must be valid JSON.');
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+  if (!isPlainObject(parsed)) {
     throw new GenerateImageError('--input must be a JSON object.');
   }
-  const input = parsed as Record<string, unknown>;
-  validateInputObject(input);
-  return input;
+  validateInputObject(parsed);
+  return parsed;
 }
 
 /**
@@ -211,12 +213,6 @@ function buildInput(
   opts: GenerateImageOptions,
   imageUrl: string | undefined
 ): Record<string, unknown> {
-  if (opts.input !== undefined) {
-    if (typeof opts.input !== 'object' || opts.input === null || Array.isArray(opts.input)) {
-      throw new GenerateImageError('--input must be a JSON object.');
-    }
-    validateInputObject(opts.input);
-  }
   return {
     prompt,
     ...(opts.input ?? {}),
@@ -225,6 +221,15 @@ function buildInput(
     ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
     ...(imageUrl !== undefined ? { image_urls: [imageUrl] } : {}),
   };
+}
+
+/** Validate `--input` before any filesystem or network work. */
+function validateInputOption(opts: GenerateImageOptions): void {
+  if (opts.input === undefined) return;
+  if (!isPlainObject(opts.input)) {
+    throw new GenerateImageError('--input must be a JSON object.');
+  }
+  validateInputObject(opts.input);
 }
 
 /** The first image of a fal result, or a clear error when the model returned none. */
@@ -384,11 +389,15 @@ function resolveInputImageOption(opts: GenerateImageOptions): string | undefined
   if (opts.inputImage === undefined) return undefined;
   if (opts.aspectRatio !== undefined) {
     throw new GenerateImageError(
-      `--aspect-ratio is not supported with --input-image: ${DEFAULT_IMAGE_EDIT_MODEL} sizes its output with image_size. Pass --input '{"image_size":"landscape_4_3"}' instead.`
+      `--aspect-ratio is not supported with --input-image. Pass --input '{"image_size":"landscape_4_3"}' instead.`
     );
   }
   return requireNonEmpty(opts.inputImage, '--input-image must not be empty.');
 }
+
+/** A validated input image: a public URL or a local file waiting to be uploaded. */
+type InputImageTarget =
+  { kind: 'url'; url: string } | { kind: 'file'; path: string; contentType: string };
 
 interface PreparedInputImage {
   /** The single value sent to fal in `image_urls`, or undefined without --input-image. */
@@ -398,28 +407,36 @@ interface PreparedInputImage {
 }
 
 /**
- * Preflight the input image before the paid call. A local file is checked and
- * uploaded only after every other check has passed; a public http(s) URL is
- * passed through untouched.
+ * Validate the input image before the output directory is created. The
+ * extension is checked before pathStatus so unsupported formats fail without
+ * touching disk; the upload itself happens later, after every other preflight.
  */
-async function prepareInputImage(
+async function validateInputImage(
   deps: GenerateImageDeps,
   inputImage: string | undefined
-): Promise<PreparedInputImage> {
-  if (inputImage === undefined) return { url: undefined, record: null };
-  if (HTTP_URL_PATTERN.test(inputImage)) {
-    return { url: inputImage, record: { source: inputImage, url: inputImage } };
-  }
+): Promise<InputImageTarget | undefined> {
+  if (inputImage === undefined) return undefined;
+  if (HTTP_URL_PATTERN.test(inputImage)) return { kind: 'url', url: inputImage };
   const localPath = resolve(inputImage);
-  // Resolve the content type first so an unsupported extension fails before
-  // any bytes are sent.
   const contentType = inputImageContentType(localPath);
   const status = await deps.pathStatus(localPath);
   if (status !== 'file') {
     throw new GenerateImageError(`--input-image is not a file: ${localPath}`);
   }
-  const url = await deps.uploadFile(localPath, contentType);
-  return { url, record: { source: localPath, url } };
+  return { kind: 'file', path: localPath, contentType };
+}
+
+/** Upload a validated local file, if any, and return the value for image_urls. */
+async function uploadInputImage(
+  deps: GenerateImageDeps,
+  target: InputImageTarget | undefined
+): Promise<PreparedInputImage> {
+  if (target === undefined) return { url: undefined, record: null };
+  if (target.kind === 'url') {
+    return { url: target.url, record: { source: target.url, url: target.url } };
+  }
+  const url = await deps.uploadFile(target.path, target.contentType);
+  return { url, record: { source: target.path, url } };
 }
 
 /** A completed generation whose bytes are already written to `outPath`. */
@@ -472,6 +489,10 @@ export async function generateImage(
     requireFormatMatchesExtension(outPath, opts.outputFormat);
   }
   const inputImage = resolveInputImageOption(opts);
+  validateInputOption(opts);
+  // Validate before creating the output directory; only the upload waits until
+  // every output and format check has passed.
+  const inputTarget = await validateInputImage(deps, inputImage);
   const manifestPath = `${outPath}.json`;
 
   // Preflight before the paid call: refuse unwritable outputs, then create the
@@ -479,7 +500,8 @@ export async function generateImage(
   await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
   await deps.ensureParentDir(outPath);
 
-  const preparedInput = await prepareInputImage(deps, inputImage);
+  const preparedInput = await uploadInputImage(deps, inputTarget);
+
   const model =
     opts.model ??
     (preparedInput.url !== undefined ? DEFAULT_IMAGE_EDIT_MODEL : DEFAULT_IMAGE_MODEL);
