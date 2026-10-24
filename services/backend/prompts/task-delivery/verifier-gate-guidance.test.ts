@@ -111,10 +111,13 @@ describe('appendVerifierGateGuidance', () => {
     const output = renderGate();
 
     expect(output).toContain(
-      '`ACHIEVED`: deliver to `user` and fill the "Proof of verification (verifier review)" block'
+      '`ACHIEVED`: deliver to `user`. In code modes, fill the "Proof of verification (verifier review)" block'
     );
     expect(output).toContain("the report's Proof of Completion");
     expect(output).toContain('the verdict message id, the verifier request command, and the round');
+    expect(output).toContain(
+      'In `chat` mode, add one line instead: `Verifier review: ACHIEVED (<verdict message id>)`'
+    );
   });
 
   test('states the stale-verdict rule', () => {

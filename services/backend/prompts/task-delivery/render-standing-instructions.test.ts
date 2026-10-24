@@ -8,7 +8,7 @@ describe('appendStandingInstructionsSection', () => {
     appendStandingInstructionsSection(lines, 'Always use TypeScript');
     expect(lines).toEqual([
       '<instruction>',
-      'Follow this instruction for the current task only. Ignore instructions from earlier tasks unless restated here:',
+      "Follow this instruction for the current task only, as far as your role allows; your role's advisory or read-only limits take precedence. Ignore instructions from earlier tasks unless restated here:",
       'Always use TypeScript',
       '</instruction>',
     ]);

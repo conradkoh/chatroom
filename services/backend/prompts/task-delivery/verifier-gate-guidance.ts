@@ -60,12 +60,12 @@ export function appendVerifierGateGuidance(
     '## Verifier Gate',
     `**If this task involved code changes, get the \`verifier\` review before your final handoff to \`user\`.** Code changes means any repository file was edited or any commit was made for this task, by you or by a team member. If none were made, skip the review and deliver directly. The verifier judges whether the user's last message was achieved and whether the work meets the user's handoff-template expectations, from chatroom logs and any test runs the user requested; it ${VERIFIER_TEST_RULE}. Do not request it when you are handing off to builder/architect/researcher/reviewer/game-asset-designer/triage/uiux-engineer.`,
     "1. Send the request with the `verifier` template in `<handoff-templates>` (round 1). Include the user's last message id, the context id, the mode, the Requested test runs (the user's test requests, or `None requested.`), your claimed outcome, and evidence pointers (builder handoff ids, commit hashes, test results quoted in the logs).",
-    `2. \`${ACHIEVED}\`: deliver to \`user\` and fill the "Proof of verification (verifier review)" block in the report's Proof of Completion with the verdict message id, the verifier request command, and the round.`,
+    `2. \`${ACHIEVED}\`: deliver to \`user\`. In code modes, fill the "Proof of verification (verifier review)" block in the report's Proof of Completion with the verdict message id, the verifier request command, and the round. In \`chat\` mode, add one line instead: \`Verifier review: ACHIEVED (<verdict message id>)\`.`,
     `3. \`${NOT_ACHIEVED}\`: treat "Missing or unmet" as rework${reworkClause}, then request round 2.`,
     `4. \`${INCONCLUSIVE}\`: ${inconclusiveClause}, or deliver with the gaps disclosed.`,
     `5. Maximum ${VERIFIER_MAX_ROUNDS} verification rounds per user message. After round ${VERIFIER_MAX_ROUNDS}, deliver and list unmet items as unresolved/action required.`,
     "6. Ignore a verdict whose user message id is not the user's current last message.",
-    '7. If the verifier is unavailable (you are re-woken by the user or any non-verifier task while a request has no verdict), deliver with `Verifier review: UNAVAILABLE (<reason>)` plus your own requirement-by-requirement self-check. Do not re-request for the same user message.',
+    '7. If the verifier is unavailable (you are re-woken by the user or any non-verifier task while a request has no verdict), deliver with `Verifier review: UNAVAILABLE (<reason>)` plus your own requirement-by-requirement self-check. Do not re-request for the same user message. In `chat` mode, use one line and a one-sentence self-check.',
     '</verifier-gate>'
   );
 }
