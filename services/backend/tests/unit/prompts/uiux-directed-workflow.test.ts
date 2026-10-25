@@ -108,7 +108,7 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
         if (role === 'planner') {
           expect(output).toContain('The UI/UX engineer owns UI/UX design.');
           expect(output).toContain(
-            'Include its target markup, classes, and styles in UI implementation briefs'
+            'Include its target markup, classes, styles, and screen and flow drawings in UI implementation briefs'
           );
         } else {
           expect(output).toContain(
