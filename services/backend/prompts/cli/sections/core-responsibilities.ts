@@ -26,7 +26,7 @@ export function getCoreResponsibilitiesSection(
   options?: CoreResponsibilitiesSectionOptions
 ): string {
   const qualityLine = config.hasBuilder
-    ? "If the user's requirements are not met, hand work back to the builder for rework."
+    ? "If the user's requirements are not met, hand the work back to the role that produced it for rework."
     : "If the work doesn't meet requirements, revise it yourself before delivering.";
 
   const discoveryGuidance = options

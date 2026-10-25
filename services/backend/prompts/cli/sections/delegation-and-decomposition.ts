@@ -20,5 +20,5 @@ export function getDelegationAndDecompositionSection(config: TeamCompositionConf
 
   return `**Delegation & Decomposition:**
 
-Any task that requires code changes must be delegated to the builder — break it into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below). Game asset files and the asset-integration edits that go with them go to \`game-asset-designer\` (see the game assets rule).`;
+Any task that requires code changes must be delegated to the builder — break it into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below).`;
 }

@@ -32,7 +32,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Perspective
-<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not applicable.\` for 3D models and audio; or \`Not specified.\`>
+<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not Applicable.\` for 3D models and audio; or \`Not specified.\`>
 
 ## Model
 <\`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset>
@@ -41,7 +41,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <a JSON object as text passed to \`generate-image --input\`; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none>
 
 ## Spec consumer
-<who integrates these assets from the spec: \`builder\` (application code) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
+<who integrates these assets from the spec: \`builder\` (application logic outside the allowed edit paths) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
 
 ## Existing assets
 <repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
@@ -79,7 +79,7 @@ Instructions after the body (not part of the message): the planner may append ex
 - assets must meet engine import conventions or budgets before a builder integrates them;
 - the user asks for an asset spec, style sheet, or asset audit.
 
-Skip it for code-only work and for a trivial asset rename. Non-game UI icons and illustrations also go to this role; they are not sent to \`uiux-engineer\`.
+Skip it for code-only work. Non-game UI icons and illustrations also go to this role; they are not sent to \`uiux-engineer\`.
 
 \`\`\`bash
 ${handoffCommand({
@@ -149,7 +149,7 @@ Write exactly \`None.\` if no sheet was used.
 <every property you could not measure or inspect; write exactly \`None.\` if none>
 
 ## Recommended next step
-<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (integrate, or apply the listed import settings), \`uiux-engineer\` (layout, component, or styling changes only, never asset files), or \`planner\` (decision needed on an open question); then the affected asset IDs>
+<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (application logic outside the allowed edit paths), \`uiux-engineer\` (layout, component, or styling changes only, never asset files), or \`planner\` (decision needed on an open question); then the affected asset IDs>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 

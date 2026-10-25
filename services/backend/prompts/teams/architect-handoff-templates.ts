@@ -22,9 +22,11 @@ export function getEntryPointToArchitectHandoffTemplate(query: HandoffTemplateQu
 
   return `The automatically injected \`<user-message>\` is the authoritative request. Add only concise context that the Architect needs to design within the existing repository and team scope.
 
+Use this before any backend contract, API, or schema/persistence change.
+
 Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on ${getArchitectFocus()}.
 
-After completing the design, hand it back to \`${entryPoint}\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
+After completing the design, the \`architect\` must hand it back to \`${entryPoint}\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
 \`\`\`bash
 ${handoffCommand({

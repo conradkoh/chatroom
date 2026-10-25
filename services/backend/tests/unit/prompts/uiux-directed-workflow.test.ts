@@ -49,11 +49,13 @@ describe('UI/UX ownership and snapshot-first implementation', () => {
         });
         expect(guidance).toContain('The UI/UX engineer owns the design.');
         expect(guidance).toContain(
-          'Request its markup, classes, and styles for the implementation brief.'
+          teamId === 'duo'
+            ? 'Request its markup, classes, and styles for the implementation brief.'
+            : 'Request its markup, classes, and styles, and implement to match them.'
         );
         if (teamId === 'duo')
           expect(guidance).toContain(
-            'You own architecture and API shape; the UI/UX engineer owns UI/UX design.'
+            "Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design."
           );
       }
   });

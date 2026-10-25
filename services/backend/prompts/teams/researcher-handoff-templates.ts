@@ -12,7 +12,7 @@ export function getEntryPointToResearcherHandoffTemplate(query: HandoffTemplateQ
 Research before delegating when the slice introduces something not already grounded in this repository:
 - a new library, API, external service, platform behavior, or version-sensitive dependency;
 - an unfamiliar subsystem;
-- a change with several plausible designs;
+- a choice between several plausible approaches that depends on facts not yet in the repository (the \`architect\` still owns backend contract, API, and schema/persistence design);
 - any ambiguity the user has not resolved.
 
 Skip research when the change is a small, well-understood edit in code you have already inspected.

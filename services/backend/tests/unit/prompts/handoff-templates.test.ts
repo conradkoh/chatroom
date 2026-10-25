@@ -432,11 +432,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
-      **Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved design choice), hand off to \`researcher\` first and delegate only after its brief returns. Skip this for small, well-understood edits. The \`researcher\` handoff template defines the criteria.
+      **Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved choice that depends on missing facts), hand off to \`researcher\` first and delegate only after its brief returns. Skip this when the \`researcher\` template's skip condition applies. The \`researcher\` handoff template defines the criteria.
 
       **Bug fixes:** if this slice fixes a reported bug, delegate only after a \`triage\` report for that bug has returned, and build the brief from its root cause and proposed fix. The \`triage\` handoff template defines the investigation.
 
-      **Division of labor:** You (planner) own architecture and API shape. The UI/UX engineer owns UI/UX design. Include its target markup, classes, styles, and screen and flow drawings in UI implementation briefs; the builder implements the components.
+      **Division of labor:** For backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You (planner) own slicing and sequencing of builder work. The UI/UX engineer owns UI/UX design. Include its target markup, classes, styles, and screen and flow drawings in UI implementation briefs; the builder implements the components.
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
@@ -524,11 +524,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
-      **Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved design choice), hand off to \`researcher\` first and delegate only after its brief returns. Skip this for small, well-understood edits. The \`researcher\` handoff template defines the criteria.
+      **Before you delegate:** if this slice introduces anything not yet grounded in the repository (a new library, API, external platform behavior, or an unresolved choice that depends on missing facts), hand off to \`researcher\` first and delegate only after its brief returns. Skip this when the \`researcher\` template's skip condition applies. The \`researcher\` handoff template defines the criteria.
 
       **Bug fixes:** if this slice fixes a reported bug, delegate only after a \`triage\` report for that bug has returned, and build the brief from its root cause and proposed fix. The \`triage\` handoff template defines the investigation.
 
-      **Division of labor:** You (planner) own architecture and API shape. The UI/UX engineer owns UI/UX design. Include its target markup, classes, styles, and screen and flow drawings in UI implementation briefs; the builder implements the components.
+      **Division of labor:** For backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You (planner) own slicing and sequencing of builder work. The UI/UX engineer owns UI/UX design. Include its target markup, classes, styles, and screen and flow drawings in UI implementation briefs; the builder implements the components.
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 

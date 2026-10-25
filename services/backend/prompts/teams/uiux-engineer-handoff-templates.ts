@@ -27,7 +27,7 @@ export function getEntryPointToUiuxEngineerHandoffTemplate(query: HandoffTemplat
 
 Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on ${getUiuxEngineerFocus()}.
 
-After completing the design, hand it back to \`${entryPoint}\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
+After completing the design, the \`uiux-engineer\` must hand it back to \`${entryPoint}\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
 \`\`\`bash
 ${handoffCommand({

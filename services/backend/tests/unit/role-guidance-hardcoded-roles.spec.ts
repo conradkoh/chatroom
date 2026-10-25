@@ -93,9 +93,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       isEntryPoint: true,
       convexUrl: CONVEX_URL,
     });
-    expect(guidance).toContain(
-      'Feed slices to the builder incrementally — one at a time, not all at once'
-    );
+    expect(guidance).toContain('**Delegation rule:** If the task requires **any code changes**');
     expect(guidance).not.toContain('tackle one layer at a time');
   });
 
@@ -107,7 +105,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
     expect(guidance).toContain('tackle one layer at a time');
-    expect(guidance).not.toContain('Feed slices to the builder incrementally');
+    expect(guidance).not.toContain('**Delegation rule:**');
   });
 
   test('duo team: Quality Accountability mentions builder for rework', () => {
@@ -118,7 +116,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
     });
     expect(guidance).toContain(
-      "If the user's requirements are not met, hand work back to the builder for rework."
+      "If the user's requirements are not met, hand the work back to the role that produced it for rework."
     );
     expect(guidance).not.toContain('revise it yourself before delivering');
   });
@@ -133,7 +131,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(guidance).toContain(
       "If the work doesn't meet requirements, revise it yourself before delivering."
     );
-    expect(guidance).not.toContain('hand work back to the builder');
+    expect(guidance).not.toContain('hand the work back to the role');
   });
 });
 

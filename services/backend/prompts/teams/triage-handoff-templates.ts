@@ -7,6 +7,8 @@ export function getEntryPointToTriageHandoffTemplate(query: HandoffTemplateQuery
 
   return `The automatically injected \`<user-message>\` is the authoritative request. Pass the reported bug, observed and expected behavior, reproduction details and commands, relevant constraints, and the files or symbols already suspected. Ask triage to investigate and report only. Triage may inspect code and attempt a focused automated regression test as evidence, but must not edit implementation files or implement a fix.
 
+Use this for every reported bug (something broken or behaving differently than expected) before any fix is implemented.
+
 After completing the investigation, triage must return the evidence-backed report to \`${entryPoint}\` with the normal handoff command.
 
 \`\`\`bash

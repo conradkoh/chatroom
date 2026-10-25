@@ -10,7 +10,7 @@ The automatically injected \`<user-message>\` is the authoritative request. Add 
 
 Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on complete user flows, screen and flow drawings, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
 
-After completing the design, hand it back to \`planner\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
+After completing the design, the \`uiux-engineer\` must hand it back to \`planner\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="planner" << 'CHATROOM_HANDOFF_END'
@@ -135,7 +135,7 @@ The automatically injected \`<user-message>\` is the authoritative request. Add 
 
 Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on complete user flows, screen and flow drawings, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests.
 
-After completing the design, hand it back to \`solo\` with the normal handoff command. Stop after the successful handoff; do not implement the design or delegate further work.
+After completing the design, the \`uiux-engineer\` must hand it back to \`solo\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-role="solo" << 'CHATROOM_HANDOFF_END'

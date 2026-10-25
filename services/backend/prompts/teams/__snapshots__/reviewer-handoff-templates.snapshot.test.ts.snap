@@ -15,7 +15,7 @@ Review before delivery for code-producing work:
 - the user asks for a code review;
 - a change is large, risky, or touches security-sensitive or shared code.
 
-Skip review for a trivial edit that has already been verified.
+Skip review only for an edit of a few lines in one file that the builder already verified with a test or command.
 
 After completing the review, the reviewer must return its issue report to \`planner\` with the normal handoff command.
 
