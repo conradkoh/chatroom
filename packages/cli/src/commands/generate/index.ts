@@ -155,7 +155,7 @@ export function registerGenerateImageCommand(program: Command): void {
     .option('--force', 'Overwrite existing output and manifest files')
     .option(
       '--dry-run',
-      'Validate and print the request, the model constraints the CLI knows, and the estimated fal cost, without uploading or calling fal (FAL_API_KEY not needed)'
+      'Validate and print the request, the model constraints the CLI knows, and the estimated fal cost. No upload or fal generation call is made; one read-only pricing request may be made when FAL_API_KEY is set (the key is not required)'
     )
     .addHelpText('after', HELP_AFTER)
     .action(runGenerateImage);

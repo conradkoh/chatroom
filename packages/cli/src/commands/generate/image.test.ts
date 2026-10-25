@@ -957,7 +957,7 @@ describe('generateImage', () => {
     expect(text).toContain(`Model ${FLUX_2_FLASH_MODEL} (FLUX 2 Flash, text-to-image)`);
     expect(text).toContain(JSON.stringify(plan.input, null, 2));
     expect(text).toContain('- unsupported: negative_prompt (--input)');
-    expect(text).toContain('No upload or fal call was made.');
+    expect(text).toContain('No upload or fal generation call was made.');
   });
 
   it('shows a placeholder URL for a local input image without uploading', async () => {
@@ -999,7 +999,7 @@ describe('generateImage', () => {
     expect(text).toContain(
       'fal returns no billed cost; this is computed from the planned image size.'
     );
-    expect(text).toContain('No upload or fal call was made.');
+    expect(text).toContain('No upload or fal generation call was made.');
   });
 
   it('estimates from a custom image_size instead of the default', async () => {

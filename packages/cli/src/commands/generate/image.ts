@@ -795,8 +795,9 @@ function actualCostLines(
 
 /**
  * Run every preflight check and build the request without a paid call. The
- * plan performs no upload and no fal request, so `--dry-run` can use it
- * without `FAL_API_KEY`.
+ * plan performs no upload and no fal generation request, but it may make one
+ * read-only pricing request when `FAL_API_KEY` is set. Without the key it makes
+ * no network call, so `--dry-run` still works offline.
  */
 export async function planGenerateImage(
   opts: GenerateImageOptions,
@@ -870,7 +871,7 @@ export function formatGenerateImagePlan(plan: GenerateImagePlan): string {
   lines.push('Request:', JSON.stringify(plan.input, null, 2), 'Constraints:');
   for (const disclosure of plan.disclosures) lines.push(formatDisclosure(disclosure));
   lines.push(...formatGenerateImageCost(plan.cost, plan.model));
-  lines.push('No upload or fal call was made.');
+  lines.push('No upload or fal generation call was made.');
   return lines.join('\n');
 }
 

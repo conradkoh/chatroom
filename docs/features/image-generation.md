@@ -88,9 +88,12 @@ chatroom generate-image \
   --out assets/sprites/health-potion.png
 ```
 
-The command prints where it wrote both files, followed by the estimated cost:
+The command prints a pre-call estimate, writes both files, then prints an
+actual-size estimate from the dimensions fal returned:
 
 ```text
+Cost (estimate): $0.005000 per megapixels (live rate for this account) × 0.79 MP (planned output) ≈ $0.003932
+fal returns no billed cost; this is computed from the planned image size.
 Generated /path/to/your/project/assets/sprites/health-potion.png
 Manifest /path/to/your/project/assets/sprites/health-potion.png.json
 Estimated cost: $0.005000 per megapixels (live rate for this account) × 0.79 MP (actual 1024x768) ≈ $0.003932
@@ -132,9 +135,9 @@ data for them. The manifest records exactly the input that was sent.
 
 `--dry-run` runs every check the real command runs, then prints the model, the
 output paths, the exact request JSON, the model's constraints, and a `Cost`
-block, without uploading anything or calling fal. It does not need
-`FAL_API_KEY`. Without the key it makes no network call at all; with the key it
-may make one read-only GET to fal's pricing API (3-second timeout).
+block. It makes no upload and no fal generation call. Without `FAL_API_KEY` it
+makes no network call at all; with the key set it may make one read-only GET to
+fal's pricing API (3-second timeout).
 
 Each constraint line is `unsupported` (the model does not take that parameter),
 `unknown` (the CLI has no data for it), `default` (an unset parameter where the
@@ -172,13 +175,13 @@ chatroom generate-image --model fal-ai/flux-2/flash --prompt "pixel-art health p
 
 ### Other options
 
-| Option              | Meaning                                                                           |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `--platform <name>` | Generation platform. Only `fal` is supported (default).                           |
-| `--output-format`   | `png` or `webp` (omitted = the model's own default); both keep transparency       |
-| `--seed <n>`        | Integer seed for reproducible output when the model supports it                   |
-| `--force`           | Replace an existing output and manifest                                           |
-| `--dry-run`         | Validate, print the request/constraints and estimated cost; no upload or fal call |
+| Option              | Meaning                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `--platform <name>` | Generation platform. Only `fal` is supported (default).                                      |
+| `--output-format`   | `png` or `webp` (omitted = the model's own default); both keep transparency                  |
+| `--seed <n>`        | Integer seed for reproducible output when the model supports it                              |
+| `--force`           | Replace an existing output and manifest                                                      |
+| `--dry-run`         | Validate, print the request/constraints and estimated cost; no upload or fal generation call |
 
 ## Editing an image
 
