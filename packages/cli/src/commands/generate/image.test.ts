@@ -1183,6 +1183,70 @@ describe('generateImage', () => {
     expect(result.costLines[0]).toContain('planned output');
   });
 
+  it('falls back to the planned estimate for a zero output dimension', async () => {
+    const deps = createDeps({
+      falSubscribe: vi.fn().mockResolvedValue({
+        data: {
+          images: [{ url: IMAGE_URL, content_type: 'image/png', width: 0, height: 0 }],
+        },
+        requestId: 'req-zero-dims',
+      }),
+    });
+
+    const result = await generateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    expect(result.costLines[0]).toContain('Estimated cost (planned size)');
+    expect(result.costLines[0]).toContain('planned output');
+    expect(result.costLines.join('\n')).not.toContain('NaN');
+  });
+
+  it('computes the post-call edit estimate from actual output dimensions', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }),
+      readFileBytes: vi.fn().mockResolvedValue(pngBytes(512, 512)),
+      falSubscribe: vi.fn().mockResolvedValue({
+        data: {
+          images: [{ url: IMAGE_URL, content_type: 'image/png', width: 1024, height: 1024 }],
+        },
+        requestId: 'req-edit-actual',
+      }),
+    });
+
+    const result = await generateImage(
+      {
+        model: FLUX_2_FLASH_EDIT_MODEL,
+        prompt: 'make it stormy',
+        out: OUT_PATH,
+        inputImage: INPUT_IMAGE,
+      },
+      deps
+    );
+
+    expect(result.costLines[0]).toContain(
+      '× 2.05 MP (actual 1024x1024; 1.00 MP input + 1.05 MP output)'
+    );
+    expect(result.costLines[0]).toContain('≈ $0.01024');
+  });
+
+  it('falls back to the list price when lookupPrices rejects', async () => {
+    const deps = createDeps({
+      lookupPrices: vi.fn().mockRejectedValue(new Error('pricing offline')),
+    });
+
+    const plan = await planGenerateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+    const text = formatGenerateImagePlan(plan);
+
+    expect(text).toContain('Cost (estimate): $0.005000 per megapixels');
+    expect(text).toContain('list price as of 2026-10-25; live lookup unavailable');
+    expect(text).not.toContain('Cost: unknown');
+  });
+
   it('keeps unknown cost for a model with no rate data', async () => {
     const deps = createDeps({ lookupPrices: vi.fn(async () => new Map()) });
 

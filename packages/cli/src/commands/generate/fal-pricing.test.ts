@@ -6,7 +6,7 @@
  * without a paid or live call.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   IMAGE_SIZE_PRESETS,
@@ -19,6 +19,7 @@ import {
   formatRateSource,
   formatUsd,
   imageSizeMegapixels,
+  listUnitPrices,
   lookupFalUnitPrices,
   type FalPricingDeps,
   type FalUnitPrice,
@@ -182,21 +183,57 @@ describe('lookupFalUnitPrices', () => {
     expect(deps.getJson).not.toHaveBeenCalled();
   });
 
-  it('never puts the key in an error raised by the default getJson', async () => {
-    const deps = createDefaultFalPricingDeps({ FAL_API_KEY });
-
-    // A real GET would need the network; this checks the failure path of the
-    // default adapter by rejecting before any request is attempted.
-    const failing: FalPricingDeps = {
-      env: deps.env,
-      getJson: async () => {
-        throw new Error('fal pricing lookup failed (HTTP 401)');
-      },
-    };
-    const prices = await lookupFalUnitPrices([FLASH], failing);
+  it('returns list prices through the shared helper', () => {
+    const prices = listUnitPrices([FLASH, 'acme/unknown']);
 
     expectList(prices.get(FLASH), FLASH);
-    expect(JSON.stringify([...prices])).not.toContain(FAL_API_KEY);
+    expect(prices.has('acme/unknown')).toBe(false);
+  });
+});
+
+describe('default pricing fetch', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const url = 'https://api.fal.ai/v1/models/pricing';
+  const headers = { Authorization: `Key ${FAL_API_KEY}` };
+
+  it('falls back to list prices and keeps the key out of a 401 error', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    vi.stubGlobal('fetch', fetchMock);
+    const deps = createDefaultFalPricingDeps({ FAL_API_KEY });
+
+    let message = '';
+    try {
+      await deps.getJson(url, headers, 3000);
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+    expect(message).toContain('HTTP 401');
+    expect(message.includes(FAL_API_KEY)).toBe(false);
+
+    const prices = await lookupFalUnitPrices([FLASH], deps);
+    expectList(prices.get(FLASH), FLASH);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to list prices when fetch rejects and keeps the key out of the error', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network down'));
+    vi.stubGlobal('fetch', fetchMock);
+    const deps = createDefaultFalPricingDeps({ FAL_API_KEY });
+
+    let message = '';
+    try {
+      await deps.getJson(url, headers, 3000);
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+    expect(message).toBe('network down');
+    expect(message.includes(FAL_API_KEY)).toBe(false);
+
+    const prices = await lookupFalUnitPrices([FLASH], deps);
+    expectList(prices.get(FLASH), FLASH);
   });
 });
 

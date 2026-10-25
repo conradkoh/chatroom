@@ -755,7 +755,16 @@ function actualCostLines(
   if (price === undefined) {
     return formatGenerateImageCost(plan.cost, plan.model, 'Estimated cost');
   }
-  if (image.width === undefined || image.height === undefined) {
+  const width = image.width;
+  const height = image.height;
+  const hasDimensions =
+    width !== undefined &&
+    height !== undefined &&
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width > 0 &&
+    height > 0;
+  if (!hasDimensions) {
     if (plan.cost.quantity === undefined) {
       return formatGenerateImageCost(plan.cost, plan.model, 'Estimated cost');
     }
@@ -766,13 +775,13 @@ function actualCostLines(
   }
   // MP = width × height / 1,000,000. fal's divisor is undocumented; this may
   // overstate 1024-based sizes by ~5%, which is the safe direction.
-  const outputMegapixels = (image.width * image.height) / 1_000_000;
+  const outputMegapixels = (width * height) / 1_000_000;
   const quantity =
     inputMegapixels === undefined ? outputMegapixels : inputMegapixels + outputMegapixels;
   const quantityLabel =
     inputMegapixels === undefined
-      ? `${formatMegapixels(outputMegapixels)} (actual ${image.width}x${image.height})`
-      : `${formatMegapixels(quantity)} (actual ${image.width}x${image.height}; ${formatMegapixels(inputMegapixels)} input + ${formatMegapixels(outputMegapixels)} output)`;
+      ? `${formatMegapixels(outputMegapixels)} (actual ${width}x${height})`
+      : `${formatMegapixels(quantity)} (actual ${width}x${height}; ${formatMegapixels(inputMegapixels)} input + ${formatMegapixels(outputMegapixels)} output)`;
   return [
     `Estimated cost: ${formatCostEstimate(price, quantity, quantityLabel)}`,
     ACTUAL_COST_NOTE,
