@@ -48,8 +48,8 @@ export interface GenerateImageDeps {
   /** Download the generated file bytes. */
   fetchBytes: (url: string) => Promise<Uint8Array>;
   /**
-   * Read a local file without uploading it. Used only to read an input image's
-   * PNG header for the cost estimate.
+   * Read a local file without uploading it. Used only to report an edit input
+   * image's dimensions; it never changes the billed quantity.
    */
   readFileBytes: (path: string) => Promise<Uint8Array>;
   /** Look up fal unit prices for the given model ids. Never throws. */

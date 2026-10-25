@@ -86,8 +86,8 @@ export interface GenerateImageCost {
   quantity: number | undefined;
   quantityLabel: string | undefined;
   /**
-   * Input megapixels for the edit formula, already capped at 1. Present only
-   * for edit models, so the post-call line can reuse the same input size.
+   * Input megapixels for the edit formula. fal resizes the input to 1 MP, so
+   * this is always 1 for edit models and absent for text-to-image models.
    */
   inputMegapixels: number | undefined;
   /** Why the quantity is not estimated, when it is not. */
@@ -595,70 +595,63 @@ function plannedOutputSize(model: string, input: Record<string, unknown>): Plann
   return { megapixels, reason: undefined };
 }
 
-interface InputSizeEstimate {
-  megapixels: number;
-  note: string;
-}
+/**
+ * fal's edit model resizes the input image to 1 MP, so the estimate always
+ * counts 1 MP of input regardless of the source's real dimensions.
+ */
+const EDIT_INPUT_MEGAPIXELS = 1;
+const EDIT_INPUT_NOTE =
+  'fal resizes the input image to 1 MP; the estimate counts 1 MP of input regardless of its dimensions.';
 
 /**
- * Input megapixels for the edit formula. fal resizes input images to at most
- * 1 MP, so the quantity is capped there; a URL or non-PNG cannot be read
- * locally and uses 1 MP (the upper bound) with a note.
+ * Informational only: fal always bills the edit input as 1 MP, so the source
+ * dimensions are reported for context but never used in the quantity.
  */
 // fallow-ignore-next-line complexity
-async function inputSizeEstimate(
+async function inputSizeNote(
   deps: GenerateImageDeps,
   target: InputImageTarget | undefined
-): Promise<InputSizeEstimate> {
-  if (target === undefined) {
-    return {
-      megapixels: 1,
-      note: 'No input image was detected; using 1 MP (upper bound) for the input.',
-    };
-  }
+): Promise<string> {
+  if (target === undefined) return EDIT_INPUT_NOTE;
   if (target.kind === 'url') {
-    return { megapixels: 1, note: 'Input is a URL; using 1 MP (upper bound) for the input.' };
+    return 'Input is a URL; fal resizes it to 1 MP, so the estimate counts 1 MP of input.';
   }
   if (target.contentType !== 'image/png') {
-    return {
-      megapixels: 1,
-      note: `Input is not a PNG (${target.contentType}); using 1 MP (upper bound) for the input.`,
-    };
+    return 'Input is not a PNG; fal resizes it to 1 MP, so the estimate counts 1 MP of input.';
   }
-  const unreadable =
-    'Input PNG dimensions could not be read; using 1 MP (upper bound) for the input.';
   try {
     const dimensions = readPngDimensions(await deps.readFileBytes(target.path));
     if (dimensions === null || dimensions.width === 0 || dimensions.height === 0) {
-      return { megapixels: 1, note: unreadable };
+      return EDIT_INPUT_NOTE;
     }
     const megapixels = (dimensions.width * dimensions.height) / 1_000_000;
-    const cap = megapixels > 1 ? '; capped at 1 MP' : '';
-    return {
-      megapixels: Math.min(megapixels, 1),
-      note: `Input is ${dimensions.width}x${dimensions.height} (${formatMegapixels(megapixels)}${cap}), read from the local PNG header.`,
-    };
+    return `Input is ${dimensions.width}x${dimensions.height} (${formatMegapixels(megapixels)}); fal resizes it to 1 MP, so the estimate counts 1 MP of input.`;
   } catch {
-    return { megapixels: 1, note: unreadable };
+    return EDIT_INPUT_NOTE;
   }
 }
 
-/** Pricing failure must never block a plan or a generation. */
+/**
+ * Pricing failure must never block a plan or a generation. A rejecting lookup
+ * falls back to the list price rather than dropping to "unknown".
+ */
 async function lookupPrice(
   deps: GenerateImageDeps,
   model: string
 ): Promise<FalUnitPrice | undefined> {
   try {
-    return (await deps.lookupPrices([model])).get(model);
+    const price = (await deps.lookupPrices([model])).get(model);
+    if (price !== undefined) return price;
   } catch {
-    return undefined;
+    // Fall through to the list price.
   }
+  return undefined;
 }
 
 /**
  * Build the pre-call estimate. The rate comes from fal's pricing lookup; the
- * quantity comes from the planned output size and, for the edit model, the
- * local input header. The edit formula is flagged unverified.
+ * quantity comes from the planned output size plus the edit model's fixed
+ * 1 MP input. The edit formula is flagged unverified against a billing line.
  */
 // fallow-ignore-next-line complexity
 async function buildGenerateImageCost(args: {
@@ -672,24 +665,26 @@ async function buildGenerateImageCost(args: {
   const capability = getModelCapability(args.model);
 
   if (capability?.task === 'image-edit') {
-    const input = await inputSizeEstimate(args.deps, args.inputTarget);
-    const notes = ['Formula (unverified): (min(input MP, 1) + output MP) × rate.', input.note];
+    const notes = [
+      'Formula (unverified): (1 MP input + output MP) × rate.',
+      await inputSizeNote(args.deps, args.inputTarget),
+    ];
     if (output.megapixels === undefined) {
       return {
         price,
         quantity: undefined,
         quantityLabel: undefined,
-        inputMegapixels: input.megapixels,
+        inputMegapixels: EDIT_INPUT_MEGAPIXELS,
         reason: output.reason,
         notes,
       };
     }
-    const quantity = input.megapixels + output.megapixels;
+    const quantity = EDIT_INPUT_MEGAPIXELS + output.megapixels;
     return {
       price,
       quantity,
-      quantityLabel: `${formatMegapixels(quantity)} (${formatMegapixels(input.megapixels)} input + ${formatMegapixels(output.megapixels)} output)`,
-      inputMegapixels: input.megapixels,
+      quantityLabel: `${formatMegapixels(quantity)} (${formatMegapixels(EDIT_INPUT_MEGAPIXELS)} input + ${formatMegapixels(output.megapixels)} output)`,
+      inputMegapixels: EDIT_INPUT_MEGAPIXELS,
       reason: undefined,
       notes,
     };
@@ -780,6 +775,8 @@ function actualCostLines(
       estimatedUsd: plan.cost.quantity * price.unitPrice,
     };
   }
+  // MP = width × height / 1,000,000. fal's divisor is undocumented; this may
+  // overstate 1024-based sizes by ~5%, which is the safe direction.
   const outputMegapixels = (image.width * image.height) / 1_000_000;
   const quantity =
     inputMegapixels === undefined ? outputMegapixels : inputMegapixels + outputMegapixels;

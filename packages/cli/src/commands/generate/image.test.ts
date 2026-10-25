@@ -1056,7 +1056,7 @@ describe('generateImage', () => {
     expect(text).not.toContain('fal returns no billed cost');
   });
 
-  it('uses the unverified edit formula with the capped local PNG size', async () => {
+  it('counts the edit input as 1 MP regardless of a large local PNG', async () => {
     const deps = createDeps({
       pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }),
       readFileBytes: vi.fn().mockResolvedValue(pngBytes(2048, 2048)),
@@ -1073,9 +1073,9 @@ describe('generateImage', () => {
     );
 
     const text = formatGenerateImagePlan(plan);
-    expect(text).toContain('Formula (unverified): (min(input MP, 1) + output MP) × rate.');
+    expect(text).toContain('Formula (unverified): (1 MP input + output MP) × rate.');
     expect(text).toContain(
-      'Input is 2048x2048 (4.19 MP; capped at 1 MP), read from the local PNG header.'
+      'Input is 2048x2048 (4.19 MP); fal resizes it to 1 MP, so the estimate counts 1 MP of input.'
     );
     expect(text).toContain('× 2.05 MP (1.00 MP input + 1.05 MP output) ≈ $0.01024');
     expect(text).toContain(
@@ -1083,23 +1083,28 @@ describe('generateImage', () => {
     );
   });
 
-  it('uses 1 MP for a remote edit input and says so', async () => {
-    const deps = createDeps();
+  it('counts a 512x512 edit input as 1 MP, not 0.26 MP', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }),
+      readFileBytes: vi.fn().mockResolvedValue(pngBytes(512, 512)),
+    });
 
     const plan = await planGenerateImage(
       {
         model: FLUX_2_FLASH_EDIT_MODEL,
         prompt: 'make it stormy',
         out: OUT_PATH,
-        inputImage: INPUT_IMAGE_URL,
+        inputImage: INPUT_IMAGE,
       },
       deps
     );
 
     const text = formatGenerateImagePlan(plan);
-    expect(text).toContain('Input is a URL; using 1 MP (upper bound) for the input.');
+    expect(text).toContain(
+      'Input is 512x512 (0.26 MP); fal resizes it to 1 MP, so the estimate counts 1 MP of input.'
+    );
     expect(text).toContain('× 2.05 MP (1.00 MP input + 1.05 MP output)');
-    expect(deps.readFileBytes).not.toHaveBeenCalled();
+    expect(text).not.toContain('0.26 MP input');
   });
 
   it('labels a live rate as the account rate', async () => {

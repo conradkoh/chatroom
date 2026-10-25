@@ -153,12 +153,18 @@ Cost (estimate): $0.005000 per megapixels (list price as of 2026-10-25; live loo
 fal returns no billed cost; this is computed from the planned image size.
 ```
 
-For the edit model the quantity is `(min(input MP, 1) + output MP)` and the
-block labels that formula `unverified`. A local PNG's dimensions are read from
-its header; a URL, a non-PNG, or an unreadable header uses 1 MP (the upper
-bound) and says so. If the model has no rate data the block says `Cost:
-unknown`; if a preset is unrecognized it prints the rate only and the reason.
-Check the fal dashboard for the actual bill.
+For the edit model the quantity is `(1 MP input + output MP)`. fal's edit model
+page says: "Requests cost **$0.005** per megapixel of input and output. Input
+images will be resized to 1MP." Its example bills a 512×512 input as 1 MP, so
+the input is always counted as 1 MP regardless of its real size. A local PNG's
+dimensions may be reported for context, but they do not change the number. The
+block labels the formula `unverified` against a billing line item.
+
+MP is computed as `width × height / 1,000,000`. fal does not document its
+divisor; its 1024×1024 example implies `2^20`, so estimates may be up to ~5%
+high for 1024-based sizes, which is the safe direction. If the model has no rate
+data the block says `Cost: unknown`; if a preset is unrecognized it prints the
+rate only and the reason. Check the fal dashboard for the actual bill.
 
 ```bash
 chatroom generate-image --model fal-ai/flux-2/flash --prompt "pixel-art health potion" --out assets/sprites/health-potion.png --dry-run

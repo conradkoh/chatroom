@@ -157,7 +157,13 @@ export function formatUsd(value: number): string {
   return `$${value.toFixed(decimals)}`;
 }
 
-/** Megapixels for a fal `image_size` value: a preset name or explicit size. */
+/**
+ * Megapixels for a fal `image_size` value: a preset name or explicit size.
+ *
+ * MP = width × height / 1,000,000. fal does not document its divisor; its
+ * 1024×1024 example implies 2^20, so this may overstate 1024-based sizes by
+ * about 5%. Overstating is the safe direction for an estimate.
+ */
 // fallow-ignore-next-line complexity
 export function imageSizeMegapixels(
   imageSize: string | { width: number; height: number }
