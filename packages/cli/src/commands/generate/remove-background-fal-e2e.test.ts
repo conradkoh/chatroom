@@ -15,6 +15,7 @@ import { Command } from 'commander';
 import pngjs from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { listUnitPrices } from './fal-pricing.js';
 import { registerRemoveImageBackgroundFalCommand } from './remove-background-fal-command.js';
 import type { RemoveBackgroundFalDeps } from './remove-background-fal.js';
 import { createDefaultSliceImageDeps } from './slice-deps.js';
@@ -59,6 +60,7 @@ function buildDeps(
         requestId: 'req-e2e',
         data: { image: { url: IMAGE_URL } },
       })),
+    lookupPrices: async (ids: readonly string[]) => listUnitPrices(ids),
     fetchBytes: async () => download,
     readInput: slice.readFile,
     statInput: slice.statInput,
@@ -68,6 +70,7 @@ function buildDeps(
     ensureParentDir: (path) => slice.ensureDir(dirname(path)),
     now: () => new Date('2026-10-23T04:05:06.000Z'),
     sdkVersion: '1.10.1',
+    log: (message) => console.log(message),
   };
 }
 
@@ -173,6 +176,9 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
     expect(output).toContain(`Removed background ${outputPath}`);
     expect(output).toContain(`Manifest ${outputPath}.json`);
     expect(output).toContain('Request req-e2e');
+    expect(output).toContain('Cost (estimate): $0.01800 per generation');
+    expect(output).toContain('Estimated cost: $0.01800 per generation');
+    expect(output).toContain('fal returns no billed cost');
   });
 
   it('runs the previous BiRefNet Matting backend with --engine birefnet', async () => {

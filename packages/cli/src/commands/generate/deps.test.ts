@@ -306,6 +306,25 @@ describe('createDefaultGenerateImageDeps', () => {
     });
   });
 
+  it('passes through positive image dimensions and ignores malformed ones', async () => {
+    subscribeMock.mockResolvedValue({
+      data: {
+        images: [
+          { url: IMAGE_URL, width: 1024, height: 768 },
+          { url: `${IMAGE_URL}?bad`, width: -1, height: 'tall' },
+        ],
+      },
+      requestId: 'req-dims',
+    });
+
+    await expect(deps.falSubscribe('fal-ai/flux/dev', { prompt: 'x' })).resolves.toEqual({
+      requestId: 'req-dims',
+      data: {
+        images: [{ url: IMAGE_URL, width: 1024, height: 768 }, { url: `${IMAGE_URL}?bad` }],
+      },
+    });
+  });
+
   it('accepts a null seed as absent', async () => {
     subscribeMock.mockResolvedValue({
       data: { images: [{ url: IMAGE_URL }], seed: null },

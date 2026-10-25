@@ -12,6 +12,15 @@ import { extname, resolve } from 'node:path';
 
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 import {
+  formatCostDisclosure,
+  formatCostEstimate,
+  imageSizeMegapixels,
+  lookupUnitPrice,
+  type FalCostDisclosure,
+  type FalUnitPrice,
+} from './fal-pricing.js';
+import { readPngDimensions } from './local-image-common.js';
+import {
   describeConstraints,
   FLUX_2_FLASH_EDIT_MODEL,
   getModelCapability,
@@ -62,6 +71,27 @@ export interface GenerateImageResult {
   outPath: string;
   manifestPath: string;
   sha256: string;
+  /** Cost lines for the CLI to print after the output paths. */
+  costLines: string[];
+}
+
+/**
+ * What the CLI can say about cost. `quantity` is absent when the planned image
+ * size is unknown; `price` is absent when the model has no rate data.
+ */
+export interface GenerateImageCost {
+  price: FalUnitPrice | undefined;
+  quantity: number | undefined;
+  quantityLabel: string | undefined;
+  /**
+   * Input megapixels for the edit formula. fal resizes the input to 1 MP, so
+   * this is always 1 for edit models and absent for text-to-image models.
+   */
+  inputMegapixels: number | undefined;
+  /** Why the quantity is not estimated, when it is not. */
+  reason: string | undefined;
+  /** Command-specific explanation printed under the cost line. */
+  notes: string[];
 }
 
 /** Sidecar manifest written next to the generated image. */
@@ -241,7 +271,7 @@ function validateInputOption(opts: GenerateImageOptions): void {
 function requireImage(
   images: FalImageResult['data']['images'],
   model: string
-): { url: string; content_type?: string | undefined } {
+): FalImageResult['data']['images'][number] {
   const image = images[0];
   if (!image?.url) {
     throw new GenerateImageError(`fal returned no image for model ${model}`);
@@ -450,6 +480,8 @@ export interface GenerateImagePlan {
   input: Record<string, unknown>;
   inputTarget: InputImageTarget | undefined;
   disclosures: ConstraintDisclosure[];
+  /** Estimated fal cost and its provenance; never a billed amount. */
+  cost: GenerateImageCost;
 }
 
 interface PreparedInputImage {
@@ -498,10 +530,264 @@ async function uploadInputImage(
   return { url, record: { source: target.path, url } };
 }
 
+const PLANNED_COST_NOTE =
+  'fal returns no billed cost; this is computed from the planned image size.';
+const ACTUAL_COST_NOTE = 'fal returns no billed cost; check the fal dashboard for the actual bill.';
+
+/** Two decimal places is enough for a size; the cost itself is never rounded. */
+function formatMegapixels(megapixels: number): string {
+  return `${megapixels.toFixed(2)} MP`;
+}
+
+// fallow-ignore-next-line complexity
+function readImageSizeValue(
+  value: unknown
+): string | { width: number; height: number } | undefined {
+  if (typeof value === 'string') return value;
+  if (isPlainObject(value) && typeof value.width === 'number' && typeof value.height === 'number') {
+    return { width: value.width, height: value.height };
+  }
+  return undefined;
+}
+
+interface PlannedOutputSize {
+  megapixels: number | undefined;
+  reason: string | undefined;
+}
+
+/**
+ * Output megapixels from `image_size`, or the model's documented default. An
+ * unset size with no default, or a preset the CLI does not know, yields no
+ * estimate rather than a guessed one.
+ */
+// fallow-ignore-next-line complexity
+function plannedOutputSize(model: string, input: Record<string, unknown>): PlannedOutputSize {
+  const capability = getModelCapability(model);
+  const support = capability?.params.image_size;
+  const value =
+    input.image_size !== undefined
+      ? input.image_size
+      : support?.support === 'supported'
+        ? support.default
+        : undefined;
+  if (value === undefined) {
+    return {
+      megapixels: undefined,
+      reason:
+        'The image_size is unset and the model has no known default; output size not estimated.',
+    };
+  }
+  const size = readImageSizeValue(value);
+  if (size === undefined) {
+    return {
+      megapixels: undefined,
+      reason: `The image_size ${JSON.stringify(value)} is not a preset name or {width,height}; output size not estimated.`,
+    };
+  }
+  const megapixels = imageSizeMegapixels(size);
+  if (megapixels === undefined) {
+    return {
+      megapixels: undefined,
+      reason: `The image_size ${JSON.stringify(value)} is not a known preset; output size not estimated.`,
+    };
+  }
+  return { megapixels, reason: undefined };
+}
+
+/**
+ * fal's edit model resizes the input image to 1 MP, so the estimate always
+ * counts 1 MP of input regardless of the source's real dimensions.
+ */
+const EDIT_INPUT_MEGAPIXELS = 1;
+const EDIT_INPUT_NOTE =
+  'fal resizes the input image to 1 MP; the estimate counts 1 MP of input regardless of its dimensions.';
+
+/**
+ * Informational only: fal always bills the edit input as 1 MP, so the source
+ * dimensions are reported for context but never used in the quantity.
+ */
+// fallow-ignore-next-line complexity
+async function inputSizeNote(
+  deps: GenerateImageDeps,
+  target: InputImageTarget | undefined
+): Promise<string> {
+  if (target === undefined) return EDIT_INPUT_NOTE;
+  if (target.kind === 'url') {
+    return 'Input is a URL; fal resizes it to 1 MP, so the estimate counts 1 MP of input.';
+  }
+  if (target.contentType !== 'image/png') {
+    return 'Input is not a PNG; fal resizes it to 1 MP, so the estimate counts 1 MP of input.';
+  }
+  try {
+    const dimensions = readPngDimensions(await deps.readFileBytes(target.path));
+    if (dimensions === null || dimensions.width === 0 || dimensions.height === 0) {
+      return EDIT_INPUT_NOTE;
+    }
+    const megapixels = (dimensions.width * dimensions.height) / 1_000_000;
+    return `Input is ${dimensions.width}x${dimensions.height} (${formatMegapixels(megapixels)}); fal resizes it to 1 MP, so the estimate counts 1 MP of input.`;
+  } catch {
+    return EDIT_INPUT_NOTE;
+  }
+}
+
+/**
+ * Pricing failure must never block a plan or a generation. A rejecting lookup
+ * falls back to the list price rather than dropping to "unknown".
+ */
+async function lookupPrice(
+  deps: GenerateImageDeps,
+  model: string
+): Promise<FalUnitPrice | undefined> {
+  return lookupUnitPrice(model, (ids) => deps.lookupPrices(ids));
+}
+
+/**
+ * Build the pre-call estimate. The rate comes from fal's pricing lookup; the
+ * quantity comes from the planned output size plus the edit model's fixed
+ * 1 MP input. The edit formula is flagged unverified against a billing line.
+ */
+// fallow-ignore-next-line complexity
+async function buildGenerateImageCost(args: {
+  model: string;
+  input: Record<string, unknown>;
+  inputTarget: InputImageTarget | undefined;
+  deps: GenerateImageDeps;
+}): Promise<GenerateImageCost> {
+  const price = await lookupPrice(args.deps, args.model);
+  const output = plannedOutputSize(args.model, args.input);
+  const capability = getModelCapability(args.model);
+
+  if (capability?.task === 'image-edit') {
+    const notes = [
+      'Formula (unverified): (1 MP input + output MP) × rate.',
+      await inputSizeNote(args.deps, args.inputTarget),
+    ];
+    if (output.megapixels === undefined) {
+      return {
+        price,
+        quantity: undefined,
+        quantityLabel: undefined,
+        inputMegapixels: EDIT_INPUT_MEGAPIXELS,
+        reason: output.reason,
+        notes,
+      };
+    }
+    const quantity = EDIT_INPUT_MEGAPIXELS + output.megapixels;
+    return {
+      price,
+      quantity,
+      quantityLabel: `${formatMegapixels(quantity)} (${formatMegapixels(EDIT_INPUT_MEGAPIXELS)} input + ${formatMegapixels(output.megapixels)} output)`,
+      inputMegapixels: EDIT_INPUT_MEGAPIXELS,
+      reason: undefined,
+      notes,
+    };
+  }
+
+  if (output.megapixels === undefined) {
+    return {
+      price,
+      quantity: undefined,
+      quantityLabel: undefined,
+      inputMegapixels: undefined,
+      reason: output.reason,
+      notes: [],
+    };
+  }
+  return {
+    price,
+    quantity: output.megapixels,
+    quantityLabel: `${formatMegapixels(output.megapixels)} (planned output)`,
+    inputMegapixels: undefined,
+    reason: undefined,
+    notes: [],
+  };
+}
+
+/**
+ * Render the cost lines for a plan or an actual result. The first line carries
+ * the arithmetic; the note explains that the figure is not a bill.
+ */
+// fallow-ignore-next-line complexity
+function formatGenerateImageCost(
+  cost: GenerateImageCost,
+  model: string,
+  label: 'Cost' | 'Estimated cost' = 'Cost'
+): string[] {
+  const disclosure: FalCostDisclosure =
+    cost.price === undefined
+      ? { kind: 'unknown', model }
+      : cost.quantity === undefined
+        ? {
+            kind: 'rate-only',
+            model,
+            price: cost.price,
+            reason: cost.reason ?? 'Quantity not estimated.',
+          }
+        : {
+            kind: 'estimate',
+            model,
+            price: cost.price,
+            quantity: cost.quantity,
+            quantityLabel: cost.quantityLabel ?? formatMegapixels(cost.quantity),
+          };
+  const note =
+    cost.price === undefined
+      ? []
+      : [cost.quantity === undefined ? ACTUAL_COST_NOTE : PLANNED_COST_NOTE];
+  return [formatCostDisclosure(disclosure, label), ...note, ...cost.notes];
+}
+
+/**
+ * Recompute the estimate from the dimensions fal actually returned. Falls back
+ * to the planned estimate when the result carries no dimensions.
+ */
+// fallow-ignore-next-line complexity
+function actualCostLines(
+  plan: GenerateImagePlan,
+  image: { width?: number | undefined; height?: number | undefined }
+): string[] {
+  const { price, inputMegapixels } = plan.cost;
+  if (price === undefined) {
+    return formatGenerateImageCost(plan.cost, plan.model, 'Estimated cost');
+  }
+  const width = image.width;
+  const height = image.height;
+  const hasDimensions =
+    width !== undefined &&
+    height !== undefined &&
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width > 0 &&
+    height > 0;
+  if (!hasDimensions) {
+    if (plan.cost.quantity === undefined) {
+      return formatGenerateImageCost(plan.cost, plan.model, 'Estimated cost');
+    }
+    return [
+      `Estimated cost (planned size): ${formatCostEstimate(price, plan.cost.quantity, plan.cost.quantityLabel ?? formatMegapixels(plan.cost.quantity))}`,
+      ACTUAL_COST_NOTE,
+    ];
+  }
+  // MP = width × height / 1,000,000. fal's divisor is undocumented; this may
+  // overstate 1024-based sizes by ~5%, which is the safe direction.
+  const outputMegapixels = (width * height) / 1_000_000;
+  const quantity =
+    inputMegapixels === undefined ? outputMegapixels : inputMegapixels + outputMegapixels;
+  const quantityLabel =
+    inputMegapixels === undefined
+      ? `${formatMegapixels(outputMegapixels)} (actual ${width}x${height})`
+      : `${formatMegapixels(quantity)} (actual ${width}x${height}; ${formatMegapixels(inputMegapixels)} input + ${formatMegapixels(outputMegapixels)} output)`;
+  return [
+    `Estimated cost: ${formatCostEstimate(price, quantity, quantityLabel)}`,
+    ACTUAL_COST_NOTE,
+  ];
+}
+
 /**
  * Run every preflight check and build the request without a paid call. The
- * plan performs no upload and no fal request, so `--dry-run` can use it
- * without `FAL_API_KEY`.
+ * plan performs no upload and no fal generation request, but it may make one
+ * read-only pricing request when `FAL_API_KEY` is set. Without the key it makes
+ * no network call, so `--dry-run` still works offline.
  */
 export async function planGenerateImage(
   opts: GenerateImageOptions,
@@ -528,6 +814,7 @@ export async function planGenerateImage(
   await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
 
   const input = buildInput(prompt, opts, planInputImageUrl(inputTarget));
+  const cost = await buildGenerateImageCost({ model, input, inputTarget, deps });
   return {
     platform,
     model,
@@ -536,6 +823,7 @@ export async function planGenerateImage(
     input,
     inputTarget,
     disclosures: describeConstraints(model, input, { aspectRatio: opts.aspectRatio }),
+    cost,
   };
 }
 
@@ -572,13 +860,14 @@ export function formatGenerateImagePlan(plan: GenerateImagePlan): string {
   if (inputLine !== undefined) lines.push(inputLine);
   lines.push('Request:', JSON.stringify(plan.input, null, 2), 'Constraints:');
   for (const disclosure of plan.disclosures) lines.push(formatDisclosure(disclosure));
-  lines.push('No upload or fal call was made.');
+  lines.push(...formatGenerateImageCost(plan.cost, plan.model));
+  lines.push('No upload or fal generation call was made.');
   return lines.join('\n');
 }
 
 /** A completed generation whose bytes are already written to `outPath`. */
 interface SavedGeneration {
-  image: { url: string; content_type?: string | undefined };
+  image: FalImageResult['data']['images'][number];
   bytes: Uint8Array;
   sha256: string;
   requestId: string;
@@ -609,6 +898,7 @@ async function generateAndSave(
   };
 }
 
+// fallow-ignore-next-line complexity
 export async function generateImage(
   opts: GenerateImageOptions,
   deps: GenerateImageDeps
@@ -622,6 +912,12 @@ export async function generateImage(
     }
   }
 
+  // Disclose the estimate before the paid call. The lookup itself is already
+  // done and is best-effort, so this cannot fail the generation.
+  for (const line of formatGenerateImageCost(plan.cost, plan.model)) {
+    deps.log(line);
+  }
+
   // Preflight before the paid call: create the parent directory so a
   // successful generation cannot fail on a missing dir.
   await deps.ensureParentDir(plan.outPath);
@@ -632,6 +928,7 @@ export async function generateImage(
       ? plan.input
       : { ...plan.input, image_urls: [preparedInput.url] };
   const saved = await generateAndSave(deps, plan.model, input, plan.outPath);
+  const costLines = actualCostLines(plan, saved.image);
 
   await deps.writeJson(
     plan.manifestPath,
@@ -652,5 +949,10 @@ export async function generateImage(
     })
   );
 
-  return { outPath: plan.outPath, manifestPath: plan.manifestPath, sha256: saved.sha256 };
+  return {
+    outPath: plan.outPath,
+    manifestPath: plan.manifestPath,
+    sha256: saved.sha256,
+    costLines,
+  };
 }

@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
+import { listUnitPrices, lookupFalUnitPrices, type FalUnitPrice } from './fal-pricing.js';
 import {
   formatGenerateImagePlan,
   GenerateImageError,
@@ -29,10 +30,34 @@ const INPUT_IMAGE = '/tmp/inputs/hero.png';
 const INPUT_IMAGE_URL = 'https://example.test/source/hero.png';
 const IMAGE_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/** Minimal PNG header: signature, IHDR length/type, width, and height. */
+function pngBytes(width: number, height: number): Uint8Array {
+  const bytes = new Uint8Array(33);
+  bytes.set(PNG_SIGNATURE, 0);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(8, 13);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  bytes[24] = 8;
+  bytes[25] = 6;
+  return bytes;
+}
+
 function falResult(overrides: { seed?: number } = {}): FalImageResult {
   return {
     data: {
-      images: [{ url: IMAGE_URL, content_type: 'image/png', file_name: 'hero.png' }],
+      images: [
+        {
+          url: IMAGE_URL,
+          content_type: 'image/png',
+          file_name: 'hero.png',
+          width: 1024,
+          height: 768,
+        },
+      ],
       ...(overrides.seed !== undefined ? { seed: overrides.seed } : {}),
     },
     requestId: 'req-123',
@@ -45,6 +70,8 @@ function createDeps(overrides: Partial<GenerateImageDeps> = {}): GenerateImageDe
     falSubscribe: vi.fn().mockResolvedValue(falResult()),
     uploadFile: vi.fn().mockResolvedValue(UPLOADED_IMAGE_URL),
     fetchBytes: vi.fn().mockResolvedValue(IMAGE_BYTES),
+    readFileBytes: vi.fn().mockResolvedValue(IMAGE_BYTES),
+    lookupPrices: vi.fn(async (ids: readonly string[]) => listUnitPrices(ids)),
     writeFile: vi.fn().mockResolvedValue(undefined),
     writeJson: vi.fn().mockResolvedValue(undefined),
     pathStatus: vi.fn().mockResolvedValue('missing'),
@@ -52,6 +79,7 @@ function createDeps(overrides: Partial<GenerateImageDeps> = {}): GenerateImageDe
     now: () => new Date('2026-01-02T03:04:05.000Z'),
     sdkVersion: '1.10.1',
     warn: vi.fn(),
+    log: vi.fn(),
     ...overrides,
   };
 }
@@ -190,6 +218,10 @@ describe('generateImage', () => {
       outPath: OUT_PATH,
       manifestPath: `${OUT_PATH}.json`,
       sha256: expectedSha,
+      costLines: [
+        'Estimated cost: $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP (actual 1024x768) ≈ $0.003932',
+        'fal returns no billed cost; check the fal dashboard for the actual bill.',
+      ],
     });
 
     expect(deps.falSubscribe).toHaveBeenCalledWith(FLUX_2_FLASH_MODEL, {
@@ -911,7 +943,7 @@ describe('generateImage', () => {
     expect(text).toContain(`Model ${FLUX_2_FLASH_MODEL} (FLUX 2 Flash, text-to-image)`);
     expect(text).toContain(JSON.stringify(plan.input, null, 2));
     expect(text).toContain('- unsupported: negative_prompt (--input)');
-    expect(text).toContain('No upload or fal call was made.');
+    expect(text).toContain('No upload or fal generation call was made.');
   });
 
   it('shows a placeholder URL for a local input image without uploading', async () => {
@@ -934,6 +966,298 @@ describe('generateImage', () => {
     );
     expect(text).toContain(`<fal storage URL for ${INPUT_IMAGE}>`);
     expect(deps.uploadFile).not.toHaveBeenCalled();
+  });
+
+  it('formats the planned cost estimate for a text-to-image dry run', async () => {
+    const deps = createDeps();
+
+    const plan = await planGenerateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+    const text = formatGenerateImagePlan(plan);
+
+    expect(deps.lookupPrices).toHaveBeenCalledWith([FLUX_2_FLASH_MODEL]);
+    expect(text).toContain(
+      'Cost (estimate): $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable)'
+    );
+    expect(text).toContain('× 0.79 MP (planned output) ≈ $0.003932');
+    expect(text).toContain(
+      'fal returns no billed cost; this is computed from the planned image size.'
+    );
+    expect(text).toContain('No upload or fal generation call was made.');
+  });
+
+  it('estimates from a custom image_size instead of the default', async () => {
+    const deps = createDeps();
+
+    const plan = await planGenerateImage(
+      {
+        model: FLUX_2_FLASH_MODEL,
+        prompt: 'a hero',
+        out: OUT_PATH,
+        input: { image_size: { width: 1024, height: 1024 } },
+      },
+      deps
+    );
+
+    const text = formatGenerateImagePlan(plan);
+    expect(text).toContain('× 1.05 MP (planned output) ≈ $0.005243');
+  });
+
+  it('prints the rate only for an unknown image_size preset', async () => {
+    const deps = createDeps();
+
+    const plan = await planGenerateImage(
+      {
+        model: FLUX_2_FLASH_MODEL,
+        prompt: 'a hero',
+        out: OUT_PATH,
+        input: { image_size: 'huge' },
+      },
+      deps
+    );
+
+    const text = formatGenerateImagePlan(plan);
+    expect(text).toContain(
+      'Cost (rate only): $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable).'
+    );
+    expect(text).toContain(
+      'The image_size "huge" is not a known preset; output size not estimated.'
+    );
+    expect(text).toContain(
+      'fal returns no billed cost; check the fal dashboard for the actual bill.'
+    );
+    expect(text).not.toContain('≈');
+  });
+
+  it('prints unknown cost for a model with no rate data', async () => {
+    const deps = createDeps();
+
+    const plan = await planGenerateImage(
+      { model: 'acme/custom', prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    const text = formatGenerateImagePlan(plan);
+    expect(text).toContain('Cost: unknown for acme/custom; no rate data.');
+    expect(text).not.toContain('fal returns no billed cost');
+  });
+
+  it('counts the edit input as 1 MP regardless of a large local PNG', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }),
+      readFileBytes: vi.fn().mockResolvedValue(pngBytes(2048, 2048)),
+    });
+
+    const plan = await planGenerateImage(
+      {
+        model: FLUX_2_FLASH_EDIT_MODEL,
+        prompt: 'make it stormy',
+        out: OUT_PATH,
+        inputImage: INPUT_IMAGE,
+      },
+      deps
+    );
+
+    const text = formatGenerateImagePlan(plan);
+    expect(text).toContain('Formula (unverified): (1 MP input + output MP) × rate.');
+    expect(text).toContain(
+      'Input is 2048x2048 (4.19 MP); fal resizes it to 1 MP, so the estimate counts 1 MP of input.'
+    );
+    expect(text).toContain('× 2.05 MP (1.00 MP input + 1.05 MP output) ≈ $0.01024');
+    expect(text).toContain(
+      'Input image /tmp/inputs/hero.png (would be uploaded to fal storage, 1-day lifetime)'
+    );
+  });
+
+  it('counts a 512x512 edit input as 1 MP, not 0.26 MP', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }),
+      readFileBytes: vi.fn().mockResolvedValue(pngBytes(512, 512)),
+    });
+
+    const plan = await planGenerateImage(
+      {
+        model: FLUX_2_FLASH_EDIT_MODEL,
+        prompt: 'make it stormy',
+        out: OUT_PATH,
+        inputImage: INPUT_IMAGE,
+      },
+      deps
+    );
+
+    const text = formatGenerateImagePlan(plan);
+    expect(text).toContain(
+      'Input is 512x512 (0.26 MP); fal resizes it to 1 MP, so the estimate counts 1 MP of input.'
+    );
+    expect(text).toContain('× 2.05 MP (1.00 MP input + 1.05 MP output)');
+    expect(text).not.toContain('0.26 MP input');
+  });
+
+  it('labels a live rate as the account rate', async () => {
+    const live: FalUnitPrice = {
+      endpointId: FLUX_2_FLASH_MODEL,
+      unitPrice: 0.004,
+      unit: 'megapixels',
+      rateSource: 'live',
+    };
+    const deps = createDeps({
+      lookupPrices: vi.fn(async () => new Map([[FLUX_2_FLASH_MODEL, live]])),
+    });
+
+    const plan = await planGenerateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    const text = formatGenerateImagePlan(plan);
+    expect(text).toContain('$0.004000 per megapixel (live rate for this account)');
+    expect(text).toContain('≈ $0.003146');
+  });
+
+  it('does not touch the network while planning without FAL_API_KEY', async () => {
+    const getJson = vi.fn(async () => {
+      throw new Error('network must not be called');
+    });
+    const deps = createDeps({
+      env: {},
+      lookupPrices: (ids) => lookupFalUnitPrices(ids, { env: {}, getJson }),
+    });
+
+    const plan = await planGenerateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    expect(getJson).not.toHaveBeenCalled();
+    expect(formatGenerateImagePlan(plan)).toContain('list price as of 2026-10-25');
+  });
+
+  it('prints the pre-call estimate before the paid call and returns the actual-size estimate', async () => {
+    const deps = createDeps({
+      falSubscribe: vi.fn().mockResolvedValue({
+        data: {
+          images: [{ url: IMAGE_URL, content_type: 'image/png', width: 512, height: 512 }],
+        },
+        requestId: 'req-actual',
+      }),
+    });
+
+    const result = await generateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    expect(deps.log).toHaveBeenCalledWith(
+      expect.stringContaining('Cost (estimate): $0.005000 per megapixel')
+    );
+    expect(deps.log).toHaveBeenCalledWith(
+      expect.stringContaining('× 0.79 MP (planned output) ≈ $0.003932')
+    );
+    const logOrder = (deps.log as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    const subscribeOrder = (deps.falSubscribe as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    expect(logOrder).toBeLessThan(subscribeOrder as number);
+
+    expect(result.costLines[0]).toBe(
+      'Estimated cost: $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable) × 0.26 MP (actual 512x512) ≈ $0.001311'
+    );
+    expect(result.costLines[1]).toBe(
+      'fal returns no billed cost; check the fal dashboard for the actual bill.'
+    );
+  });
+
+  it('falls back to the planned estimate when fal returns no dimensions', async () => {
+    const deps = createDeps({
+      falSubscribe: vi.fn().mockResolvedValue({
+        data: { images: [{ url: IMAGE_URL, content_type: 'image/png' }] },
+        requestId: 'req-no-dims',
+      }),
+    });
+
+    const result = await generateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    expect(result.costLines[0]).toContain('Estimated cost (planned size)');
+    expect(result.costLines[0]).toContain('planned output');
+  });
+
+  it('falls back to the planned estimate for a zero output dimension', async () => {
+    const deps = createDeps({
+      falSubscribe: vi.fn().mockResolvedValue({
+        data: {
+          images: [{ url: IMAGE_URL, content_type: 'image/png', width: 0, height: 0 }],
+        },
+        requestId: 'req-zero-dims',
+      }),
+    });
+
+    const result = await generateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    expect(result.costLines[0]).toContain('Estimated cost (planned size)');
+    expect(result.costLines[0]).toContain('planned output');
+    expect(result.costLines.join('\n')).not.toContain('NaN');
+  });
+
+  it('computes the post-call edit estimate from actual output dimensions', async () => {
+    const deps = createDeps({
+      pathStatus: pathStatusFor({ [INPUT_IMAGE]: 'file' }),
+      readFileBytes: vi.fn().mockResolvedValue(pngBytes(512, 512)),
+      falSubscribe: vi.fn().mockResolvedValue({
+        data: {
+          images: [{ url: IMAGE_URL, content_type: 'image/png', width: 1024, height: 1024 }],
+        },
+        requestId: 'req-edit-actual',
+      }),
+    });
+
+    const result = await generateImage(
+      {
+        model: FLUX_2_FLASH_EDIT_MODEL,
+        prompt: 'make it stormy',
+        out: OUT_PATH,
+        inputImage: INPUT_IMAGE,
+      },
+      deps
+    );
+
+    expect(result.costLines[0]).toContain(
+      '× 2.05 MP (actual 1024x1024; 1.00 MP input + 1.05 MP output)'
+    );
+    expect(result.costLines[0]).toContain('≈ $0.01024');
+  });
+
+  it('falls back to the list price when lookupPrices rejects', async () => {
+    const deps = createDeps({
+      lookupPrices: vi.fn().mockRejectedValue(new Error('pricing offline')),
+    });
+
+    const plan = await planGenerateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+    const text = formatGenerateImagePlan(plan);
+
+    expect(text).toContain('Cost (estimate): $0.005000 per megapixel');
+    expect(text).toContain('list price as of 2026-10-25; live lookup unavailable');
+    expect(text).not.toContain('Cost: unknown');
+  });
+
+  it('keeps unknown cost for a model with no rate data', async () => {
+    const deps = createDeps({ lookupPrices: vi.fn(async () => new Map()) });
+
+    const result = await generateImage(
+      { model: 'acme/custom', prompt: 'a hero', out: OUT_PATH },
+      deps
+    );
+
+    expect(result.costLines[0]).toBe('Estimated cost: unknown for acme/custom; no rate data.');
   });
 
   it('surfaces an upload failure as GenerateImageError and never calls fal', async () => {

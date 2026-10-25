@@ -166,8 +166,11 @@ describe('chatroom remove-image-background-fal wiring', () => {
     expect(help).toContain('8 MiB');
     expect(help).toContain('32 MiB');
     expect(help).toContain("must match the input's width and height");
-    expect(help).toContain('about $0.018');
-    expect(help).toContain('per compute-second');
+    expect(help).toContain('estimated per generation at the live rate');
+    expect(help).toContain('$0.018 (as of 2026-10-25)');
+    expect(help).toContain('billed per compute second');
+    expect(help).toContain('total is not estimated');
+    expect(help).toContain('fal returns no billed cost');
     expect(help).toContain(
       'remove-image-background-fal --in tiles/potion.png --out assets/potion.png'
     );

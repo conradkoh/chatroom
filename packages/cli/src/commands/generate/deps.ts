@@ -12,6 +12,11 @@ import { dirname } from 'node:path';
 
 import { ApiError, ValidationError, fal } from '@fal-ai/client';
 
+import {
+  createDefaultFalPricingDeps,
+  lookupFalUnitPrices,
+  type FalUnitPrice,
+} from './fal-pricing.js';
 import { pathStatus, writeFileBytes, writeJsonFile, type PathStatus } from './fs-helpers.js';
 import { GenerateImageError, FAL_API_KEY_MISSING_MESSAGE } from './image.js';
 import { readInstalledPackageVersion } from './package-version.js';
@@ -25,6 +30,9 @@ export interface FalImageResult {
       url: string;
       content_type?: string | undefined;
       file_name?: string | undefined;
+      /** Actual output dimensions, when the model reports them. */
+      width?: number | undefined;
+      height?: number | undefined;
     }[];
     /** Present only for models that echo the resolved seed back. */
     seed?: number | undefined;
@@ -39,6 +47,13 @@ export interface GenerateImageDeps {
   falSubscribe: (model: string, input: Record<string, unknown>) => Promise<FalImageResult>;
   /** Download the generated file bytes. */
   fetchBytes: (url: string) => Promise<Uint8Array>;
+  /**
+   * Read a local file without uploading it. Used only to report an edit input
+   * image's dimensions; it never changes the billed quantity.
+   */
+  readFileBytes: (path: string) => Promise<Uint8Array>;
+  /** Look up fal unit prices for the given model ids. Never throws. */
+  lookupPrices: (ids: readonly string[]) => Promise<Map<string, FalUnitPrice>>;
   /** Write the image bytes. Parent directories are created by `ensureParentDir`. */
   writeFile: (path: string, bytes: Uint8Array) => Promise<void>;
   /** Write the JSON sidecar manifest. */
@@ -58,6 +73,8 @@ export interface GenerateImageDeps {
   sdkVersion: string;
   /** Surface a non-fatal warning (for example, extra returned images). */
   warn: (message: string) => void;
+  /** Print normal command output, including cost disclosures. */
+  log: (message: string) => void;
 }
 
 /** Server-side timeout for the queued generation (the SDK takes seconds). */
@@ -107,16 +124,26 @@ function requireSeed(value: unknown): number | undefined {
   return value;
 }
 
+/** Optional positive pixel dimension; malformed values are treated as absent. */
+function optionalDimension(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+// fallow-ignore-next-line complexity
 function validateImageFile(value: unknown): FalImageResult['data']['images'][number] {
   if (!isRecord(value)) {
     throw invalidResult('image entry is not an object');
   }
   const content_type = optionalString(value.content_type, 'image content_type');
   const file_name = optionalString(value.file_name, 'image file_name');
+  const width = optionalDimension(value.width);
+  const height = optionalDimension(value.height);
   return {
     url: requireImageUrl(value.url),
     ...(content_type !== undefined ? { content_type } : {}),
     ...(file_name !== undefined ? { file_name } : {}),
+    ...(width !== undefined ? { width } : {}),
+    ...(height !== undefined ? { height } : {}),
   };
 }
 
@@ -282,7 +309,7 @@ function requireImageContentType(response: Response): void {
   }
 }
 
-export async function fetchBytes(url: string): Promise<Uint8Array> {
+async function fetchBytes(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new GenerateImageError(
@@ -295,11 +322,14 @@ export async function fetchBytes(url: string): Promise<Uint8Array> {
 
 export function createDefaultGenerateImageDeps(): GenerateImageDeps {
   const env = process.env;
+  const pricingDeps = createDefaultFalPricingDeps(env);
   return {
     env,
     falSubscribe: createFalSubscribe(env),
     uploadFile: createFalUploadFile(env),
     fetchBytes,
+    readFileBytes: async (path) => new Uint8Array(await readFile(path)),
+    lookupPrices: (ids) => lookupFalUnitPrices(ids, pricingDeps),
     writeFile: writeFileBytes,
     writeJson: writeJsonFile,
     pathStatus,
@@ -307,5 +337,6 @@ export function createDefaultGenerateImageDeps(): GenerateImageDeps {
     now: () => new Date(),
     sdkVersion: readInstalledPackageVersion('@fal-ai/client'),
     warn: (message) => console.error(message),
+    log: (message) => console.log(message),
   };
 }
