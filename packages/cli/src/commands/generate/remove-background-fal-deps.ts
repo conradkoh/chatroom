@@ -9,6 +9,7 @@
 import { dirname } from 'node:path';
 
 import { createFalRawSubscribe } from './deps.js';
+import { createDefaultFalPricingDeps, lookupFalUnitPrices } from './fal-pricing.js';
 import { readInstalledPackageVersion } from './package-version.js';
 import { MAX_FAL_RESULT_BYTES, type RemoveBackgroundFalDeps } from './remove-background-fal.js';
 import { createDefaultSliceImageDeps } from './slice-deps.js';
@@ -52,9 +53,11 @@ async function fetchCappedBytes(url: string, maxBytes: number): Promise<Uint8Arr
 
 export function createDefaultRemoveBackgroundFalDeps(): RemoveBackgroundFalDeps {
   const slice = createDefaultSliceImageDeps();
+  const pricingDeps = createDefaultFalPricingDeps(process.env);
   return {
     env: process.env,
     falSubscribe: createFalRawSubscribe(process.env),
+    lookupPrices: (ids) => lookupFalUnitPrices(ids, pricingDeps),
     fetchBytes: (url) => fetchCappedBytes(url, MAX_FAL_RESULT_BYTES),
     readInput: slice.readFile,
     statInput: slice.statInput,
@@ -64,5 +67,6 @@ export function createDefaultRemoveBackgroundFalDeps(): RemoveBackgroundFalDeps 
     ensureParentDir: (path) => slice.ensureDir(dirname(path)),
     now: () => new Date(),
     sdkVersion: readInstalledPackageVersion('@fal-ai/client'),
+    log: (message) => console.log(message),
   };
 }

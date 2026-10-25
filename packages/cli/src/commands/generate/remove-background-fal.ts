@@ -13,6 +13,12 @@
 
 import { basename, resolve } from 'node:path';
 
+import {
+  formatCostDisclosure,
+  LIST_PRICES,
+  type FalCostDisclosure,
+  type FalUnitPrice,
+} from './fal-pricing.js';
 import type { PathStatus } from './fs-helpers.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from './image.js';
 import {
@@ -81,6 +87,8 @@ export interface RemoveBackgroundFalDeps {
   env: Record<string, string | undefined>;
   /** Raw fal queue submit + poll. The result is narrowed by this module. */
   falSubscribe: (model: string, input: Record<string, unknown>) => Promise<unknown>;
+  /** Look up fal unit prices for the given model ids. Never throws in production. */
+  lookupPrices: (ids: readonly string[]) => Promise<Map<string, FalUnitPrice>>;
   /** Download the returned PNG with an early size cap. */
   fetchBytes: (url: string) => Promise<Uint8Array>;
   /** Read the source PNG; the caller checks the size first. */
@@ -95,6 +103,8 @@ export interface RemoveBackgroundFalDeps {
   now: () => Date;
   /** Installed `@fal-ai/client` version, recorded in the manifest. */
   sdkVersion: string;
+  /** Print normal command output, including cost disclosures. */
+  log: (message: string) => void;
 }
 
 /** Input classification; `other` covers FIFOs, devices, and sockets. */
@@ -251,6 +261,61 @@ function recoveryMessage(action: string, err: unknown, requestId: string, url: s
   return `Failed to ${action} image for request ${requestId} (${url}): ${detail}. The result can still be recovered from that URL.`;
 }
 
+/** What the CLI knows about one background-removal call's cost. */
+interface BackgroundCost {
+  model: string;
+  engine: BackgroundEngine;
+  price: FalUnitPrice | undefined;
+}
+
+const FAL_BILL_NOTE = 'fal returns no billed cost; check the fal dashboard for the actual bill.';
+const BIFNET_RATE_REASON = 'total depends on runtime; not estimated.';
+
+/**
+ * Look up the engine's rate, falling back to the list price if the injected
+ * lookup fails. Never throws: a pricing failure must not block the generation.
+ */
+async function findBackgroundPrice(
+  deps: RemoveBackgroundFalDeps,
+  model: string
+): Promise<FalUnitPrice | undefined> {
+  try {
+    const price = (await deps.lookupPrices([model])).get(model);
+    if (price !== undefined) return price;
+  } catch {
+    // Fall through to the list price; a pricing failure is not a command failure.
+  }
+  const fallback = LIST_PRICES[model];
+  return fallback === undefined
+    ? undefined
+    : { endpointId: model, ...fallback, rateSource: 'list' };
+}
+
+/** Bria is flat per generation; BiRefNet's runtime total is not estimated. */
+function backgroundCostDisclosure(cost: BackgroundCost): FalCostDisclosure {
+  if (cost.price === undefined) return { kind: 'unknown', model: cost.model };
+  if (cost.engine === 'birefnet') {
+    return {
+      kind: 'rate-only',
+      model: cost.model,
+      price: cost.price,
+      reason: BIFNET_RATE_REASON,
+    };
+  }
+  return {
+    kind: 'estimate',
+    model: cost.model,
+    price: cost.price,
+    quantity: 1,
+    quantityLabel: '1 generation',
+  };
+}
+
+function formatBackgroundCost(cost: BackgroundCost, label: 'Cost' | 'Estimated cost'): string[] {
+  const line = formatCostDisclosure(backgroundCostDisclosure(cost), label);
+  return cost.price === undefined ? [line] : [line, FAL_BILL_NOTE];
+}
+
 /**
  * Cut the subject out of one PNG with the selected fal engine and write the
  * alpha PNG.
@@ -282,6 +347,13 @@ export async function removeBackgroundFal(
   }
   const source = await requireSource(inPath, deps);
   await requireWritableOutputs(outPath, manifestPath, options.force === true, deps);
+
+  const cost: BackgroundCost = {
+    model: spec.model,
+    engine,
+    price: await findBackgroundPrice(deps, spec.model),
+  };
+  for (const line of formatBackgroundCost(cost, 'Cost')) deps.log(line);
 
   // Strings pass through the SDK unchanged, so the data URI is the request body.
   const dataUri = `data:image/png;base64,${Buffer.from(source.bytes).toString('base64')}`;
@@ -358,6 +430,8 @@ export async function removeBackgroundFal(
       manifestSaveMessage(err, result.requestId, outPath, manifestPath)
     );
   }
+
+  for (const line of formatBackgroundCost(cost, 'Estimated cost')) deps.log(line);
 
   return {
     outPath,

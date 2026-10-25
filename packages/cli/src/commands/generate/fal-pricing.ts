@@ -229,7 +229,8 @@ export function formatCostDisclosure(
   if (disclosure.kind === 'rate-only') {
     return `${label} (rate only): ${formatRate(disclosure.price)} (${formatRateSource(disclosure.price)}). ${disclosure.reason}`;
   }
-  return `${label} (estimate): ${formatCostEstimate(disclosure.price, disclosure.quantity, disclosure.quantityLabel)}`;
+  const estimateLabel = label === 'Estimated cost' ? label : `${label} (estimate)`;
+  return `${estimateLabel}: ${formatCostEstimate(disclosure.price, disclosure.quantity, disclosure.quantityLabel)}`;
 }
 
 /** Default network implementation; only this function sends the API key. */

@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { LIST_PRICES, type FalUnitPrice } from './fal-pricing.js';
 import type { PathStatus } from './fs-helpers.js';
 import {
   DEFAULT_BACKGROUND_ENGINE,
@@ -59,10 +60,22 @@ function result(overrides: Record<string, unknown> = {}): unknown {
   };
 }
 
+function listPrices(endpointIds: readonly string[]): Map<string, FalUnitPrice> {
+  const prices = new Map<string, FalUnitPrice>();
+  for (const endpointId of endpointIds) {
+    const fallback = LIST_PRICES[endpointId];
+    if (fallback !== undefined) {
+      prices.set(endpointId, { endpointId, ...fallback, rateSource: 'list' });
+    }
+  }
+  return prices;
+}
+
 function createDeps(overrides: Partial<RemoveBackgroundFalDeps> = {}): RemoveBackgroundFalDeps {
   return {
     env: { FAL_API_KEY },
     falSubscribe: vi.fn().mockResolvedValue(result()),
+    lookupPrices: vi.fn(async (ids: readonly string[]) => listPrices(ids)),
     fetchBytes: vi.fn().mockResolvedValue(pngBytes()),
     readInput: vi.fn().mockResolvedValue(pngBytes()),
     statInput: vi.fn().mockResolvedValue({ kind: 'file', size: 33 }),
@@ -72,6 +85,7 @@ function createDeps(overrides: Partial<RemoveBackgroundFalDeps> = {}): RemoveBac
     ensureParentDir: vi.fn().mockResolvedValue(undefined),
     now: () => new Date('2026-10-23T01:02:03.000Z'),
     sdkVersion: '1.10.1',
+    log: vi.fn(),
     ...overrides,
   };
 }
@@ -490,6 +504,90 @@ describe('removeBackgroundFal', () => {
     expect(error.message).toContain(IMAGE_URL);
     expect(error.message).toContain('HTTP 500');
     expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('discloses the bria estimate before and after the paid call', async () => {
+    const deps = createDeps();
+
+    await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps);
+
+    const lines = vi.mocked(deps.log).mock.calls.map((call) => String(call[0]));
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toBe(
+      'Cost (estimate): $0.01800 per generations (list price as of 2026-10-25; live lookup unavailable) × 1 generation ≈ $0.01800'
+    );
+    expect(lines[1]).toBe(
+      'fal returns no billed cost; check the fal dashboard for the actual bill.'
+    );
+    expect(lines[2]).toBe(
+      'Estimated cost: $0.01800 per generations (list price as of 2026-10-25; live lookup unavailable) × 1 generation ≈ $0.01800'
+    );
+    expect(lines[3]).toBe(
+      'fal returns no billed cost; check the fal dashboard for the actual bill.'
+    );
+    expect(deps.lookupPrices).toHaveBeenCalledWith([BRIA_MODEL]);
+
+    const logOrder = vi.mocked(deps.log).mock.invocationCallOrder[0];
+    const subscribeOrder = vi.mocked(deps.falSubscribe).mock.invocationCallOrder[0];
+    const writeJsonOrder = vi.mocked(deps.writeJson).mock.invocationCallOrder[0];
+    expect(logOrder).toBeLessThan(subscribeOrder as number);
+    expect(vi.mocked(deps.log).mock.invocationCallOrder[2]).toBeGreaterThan(
+      writeJsonOrder as number
+    );
+  });
+
+  it('shows the birefnet rate only and never invents a total', async () => {
+    const deps = createDeps();
+
+    await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH, engine: 'birefnet' }, deps);
+
+    const output = vi
+      .mocked(deps.log)
+      .mock.calls.map((call) => String(call[0]))
+      .join('\n');
+    expect(output).toContain(
+      'Cost (rate only): $0.0005750 per compute seconds (list price as of 2026-10-25; live lookup unavailable). total depends on runtime; not estimated.'
+    );
+    expect(output).toContain('Estimated cost (rate only):');
+    expect(output).toContain('total depends on runtime; not estimated.');
+    expect(output).not.toContain('≈');
+  });
+
+  it('falls back to the list price when the lookup throws', async () => {
+    const deps = createDeps({
+      lookupPrices: vi.fn().mockRejectedValue(new Error('pricing offline')),
+    });
+
+    await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps);
+
+    const output = vi
+      .mocked(deps.log)
+      .mock.calls.map((call) => String(call[0]))
+      .join('\n');
+    expect(output).toContain('list price as of 2026-10-25; live lookup unavailable');
+    expect(output).toContain('$0.01800');
+    expect(deps.writeFile).toHaveBeenCalled();
+  });
+
+  it('labels a live bria rate as the account rate', async () => {
+    const live: FalUnitPrice = {
+      endpointId: BRIA_MODEL,
+      unitPrice: 0.02,
+      unit: 'generations',
+      rateSource: 'live',
+    };
+    const deps = createDeps({
+      lookupPrices: vi.fn(async () => new Map([[BRIA_MODEL, live]])),
+    });
+
+    await removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps);
+
+    const output = vi
+      .mocked(deps.log)
+      .mock.calls.map((call) => String(call[0]))
+      .join('\n');
+    expect(output).toContain('$0.02000 per generations (live rate for this account)');
+    expect(output).toContain('≈ $0.02000');
   });
 });
 

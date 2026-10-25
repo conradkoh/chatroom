@@ -49,8 +49,10 @@ Model:
   a PNG with alpha.
 
 Billing:
-  bria is billed per call (about $0.018 at the time of writing). birefnet is
-  billed per compute-second.
+  bria is estimated per generation at the live rate, or at the list price of
+  $0.018 (as of 2026-10-25) when the live lookup is unavailable. birefnet is
+  billed per compute second; the rate is shown but the total is not estimated.
+  fal returns no billed cost; check the fal dashboard for the actual bill.
 
 Refusals:
   A missing FAL_API_KEY, a missing or non-PNG input, an input over 8 MiB, an
