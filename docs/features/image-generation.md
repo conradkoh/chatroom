@@ -1,7 +1,7 @@
 # Image Generation (`chatroom generate-image`)
 
 **Status:** Implemented
-**Last Updated:** 2026-10-24
+**Last Updated:** 2026-10-25
 
 ---
 
@@ -11,7 +11,8 @@ files: the image at `--out`, and a JSON manifest at `<out>.json`.
 `--model` is required; there is no default. This guide uses FLUX 2 Flash:
 `fal-ai/flux-2/flash` to generate from text, and `fal-ai/flux-2/flash/edit` to
 edit an image with `--input-image`. Run a command with `--dry-run` first to see
-the request and the constraints the CLI knows for the model.
+the request, the constraints the CLI knows for the model, and the estimated
+cost of the run.
 
 The command talks to fal directly and does not require chatroom authentication.
 
@@ -87,11 +88,13 @@ chatroom generate-image \
   --out assets/sprites/health-potion.png
 ```
 
-The command prints where it wrote both files:
+The command prints where it wrote both files, followed by the estimated cost:
 
 ```text
 Generated /path/to/your/project/assets/sprites/health-potion.png
 Manifest /path/to/your/project/assets/sprites/health-potion.png.json
+Estimated cost: $0.005000 per megapixels (live rate for this account) × 0.79 MP (actual 1024x768) ≈ $0.003932
+fal returns no billed cost; check the fal dashboard for the actual bill.
 ```
 
 Parent directories are created automatically.
@@ -128,8 +131,10 @@ data for them. The manifest records exactly the input that was sent.
 ### Check a request first (`--dry-run`)
 
 `--dry-run` runs every check the real command runs, then prints the model, the
-output paths, the exact request JSON, and the model's constraints, without
-uploading anything or calling fal. It does not need `FAL_API_KEY`.
+output paths, the exact request JSON, the model's constraints, and a `Cost`
+block, without uploading anything or calling fal. It does not need
+`FAL_API_KEY`. Without the key it makes no network call at all; with the key it
+may make one read-only GET to fal's pricing API (3-second timeout).
 
 Each constraint line is `unsupported` (the model does not take that parameter),
 `unknown` (the CLI has no data for it), `default` (an unset parameter where the
@@ -137,19 +142,37 @@ model's default applies), or `note`. A real call still sends an `unsupported`
 parameter and prints it as a warning, because fal's schema can change; only the
 model and flag pairing checks are errors.
 
+The `Cost` block is an estimate, never the billed amount: fal returns no billed
+cost. The unit price is the live rate for your account when the pricing lookup
+succeeds, otherwise the list price as of 2026-10-25, labelled with which one was
+used. The quantity comes from `image_size` (or the model default) for
+text-to-image models:
+
+```text
+Cost (estimate): $0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP (planned output) ≈ $0.003932
+fal returns no billed cost; this is computed from the planned image size.
+```
+
+For the edit model the quantity is `(min(input MP, 1) + output MP)` and the
+block labels that formula `unverified`. A local PNG's dimensions are read from
+its header; a URL, a non-PNG, or an unreadable header uses 1 MP (the upper
+bound) and says so. If the model has no rate data the block says `Cost:
+unknown`; if a preset is unrecognized it prints the rate only and the reason.
+Check the fal dashboard for the actual bill.
+
 ```bash
 chatroom generate-image --model fal-ai/flux-2/flash --prompt "pixel-art health potion" --out assets/sprites/health-potion.png --dry-run
 ```
 
 ### Other options
 
-| Option              | Meaning                                                                            |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `--platform <name>` | Generation platform. Only `fal` is supported (default).                            |
-| `--output-format`   | `png` or `webp` (omitted = the model's own default); both keep transparency        |
-| `--seed <n>`        | Integer seed for reproducible output when the model supports it                    |
-| `--force`           | Replace an existing output and manifest                                            |
-| `--dry-run`         | Validate and print the request and the model's constraints; no upload, no fal call |
+| Option              | Meaning                                                                           |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `--platform <name>` | Generation platform. Only `fal` is supported (default).                           |
+| `--output-format`   | `png` or `webp` (omitted = the model's own default); both keep transparency       |
+| `--seed <n>`        | Integer seed for reproducible output when the model supports it                   |
+| `--force`           | Replace an existing output and manifest                                           |
+| `--dry-run`         | Validate, print the request/constraints and estimated cost; no upload or fal call |
 
 ## Editing an image
 
@@ -272,9 +295,11 @@ chatroom remove-image-background-fal \
 
 The default `bria` engine calls
 [fal-ai/bria/background/remove](https://fal.ai/models/fal-ai/bria/background/remove).
-fal lists a fixed price of about $0.018 per call (read 2026-10-23); check the
-model page and your fal dashboard for the current rate. The optional prompt
-mode is not exposed, so that per-call price is the one this command uses.
+The command estimates one generation at the live rate when the pricing lookup
+succeeds, otherwise at the list price of $0.018 (as of 2026-10-25). The optional
+prompt mode is not exposed, so that per-call estimate is the one this command
+uses. The estimate is printed before the paid call and again after it; fal
+returns no billed cost, so check the fal dashboard for the actual bill.
 
 Pass `--engine birefnet` to run the previous backend,
 [fal-ai/birefnet/v2](https://fal.ai/models/fal-ai/birefnet/v2) in `Matting` mode:
@@ -286,12 +311,15 @@ chatroom remove-image-background-fal \
   --engine birefnet
 ```
 
-birefnet is billed per compute-second rather than per call.
+birefnet is billed per compute-second rather than per call. The command prints
+the live rate, or the list price of $0.000575 per compute second (as of
+2026-10-25) when the lookup is unavailable, but does not estimate a total
+because runtime is unknown.
 
 The source is sent as a base64 data URI, so there is no separate upload step.
-Both engines write a PNG with alpha. The command prints the output path, the
-manifest path, and the fal request id. The manifest records the engine, the
-model, the source and output SHA-256 hashes, and the request id.
+Both engines write a PNG with alpha. The command prints the estimated cost, the
+output path, the manifest path, and the fal request id. The manifest records the
+engine, the model, the source and output SHA-256 hashes, and the request id.
 
 - **Input cap:** 8 MiB.
 - **Result cap:** 32 MiB; anything larger is rejected before writing.
@@ -319,7 +347,10 @@ keying fails.
 - **`--aspect-ratio` is checked against the model.** It is refused for models
   the CLI knows do not take it, including both FLUX 2 Flash ids; `--dry-run`
   names the size parameter to use instead.
-- **Paid calls.** Each successful generation is billed to your fal account.
+- **Paid calls.** Every real generation or background-removal call is billed to
+  your fal account. The command prints an estimated cost and its rate source,
+  but fal returns no billed cost; the estimate is not a bill. Check the fal
+  dashboard for the actual charge.
 
 ## Troubleshooting
 
