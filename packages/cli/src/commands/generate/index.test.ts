@@ -57,6 +57,9 @@ describe('chatroom generate-image wiring', () => {
       outPath: '/tmp/x.png',
       manifestPath: '/tmp/x.png.json',
       sha256: 'deadbeef',
+      estimatedUsd: 0.003932,
+      rateSource: 'list',
+      costLines: [],
     });
     planGenerateImageMock.mockReset();
     planGenerateImageMock.mockResolvedValue({ plan: true });
@@ -432,6 +435,31 @@ describe('chatroom generate-image wiring', () => {
     expect(process.env.FAL_API_KEY).toBeUndefined();
   });
 
+  it('prints the result cost estimate after the output paths', async () => {
+    generateImageMock.mockResolvedValue({
+      outPath: '/tmp/x.png',
+      manifestPath: '/tmp/x.png.json',
+      sha256: 'deadbeef',
+      estimatedUsd: 0.003932,
+      rateSource: 'list',
+      costLines: [
+        'Estimated cost: $0.005000 per megapixels (live rate for this account) × 0.79 MP ≈ $0.003932',
+        'fal returns no billed cost; check the fal dashboard for the actual bill.',
+      ],
+    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const program = createProgram();
+
+    await parse(program, ['--model', FLUX_2_FLASH_MODEL, '--prompt', 'x', '--out', '/tmp/x.png']);
+
+    expect(logSpy.mock.calls.map((call) => String(call[0]))).toEqual([
+      'Generated /tmp/x.png',
+      'Manifest /tmp/x.png.json',
+      'Estimated cost: $0.005000 per megapixels (live rate for this account) × 0.79 MP ≈ $0.003932',
+      'fal returns no billed cost; check the fal dashboard for the actual bill.',
+    ]);
+  });
+
   it('lists the flags and description in help output', () => {
     const program = createProgram();
     const command = program.commands[0];
@@ -459,6 +487,8 @@ describe('chatroom generate-image wiring', () => {
     }
     const aspectOption = command?.options.find((option) => option.long === '--aspect-ratio');
     expect(aspectOption?.description).toContain('Rejected for models the CLI knows');
+    const dryRunOption = command?.options.find((option) => option.long === '--dry-run');
+    expect(dryRunOption?.description).toContain('estimated fal cost');
     // Model defaults differ, so these must not be forced by the CLI.
     expect(help).not.toContain('(default: "auto")');
     expect(help).not.toContain('(default: "png")');
@@ -475,6 +505,8 @@ describe('chatroom generate-image wiring', () => {
     expect(afterHelp).toContain('pixel-art potion');
     expect(afterHelp).toContain('--input-image ./hero.png');
     expect(afterHelp).toContain(`--model ${FLUX_2_FLASH_EDIT_MODEL}`);
+    expect(afterHelp).toContain('Cost lines are estimates');
+    expect(afterHelp).toContain('fal returns no billed cost');
   });
 
   it('does not expose the old `generate image` group form', async () => {

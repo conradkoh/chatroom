@@ -64,6 +64,9 @@ Examples:
   chatroom generate-image --platform=fal --model ${FLUX_2_FLASH_MODEL} --prompt "a hero" --out hero.png
   chatroom generate-image --platform=fal --model ${FLUX_2_FLASH_MODEL} --prompt 'pixel-art potion, transparent-friendly flat background' --output-format png --out potion.png
   chatroom generate-image --platform=fal --model ${FLUX_2_FLASH_EDIT_MODEL} --prompt "make the sky stormy" --input-image ./hero.png --out hero-stormy.png
+
+Cost lines are estimates: fal returns no billed cost. The rate is live when
+available, otherwise the list price; check the fal dashboard for the actual bill.
 `;
 
 interface GenerateImageCliOptions {
@@ -108,6 +111,7 @@ async function runGenerateImage(options: GenerateImageCliOptions): Promise<void>
     const result = await generateImage(generateOptions, deps);
     console.log(`Generated ${result.outPath}`);
     console.log(`Manifest ${result.manifestPath}`);
+    for (const line of result.costLines ?? []) console.log(line);
   } catch (err) {
     console.error(`❌ ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;
@@ -151,7 +155,7 @@ export function registerGenerateImageCommand(program: Command): void {
     .option('--force', 'Overwrite existing output and manifest files')
     .option(
       '--dry-run',
-      'Validate and print the request and the model constraints the CLI knows, without uploading or calling fal (FAL_API_KEY not needed)'
+      'Validate and print the request, the model constraints the CLI knows, and the estimated fal cost, without uploading or calling fal (FAL_API_KEY not needed)'
     )
     .addHelpText('after', HELP_AFTER)
     .action(runGenerateImage);

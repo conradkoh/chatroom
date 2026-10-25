@@ -14,6 +14,7 @@ import {
   LIST_PRICES_AS_OF,
   createDefaultFalPricingDeps,
   estimateUsd,
+  formatCostDisclosure,
   formatCostEstimate,
   formatRateSource,
   formatUsd,
@@ -281,6 +282,36 @@ describe('cost wording', () => {
   it('shows rate, source, quantity, and estimate in one line', () => {
     expect(formatCostEstimate(listFlash, 0.786432, '0.79 MP')).toBe(
       '$0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP ≈ $0.003932'
+    );
+  });
+
+  it('formats an estimate, a rate-only disclosure, and an unknown model', () => {
+    expect(
+      formatCostDisclosure({
+        kind: 'estimate',
+        model: FLASH,
+        price: listFlash,
+        quantity: 0.786432,
+        quantityLabel: '0.79 MP',
+      })
+    ).toContain('Cost (estimate): $0.005000 per megapixels');
+    expect(
+      formatCostDisclosure({
+        kind: 'rate-only',
+        model: BIREFNET,
+        price: {
+          endpointId: BIREFNET,
+          unitPrice: 0.000575,
+          unit: 'compute seconds',
+          rateSource: 'list',
+        },
+        reason: 'total depends on runtime; not estimated.',
+      })
+    ).toBe(
+      'Cost (rate only): $0.0005750 per compute seconds (list price as of 2026-10-25; live lookup unavailable). total depends on runtime; not estimated.'
+    );
+    expect(formatCostDisclosure({ kind: 'unknown', model: 'acme/custom' }, 'Estimated cost')).toBe(
+      'Estimated cost: unknown for acme/custom; no rate data.'
     );
   });
 });

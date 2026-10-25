@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file
+// fallow-ignore-file unused-export
 /**
  * fal pricing for the local asset commands.
  *
@@ -196,6 +196,40 @@ export function formatCostEstimate(
   quantityLabel: string
 ): string {
   return `${formatRate(price)} (${formatRateSource(price)}) × ${quantityLabel} ≈ ${formatUsd(estimateUsd(price, quantity))}`;
+}
+
+/**
+ * A command's cost disclosure. `estimate` has a quantity, `rate-only` has a
+ * rate but no defensible total (for example runtime-billed models), and
+ * `unknown` has no rate data for the model at all.
+ */
+export type FalCostDisclosure =
+  | {
+      kind: 'estimate';
+      model: string;
+      price: FalUnitPrice;
+      quantity: number;
+      quantityLabel: string;
+    }
+  | { kind: 'rate-only'; model: string; price: FalUnitPrice; reason: string }
+  | { kind: 'unknown'; model: string };
+
+/**
+ * One `Cost:` line. Callers pass `Estimated cost` for the post-call line and
+ * add their own explanatory notes; this function stays arithmetic-only so the
+ * two commands word their caveats correctly.
+ */
+export function formatCostDisclosure(
+  disclosure: FalCostDisclosure,
+  label: 'Cost' | 'Estimated cost' = 'Cost'
+): string {
+  if (disclosure.kind === 'unknown') {
+    return `${label}: unknown for ${disclosure.model}; no rate data.`;
+  }
+  if (disclosure.kind === 'rate-only') {
+    return `${label} (rate only): ${formatRate(disclosure.price)} (${formatRateSource(disclosure.price)}). ${disclosure.reason}`;
+  }
+  return `${label} (estimate): ${formatCostEstimate(disclosure.price, disclosure.quantity, disclosure.quantityLabel)}`;
 }
 
 /** Default network implementation; only this function sends the API key. */
