@@ -176,8 +176,8 @@ describe('chatroom remove-image-background-fal (end-to-end)', () => {
     expect(output).toContain(`Removed background ${outputPath}`);
     expect(output).toContain(`Manifest ${outputPath}.json`);
     expect(output).toContain('Request req-e2e');
-    expect(output).toContain('Cost (estimate): $0.01800 per generations');
-    expect(output).toContain('Estimated cost: $0.01800 per generations');
+    expect(output).toContain('Cost (estimate): $0.01800 per generation');
+    expect(output).toContain('Estimated cost: $0.01800 per generation');
     expect(output).toContain('fal returns no billed cost');
   });
 

@@ -15,7 +15,7 @@ import {
   formatCostDisclosure,
   formatCostEstimate,
   imageSizeMegapixels,
-  listUnitPrices,
+  lookupUnitPrice,
   type FalCostDisclosure,
   type FalUnitPrice,
 } from './fal-pricing.js';
@@ -573,21 +573,22 @@ function plannedOutputSize(model: string, input: Record<string, unknown>): Plann
   if (value === undefined) {
     return {
       megapixels: undefined,
-      reason: 'image_size is unset and the model has no known default; output size not estimated.',
+      reason:
+        'The image_size is unset and the model has no known default; output size not estimated.',
     };
   }
   const size = readImageSizeValue(value);
   if (size === undefined) {
     return {
       megapixels: undefined,
-      reason: `image_size ${JSON.stringify(value)} is not a preset name or {width,height}; output size not estimated.`,
+      reason: `The image_size ${JSON.stringify(value)} is not a preset name or {width,height}; output size not estimated.`,
     };
   }
   const megapixels = imageSizeMegapixels(size);
   if (megapixels === undefined) {
     return {
       megapixels: undefined,
-      reason: `image_size ${JSON.stringify(value)} is not a known preset; output size not estimated.`,
+      reason: `The image_size ${JSON.stringify(value)} is not a known preset; output size not estimated.`,
     };
   }
   return { megapixels, reason: undefined };
@@ -637,13 +638,7 @@ async function lookupPrice(
   deps: GenerateImageDeps,
   model: string
 ): Promise<FalUnitPrice | undefined> {
-  try {
-    const price = (await deps.lookupPrices([model])).get(model);
-    if (price !== undefined) return price;
-  } catch {
-    // Fall through to the list price.
-  }
-  return listUnitPrices([model]).get(model);
+  return lookupUnitPrice(model, (ids) => deps.lookupPrices(ids));
 }
 
 /**
@@ -726,7 +721,7 @@ function formatGenerateImageCost(
             kind: 'rate-only',
             model,
             price: cost.price,
-            reason: cost.reason ?? 'quantity not estimated.',
+            reason: cost.reason ?? 'Quantity not estimated.',
           }
         : {
             kind: 'estimate',

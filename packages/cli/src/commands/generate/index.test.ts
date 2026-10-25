@@ -439,7 +439,7 @@ describe('chatroom generate-image wiring', () => {
       manifestPath: '/tmp/x.png.json',
       sha256: 'deadbeef',
       costLines: [
-        'Estimated cost: $0.005000 per megapixels (live rate for this account) × 0.79 MP ≈ $0.003932',
+        'Estimated cost: $0.005000 per megapixel (live rate for this account) × 0.79 MP ≈ $0.003932',
         'fal returns no billed cost; check the fal dashboard for the actual bill.',
       ],
     });
@@ -451,7 +451,7 @@ describe('chatroom generate-image wiring', () => {
     expect(logSpy.mock.calls.map((call) => String(call[0]))).toEqual([
       'Generated /tmp/x.png',
       'Manifest /tmp/x.png.json',
-      'Estimated cost: $0.005000 per megapixels (live rate for this account) × 0.79 MP ≈ $0.003932',
+      'Estimated cost: $0.005000 per megapixel (live rate for this account) × 0.79 MP ≈ $0.003932',
       'fal returns no billed cost; check the fal dashboard for the actual bill.',
     ]);
   });

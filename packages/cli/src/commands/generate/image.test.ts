@@ -219,7 +219,7 @@ describe('generateImage', () => {
       manifestPath: `${OUT_PATH}.json`,
       sha256: expectedSha,
       costLines: [
-        'Estimated cost: $0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP (actual 1024x768) ≈ $0.003932',
+        'Estimated cost: $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP (actual 1024x768) ≈ $0.003932',
         'fal returns no billed cost; check the fal dashboard for the actual bill.',
       ],
     });
@@ -979,7 +979,7 @@ describe('generateImage', () => {
 
     expect(deps.lookupPrices).toHaveBeenCalledWith([FLUX_2_FLASH_MODEL]);
     expect(text).toContain(
-      'Cost (estimate): $0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable)'
+      'Cost (estimate): $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable)'
     );
     expect(text).toContain('× 0.79 MP (planned output) ≈ $0.003932');
     expect(text).toContain(
@@ -1020,9 +1020,11 @@ describe('generateImage', () => {
 
     const text = formatGenerateImagePlan(plan);
     expect(text).toContain(
-      'Cost (rate only): $0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable).'
+      'Cost (rate only): $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable).'
     );
-    expect(text).toContain('"huge" is not a known preset; output size not estimated.');
+    expect(text).toContain(
+      'The image_size "huge" is not a known preset; output size not estimated.'
+    );
     expect(text).toContain(
       'fal returns no billed cost; check the fal dashboard for the actual bill.'
     );
@@ -1110,7 +1112,7 @@ describe('generateImage', () => {
     );
 
     const text = formatGenerateImagePlan(plan);
-    expect(text).toContain('$0.004000 per megapixels (live rate for this account)');
+    expect(text).toContain('$0.004000 per megapixel (live rate for this account)');
     expect(text).toContain('≈ $0.003146');
   });
 
@@ -1148,7 +1150,7 @@ describe('generateImage', () => {
     );
 
     expect(deps.log).toHaveBeenCalledWith(
-      expect.stringContaining('Cost (estimate): $0.005000 per megapixels')
+      expect.stringContaining('Cost (estimate): $0.005000 per megapixel')
     );
     expect(deps.log).toHaveBeenCalledWith(
       expect.stringContaining('× 0.79 MP (planned output) ≈ $0.003932')
@@ -1159,7 +1161,7 @@ describe('generateImage', () => {
     expect(logOrder).toBeLessThan(subscribeOrder as number);
 
     expect(result.costLines[0]).toBe(
-      'Estimated cost: $0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable) × 0.26 MP (actual 512x512) ≈ $0.001311'
+      'Estimated cost: $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable) × 0.26 MP (actual 512x512) ≈ $0.001311'
     );
     expect(result.costLines[1]).toBe(
       'fal returns no billed cost; check the fal dashboard for the actual bill.'
@@ -1242,7 +1244,7 @@ describe('generateImage', () => {
     );
     const text = formatGenerateImagePlan(plan);
 
-    expect(text).toContain('Cost (estimate): $0.005000 per megapixels');
+    expect(text).toContain('Cost (estimate): $0.005000 per megapixel');
     expect(text).toContain('list price as of 2026-10-25; live lookup unavailable');
     expect(text).not.toContain('Cost: unknown');
   });

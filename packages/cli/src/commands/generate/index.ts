@@ -111,7 +111,7 @@ async function runGenerateImage(options: GenerateImageCliOptions): Promise<void>
     const result = await generateImage(generateOptions, deps);
     console.log(`Generated ${result.outPath}`);
     console.log(`Manifest ${result.manifestPath}`);
-    for (const line of result.costLines ?? []) console.log(line);
+    for (const line of result.costLines) console.log(line);
   } catch (err) {
     console.error(`❌ ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;

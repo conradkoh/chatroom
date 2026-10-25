@@ -92,11 +92,11 @@ The command prints a pre-call estimate, writes both files, then prints an
 actual-size estimate from the dimensions fal returned:
 
 ```text
-Cost (estimate): $0.005000 per megapixels (live rate for this account) × 0.79 MP (planned output) ≈ $0.003932
+Cost (estimate): $0.005000 per megapixel (live rate for this account) × 0.79 MP (planned output) ≈ $0.003932
 fal returns no billed cost; this is computed from the planned image size.
 Generated /path/to/your/project/assets/sprites/health-potion.png
 Manifest /path/to/your/project/assets/sprites/health-potion.png.json
-Estimated cost: $0.005000 per megapixels (live rate for this account) × 0.79 MP (actual 1024x768) ≈ $0.003932
+Estimated cost: $0.005000 per megapixel (live rate for this account) × 0.79 MP (actual 1024x768) ≈ $0.003932
 fal returns no billed cost; check the fal dashboard for the actual bill.
 ```
 
@@ -152,7 +152,7 @@ used. The quantity comes from `image_size` (or the model default) for
 text-to-image models:
 
 ```text
-Cost (estimate): $0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP (planned output) ≈ $0.003932
+Cost (estimate): $0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP (planned output) ≈ $0.003932
 fal returns no billed cost; this is computed from the planned image size.
 ```
 

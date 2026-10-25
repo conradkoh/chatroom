@@ -503,13 +503,13 @@ describe('removeBackgroundFal', () => {
     const lines = vi.mocked(deps.log).mock.calls.map((call) => String(call[0]));
     expect(lines).toHaveLength(4);
     expect(lines[0]).toBe(
-      'Cost (estimate): $0.01800 per generations (list price as of 2026-10-25; live lookup unavailable) × 1 generation ≈ $0.01800'
+      'Cost (estimate): $0.01800 per generation (list price as of 2026-10-25; live lookup unavailable) × 1 generation ≈ $0.01800'
     );
     expect(lines[1]).toBe(
       'fal returns no billed cost; check the fal dashboard for the actual bill.'
     );
     expect(lines[2]).toBe(
-      'Estimated cost: $0.01800 per generations (list price as of 2026-10-25; live lookup unavailable) × 1 generation ≈ $0.01800'
+      'Estimated cost: $0.01800 per generation (list price as of 2026-10-25; live lookup unavailable) × 1 generation ≈ $0.01800'
     );
     expect(lines[3]).toBe(
       'fal returns no billed cost; check the fal dashboard for the actual bill.'
@@ -535,10 +535,10 @@ describe('removeBackgroundFal', () => {
       .mock.calls.map((call) => String(call[0]))
       .join('\n');
     expect(output).toContain(
-      'Cost (rate only): $0.0005750 per compute seconds (list price as of 2026-10-25; live lookup unavailable). total depends on runtime; not estimated.'
+      'Cost (rate only): $0.0005750 per compute second (list price as of 2026-10-25; live lookup unavailable). Total depends on runtime; not estimated.'
     );
     expect(output).toContain('Estimated cost (rate only):');
-    expect(output).toContain('total depends on runtime; not estimated.');
+    expect(output).toContain('Total depends on runtime; not estimated.');
     expect(output).not.toContain('≈');
   });
 
@@ -575,7 +575,7 @@ describe('removeBackgroundFal', () => {
       .mocked(deps.log)
       .mock.calls.map((call) => String(call[0]))
       .join('\n');
-    expect(output).toContain('$0.02000 per generations (live rate for this account)');
+    expect(output).toContain('$0.02000 per generation (live rate for this account)');
     expect(output).toContain('≈ $0.02000');
   });
 });

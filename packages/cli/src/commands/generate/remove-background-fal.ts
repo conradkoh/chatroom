@@ -15,7 +15,7 @@ import { basename, resolve } from 'node:path';
 
 import {
   formatCostDisclosure,
-  listUnitPrices,
+  lookupUnitPrice,
   type FalCostDisclosure,
   type FalUnitPrice,
 } from './fal-pricing.js';
@@ -269,7 +269,7 @@ interface BackgroundCost {
 }
 
 const FAL_BILL_NOTE = 'fal returns no billed cost; check the fal dashboard for the actual bill.';
-const BIFNET_RATE_REASON = 'total depends on runtime; not estimated.';
+const BIREFNET_RATE_REASON = 'Total depends on runtime; not estimated.';
 
 /**
  * Look up the engine's rate, falling back to the list price if the injected
@@ -279,13 +279,7 @@ async function findBackgroundPrice(
   deps: RemoveBackgroundFalDeps,
   model: string
 ): Promise<FalUnitPrice | undefined> {
-  try {
-    const price = (await deps.lookupPrices([model])).get(model);
-    if (price !== undefined) return price;
-  } catch {
-    // Fall through to the list price; a pricing failure is not a command failure.
-  }
-  return listUnitPrices([model]).get(model);
+  return lookupUnitPrice(model, (ids) => deps.lookupPrices(ids));
 }
 
 /** Bria is flat per generation; BiRefNet's runtime total is not estimated. */
@@ -296,7 +290,7 @@ function backgroundCostDisclosure(cost: BackgroundCost): FalCostDisclosure {
       kind: 'rate-only',
       model: cost.model,
       price: cost.price,
-      reason: BIFNET_RATE_REASON,
+      reason: BIREFNET_RATE_REASON,
     };
   }
   return {

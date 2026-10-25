@@ -318,7 +318,7 @@ describe('cost wording', () => {
 
   it('shows rate, source, quantity, and estimate in one line', () => {
     expect(formatCostEstimate(listFlash, 0.786432, '0.79 MP')).toBe(
-      '$0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP ≈ $0.003932'
+      '$0.005000 per megapixel (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP ≈ $0.003932'
     );
   });
 
@@ -331,7 +331,7 @@ describe('cost wording', () => {
         quantity: 0.786432,
         quantityLabel: '0.79 MP',
       })
-    ).toContain('Cost (estimate): $0.005000 per megapixels');
+    ).toContain('Cost (estimate): $0.005000 per megapixel');
     expect(
       formatCostDisclosure({
         kind: 'rate-only',
@@ -342,10 +342,10 @@ describe('cost wording', () => {
           unit: 'compute seconds',
           rateSource: 'list',
         },
-        reason: 'total depends on runtime; not estimated.',
+        reason: 'Total depends on runtime; not estimated.',
       })
     ).toBe(
-      'Cost (rate only): $0.0005750 per compute seconds (list price as of 2026-10-25; live lookup unavailable). total depends on runtime; not estimated.'
+      'Cost (rate only): $0.0005750 per compute second (list price as of 2026-10-25; live lookup unavailable). Total depends on runtime; not estimated.'
     );
     expect(formatCostDisclosure({ kind: 'unknown', model: 'acme/custom' }, 'Estimated cost')).toBe(
       'Estimated cost: unknown for acme/custom; no rate data.'

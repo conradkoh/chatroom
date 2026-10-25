@@ -138,6 +138,23 @@ export async function lookupFalUnitPrices(
   }
 }
 
+/**
+ * Look up one endpoint, falling back to its list price on any failure. This is
+ * the single best-effort path both fal commands use before a paid call.
+ */
+export async function lookupUnitPrice(
+  endpointId: string,
+  lookupPrices: (ids: readonly string[]) => Promise<Map<string, FalUnitPrice>>
+): Promise<FalUnitPrice | undefined> {
+  try {
+    const price = (await lookupPrices([endpointId])).get(endpointId);
+    if (price !== undefined) return price;
+  } catch {
+    // Fall through to the list price; pricing must never block a generation.
+  }
+  return listUnitPrices([endpointId]).get(endpointId);
+}
+
 /** USD estimate = quantity × unit price. No rounding. */
 export function estimateUsd(price: FalUnitPrice, quantity: number): number {
   return quantity * price.unitPrice;
@@ -182,9 +199,21 @@ export function imageSizeMegapixels(
   return (imageSize.width * imageSize.height) / 1_000_000;
 }
 
+/** Display-only singular units. fal reports plural unit strings in the API. */
+const DISPLAY_UNITS: Readonly<Record<string, string>> = {
+  megapixels: 'megapixel',
+  'processed megapixels': 'processed megapixel',
+  generations: 'generation',
+  'compute seconds': 'compute second',
+};
+
+function displayUnit(unit: string): string {
+  return DISPLAY_UNITS[unit] ?? unit;
+}
+
 /** The rate and where it came from, for a `Cost:` line. */
 export function formatRate(price: FalUnitPrice): string {
-  return `${formatUsd(price.unitPrice)} per ${price.unit}`;
+  return `${formatUsd(price.unitPrice)} per ${displayUnit(price.unit)}`;
 }
 
 export function formatRateSource(price: FalUnitPrice): string {
@@ -193,7 +222,7 @@ export function formatRateSource(price: FalUnitPrice): string {
     : `list price as of ${LIST_PRICES_AS_OF}; live lookup unavailable`;
 }
 
-/** `$0.005 per megapixels (live rate…) × 0.79 MP ≈ $0.003930` */
+/** `$0.005 per megapixel (live rate…) × 0.79 MP ≈ $0.003930` */
 export function formatCostEstimate(
   price: FalUnitPrice,
   quantity: number,
@@ -247,6 +276,8 @@ export function createDefaultFalPricingDeps(
       const response = await fetch(url, {
         headers: { Accept: 'application/json', ...headers },
         signal: AbortSignal.timeout(timeoutMs),
+        // The Authorization header must never follow a redirect.
+        redirect: 'error',
       });
       if (!response.ok) {
         // Never include the response body or request headers: the key lives in
