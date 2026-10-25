@@ -3,12 +3,13 @@ import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 import { getFileReferenceGuidanceComment } from '../utils/file-reference-guidance';
 
 function getUiuxEngineerFocus(): string {
-  return 'complete user flows, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests';
+  return 'complete user flows, screen and flow drawings, loading/empty/error/success states, component ownership, theme tokens and layout, responsive details, and UI tests';
 }
 
 function getUiuxEngineerRequirements(): string {
   return `
 - Specify complete user flows with explicit loading, empty, error, success, disabled, and retry states where applicable.
+- For any user-facing workflow, draw each affected screen as an ASCII wireframe and each flow as a Mermaid flowchart, using the "Screens, Flows, and Layouts" section. Each screen drawing labels every button, input, and link with its exact text and the repository component it uses; each flow drawing shows the loading, empty, error, success, disabled, and retry transitions that apply.
 - Define component hierarchy and ownership, props/state/events, data boundaries, and interaction behavior.
 - Choose concrete existing ShadCN components with the Base UI backend and lucide-react/react-icons conventions; do not write "use an appropriate component."
 - Specify Tailwind utility classes or semantic theme-token classes for layout, spacing, sizing, typography, states, responsive behavior, and dark mode.
@@ -56,6 +57,24 @@ export function getUiuxEngineerToEntryPointHandoffTemplate(query: HandoffTemplat
 - Produce exactly one recommended design for ${getUiuxEngineerFocus()}.
 - Name concrete repository paths, existing components/tokens, props/state/events, data boundaries, acceptance criteria, risks, and verification steps.
 ${getUiuxEngineerRequirements()}
+
+## Screens, Flows, and Layouts
+<required for a user-facing workflow; write exactly \`Not Applicable.\` for a non-visual change>
+
+### Flow: <flow name>
+\`\`\`mermaid
+flowchart TD
+  <one node per screen or state; each edge labelled with the user action or system event that triggers it; include the loading, empty, error, success, disabled, and retry states that apply>
+\`\`\`
+
+### Screen: <screen name> (\`<route or entry point>\`)
+\`\`\`text
+<ASCII wireframe: the layout regions, headings, and every button, input, and link labelled with its exact text, with the repository component in brackets, for example [Button variant="destructive"]. Show the empty, loading, and error variants as separate drawings if they change the layout.>
+\`\`\`
+- States: <loading, empty, error, success, disabled, retry — which apply and how each changes the layout>
+- Responsive: <breakpoint behavior, one line per breakpoint that changes the layout>
+
+<repeat one ### Flow block per flow and one ### Screen block per screen; do not collapse several screens into one drawing>
 
 ## Force Multipliers
 <name the existing components, patterns, tokens, utilities, and platform conventions to reuse, and state why each reduces implementation risk or duplication>
