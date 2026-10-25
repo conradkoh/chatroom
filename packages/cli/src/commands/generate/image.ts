@@ -15,6 +15,7 @@ import {
   formatCostDisclosure,
   formatCostEstimate,
   imageSizeMegapixels,
+  listUnitPrices,
   type FalCostDisclosure,
   type FalUnitPrice,
 } from './fal-pricing.js';
@@ -70,9 +71,6 @@ export interface GenerateImageResult {
   outPath: string;
   manifestPath: string;
   sha256: string;
-  /** Post-call estimate in USD; null when the model has no rate data. */
-  estimatedUsd: number | null;
-  rateSource: 'live' | 'list' | null;
   /** Cost lines for the CLI to print after the output paths. */
   costLines: string[];
 }
@@ -645,7 +643,7 @@ async function lookupPrice(
   } catch {
     // Fall through to the list price.
   }
-  return undefined;
+  return listUnitPrices([model]).get(model);
 }
 
 /**
@@ -752,28 +750,19 @@ function formatGenerateImageCost(
 function actualCostLines(
   plan: GenerateImagePlan,
   image: { width?: number | undefined; height?: number | undefined }
-): { lines: string[]; estimatedUsd: number | null } {
+): string[] {
   const { price, inputMegapixels } = plan.cost;
   if (price === undefined) {
-    return {
-      lines: formatGenerateImageCost(plan.cost, plan.model, 'Estimated cost'),
-      estimatedUsd: null,
-    };
+    return formatGenerateImageCost(plan.cost, plan.model, 'Estimated cost');
   }
   if (image.width === undefined || image.height === undefined) {
     if (plan.cost.quantity === undefined) {
-      return {
-        lines: formatGenerateImageCost(plan.cost, plan.model, 'Estimated cost'),
-        estimatedUsd: null,
-      };
+      return formatGenerateImageCost(plan.cost, plan.model, 'Estimated cost');
     }
-    return {
-      lines: [
-        `Estimated cost (planned size): ${formatCostEstimate(price, plan.cost.quantity, plan.cost.quantityLabel ?? formatMegapixels(plan.cost.quantity))}`,
-        ACTUAL_COST_NOTE,
-      ],
-      estimatedUsd: plan.cost.quantity * price.unitPrice,
-    };
+    return [
+      `Estimated cost (planned size): ${formatCostEstimate(price, plan.cost.quantity, plan.cost.quantityLabel ?? formatMegapixels(plan.cost.quantity))}`,
+      ACTUAL_COST_NOTE,
+    ];
   }
   // MP = width × height / 1,000,000. fal's divisor is undocumented; this may
   // overstate 1024-based sizes by ~5%, which is the safe direction.
@@ -784,13 +773,10 @@ function actualCostLines(
     inputMegapixels === undefined
       ? `${formatMegapixels(outputMegapixels)} (actual ${image.width}x${image.height})`
       : `${formatMegapixels(quantity)} (actual ${image.width}x${image.height}; ${formatMegapixels(inputMegapixels)} input + ${formatMegapixels(outputMegapixels)} output)`;
-  return {
-    lines: [
-      `Estimated cost: ${formatCostEstimate(price, quantity, quantityLabel)}`,
-      ACTUAL_COST_NOTE,
-    ],
-    estimatedUsd: quantity * price.unitPrice,
-  };
+  return [
+    `Estimated cost: ${formatCostEstimate(price, quantity, quantityLabel)}`,
+    ACTUAL_COST_NOTE,
+  ];
 }
 
 /**
@@ -938,7 +924,7 @@ export async function generateImage(
       ? plan.input
       : { ...plan.input, image_urls: [preparedInput.url] };
   const saved = await generateAndSave(deps, plan.model, input, plan.outPath);
-  const actualCost = actualCostLines(plan, saved.image);
+  const costLines = actualCostLines(plan, saved.image);
 
   await deps.writeJson(
     plan.manifestPath,
@@ -963,8 +949,6 @@ export async function generateImage(
     outPath: plan.outPath,
     manifestPath: plan.manifestPath,
     sha256: saved.sha256,
-    estimatedUsd: actualCost.estimatedUsd,
-    rateSource: plan.cost.price?.rateSource ?? null,
-    costLines: actualCost.lines,
+    costLines,
   };
 }

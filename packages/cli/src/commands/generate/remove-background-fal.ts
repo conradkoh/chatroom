@@ -15,7 +15,7 @@ import { basename, resolve } from 'node:path';
 
 import {
   formatCostDisclosure,
-  LIST_PRICES,
+  listUnitPrices,
   type FalCostDisclosure,
   type FalUnitPrice,
 } from './fal-pricing.js';
@@ -285,10 +285,7 @@ async function findBackgroundPrice(
   } catch {
     // Fall through to the list price; a pricing failure is not a command failure.
   }
-  const fallback = LIST_PRICES[model];
-  return fallback === undefined
-    ? undefined
-    : { endpointId: model, ...fallback, rateSource: 'list' };
+  return listUnitPrices([model]).get(model);
 }
 
 /** Bria is flat per generation; BiRefNet's runtime total is not estimated. */

@@ -63,17 +63,14 @@ export const PRICING_TIMEOUT_MS = 3000;
 
 const PRICING_URL = 'https://api.fal.ai/v1/models/pricing';
 
-function listPrice(endpointId: string): FalUnitPrice | undefined {
-  const fallback = LIST_PRICES[endpointId];
-  if (fallback === undefined) return undefined;
-  return { endpointId, ...fallback, rateSource: 'list' };
-}
-
-function fallbackPrices(endpointIds: readonly string[]): Map<string, FalUnitPrice> {
+/** List-price map for every endpoint with a hard-coded fallback rate. */
+export function listUnitPrices(endpointIds: readonly string[]): Map<string, FalUnitPrice> {
   const prices = new Map<string, FalUnitPrice>();
   for (const endpointId of endpointIds) {
-    const price = listPrice(endpointId);
-    if (price !== undefined) prices.set(endpointId, price);
+    const fallback = LIST_PRICES[endpointId];
+    if (fallback !== undefined) {
+      prices.set(endpointId, { endpointId, ...fallback, rateSource: 'list' });
+    }
   }
   return prices;
 }
@@ -117,7 +114,7 @@ export async function lookupFalUnitPrices(
 ): Promise<Map<string, FalUnitPrice>> {
   const ids = [...new Set(endpointIds)];
   const key = deps.env.FAL_API_KEY?.trim();
-  if (!key || ids.length === 0) return fallbackPrices(ids);
+  if (!key || ids.length === 0) return listUnitPrices(ids);
 
   try {
     const url = new URL(PRICING_URL);
@@ -128,15 +125,16 @@ export async function lookupFalUnitPrices(
       PRICING_TIMEOUT_MS
     );
     const live = livePricesByEndpoint(body);
+    const list = listUnitPrices(ids);
     const prices = new Map<string, FalUnitPrice>();
     for (const endpointId of ids) {
-      const price = live.get(endpointId) ?? listPrice(endpointId);
+      const price = live.get(endpointId) ?? list.get(endpointId);
       if (price !== undefined) prices.set(endpointId, price);
     }
     return prices;
   } catch {
     // Billing disclosure must never fail a generation; fall back silently.
-    return fallbackPrices(ids);
+    return listUnitPrices(ids);
   }
 }
 

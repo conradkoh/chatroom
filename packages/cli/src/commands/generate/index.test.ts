@@ -57,8 +57,6 @@ describe('chatroom generate-image wiring', () => {
       outPath: '/tmp/x.png',
       manifestPath: '/tmp/x.png.json',
       sha256: 'deadbeef',
-      estimatedUsd: 0.003932,
-      rateSource: 'list',
       costLines: [],
     });
     planGenerateImageMock.mockReset();
@@ -440,8 +438,6 @@ describe('chatroom generate-image wiring', () => {
       outPath: '/tmp/x.png',
       manifestPath: '/tmp/x.png.json',
       sha256: 'deadbeef',
-      estimatedUsd: 0.003932,
-      rateSource: 'list',
       costLines: [
         'Estimated cost: $0.005000 per megapixels (live rate for this account) × 0.79 MP ≈ $0.003932',
         'fal returns no billed cost; check the fal dashboard for the actual bill.',

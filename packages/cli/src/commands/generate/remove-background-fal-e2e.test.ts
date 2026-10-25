@@ -15,7 +15,7 @@ import { Command } from 'commander';
 import pngjs from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LIST_PRICES, type FalUnitPrice } from './fal-pricing.js';
+import { listUnitPrices } from './fal-pricing.js';
 import { registerRemoveImageBackgroundFalCommand } from './remove-background-fal-command.js';
 import type { RemoveBackgroundFalDeps } from './remove-background-fal.js';
 import { createDefaultSliceImageDeps } from './slice-deps.js';
@@ -60,16 +60,7 @@ function buildDeps(
         requestId: 'req-e2e',
         data: { image: { url: IMAGE_URL } },
       })),
-    lookupPrices: async (ids: readonly string[]) => {
-      const prices = new Map<string, FalUnitPrice>();
-      for (const endpointId of ids) {
-        const fallback = LIST_PRICES[endpointId];
-        if (fallback !== undefined) {
-          prices.set(endpointId, { endpointId, ...fallback, rateSource: 'list' });
-        }
-      }
-      return prices;
-    },
+    lookupPrices: async (ids: readonly string[]) => listUnitPrices(ids),
     fetchBytes: async () => download,
     readInput: slice.readFile,
     statInput: slice.statInput,

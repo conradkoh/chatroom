@@ -8,7 +8,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { LIST_PRICES, type FalUnitPrice } from './fal-pricing.js';
+import { listUnitPrices, type FalUnitPrice } from './fal-pricing.js';
 import type { PathStatus } from './fs-helpers.js';
 import {
   DEFAULT_BACKGROUND_ENGINE,
@@ -60,22 +60,11 @@ function result(overrides: Record<string, unknown> = {}): unknown {
   };
 }
 
-function listPrices(endpointIds: readonly string[]): Map<string, FalUnitPrice> {
-  const prices = new Map<string, FalUnitPrice>();
-  for (const endpointId of endpointIds) {
-    const fallback = LIST_PRICES[endpointId];
-    if (fallback !== undefined) {
-      prices.set(endpointId, { endpointId, ...fallback, rateSource: 'list' });
-    }
-  }
-  return prices;
-}
-
 function createDeps(overrides: Partial<RemoveBackgroundFalDeps> = {}): RemoveBackgroundFalDeps {
   return {
     env: { FAL_API_KEY },
     falSubscribe: vi.fn().mockResolvedValue(result()),
-    lookupPrices: vi.fn(async (ids: readonly string[]) => listPrices(ids)),
+    lookupPrices: vi.fn(async (ids: readonly string[]) => listUnitPrices(ids)),
     fetchBytes: vi.fn().mockResolvedValue(pngBytes()),
     readInput: vi.fn().mockResolvedValue(pngBytes()),
     statInput: vi.fn().mockResolvedValue({ kind: 'file', size: 33 }),

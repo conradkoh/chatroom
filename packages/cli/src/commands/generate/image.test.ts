@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
-import { LIST_PRICES, lookupFalUnitPrices, type FalUnitPrice } from './fal-pricing.js';
+import { listUnitPrices, lookupFalUnitPrices, type FalUnitPrice } from './fal-pricing.js';
 import {
   formatGenerateImagePlan,
   GenerateImageError,
@@ -46,18 +46,6 @@ function pngBytes(width: number, height: number): Uint8Array {
   return bytes;
 }
 
-/** List-price map for the injected pricing lookup. */
-function listPrices(endpointIds: readonly string[]): Map<string, FalUnitPrice> {
-  const prices = new Map<string, FalUnitPrice>();
-  for (const endpointId of endpointIds) {
-    const fallback = LIST_PRICES[endpointId];
-    if (fallback !== undefined) {
-      prices.set(endpointId, { endpointId, ...fallback, rateSource: 'list' });
-    }
-  }
-  return prices;
-}
-
 function falResult(overrides: { seed?: number } = {}): FalImageResult {
   return {
     data: {
@@ -83,7 +71,7 @@ function createDeps(overrides: Partial<GenerateImageDeps> = {}): GenerateImageDe
     uploadFile: vi.fn().mockResolvedValue(UPLOADED_IMAGE_URL),
     fetchBytes: vi.fn().mockResolvedValue(IMAGE_BYTES),
     readFileBytes: vi.fn().mockResolvedValue(IMAGE_BYTES),
-    lookupPrices: vi.fn(async (ids: readonly string[]) => listPrices(ids)),
+    lookupPrices: vi.fn(async (ids: readonly string[]) => listUnitPrices(ids)),
     writeFile: vi.fn().mockResolvedValue(undefined),
     writeJson: vi.fn().mockResolvedValue(undefined),
     pathStatus: vi.fn().mockResolvedValue('missing'),
@@ -230,8 +218,6 @@ describe('generateImage', () => {
       outPath: OUT_PATH,
       manifestPath: `${OUT_PATH}.json`,
       sha256: expectedSha,
-      estimatedUsd: 0.786432 * 0.005,
-      rateSource: 'list',
       costLines: [
         'Estimated cost: $0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable) × 0.79 MP (actual 1024x768) ≈ $0.003932',
         'fal returns no billed cost; check the fal dashboard for the actual bill.',
@@ -1172,8 +1158,6 @@ describe('generateImage', () => {
       .invocationCallOrder[0];
     expect(logOrder).toBeLessThan(subscribeOrder as number);
 
-    expect(result.rateSource).toBe('list');
-    expect(result.estimatedUsd).toBeCloseTo(0.262144 * 0.005, 12);
     expect(result.costLines[0]).toBe(
       'Estimated cost: $0.005000 per megapixels (list price as of 2026-10-25; live lookup unavailable) × 0.26 MP (actual 512x512) ≈ $0.001311'
     );
@@ -1195,12 +1179,11 @@ describe('generateImage', () => {
       deps
     );
 
-    expect(result.estimatedUsd).toBeCloseTo(0.786432 * 0.005, 12);
     expect(result.costLines[0]).toContain('Estimated cost (planned size)');
     expect(result.costLines[0]).toContain('planned output');
   });
 
-  it('keeps the estimatedUsd null for an unknown model', async () => {
+  it('keeps unknown cost for a model with no rate data', async () => {
     const deps = createDeps({ lookupPrices: vi.fn(async () => new Map()) });
 
     const result = await generateImage(
@@ -1208,8 +1191,6 @@ describe('generateImage', () => {
       deps
     );
 
-    expect(result.estimatedUsd).toBeNull();
-    expect(result.rateSource).toBeNull();
     expect(result.costLines[0]).toBe('Estimated cost: unknown for acme/custom; no rate data.');
   });
 
