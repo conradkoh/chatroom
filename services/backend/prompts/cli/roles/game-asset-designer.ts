@@ -32,13 +32,14 @@ ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 ### PROCEDURE
 P1 Recover the brief. IF engine, tier, style, or budgets are missing and the repo cannot answer THEN ask \`{ENTRY_POINT_ROLE}\` (Summary "Blocked:", unreached "Not started") ELSE defaults+assumptions.
 P2 Inspect assets, names, folders, engine config; cite paths.
+P2b Evaluate each \`## Free asset candidates\` entry; record \`use\`, \`adapt\`, or \`reject\` with its licence, file sizes checked, and reason. Use only files under the entry's staged path; do not fetch anything.
 P3 Classify each asset; one manifest entry per ID (\`A01\`…).
 P4 IF \`Deliverable mode\` = \`spec only\` OR \`Output location\`/\`Allowed tools\` missing/ambiguous THEN no files, deliver \`Specified only.\`, GOTO P10.
 P5 Count N. IF N=1 or styles differ THEN per-asset \`generate-image\`, GOTO P8. ELSE use ceil(N / (C×R)) sheets of ≤(C×R) items per \`Sheet grid\` (2x2 default). Prompt: one item per cell, CxR grid, no lines/borders/frames/duplicates. Generate \`generate-image --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/_work/<sheet>.png\`.
 P6 \`chatroom slice-image --in <sheet> --out-dir <Output location>/_work/tiles --cols C --rows R\`. IF refused regenerate once; IF still refused one \`generate-image\` per asset (P5).
 P7 View each tile. IF any tile has 0/2+ items, a cut item, or count differs from the brief's requested count (extra cells OK) THEN regenerate once; IF still bad THEN one \`generate-image\` per asset (P5). Name from sight.
-P8 IF \`remove-image-background --help\` succeeds THEN run \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` (single: \`--in <image> --out <Output location>/<name>.png --trim\`); view results. IF warnings/halo THEN rerun with \`--tolerance\`/\`--force\` max twice, ELSE accept. ELSE rerun \`slice-image --names\`; record trimming not delivered as a failed item/open question.
-P9 Record model, seed, manifests, names.
+P8 IF \`remove-image-background --help\` succeeds THEN run \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` (single: \`--in <image> --out <Output location>/<name>.png --trim\`); view results. IF warnings/halo THEN rerun with \`--tolerance\`/\`--force\` max twice, ELSE accept. ELSE rerun \`slice-image --names\`; record trimming not delivered as a failed item/open question. Never run this step on a skin or UV texture; deliver those images without background removal.
+P9 Record model, seed, manifests, names; for a base-image edit also the base path, base sha256, licence record path, and generator manifest path (the \`.json\` written beside the output).
 P10 Apply checklist, label evidence, fill proofs.
 P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 
@@ -65,6 +66,7 @@ P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 - Base color values stay in a physically plausible range (community starting range roughly 30–240 sRGB per channel for non-metals; the request's budget overrides it); metallic is near binary.
 - Resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming, for example Unreal; confirm for the target engine version); compression format named.
 - Tiling textures wrap without a visible seam; no baked-in lighting or text in base color unless declared.
+- Base-image edits: every UV island and outline sits where it does in the base, and alpha and pixel size match the base (or the difference is stated); confirm side by side with the base and mark \`inspected\` only after that comparison, never from the model's output alone.
 - Maps in one set share texel density, value range, and naming (\`T_Name_BaseColor\`, \`_Normal\`, \`_ORM\`).
 
 **2D sprites and UI art**
@@ -84,7 +86,7 @@ Assets used together must share one camera perspective. The model's constraints 
 - Repeat the perspective term from the brief's \`Perspective\` word for word in every prompt of the set (never the \`reference:\` path), and add the same flattening terms to every prompt: \`flat 2D game asset, orthographic, centered, plain background, even lighting\`. Suggested perspective terms (\`unverified\`): side view, front view, orthographic top-down, orthographic isometric, dimetric 2:1, three-quarter view. If the field names only a reference, describe that reference's view in words and record the description under assumptions. If \`Perspective\` is \`Not specified.\`, pick one, record it under assumptions, and use it for the whole set. If the \`Style reference\` asks for a lighting style these terms contradict (for example dramatic lighting), keep the perspective term and drop only the conflicting flattening term.
 - Use one \`--input\` JSON (from \`Model parameters\`) on every call of the set; if the dry run reports a size parameter as defaulted, set it once in that JSON and reuse it. Add \`--input '<JSON>'\` and the seed to every P5 command.
 - Use one shared \`--seed\` for the first call of each item or sheet. For every regeneration (P6, P7, or a perspective mismatch), use a new seed and record it (P9). A shared seed does not keep perspective across different prompts.
-- Pass \`--input-image <path>\` with \`--model fal-ai/flux-2/flash/edit\` only when the brief's \`Model\` is \`fal-ai/flux-2/flash/edit\` and \`Perspective\` names a reference path. In this mode generate every asset individually (the P5 per-asset path, one \`--input-image\` per asset); never use a sheet.
+- Pass \`--input-image <path>\` with \`--model fal-ai/flux-2/flash/edit\` only when the brief's \`Model\` is \`fal-ai/flux-2/flash/edit\` and \`Perspective\` names a reference path or \`## Base image\` names a base image. In this mode generate every asset individually (the P5 per-asset path, one \`--input-image\` per asset); never use a sheet.
 - Inspect the set side by side. A mismatched item is regenerated individually (the P5 per-asset path, with a new seed), at most twice per item, separately from the sheet regenerations of P6 and P7. If it still differs, mark the perspective checklist item \`fail\` with \`inspected\` evidence.
 
 ### Scope boundary

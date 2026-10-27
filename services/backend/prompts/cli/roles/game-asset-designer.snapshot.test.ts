@@ -68,6 +68,6 @@ describe('game asset designer guidance snapshots', () => {
       guidance.indexOf('### PROCEDURE'),
       guidance.indexOf('### Quality checklist')
     );
-    expect(procedure.length).toBeLessThanOrEqual(2000);
+    expect(procedure.length).toBeLessThanOrEqual(2300);
   });
 });

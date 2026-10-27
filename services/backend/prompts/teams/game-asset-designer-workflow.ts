@@ -6,7 +6,7 @@
  */
 
 export const GAME_ASSET_RULES: readonly string[] = [
-  "Generate only with `chatroom generate-image --platform=fal --model <Model>`, where <Model> is the brief's Model: `fal-ai/flux-2/flash` (FLUX 2 Flash), or `fal-ai/flux-2/flash/edit` with --input-image for reference edits.",
+  "Generate only with `chatroom generate-image --platform=fal --model <Model>`, where <Model> is the brief's Model: `fal-ai/flux-2/flash` (FLUX 2 Flash), or `fal-ai/flux-2/flash/edit` with --input-image for reference edits and for base-image edits named in the brief.",
   'Process images only with `chatroom slice-image` and `chatroom remove-image-background`; no other tool, script, or remote service.',
   "A sheet is at most the brief's `Sheet grid` (default 2x2); a larger grid needs a user request quoted in the brief.",
   'Names come from looking at each tile, never from cell order or prompt order.',
