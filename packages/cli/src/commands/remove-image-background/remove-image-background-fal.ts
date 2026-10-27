@@ -18,16 +18,16 @@ import {
   lookupUnitPrice,
   type FalCostDisclosure,
   type FalUnitPrice,
-} from './fal-pricing.js';
-import type { PathStatus } from './fs-helpers.js';
-import { FAL_API_KEY_MISSING_MESSAGE } from './image.js';
+} from '../generate-image/fal-pricing.js';
+import { FAL_API_KEY_MISSING_MESSAGE } from '../generate-image/image.js';
 import {
   MAX_SOURCE_PIXELS,
   hasPngMagic,
   isRecord,
   readPngDimensions,
   sha256,
-} from './local-image-common.js';
+} from '../image-shared/image-preflight.js';
+import type { PathStatus } from '../image-shared/output-files.js';
 
 export type BackgroundEngine = 'bria' | 'birefnet';
 export const DEFAULT_BACKGROUND_ENGINE: BackgroundEngine = 'bria';

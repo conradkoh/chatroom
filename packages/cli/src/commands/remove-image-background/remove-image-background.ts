@@ -14,6 +14,8 @@ import {
   DEFAULT_TOLERANCE,
   type KeyResult,
 } from './background-key.js';
+import type { RemoveImageBackgroundDeps } from './remove-image-background-deps.js';
+import { MAX_TRIM_PADDING, cropRgba, trimRect, type TrimRect } from './trim-crop.js';
 import {
   MAX_SIDECAR_BYTES,
   MAX_SOURCE_BYTES,
@@ -26,9 +28,7 @@ import {
   isRecord,
   readPngDimensions,
   sha256,
-} from './local-image-common.js';
-import type { RemoveImageBackgroundDeps } from './remove-background-deps.js';
-import { MAX_TRIM_PADDING, cropRgba, trimRect, type TrimRect } from './trim-crop.js';
+} from '../image-shared/image-preflight.js';
 
 // fallow-ignore-next-line unused-export
 export class RemoveBackgroundError extends Error {

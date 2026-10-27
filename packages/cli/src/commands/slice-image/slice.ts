@@ -9,6 +9,8 @@
 
 import { basename, extname, join, resolve } from 'node:path';
 
+import type { SliceImageDeps } from './slice-deps.js';
+import type { FileIdentity } from '../image-shared/image-preflight.js';
 import {
   MAX_SOURCE_BYTES,
   MAX_SOURCE_PIXELS,
@@ -22,8 +24,7 @@ import {
   median,
   readPngDimensions,
   sha256,
-} from './local-image-common.js';
-import type { FileIdentity, SliceImageDeps } from './slice-deps.js';
+} from '../image-shared/image-preflight.js';
 
 const SLICE_TOOL = 'chatroom slice-image' as const;
 const MAX_TILES = 256;

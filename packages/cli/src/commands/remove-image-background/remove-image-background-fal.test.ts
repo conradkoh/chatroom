@@ -8,8 +8,6 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { listUnitPrices, type FalUnitPrice } from './fal-pricing.js';
-import type { PathStatus } from './fs-helpers.js';
 import {
   DEFAULT_BACKGROUND_ENGINE,
   MAX_FAL_INPUT_BYTES,
@@ -18,7 +16,9 @@ import {
   validateBackgroundResult,
   type BackgroundEngine,
   type RemoveBackgroundFalDeps,
-} from './remove-background-fal.js';
+} from './remove-image-background-fal.js';
+import { listUnitPrices, type FalUnitPrice } from '../generate-image/fal-pricing.js';
+import type { PathStatus } from '../image-shared/output-files.js';
 
 vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');

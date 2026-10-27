@@ -8,8 +8,8 @@
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { registerRemoveImageBackgroundFalCommand } from './remove-background-fal-command.js';
-import type * as RemoveModule from './remove-background-fal.js';
+import { registerRemoveImageBackgroundFalCommand } from './remove-image-background-fal-command.js';
+import type * as RemoveModule from './remove-image-background-fal.js';
 
 vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');
@@ -17,12 +17,12 @@ vi.mock('@fal-ai/client', () => {
 
 const { removeMock } = vi.hoisted(() => ({ removeMock: vi.fn() }));
 
-vi.mock('./remove-background-fal.js', async (importOriginal) => {
+vi.mock('./remove-image-background-fal.js', async (importOriginal) => {
   const actual = await importOriginal<typeof RemoveModule>();
   return { ...actual, removeBackgroundFal: removeMock };
 });
 
-vi.mock('./remove-background-fal-deps.js', () => ({
+vi.mock('./remove-image-background-fal-deps.js', () => ({
   createDefaultRemoveBackgroundFalDeps: () => ({ env: process.env }),
 }));
 

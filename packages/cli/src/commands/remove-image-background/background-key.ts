@@ -8,7 +8,7 @@
  * clock is used here.
  */
 
-import { median } from './local-image-common.js';
+import { median } from '../image-shared/image-preflight.js';
 
 export const DEFAULT_TOLERANCE = 24;
 export const DEFAULT_MIN_AREA_PERCENT = 0.5;

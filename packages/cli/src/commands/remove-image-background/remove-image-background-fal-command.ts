@@ -11,7 +11,7 @@ import {
   DEFAULT_BACKGROUND_ENGINE,
   removeBackgroundFal,
   type BackgroundEngine,
-} from './remove-background-fal.js';
+} from './remove-image-background-fal.js';
 
 const ENGINES: readonly BackgroundEngine[] = ['bria', 'birefnet'];
 
@@ -87,7 +87,7 @@ export function registerRemoveImageBackgroundFalCommand(program: Command): void 
     .action(async (options: RemoveBackgroundFalCliOptions) => {
       try {
         const { createDefaultRemoveBackgroundFalDeps } =
-          await import('./remove-background-fal-deps.js');
+          await import('./remove-image-background-fal-deps.js');
         const result = await removeBackgroundFal(
           { in: options.in, out: options.out, engine: options.engine, force: options.force },
           createDefaultRemoveBackgroundFalDeps()

@@ -1,7 +1,7 @@
 /**
  * remove-image-background orchestration tests with injected deps.
  *
- * The real pngjs adapter is exercised in remove-background-deps.test.ts and the
+ * The real pngjs adapter is exercised in remove-image-background-deps.test.ts and the
  * CLI end-to-end test; these tests pin validation, naming, preflight, ordering,
  * warnings, and all-or-nothing behaviour without touching disk.
  */
@@ -11,13 +11,13 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { RemoveImageBackgroundDeps } from './remove-background-deps.js';
+import type { RemoveImageBackgroundDeps } from './remove-image-background-deps.js';
 import {
   RemoveBackgroundError,
   removeImageBackground,
   type RemoveBackgroundOptions,
-} from './remove-background.js';
-import type { InputStat } from './slice-deps.js';
+} from './remove-image-background.js';
+import type { InputStat } from '../slice-image/slice-deps.js';
 
 vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');

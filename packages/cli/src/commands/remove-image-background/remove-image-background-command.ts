@@ -7,7 +7,7 @@
 
 import { InvalidArgumentError, type Command } from 'commander';
 
-import { removeImageBackground, type RemoveBackgroundOptions } from './remove-background.js';
+import { removeImageBackground, type RemoveBackgroundOptions } from './remove-image-background.js';
 import { MAX_TRIM_PADDING } from './trim-crop.js';
 
 const DECIMAL_INTEGER = /^\d+$/;
@@ -173,7 +173,7 @@ export function registerRemoveImageBackgroundCommand(program: Command): void {
     .action(async (options: RemoveBackgroundCliOptions) => {
       try {
         const { createDefaultRemoveImageBackgroundDeps } =
-          await import('./remove-background-deps.js');
+          await import('./remove-image-background-deps.js');
         const removeOptions: RemoveBackgroundOptions = {
           in: options.in,
           out: options.out,

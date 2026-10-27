@@ -8,7 +8,7 @@
 
 import { readdir } from 'node:fs/promises';
 
-import { createDefaultSliceImageDeps, type SliceImageDeps } from './slice-deps.js';
+import { createDefaultSliceImageDeps, type SliceImageDeps } from '../slice-image/slice-deps.js';
 
 export interface RemoveImageBackgroundDeps extends SliceImageDeps {
   listDir: (dir: string) => Promise<string[]>;

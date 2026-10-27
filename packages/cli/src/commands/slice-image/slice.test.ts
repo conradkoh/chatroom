@@ -10,10 +10,10 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PathStatus } from './deps.js';
-import { MAX_SOURCE_BYTES, readPngDimensions } from './local-image-common.js';
 import type { InputStat, SliceImageDeps } from './slice-deps.js';
 import { computeSliceGrid, resolveTileNames, sliceImage, SliceImageError } from './slice.js';
+import { MAX_SOURCE_BYTES, readPngDimensions } from '../image-shared/image-preflight.js';
+import type { PathStatus } from '../image-shared/output-files.js';
 
 // slice-image must never load the fal SDK or read FAL_API_KEY.
 vi.mock('@fal-ai/client', () => {
