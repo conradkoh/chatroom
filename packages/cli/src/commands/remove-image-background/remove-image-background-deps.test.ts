@@ -9,7 +9,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createDefaultRemoveImageBackgroundDeps } from './remove-background-deps.js';
+import { createDefaultRemoveImageBackgroundDeps } from './remove-image-background-deps.js';
 
 vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');

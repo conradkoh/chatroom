@@ -15,8 +15,8 @@ import { Command } from 'commander';
 import pngjs from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { registerRemoveImageBackgroundFalCommand } from './remove-background-fal-command.js';
-import type { RemoveBackgroundFalDeps } from './remove-background-fal.js';
+import { registerRemoveImageBackgroundFalCommand } from './remove-image-background-fal-command.js';
+import type { RemoveBackgroundFalDeps } from './remove-image-background-fal.js';
 import { listUnitPrices } from '../generate-image/fal-pricing.js';
 import { createDefaultSliceImageDeps } from '../slice-image/slice-deps.js';
 
@@ -28,7 +28,7 @@ vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');
 });
 
-vi.mock('./remove-background-fal-deps.js', () => ({
+vi.mock('./remove-image-background-fal-deps.js', () => ({
   createDefaultRemoveBackgroundFalDeps: () => depsHolder.current,
 }));
 

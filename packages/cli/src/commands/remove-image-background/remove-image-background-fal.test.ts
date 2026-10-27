@@ -16,7 +16,7 @@ import {
   validateBackgroundResult,
   type BackgroundEngine,
   type RemoveBackgroundFalDeps,
-} from './remove-background-fal.js';
+} from './remove-image-background-fal.js';
 import { listUnitPrices, type FalUnitPrice } from '../generate-image/fal-pricing.js';
 import type { PathStatus } from '../image-shared/fs-helpers.js';
 

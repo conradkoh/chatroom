@@ -10,8 +10,8 @@ import { join } from 'node:path';
 import type * as FalModule from '@fal-ai/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createDefaultRemoveBackgroundFalDeps } from './remove-background-fal-deps.js';
-import { MAX_FAL_RESULT_BYTES } from './remove-background-fal.js';
+import { createDefaultRemoveBackgroundFalDeps } from './remove-image-background-fal-deps.js';
+import { MAX_FAL_RESULT_BYTES } from './remove-image-background-fal.js';
 
 const { subscribeMock, configMock } = vi.hoisted(() => ({
   subscribeMock: vi.fn(),

@@ -14,7 +14,7 @@ import {
   DEFAULT_TOLERANCE,
   type KeyResult,
 } from './background-key.js';
-import type { RemoveImageBackgroundDeps } from './remove-background-deps.js';
+import type { RemoveImageBackgroundDeps } from './remove-image-background-deps.js';
 import { MAX_TRIM_PADDING, cropRgba, trimRect, type TrimRect } from './trim-crop.js';
 import {
   MAX_SIDECAR_BYTES,

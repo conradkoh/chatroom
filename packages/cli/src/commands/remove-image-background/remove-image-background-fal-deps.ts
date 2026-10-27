@@ -8,7 +8,10 @@
 
 import { dirname } from 'node:path';
 
-import { MAX_FAL_RESULT_BYTES, type RemoveBackgroundFalDeps } from './remove-background-fal.js';
+import {
+  MAX_FAL_RESULT_BYTES,
+  type RemoveBackgroundFalDeps,
+} from './remove-image-background-fal.js';
 import { createFalRawSubscribe } from '../generate-image/deps.js';
 import { createDefaultFalPricingDeps, lookupFalUnitPrices } from '../generate-image/fal-pricing.js';
 import { readInstalledPackageVersion } from '../image-shared/package-version.js';
