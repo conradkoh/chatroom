@@ -18,8 +18,8 @@ import {
   lookupUnitPrice,
   type FalCostDisclosure,
   type FalUnitPrice,
-} from './fal-pricing.js';
-import { FAL_API_KEY_MISSING_MESSAGE } from './image.js';
+} from '../generate-image/fal-pricing.js';
+import { FAL_API_KEY_MISSING_MESSAGE } from '../generate-image/image.js';
 import type { PathStatus } from '../image-shared/fs-helpers.js';
 import {
   MAX_SOURCE_PIXELS,

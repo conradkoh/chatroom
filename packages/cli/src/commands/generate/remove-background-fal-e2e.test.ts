@@ -15,10 +15,10 @@ import { Command } from 'commander';
 import pngjs from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { listUnitPrices } from './fal-pricing.js';
 import { registerRemoveImageBackgroundFalCommand } from './remove-background-fal-command.js';
 import type { RemoveBackgroundFalDeps } from './remove-background-fal.js';
 import { createDefaultSliceImageDeps } from './slice-deps.js';
+import { listUnitPrices } from '../generate-image/fal-pricing.js';
 
 const { PNG } = pngjs;
 

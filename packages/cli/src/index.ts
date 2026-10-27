@@ -9,10 +9,10 @@
 
 import { Command } from 'commander';
 
-import { registerGenerateImageCommand } from './commands/generate/index.js';
 import { registerRemoveImageBackgroundCommand } from './commands/generate/remove-background-command.js';
 import { registerRemoveImageBackgroundFalCommand } from './commands/generate/remove-background-fal-command.js';
 import { registerSliceImageCommand } from './commands/generate/slice-command.js';
+import { registerGenerateImageCommand } from './commands/generate-image/index.js';
 import { registerChatroomRoleCommand } from './commands/register-chatroom-role-command.js';
 import { collectMultiValueOption } from './utils/multi-value-option.js';
 import { readHeredocOrFileContent } from './utils/read-heredoc-or-file-content.js';
