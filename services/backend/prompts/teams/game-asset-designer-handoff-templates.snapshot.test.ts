@@ -27,6 +27,7 @@ const reportHeadings = [
   '## Proof of Principles',
   '## Proof of Completion',
   '## Target and assumptions',
+  '## Free asset decisions',
   '## Asset manifest',
   '## Quality checklist results',
   '## Style consistency',

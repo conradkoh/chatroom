@@ -37,9 +37,13 @@ Instructions (not part of the message): Return a complete asset delivery report 
 - [ ] Every asset ID has a file or \`Specified only.\`
 - [ ] Every sliced asset was isolated with \`remove-image-background\` and \`inspected\`.
 - [ ] Manifests are listed in the asset manifest.
+- [ ] Every candidate in the brief has a decision with its licence and file sizes labelled \`inspected\`.
 
 ## Target and assumptions
 <each assumption you made and why; each deviation from the planner's target or budgets; or \`None.\`>
+
+## Free asset decisions
+<one entry per candidate in the brief: pack name, licence quoted from the pack's own licence file, file sizes checked, decision (\`use\`, \`adapt\`, or \`reject\`), asset IDs covered, and the reason; for \`adapt\`, the edits made; write exactly \`None.\` if the brief named no candidates>
 
 ## Asset manifest
 <one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, \`--seed\`, \`--input\`, and \`--input-image\` values), the sheet and tile manifests, and the isolated asset manifest path>
