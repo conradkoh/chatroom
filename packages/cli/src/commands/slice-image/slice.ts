@@ -9,7 +9,8 @@
 
 import { basename, extname, join, resolve } from 'node:path';
 
-import type { FileIdentity, SliceImageDeps } from './slice-deps.js';
+import type { SliceImageDeps } from './slice-deps.js';
+import type { FileIdentity } from '../image-shared/image-preflight.js';
 import {
   MAX_SOURCE_BYTES,
   MAX_SOURCE_PIXELS,

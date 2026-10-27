@@ -11,6 +11,7 @@ import { lstat, mkdir, readFile, stat } from 'node:fs/promises';
 
 import pngjs from 'pngjs';
 
+import type { FileIdentity } from '../image-shared/image-preflight.js';
 import {
   pathStatus,
   writeFileBytes,
@@ -21,12 +22,6 @@ import {
 import { readInstalledPackageVersion } from '../image-shared/package-version.js';
 
 const { PNG } = pngjs;
-
-/** Filesystem identity used to compare paths across case and symlink aliases. */
-export interface FileIdentity {
-  dev: number;
-  ino: number;
-}
 
 /** Classify an input path and report its size without opening it. */
 export interface InputStat {

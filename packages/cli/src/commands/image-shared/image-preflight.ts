@@ -8,7 +8,22 @@
 
 import { createHash } from 'node:crypto';
 
-import type { FileIdentity, SliceImageDeps } from '../slice-image/slice-deps.js';
+import type { PathStatus } from './output-files.js';
+
+/** Filesystem identity used to compare paths across case and symlink aliases. */
+export interface FileIdentity {
+  dev: number;
+  ino: number;
+}
+
+/** The filesystem probes `findOutputConflicts` needs from a command's deps. */
+export interface OutputConflictDeps {
+  pathStatus: (path: string) => Promise<PathStatus>;
+  /** Identity via `stat` (symlinks resolved); null when the path is missing. */
+  fileIdentity: (path: string) => Promise<FileIdentity | null>;
+  /** True when the path itself is a symlink, including a dangling one. */
+  isSymlink: (path: string) => Promise<boolean>;
+}
 
 export const SAFE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/;
 export const MAX_SOURCE_PIXELS = 100_000_000;
@@ -90,7 +105,7 @@ export function formatConflicts(conflicts: OutputConflict[]): string {
  */
 // fallow-ignore-next-line complexity
 export async function findOutputConflicts(
-  deps: Pick<SliceImageDeps, 'isSymlink' | 'pathStatus' | 'fileIdentity'>,
+  deps: OutputConflictDeps,
   paths: string[],
   sourcePaths: ReadonlySet<string>,
   sourceIdentities: readonly (FileIdentity | null)[],
