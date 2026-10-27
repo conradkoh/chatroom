@@ -14,7 +14,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -45,6 +45,9 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 
 ## Existing assets
 <repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
+
+## Free asset candidates
+<one entry per third-party pack to evaluate before generating: pack name, source URL, expected licence (for example CC0), formats, and the asset IDs it could cover; or \`None.\`. The designer checks each pack's own licence file and file sizes and gives each candidate a \`use\`, \`adapt\`, or \`reject\` decision. It fetches only the URLs named here, inspects the pack as static files, and never runs its code.>
 
 ## Deliverable mode
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
