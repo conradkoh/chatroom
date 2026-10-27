@@ -32,10 +32,10 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Perspective
-<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not Applicable.\` for 3D models and audio; or \`Not specified.\`>
+<one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not Applicable.\` for 3D models and audio, and also when \`## Base image\` is set for a skin or texture edit; or \`Not specified.\`>
 
 ## Model
-<\`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset>
+<\`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset or \`## Base image\` names a base image>
 
 ## Model parameters
 <a JSON object as text passed to \`generate-image --input\`; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none>
@@ -47,7 +47,10 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
 
 ## Free asset candidates
-<one entry per third-party pack to evaluate before generating: pack name, source URL, expected licence (for example CC0), formats, and the asset IDs it could cover; or \`None.\`. The designer checks each pack's own licence file and file sizes and gives each candidate a \`use\`, \`adapt\`, or \`reject\` decision. It fetches only the URLs named here, inspects the pack as static files, and never runs its code.>
+<one entry per third-party pack to evaluate before generating: pack name, source URL, expected licence (for example CC0), formats, the asset IDs it could cover, and \`staged at: <repository path>\` where the user or planner staged the pack; or \`None.\`. The designer reads only the files staged under that path and does not fetch anything. It checks each pack's own licence file and file sizes and gives each candidate a \`use\`, \`adapt\`, or \`reject\` decision. A candidate without \`staged at:\` is recorded as \`reject\` with reason \`not staged\`. It never runs pack code.>
+
+## Base image
+<\`Not Applicable.\` for an asset generated from a prompt alone; otherwise: the repository path of the base image the edit starts from (for example a skin atlas or UV texture), the path of its licence record (or \`None.\` when the base is repository-owned), and \`preserve: <what must not move, for example "UV islands and outlines">\`>
 
 ## Deliverable mode
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
@@ -118,15 +121,16 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 - [ ] Every sliced asset was isolated with \`remove-image-background\` and \`inspected\`.
 - [ ] Manifests are listed in the asset manifest.
 - [ ] Every candidate in the brief has a decision with its licence and file sizes labelled \`inspected\`.
+- [ ] For a base-image edit: every UV island and outline in the result sits where it does in the base; alpha and pixel size match the base or the difference is stated; labelled \`inspected\` (side-by-side check against the base).
 
 ## Target and assumptions
 <each assumption you made and why; each deviation from the planner's target or budgets; or \`None.\`>
 
 ## Free asset decisions
-<one entry per candidate in the brief: pack name, licence quoted from the pack's own licence file, file sizes checked, decision (\`use\`, \`adapt\`, or \`reject\`), asset IDs covered, and the reason; for \`adapt\`, the edits made; write exactly \`None.\` if the brief named no candidates>
+<one entry per candidate in the brief: pack name, licence quoted from the pack's own licence file, attribution text (or \`none required\`), date retrieved, sha256 of the staged pack file, file sizes checked, in-pack file paths used, decision (\`use\`, \`adapt\`, or \`reject\`), asset IDs covered, modifications made, and the reason; for \`adapt\`, the edits made; write exactly \`None.\` if the brief named no candidates>
 
 ## Asset manifest
-<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, \`--seed\`, \`--input\`, and \`--input-image\` values), the sheet and tile manifests, and the isolated asset manifest path>
+<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, \`--seed\`, \`--input\`, and \`--input-image\` values), the sheet and tile manifests, and the isolated asset manifest path; for any asset edited from a base image, the base path, the base sha256, the licence record path, and the generator manifest path (the \`.json\` written beside the output)>
 
 ## Quality checklist results
 <per asset: each applicable checklist item as \`pass\`, \`fail\`, \`n/a\`, or \`not checked\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>
