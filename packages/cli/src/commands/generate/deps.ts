@@ -17,11 +17,16 @@ import {
   lookupFalUnitPrices,
   type FalUnitPrice,
 } from './fal-pricing.js';
-import { pathStatus, writeFileBytes, writeJsonFile, type PathStatus } from './fs-helpers.js';
 import { GenerateImageError, FAL_API_KEY_MISSING_MESSAGE } from './image.js';
-import { readInstalledPackageVersion } from './package-version.js';
+import {
+  pathStatus,
+  writeFileBytes,
+  writeJsonFile,
+  type PathStatus,
+} from '../image-shared/fs-helpers.js';
+import { readInstalledPackageVersion } from '../image-shared/package-version.js';
 
-export type { PathStatus } from './fs-helpers.js';
+export type { PathStatus } from '../image-shared/fs-helpers.js';
 
 /** The subset of a fal image result the generate command depends on. */
 export interface FalImageResult {

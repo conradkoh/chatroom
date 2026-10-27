@@ -17,8 +17,8 @@ import {
   writeJsonFile,
   type PathStatus,
   type WriteOptions,
-} from './fs-helpers.js';
-import { readInstalledPackageVersion } from './package-version.js';
+} from '../image-shared/fs-helpers.js';
+import { readInstalledPackageVersion } from '../image-shared/package-version.js';
 
 const { PNG } = pngjs;
 

@@ -19,7 +19,6 @@ import {
   type FalCostDisclosure,
   type FalUnitPrice,
 } from './fal-pricing.js';
-import { readPngDimensions } from './local-image-common.js';
 import {
   describeConstraints,
   FLUX_2_FLASH_EDIT_MODEL,
@@ -27,6 +26,7 @@ import {
   type ConstraintDisclosure,
   type ModelCapability,
 } from './model-capabilities.js';
+import { readPngDimensions } from '../image-shared/local-image-common.js';
 
 /**
  * Generation platforms the CLI can call today. New platforms are added here

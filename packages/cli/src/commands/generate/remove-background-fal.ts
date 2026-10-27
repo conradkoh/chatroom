@@ -19,15 +19,15 @@ import {
   type FalCostDisclosure,
   type FalUnitPrice,
 } from './fal-pricing.js';
-import type { PathStatus } from './fs-helpers.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from './image.js';
+import type { PathStatus } from '../image-shared/fs-helpers.js';
 import {
   MAX_SOURCE_PIXELS,
   hasPngMagic,
   isRecord,
   readPngDimensions,
   sha256,
-} from './local-image-common.js';
+} from '../image-shared/local-image-common.js';
 
 export type BackgroundEngine = 'bria' | 'birefnet';
 export const DEFAULT_BACKGROUND_ENGINE: BackgroundEngine = 'bria';
