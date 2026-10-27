@@ -28,7 +28,7 @@ import {
   isRecord,
   readPngDimensions,
   sha256,
-} from '../image-shared/local-image-common.js';
+} from '../image-shared/image-preflight.js';
 
 // fallow-ignore-next-line unused-export
 export class RemoveBackgroundError extends Error {

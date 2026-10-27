@@ -26,7 +26,7 @@ import {
   type ConstraintDisclosure,
   type ModelCapability,
 } from './model-capabilities.js';
-import { readPngDimensions } from '../image-shared/local-image-common.js';
+import { readPngDimensions } from '../image-shared/image-preflight.js';
 
 /**
  * Generation platforms the CLI can call today. New platforms are added here

@@ -3,7 +3,7 @@
  *
  * This is the only slice module that imports `pngjs`. It must not import
  * `./deps.js` at runtime (that module loads the fal SDK); filesystem helpers
- * come from the fal-free `fs-helpers.js`, so the command stays offline and
+ * come from the fal-free `output-files.js`, so the command stays offline and
  * does not need `FAL_API_KEY`.
  */
 
@@ -17,7 +17,7 @@ import {
   writeJsonFile,
   type PathStatus,
   type WriteOptions,
-} from '../image-shared/fs-helpers.js';
+} from '../image-shared/output-files.js';
 import { readInstalledPackageVersion } from '../image-shared/package-version.js';
 
 const { PNG } = pngjs;

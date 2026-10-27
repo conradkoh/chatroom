@@ -1,5 +1,5 @@
 /**
- * Shared filesystem helpers for local asset commands.
+ * Shared output-file helpers for local asset commands.
  *
  * Both `generate-image` and `slice-image` classify paths and write image or
  * JSON files the same way. This module must not import `@fal-ai/client`, so

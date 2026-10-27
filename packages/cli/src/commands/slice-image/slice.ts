@@ -23,7 +23,7 @@ import {
   median,
   readPngDimensions,
   sha256,
-} from '../image-shared/local-image-common.js';
+} from '../image-shared/image-preflight.js';
 
 const SLICE_TOOL = 'chatroom slice-image' as const;
 const MAX_TILES = 256;

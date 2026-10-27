@@ -18,7 +18,7 @@ import {
   type RemoveBackgroundFalDeps,
 } from './remove-image-background-fal.js';
 import { listUnitPrices, type FalUnitPrice } from '../generate-image/fal-pricing.js';
-import type { PathStatus } from '../image-shared/fs-helpers.js';
+import type { PathStatus } from '../image-shared/output-files.js';
 
 vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');

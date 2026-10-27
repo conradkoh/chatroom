@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { median } from './local-image-common.js';
+import { median } from './image-preflight.js';
 
 describe('median', () => {
   it('returns the middle value for an odd-length input', () => {

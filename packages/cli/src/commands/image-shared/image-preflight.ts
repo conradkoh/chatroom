@@ -1,5 +1,5 @@
 /**
- * Shared local-image helpers.
+ * Shared image preflight helpers.
  *
  * `slice-image` and `remove-image-background` both validate PNG bytes, name
  * outputs, hash files, and preflight overwrites. These helpers are fal-free and

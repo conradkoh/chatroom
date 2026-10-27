@@ -18,7 +18,7 @@ import {
 } from './image.js';
 import type { GenerateImagePlatform, ImageOutputFormat } from './image.js';
 import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
-import { MAX_SIDECAR_BYTES } from '../image-shared/local-image-common.js';
+import { MAX_SIDECAR_BYTES } from '../image-shared/image-preflight.js';
 
 const OUTPUT_FORMATS: readonly ImageOutputFormat[] = ['png', 'webp'];
 

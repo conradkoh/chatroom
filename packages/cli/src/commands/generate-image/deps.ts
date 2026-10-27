@@ -23,10 +23,10 @@ import {
   writeFileBytes,
   writeJsonFile,
   type PathStatus,
-} from '../image-shared/fs-helpers.js';
+} from '../image-shared/output-files.js';
 import { readInstalledPackageVersion } from '../image-shared/package-version.js';
 
-export type { PathStatus } from '../image-shared/fs-helpers.js';
+export type { PathStatus } from '../image-shared/output-files.js';
 
 /** The subset of a fal image result the generate command depends on. */
 export interface FalImageResult {
