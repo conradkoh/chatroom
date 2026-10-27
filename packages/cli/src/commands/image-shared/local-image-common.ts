@@ -8,7 +8,7 @@
 
 import { createHash } from 'node:crypto';
 
-import type { FileIdentity, SliceImageDeps } from '../generate/slice-deps.js';
+import type { FileIdentity, SliceImageDeps } from '../slice-image/slice-deps.js';
 
 export const SAFE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/;
 export const MAX_SOURCE_PIXELS = 100_000_000;

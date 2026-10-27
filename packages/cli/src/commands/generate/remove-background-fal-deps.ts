@@ -9,10 +9,10 @@
 import { dirname } from 'node:path';
 
 import { MAX_FAL_RESULT_BYTES, type RemoveBackgroundFalDeps } from './remove-background-fal.js';
-import { createDefaultSliceImageDeps } from './slice-deps.js';
 import { createFalRawSubscribe } from '../generate-image/deps.js';
 import { createDefaultFalPricingDeps, lookupFalUnitPrices } from '../generate-image/fal-pricing.js';
 import { readInstalledPackageVersion } from '../image-shared/package-version.js';
+import { createDefaultSliceImageDeps } from '../slice-image/slice-deps.js';
 
 function mebibytes(bytes: number): number {
   return Math.round(bytes / (1024 * 1024));

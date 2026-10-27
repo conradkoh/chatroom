@@ -17,8 +17,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { registerRemoveImageBackgroundFalCommand } from './remove-background-fal-command.js';
 import type { RemoveBackgroundFalDeps } from './remove-background-fal.js';
-import { createDefaultSliceImageDeps } from './slice-deps.js';
 import { listUnitPrices } from '../generate-image/fal-pricing.js';
+import { createDefaultSliceImageDeps } from '../slice-image/slice-deps.js';
 
 const { PNG } = pngjs;
 

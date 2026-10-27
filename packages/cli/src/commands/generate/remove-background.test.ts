@@ -17,7 +17,7 @@ import {
   removeImageBackground,
   type RemoveBackgroundOptions,
 } from './remove-background.js';
-import type { InputStat } from './slice-deps.js';
+import type { InputStat } from '../slice-image/slice-deps.js';
 
 vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');
