@@ -1,678 +1,110 @@
 # 3D Generation (`chatroom generate-3d`)
 
 **Status:** Implemented
-**Last Updated:** 2026-10-27
+**Last Updated:** 2026-10-28
 
 ---
 
-`chatroom generate-3d` generates one 3D mesh with a fal model and writes the mesh
-as a GLB at `--out`, plus a JSON sidecar manifest at `<out>.json`. It then
-packages the run as two sibling files: `<out-stem>-<timestamp>.zip` (the master,
-a smaller web variant, and a package manifest) and `<out-stem>-<timestamp>.html`
-(a standalone preview of the web variant). With `--rig` it also rigs the mesh with Meshy and writes
-`<stem>.rigged.glb`, plus one `<stem>.anim-<id>.glb` per requested animation clip.
+## What it does
 
-`--model` is required and accepts **any fal endpoint id**. The ids in
-[Known models](#known-models) have a specialist adapter, a capability check, and
-a list price; any other id is passed through to fal. Run a command with
-`--dry-run` first to see the exact request, the planned output paths, and the
-estimated cost of the run.
+`chatroom generate-3d` turns a prompt or a reference image into one 3D mesh: a
+GLB with its texture baked in, a `.zip` bundle beside it, and a standalone
+preview page. Set `FAL_API_KEY` first; the command calls fal directly and needs
+no chatroom authentication. Prices below are list-price estimates, not billed
+amounts.
 
-The command talks to fal directly and does not require chatroom authentication.
+## Quick start
 
-## Prerequisites
-
-- A fal account.
-- A fal API key created in the fal dashboard.
-
-## Setup
-
-### 1. Store the API key
-
-The command reads the key from the `FAL_API_KEY` environment variable. It does
-not read `FAL_KEY`, and it does not support `FAL_KEY_ID`/`FAL_KEY_SECRET`.
-
-Add the export to your shell profile with an editor so the key never appears in
-your shell history or on screen:
+Trellis from a prompt (a reference image is generated first):
 
 ```bash
-# zsh (macOS default)
-$EDITOR ~/.zshrc
-
-# bash
-$EDITOR ~/.bashrc
-# macOS login shells may read ~/.bash_profile instead
+chatroom generate-3d --prompt "a wooden treasure chest" --out chest.glb
 ```
 
-Add this line, replacing the placeholder with the key from the fal dashboard:
+Trellis from an image:
 
 ```bash
-export FAL_API_KEY="<paste-your-key-here>"
+chatroom generate-3d --input-image ./concept.png --out chest.glb
 ```
 
-Save the file, then start a new terminal or load the profile:
+Meshy rig with a clip (confirm the priced dry run first):
 
 ```bash
-source ~/.zshrc   # or: source ~/.bashrc
+chatroom generate-3d --model meshy/v7.1/image-to-3d --input-image ./concept.png --out knight.glb --rig --animation-action-id 0 --confirm-cost
 ```
 
-Confirm the variable is set without printing its value:
+## Models
 
-```bash
-[ -n "$FAL_API_KEY" ] && echo "FAL_API_KEY is set"
-```
+| Model id                                  | Input                   | List price             | Rigging | Notes                                                     |
+| ----------------------------------------- | ----------------------- | ---------------------- | ------- | --------------------------------------------------------- |
+| `fal-ai/trellis-2`                        | image (`--input-image`) | $0.30 at 1024          | no      | the default; a prompt adds $0.005 for the reference image |
+| `meshy/v7.1/text-to-3d`                   | prompt                  | $0.80 + $0.40 textures | yes     |                                                           |
+| `meshy/v7.1/image-to-3d`                  | image                   | $0.80 + $0.40 textures | yes     |                                                           |
+| `fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d` | prompt                  | $0.225                 | no      |                                                           |
 
-`--dry-run` never reads the key, so you can check a request before setting it.
+Any other id runs without a check or a price.
 
-### 2. Install or update the CLI
+## Rigging and animation
 
-```bash
-npm install -g chatroom-cli@latest
-```
-
-If the CLI is already installed, update it in place:
-
-```bash
-chatroom update
-```
-
-`generate-3d` requires chatroom-cli 1.137.4 or later. Confirm the command is
-available:
-
-```bash
-chatroom generate-3d --help
-```
-
-## Usage
-
-### Generate a mesh
-
-```bash
-chatroom generate-3d \
-  --platform=fal \
-  --model meshy/v7.1/text-to-3d \
-  --prompt "a weathered stone knight statue, full body, arms at the sides" \
-  --out assets/models/stone-knight.glb
-```
-
-The command writes the files, then prints their paths and a static list-price
-estimate:
+Bones and animation come from Meshy 7.1 only: `--model meshy/v7.1/text-to-3d` or
+`meshy/v7.1/image-to-3d`, plus `--rig` and optional `--animation-action-id`
+(Meshy presets 0–696). A real run needs `--confirm-cost`, after you have
+confirmed the priced `--dry-run`; rigging is billed on top of the mesh ($0.20
+plus $0.12 per clip). Rigging is verified only for Meshy GLBs and expects a
+humanoid mesh; non-humanoid meshes fail on fal. Every other model refuses the
+rig flags before any paid call:
 
 ```text
-Generated /path/to/your/project/assets/models/stone-knight.glb
-Manifest /path/to/your/project/assets/models/stone-knight.glb.json
-Package /path/to/your/project/assets/models/stone-knight-20261028-011838.zip
-Preview /path/to/your/project/assets/models/stone-knight-20261028-011838.html
-Cost estimate (prices as of 2026-10-27; estimate; fal returns no billed cost):
-- base $0.80
-- textures +$0.40
-Estimated total: $1.20
-```
-
-Parent directories are created automatically.
-
-`--out` must end with `.glb`; the command refuses any other extension before
-making the paid fal call, because it always writes a GLB.
-
-Failures are reported on stderr with a leading `❌` and a non-zero exit code. A
-download or save failure still names the fal request id and the GLB URL so a paid
-result can be recovered.
-
-### Check a request first (`--dry-run`)
-
-`--dry-run` runs every check the real command runs, then prints the model, the
-output, package, and preview paths, the exact request JSON, the rigging request
-and clip paths when `--rig` is set, and a `Cost estimate` block. It makes no upload and no fal
-generation call, and it needs no `FAL_API_KEY`.
-
-```bash
-chatroom generate-3d \
-  --platform=fal \
-  --model meshy/v7.1/text-to-3d \
-  --prompt "a weathered stone knight statue" \
-  --out assets/models/stone-knight.glb \
-  --rig \
-  --animation-action-id 0 \
-  --dry-run
-```
-
-```text
-Would generate /path/to/your/project/assets/models/stone-knight.glb
-Manifest /path/to/your/project/assets/models/stone-knight.glb.json
-Package /path/to/your/project/assets/models/stone-knight-20261028-011838.zip
-Preview /path/to/your/project/assets/models/stone-knight-20261028-011838.html
-Model meshy/v7.1/text-to-3d (text-to-3D, licence: commercial)
-Request:
-{
-  "prompt": "a weathered stone knight statue"
-}
-Rigging request (fal-ai/meshy/rigging/multi-animation):
-{
-  "model_url": "<generated mesh GLB URL>",
-  "animation_action_ids": [
-    0
-  ]
-}
-Rigged GLB /path/to/your/project/assets/models/stone-knight.rigged.glb
-Animation clip 0 /path/to/your/project/assets/models/stone-knight.anim-0.glb
-Rigging (Meshy) expects a humanoid mesh; non-humanoid meshes fail on fal.
-Cost estimate (prices as of 2026-10-27; estimate; fal returns no billed cost):
-- base $0.80
-- textures +$0.40
-- rigging (Meshy) $0.20
-- animation clips (1) $0.12 each = $0.12
-Estimated total: $1.52
-No upload or fal generation call was made.
-```
-
-The cost block is a static list-price estimate, never the billed amount: fal
-returns no billed cost and the command has no live price lookup. Check the fal
-dashboard for the actual bill. The block names the price date, lists one line per
-charge, and ends with `Estimated total`. A charge that was not requested, such
-as Hunyuan's optional PBR maps, appears with `excluded from the total`.
-
-`--dry-run` also refuses an existing output path, an existing package zip or
-preview, an unknown model id, a missing or mismatched input flag, an invalid
-animation clip id, and a rigging output that already exists — the same checks the
-real run performs.
-
-### Known models
-
-Pass the model id with `--model`; the command fails without it
-(`error: required option '--model <id>' not specified`). These ids have a
-specialist adapter and a capability check:
-
-| Model id                                  | Accepts                  | Output                          | List price (2026-10-27) |
-| ----------------------------------------- | ------------------------ | ------------------------------- | ----------------------- |
-| `meshy/v7.1/text-to-3d`                   | `--prompt`, `--rig`      | GLB + separate texture files    | $1.20                   |
-| `fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d` | `--prompt`               | GLB; texture URL when returned  | $0.225                  |
-| `meshy/v7.1/image-to-3d`                  | `--input-image`, `--rig` | GLB + separate texture files    | $1.20                   |
-| `fal-ai/trellis-2`                        | `--input-image`          | GLB only; textures are embedded | $0.30                   |
-
-Hunyuan rapid takes no `--rig`: rigging is only verified against Meshy GLBs.
-Trellis-2 takes no `--rig` either. Rigging an unsupported model would fail after
-the paid call, so the command refuses it up front:
-
-```text
-fal-ai/trellis-2 does not support --rig, --animation-action-id 0. Omit: --rig, --animation-action-id 0
+fal-ai/trellis-2 cannot rig. Bones and animation come from Meshy 7.1 only.
+Omit: --rig
 Corrected command:
-  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out concept.glb
+  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt 'a chest' --rig --confirm-cost --out chest.glb
 ```
 
-The check runs in `--dry-run` too, names every offending flag as you typed it,
-and prints the same command with those flags removed. If removing a flag leaves
-the model without its input, the corrected command carries
-`--input-image <path-or-url>` or `--prompt <text>` and says so.
-
-Prices are fal list prices read from the public model pages on 2026-10-27. They
-are not a billed amount. The per-model breakdown is:
-
-- **Meshy v7.1** — $0.80 base plus $0.40 for textures. The command sends the
-  endpoint's default `full` mode, so the request is textured and both lines are
-  part of the total.
-- **Hunyuan 3D v3.1 rapid** — $0.225 base. Optional PBR maps add $0.15, but the
-  command does not request them, so they are excluded from the total.
-- **Trellis-2** — $0.30 at the `1024` resolution the command sends explicitly.
-  The endpoint also offers 512 ($0.25) and 1536 ($0.35); the command does not
-  expose the resolution.
-- **Rigging** — see [Rigging and animation clips](#rigging-and-animation-clips).
-
-Every known model records the same `licenseType` value of `commercial`, copied
-verbatim from the fal catalog. A model the registry does not know records
-`unknown`, because there is no catalogue entry to copy. Either way the value is
-the catalog's label, not a legal interpretation: check fal's terms and the model
-page before using an asset in production.
-
-### Any other model
-
-An id outside the table is sent to fal as-is:
-
-- `--prompt` becomes the request's `prompt`, and `--input-image` becomes
-  `image_url` (a local file is uploaded exactly as for a known model).
-- `--input '<json>'` (or `--input @file`) adds any other field. It is merged
-  over the request for known models too, which is how a model-specific setting
-  such as `resolution` reaches the endpoint.
-- The GLB is read from `model_glb.url`, then `model_urls.glb`, then the first
-  `.glb` URL anywhere in the result. If none is present the command fails with
-  the model id, the request id, and the result's top-level keys, so a wrong
-  field name costs no second paid call.
-- There is no capability check and no price data: flags are passed through and
-  fal validates them, and the plan prints `Cost unknown: no list price for
-<id>.` with no total.
-
-```bash
-chatroom generate-3d \
-  --platform=fal \
-  --model fal-ai/some-future-model \
-  --prompt "a stone knight" \
-  --input '{"resolution":1024}' \
-  --out assets/models/knight.glb \
-  --dry-run
-```
-
-### Overwrite an existing file
-
-`--out` and `<out>.json` must not already exist. Pass `--force` to replace them.
-With `--rig`, the rigged GLB and every clip GLB are checked the same way:
-
-```bash
-chatroom generate-3d \
-  --platform=fal \
-  --model meshy/v7.1/text-to-3d \
-  --prompt "a weathered stone knight statue" \
-  --out assets/models/stone-knight.glb \
-  --force
-```
-
-Without `--force`, the command refuses before making the paid fal call.
-
-### Other options
-
-| Option                        | Meaning                                                                                                                    |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `--platform <name>`           | Generation platform. Only `fal` is supported (default).                                                                    |
-| `--prompt <text>`             | Text prompt for a text-to-3D model. Required for, and only accepted by, a `text-to-3D` model.                              |
-| `--input-image <path-or-url>` | Reference image for an image-to-3D model. Required for, and only accepted by, an `image-to-3D` model.                      |
-| `--rig`                       | Rig the generated mesh with Meshy (`fal-ai/meshy/rigging`). Humanoid meshes only.                                          |
-| `--animation-action-id <id>`  | Meshy preset animation id from 0 to 696, repeatable; switches to `fal-ai/meshy/rigging/multi-animation`. Requires `--rig`. |
-| `--package-dir <dir>`         | Directory for the package zip and preview (default: the directory of `--out`).                                             |
-| `--force`                     | Replace existing output, manifest, package, preview, rigged, and clip files.                                               |
-| `--dry-run`                   | Validate, print the request and the static list-price estimate; no upload or fal generation call.                          |
-
-## Generating from a reference image
-
-Pass `--input-image` to an image-to-3D model instead of `--prompt`:
-
-```bash
-chatroom generate-3d \
-  --platform=fal \
-  --model meshy/v7.1/image-to-3d \
-  --input-image ./concept/knight-front.png \
-  --out assets/models/stone-knight.glb
-```
-
-`--input-image` accepts two forms:
-
-- A local file with a `.png`, `.jpg`, or `.jpeg` extension. The file is uploaded
-  to fal storage with a one-day lifetime, and only the returned URL is sent to
-  the model. Any other extension — including `.webp` and `.gif` — is rejected
-  before the upload; the accepted set follows the formats Meshy's image-to-3D
-  endpoint accepts.
-- A public `http(s)` URL. It is passed to fal unchanged, so it must be reachable
-  without authentication for the duration of the call.
-
-Passing both `--prompt` and `--input-image` is an error, as is passing the flag a
-model does not take: a text-to-3D model rejects `--input-image`, and an
-image-to-3D model rejects `--prompt`.
-
-The manifest records the input in `inputImage`: `source` is the local absolute
-path or the URL exactly as given, and `url` is the value sent to fal. For
-text-to-3D, `inputImage` is `null`. An uploaded file's URL expires after one day,
-so the recorded `inputImage.url` and `input.image_url` stop working after that.
-Do not pass presigned or credential-bearing URLs for assets that will be
-committed.
-
-The reference image is the only input an image-to-3D model takes, so the whole
-frame becomes the subject. Meshy v7.1 accepts a reference image as well as a
-prompt; Trellis-2 accepts a reference image only.
-
-## Rigging and animation clips
-
-`--rig` runs a second paid call after the mesh is written:
-
-| Step               | Endpoint                               | List price (2026-10-27) |
-| ------------------ | -------------------------------------- | ----------------------- |
-| Rig only (`--rig`) | `fal-ai/meshy/rigging`                 | $0.20                   |
-| Rig plus clips     | `fal-ai/meshy/rigging/multi-animation` | $0.20 + $0.12 per clip  |
-
-The rigging call sends the public URL of the GLB fal just returned, so the mesh
-is not uploaded again. The request body is exactly `{ model_url }` for `--rig`,
-and `{ model_url, animation_action_ids }` when at least one
-`--animation-action-id` is given. No other parameter is sent.
-
-```bash
-chatroom generate-3d \
-  --platform=fal \
-  --model meshy/v7.1/text-to-3d \
-  --prompt "a stone knight statue, humanoid, standing" \
-  --out assets/models/stone-knight.glb \
-  --rig \
-  --animation-action-id 0 \
-  --animation-action-id 12
-```
-
-`--animation-action-id` is repeatable. Each value must be an integer from 0 to
-696; ids are kept in the order given and a duplicate is refused. An invalid id,
-a duplicate id, or the flag without `--rig` fails before any paid call.
-Meshy publishes no name map for the presets, so the command takes numeric ids
-only.
-
-**Rigging is humanoid-only.** Meshy expects a humanoid character; a
-non-humanoid mesh (a prop, a vehicle, a quadruped) fails on fal. The rig failure
-keeps the already-written mesh and its manifest, so the paid generation is never
-discarded — see [Failure semantics](#failure-semantics).
-
-### Output files
-
-Each step writes its own file: the mesh, sidecar, rig, and clips beside `--out`, the package zip and preview in `--package-dir`.
-
-| Step                | File                                     |
-| ------------------- | ---------------------------------------- |
-| Mesh                | `<out>` (for example `stone-knight.glb`) |
-| Manifest            | `<out>.json`                             |
-| Package             | `<packageDir>/<base>.zip`                |
-| Preview             | `<packageDir>/<base>.html`               |
-| Rig                 | `<stem>.rigged.glb`                      |
-| Each animation clip | `<stem>.anim-<id>.glb`                   |
-
-`<stem>` is `--out` without its `.glb` suffix. Only GLBs are downloaded. The
-rigging response also carries an FBX variant of the rigged character and the
-basic walking/running animation variants; those are recorded in the manifest by
-URL only and never written to disk. The manifest records the rigged file in
-`rigging.riggedGlbPath`, which matches `<stem>.rigged.glb`.
-
-### Failure semantics
-
-A run writes in this order: the master GLB, its sidecar manifest, the package
-(zip, then preview), and finally the rig files. Everything after the master is
-optional in the sense that its failure never discards a paid generation, but the
-stage that failed decides what you have on disk.
-
-**Packaging fails.** The master and its sidecar are already saved, so they stay,
-and the error names the kept master path. Within packaging:
-
-- a failed zip write removes the partial zip;
-- a failed preview write removes the zip written moments earlier, so a package
-  directory never holds a zip without its preview;
-- a package-name collision (`Package already exists` / `Preview already exists`)
-  is checked before the paid call, together with the master and sidecar paths, so
-  no money is spent on a run that cannot write its package.
-
-Rigging still runs after a packaging failure: the run was paid for, so a rig that
-was asked for is attempted and saved, and the packaging error is reported at the
-end with a note that the rig completed. Packaging runs _before_ rigging for the
-same reason — the package is a pure function of the master, so a rig failure
-cannot cost the packaged asset.
-
-**Rigging fails.** The master, the sidecar, the zip, and the preview stay in
-place; only the rigged GLB and the clips are missing. The sidecar records no
-`rigging` section, and the error names the rigging endpoint, the rigging request
-id when fal returned one, and the kept mesh. Any rigged or clip file already
-downloaded stays, because each is written as soon as its download succeeds.
-
-**Re-running.** The same command needs `--force`, because the master and sidecar
-already exist. Each run writes a new timestamped pair; earlier pairs stay until
-you delete them, and the sidecar's `package` field names the pair from the latest
-run. A `--force` run for the same base name also removes that pair before writing
-the new one. Re-running just the rig is not a separate command; the mesh is
-regenerated and billed again.
-
-## The package
-
-Every successful run writes two files that share a base name, so they sort next to
-each other:
-
-| File          | Contents                                            |
-| ------------- | --------------------------------------------------- |
-| `<base>.zip`  | `<stem>.glb`, `web/<stem>.web.glb`, `manifest.json` |
-| `<base>.html` | A standalone preview page of `web/<stem>.web.glb`   |
-
-`<base>` is the `--out` file name without its `.glb` suffix, plus the UTC
-timestamp of the run (`YYYYMMDD-HHmmss`, taken once before the fal call), for
-example `stone-knight-20261028-011838`. `--out` therefore sets both the folder
-and the package name, and consecutive runs never collide.
-
-The base is still a file name, so the stem is sanitised: characters outside
-`[A-Za-z0-9._-]` become `-` and a leading non-alphanumeric is dropped, which
-turns `--out "My Chest.glb"` into `My-Chest-<timestamp>`. A stem with nothing
-usable left, such as a name written entirely in a non-ASCII script, is refused
-before the paid call with a message naming `--out`.
-
-The directory comes from `--package-dir` (default: the directory of `--out`).
-The zip entry names use `<stem>`, not `<base>`, so the master keeps a stable name
-inside the archive.
-
-```bash
-chatroom generate-3d \
-  --platform=fal \
-  --model meshy/v7.1/text-to-3d \
-  --prompt "a weathered stone knight statue" \
-  --out assets/models/stone-knight.glb \
-  --package-dir dist/models
-```
-
-That writes `dist/models/stone-knight-<timestamp>.zip` and
-`dist/models/stone-knight-<timestamp>.html`; without `--package-dir` both sit
-beside `assets/models/stone-knight.glb`.
-
-### The zip
-
-The zip holds exactly three entries, written in sorted order:
-
-- `<stem>.glb` — the master, byte-for-byte what fal returned. It is never
-  re-encoded, so this file is the one to archive.
-- `web/<stem>.web.glb` — a welded copy with textures re-encoded as JPEG at most
-  `1024` px on the longest edge, simplified toward 30,000 triangles when the master
-  is over that target. A texture that a non-opaque material uses as its base
-  colour stays PNG, because JPEG has no alpha channel. The variant adds no glTF
-  extension, so any glTF 2.0 viewer can load it.
-- `manifest.json` — the package manifest, described below.
-
-The zip writer is deterministic for identical entries: entries are sorted and
-each carries the same fixed timestamp. `manifest.json` records `createdAt`, so two
-runs of the same input still produce different bytes.
-
-### The preview
-
-`<base>.html` is a self-contained page for the **web variant**: the GLB is
-embedded as a `data:model/gltf-binary;base64,...` URI, so it opens from `file://`
-with no server and no sibling file. It loads one pinned viewer build,
-[`@google/model-viewer@3.5.0`](https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js),
-from jsDelivr with a `sha384` subresource-integrity hash, and turns on orbit
-controls, auto-rotation, and shadows. A CDN response that does not match the hash
-is refused by the browser rather than executed.
-
-The caption above the viewer lists the model id, prompt, fal request id, the
-master and web triangle counts, both sizes, the web variant's SHA-256, and the
-sibling zip that holds the full-resolution master. Every value that comes from
-the model, the prompt, the request, or the chosen name is HTML-escaped, so a
-prompt containing markup shows as text.
-
-The mesh itself is embedded, so the page works offline apart from the viewer
-script; without network access the caption still renders and the viewer frame
-stays empty.
-
-## The sidecar manifest
-
-Every mesh gets a `<out>.json` sidecar with the provenance of the generation.
-`manifest.json` inside the package is a different, smaller document described in
-[The package manifest](#the-package-manifest).
-
-- `platform` — generation platform (`fal`).
-- `tool` — `chatroom generate-3d`.
-- `sdk` — the `@fal-ai/client` version used.
-- `model` — the fal model id.
-- `pageUrl` — the public fal model page the licence value was read from.
-- `licenseType` — always `commercial`; copied verbatim from the fal catalog.
-- `input` — exactly the fields sent to the model.
-- `inputImage` — `{ source, url }` for `--input-image`, otherwise `null`.
-- `requestId` — the fal request id.
-- `output.path` — the absolute path of the written GLB.
-- `output.sha256` — SHA-256 of the written bytes.
-- `output.bytes` — the file size in bytes.
-- `output.contentType` — `model/gltf-binary`.
-- `textureUrls` — separate texture files the model returned; empty when the
-  textures are embedded in the GLB (Trellis-2).
-- `package` — `{ zip, html }`, the package files written beside the sidecar.
-  Present once packaging succeeded.
-- `generatedAt` — ISO timestamp of the generation.
-
-With `--rig`, the manifest gains a `rigging` section:
-
-- `rigging.endpoint` — the rigging endpoint that was called.
-- `rigging.requestId` — the rigging request id, or `null` when fal returned none.
-- `rigging.input` — exactly the rigging request body.
-- `rigging.riggedGlbPath` and `rigging.riggedGlbUrl` — the saved rigged GLB and
-  its fal URL.
-- `rigging.riggedFbxUrl` — the FBX variant URL, or `null`.
-- `rigging.basicAnimationUrls` — name → URL map for the basic walking/running
-  variants. These are recorded only and are not downloaded.
-- `rigging.animations` — one `{ actionId, path, glbUrl }` per requested clip, in
-  the order given.
-- `rigging.costLines` — the rigging cost lines, matching the printed estimate.
-
-The `rigging` section is present only when the rigging step succeeded. A failed
-rig leaves the generation-only manifest described above.
-
-`licenseType` is the only licence field. It records the catalogue value, not a
-claim about the licence or commercial rights of the generated output; check
-fal's terms and the selected model's page yourself before using an asset in
-production.
-
-## The package manifest
-
-`manifest.json` inside the zip describes the package rather than the call:
-
-- `schemaVersion` — `1`.
-- `package.name`, `package.zip`, `package.createdAt` — the rendered base name, the
-  zip file name, and the ISO timestamp the zip was built.
-- `generator.tool`, `generator.model`, `generator.requestId`,
-  `generator.prompt`, `generator.inputImage` — the generator and its provenance.
-  `prompt` is `null` for an image-to-3D run; `inputImage` is the path or URL the
-  user gave, not the temporary fal storage URL.
-- `variants` — one entry per file. `master` records the unchanged fal bytes;
-  `web` also records its `settings` (`maxTexturePx`, `textureFormat`, `quality`,
-  `triangleTarget`, `simplified`). Each entry carries `file`, `bytes`, `sha256`,
-  `triangles`, `textures`, and `extensionsUsed`.
-- `licence` — the model's catalogue licence value, copied from the registry.
-- `pricing.estimatedTotalUsd` and `pricing.note` — the same list-price estimate
-  the CLI printed, with the reminder that it is not a billed amount.
-
-## Limits
-
-- **One mesh per invocation.** The command generates one GLB from text or one
-  reference image, then optionally rigs it. It does not do multi-asset batches or
-  write textures as separate files.
-- **Known models are checked; unknown ones are not.** The four ids in
-  [Known models](#known-models) refuse unsupported flags before the paid call.
-  Any other id goes to fal unchecked, so an invalid request fails on fal's side
-  and still costs nothing until a generation starts.
-- **Humanoid rigs only.** Rigging is Meshy's humanoid rigger. Non-humanoid
-  meshes fail on fal and keep only the mesh.
-- **Animation ids only.** Meshy publishes no preset name map, so clips are
-  requested as numeric ids from 0 to 696.
-- **No model parameters.** There is no `--input` escape hatch: the request body
-  for each model is fixed. The resolution, texture mode, and PBR settings are the
-  ones described in [Choose the model](#choose-the-model).
-- **Always packaged.** A successful run always writes the zip and the preview;
-  neither can be switched off. Use `--package-dir` to keep them out of the asset
-  folder.
-- **Preview needs the CDN.** The preview's mesh is embedded, but the model-viewer
-  module comes from jsDelivr, so the viewer needs network access the first time
-  the page is opened.
-- **Paid calls.** Every real generation, rig, and clip is billed to your fal
-  account. The command prints a static list-price estimate, but fal returns no
-  billed cost; the estimate is not a bill. Check the fal dashboard for the
-  actual charge.
-
-## Troubleshooting
-
-### `FAL_API_KEY is not set`
-
-The command found no `FAL_API_KEY` in the environment. Export it in the shell
-that runs the command and confirm with the check in [Setup](#setup). `FAL_KEY`
-is not read, so exporting that name has no effect. `--dry-run` does not need the
-key.
-
-### `required option '--model <id>' not specified`
-
-`--model` has no default. Pass `--model meshy/v7.1/text-to-3d` (or any fal
-endpoint id; see [Known models](#known-models)).
-
-### `<id> does not support --<flag>`
-
-The model cannot take that flag. The message lists every offending flag as you
-typed it and prints the same command with those flags removed; copy that
-command. If the corrected command carries `--input-image <path-or-url>` or
-`--prompt <text>`, fill in the input the model actually needs. A model the
-command does not know has no capability data, so its flags are passed through
-and fal decides.
-
-### `--out must end with .glb`
-
-The command writes a GLB mesh only. Rename the output to end in `.glb`.
-
-### `--out already exists` / `Manifest already exists`
-
-The output, its manifest, or a rigged/clip file is already on disk. Choose a new
-path or add `--force` to replace them all.
-
-### `Package already exists` / `Preview already exists`
-
-The zip or the preview for this run's base name is already on disk, which happens
-when another run used the same `--out` in the same second. The check runs before
-the paid call: wait a second for a new timestamp, pass a different
-`--package-dir`, or add `--force` to replace both.
-
-### `The output file name ... cannot form a package name`
-
-The `--out` file name has nothing usable after sanitising — every character is
-outside `[A-Za-z0-9._-]`, as with a name written entirely in a non-ASCII script.
-Rename `--out` so the package can be named after it.
-
-### `Failed to build the web variant`
-
-The glTF optimizer or its image encoder (`sharp`) failed, most often because the
-native `sharp` binary is missing for this platform. The master GLB and its sidecar
-manifest are kept, and no package files are written. Reinstall the CLI
-(`npm install -g chatroom-cli@latest`) to get the matching binary, or run the same
-command with `--force` after fixing the environment.
-
-### `Failed to build the package zip` / `Failed to save the preview`
-
-The zip could not be built or the preview could not be written. The master and
-its sidecar are kept. If the preview write fails, the zip written moments earlier
-is removed, so a package directory never holds a zip without its preview; the
-message says so if the removal itself fails.
-
-### `--animation-action-id requires --rig`
-
-Animation clips are a rigging feature. Add `--rig`, or drop the clip ids.
-
-### `--prompt is required for ...` / `--input-image is required for ...`
-
-The model's input kind and the flags disagree. A text-to-3D model takes
-`--prompt`; an image-to-3D model takes `--input-image`. Pass exactly one.
-
-### `Unsupported --input-image extension`
-
-Local reference images must be `.png`, `.jpg`, or `.jpeg`. Convert the file, or
-pass an `http(s)` URL to an image fal can fetch.
-
-### `Rigging failed ...`
-
-The mesh was generated and saved. The message names the rigging endpoint, the
-rigging request id when available, and the kept mesh path. Read the underlying
-fal message: the most common cause is a non-humanoid mesh. The mesh and its
-manifest are intact, so the mesh does not need to be paid for again if you can
-rig it another way; re-running `generate-3d` does generate and bill a new mesh.
-
-### `--package-dir` rejects the path
-
-`--package-dir` must be a directory the process can create and write. The command
-creates it before the paid call, so a permission error there fails before any
-charge.
-
-### `unsupported platform`
-
-Only `--platform=fal` is supported today. Remove the flag or set it to `fal`.
-
-## Security
-
-- Do not commit the key, and do not add it to a `.env` file that is tracked by
-  git.
-- Do not paste the key into chat messages, tickets, or logs.
-- If the key leaks, rotate it in the fal dashboard and update your shell
-  profile.
-- The manifest records request ids, input URLs, and output URLs. Treat a
-  credential-bearing or presigned input URL as leaked the moment it is written.
+## The bundle
+
+Every run writes `<base>.zip` next to `--out` (or in `--package-dir`), where
+`<base>` is `<out-stem>-<timestamp>`:
+
+- `<stem>.glb` — the master, byte-for-byte what fal returned.
+- `web/<stem>.web.glb` — the browser-sized web version.
+- `manifest.json` — the package record: files, sizes, triangle counts, request ids.
+- `reference/<name>.png` — the reference image, when one was generated or supplied.
+- `<stem>.rigged.glb` and `web/<stem>.rigged.web.glb` — when rigging ran.
+- `<stem>.anim-<id>.glb` and `web/<stem>.anim-<id>.web.glb` — one pair per clip.
+
+`<base>.html` beside the zip is a standalone preview of the web version.
+
+## Unknown models and `--input`
+
+Any fal id is accepted. An unknown id has no capability check and no price, so
+the plan prints `Generation cost unknown`. `--input '<json>'` (or `--input @file`)
+merges model-specific fields into the fal request, for known and unknown models
+alike; `prompt` and `image_url` are reserved for `--prompt` and `--input-image`.
+
+## Flags
+
+| Flag                          | Meaning                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| `--model <id>`                | fal endpoint id; defaults to `fal-ai/trellis-2`, any id is accepted.         |
+| `--out <path>`                | Output GLB path; the manifest is `<path>.json`.                              |
+| `--prompt <text>`             | Text prompt; with the default model a reference image is generated first.    |
+| `--input-image <path-or-url>` | Reference image: a local `.png`/`.jpg`/`.jpeg` (uploaded) or an http(s) URL. |
+| `--input <json\|@file>`       | Extra fal request fields, merged over the model defaults.                    |
+| `--rig`                       | Rig with Meshy 7.1; Meshy models only, and needs `--confirm-cost`.           |
+| `--animation-action-id <id>`  | Meshy preset clip (0–696), repeatable; requires `--rig`.                     |
+| `--confirm-cost`              | Confirm the priced plan for a real rigging run; not needed with `--dry-run`. |
+| `--package-dir <dir>`         | Directory for the zip and preview; defaults to the directory of `--out`.     |
+| `--force`                     | Replace existing output, package, preview, rig, and clip files.              |
+| `--dry-run`                   | Print the request and the list-price estimate; no upload or fal call.        |
+| `--platform <name>`           | Generation platform; only `fal`.                                             |
+
+## Limits and troubleshooting
+
+- The 30,000-triangle target for the web version is best effort; the manifest
+  records what was achieved.
+- A local `--input-image` is uploaded to fal storage and its URL lasts one day; a
+  URL is passed through, never downloaded.
+- A rig failure keeps the paid master, its manifest, and the package, and exits 1.
+- The global `chatroom` install may predate this command; check with
+  `chatroom generate-3d --help`.
