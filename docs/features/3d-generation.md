@@ -108,9 +108,9 @@ alike; `prompt` and `image_url` are reserved for `--prompt` and `--input-image`.
   records what was achieved.
 - Rigged and animated web versions keep full geometry; only their textures are
   reduced.
-- Web textures are capped at 1024 px on the longest edge, aspect preserved: colour
-  maps JPEG q80, data maps (metallic-roughness, occlusion, normal) JPEG q95,
-  alpha-blended colour maps PNG, WebP masters converted (no WebP extension).
+- Web textures: 1024 px max, aspect kept; colour maps JPEG q80 (4:2:0), data maps
+  (metallic-roughness, occlusion, normal) JPEG q95 (4:4:4), non-opaque colour maps
+  truecolour lossless PNG, WebP converted, other formats (e.g. KTX2) left unresized.
 - A local `--input-image` is uploaded to fal storage and its URL lasts one day; a
   URL is passed through, never downloaded.
 - A rig failure keeps the paid master, its manifest, and the package, and exits 1;

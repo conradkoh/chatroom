@@ -4,15 +4,16 @@
  * The master GLB is what fal returned; the web variant is a smaller copy for a
  * browser: welded geometry, optionally simplified toward a triangle target, and
  * textures of JPEG, PNG or WebP re-encoded to at most `maxTexturePx` on the
- * longest edge, with the aspect ratio preserved. JPEG is deliberate — WebP or
- * meshopt output would add a GLB extension, and the variant must stay loadable
- * by a plain glTF 2.0 viewer.
+ * longest edge, with the aspect ratio preserved. Colour maps are JPEG q80
+ * 4:2:0; data maps are JPEG q95 4:4:4; maps that carry alpha stay truecolour
+ * PNG. JPEG is deliberate — WebP or meshopt output would add a GLB extension,
+ * and the variant must stay loadable by a plain glTF 2.0 viewer.
  *
  * Two input features need care:
  *
- * - Alpha. JPEG has no alpha channel, so a texture that a non-OPAQUE material
- *   uses as its base colour is re-encoded as PNG instead. Everything else stays
- *   JPEG.
+ * - Alpha. JPEG has no alpha channel, so a texture a non-OPAQUE material uses as
+ *   its base colour, or one whose slots use its alpha channel, is re-encoded as
+ *   truecolour PNG instead. Everything else stays JPEG.
  * - Compressed master geometry. A master using `EXT_meshopt_compression` loads
  *   through the meshopt decoder registered below. `KHR_draco_mesh_compression`
  *   is refused with a clear error, because decoding it needs a Draco decoder
