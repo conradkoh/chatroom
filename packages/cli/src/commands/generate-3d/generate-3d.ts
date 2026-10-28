@@ -21,9 +21,11 @@ import { basename, dirname, extname, join, resolve } from 'node:path';
 
 import type { Generate3dDeps } from './deps.js';
 import {
+  DEFAULT_GENERATE_3D_MODEL_ID,
   Generate3dError,
   GENERATE_3D_PRICES_AS_OF,
   resolveGenerate3dModel,
+  supportsRigging,
   type Generate3dCapabilities,
   type Generate3dCostLine,
   type Generate3dInputKind,
@@ -52,8 +54,8 @@ export interface Generate3dOptions {
   prompt?: string | undefined;
   /** Local image path or public http(s) URL for an image-to-3D model. */
   inputImage?: string | undefined;
-  /** Allowlisted fal model id. */
-  model: string;
+  /** fal endpoint id; defaults to {@link DEFAULT_GENERATE_3D_MODEL_ID}. */
+  model?: string | undefined;
   /** Output GLB path; the manifest is written to `<out>.json`. */
   out: string;
   /** Allow replacing an existing output or manifest file. */
@@ -75,6 +77,11 @@ export interface Generate3dOptions {
   extraInput?: Record<string, unknown> | undefined;
   /** True only on the `--dry-run` path; used in the corrected-command hint. */
   dryRun?: boolean | undefined;
+  /**
+   * The user has seen the priced plan for a real run that rigs or animates.
+   * `--dry-run` does not need it; every other run with rigging does.
+   */
+  confirmCost?: boolean | undefined;
 }
 
 /** The rigging provenance written to the manifest after a successful rig. */
@@ -196,6 +203,8 @@ export interface Generate3dPlan {
   /** The rigging call the plan would make; null without `--rig`. */
   riggingRequest: RiggingRequest | null;
   costLines: Generate3dCostLine[];
+  /** True when the caller passed `--confirm-cost`. */
+  confirmCost: boolean;
   /** Master file name without its `.glb` suffix; used for the zip entries. */
   stem: string;
   /** Directory the package zip and preview are written to. */
@@ -311,7 +320,8 @@ function inputImageContentType(path: string): string {
  * Resolve `--model` to a spec. There is no allowlist: an id the registry does
  * not know becomes the generic passthrough, and fal validates it.
  */
-function requireModel(modelId: string): Generate3dModelSpec {
+function requireModel(modelId: string | undefined): Generate3dModelSpec {
+  if (modelId === undefined) return resolveGenerate3dModel(DEFAULT_GENERATE_3D_MODEL_ID);
   return resolveGenerate3dModel(requireNonEmpty(modelId, '--model must not be empty.'));
 }
 
@@ -454,6 +464,23 @@ function formatGenerate3dCost(lines: readonly Generate3dCostLine[], modelId: str
   ];
 }
 
+/**
+ * Refuse a real rigging run that has not confirmed the priced plan.
+ *
+ * A rig adds a Meshy call per clip on top of the mesh, so it needs an explicit
+ * acknowledgement. The dry run prints the same plan without this check.
+ */
+function requireCostConfirmation(plan: Generate3dPlan): void {
+  if (plan.riggingRequest === null || plan.confirmCost) return;
+  throw new Generate3dError(
+    [
+      'This run rigs and animates with Meshy 7.1, which is billed in addition to the mesh:',
+      ...formatGenerate3dCost(plan.costLines, plan.model.id),
+      'Add --confirm-cost to run.',
+    ].join('\n')
+  );
+}
+
 /** The rigging half of a plan; empty when `--rig` is absent. */
 interface PlannedRigging {
   riggedOutPath: string | null;
@@ -572,8 +599,8 @@ const INPUT_FLAG_NAMES: readonly string[] = ['--prompt', '--input-image'];
 
 /** The placeholder for a model whose only input is prompt or image. */
 const INPUT_PLACEHOLDERS: Record<Generate3dInputKind, string> = {
-  text: '--prompt <text>',
-  image: '--input-image <path-or-url>',
+  text: '--prompt TEXT',
+  image: '--input-image PATH_OR_URL',
 };
 
 /** Every input and rig flag the run passed, in reporting order. */
@@ -692,6 +719,75 @@ function inputHint(
   return `The corrected command still needs an input: replace ${placeholder.split(' ')[1]} with your value.`;
 }
 
+/** The rig flags a refused model was asked for, as typed. */
+function rigFlagList(ctx: Generate3dFlagContext): string[] {
+  const rig = ctx.rig === true ? ['--rig'] : [];
+  return [...rig, ...ctx.animationActionIds.map((id) => `--animation-action-id ${id}`)];
+}
+
+/** The Meshy model that matches the input the user already gave. */
+function meshyModelFor(ctx: Generate3dFlagContext): string {
+  return ctx.inputImage === undefined ? 'meshy/v7.1/text-to-3d' : 'meshy/v7.1/image-to-3d';
+}
+
+/** The input flag for the Meshy model, with a placeholder when none was given. */
+function meshyInputParts(ctx: Generate3dFlagContext): string[] {
+  if (ctx.prompt !== undefined) return [`--prompt ${shellQuote(ctx.prompt)}`];
+  if (ctx.inputImage !== undefined) return [`--input-image ${shellQuote(ctx.inputImage)}`];
+  return ['--prompt TEXT'];
+}
+
+/** The same run against Meshy 7.1, with the rig flags kept and the cost confirmed. */
+function meshyRigCommand(ctx: Generate3dFlagContext): string {
+  return [
+    'chatroom',
+    'generate-3d',
+    '--platform=fal',
+    `--model ${meshyModelFor(ctx)}`,
+    ...meshyInputParts(ctx),
+    ...rigFlagList(ctx),
+    '--confirm-cost',
+    ...outputParts(ctx),
+    ...repeatParts(ctx),
+  ].join(' ');
+}
+
+/** The error for rigging (or clips) on a model that Meshy 7.1 does not cover. */
+function riggingModelError(ctx: Generate3dFlagContext): Generate3dError {
+  const omitted = rigFlagList(ctx).join(', ');
+  const lines = [
+    `${ctx.model.id} cannot rig. Bones and animation come from Meshy 7.1 only.`,
+    `Omit: ${omitted}`,
+    'Corrected command:',
+    `  ${meshyRigCommand(ctx)}`,
+  ];
+  if (ctx.prompt === undefined && ctx.inputImage === undefined) {
+    lines.push('The corrected command needs a prompt: replace TEXT with your description.');
+  }
+  return new Generate3dError(lines.join('\n'));
+}
+
+/**
+ * Rigging and animation are Meshy 7.1 only.
+ *
+ * This checks the id, not `capabilities.rig`: an unknown model has no capability
+ * data, and a missing check must not become permission to spend money.
+ */
+function validateRigging(ctx: Generate3dFlagContext): void {
+  const rigging = ctx.rig === true || ctx.animationActionIds.length > 0;
+  if (!rigging || supportsRigging(ctx.model.id)) return;
+  throw riggingModelError(ctx);
+}
+
+/** A hint pointing a refused prompt at the text-to-3D model. */
+function promptHint(
+  ctx: Generate3dFlagContext,
+  capabilities: Generate3dCapabilities
+): string | undefined {
+  if (capabilities.prompt || ctx.prompt === undefined) return undefined;
+  return 'A prompt-only run needs a text-to-3D model: --model meshy/v7.1/text-to-3d.';
+}
+
 /** The error for unsupported flags: what to omit, and the command that works. */
 function flagError(
   ctx: Generate3dFlagContext,
@@ -703,9 +799,10 @@ function flagError(
     `${ctx.model.id} does not support ${list}. Omit: ${list}`,
     'Corrected command:',
     `  ${correctedCommand(ctx, capabilities)}`,
+    ...[inputHint(ctx, capabilities), promptHint(ctx, capabilities)].filter(
+      (hint): hint is string => hint !== undefined
+    ),
   ];
-  const hint = inputHint(ctx, capabilities);
-  if (hint !== undefined) lines.push(hint);
   return new Generate3dError(lines.join('\n'));
 }
 
@@ -797,7 +894,7 @@ export async function planGenerate3d(
   const outPath = resolve(requireNonEmpty(opts.out, '--out must not be empty.'));
   requireGlbExtension(outPath);
 
-  validateGenerate3dFlags({
+  const flagContext: Generate3dFlagContext = {
     model,
     prompt: opts.prompt,
     inputImage: opts.inputImage,
@@ -809,7 +906,9 @@ export async function planGenerate3d(
     force: opts.force,
     packageDir: opts.packageDir,
     dryRun: opts.dryRun,
-  });
+  };
+  validateRigging(flagContext);
+  validateGenerate3dFlags(flagContext);
   requireInputKind(model, opts);
 
   const { animationActionIds, ...rigging } = planRigging(opts, outPath);
@@ -843,6 +942,7 @@ export async function planGenerate3d(
     animationOutPaths: rigging.animationOutPaths,
     riggingRequest: rigging.riggingRequest,
     costLines: [...(model.cost()?.lines ?? []), ...rigging.extraCostLines],
+    confirmCost: opts.confirmCost === true,
     ...naming,
   };
 }
@@ -869,12 +969,9 @@ function formatRiggingPlan(plan: Generate3dPlan): string[] {
 }
 
 /** Render a plan for `--dry-run`: paths, model, request, and cost estimate. */
-export function formatGenerate3dPlan(plan: Generate3dPlan): string {
+/** The model line, the input line, and the unknown-model note. */
+function planModelLines(plan: Generate3dPlan): string[] {
   const lines = [
-    `Would generate ${plan.outPath}`,
-    `Manifest ${plan.manifestPath}`,
-    `Package ${plan.zipPath}`,
-    `Preview ${plan.htmlPath}`,
     `Model ${plan.model.id} (${describeInputKind(plan.model.inputKind)}, licence: ${plan.model.licenseType})`,
   ];
   const inputLine = formatInputImageLine(plan.inputTarget);
@@ -882,14 +979,28 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
   if (plan.model.inputKind === undefined) {
     lines.push('No capability data; flags are passed through and fal validates them.');
   }
-  lines.push(
+  return lines;
+}
+
+/** The dry-run pointer to `--confirm-cost` when the plan rigs. */
+function confirmationLines(plan: Generate3dPlan): string[] {
+  return plan.riggingRequest !== null && !plan.confirmCost ? ['Add --confirm-cost to run.'] : [];
+}
+
+export function formatGenerate3dPlan(plan: Generate3dPlan): string {
+  return [
+    `Would generate ${plan.outPath}`,
+    `Manifest ${plan.manifestPath}`,
+    `Package ${plan.zipPath}`,
+    `Preview ${plan.htmlPath}`,
+    ...planModelLines(plan),
     'Request:',
     JSON.stringify(plan.input, null, 2),
     ...formatRiggingPlan(plan),
     ...formatGenerate3dCost(plan.costLines, plan.model.id),
-    'No upload or fal generation call was made.'
-  );
-  return lines.join('\n');
+    ...confirmationLines(plan),
+    'No upload or fal generation call was made.',
+  ].join('\n');
 }
 
 /**
@@ -1498,6 +1609,8 @@ export async function generate3d(
 ): Promise<Generate3dResult> {
   requireFalKey(deps);
   const plan = await planGenerate3d(opts, deps);
+  // Before the upload and the paid call: a rig needs the priced plan confirmed.
+  requireCostConfirmation(plan);
   const master = await generateMaster(plan, deps, opts);
 
   // Package first: it is a pure function of the master, so a rig failure cannot

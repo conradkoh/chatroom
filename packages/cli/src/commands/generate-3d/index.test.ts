@@ -121,11 +121,12 @@ describe('chatroom generate-3d wiring', () => {
       '--animation-action-id',
       '--package-dir',
       '--input',
+      '--confirm-cost',
       '--dry-run',
     ]) {
       expect(help).toContain(flag);
     }
-    expect(help).toContain('any fal endpoint id is');
+    expect(help).toContain('fal endpoint id (default fal-ai/trellis-2)');
 
     let afterHelp = '';
     command?.configureOutput({
@@ -134,8 +135,8 @@ describe('chatroom generate-3d wiring', () => {
       },
     });
     command?.outputHelp();
+    expect(afterHelp).toContain('--input-image ./concept.png --out concept.glb');
     expect(afterHelp).toContain('--model meshy/v7.1/text-to-3d --prompt "a stone knight"');
-    expect(afterHelp).toContain('--model fal-ai/trellis-2 --input-image ./concept.png');
     expect(afterHelp).toContain('--rig --animation-action-id 0');
     expect(afterHelp).toContain('humanoid mesh');
     expect(afterHelp).toContain('Models:');
@@ -157,15 +158,33 @@ describe('chatroom generate-3d wiring', () => {
     expect(command?.options.map((option) => option.long)).not.toContain('--name');
   });
 
-  it('requires --model and --out', async () => {
+  it('requires --out but defaults --model', async () => {
     const program = createProgram();
 
     await expect(
       parse(program, ['--model', 'meshy/v7.1/text-to-3d', '--prompt', 'x'])
     ).rejects.toMatchObject({ code: 'commander.missingMandatoryOptionValue' });
-    await expect(parse(program, ['--prompt', 'x', '--out', '/tmp/x.glb'])).rejects.toMatchObject({
-      code: 'commander.missingMandatoryOptionValue',
-    });
+
+    await parse(program, ['--input-image', './x.png', '--out', '/tmp/x.glb']);
+
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({ model: undefined });
+  });
+
+  it('forwards --confirm-cost', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'meshy/v7.1/text-to-3d',
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.glb',
+      '--rig',
+      '--confirm-cost',
+    ]);
+
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({ confirmCost: true });
   });
 
   it('rejects --name as an unknown option', async () => {

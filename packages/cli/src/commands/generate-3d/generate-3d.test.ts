@@ -748,8 +748,96 @@ describe('generate3d packaging', () => {
   });
 });
 
+describe('default model and rig gate', () => {
+  it('defaults to fal-ai/trellis-2 when --model is omitted', async () => {
+    const deps = createDeps();
+    const plan = await planGenerate3d(
+      { inputImage: 'https://example.test/hero.png', out: OUT_PATH },
+      deps
+    );
+
+    expect(plan.model.id).toBe('fal-ai/trellis-2');
+    expect(plan.input).toEqual({ image_url: 'https://example.test/hero.png', resolution: 1024 });
+  });
+
+  it('refuses a prompt with the default model and points at the text-to-3D model', async () => {
+    const deps = createDeps();
+
+    await expect(planGenerate3d({ prompt: 'a chest', out: OUT_PATH }, deps)).rejects.toThrow(
+      [
+        'fal-ai/trellis-2 does not support --prompt "a chest". Omit: --prompt "a chest"',
+        'Corrected command:',
+        '  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image PATH_OR_URL --out /tmp/generated/hero.glb',
+        'The corrected command still needs an input: replace PATH_OR_URL with your value.',
+        'A prompt-only run needs a text-to-3D model: --model meshy/v7.1/text-to-3d.',
+      ].join('\n')
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('refuses a real rigging run without --confirm-cost, before any upload', async () => {
+    const deps = createRigDeps();
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+    ).rejects.toThrow(
+      /This run rigs and animates with Meshy 7\.1.*Estimated total: \$1\.40.*Add --confirm-cost to run\./s
+    );
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('rigs a Meshy run once --confirm-cost is given', async () => {
+    const deps = createRigDeps();
+
+    const result = await generate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+      deps
+    );
+
+    expect(result.zipPath).toBe(ZIP_PATH);
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts --confirm-cost without rigging and changes nothing', async () => {
+    const deps = createDeps();
+
+    const result = await generate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, confirmCost: true },
+      deps
+    );
+
+    expect(result.zipPath).toBe(ZIP_PATH);
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+    expect(result.costLines.join('\n')).toContain('Estimated total: $1.20');
+  });
+
+  it('shows the priced plan and the confirmation line in a dry run', async () => {
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true },
+      createDeps()
+    );
+    const text = formatGenerate3dPlan(plan);
+
+    expect(text).toContain('Estimated total: $1.40');
+    expect(text).toContain('Add --confirm-cost to run.');
+  });
+
+  it('omits the confirmation line when --confirm-cost is set', async () => {
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+      createDeps()
+    );
+
+    expect(formatGenerate3dPlan(plan)).not.toContain('Add --confirm-cost to run.');
+  });
+});
+
 describe('capability checks', () => {
-  it('refuses --rig and clips for an image-only model, with a corrected command', async () => {
+  it('hands a refused rig to Meshy with every flag kept and the cost gate added', async () => {
     const deps = createDeps();
 
     await expect(
@@ -759,19 +847,22 @@ describe('capability checks', () => {
           inputImage: './concept.png',
           out: OUT_PATH,
           rig: true,
+          confirmCost: true,
           animationActionIds: ['0'],
         },
         deps
       )
     ).rejects.toThrow(
       [
-        'fal-ai/trellis-2 does not support --rig, --animation-action-id 0. Omit: --rig, --animation-action-id 0',
+        'fal-ai/trellis-2 cannot rig. Bones and animation come from Meshy 7.1 only.',
+        'Omit: --rig, --animation-action-id 0',
         'Corrected command:',
-        '  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out /tmp/generated/hero.glb',
+        '  chatroom generate-3d --platform=fal --model meshy/v7.1/image-to-3d --input-image ./concept.png --rig --animation-action-id 0 --confirm-cost --out /tmp/generated/hero.glb',
       ].join('\n')
     );
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
@@ -784,8 +875,9 @@ describe('capability checks', () => {
       [
         'fal-ai/trellis-2 does not support --prompt "a knight". Omit: --prompt "a knight"',
         'Corrected command:',
-        '  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image <path-or-url> --out /tmp/generated/hero.glb',
-        'The corrected command still needs an input: replace <path-or-url> with your value.',
+        '  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image PATH_OR_URL --out /tmp/generated/hero.glb',
+        'The corrected command still needs an input: replace PATH_OR_URL with your value.',
+        'A prompt-only run needs a text-to-3D model: --model meshy/v7.1/text-to-3d.',
       ].join('\n')
     );
 
@@ -798,7 +890,7 @@ describe('capability checks', () => {
     await expect(
       generate3d({ model: MESHY_TEXT, inputImage: './x.png', out: OUT_PATH }, deps)
     ).rejects.toThrow(
-      /meshy\/v7\.1\/text-to-3d does not support --input-image \.\/x\.png.*--prompt <text>/s
+      /meshy\/v7\.1\/text-to-3d does not support --input-image \.\/x\.png.*--prompt TEXT/s
     );
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
@@ -813,21 +905,30 @@ describe('capability checks', () => {
     ).rejects.toThrow(/fal-ai\/trellis-2 does not support --prompt/);
   });
 
-  it('does not validate an unknown model, which fal checks instead', async () => {
+  it('refuses rigging on an unknown model, which has no Meshy equivalent', async () => {
     const deps = createDeps();
-    const plan = await planGenerate3d(
-      {
-        model: 'fal-ai/some-future-model',
-        prompt: 'a knight',
-        out: OUT_PATH,
-        rig: true,
-        animationActionIds: ['0'],
-      },
-      deps
-    );
 
-    expect(plan.riggedOutPath).toBe(RIGGED_OUT_PATH);
-    expect(plan.riggingRequest).not.toBeNull();
+    await expect(
+      planGenerate3d(
+        {
+          model: 'fal-ai/some-future-model',
+          prompt: 'a knight',
+          out: OUT_PATH,
+          rig: true,
+          confirmCost: true,
+          animationActionIds: ['0'],
+        },
+        deps
+      )
+    ).rejects.toThrow(
+      [
+        'fal-ai/some-future-model cannot rig. Bones and animation come from Meshy 7.1 only.',
+        'Omit: --rig, --animation-action-id 0',
+        'Corrected command:',
+        "  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt 'a knight' --rig --animation-action-id 0 --confirm-cost --out /tmp/generated/hero.glb",
+      ].join('\n')
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 });
 
@@ -836,7 +937,7 @@ describe('generate3d --rig', () => {
     const deps = createRigDeps();
 
     const result = await generate3d(
-      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true },
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
       deps
     );
 
@@ -887,6 +988,7 @@ describe('generate3d --rig', () => {
         prompt: 'a knight',
         out: OUT_PATH,
         rig: true,
+        confirmCost: true,
         animationActionIds: ['0', '92'],
       },
       deps
@@ -937,6 +1039,7 @@ describe('generate3d --rig', () => {
           prompt: 'a knight',
           out: OUT_PATH,
           rig: true,
+          confirmCost: true,
           animationActionIds: ['697'],
         },
         deps
@@ -951,7 +1054,10 @@ describe('generate3d --rig', () => {
     });
 
     await expect(
-      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+      generate3d(
+        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+        deps
+      )
     ).rejects.toThrow(/Rigged GLB already exists.*--force/);
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
@@ -970,6 +1076,7 @@ describe('generate3d --rig', () => {
           prompt: 'a knight',
           out: OUT_PATH,
           rig: true,
+          confirmCost: true,
           animationActionIds: ['0', '92'],
         },
         deps
@@ -984,7 +1091,10 @@ describe('generate3d --rig', () => {
     const deps = createRigDeps({});
 
     await expect(
-      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+      generate3d(
+        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+        deps
+      )
     ).rejects.toThrow(/Rigging failed for request rig-456.*rigged_character_glb\.url.*hero\.glb/);
 
     // The master and the package are both on disk; only rigging is missing.
@@ -1004,7 +1114,10 @@ describe('generate3d --rig', () => {
     });
 
     await expect(
-      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+      generate3d(
+        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+        deps
+      )
     ).rejects.toThrow(
       /web variant: sharp is not installed.*hero\.glb.*rig completed and was saved/s
     );
@@ -1025,7 +1138,10 @@ describe('generate3d --rig', () => {
     });
 
     await expect(
-      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+      generate3d(
+        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+        deps
+      )
     ).rejects.toThrow(/Rigging failed \(fal-ai\/meshy\/rigging\).*rig queue exploded.*hero\.glb/);
 
     // Packaging runs before rigging, so the master and the package survive.
@@ -1064,6 +1180,7 @@ describe('planGenerate3d', () => {
         prompt: 'a knight',
         out: OUT_PATH,
         rig: true,
+        confirmCost: true,
         animationActionIds: ['0', '92'],
       },
       deps
@@ -1107,6 +1224,7 @@ describe('planGenerate3d', () => {
           prompt: 'a knight',
           out: OUT_PATH,
           rig: true,
+          confirmCost: true,
           animationActionIds: ['0'],
         },
         deps
@@ -1124,6 +1242,7 @@ describe('planGenerate3d', () => {
           prompt: 'a knight',
           out: OUT_PATH,
           rig: true,
+          confirmCost: true,
           animationActionIds: ['1.5'],
         },
         deps

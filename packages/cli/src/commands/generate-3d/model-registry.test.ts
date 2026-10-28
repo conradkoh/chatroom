@@ -10,9 +10,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_GENERATE_3D_MODEL_ID,
   Generate3dError,
   GENERATE_3D_MODELS,
   resolveGenerate3dModel,
+  RIG_CAPABLE_MODEL_IDS,
+  supportsRigging,
   type Generate3dModelSpec,
 } from './model-registry.js';
 
@@ -78,6 +81,22 @@ describe('generate-3d model registry', () => {
   it.each([MESHY_TEXT, HUNYUAN_RAPID, MESHY_IMAGE, TRELLIS_2])('finds %s', (id) => {
     expect(resolveGenerate3dModel(id).id).toBe(id);
     expect(resolveGenerate3dModel(id).inputKind).toBeDefined();
+  });
+
+  it('defaults to Trellis-2 and only lets Meshy 7.1 rig', () => {
+    expect(DEFAULT_GENERATE_3D_MODEL_ID).toBe(TRELLIS_2);
+    expect(RIG_CAPABLE_MODEL_IDS).toEqual([MESHY_TEXT, MESHY_IMAGE]);
+
+    for (const id of [MESHY_TEXT, MESHY_IMAGE]) expect(supportsRigging(id)).toBe(true);
+    for (const id of [TRELLIS_2, HUNYUAN_RAPID, 'fal-ai/some-future-model']) {
+      expect(supportsRigging(id)).toBe(false);
+    }
+  });
+
+  it('keeps capabilities.rig consistent with supportsRigging', () => {
+    for (const model of GENERATE_3D_MODELS) {
+      expect(model.capabilities?.rig).toBe(supportsRigging(model.id));
+    }
   });
 
   it('falls back to a generic spec for an unknown model', () => {

@@ -31,6 +31,25 @@ export class Generate3dError extends Error {
   }
 }
 
+/** The model `--model` falls back to when it is omitted. */
+export const DEFAULT_GENERATE_3D_MODEL_ID = 'fal-ai/trellis-2' as const;
+
+/**
+ * The only models that may rig. Rigging is Meshy 7.1's; every other model is
+ * refused before the paid call rather than failing on fal after it.
+ */
+// Exported as part of the model-registry contract, alongside supportsRigging.
+// fallow-ignore-next-line unused-export
+export const RIG_CAPABLE_MODEL_IDS = ['meshy/v7.1/text-to-3d', 'meshy/v7.1/image-to-3d'] as const;
+
+/**
+ * Whether an id may rig. This checks the id, not `capabilities.rig`, so an
+ * unknown model cannot rig just because it has no capability data.
+ */
+export function supportsRigging(id: string): boolean {
+  return (RIG_CAPABLE_MODEL_IDS as readonly string[]).includes(id);
+}
+
 /** Which dedicated input flag a model accepts. */
 export type Generate3dInputKind = 'text' | 'image';
 

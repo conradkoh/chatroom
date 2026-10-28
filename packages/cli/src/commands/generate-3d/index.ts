@@ -99,8 +99,8 @@ async function readExtraInput(
 
 const HELP_AFTER = `
 Examples:
+  chatroom generate-3d --platform=fal --input-image ./concept.png --out concept.glb
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb
-  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out concept.glb
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --rig --animation-action-id 0
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --package-dir dist/models
   chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --input '{"resolution":1536}' --out concept.glb
@@ -142,6 +142,7 @@ interface Generate3dCliOptions {
   animationActionId: string[];
   packageDir?: string | undefined;
   input?: string | undefined;
+  confirmCost?: boolean | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -170,6 +171,7 @@ function toGenerate3dOptions(
     rig: options.rig,
     packageDir: options.packageDir,
     extraInput,
+    confirmCost: options.confirmCost,
     dryRun: options.dryRun,
   };
   return options.animationActionId.length > 0
@@ -212,10 +214,7 @@ export function registerGenerate3dCommand(program: Command): void {
     .description(
       'Generate one 3D mesh (GLB) with a fal model, plus its JSON manifest and a zip/preview package'
     )
-    .requiredOption(
-      '--model <id>',
-      'fal model id (required); any fal endpoint id is accepted (known ids and their flags are listed below)'
-    )
+    .option('--model <id>', 'fal endpoint id (default fal-ai/trellis-2). Any id is accepted.')
     .requiredOption('--out <path>', 'Output GLB path (manifest is written to <path>.json)')
     .option(
       '--platform <name>',
@@ -246,6 +245,10 @@ export function registerGenerate3dCommand(program: Command): void {
     .option(
       '--input <json|@file>',
       'Extra fal request fields as a JSON object, merged over the model defaults; @file reads JSON from a file'
+    )
+    .option(
+      '--confirm-cost',
+      'Confirm the priced plan for a real run that rigs or animates (Meshy 7.1 only). Not needed for --dry-run'
     )
     .option(
       '--dry-run',
