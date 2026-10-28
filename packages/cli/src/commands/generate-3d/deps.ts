@@ -7,7 +7,7 @@
  * about `@fal-ai/client` and `node:fs/promises`.
  */
 
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { Generate3dError } from './model-registry.js';
@@ -42,8 +42,13 @@ export interface Generate3dDeps {
    * extension and is never sniffed.
    */
   uploadFile(path: string, contentType: string): Promise<string>;
-  /** Write the GLB bytes. Parent directories are created by `ensureParentDir`. */
+  /** Write a file's bytes (a GLB, a zip, or the preview's UTF-8). Parent directories are created by `ensureParentDir`. */
   writeFile(path: string, bytes: Uint8Array): Promise<void>;
+  /**
+   * Delete one file, ignoring a missing path. Used to roll back the package zip
+   * when the preview beside it cannot be written.
+   */
+  removeFile(path: string): Promise<void>;
   /** Write the JSON sidecar manifest. */
   writeJson(path: string, value: unknown): Promise<void>;
   /** Classify an output path without creating anything. */
@@ -136,6 +141,9 @@ export function createDefaultGenerate3dDeps(): Generate3dDeps {
     fetchGlb,
     uploadFile: createFalUploadFile(env),
     writeFile: writeFileBytes,
+    removeFile: async (path) => {
+      await rm(path, { force: true });
+    },
     writeJson: writeJsonFile,
     pathStatus,
     ensureParentDir: async (path) => {

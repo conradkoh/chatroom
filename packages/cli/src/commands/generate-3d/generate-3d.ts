@@ -32,6 +32,7 @@ import {
   renderPackageName,
   templateNeedsRequestId,
 } from './package-name.js';
+import { renderPreviewHtml } from './preview-html.js';
 import {
   buildRiggingRequest,
   parseAnimationActionIds,
@@ -128,6 +129,8 @@ export interface Generate3dResult {
   manifestPath: string;
   /** The zip package holding the master, the web variant, and the manifest. */
   zipPath: string;
+  /** The standalone preview of the web variant, beside the zip. */
+  htmlPath: string;
   sha256: string;
   /** Cost lines for the CLI to print after the output paths. */
   costLines: string[];
@@ -206,6 +209,8 @@ export interface Generate3dPlan {
   packageName: string | null;
   /** `<packageDir>/<packageName>.zip`, or null when the name is deferred. */
   zipPath: string | null;
+  /** `<packageDir>/<packageName>.html`, or null when the name is deferred. */
+  htmlPath: string | null;
 }
 
 const GLB_CONTENT_TYPE = 'model/gltf-binary';
@@ -509,11 +514,16 @@ interface ResolvedPackageNaming {
   packageName: string | null;
   /** `<packageDir>/<base>.zip`, or null when the name is deferred. */
   zipPath: string | null;
+  /** `<packageDir>/<base>.html`, or null when the name is deferred. */
+  htmlPath: string | null;
 }
 
-/** `<packageDir>/<base>.zip`. */
-function packageZipPath(packageDir: string, base: string): string {
-  return join(packageDir, `${base}.zip`);
+/**
+ * The two package files. They share the base name, so they sort together in a
+ * directory listing and a reader can pair them by sight.
+ */
+function packageFilePaths(packageDir: string, base: string): { zipPath: string; htmlPath: string } {
+  return { zipPath: join(packageDir, `${base}.zip`), htmlPath: join(packageDir, `${base}.html`) };
 }
 
 /** `--package-dir`, or the master's directory when the flag is absent or blank. */
@@ -544,7 +554,15 @@ function resolvePackageNaming(
   if (templateNeedsRequestId(nameTemplate)) {
     // Validate the template now; the id itself only exists after the call.
     renderPackageName(nameTemplate, { ...vars, requestId8: '00000000' });
-    return { stem, nameTemplate, timestamp, packageDir, packageName: null, zipPath: null };
+    return {
+      stem,
+      nameTemplate,
+      timestamp,
+      packageDir,
+      packageName: null,
+      zipPath: null,
+      htmlPath: null,
+    };
   }
 
   const packageName = renderPackageName(nameTemplate, vars);
@@ -554,7 +572,7 @@ function resolvePackageNaming(
     timestamp,
     packageDir,
     packageName,
-    zipPath: packageZipPath(packageDir, packageName),
+    ...packageFilePaths(packageDir, packageName),
   };
 }
 
@@ -576,9 +594,17 @@ async function requireWritablePlanPaths(args: {
 }): Promise<void> {
   await requireWritableOutput(args.deps, args.outPath, args.manifestPath, args.force);
   await requireWritableRiggingPaths(args.deps, args.rigging, args.force);
-  if (args.naming.zipPath !== null) {
-    await requireWritablePath(args.deps, args.naming.zipPath, 'Package', args.force);
-  }
+  await requireWritablePackage(args.deps, args.naming, args.force);
+}
+
+/** Refuse to clobber the package zip or its preview when their names are known. */
+async function requireWritablePackage(
+  deps: Generate3dDeps,
+  paths: { zipPath: string | null; htmlPath: string | null },
+  force: boolean
+): Promise<void> {
+  if (paths.zipPath !== null) await requireWritablePath(deps, paths.zipPath, 'Package', force);
+  if (paths.htmlPath !== null) await requireWritablePath(deps, paths.htmlPath, 'Preview', force);
 }
 
 /**
@@ -659,6 +685,7 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
     `Would generate ${plan.outPath}`,
     `Manifest ${plan.manifestPath}`,
     `Package ${plan.zipPath ?? `${plan.packageDir} (name depends on {requestId8})`}`,
+    `Preview ${plan.htmlPath ?? `${plan.packageDir} (name depends on {requestId8})`}`,
     `Model ${plan.model.id} (${plan.model.inputKind}-to-3D, licence: ${plan.model.licenseType})`,
   ];
   const inputLine = formatInputImageLine(plan.inputTarget);
@@ -893,12 +920,16 @@ function buildMasterVariant(args: {
 }
 
 /** The web variant entry, with the settings that produced it. */
-function buildWebVariantEntry(stem: string, web: WebVariant): Generate3dPackageVariant {
+function buildWebVariantEntry(
+  stem: string,
+  web: WebVariant,
+  webSha256: string
+): Generate3dPackageVariant {
   return {
     name: 'web',
     file: `web/${stem}.web.glb`,
     bytes: web.bytes.byteLength,
-    sha256: createHash('sha256').update(web.bytes).digest('hex'),
+    sha256: webSha256,
     triangles: web.triangles,
     textures: web.textures,
     extensionsUsed: web.extensionsUsed,
@@ -926,6 +957,8 @@ function buildPackageManifest(args: {
   masterBytes: Uint8Array;
   masterSha256: string;
   web: WebVariant;
+  /** SHA-256 of the web variant bytes; also shown by the preview. */
+  webSha256: string;
   stem: string;
   totalUsd: number;
 }): Generate3dPackageManifest {
@@ -951,7 +984,7 @@ function buildPackageManifest(args: {
         masterSha256: args.masterSha256,
         source: args.web.source,
       }),
-      buildWebVariantEntry(args.stem, args.web),
+      buildWebVariantEntry(args.stem, args.web, args.webSha256),
     ],
     licence: args.model.licenseType,
     pricing: {
@@ -981,7 +1014,7 @@ function buildPackageEntries(args: {
 function resolvePackagePaths(
   plan: Generate3dPlan,
   requestId: string
-): { packageName: string; zipPath: string } {
+): { packageName: string; zipPath: string; htmlPath: string } {
   const packageName =
     plan.packageName ??
     renderPackageName(plan.nameTemplate, {
@@ -990,7 +1023,7 @@ function resolvePackagePaths(
       timestamp: plan.timestamp,
       requestId8: requestId.slice(0, 8),
     });
-  return { packageName, zipPath: packageZipPath(plan.packageDir, packageName) };
+  return { packageName, ...packageFilePaths(plan.packageDir, packageName) };
 }
 
 /** Wrap one packaging step so a failure names what was kept. */
@@ -1041,23 +1074,65 @@ function buildZip(
   }
 }
 
+/** Remove a file, reporting (not raising) a cleanup failure. */
+async function removeQuietly(deps: Generate3dDeps, path: string): Promise<string> {
+  try {
+    await deps.removeFile(path);
+    return '';
+  } catch {
+    return ` (${path} could not be removed)`;
+  }
+}
+
 /**
- * Build and write the package zip.
+ * Write the zip, then the preview beside it.
+ *
+ * The two files are a pair, so a preview that cannot be written rolls the zip
+ * back rather than leaving a package without its preview.
+ */
+async function writeZipAndPreview(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  files: { zipPath: string; zipBytes: Uint8Array; htmlPath: string; html: string }
+): Promise<void> {
+  try {
+    await deps.writeFile(files.zipPath, files.zipBytes);
+  } catch (err) {
+    throw packageFailure(plan, `save the package ${files.zipPath}`, err);
+  }
+
+  try {
+    await deps.writeFile(files.htmlPath, new TextEncoder().encode(files.html));
+  } catch (err) {
+    const cleanup = await removeQuietly(deps, files.zipPath);
+    throw packageFailure(plan, `save the preview ${files.htmlPath}${cleanup}`, err);
+  }
+}
+
+/** The zip's file name, and the preview's, from one base name. */
+interface PackageOutput {
+  zipPath: string;
+  htmlPath: string;
+}
+
+/**
+ * Build and write the package files.
  *
  * The master is already on disk, so every failure here is reported without
- * discarding it: the web variant, the package manifest, and the zip are built in
- * memory first, and the zip is the only file written.
+ * discarding it: the web variant, the package manifest, the zip, and the preview
+ * are built in memory first, then written in that order.
  */
 async function writePackage(args: {
   plan: Generate3dPlan;
   deps: Generate3dDeps;
   master: MasterOutput;
   packageName: string;
-  zipPath: string;
+  paths: PackageOutput;
   prompt: string | undefined;
-}): Promise<string> {
-  const { plan, deps, master } = args;
+}): Promise<PackageOutput> {
+  const { plan, deps, master, paths } = args;
   const web = await buildWebVariant(plan, deps, master.bytes);
+  const webSha256 = createHash('sha256').update(web.bytes).digest('hex');
   const packageManifest = buildPackageManifest({
     packageName: args.packageName,
     createdAt: deps.now().toISOString(),
@@ -1068,6 +1143,7 @@ async function writePackage(args: {
     masterBytes: master.bytes,
     masterSha256: master.sha256,
     web,
+    webSha256,
     stem: plan.stem,
     totalUsd: totalUsd(plan.costLines),
   });
@@ -1076,13 +1152,23 @@ async function writePackage(args: {
     masterBytes: master.bytes,
     webBytes: web.bytes,
   });
+  const html = renderPreviewHtml({
+    title: args.packageName,
+    modelId: plan.model.id,
+    prompt: args.prompt?.trim() ?? null,
+    requestId: master.requestId,
+    webGlb: web.bytes,
+    webSha256,
+    webTriangles: web.triangles,
+    masterTriangles: web.source.triangles,
+    masterBytes: master.bytes.byteLength,
+    webBytes: web.bytes.byteLength,
+    masterZipEntry: `${plan.stem}.glb`,
+    zipName: `${args.packageName}.zip`,
+  });
 
-  try {
-    await deps.writeFile(args.zipPath, zipBytes);
-  } catch (err) {
-    throw packageFailure(plan, `save the package ${args.zipPath}`, err);
-  }
-  return args.zipPath;
+  await writeZipAndPreview(plan, deps, { ...paths, zipBytes, html });
+  return paths;
 }
 
 /** What one paid generation produced, before rigging and packaging. */
@@ -1113,15 +1199,18 @@ async function generateMaster(
   // generation cannot fail on a missing one. Only the directory matters for the
   // package, so a deferred name still gets a writable destination.
   await deps.ensureParentDir(plan.outPath);
-  await deps.ensureParentDir(plan.zipPath ?? packageZipPath(plan.packageDir, plan.stem));
+  await deps.ensureParentDir(packageFilePaths(plan.packageDir, plan.stem).zipPath);
 
   const inputImage = await uploadInputImage(deps, plan.inputTarget);
   const input = plan.model.buildInput({ prompt: opts.prompt, imageUrl: inputImage?.url });
   const result = await deps.falSubscribe(plan.model.id, input);
 
-  const packagePaths = resolvePackagePaths(plan, result.requestId);
   if (plan.packageName === null) {
-    await requireWritablePath(deps, packagePaths.zipPath, 'Package', opts.force === true);
+    await requireWritablePackage(
+      deps,
+      resolvePackagePaths(plan, result.requestId),
+      opts.force === true
+    );
   }
 
   const output = readModelOutput(plan.model, result.data, result.requestId);
@@ -1173,13 +1262,13 @@ export async function generate3d(
     await deps.writeJson(plan.manifestPath, { ...master.manifest, rigging });
   }
 
-  const packagePaths = resolvePackagePaths(plan, master.requestId);
-  const zipPath = await writePackage({
+  const { packageName, zipPath, htmlPath } = resolvePackagePaths(plan, master.requestId);
+  await writePackage({
     plan,
     deps,
     master,
-    packageName: packagePaths.packageName,
-    zipPath: packagePaths.zipPath,
+    packageName,
+    paths: { zipPath, htmlPath },
     prompt: opts.prompt,
   });
 
@@ -1187,6 +1276,7 @@ export async function generate3d(
     outPath: plan.outPath,
     manifestPath: plan.manifestPath,
     zipPath,
+    htmlPath,
     sha256: master.sha256,
     costLines: formatGenerate3dCost(plan.costLines),
   };

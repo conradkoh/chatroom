@@ -52,7 +52,11 @@ const WEB_TEXTURES = [{ width: 1024, height: 1024, mimeType: 'image/jpeg' }];
 /** The default template's name for the fixed clock in `createDeps`. */
 const PACKAGE_NAME = 'hero-20261027-000000';
 
+/** The prompt the packaging tests send; also asserted inside the preview. */
+const INPUT_PROMPT = 'a knight';
+
 const ZIP_PATH = `/tmp/generated/${PACKAGE_NAME}.zip`;
+const HTML_PATH = `/tmp/generated/${PACKAGE_NAME}.html`;
 
 const MESHY_FIXTURE = {
   model_glb: { url: GLB_URL, content_type: 'model/gltf-binary' },
@@ -86,6 +90,7 @@ function createDeps(overrides: Partial<Generate3dDeps> = {}): Generate3dDeps {
     fetchGlb: vi.fn().mockResolvedValue(GLB_BYTES),
     uploadFile: vi.fn().mockResolvedValue(UPLOADED_IMAGE_URL),
     writeFile: vi.fn().mockResolvedValue(undefined),
+    removeFile: vi.fn().mockResolvedValue(undefined),
     writeJson: vi.fn().mockResolvedValue(undefined),
     pathStatus: vi.fn().mockResolvedValue('missing'),
     ensureParentDir: vi.fn().mockResolvedValue(undefined),
@@ -394,6 +399,7 @@ describe('generate3d packaging', () => {
     );
 
     expect(result.zipPath).toBe(ZIP_PATH);
+    expect(result.htmlPath).toBe(HTML_PATH);
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
     expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
     expect(deps.createWebVariant).toHaveBeenCalledWith(GLB_BYTES, {
@@ -409,6 +415,56 @@ describe('generate3d packaging', () => {
       'manifest.json',
     ]);
     expect(entries[1]?.bytes).toEqual(WEB_GLB_BYTES);
+  });
+
+  it('writes the preview beside the zip, with the same base name', async () => {
+    const deps = createDeps();
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const htmlWrite = vi.mocked(deps.writeFile).mock.calls.find(([path]) => path === HTML_PATH);
+    expect(htmlWrite).toBeDefined();
+    const html = new TextDecoder().decode(htmlWrite?.[1]);
+    expect(html).toContain('<model-viewer');
+    expect(html).toContain('camera-controls');
+    expect(html).toContain(INPUT_PROMPT);
+    expect(html).toContain(`${PACKAGE_NAME}.zip`);
+  });
+
+  it('refuses an existing preview without --force before the paid call', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(HTML_PATH)) });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/Preview already exists.*--force/);
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('removes the zip when the preview cannot be written', async () => {
+    const deps = createDeps();
+    vi.mocked(deps.writeFile).mockImplementation(async (path) => {
+      if (path === HTML_PATH) throw new Error('disk full');
+    });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/preview .*disk full.*hero\.glb/s);
+
+    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
+    expect(deps.removeFile).toHaveBeenCalledWith(ZIP_PATH);
+  });
+
+  it('reports a rollback failure instead of hiding it', async () => {
+    const deps = createDeps();
+    vi.mocked(deps.writeFile).mockImplementation(async (path) => {
+      if (path === HTML_PATH) throw new Error('disk full');
+    });
+    vi.mocked(deps.removeFile).mockRejectedValue(new Error('permission denied'));
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/could not be removed/);
   });
 
   it('records both variants, the generator, and the price caveat in the package manifest', async () => {
@@ -878,6 +934,28 @@ describe('planGenerate3d', () => {
     const text = formatGenerate3dPlan(plan);
     expect(text).toContain(`Input image ${INPUT_IMAGE} (would be uploaded to fal storage`);
     expect(text).toContain('No upload or fal generation call was made.');
+  });
+
+  it('shows the package and preview paths in the dry-run plan', async () => {
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH },
+      createDeps()
+    );
+    const text = formatGenerate3dPlan(plan);
+
+    expect(text).toContain(`Package ${ZIP_PATH}`);
+    expect(text).toContain(`Preview ${HTML_PATH}`);
+  });
+
+  it('marks both package paths as deferred for a {requestId8} name', async () => {
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, name: '{stem}-{requestId8}' },
+      createDeps()
+    );
+    const text = formatGenerate3dPlan(plan);
+
+    expect(text).toContain('Package /tmp/generated (name depends on {requestId8})');
+    expect(text).toContain('Preview /tmp/generated (name depends on {requestId8})');
   });
 
   it('formats the price date, lines, total, and disclaimer', async () => {

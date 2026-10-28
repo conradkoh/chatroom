@@ -42,9 +42,11 @@ Examples:
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --name knight-prop
 
 Package:
-  Every run writes <base>.zip next to --out (or in --package-dir) holding
-  <stem>.glb, web/<stem>.web.glb (smaller JPEG-textured variant), and
-  manifest.json. <base> comes from --name; placeholders are {stem}, {model},
+  Every run writes two files next to --out (or in --package-dir):
+    <base>.zip   <stem>.glb, web/<stem>.web.glb (smaller JPEG-textured
+                 variant), and manifest.json
+    <base>.html  separate preview page of the web variant, GLB embedded
+  <base> comes from --name; placeholders are {stem}, {model},
   {timestamp} (UTC), and {requestId8}. Default: ${DEFAULT_NAME_TEMPLATE}.
 
 Rigging uses Meshy (fal-ai/meshy/rigging) and expects a humanoid mesh;
@@ -78,6 +80,7 @@ function printResult(result: Generate3dResult): void {
   console.log(`Generated ${result.outPath}`);
   console.log(`Manifest ${result.manifestPath}`);
   console.log(`Package ${result.zipPath}`);
+  console.log(`Preview ${result.htmlPath}`);
   for (const line of result.costLines) console.log(line);
 }
 
