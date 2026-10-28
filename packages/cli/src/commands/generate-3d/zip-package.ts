@@ -1,11 +1,10 @@
 /**
  * Generate 3D — deterministic zip writer for the package.
  *
- * The package must be byte-identical for the same input, so entry order is
- * sorted and every entry gets one fixed timestamp. `fflate` writes DOS local
- * time, so the fixed date is constructed in local time; the bytes then depend
- * on nothing but the entries and the machine's timezone offset, which is stable
- * for a given machine.
+ * Entry order is sorted and every entry gets one fixed timestamp, so the same
+ * entries always compress to the same bytes. `fflate` reads the date through the
+ * local getters, so `new Date(2020, 0, 1)` always writes 2020-01-01 00:00 in the
+ * archive header, whatever the machine's timezone is.
  */
 
 import { zipSync } from 'fflate';
