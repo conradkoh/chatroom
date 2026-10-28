@@ -65,6 +65,12 @@ export interface Generate3dOptions {
   animationActionIds?: readonly string[] | undefined;
   /** Directory for the package zip and preview; defaults to the directory of `out`. */
   packageDir?: string | undefined;
+  /**
+   * Extra fal request fields (`--input`), merged over the model adapter's
+   * defaults. This is how model-specific fields reach a model the registry does
+   * not know, and how a known model's defaults can be overridden.
+   */
+  extraInput?: Record<string, unknown> | undefined;
 }
 
 /** The rigging provenance written to the manifest after a successful rig. */
@@ -614,6 +620,7 @@ export async function planGenerate3d(
   const input = model.buildInput({
     prompt: opts.prompt,
     imageUrl: planInputImageUrl(inputTarget),
+    extraInput: opts.extraInput,
   });
   return {
     model,
@@ -1183,7 +1190,11 @@ async function generateMaster(
   await deps.ensureParentDir(plan.zipPath);
 
   const inputImage = await uploadInputImage(deps, plan.inputTarget);
-  const input = plan.model.buildInput({ prompt: opts.prompt, imageUrl: inputImage?.url });
+  const input = plan.model.buildInput({
+    prompt: opts.prompt,
+    imageUrl: inputImage?.url,
+    extraInput: opts.extraInput,
+  });
   const result = await deps.falSubscribe(plan.model.id, input);
   const output = readModelOutput(plan.model, result.data, result.requestId);
   const recovery = { requestId: result.requestId, url: output.glbUrl };

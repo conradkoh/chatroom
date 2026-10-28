@@ -1120,6 +1120,26 @@ describe('planGenerate3d', () => {
     expect(text).toContain(`Preview ${HTML_PATH}`);
   });
 
+  it('merges --input over a known model defaults', async () => {
+    const deps = createDeps();
+    const plan = await planGenerate3d(
+      {
+        model: TRELLIS_2,
+        inputImage: 'https://example.test/hero.png',
+        out: OUT_PATH,
+        extraInput: { resolution: 512, seed: 7 },
+      },
+      deps
+    );
+
+    expect(plan.input).toEqual({
+      image_url: 'https://example.test/hero.png',
+      resolution: 512,
+      seed: 7,
+    });
+    expect(formatGenerate3dPlan(plan)).toContain('"seed": 7');
+  });
+
   it('plans an unknown model with no capability data and no price', async () => {
     const deps = createDeps();
     const plan = await planGenerate3d(

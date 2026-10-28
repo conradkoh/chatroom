@@ -6,6 +6,8 @@
  * imports (the fal SDK) are loaded inside the action to keep CLI startup fast.
  */
 
+import { readFile, stat } from 'node:fs/promises';
+
 import { InvalidArgumentError, type Command } from 'commander';
 
 import type { Generate3dResult } from './generate-3d.js';
@@ -31,6 +33,52 @@ function modelIdsFor(kind: 'text' | 'image'): string {
 /** Commander value parser for a repeatable option: append in the given order. */
 function collectRepeatable(value: string, previous: string[]): string[] {
   return [...previous, value];
+}
+
+/** Cap for `--input @file`, matching the image command's sidecar limit. */
+const MAX_INPUT_BYTES = 1024 * 1024;
+
+/** JSON.parse with the command's error wording. */
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error('--input must be valid JSON.');
+  }
+}
+
+/** A plain object, not an array or null. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Parse `--input` JSON and require a plain object. */
+function parseInputJson(text: string): Record<string, unknown> {
+  const parsed = parseJson(text);
+  if (!isJsonObject(parsed)) throw new Error('--input must be a JSON object.');
+  return parsed;
+}
+
+/** Read the file behind `--input @path`, with the same limits as generate-image. */
+async function readInputFile(path: string): Promise<Record<string, unknown>> {
+  const stats = await stat(path).catch(() => null);
+  if (stats === null) throw new Error(`--input file not found: ${path}`);
+  if (!stats.isFile()) throw new Error(`--input file is not a regular file: ${path}`);
+  if (stats.size > MAX_INPUT_BYTES) {
+    throw new Error(
+      `--input file is ${stats.size} bytes; the maximum is ${MAX_INPUT_BYTES} bytes (1 MiB).`
+    );
+  }
+  return parseInputJson(await readFile(path, 'utf8'));
+}
+
+/** `--input` accepts inline JSON or `@file`, like `generate-image`. */
+async function readExtraInput(
+  value: string | undefined
+): Promise<Record<string, unknown> | undefined> {
+  if (value === undefined) return undefined;
+  if (!value.startsWith('@')) return parseInputJson(value);
+  return readInputFile(value.slice(1));
 }
 
 const HELP_AFTER = `
@@ -71,6 +119,7 @@ interface Generate3dCliOptions {
   /** Commander camel-cases `--animation-action-id` to this singular name. */
   animationActionId: string[];
   packageDir?: string | undefined;
+  input?: string | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -86,7 +135,10 @@ function printResult(result: Generate3dResult): void {
  * Map parsed CLI options to the generator. An empty `--animation-action-id`
  * list stays absent so slice 1 calls keep their original shape.
  */
-function toGenerate3dOptions(options: Generate3dCliOptions) {
+function toGenerate3dOptions(
+  options: Generate3dCliOptions,
+  extraInput: Record<string, unknown> | undefined
+) {
   const base = {
     prompt: options.prompt,
     inputImage: options.inputImage,
@@ -95,6 +147,7 @@ function toGenerate3dOptions(options: Generate3dCliOptions) {
     force: options.force,
     rig: options.rig,
     packageDir: options.packageDir,
+    extraInput,
   };
   return options.animationActionId.length > 0
     ? { ...base, animationActionIds: options.animationActionId }
@@ -110,7 +163,7 @@ async function executeGenerate3d(options: Generate3dCliOptions): Promise<void> {
   // never requires FAL_API_KEY and never calls fal.
   const { createDefaultGenerate3dDeps } = await import('./deps.js');
   const deps = createDefaultGenerate3dDeps();
-  const generateOptions = toGenerate3dOptions(options);
+  const generateOptions = toGenerate3dOptions(options, await readExtraInput(options.input));
   if (options.dryRun === true) {
     const { formatGenerate3dPlan, planGenerate3d } = await import('./generate-3d.js');
     console.log(formatGenerate3dPlan(await planGenerate3d(generateOptions, deps)));
@@ -166,6 +219,10 @@ export function registerGenerate3dCommand(program: Command): void {
     .option(
       '--package-dir <dir>',
       'Directory for the package zip and preview (default: the directory of --out)'
+    )
+    .option(
+      '--input <json|@file>',
+      'Extra fal request fields as a JSON object, merged over the model defaults; @file reads JSON from a file'
     )
     .option(
       '--dry-run',

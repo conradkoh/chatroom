@@ -6,6 +6,10 @@
  * command is asserted not to exist: `generate-3d` is a leaf command.
  */
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -53,6 +57,9 @@ vi.mock('./deps.js', () => ({
   createDefaultGenerate3dDeps: () => depsMock,
 }));
 
+/** Temp dirs created by the `--input @file` tests. */
+const inputDirs: string[] = [];
+
 function createProgram(): Command {
   const program = new Command();
   program.exitOverride();
@@ -84,10 +91,11 @@ describe('chatroom generate-3d wiring', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     process.exitCode = undefined;
     delete process.env.FAL_API_KEY;
     vi.restoreAllMocks();
+    await Promise.all(inputDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
   it('registers the generate-3d command', () => {
@@ -348,6 +356,90 @@ describe('chatroom generate-3d wiring', () => {
       'Preview /tmp/x-20261027-000000.html',
       'Estimated total: $1.20',
     ]);
+  });
+
+  it('forwards inline --input JSON as extraInput', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'fal-ai/trellis-2',
+      '--input-image',
+      './x.png',
+      '--out',
+      '/tmp/x.glb',
+      '--input',
+      '{"resolution":512,"seed":7}',
+    ]);
+
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({
+      extraInput: { resolution: 512, seed: 7 },
+    });
+  });
+
+  it('reads --input from a file when prefixed with @', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'generate-3d-input-'));
+    inputDirs.push(dir);
+    const path = join(dir, 'input.json');
+    await writeFile(path, '{"resolution":1536}', 'utf8');
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'fal-ai/trellis-2',
+      '--input-image',
+      './x.png',
+      '--out',
+      '/tmp/x.glb',
+      '--input',
+      `@${path}`,
+    ]);
+
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({ extraInput: { resolution: 1536 } });
+  });
+
+  it.each([
+    ['not JSON', 'nope', /--input must be valid JSON/],
+    ['not an object', '[1,2]', /--input must be a JSON object/],
+    ['null', 'null', /--input must be a JSON object/],
+  ])('rejects --input that is %s', async (_label, value, message) => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'fal-ai/trellis-2',
+      '--input-image',
+      './x.png',
+      '--out',
+      '/tmp/x.glb',
+      '--input',
+      value,
+    ]);
+
+    expect(process.exitCode).toBe(1);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(message);
+    expect(generate3dMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing --input file', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'fal-ai/trellis-2',
+      '--input-image',
+      './x.png',
+      '--out',
+      '/tmp/x.glb',
+      '--input',
+      '@/tmp/definitely-not-a-real-file.json',
+    ]);
+
+    expect(process.exitCode).toBe(1);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/--input file not found/);
+    expect(generate3dMock).not.toHaveBeenCalled();
   });
 
   it('forwards --package-dir', async () => {
