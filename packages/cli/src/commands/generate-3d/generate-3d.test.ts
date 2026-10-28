@@ -1318,6 +1318,59 @@ describe('planGenerate3d', () => {
     expect(formatGenerate3dPlan(plan)).toContain('"seed": 7');
   });
 
+  it('warns when an unknown id looks like a registered one', async () => {
+    const plan = await planGenerate3d(
+      { model: 'meshy/v7.1/Text-to-3d', prompt: 'a knight', out: OUT_PATH },
+      createDeps()
+    );
+    const text = formatGenerate3dPlan(plan);
+
+    expect(plan.model.id).toBe('meshy/v7.1/Text-to-3d');
+    expect(text).toContain(
+      'Warning: meshy/v7.1/Text-to-3d is not a registered id; did you mean meshy/v7.1/text-to-3d? It still runs as an unregistered model.'
+    );
+    expect(text).toContain('Generation cost unknown');
+  });
+
+  it('adds the --input caveat and the keys for a known model', async () => {
+    const plan = await planGenerate3d(
+      {
+        model: TRELLIS_2,
+        inputImage: 'https://example.test/hero.png',
+        out: OUT_PATH,
+        extraInput: { resolution: 512, seed: 7 },
+      },
+      createDeps()
+    );
+    const text = formatGenerate3dPlan(plan);
+
+    expect(text).toContain('Estimate assumes model defaults; --input may change the price.');
+    expect(text).toContain('--input keys: resolution, seed');
+    expect(text).toContain('Estimated total: $0.30');
+  });
+
+  it.each([
+    ['prompt', '--prompt'],
+    ['image_url', '--input-image'],
+  ])('refuses --input key %s before any call', async (key, flag) => {
+    const deps = createDeps();
+
+    await expect(
+      planGenerate3d(
+        {
+          model: MESHY_TEXT,
+          prompt: 'a knight',
+          out: OUT_PATH,
+          extraInput: { [key]: 'x' },
+        },
+        deps
+      )
+    ).rejects.toThrow(`--input must not set "${key}"; use ${flag} instead.`);
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+  });
+
   it('plans an unknown model with no capability data and no price', async () => {
     const deps = createDeps();
     const plan = await planGenerate3d(
@@ -1329,7 +1382,8 @@ describe('planGenerate3d', () => {
     expect(plan.costLines).toEqual([]);
     expect(plan.input).toEqual({ prompt: 'a knight' });
     expect(text).toContain('No capability data; flags are passed through and fal validates them.');
-    expect(text).toContain('Cost unknown: no list price for fal-ai/some-future-model.');
+    expect(text).toContain('Generation cost unknown: no list price for fal-ai/some-future-model.');
+    expect(text).not.toContain('Estimated total');
     expect(text).toContain('Model fal-ai/some-future-model (input unknown, licence: unknown)');
     expect(text).toContain('No upload or fal generation call was made.');
     expect(deps.falSubscribe).not.toHaveBeenCalled();

@@ -23,6 +23,7 @@ import type { Generate3dDeps } from './deps.js';
 import {
   DEFAULT_GENERATE_3D_MODEL_ID,
   Generate3dError,
+  GENERATE_3D_MODELS,
   GENERATE_3D_PRICES_AS_OF,
   resolveGenerate3dModel,
   supportsRigging,
@@ -203,6 +204,12 @@ export interface Generate3dPlan {
   /** The rigging call the plan would make; null without `--rig`. */
   riggingRequest: RiggingRequest | null;
   costLines: Generate3dCostLine[];
+  /** False when the model has no price data, so no total can be honest. */
+  generationCostKnown: boolean;
+  /** Keys passed with `--input`, in the order given. */
+  inputKeys: string[];
+  /** A warning about the model id itself, e.g. a near-miss of a registered id. */
+  modelWarning?: string | undefined;
   /** True when the caller passed `--confirm-cost`. */
   confirmCost: boolean;
   /** Master file name without its `.glb` suffix; used for the zip entries. */
@@ -453,9 +460,14 @@ function describeInputKind(inputKind: Generate3dInputKind | undefined): string {
  * A model the registry does not know has no price data, so the block says so
  * and prints no total rather than guessing one.
  */
-function formatGenerate3dCost(lines: readonly Generate3dCostLine[], modelId: string): string[] {
-  if (lines.length === 0) {
-    return [`Cost unknown: no list price for ${modelId}.`];
+function formatGenerate3dCost(
+  lines: readonly Generate3dCostLine[],
+  modelId: string,
+  generationCostKnown = true
+): string[] {
+  if (!generationCostKnown || lines.length === 0) {
+    // A total that silently omitted an unpriced component would be a guess.
+    return [`Generation cost unknown: no list price for ${modelId}.`];
   }
   return [
     `Cost estimate (prices as of ${GENERATE_3D_PRICES_AS_OF}; estimate; fal returns no billed cost):`,
@@ -475,7 +487,7 @@ function requireCostConfirmation(plan: Generate3dPlan): void {
   throw new Generate3dError(
     [
       'This run rigs and animates with Meshy 7.1, which is billed in addition to the mesh:',
-      ...formatGenerate3dCost(plan.costLines, plan.model.id),
+      ...formatGenerate3dCost(plan.costLines, plan.model.id, plan.generationCostKnown),
       'Add --confirm-cost to run.',
     ].join('\n')
   );
@@ -850,6 +862,39 @@ function planRigging(
   return { animationActionIds, ...buildRiggingPlan(outPath, rig, animationActionIds) };
 }
 
+/** `--input` keys that the dedicated flags own. */
+const RESERVED_INPUT_FLAGS: Record<string, string> = {
+  prompt: '--prompt',
+  image_url: '--input-image',
+};
+
+/**
+ * Refuse `--input` keys the dedicated flags own. Silent precedence between
+ * `--prompt` and `{"prompt": ...}` would make the request depend on merge order.
+ */
+function requireReservedInputKeys(extraInput: Record<string, unknown> | undefined): void {
+  for (const [key, flag] of Object.entries(RESERVED_INPUT_FLAGS)) {
+    if (extraInput !== undefined && key in extraInput) {
+      throw new Generate3dError(`--input must not set "${key}"; use ${flag} instead.`);
+    }
+  }
+}
+
+/** A registered id that differs from `id` only by case or punctuation. */
+function suggestRegisteredModel(id: string): string | undefined {
+  const normalize = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const target = normalize(id);
+  return GENERATE_3D_MODELS.map((model) => model.id).find((known) => normalize(known) === target);
+}
+
+/** The plan warning for an id that looks like a typo of a registered model. */
+function modelWarningFor(model: Generate3dModelSpec): string | undefined {
+  if (model.capabilities !== undefined) return undefined;
+  const suggestion = suggestRegisteredModel(model.id);
+  if (suggestion === undefined) return undefined;
+  return `Warning: ${model.id} is not a registered id; did you mean ${suggestion}? It still runs as an unregistered model.`;
+}
+
 /** Clips are a rigging feature, so the flag pairing is checked with the args. */
 function requireRigForClips(rig: boolean, animationActionIds: readonly number[]): void {
   if (animationActionIds.length > 0 && !rig) {
@@ -886,10 +931,12 @@ async function requireWritablePackage(
  * upload. The static cost table needs no network, so `--dry-run` works offline
  * and without `FAL_API_KEY`.
  */
-export async function planGenerate3d(
-  opts: Generate3dOptions,
-  deps: Generate3dDeps
-): Promise<Generate3dPlan> {
+/** Resolve the model and run every pure check that needs no filesystem access. */
+function resolvePlanTarget(opts: Generate3dOptions): {
+  model: Generate3dModelSpec;
+  outPath: string;
+  flagContext: Generate3dFlagContext;
+} {
   const model = requireModel(opts.model);
   const outPath = resolve(requireNonEmpty(opts.out, '--out must not be empty.'));
   requireGlbExtension(outPath);
@@ -910,7 +957,15 @@ export async function planGenerate3d(
   validateRigging(flagContext);
   validateGenerate3dFlags(flagContext);
   requireInputKind(model, opts);
+  requireReservedInputKeys(opts.extraInput);
+  return { model, outPath, flagContext };
+}
 
+export async function planGenerate3d(
+  opts: Generate3dOptions,
+  deps: Generate3dDeps
+): Promise<Generate3dPlan> {
+  const { model, outPath } = resolvePlanTarget(opts);
   const { animationActionIds, ...rigging } = planRigging(opts, outPath);
 
   const manifestPath = `${outPath}.json`;
@@ -942,6 +997,9 @@ export async function planGenerate3d(
     animationOutPaths: rigging.animationOutPaths,
     riggingRequest: rigging.riggingRequest,
     costLines: [...(model.cost()?.lines ?? []), ...rigging.extraCostLines],
+    generationCostKnown: model.cost() !== undefined,
+    inputKeys: Object.keys(opts.extraInput ?? {}),
+    modelWarning: modelWarningFor(model),
     confirmCost: opts.confirmCost === true,
     ...naming,
   };
@@ -982,6 +1040,20 @@ function planModelLines(plan: Generate3dPlan): string[] {
   return lines;
 }
 
+/** The model-id warning line, when there is one. */
+function modelWarningLines(plan: Generate3dPlan): string[] {
+  return plan.modelWarning === undefined ? [] : [plan.modelWarning];
+}
+
+/** The `--input` caveat for a known model, whose price may move off its defaults. */
+function inputNoteLines(plan: Generate3dPlan): string[] {
+  if (plan.inputKeys.length === 0 || plan.model.capabilities === undefined) return [];
+  return [
+    'Estimate assumes model defaults; --input may change the price.',
+    `--input keys: ${plan.inputKeys.join(', ')}`,
+  ];
+}
+
 /** The dry-run pointer to `--confirm-cost` when the plan rigs. */
 function confirmationLines(plan: Generate3dPlan): string[] {
   return plan.riggingRequest !== null && !plan.confirmCost ? ['Add --confirm-cost to run.'] : [];
@@ -994,10 +1066,12 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
     `Package ${plan.zipPath}`,
     `Preview ${plan.htmlPath}`,
     ...planModelLines(plan),
+    ...modelWarningLines(plan),
     'Request:',
     JSON.stringify(plan.input, null, 2),
     ...formatRiggingPlan(plan),
-    ...formatGenerate3dCost(plan.costLines, plan.model.id),
+    ...inputNoteLines(plan),
+    ...formatGenerate3dCost(plan.costLines, plan.model.id, plan.generationCostKnown),
     ...confirmationLines(plan),
     'No upload or fal generation call was made.',
   ].join('\n');
@@ -1635,6 +1709,6 @@ export async function generate3d(
     zipPath: plan.zipPath,
     htmlPath: plan.htmlPath,
     sha256: master.sha256,
-    costLines: formatGenerate3dCost(plan.costLines, plan.model.id),
+    costLines: formatGenerate3dCost(plan.costLines, plan.model.id, plan.generationCostKnown),
   };
 }
