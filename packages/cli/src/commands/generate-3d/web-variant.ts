@@ -201,6 +201,9 @@ async function compressTextures(args: {
 /** Draco-compressed geometry needs a decoder this command does not ship. */
 const DRACO_EXTENSION = 'KHR_draco_mesh_compression';
 
+/** Meshopt-compressed geometry: readable here, but never written back. */
+const MESHOPT_EXTENSION = 'EXT_meshopt_compression';
+
 /** The glTF JSON chunk of a GLB container, or null when the bytes are not one. */
 function readGlbJson(glb: Uint8Array): Record<string, unknown> | null {
   try {
@@ -223,6 +226,21 @@ function glbExtensionNames(glb: Uint8Array): string[] {
   return [json['extensionsUsed'], json['extensionsRequired']].flatMap((value) =>
     Array.isArray(value) ? value.filter((name): name is string => typeof name === 'string') : []
   );
+}
+
+/**
+ * Drop meshopt compression metadata.
+ *
+ * The decoder registered below already expanded the geometry on read, so the
+ * document is plain glTF; without this the writer would re-declare
+ * `EXT_meshopt_compression` and the variant would need a decoder in the browser.
+ */
+function stripMeshoptCompression(document: Document): void {
+  const extension = document
+    .getRoot()
+    .listExtensionsUsed()
+    .find((candidate) => candidate.extensionName === MESHOPT_EXTENSION);
+  extension?.dispose();
 }
 
 /** Refuse a Draco-compressed master before any texture or geometry work. */
@@ -254,6 +272,7 @@ export async function createWebVariant(
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
   const document = await io.readBinary(glb);
+  stripMeshoptCompression(document);
   // No-op logger: prune() reports every removed property otherwise.
   document.setLogger(SILENT_LOGGER);
 

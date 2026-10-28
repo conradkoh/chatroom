@@ -42,8 +42,16 @@ export interface Generate3dDeps {
    * extension and is never sniffed.
    */
   uploadFile(path: string, contentType: string): Promise<string>;
-  /** Write a file's bytes (a GLB, a zip, or the preview's UTF-8). Parent directories are created by `ensureParentDir`. */
-  writeFile(path: string, bytes: Uint8Array): Promise<void>;
+  /**
+   * Write a file's bytes (a GLB, a zip, or the preview's UTF-8). Parent
+   * directories are created by `ensureParentDir`. `exclusive` uses the `wx`
+   * flag, so a racing writer gets `EEXIST` instead of clobbering the file.
+   */
+  writeFile(
+    path: string,
+    bytes: Uint8Array,
+    options?: { exclusive?: boolean | undefined }
+  ): Promise<void>;
   /**
    * Delete one file, ignoring a missing path. Used to roll back the package zip
    * when the preview beside it cannot be written.

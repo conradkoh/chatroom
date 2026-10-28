@@ -371,16 +371,25 @@ async function requireWritablePath(
   deps: Generate3dDeps,
   path: string,
   label: string,
-  force: boolean
+  force: boolean,
+  hint = 'Pass --force to overwrite.'
 ): Promise<void> {
   const status = await deps.pathStatus(path);
   if (status === 'directory') {
     throw new Generate3dError(`${label} is a directory: ${path}. Pass a file path.`);
   }
   if (status === 'file' && !force) {
-    throw new Generate3dError(`${label} already exists: ${path}. Pass --force to overwrite.`);
+    throw new Generate3dError(`${label} already exists: ${path}. ${hint}`);
   }
 }
+
+/**
+ * Why a package path can already exist: the base is the out stem plus a
+ * second-resolution timestamp, so two runs of the same `--out` in one second
+ * collide.
+ */
+const PACKAGE_COLLISION_HINT =
+  'Another run used this name in the same second; wait a second, use a different --package-dir, or pass --force.';
 
 async function requireWritableOutput(
   deps: Generate3dDeps,
@@ -557,8 +566,8 @@ async function requireWritablePackage(
   paths: { zipPath: string; htmlPath: string },
   force: boolean
 ): Promise<void> {
-  await requireWritablePath(deps, paths.zipPath, 'Package', force);
-  await requireWritablePath(deps, paths.htmlPath, 'Preview', force);
+  await requireWritablePath(deps, paths.zipPath, 'Package', force, PACKAGE_COLLISION_HINT);
+  await requireWritablePath(deps, paths.htmlPath, 'Preview', force, PACKAGE_COLLISION_HINT);
 }
 
 /**
@@ -1047,8 +1056,12 @@ async function writeZipAndPreview(
     await removeQuietly(deps, files.htmlPath);
   }
 
+  // Without --force the pair is written exclusively (`wx`), so two runs that
+  // race for the same second cannot truncate or interleave each other's files.
+  const options = { exclusive: !files.force };
+
   try {
-    await deps.writeFile(files.zipPath, files.zipBytes);
+    await deps.writeFile(files.zipPath, files.zipBytes, options);
   } catch (err) {
     // A failed write can leave a truncated zip; do not keep it.
     const cleanup = await removeQuietly(deps, files.zipPath);
@@ -1056,7 +1069,7 @@ async function writeZipAndPreview(
   }
 
   try {
-    await deps.writeFile(files.htmlPath, new TextEncoder().encode(files.html));
+    await deps.writeFile(files.htmlPath, new TextEncoder().encode(files.html), options);
   } catch (err) {
     const cleanup = await removeQuietly(deps, files.zipPath);
     throw packageFailure(plan, `save the preview ${files.htmlPath}${cleanup}`, err);
@@ -1195,6 +1208,57 @@ async function generateMaster(
  * Generate one mesh: run the paid generation, optionally rig it, then package the
  * master with a web variant and a package manifest.
  */
+/** Build and write the package, returning its failure instead of throwing it. */
+async function packageOrError(args: {
+  plan: Generate3dPlan;
+  deps: Generate3dDeps;
+  master: MasterOutput;
+  prompt: string | undefined;
+  force: boolean;
+}): Promise<Generate3dError | null> {
+  try {
+    await writePackage({
+      plan: args.plan,
+      deps: args.deps,
+      master: args.master,
+      packageName: args.plan.packageName,
+      paths: { zipPath: args.plan.zipPath, htmlPath: args.plan.htmlPath },
+      prompt: args.prompt,
+      force: args.force,
+    });
+    return null;
+  } catch (err) {
+    return err instanceof Generate3dError ? err : new Generate3dError(describeError(err));
+  }
+}
+
+/** The sidecar with the package files linked. */
+function withPackageLink(manifest: Generate3dManifest, plan: Generate3dPlan): Generate3dManifest {
+  return {
+    ...manifest,
+    package: { zip: basename(plan.zipPath), html: basename(plan.htmlPath) },
+  };
+}
+
+/** Run the rig when asked; returns whether it completed. */
+async function rigIfRequested(args: {
+  plan: Generate3dPlan;
+  deps: Generate3dDeps;
+  master: MasterOutput;
+  manifest: Generate3dManifest;
+}): Promise<boolean> {
+  if (args.plan.riggingRequest === null) return false;
+  const rigging = await runRigging(args.plan, args.deps, args.master.glbUrl);
+  await args.deps.writeJson(args.plan.manifestPath, { ...args.manifest, rigging });
+  return true;
+}
+
+/** A packaging failure that records whether the rig still ran. */
+function rigAwarePackageError(err: Generate3dError, rigged: boolean): Generate3dError {
+  if (!rigged) return err;
+  return new Generate3dError(`${err.message} The rig completed and was saved.`);
+}
+
 export async function generate3d(
   opts: Generate3dOptions,
   deps: Generate3dDeps
@@ -1203,29 +1267,21 @@ export async function generate3d(
   const plan = await planGenerate3d(opts, deps);
   const master = await generateMaster(plan, deps, opts);
 
-  // Package before rigging: the package is a pure function of the master, so a
-  // rig failure cannot cost the user the packaged asset.
-  await writePackage({
+  // Package first: it is a pure function of the master, so a rig failure cannot
+  // cost the user the package. A packaging failure is held so the rig can still
+  // run and be saved before the error surfaces.
+  const packageError = await packageOrError({
     plan,
     deps,
     master,
-    packageName: plan.packageName,
-    paths: { zipPath: plan.zipPath, htmlPath: plan.htmlPath },
     prompt: opts.prompt,
     force: opts.force === true,
   });
+  const manifest = packageError === null ? withPackageLink(master.manifest, plan) : master.manifest;
+  if (packageError === null) await deps.writeJson(plan.manifestPath, manifest);
 
-  // Link the package files in the sidecar now that their names are resolved.
-  const manifest: Generate3dManifest = {
-    ...master.manifest,
-    package: { zip: basename(plan.zipPath), html: basename(plan.htmlPath) },
-  };
-  await deps.writeJson(plan.manifestPath, manifest);
-
-  if (plan.riggingRequest !== null) {
-    const rigging = await runRigging(plan, deps, master.glbUrl);
-    await deps.writeJson(plan.manifestPath, { ...manifest, rigging });
-  }
+  const rigged = await rigIfRequested({ plan, deps, master, manifest });
+  if (packageError !== null) throw rigAwarePackageError(packageError, rigged);
 
   return {
     outPath: plan.outPath,

@@ -10,6 +10,8 @@
 
 import { Document, NodeIO, Primitive } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { meshopt } from '@gltf-transform/functions';
+import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
@@ -125,6 +127,32 @@ async function pngTexture(): Promise<Uint8Array> {
     .png()
     .toBuffer();
   return new Uint8Array(bytes);
+}
+
+/**
+ * A GLB whose geometry is meshopt-compressed, to prove the variant strips it.
+ *
+ * `ALL_EXTENSIONS` already carries `EXTMeshoptCompression`; the encoder and
+ * decoder dependencies are what make it usable.
+ */
+async function meshoptCompressedGlb(source: Uint8Array): Promise<Uint8Array> {
+  await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready]);
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
+  const document = await io.readBinary(source);
+  await document.transform(meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
+  return io.writeBinary(document);
+}
+
+/** Extension names a GLB declares, read straight from its JSON chunk. */
+function declaredExtensions(glb: Uint8Array): string[] {
+  const view = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);
+  const jsonLength = view.getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + jsonLength))) as {
+    extensionsUsed?: string[];
+  };
+  return json.extensionsUsed ?? [];
 }
 
 /** Rebuild a GLB with extra `extensionsUsed`, keeping every chunk length valid. */
@@ -262,6 +290,17 @@ describe('createWebVariant', () => {
     const variant = await createWebVariant(glb, { ...OPTIONS, maxTexturePx: 256, quality: 60 });
 
     expect(variant.extensionsUsed).toEqual([]);
+  });
+
+  it('reads a meshopt-compressed master and writes the variant uncompressed', async () => {
+    const compressed = await meshoptCompressedGlb(await buildGlb(grid(4)));
+    expect(declaredExtensions(compressed)).toContain('EXT_meshopt_compression');
+
+    const variant = await createWebVariant(compressed, OPTIONS);
+
+    expect(variant.extensionsUsed).not.toContain('EXT_meshopt_compression');
+    expect(variant.triangles).toBe(32);
+    expect(Buffer.from(variant.bytes).subarray(0, 4).toString('latin1')).toBe('glTF');
   });
 
   it('refuses a Draco-compressed master with an error naming the extension', async () => {

@@ -56,6 +56,9 @@ const PACKAGE_NAME = 'hero-20261027-000000';
 const INPUT_PROMPT = 'a knight';
 
 const ZIP_PATH = `/tmp/generated/${PACKAGE_NAME}.zip`;
+
+/** The options a non-forced package write passes to `deps.writeFile`. */
+const EXCLUSIVE = { exclusive: true };
 const HTML_PATH = `/tmp/generated/${PACKAGE_NAME}.html`;
 
 const MESHY_FIXTURE = {
@@ -403,7 +406,7 @@ describe('generate3d packaging', () => {
     expect(result.zipPath).toBe(ZIP_PATH);
     expect(result.htmlPath).toBe(HTML_PATH);
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
-    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
+    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES, EXCLUSIVE);
     expect(deps.createWebVariant).toHaveBeenCalledWith(GLB_BYTES, {
       triangleTarget: 30_000,
       maxTexturePx: 1024,
@@ -453,7 +456,7 @@ describe('generate3d packaging', () => {
       generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
     ).rejects.toThrow(/preview .*disk full.*hero\.glb/s);
 
-    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
+    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES, EXCLUSIVE);
     expect(deps.removeFile).toHaveBeenCalledWith(ZIP_PATH);
   });
 
@@ -522,7 +525,11 @@ describe('generate3d packaging', () => {
     ).rejects.toThrow(/save the package .*no space left.*hero\.glb/s);
 
     expect(deps.removeFile).toHaveBeenCalledWith(ZIP_PATH);
-    expect(deps.writeFile).not.toHaveBeenCalledWith(HTML_PATH, expect.anything());
+    expect(deps.writeFile).not.toHaveBeenCalledWith(
+      HTML_PATH,
+      expect.anything(),
+      expect.anything()
+    );
   });
 
   it('sanitizes an --out stem with spaces into a valid package name', async () => {
@@ -628,7 +635,8 @@ describe('generate3d packaging', () => {
     expect(result.htmlPath).toBe('/tmp/packages/hero-20261027-000000.html');
     expect(deps.writeFile).toHaveBeenCalledWith(
       '/tmp/packages/hero-20261027-000000.zip',
-      ZIP_BYTES
+      ZIP_BYTES,
+      EXCLUSIVE
     );
     expect(deps.ensureParentDir).toHaveBeenCalledWith('/tmp/packages/hero-20261027-000000.zip');
     expect(zippedManifest(deps)['package']).toMatchObject({ name: 'hero-20261027-000000' });
@@ -855,7 +863,7 @@ describe('generate3d --rig', () => {
 
     // The master and the package are both on disk; only rigging is missing.
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
-    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
+    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES, EXCLUSIVE);
     expect(deps.writeJson).toHaveBeenCalledTimes(2);
     expect(lastWrittenManifest(deps).rigging).toBeUndefined();
     expect(lastWrittenManifest(deps).package).toEqual({
@@ -878,7 +886,7 @@ describe('generate3d --rig', () => {
 
     // Packaging runs before rigging, so the master and the package survive.
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
-    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
+    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES, EXCLUSIVE);
     expect(deps.writeJson).toHaveBeenCalledTimes(2);
   });
 });
