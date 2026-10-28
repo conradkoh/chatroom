@@ -1576,7 +1576,9 @@ async function buildOneRigFile(
 ): Promise<RigFileAttempt> {
   const names = rigEntryNames(plan.stem, file.kind, file.actionId);
   try {
-    const web = await buildWebVariant(plan, deps, file.bytes);
+    // The bare cause only: the package-failure wrapper would add an absolute
+    // path, and the manifest records this string.
+    const web = await deps.createWebVariant(file.bytes, WEB_VARIANT_OPTIONS);
     return { packaged: { ...file, ...names, web, webError: null }, message: null };
   } catch (err) {
     // Keep the raw file: it is paid for, and the package must still ship it.
@@ -1881,17 +1883,20 @@ function packageFailure(plan: Generate3dPlan, step: string, err: unknown): Gener
 }
 
 /** Build the web variant, reporting a failure without discarding the master. */
+/** The one web-variant pipeline every master and rig file uses. */
+const WEB_VARIANT_OPTIONS = {
+  triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
+  maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
+  quality: WEB_VARIANT_TEXTURE_QUALITY,
+};
+
 async function buildWebVariant(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
   masterBytes: Uint8Array
 ): Promise<WebVariant> {
   try {
-    return await deps.createWebVariant(masterBytes, {
-      triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
-      maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
-      quality: WEB_VARIANT_TEXTURE_QUALITY,
-    });
+    return await deps.createWebVariant(masterBytes, WEB_VARIANT_OPTIONS);
   } catch (err) {
     throw packageFailure(plan, 'build the web variant', err);
   }
@@ -2320,12 +2325,16 @@ async function packageOrError(args: {
   }
 }
 
-/** The first failure to report: the rig, then its web variant, then packaging. */
+/**
+ * The failure to report. A packaging failure wins: nothing was bundled, so the
+ * rig web-variant line (which says the raw files are bundled) would be false.
+ */
 function firstFailure(
   rigging: RigOutcome,
   packageError: Generate3dError | null
 ): Generate3dError | null {
-  return rigging.error ?? rigging.webError ?? packageError;
+  if (packageError !== null) return packageError;
+  return rigging.error ?? rigging.webError;
 }
 
 /**

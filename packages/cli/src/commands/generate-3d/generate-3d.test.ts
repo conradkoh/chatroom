@@ -1317,6 +1317,24 @@ describe('generate3d --rig', () => {
     });
   });
 
+  it('reports the packaging failure, not a bundling claim, when every web variant fails', async () => {
+    const deps = createRigDeps(RIGGING_FIXTURE, {
+      createWebVariant: vi.fn().mockRejectedValue(new Error('sharp is not installed')),
+    });
+
+    const error = await generate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+      deps
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toContain('Failed to build the web variant: sharp is not installed');
+    expect(message).not.toContain('raw rig files are bundled');
+    expect(deps.zipPackage).not.toHaveBeenCalled();
+    expect(deps.writeFile).toHaveBeenCalledWith(RIGGED_OUT_PATH, GLB_BYTES);
+  });
+
   it('still bundles the raw rig file when its web variant fails, then reports it', async () => {
     // The rig file's variant fails; the master's (built later, for the package)
     // succeeds, so the package can still be written.
@@ -1337,14 +1355,19 @@ describe('generate3d --rig', () => {
       }),
     });
 
-    await expect(
-      generate3d(
-        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
-        deps
-      )
-    ).rejects.toThrow(
-      /Failed to build the web variant for hero\.rigged\.glb; the raw rig files are bundled\./
+    const error = await generate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+      deps
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toContain(
+      'Failed to build the web variant for hero.rigged.glb; the raw rig files are bundled.'
     );
+    // The file is named once, and the message carries no absolute path.
+    expect(message.match(/hero\.rigged\.glb/g)).toHaveLength(1);
+    expect(message).not.toContain('/tmp/generated');
 
     // The package is written with the master and the raw rigged GLB, then the
     // web-variant error surfaces.
@@ -1361,13 +1384,10 @@ describe('generate3d --rig', () => {
       kind: 'rigged',
       webPath: null,
       webBytes: null,
-      webError: expect.stringContaining('sharp is not installed'),
+      webError: 'sharp is not installed',
     });
     expect(zippedManifest(deps)['riggingWebFailures']).toEqual([
-      {
-        file: 'hero.rigged.glb',
-        message: expect.stringContaining('sharp is not installed'),
-      },
+      { file: 'hero.rigged.glb', message: 'sharp is not installed' },
     ]);
     expect(manifest.package).toBeDefined();
   });
