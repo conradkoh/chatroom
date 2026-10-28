@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { escapeHtml, renderPreviewHtml, type PreviewHtmlInput } from './preview-html.js';
+import { renderPreviewHtml, type PreviewHtmlInput } from './preview-html.js';
 
 /** A minimal GLB: magic "glTF", version 2, then a few payload bytes. */
 const WEB_GLB = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 7, 8, 9, 10]);
@@ -38,7 +38,7 @@ function embeddedBase64(html: string): string {
 }
 
 describe('renderPreviewHtml', () => {
-  it('renders a model-viewer with controls and the model-viewer module', () => {
+  it('renders a model-viewer with controls and the pinned, SRI-guarded module', () => {
     const html = renderPreviewHtml(INPUT);
 
     expect(html).toContain('<model-viewer');
@@ -46,8 +46,10 @@ describe('renderPreviewHtml', () => {
     expect(html).toContain('auto-rotate');
     expect(html).toContain('shadow-intensity="1"');
     expect(html).toContain(
-      'https://cdn.jsdelivr.net/npm/@google/model-viewer@3/dist/model-viewer.min.js'
+      'https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js'
     );
+    expect(html).toMatch(/integrity="sha384-[A-Za-z0-9+/=]+"/);
+    expect(html).toContain('crossorigin="anonymous"');
   });
 
   it('embeds the web variant byte-for-byte', () => {
@@ -95,15 +97,5 @@ describe('renderPreviewHtml', () => {
     expect(html).toContain('x&quot;y.zip');
     expect(html).toContain('z&lt;1&gt;.glb');
     expect(html).not.toContain('a&b<c>');
-  });
-});
-
-describe('escapeHtml', () => {
-  it('escapes the five HTML-significant characters', () => {
-    expect(escapeHtml(`& < > " '`)).toBe('&amp; &lt; &gt; &quot; &#39;');
-  });
-
-  it('leaves plain text unchanged', () => {
-    expect(escapeHtml('a low-poly chest, 2x2')).toBe('a low-poly chest, 2x2');
   });
 });

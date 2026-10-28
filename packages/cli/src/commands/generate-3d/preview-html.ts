@@ -6,6 +6,10 @@
  * package expects a browser to load. The GLB is embedded as a base64 `data:` URI
  * so the page opens from `file://` with no server and no sibling files.
  *
+ * The viewer is the only remote asset, pinned to one published version and
+ * guarded by a subresource-integrity hash, so a changed CDN response is refused
+ * by the browser rather than executed.
+ *
  * Every value that comes from a model, a prompt, a request, or a user-chosen
  * name is escaped before it reaches the document. A prompt is arbitrary text,
  * including HTML, and the page must render it as text rather than parse it.
@@ -31,10 +35,7 @@ export interface PreviewHtmlInput {
 }
 
 /** The five characters that can break out of text or an attribute value. */
-// Exported so the escaping can be asserted directly; renderPreviewHtml is the
-// only production caller.
-// fallow-ignore-next-line unused-export
-export function escapeHtml(text: string): string {
+function escapeHtml(text: string): string {
   return text
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -42,6 +43,11 @@ export function escapeHtml(text: string): string {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
+
+/** Pinned viewer build, with the sha384 of that exact file. */
+const MODEL_VIEWER_URL =
+  'https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js';
+const MODEL_VIEWER_SRI = 'sha384-Ftcjj/GNLxPvzNDftO/oryXB9aGxsGZY9JGqsXG0uUKgQDl9RfDgsx9NJ/4IVNPe';
 
 const PANEL_STYLE = `
   :root { color-scheme: dark; }
@@ -129,7 +135,11 @@ ${rows}
   exposure="1"
   touch-action="pan-y"></model-viewer>
 <p class="note">Preview of the web variant. Full-resolution master is in ${escapeHtml(input.zipName)}. Drag to orbit, scroll to zoom.</p>
-<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3/dist/model-viewer.min.js"></script>
+<script
+  type="module"
+  src="${MODEL_VIEWER_URL}"
+  integrity="${MODEL_VIEWER_SRI}"
+  crossorigin="anonymous"></script>
 </body>
 </html>
 `;
