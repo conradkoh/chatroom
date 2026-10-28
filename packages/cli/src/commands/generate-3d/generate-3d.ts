@@ -2039,6 +2039,17 @@ interface MasterOutput {
 }
 
 /**
+ * Create the folders the run writes to: the master's folder and the package's.
+ *
+ * Both must exist before the paid reference step, not just before the master, so
+ * a bad `--out` folder or `--package-dir` fails with nothing spent.
+ */
+async function ensureOutputDirs(plan: Generate3dPlan, deps: Generate3dDeps): Promise<void> {
+  await deps.ensureParentDir(plan.outPath);
+  await deps.ensureParentDir(plan.zipPath);
+}
+
+/**
  * Run the paid half: upload the input image if any, call fal once, download the
  * GLB, and write both the master and its sidecar manifest.
  *
@@ -2052,11 +2063,6 @@ async function generateMaster(
   opts: Generate3dOptions,
   reference: GeneratedReference | null = null
 ): Promise<MasterOutput> {
-  // Preflight before the paid call: create the output and package directories so
-  // a successful generation cannot fail on a missing one.
-  await deps.ensureParentDir(plan.outPath);
-  await deps.ensureParentDir(plan.zipPath);
-
   const inputImage = reference?.inputImage ?? (await uploadInputImage(deps, plan.inputTarget));
   const input = plan.model.buildInput({
     prompt: opts.prompt,
@@ -2242,6 +2248,9 @@ export async function generate3d(
   const plan = await planGenerate3d(opts, deps);
   // Before the upload and the paid call: a rig needs the priced plan confirmed.
   requireCostConfirmation(plan);
+  // The reference step is paid too, so the output and package folders must exist
+  // before FLUX runs: a missing folder must not cost an image.
+  await ensureOutputDirs(plan, deps);
   const reference = await generateReferenceFile(plan, deps);
   const bundledReference = await bundleReference(plan, deps, reference);
   const master = await generateMaster(plan, deps, opts, reference);

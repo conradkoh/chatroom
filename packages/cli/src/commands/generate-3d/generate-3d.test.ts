@@ -903,6 +903,34 @@ describe('reference image', () => {
     });
   });
 
+  it('creates the output and package folders before paying for the reference', async () => {
+    const deps = createDeps();
+
+    await generate3d({ model: TRELLIS_2, prompt: 'a chest', out: OUT_PATH }, deps);
+
+    const dirOrders = vi.mocked(deps.ensureParentDir).mock.invocationCallOrder;
+    const referenceOrder = vi.mocked(deps.generateReferenceImage).mock.invocationCallOrder[0] ?? -1;
+    expect(dirOrders[0]).toBeLessThan(referenceOrder);
+    expect(deps.ensureParentDir).toHaveBeenCalledWith(OUT_PATH);
+    expect(deps.ensureParentDir).toHaveBeenCalledWith(ZIP_PATH);
+  });
+
+  it('does not pay for a reference image when the package folder cannot be created', async () => {
+    const deps = createDeps({
+      ensureParentDir: vi.fn(async (path: string) => {
+        if (path.endsWith('.zip')) throw new Error('EACCES: permission denied');
+      }),
+    });
+
+    await expect(
+      generate3d({ model: TRELLIS_2, prompt: 'a chest', out: OUT_PATH }, deps)
+    ).rejects.toThrow('EACCES: permission denied');
+
+    expect(deps.generateReferenceImage).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+  });
+
   it('stops before the mesh when the reference image fails', async () => {
     const deps = createDeps({
       generateReferenceImage: vi
