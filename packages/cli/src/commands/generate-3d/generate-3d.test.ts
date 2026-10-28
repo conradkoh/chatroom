@@ -18,7 +18,7 @@ import {
   planGenerate3d,
   type Generate3dManifest,
 } from './generate-3d.js';
-import { RIGGING_ENDPOINT } from './rigging.js';
+import { RIGGING_ENDPOINT, RIGGING_MULTI_ANIMATION_ENDPOINT } from './rigging.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const MESHY_TEXT = 'meshy/v7.1/text-to-3d';
@@ -28,12 +28,16 @@ const TRELLIS_2 = 'fal-ai/trellis-2';
 const OUT_PATH = '/tmp/generated/hero.glb';
 const MANIFEST_PATH = `${OUT_PATH}.json`;
 const RIGGED_OUT_PATH = '/tmp/generated/hero.rigged.glb';
+const ANIM_0_PATH = '/tmp/generated/hero.anim-0.glb';
+const ANIM_92_PATH = '/tmp/generated/hero.anim-92.glb';
 const INPUT_IMAGE = '/tmp/inputs/hero.png';
 const UPLOADED_IMAGE_URL = 'https://fal.test/uploaded/hero.png';
 const GLB_URL = 'https://fal.test/generated/hero.glb';
 const BASE_COLOR_URL = 'https://fal.test/generated/base-color.png';
 const RIGGED_GLB_URL = 'https://fal.test/rigged/hero.rigged.glb';
 const RIGGED_FBX_URL = 'https://fal.test/rigged/hero.rigged.fbx';
+const ANIM_0_URL = 'https://fal.test/anim/hero.anim-0.glb';
+const ANIM_92_URL = 'https://fal.test/anim/hero.anim-92.glb';
 const RIGGING_REQUEST_ID = 'rig-456';
 
 /** GLB magic "glTF" followed by version 2 and no body. */
@@ -53,6 +57,15 @@ const RIGGING_FIXTURE = {
     running_glb: { url: 'https://fal.test/basic/running.glb' },
   },
   rig_task_id: RIGGING_REQUEST_ID,
+};
+
+/** A multi-animation result; clips arrive in the requested order. */
+const MULTI_ANIMATION_FIXTURE = {
+  ...RIGGING_FIXTURE,
+  animations: [
+    { action_id: 0, animation_glb: { url: ANIM_0_URL } },
+    { action_id: 92, animation_glb: { url: ANIM_92_URL } },
+  ],
 };
 
 function createDeps(overrides: Partial<Generate3dDeps> = {}): Generate3dDeps {
@@ -380,12 +393,80 @@ describe('generate3d --rig', () => {
         walking_glb: 'https://fal.test/basic/walking.glb',
         running_glb: 'https://fal.test/basic/running.glb',
       },
+      animations: [],
       costLines: [{ label: 'rigging (Meshy) $0.20', usd: 0.2 }],
     });
 
     const cost = result.costLines.join('\n');
     expect(cost).toContain('- rigging (Meshy) $0.20');
     expect(cost).toContain('Estimated total: $1.40');
+  });
+
+  it('downloads one GLB per requested animation clip', async () => {
+    const deps = createRigDeps(MULTI_ANIMATION_FIXTURE);
+
+    const result = await generate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        rig: true,
+        animationActionIds: ['0', '92'],
+      },
+      deps
+    );
+
+    expect(vi.mocked(deps.falSubscribe).mock.calls[1]).toEqual([
+      RIGGING_MULTI_ANIMATION_ENDPOINT,
+      { model_url: GLB_URL, animation_action_ids: [0, 92] },
+    ]);
+    expect(deps.fetchGlb).toHaveBeenCalledWith(ANIM_0_URL);
+    expect(deps.fetchGlb).toHaveBeenCalledWith(ANIM_92_URL);
+    expect(deps.writeFile).toHaveBeenCalledWith(ANIM_0_PATH, GLB_BYTES);
+    expect(deps.writeFile).toHaveBeenCalledWith(ANIM_92_PATH, GLB_BYTES);
+
+    expect(lastWrittenManifest(deps).rigging?.animations).toEqual([
+      { actionId: 0, path: ANIM_0_PATH, glbUrl: ANIM_0_URL },
+      { actionId: 92, path: ANIM_92_PATH, glbUrl: ANIM_92_URL },
+    ]);
+    const cost = result.costLines.join('\n');
+    expect(cost).toContain('- animation clips (2) $0.12 each = $0.24');
+    expect(cost).toContain('Estimated total: $1.64');
+  });
+
+  it('rejects --animation-action-id without --rig before any call or write', async () => {
+    const deps = createRigDeps();
+
+    await expect(
+      generate3d(
+        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, animationActionIds: ['0'] },
+        deps
+      )
+    ).rejects.toThrow('--animation-action-id requires --rig.');
+
+    expect(deps.pathStatus).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.fetchGlb).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid clip id before any paid call', async () => {
+    const deps = createRigDeps();
+
+    await expect(
+      generate3d(
+        {
+          model: MESHY_TEXT,
+          prompt: 'a knight',
+          out: OUT_PATH,
+          rig: true,
+          animationActionIds: ['697'],
+        },
+        deps
+      )
+    ).rejects.toThrow(/integer from 0 to 696/);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
   it('refuses an existing rigged GLB without --force', async () => {
@@ -396,6 +477,28 @@ describe('generate3d --rig', () => {
     await expect(
       generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
     ).rejects.toThrow(/Rigged GLB already exists.*--force/);
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('refuses an existing animation clip without --force', async () => {
+    const deps = createRigDeps(MULTI_ANIMATION_FIXTURE, {
+      pathStatus: vi.fn(existingFiles(ANIM_92_PATH)),
+    });
+
+    await expect(
+      generate3d(
+        {
+          model: MESHY_TEXT,
+          prompt: 'a knight',
+          out: OUT_PATH,
+          rig: true,
+          animationActionIds: ['0', '92'],
+        },
+        deps
+      )
+    ).rejects.toThrow(/Animation clip 92 GLB already exists.*--force/);
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
@@ -455,20 +558,34 @@ describe('planGenerate3d', () => {
     const deps = createDeps();
 
     const plan = await planGenerate3d(
-      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true },
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        rig: true,
+        animationActionIds: ['0', '92'],
+      },
       deps
     );
     const text = formatGenerate3dPlan(plan);
 
     expect(plan.riggedOutPath).toBe(RIGGED_OUT_PATH);
-    expect(text).toContain(`Rigging request (${RIGGING_ENDPOINT}):`);
+    expect(plan.animationOutPaths).toEqual([
+      { actionId: 0, path: ANIM_0_PATH },
+      { actionId: 92, path: ANIM_92_PATH },
+    ]);
+    expect(text).toContain(`Rigging request (${RIGGING_MULTI_ANIMATION_ENDPOINT}):`);
     expect(text).toContain('"model_url": "<generated mesh GLB URL>"');
+    expect(text).toContain('"animation_action_ids"');
     expect(text).toContain(`Rigged GLB ${RIGGED_OUT_PATH}`);
+    expect(text).toContain(`Animation clip 0 ${ANIM_0_PATH}`);
+    expect(text).toContain(`Animation clip 92 ${ANIM_92_PATH}`);
     expect(text).toContain(
       'Rigging (Meshy) expects a humanoid mesh; non-humanoid meshes fail on fal.'
     );
     expect(text).toContain('- rigging (Meshy) $0.20');
-    expect(text).toContain('Estimated total: $1.40');
+    expect(text).toContain('- animation clips (2) $0.12 each = $0.24');
+    expect(text).toContain('Estimated total: $1.64');
 
     expect(deps.uploadFile).not.toHaveBeenCalled();
     expect(deps.falSubscribe).not.toHaveBeenCalled();
@@ -477,14 +594,41 @@ describe('planGenerate3d', () => {
     expect(deps.writeJson).not.toHaveBeenCalled();
   });
 
-  it('checks the planned rigged path for conflicts', async () => {
+  it('checks the planned rigged and clip paths for conflicts', async () => {
     const deps = createDeps({
-      pathStatus: vi.fn(existingFiles(RIGGED_OUT_PATH)),
+      pathStatus: vi.fn(existingFiles(ANIM_0_PATH)),
     });
 
     await expect(
-      planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
-    ).rejects.toThrow(/Rigged GLB already exists.*--force/);
+      planGenerate3d(
+        {
+          model: MESHY_TEXT,
+          prompt: 'a knight',
+          out: OUT_PATH,
+          rig: true,
+          animationActionIds: ['0'],
+        },
+        deps
+      )
+    ).rejects.toThrow(/Animation clip 0 GLB already exists.*--force/);
+  });
+
+  it('rejects an invalid clip id before touching the filesystem', async () => {
+    const deps = createDeps();
+
+    await expect(
+      planGenerate3d(
+        {
+          model: MESHY_TEXT,
+          prompt: 'a knight',
+          out: OUT_PATH,
+          rig: true,
+          animationActionIds: ['1.5'],
+        },
+        deps
+      )
+    ).rejects.toThrow(/integer from 0 to 696/);
+    expect(deps.pathStatus).not.toHaveBeenCalled();
   });
 
   it('has no rigging section or cost when --rig is absent', async () => {
@@ -497,6 +641,7 @@ describe('planGenerate3d', () => {
 
     expect(plan.riggingRequest).toBeNull();
     expect(plan.riggedOutPath).toBeNull();
+    expect(plan.animationOutPaths).toEqual([]);
     expect(plan.costLines).toEqual(
       expect.arrayContaining([
         { label: 'base $0.80', usd: 0.8 },

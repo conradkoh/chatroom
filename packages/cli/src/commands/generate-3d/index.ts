@@ -28,14 +28,20 @@ function modelIdsFor(kind: 'text' | 'image'): string {
     .join(', ');
 }
 
+/** Commander value parser for a repeatable option: append in the given order. */
+function collectRepeatable(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
 const HELP_AFTER = `
 Examples:
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb
   chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out concept.glb
-  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --rig
+  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --rig --animation-action-id 0
 
 Rigging uses Meshy (fal-ai/meshy/rigging) and expects a humanoid mesh;
-non-humanoid meshes fail on fal.
+non-humanoid meshes fail on fal. Each --animation-action-id is a Meshy preset id
+(0-696) and requires --rig.
 
 Allowed models:
   text-to-3D:  ${modelIdsFor('text')}
@@ -53,6 +59,8 @@ interface Generate3dCliOptions {
   out: string;
   force?: boolean | undefined;
   rig?: boolean | undefined;
+  /** Commander camel-cases `--animation-action-id` to this singular name. */
+  animationActionId: string[];
   dryRun?: boolean | undefined;
 }
 
@@ -60,6 +68,24 @@ function printResult(result: Generate3dResult): void {
   console.log(`Generated ${result.outPath}`);
   console.log(`Manifest ${result.manifestPath}`);
   for (const line of result.costLines) console.log(line);
+}
+
+/**
+ * Map parsed CLI options to the generator. An empty `--animation-action-id`
+ * list stays absent so slice 1 calls keep their original shape.
+ */
+function toGenerate3dOptions(options: Generate3dCliOptions) {
+  const base = {
+    prompt: options.prompt,
+    inputImage: options.inputImage,
+    model: options.model,
+    out: options.out,
+    force: options.force,
+    rig: options.rig,
+  };
+  return options.animationActionId.length > 0
+    ? { ...base, animationActionIds: options.animationActionId }
+    : base;
 }
 
 /** Run the generator or the dry-run plan; both share the same parsed options. */
@@ -71,14 +97,7 @@ async function executeGenerate3d(options: Generate3dCliOptions): Promise<void> {
   // never requires FAL_API_KEY and never calls fal.
   const { createDefaultGenerate3dDeps } = await import('./deps.js');
   const deps = createDefaultGenerate3dDeps();
-  const generateOptions = {
-    prompt: options.prompt,
-    inputImage: options.inputImage,
-    model: options.model,
-    out: options.out,
-    force: options.force,
-    rig: options.rig,
-  };
+  const generateOptions = toGenerate3dOptions(options);
   if (options.dryRun === true) {
     const { formatGenerate3dPlan, planGenerate3d } = await import('./generate-3d.js');
     console.log(formatGenerate3dPlan(await planGenerate3d(generateOptions, deps)));
@@ -122,6 +141,12 @@ export function registerGenerate3dCommand(program: Command): void {
     .option(
       '--rig',
       'Rig the generated mesh with Meshy (fal-ai/meshy/rigging). Humanoid meshes only'
+    )
+    .option(
+      '--animation-action-id <id>',
+      'Meshy preset animation id (0-696), repeatable; requires --rig',
+      collectRepeatable,
+      [] as string[]
     )
     .option(
       '--dry-run',

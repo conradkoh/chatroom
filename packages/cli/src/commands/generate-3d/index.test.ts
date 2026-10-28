@@ -105,6 +105,7 @@ describe('chatroom generate-3d wiring', () => {
       '--input-image',
       '--force',
       '--rig',
+      '--animation-action-id',
       '--dry-run',
     ]) {
       expect(help).toContain(flag);
@@ -122,7 +123,7 @@ describe('chatroom generate-3d wiring', () => {
     command?.outputHelp();
     expect(afterHelp).toContain('--model meshy/v7.1/text-to-3d --prompt "a stone knight"');
     expect(afterHelp).toContain('--model fal-ai/trellis-2 --input-image ./concept.png');
-    expect(afterHelp).toContain('--out knight.glb --rig');
+    expect(afterHelp).toContain('--rig --animation-action-id 0');
     expect(afterHelp).toContain('humanoid mesh');
     expect(afterHelp).toContain('text-to-3D:');
     expect(afterHelp).toContain('image-to-3D:');
@@ -226,6 +227,30 @@ describe('chatroom generate-3d wiring', () => {
       inputImage: './x.png',
       prompt: undefined,
       model: 'fal-ai/trellis-2',
+    });
+  });
+
+  it('forwards --rig and repeated --animation-action-id values', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'meshy/v7.1/text-to-3d',
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.glb',
+      '--rig',
+      '--animation-action-id',
+      '0',
+      '--animation-action-id',
+      '92',
+    ]);
+
+    expect(generate3dMock).toHaveBeenCalledTimes(1);
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({
+      rig: true,
+      animationActionIds: ['0', '92'],
     });
   });
 

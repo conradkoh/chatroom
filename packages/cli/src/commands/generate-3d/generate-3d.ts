@@ -3,8 +3,9 @@
  *
  * Generates one GLB mesh through an injected fal subscriber, writes the bytes
  * to `out`, and writes a JSON sidecar manifest to `<out>.json`. With `--rig`
- * it then calls Meshy's rigging endpoint, writes `<stem>.rigged.glb`, and
- * rewrites the manifest with a `rigging` section.
+ * it then calls Meshy's rigging endpoint, writes `<stem>.rigged.glb`, writes
+ * one `<stem>.anim-<id>.glb` per requested preset clip, and rewrites the
+ * manifest with a `rigging` section.
  *
  * The mesh is written before the rigging call, so a rig failure never discards
  * a paid generation. No SDK, network, clock, or filesystem access is imported
@@ -26,6 +27,7 @@ import {
 } from './model-registry.js';
 import {
   buildRiggingRequest,
+  parseAnimationActionIds,
   readRiggingOutput,
   riggingCostLines,
   type RiggingOutput,
@@ -54,6 +56,11 @@ export interface Generate3dOptions {
   force?: boolean | undefined;
   /** Also rig the generated mesh and write `<stem>.rigged.glb`. */
   rig?: boolean | undefined;
+  /**
+   * Raw `--animation-action-id` values in the order given. Validated by the
+   * plan so an invalid id fails before any paid call. Requires `rig`.
+   */
+  animationActionIds?: readonly string[] | undefined;
 }
 
 /** The rigging provenance written to the manifest after a successful rig. */
@@ -68,6 +75,7 @@ export interface Generate3dRiggingManifest {
   riggedFbxUrl: string | null;
   /** Basic walking/running variants recorded by URL only; never downloaded. */
   basicAnimationUrls: Record<string, string>;
+  animations: { actionId: number; path: string; glbUrl: string }[];
   costLines: { label: string; usd: number }[];
 }
 
@@ -121,8 +129,12 @@ export interface Generate3dPlan {
   inputTarget: Generate3dInputTarget | undefined;
   /** What the manifest would record; a local file shows a placeholder URL. */
   inputImage: { source: string; url: string } | null;
+  /** Validated clip ids in the order given; empty without `--rig`. */
+  animationActionIds: number[];
   /** Rigged GLB path, or null when `--rig` was not passed. */
   riggedOutPath: string | null;
+  /** One output path per requested clip; empty without `--rig`. */
+  animationOutPaths: { actionId: number; path: string }[];
   /** The rigging call the plan would make; null without `--rig`. */
   riggingRequest: RiggingRequest | null;
   costLines: Generate3dCostLine[];
@@ -148,6 +160,11 @@ function outputStem(outPath: string): string {
 /** `<stem>.rigged.glb`. */
 function riggedOutputPath(outPath: string): string {
   return `${outputStem(outPath)}.rigged${GLB_EXTENSION}`;
+}
+
+/** `<stem>.anim-<actionId>.glb`. */
+function animationOutputPath(outPath: string, actionId: number): string {
+  return `${outputStem(outPath)}.anim-${actionId}${GLB_EXTENSION}`;
 }
 
 const HTTP_URL_PATTERN = /^https?:\/\//i;
@@ -345,26 +362,54 @@ function formatGenerate3dCost(lines: readonly Generate3dCostLine[]): string[] {
   ];
 }
 
-/**
- * The rigging half of a plan. Extracted so the plan reads as one path when
- * `--rig` is absent and one when it is present.
- */
-function buildRiggingPlan(
-  outPath: string,
-  rig: boolean
-): {
+/** The rigging half of a plan; empty when `--rig` is absent. */
+interface PlannedRigging {
   riggedOutPath: string | null;
+  animationOutPaths: { actionId: number; path: string }[];
   riggingRequest: RiggingRequest | null;
   extraCostLines: Generate3dCostLine[];
-} {
+}
+
+function buildRiggingPlan(
+  outPath: string,
+  rig: boolean,
+  animationActionIds: readonly number[]
+): PlannedRigging {
   if (!rig) {
-    return { riggedOutPath: null, riggingRequest: null, extraCostLines: [] };
+    return {
+      riggedOutPath: null,
+      animationOutPaths: [],
+      riggingRequest: null,
+      extraCostLines: [],
+    };
   }
   return {
     riggedOutPath: riggedOutputPath(outPath),
-    riggingRequest: buildRiggingRequest({ modelGlbUrl: PLANNED_MODEL_URL }),
-    extraCostLines: riggingCostLines(),
+    animationOutPaths: animationActionIds.map((actionId) => ({
+      actionId,
+      path: animationOutputPath(outPath, actionId),
+    })),
+    riggingRequest: buildRiggingRequest({ modelGlbUrl: PLANNED_MODEL_URL, animationActionIds }),
+    extraCostLines: riggingCostLines(animationActionIds.length),
   };
+}
+
+/** Refuse to clobber any planned rig output unless `--force` was passed. */
+async function requireWritableRiggingPaths(
+  deps: Generate3dDeps,
+  rigging: PlannedRigging,
+  force: boolean
+): Promise<void> {
+  if (rigging.riggedOutPath === null) return;
+  await requireWritablePath(deps, rigging.riggedOutPath, 'Rigged GLB', force);
+  for (const animation of rigging.animationOutPaths) {
+    await requireWritablePath(
+      deps,
+      animation.path,
+      `Animation clip ${animation.actionId} GLB`,
+      force
+    );
+  }
 }
 
 /**
@@ -381,13 +426,17 @@ export async function planGenerate3d(
   requireGlbExtension(outPath);
   requireInputKind(model, opts);
 
-  const rigging = buildRiggingPlan(outPath, opts.rig === true);
+  const rig = opts.rig === true;
+  const animationActionIds = parseAnimationActionIds(opts.animationActionIds ?? []);
+  if (animationActionIds.length > 0 && !rig) {
+    throw new Generate3dError('--animation-action-id requires --rig.');
+  }
+  const rigging = buildRiggingPlan(outPath, rig, animationActionIds);
+
   const manifestPath = `${outPath}.json`;
   const inputTarget = await validateInputImage(deps, opts.inputImage);
   await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
-  if (rigging.riggedOutPath !== null) {
-    await requireWritablePath(deps, rigging.riggedOutPath, 'Rigged GLB', opts.force === true);
-  }
+  await requireWritableRiggingPaths(deps, rigging, opts.force === true);
 
   const input = model.buildInput({
     prompt: opts.prompt,
@@ -400,7 +449,9 @@ export async function planGenerate3d(
     input,
     inputTarget,
     inputImage: planInputImageRecord(inputTarget),
+    animationActionIds,
     riggedOutPath: rigging.riggedOutPath,
+    animationOutPaths: rigging.animationOutPaths,
     riggingRequest: rigging.riggingRequest,
     costLines: [...model.cost().lines, ...rigging.extraCostLines],
   };
@@ -420,6 +471,9 @@ function formatRiggingPlan(plan: Generate3dPlan): string[] {
     `Rigging request (${plan.riggingRequest.endpoint}):`,
     JSON.stringify(plan.riggingRequest.input, null, 2),
     `Rigged GLB ${plan.riggedOutPath}`,
+    ...plan.animationOutPaths.map(
+      (animation) => `Animation clip ${animation.actionId} ${animation.path}`
+    ),
     RIGGING_HUMANOID_WARNING,
   ];
 }
@@ -551,6 +605,35 @@ async function downloadAndSaveGlb(args: {
   }
 }
 
+/** Download and save each returned clip, in the requested order. */
+async function downloadAnimations(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  output: RiggingOutput,
+  fail: (detail: string) => Generate3dError
+): Promise<Generate3dRiggingManifest['animations']> {
+  const animations: Generate3dRiggingManifest['animations'] = [];
+  for (const [index, animation] of output.animations.entries()) {
+    const planned = plan.animationOutPaths[index];
+    if (planned === undefined || planned.actionId !== animation.actionId) {
+      throw fail(`No planned output path for animation clip ${animation.actionId}.`);
+    }
+    await downloadAndSaveGlb({
+      deps,
+      url: animation.glbUrl,
+      path: planned.path,
+      label: `animation clip ${animation.actionId}`,
+      fail,
+    });
+    animations.push({
+      actionId: animation.actionId,
+      path: planned.path,
+      glbUrl: animation.glbUrl,
+    });
+  }
+  return animations;
+}
+
 /**
  * Run the rigging step after the mesh is on disk: one fal call, then one
  * download per returned GLB. Only GLBs are downloaded; the FBX and basic
@@ -565,7 +648,10 @@ async function runRigging(
     throw new Generate3dError('Rigging was planned without a rigged output path.');
   }
   const riggedGlbPath = plan.riggedOutPath;
-  const request = buildRiggingRequest({ modelGlbUrl });
+  const request = buildRiggingRequest({
+    modelGlbUrl,
+    animationActionIds: plan.animationActionIds,
+  });
 
   let result: Awaited<ReturnType<Generate3dDeps['falSubscribe']>>;
   try {
@@ -585,7 +671,7 @@ async function runRigging(
 
   let output: RiggingOutput;
   try {
-    output = readRiggingOutput(result.data);
+    output = readRiggingOutput(result.data, { animationActionIds: plan.animationActionIds });
   } catch (err) {
     throw fail(describeError(err));
   }
@@ -597,6 +683,7 @@ async function runRigging(
     label: 'rigged GLB',
     fail,
   });
+  const animations = await downloadAnimations(plan, deps, output, fail);
 
   return {
     endpoint: request.endpoint,
@@ -606,7 +693,8 @@ async function runRigging(
     riggedGlbUrl: output.riggedGlbUrl,
     riggedFbxUrl: output.riggedFbxUrl,
     basicAnimationUrls: output.basicAnimationUrls,
-    costLines: riggingCostLines(),
+    animations,
+    costLines: riggingCostLines(plan.animationActionIds.length),
   };
 }
 
