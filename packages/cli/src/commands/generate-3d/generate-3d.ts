@@ -211,11 +211,18 @@ interface Generate3dPackageVariant {
   triangles?: number;
   textures?: { width: number; height: number; mimeType: string }[];
   extensionsUsed?: string[];
-  /** Present on the web variant only; the master is whatever fal returned. */
+  /**
+   * Present on the web variant only; the master is whatever fal returned.
+   * `textureFormat` is the default: alpha-bound colour maps stay PNG, and
+   * `textures[].mimeType` is the per-texture truth.
+   */
   settings?: {
     maxTexturePx: number;
     textureFormat: 'jpeg';
+    /** Colour (sRGB) texture quality. */
     quality: number;
+    /** Data-texture quality: metallic-roughness, occlusion, normal. */
+    dataQuality: number;
     triangleTarget: number;
     simplified: boolean;
     /** `non-destructive` when weld and simplify were skipped for a skin. */
@@ -311,6 +318,8 @@ const RIGGING_HUMANOID_WARNING =
 const WEB_VARIANT_TRIANGLE_TARGET = 30_000;
 const WEB_VARIANT_MAX_TEXTURE_PX = 1024;
 const WEB_VARIANT_TEXTURE_QUALITY = 80;
+/** Data maps (metallic-roughness, occlusion, normal) keep more detail at 95. */
+const WEB_VARIANT_DATA_TEXTURE_QUALITY = 95;
 
 /** File name of the package manifest inside the zip. */
 const PACKAGE_MANIFEST_NAME = 'manifest.json';
@@ -1732,6 +1741,7 @@ function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['set
     maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
     textureFormat: 'jpeg',
     quality: WEB_VARIANT_TEXTURE_QUALITY,
+    dataQuality: WEB_VARIANT_DATA_TEXTURE_QUALITY,
     triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
     simplified: web.simplified,
     skinnedPath: web.skinnedPath,
@@ -1888,6 +1898,7 @@ const WEB_VARIANT_OPTIONS = {
   triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
   maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
   quality: WEB_VARIANT_TEXTURE_QUALITY,
+  dataQuality: WEB_VARIANT_DATA_TEXTURE_QUALITY,
 };
 
 async function buildWebVariant(

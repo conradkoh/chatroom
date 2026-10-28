@@ -420,6 +420,7 @@ describe('generate3d packaging', () => {
       triangleTarget: 30_000,
       maxTexturePx: 1024,
       quality: 80,
+      dataQuality: 95,
     });
 
     const entries = vi.mocked(deps.zipPackage).mock.calls[0]?.[0] ?? [];
@@ -657,6 +658,7 @@ describe('generate3d packaging', () => {
         maxTexturePx: 1024,
         textureFormat: 'jpeg',
         quality: 80,
+        dataQuality: 95,
         triangleTarget: 30_000,
         simplified: false,
       },

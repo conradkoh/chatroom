@@ -17,7 +17,12 @@ import { describe, expect, it } from 'vitest';
 
 import { createWebVariant, type WebVariantOptions } from './web-variant.js';
 
-const OPTIONS: WebVariantOptions = { triangleTarget: 30_000, maxTexturePx: 1024, quality: 80 };
+const OPTIONS: WebVariantOptions = {
+  triangleTarget: 30_000,
+  maxTexturePx: 1024,
+  quality: 80,
+  dataQuality: 95,
+};
 
 function glbIo(): NodeIO {
   return new NodeIO().registerExtensions(ALL_EXTENSIONS);
@@ -28,6 +33,8 @@ interface BuildGlbOptions {
   indices?: Uint32Array | undefined;
   /** Base-colour texture bytes and MIME type. */
   texture?: { bytes: Uint8Array; mimeType: string } | undefined;
+  /** Metallic-roughness texture bytes and MIME type. */
+  dataTexture?: { bytes: Uint8Array; mimeType: string } | undefined;
   alphaMode?: 'OPAQUE' | 'BLEND' | undefined;
   /** glTF primitive mode; defaults to TRIANGLES. */
   mode?: ReturnType<Primitive['getMode']> | undefined;
@@ -56,15 +63,24 @@ async function buildGlb(opts: BuildGlbOptions): Promise<Uint8Array> {
     primitive.setIndices(indices);
   }
   if (opts.mode !== undefined) primitive.setMode(opts.mode);
-  if (opts.texture !== undefined) {
-    const texture = document
-      .createTexture('base')
-      .setImage(opts.texture.bytes)
-      .setMimeType(opts.texture.mimeType);
-    const material = document
-      .createMaterial('mat')
-      .setBaseColorTexture(texture)
-      .setAlphaMode(opts.alphaMode ?? 'OPAQUE');
+  if (opts.texture !== undefined || opts.dataTexture !== undefined) {
+    const material = document.createMaterial('mat').setAlphaMode(opts.alphaMode ?? 'OPAQUE');
+    if (opts.texture !== undefined) {
+      material.setBaseColorTexture(
+        document
+          .createTexture('base')
+          .setImage(opts.texture.bytes)
+          .setMimeType(opts.texture.mimeType)
+      );
+    }
+    if (opts.dataTexture !== undefined) {
+      material.setMetallicRoughnessTexture(
+        document
+          .createTexture('data')
+          .setImage(opts.dataTexture.bytes)
+          .setMimeType(opts.dataTexture.mimeType)
+      );
+    }
     primitive.setMaterial(material);
   }
   const mesh = document.createMesh().addPrimitive(primitive);
@@ -543,6 +559,51 @@ describe('createWebVariant', () => {
     expect(await realSize(variant.bytes)).toEqual([
       expect.objectContaining({ width: 1024, height: 256, format: 'jpeg' }),
     ]);
+  });
+
+  it('encodes a metallic-roughness map at higher quality without chroma subsampling', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: await encodedTexture(2048, 512, 'png'), mimeType: 'image/png' },
+      dataTexture: { bytes: await encodedTexture(2048, 512, 'png'), mimeType: 'image/png' },
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    const reread = await glbIo().readBinary(variant.bytes);
+    const material = reread.getRoot().listMaterials()[0];
+    const base = material?.getBaseColorTexture();
+    const data = material?.getMetallicRoughnessTexture();
+    expect(base).toBeTruthy();
+    expect(data).toBeTruthy();
+
+    const baseMeta = await sharp(Buffer.from(base?.getImage() ?? new Uint8Array())).metadata();
+    const dataMeta = await sharp(Buffer.from(data?.getImage() ?? new Uint8Array())).metadata();
+    expect(baseMeta.format).toBe('jpeg');
+    expect(baseMeta.chromaSubsampling).toBe('4:2:0');
+    expect(dataMeta.format).toBe('jpeg');
+    expect(dataMeta.chromaSubsampling).toBe('4:4:4');
+    expect(baseMeta.width).toBe(1024);
+    expect(dataMeta.width).toBe(1024);
+  });
+
+  it('spends more bytes on a data map at dataQuality 95 than at 60', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      dataTexture: { bytes: await encodedTexture(2048, 512, 'png'), mimeType: 'image/png' },
+    });
+
+    const high = await createWebVariant(glb, { ...OPTIONS, dataQuality: 95 });
+    const low = await createWebVariant(glb, { ...OPTIONS, dataQuality: 60 });
+    const dataBytes = async (variant: Awaited<ReturnType<typeof createWebVariant>>) => {
+      const reread = await glbIo().readBinary(variant.bytes);
+      return (
+        reread.getRoot().listMaterials()[0]?.getMetallicRoughnessTexture()?.getImage()
+          ?.byteLength ?? 0
+      );
+    };
+
+    expect(await dataBytes(high)).toBeGreaterThan(await dataBytes(low));
   });
 
   it('adds no extensions even when it re-encodes textures', async () => {

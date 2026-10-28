@@ -41,8 +41,10 @@ export interface WebVariantOptions {
   triangleTarget: number;
   /** Longest texture edge, in pixels; aspect ratio is preserved. */
   maxTexturePx: number;
-  /** Encoder quality for re-encoded colour textures. */
+  /** Encoder quality for re-encoded colour (sRGB) textures. */
   quality: number;
+  /** Encoder quality for data textures: metallic-roughness, occlusion, normal. */
+  dataQuality: number;
 }
 
 export interface WebVariantTexture {
@@ -188,6 +190,30 @@ function alphaBoundTextures(document: Document): Set<Texture> {
   return textures;
 }
 
+/** How one texture is encoded: PNG for alpha, otherwise JPEG at its class quality. */
+interface TexturePlan {
+  targetFormat: 'jpeg' | 'png';
+  quality: number;
+}
+
+/**
+ * Alpha-bound colour maps stay PNG. Colour slots (sRGB) use the colour quality;
+ * data maps (metallic-roughness, occlusion, normal, or an orphan texture) use
+ * the higher data quality, and `compressTexture` disables chroma subsampling for
+ * them on its own.
+ */
+function texturePlan(
+  texture: Texture,
+  alphaBound: ReadonlySet<Texture>,
+  colourSpace: (texture: Texture) => 'srgb' | null,
+  opts: WebVariantOptions
+): TexturePlan {
+  // Lossless: the PNG encoder ignores quality.
+  if (alphaBound.has(texture)) return { targetFormat: 'png', quality: opts.quality };
+  const isColour = colourSpace(texture) === 'srgb';
+  return { targetFormat: 'jpeg', quality: isColour ? opts.quality : opts.dataQuality };
+}
+
 /** Image types `compressTexture` decodes and re-encodes; others stay untouched. */
 const COMPRESSIBLE_MIME_TYPES: ReadonlySet<string> = new Set([
   'image/jpeg',
@@ -218,17 +244,18 @@ function disposeExtension(document: Document, name: string): void {
 async function compressTextures(args: {
   document: Document;
   compressTexture: CompressTexture;
+  getTextureColorSpace: (texture: Texture) => 'srgb' | null;
   sharp: unknown;
   opts: WebVariantOptions;
 }): Promise<void> {
   const alphaBound = alphaBoundTextures(args.document);
   for (const texture of args.document.getRoot().listTextures()) {
     if (!COMPRESSIBLE_MIME_TYPES.has(texture.getMimeType())) continue;
+    const plan = texturePlan(texture, alphaBound, args.getTextureColorSpace, args.opts);
     await args.compressTexture(texture, {
       encoder: args.sharp,
       resize: [args.opts.maxTexturePx, args.opts.maxTexturePx],
-      targetFormat: alphaBound.has(texture) ? 'png' : 'jpeg',
-      quality: args.opts.quality,
+      ...plan,
     });
   }
   dropUnusedWebpExtension(args.document);
@@ -293,9 +320,10 @@ export async function createWebVariant(
   opts: WebVariantOptions
 ): Promise<WebVariant> {
   requireNoDraco(glb);
-  const [{ weld, simplify, compressTexture, prune, dedup }, { default: sharp }] = await Promise.all(
-    [import('@gltf-transform/functions'), import('sharp')]
-  );
+  const [
+    { weld, simplify, compressTexture, prune, dedup, getTextureColorSpace },
+    { default: sharp },
+  ] = await Promise.all([import('@gltf-transform/functions'), import('sharp')]);
   await MeshoptSimplifier.ready;
 
   const io = new NodeIO()
@@ -317,7 +345,7 @@ export async function createWebVariant(
     simplifyAt: (ratio) =>
       simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.01, lockBorder: true }),
   });
-  await compressTextures({ document, compressTexture, sharp, opts });
+  await compressTextures({ document, compressTexture, getTextureColorSpace, sharp, opts });
   await document.transform(prune(), dedup());
 
   return {
