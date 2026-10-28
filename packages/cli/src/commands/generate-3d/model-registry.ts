@@ -34,6 +34,9 @@ export class Generate3dError extends Error {
 /** Which dedicated input flag a model accepts. */
 export type Generate3dInputKind = 'text' | 'image';
 
+/** The licence value the registry can vouch for. */
+export type Generate3dLicenseType = 'commercial' | 'unknown';
+
 /**
  * What a registered model can do, checked before any paid call. A model the
  * registry does not know has no capabilities, so its flags are passed through
@@ -67,8 +70,12 @@ export interface Generate3dModelSpec {
   capabilities?: Generate3dCapabilities | undefined;
   /** Public model page, recorded in the manifest. */
   pageUrl: string;
-  /** Catalog licence value copied verbatim to the manifest. */
-  licenseType: 'commercial';
+  /**
+   * Catalog licence value copied verbatim to the manifest. A model the registry
+   * does not know has no catalogue entry to copy, so it records `unknown` rather
+   * than claiming `commercial`.
+   */
+  licenseType: Generate3dLicenseType;
   /**
    * Build the fal request body. Throws Generate3dError for a missing or invalid
    * input. `extraInput` (`--input`) is merged last, over the adapter's defaults.
@@ -321,7 +328,8 @@ function genericSpec(id: string): Generate3dModelSpec {
   return {
     id,
     pageUrl: `https://fal.ai/models/${id}`,
-    licenseType: 'commercial',
+    // No catalogue entry, so no licence claim.
+    licenseType: 'unknown',
     buildInput: (args) => ({
       ...(args.prompt === undefined ? {} : { prompt: args.prompt.trim() }),
       ...(args.imageUrl === undefined ? {} : { image_url: args.imageUrl }),

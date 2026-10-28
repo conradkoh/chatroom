@@ -243,7 +243,7 @@ describe('generate3d', () => {
     });
     expect(deps.fetchGlb).toHaveBeenCalledWith('https://fal.test/future/model.glb');
     expect(writtenManifest(deps).model).toBe('fal-ai/some-future-model');
-    expect(writtenManifest(deps).licenseType).toBe('commercial');
+    expect(writtenManifest(deps).licenseType).toBe('unknown');
   });
 
   it('reports the model, request id, and result keys when an unknown result has no GLB', async () => {
@@ -1211,7 +1211,7 @@ describe('planGenerate3d', () => {
     expect(plan.input).toEqual({ prompt: 'a knight' });
     expect(text).toContain('No capability data; flags are passed through and fal validates them.');
     expect(text).toContain('Cost unknown: no list price for fal-ai/some-future-model.');
-    expect(text).toContain('Model fal-ai/some-future-model (input unknown, licence: commercial)');
+    expect(text).toContain('Model fal-ai/some-future-model (input unknown, licence: unknown)');
     expect(text).toContain('No upload or fal generation call was made.');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.uploadFile).not.toHaveBeenCalled();

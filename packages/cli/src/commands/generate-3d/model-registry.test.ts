@@ -87,7 +87,8 @@ describe('generate-3d model registry', () => {
     expect(model.inputKind).toBeUndefined();
     expect(model.cost()).toBeUndefined();
     expect(model.pageUrl).toBe('https://fal.ai/models/fal-ai/some-future-model');
-    expect(model.licenseType).toBe('commercial');
+    // No catalogue entry, so the registry makes no licence claim.
+    expect(model.licenseType).toBe('unknown');
   });
 
   it.each(GENERATE_3D_MODELS)('$id records a commercial licence and page URL', (model) => {

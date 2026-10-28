@@ -217,10 +217,11 @@ are not a billed amount. The per-model breakdown is:
   expose the resolution.
 - **Rigging** — see [Rigging and animation clips](#rigging-and-animation-clips).
 
-Every model records the same `licenseType` value of `commercial`, copied
-verbatim from the fal catalog. That is the catalog's label, not a legal
-interpretation: check fal's terms and the model page before using an asset in
-production.
+Every known model records the same `licenseType` value of `commercial`, copied
+verbatim from the fal catalog. A model the registry does not know records
+`unknown`, because there is no catalogue entry to copy. Either way the value is
+the catalog's label, not a legal interpretation: check fal's terms and the model
+page before using an asset in production.
 
 ### Any other model
 

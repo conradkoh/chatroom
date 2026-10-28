@@ -27,6 +27,7 @@ import {
   type Generate3dCapabilities,
   type Generate3dCostLine,
   type Generate3dInputKind,
+  type Generate3dLicenseType,
   type Generate3dModelSpec,
 } from './model-registry.js';
 import { formatTimestamp, packageBaseName } from './package-name.js';
@@ -100,8 +101,8 @@ export interface Generate3dManifest {
   model: string;
   /** Public model page the licence value was read from. */
   pageUrl: string;
-  /** fal catalog licence value, copied verbatim; not a legal interpretation. */
-  licenseType: 'commercial';
+  /** fal catalog licence value, copied verbatim; `unknown` for an unregistered model. */
+  licenseType: Generate3dLicenseType;
   /** The exact fal request body that produced the mesh. */
   input: Record<string, unknown>;
   /** Source given by the user and the URL sent to fal; null for text-to-3D. */
