@@ -40,6 +40,9 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ## Model parameters
 <a JSON object as text passed to \`generate-image --input\`, or to \`generate-3d --input\` for a 3D model; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none>
 
+## Cost confirmation
+<the user's quoted approval of the priced dry run, with the estimate it approved; or Not confirmed.>
+
 ## Output paths
 <for a 3D model: the \`--out\` path, whose file name becomes the package base \`<out-stem>-<timestamp>\`, and the optional \`--package-dir\` directory (default: the master's directory). The run writes \`<base>.zip\` (\`<stem>.glb\`, \`web/<stem>.web.glb\`, \`manifest.json\`) and \`<base>.html\`, a separate preview of the web variant, beside the master or in that directory. \`Not Applicable.\` for a 2D-only request>
 
