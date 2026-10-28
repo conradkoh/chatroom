@@ -30,6 +30,8 @@ const { generate3dMock, planGenerate3dMock, formatGenerate3dPlanMock, depsMock, 
         writeJson: vi.fn(),
         pathStatus: vi.fn(),
         ensureParentDir: vi.fn(),
+        createWebVariant: vi.fn(),
+        zipPackage: vi.fn(),
         now: () => new Date('2026-10-27T00:00:00.000Z'),
         sdkVersion: '1.10.1',
       },
@@ -67,6 +69,7 @@ describe('chatroom generate-3d wiring', () => {
     generate3dMock.mockResolvedValue({
       outPath: '/tmp/x.glb',
       manifestPath: '/tmp/x.glb.json',
+      zipPath: '/tmp/x-20261027-000000.zip',
       sha256: 'deadbeef',
       costLines: ['Estimated total: $1.20'],
     });
@@ -106,6 +109,8 @@ describe('chatroom generate-3d wiring', () => {
       '--force',
       '--rig',
       '--animation-action-id',
+      '--name',
+      '--package-dir',
       '--dry-run',
     ]) {
       expect(help).toContain(flag);
@@ -129,6 +134,12 @@ describe('chatroom generate-3d wiring', () => {
     expect(afterHelp).toContain('image-to-3D:');
     expect(afterHelp).toContain('2026-10-27');
     expect(afterHelp).toContain('fal returns');
+    expect(afterHelp).toContain('web/<stem>.web.glb');
+    expect(afterHelp).toContain('manifest.json');
+    expect(afterHelp).toContain('{timestamp} (UTC), and {requestId8}');
+    expect(afterHelp).toContain('Default: {stem}-{timestamp}');
+    expect(help).toContain('Package base name template ({stem}, {model},');
+    expect(help).toContain('{timestamp}, {requestId8}');
   });
 
   it('requires --model and --out', async () => {
@@ -321,7 +332,30 @@ describe('chatroom generate-3d wiring', () => {
     expect(logSpy.mock.calls.map((call) => String(call[0]))).toEqual([
       'Generated /tmp/x.glb',
       'Manifest /tmp/x.glb.json',
+      'Package /tmp/x-20261027-000000.zip',
       'Estimated total: $1.20',
     ]);
+  });
+
+  it('forwards --name and --package-dir', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'meshy/v7.1/text-to-3d',
+      '--prompt',
+      'x',
+      '--out',
+      '/tmp/x.glb',
+      '--name',
+      '{stem}-{requestId8}',
+      '--package-dir',
+      '/tmp/packages',
+    ]);
+
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({
+      name: '{stem}-{requestId8}',
+      packageDir: '/tmp/packages',
+    });
   });
 });

@@ -11,6 +11,8 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { Generate3dError } from './model-registry.js';
+import { createWebVariant, type WebVariant, type WebVariantOptions } from './web-variant.js';
+import { zipPackage, type ZipEntry } from './zip-package.js';
 import { createFalRawSubscribe, createFalUploadFile } from '../generate-image/deps.js';
 import {
   pathStatus,
@@ -48,6 +50,13 @@ export interface Generate3dDeps {
   pathStatus(path: string): Promise<PathStatus>;
   /** Create the directory that will hold the output, before generation starts. */
   ensureParentDir(path: string): Promise<void>;
+  /**
+   * Build the web variant of the master GLB. Loads `@gltf-transform/functions`
+   * and `sharp` on first use, so a run that never packages pays nothing.
+   */
+  createWebVariant(glb: Uint8Array, opts: WebVariantOptions): Promise<WebVariant>;
+  /** Build the deterministic package zip from its entries. */
+  zipPackage(entries: readonly ZipEntry[]): Uint8Array;
   now(): Date;
   /** Installed `@fal-ai/client` version, recorded in the manifest. */
   sdkVersion: string;
@@ -132,6 +141,8 @@ export function createDefaultGenerate3dDeps(): Generate3dDeps {
     ensureParentDir: async (path) => {
       await mkdir(dirname(path), { recursive: true });
     },
+    createWebVariant,
+    zipPackage,
     now: () => new Date(),
     sdkVersion: readInstalledPackageVersion('@fal-ai/client'),
   };

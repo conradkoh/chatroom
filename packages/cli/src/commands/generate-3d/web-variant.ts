@@ -12,7 +12,7 @@
  * run that never builds a package must not pay that cost.
  */
 
-import { NodeIO, type Document } from '@gltf-transform/core';
+import { NodeIO, type Document, type Primitive } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 
@@ -31,14 +31,23 @@ export interface WebVariantTexture {
   mimeType: string;
 }
 
-export interface WebVariant {
-  bytes: Uint8Array;
-  /** Achieved triangle count after simplification. */
+/** What the package manifest records per GLB. */
+export interface GlbStats {
   triangles: number;
-  /** True when simplify ran; false when the source was already under target. */
-  simplified: boolean;
   textures: WebVariantTexture[];
   extensionsUsed: string[];
+}
+
+export interface WebVariant extends GlbStats {
+  bytes: Uint8Array;
+  /** True when simplify ran; false when the source was already under target. */
+  simplified: boolean;
+  /**
+   * Stats of the input GLB. Returned here because the source document is already
+   * parsed, and the package manifest needs the master's numbers next to the
+   * web variant's.
+   */
+  source: GlbStats;
 }
 
 /** glTF-Transform logs every prune/dedup decision to the console by default. */
@@ -49,17 +58,29 @@ const SILENT_LOGGER = {
   error: (): void => {},
 };
 
-/** Sum of `indices / 3` (or `vertices / 3` for non-indexed primitives) over every mesh. */
+/** Triangles in one primitive: indexed count, else the position count, over 3. */
+function primitiveTriangles(primitive: Primitive): number {
+  const count =
+    primitive.getIndices()?.getCount() ?? primitive.getAttribute('POSITION')?.getCount() ?? 0;
+  return count / 3;
+}
+
+/** Sum of every primitive's triangle count over every mesh. */
 function countTriangles(document: Document): number {
-  let triangles = 0;
-  for (const mesh of document.getRoot().listMeshes()) {
-    for (const primitive of mesh.listPrimitives()) {
-      const indices = primitive.getIndices();
-      const vertices = primitive.getAttribute('POSITION')?.getCount() ?? 0;
-      triangles += (indices?.getCount() ?? vertices) / 3;
-    }
-  }
-  return Math.round(triangles);
+  const total = document
+    .getRoot()
+    .listMeshes()
+    .flatMap((mesh) => mesh.listPrimitives())
+    .reduce((sum, primitive) => sum + primitiveTriangles(primitive), 0);
+  return Math.round(total);
+}
+
+/** Declared GLB extension names, e.g. `KHR_texture_basisu`. */
+function knownExtensionNames(document: Document): string[] {
+  return document
+    .getRoot()
+    .listExtensionsUsed()
+    .map((extension) => extension.extensionName);
 }
 
 /** Size and MIME type of every texture in the document, after the transform. */
@@ -96,6 +117,11 @@ export async function createWebVariant(
 
   const sourceTriangles = countTriangles(document);
   const shouldSimplify = sourceTriangles > opts.triangleTarget;
+  const source: GlbStats = {
+    triangles: sourceTriangles,
+    textures: readTextures(document),
+    extensionsUsed: knownExtensionNames(document),
+  };
 
   const transforms = [
     weld(),
@@ -125,9 +151,7 @@ export async function createWebVariant(
     triangles: countTriangles(document),
     simplified: shouldSimplify,
     textures: readTextures(document),
-    extensionsUsed: document
-      .getRoot()
-      .listExtensionsUsed()
-      .map((extension) => extension.extensionName),
+    extensionsUsed: knownExtensionNames(document),
+    source,
   };
 }

@@ -10,6 +10,7 @@ import { InvalidArgumentError, type Command } from 'commander';
 
 import type { Generate3dResult } from './generate-3d.js';
 import { GENERATE_3D_MODELS, GENERATE_3D_PRICES_AS_OF } from './model-registry.js';
+import { DEFAULT_NAME_TEMPLATE } from './package-name.js';
 
 const GENERATE_3D_PLATFORMS = ['fal'] as const;
 type Generate3dPlatform = (typeof GENERATE_3D_PLATFORMS)[number];
@@ -38,6 +39,13 @@ Examples:
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb
   chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out concept.glb
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --rig --animation-action-id 0
+  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --name knight-prop
+
+Package:
+  Every run writes <base>.zip next to --out (or in --package-dir) holding
+  <stem>.glb, web/<stem>.web.glb (smaller JPEG-textured variant), and
+  manifest.json. <base> comes from --name; placeholders are {stem}, {model},
+  {timestamp} (UTC), and {requestId8}. Default: ${DEFAULT_NAME_TEMPLATE}.
 
 Rigging uses Meshy (fal-ai/meshy/rigging) and expects a humanoid mesh;
 non-humanoid meshes fail on fal. Each --animation-action-id is a Meshy preset id
@@ -61,12 +69,15 @@ interface Generate3dCliOptions {
   rig?: boolean | undefined;
   /** Commander camel-cases `--animation-action-id` to this singular name. */
   animationActionId: string[];
+  name?: string | undefined;
+  packageDir?: string | undefined;
   dryRun?: boolean | undefined;
 }
 
 function printResult(result: Generate3dResult): void {
   console.log(`Generated ${result.outPath}`);
   console.log(`Manifest ${result.manifestPath}`);
+  console.log(`Package ${result.zipPath}`);
   for (const line of result.costLines) console.log(line);
 }
 
@@ -82,6 +93,8 @@ function toGenerate3dOptions(options: Generate3dCliOptions) {
     out: options.out,
     force: options.force,
     rig: options.rig,
+    name: options.name,
+    packageDir: options.packageDir,
   };
   return options.animationActionId.length > 0
     ? { ...base, animationActionIds: options.animationActionId }
@@ -147,6 +160,14 @@ export function registerGenerate3dCommand(program: Command): void {
       'Meshy preset animation id (0-696), repeatable; requires --rig',
       collectRepeatable,
       [] as string[]
+    )
+    .option(
+      '--name <template>',
+      `Package base name template ({stem}, {model}, {timestamp}, {requestId8}); default: ${DEFAULT_NAME_TEMPLATE}`
+    )
+    .option(
+      '--package-dir <dir>',
+      'Directory for the package zip (default: the directory of --out)'
     )
     .option(
       '--dry-run',

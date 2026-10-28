@@ -43,6 +43,17 @@ const RIGGING_REQUEST_ID = 'rig-456';
 /** GLB magic "glTF" followed by version 2 and no body. */
 const GLB_BYTES = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00]);
 
+/** Stand-in web variant and zip; the real optimiser runs in web-variant.test.ts. */
+const WEB_GLB_BYTES = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 1, 2, 3]);
+const ZIP_BYTES = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 9, 9]);
+const SOURCE_TEXTURES = [{ width: 2048, height: 2048, mimeType: 'image/png' }];
+const WEB_TEXTURES = [{ width: 1024, height: 1024, mimeType: 'image/jpeg' }];
+
+/** The default template's name for the fixed clock in `createDeps`. */
+const PACKAGE_NAME = 'hero-20261027-000000';
+
+const ZIP_PATH = `/tmp/generated/${PACKAGE_NAME}.zip`;
+
 const MESHY_FIXTURE = {
   model_glb: { url: GLB_URL, content_type: 'model/gltf-binary' },
   texture_urls: [{ base_color: { url: BASE_COLOR_URL } }],
@@ -78,6 +89,15 @@ function createDeps(overrides: Partial<Generate3dDeps> = {}): Generate3dDeps {
     writeJson: vi.fn().mockResolvedValue(undefined),
     pathStatus: vi.fn().mockResolvedValue('missing'),
     ensureParentDir: vi.fn().mockResolvedValue(undefined),
+    createWebVariant: vi.fn().mockResolvedValue({
+      bytes: WEB_GLB_BYTES,
+      triangles: 2,
+      simplified: false,
+      textures: WEB_TEXTURES,
+      extensionsUsed: [],
+      source: { triangles: 27_438, textures: SOURCE_TEXTURES, extensionsUsed: [] },
+    }),
+    zipPackage: vi.fn().mockReturnValue(ZIP_BYTES),
     now: () => new Date('2026-10-27T00:00:00.000Z'),
     sdkVersion: '1.10.1',
     ...overrides,
@@ -353,6 +373,199 @@ describe('generate3d', () => {
     expect(deps.fetchGlb).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
     expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+});
+
+describe('generate3d packaging', () => {
+  /** The package manifest parsed back out of the zip entries. */
+  function zippedManifest(deps: Generate3dDeps): Record<string, unknown> {
+    const entries = vi.mocked(deps.zipPackage).mock.calls[0]?.[0];
+    const manifestEntry = entries?.find((entry) => entry.path === 'manifest.json');
+    if (manifestEntry === undefined) throw new Error('expected a manifest.json zip entry');
+    return JSON.parse(new TextDecoder().decode(manifestEntry.bytes)) as Record<string, unknown>;
+  }
+
+  it('writes the zip with the master, the web variant, and a manifest', async () => {
+    const deps = createDeps();
+
+    const result = await generate3d(
+      { model: MESHY_TEXT, prompt: '  a knight  ', out: OUT_PATH },
+      deps
+    );
+
+    expect(result.zipPath).toBe(ZIP_PATH);
+    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
+    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
+    expect(deps.createWebVariant).toHaveBeenCalledWith(GLB_BYTES, {
+      triangleTarget: 30_000,
+      maxTexturePx: 1024,
+      quality: 80,
+    });
+
+    const entries = vi.mocked(deps.zipPackage).mock.calls[0]?.[0] ?? [];
+    expect(entries.map((entry) => entry.path)).toEqual([
+      'hero.glb',
+      'web/hero.web.glb',
+      'manifest.json',
+    ]);
+    expect(entries[1]?.bytes).toEqual(WEB_GLB_BYTES);
+  });
+
+  it('records both variants, the generator, and the price caveat in the package manifest', async () => {
+    const deps = createDeps();
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const sha256 = createHash('sha256').update(GLB_BYTES).digest('hex');
+    expect(zippedManifest(deps)).toMatchObject({
+      schemaVersion: 1,
+      package: {
+        name: PACKAGE_NAME,
+        zip: `${PACKAGE_NAME}.zip`,
+        createdAt: '2026-10-27T00:00:00.000Z',
+      },
+      generator: {
+        tool: 'chatroom generate-3d',
+        model: MESHY_TEXT,
+        requestId: 'req-123',
+        prompt: 'a knight',
+        inputImage: null,
+      },
+      licence: 'commercial',
+      pricing: {
+        estimatedTotalUsd: 1.2,
+        note: 'list-price estimate, not a billed amount',
+      },
+    });
+
+    const variants = zippedManifest(deps)['variants'] as Record<string, unknown>[];
+    expect(variants[0]).toMatchObject({
+      name: 'master',
+      file: 'hero.glb',
+      bytes: GLB_BYTES.byteLength,
+      sha256,
+      triangles: 27_438,
+      textures: SOURCE_TEXTURES,
+      extensionsUsed: [],
+    });
+    expect(variants[0]).not.toHaveProperty('settings');
+    expect(variants[1]).toMatchObject({
+      name: 'web',
+      file: 'web/hero.web.glb',
+      bytes: WEB_GLB_BYTES.byteLength,
+      triangles: 2,
+      textures: WEB_TEXTURES,
+      extensionsUsed: [],
+      settings: {
+        maxTexturePx: 1024,
+        textureFormat: 'jpeg',
+        quality: 80,
+        triangleTarget: 30_000,
+        simplified: false,
+      },
+    });
+  });
+
+  it('records the input image path for an image-to-3D run', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(INPUT_IMAGE)) });
+
+    await generate3d({ model: MESHY_IMAGE, inputImage: INPUT_IMAGE, out: OUT_PATH }, deps);
+
+    expect(zippedManifest(deps)['generator']).toMatchObject({ inputImage: INPUT_IMAGE });
+  });
+
+  it('honours --name and --package-dir', async () => {
+    const deps = createDeps();
+
+    const result = await generate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        name: '{stem}-{requestId8}',
+        packageDir: '/tmp/packages',
+      },
+      deps
+    );
+
+    expect(result.zipPath).toBe('/tmp/packages/hero-req-123.zip');
+    expect(deps.writeFile).toHaveBeenCalledWith('/tmp/packages/hero-req-123.zip', ZIP_BYTES);
+    // The package directory is created before the paid call, when the exact
+    // name is still unknown, so only the directory is asserted.
+    expect(deps.ensureParentDir).toHaveBeenCalledWith(expect.stringContaining('/tmp/packages/'));
+    expect(zippedManifest(deps)['package']).toMatchObject({ name: 'hero-req-123' });
+  });
+
+  it('refuses an existing package without --force before the paid call', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(ZIP_PATH)) });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/Package already exists.*--force/);
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('re-checks a deferred {requestId8} package after the call and writes nothing', async () => {
+    const deps = createDeps({
+      pathStatus: vi.fn(existingFiles('/tmp/generated/hero-req-123.zip')),
+    });
+
+    await expect(
+      generate3d(
+        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, name: '{stem}-{requestId8}' },
+        deps
+      )
+    ).rejects.toThrow(/Package already exists.*--force/);
+
+    // The name is only known after the paid call, so the call happened.
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid --name before any fal call', async () => {
+    const deps = createDeps();
+
+    await expect(
+      generate3d(
+        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, name: 'nested/{stem}' },
+        deps
+      )
+    ).rejects.toThrow(/path separator/);
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('keeps the master and sidecar but writes no zip when the web variant fails', async () => {
+    const deps = createDeps({
+      createWebVariant: vi.fn().mockRejectedValue(new Error('sharp is not installed')),
+    });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/web variant: sharp is not installed.*hero\.glb/);
+
+    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
+    expect(deps.writeJson).toHaveBeenCalledTimes(1);
+    expect(deps.zipPackage).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalledWith(ZIP_PATH, expect.anything());
+  });
+
+  it('writes no zip when the zip builder fails, and keeps the master', async () => {
+    const deps = createDeps({
+      zipPackage: vi.fn().mockImplementation(() => {
+        throw new Error('deflate exploded');
+      }),
+    });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/package zip: deflate exploded/);
+
+    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
+    expect(deps.writeFile).not.toHaveBeenCalledWith(ZIP_PATH, expect.anything());
   });
 });
 

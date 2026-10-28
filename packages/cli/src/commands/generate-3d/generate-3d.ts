@@ -2,19 +2,20 @@
  * Generate 3D — pure logic for `chatroom generate-3d`.
  *
  * Generates one GLB mesh through an injected fal subscriber, writes the bytes
- * to `out`, and writes a JSON sidecar manifest to `<out>.json`. With `--rig`
- * it then calls Meshy's rigging endpoint, writes `<stem>.rigged.glb`, writes
- * one `<stem>.anim-<id>.glb` per requested preset clip, and rewrites the
- * manifest with a `rigging` section.
+ * to `out`, writes a JSON sidecar manifest to `<out>.json`, then packages the
+ * run: a web variant of the master mesh, a package manifest, and a zip holding
+ * both. With `--rig` it first calls Meshy's rigging endpoint, writes
+ * `<stem>.rigged.glb`, writes one `<stem>.anim-<id>.glb` per requested preset
+ * clip, and rewrites the sidecar manifest with a `rigging` section.
  *
- * The mesh is written before the rigging call, so a rig failure never discards
- * a paid generation. No SDK, network, clock, or filesystem access is imported
- * here; all of it arrives through `Generate3dDeps`, so the unit tests run fully
- * offline.
+ * The mesh is written before the rigging call and before packaging, so a rig or
+ * packaging failure never discards a paid generation. No SDK, network, clock, or
+ * filesystem access is imported here; all of it arrives through
+ * `Generate3dDeps`, so the unit tests run fully offline.
  */
 
 import { createHash } from 'node:crypto';
-import { extname, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 
 import type { Generate3dDeps } from './deps.js';
 import {
@@ -26,6 +27,12 @@ import {
   type Generate3dModelSpec,
 } from './model-registry.js';
 import {
+  DEFAULT_NAME_TEMPLATE,
+  formatTimestamp,
+  renderPackageName,
+  templateNeedsRequestId,
+} from './package-name.js';
+import {
   buildRiggingRequest,
   parseAnimationActionIds,
   readRiggingOutput,
@@ -33,6 +40,8 @@ import {
   type RiggingOutput,
   type RiggingRequest,
 } from './rigging.js';
+import type { GlbStats, WebVariant } from './web-variant.js';
+import type { ZipEntry } from './zip-package.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../generate-image/image.js';
 
 // The error type is exported from this module for callers that only import the
@@ -61,6 +70,13 @@ export interface Generate3dOptions {
    * plan so an invalid id fails before any paid call. Requires `rig`.
    */
   animationActionIds?: readonly string[] | undefined;
+  /**
+   * Template for the package base name. Defaults to
+   * {@link DEFAULT_NAME_TEMPLATE}; validated by the plan before the paid call.
+   */
+  name?: string | undefined;
+  /** Directory for the package zip; defaults to the directory of `out`. */
+  packageDir?: string | undefined;
 }
 
 /** The rigging provenance written to the manifest after a successful rig. */
@@ -110,9 +126,46 @@ export interface Generate3dManifest {
 export interface Generate3dResult {
   outPath: string;
   manifestPath: string;
+  /** The zip package holding the master, the web variant, and the manifest. */
+  zipPath: string;
   sha256: string;
   /** Cost lines for the CLI to print after the output paths. */
   costLines: string[];
+}
+
+/** One variant entry in the package manifest. */
+interface Generate3dPackageVariant {
+  name: 'master' | 'web';
+  file: string;
+  bytes: number;
+  sha256: string;
+  triangles: number;
+  textures: { width: number; height: number; mimeType: string }[];
+  extensionsUsed: string[];
+  /** Present on the web variant only; the master is whatever fal returned. */
+  settings?: {
+    maxTexturePx: number;
+    textureFormat: 'jpeg';
+    quality: number;
+    triangleTarget: number;
+    simplified: boolean;
+  };
+}
+
+/** `manifest.json` written inside the package zip. */
+interface Generate3dPackageManifest {
+  schemaVersion: 1;
+  package: { name: string; zip: string; createdAt: string };
+  generator: {
+    tool: 'chatroom generate-3d';
+    model: string;
+    requestId: string;
+    prompt: string | null;
+    inputImage: string | null;
+  };
+  variants: Generate3dPackageVariant[];
+  licence: Generate3dModelSpec['licenseType'];
+  pricing: { estimatedTotalUsd: number; note: string };
 }
 
 /** A validated input image: a public URL or a local file waiting to be uploaded. */
@@ -138,6 +191,21 @@ export interface Generate3dPlan {
   /** The rigging call the plan would make; null without `--rig`. */
   riggingRequest: RiggingRequest | null;
   costLines: Generate3dCostLine[];
+  /** Master file name without its `.glb` suffix; used for the zip entries. */
+  stem: string;
+  /** The `--name` template, already validated. */
+  nameTemplate: string;
+  /** UTC `YYYYMMDD-HHmmss`, taken once when the plan is built. */
+  timestamp: string;
+  /** Directory the package zip is written to. */
+  packageDir: string;
+  /**
+   * Rendered package base name, or null when the template needs the fal request
+   * id and the name can only be rendered after the call.
+   */
+  packageName: string | null;
+  /** `<packageDir>/<packageName>.zip`, or null when the name is deferred. */
+  zipPath: string | null;
 }
 
 const GLB_CONTENT_TYPE = 'model/gltf-binary';
@@ -152,9 +220,28 @@ const PLANNED_MODEL_URL = '<generated mesh GLB URL>';
 const RIGGING_HUMANOID_WARNING =
   'Rigging (Meshy) expects a humanoid mesh; non-humanoid meshes fail on fal.';
 
+/** Web-variant settings, recorded in the package manifest so they are reproducible. */
+const WEB_VARIANT_TRIANGLE_TARGET = 30_000;
+const WEB_VARIANT_MAX_TEXTURE_PX = 1024;
+const WEB_VARIANT_TEXTURE_QUALITY = 80;
+
+/** File name of the package manifest inside the zip. */
+const PACKAGE_MANIFEST_NAME = 'manifest.json';
+
+/** The package manifest repeats the CLI's caveat about prices. */
+const PACKAGE_PRICING_NOTE = 'list-price estimate, not a billed amount';
+
 /** `<out>` without its `.glb` suffix, used for the rigged and clip paths. */
 function outputStem(outPath: string): string {
   return outPath.slice(0, -GLB_EXTENSION.length);
+}
+
+/**
+ * `<out>`'s file name without its `.glb` suffix. Package entries are named from
+ * this, so a master in a deep directory still lands at `chest.glb` in the zip.
+ */
+function packageStem(outPath: string): string {
+  return basename(outPath).slice(0, -GLB_EXTENSION.length);
 }
 
 /** `<stem>.rigged.glb`. */
@@ -412,6 +499,88 @@ async function requireWritableRiggingPaths(
   }
 }
 
+/** Package naming decided before the fal call. */
+interface ResolvedPackageNaming {
+  stem: string;
+  nameTemplate: string;
+  timestamp: string;
+  packageDir: string;
+  /** Rendered base name, or null when it needs the fal request id. */
+  packageName: string | null;
+  /** `<packageDir>/<base>.zip`, or null when the name is deferred. */
+  zipPath: string | null;
+}
+
+/** `<packageDir>/<base>.zip`. */
+function packageZipPath(packageDir: string, base: string): string {
+  return join(packageDir, `${base}.zip`);
+}
+
+/** `--package-dir`, or the master's directory when the flag is absent or blank. */
+function resolvePackageDir(outPath: string, packageDir: string | undefined): string {
+  if (packageDir === undefined || packageDir.trim().length === 0) return dirname(outPath);
+  return resolve(packageDir);
+}
+
+/**
+ * Resolve and validate the package name.
+ *
+ * A template without `{requestId8}` renders here, so its collision check runs
+ * before the paid call. A template with it cannot render yet: the shape is
+ * validated with a stand-in id, and the real name is rendered after the call.
+ */
+function resolvePackageNaming(
+  opts: Generate3dOptions,
+  model: Generate3dModelSpec,
+  outPath: string,
+  now: Date
+): ResolvedPackageNaming {
+  const nameTemplate = opts.name ?? DEFAULT_NAME_TEMPLATE;
+  const stem = packageStem(outPath);
+  const timestamp = formatTimestamp(now);
+  const packageDir = resolvePackageDir(outPath, opts.packageDir);
+  const vars = { stem, model: model.id, timestamp };
+
+  if (templateNeedsRequestId(nameTemplate)) {
+    // Validate the template now; the id itself only exists after the call.
+    renderPackageName(nameTemplate, { ...vars, requestId8: '00000000' });
+    return { stem, nameTemplate, timestamp, packageDir, packageName: null, zipPath: null };
+  }
+
+  const packageName = renderPackageName(nameTemplate, vars);
+  return {
+    stem,
+    nameTemplate,
+    timestamp,
+    packageDir,
+    packageName,
+    zipPath: packageZipPath(packageDir, packageName),
+  };
+}
+
+/** Clips are a rigging feature, so the flag pairing is checked with the args. */
+function requireRigForClips(rig: boolean, animationActionIds: readonly number[]): void {
+  if (animationActionIds.length > 0 && !rig) {
+    throw new Generate3dError('--animation-action-id requires --rig.');
+  }
+}
+
+/** Refuse to clobber the master, its sidecar, any rig output, or the package. */
+async function requireWritablePlanPaths(args: {
+  deps: Generate3dDeps;
+  force: boolean;
+  outPath: string;
+  manifestPath: string;
+  rigging: PlannedRigging;
+  naming: ResolvedPackageNaming;
+}): Promise<void> {
+  await requireWritableOutput(args.deps, args.outPath, args.manifestPath, args.force);
+  await requireWritableRiggingPaths(args.deps, args.rigging, args.force);
+  if (args.naming.zipPath !== null) {
+    await requireWritablePath(args.deps, args.naming.zipPath, 'Package', args.force);
+  }
+}
+
 /**
  * Run every preflight check and build the request without a paid call or an
  * upload. The static cost table needs no network, so `--dry-run` works offline
@@ -428,15 +597,20 @@ export async function planGenerate3d(
 
   const rig = opts.rig === true;
   const animationActionIds = parseAnimationActionIds(opts.animationActionIds ?? []);
-  if (animationActionIds.length > 0 && !rig) {
-    throw new Generate3dError('--animation-action-id requires --rig.');
-  }
+  requireRigForClips(rig, animationActionIds);
   const rigging = buildRiggingPlan(outPath, rig, animationActionIds);
 
   const manifestPath = `${outPath}.json`;
   const inputTarget = await validateInputImage(deps, opts.inputImage);
-  await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
-  await requireWritableRiggingPaths(deps, rigging, opts.force === true);
+  const naming = resolvePackageNaming(opts, model, outPath, deps.now());
+  await requireWritablePlanPaths({
+    deps,
+    force: opts.force === true,
+    outPath,
+    manifestPath,
+    rigging,
+    naming,
+  });
 
   const input = model.buildInput({
     prompt: opts.prompt,
@@ -454,6 +628,7 @@ export async function planGenerate3d(
     animationOutPaths: rigging.animationOutPaths,
     riggingRequest: rigging.riggingRequest,
     costLines: [...model.cost().lines, ...rigging.extraCostLines],
+    ...naming,
   };
 }
 
@@ -483,6 +658,7 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
   const lines = [
     `Would generate ${plan.outPath}`,
     `Manifest ${plan.manifestPath}`,
+    `Package ${plan.zipPath ?? `${plan.packageDir} (name depends on {requestId8})`}`,
     `Model ${plan.model.id} (${plan.model.inputKind}-to-3D, licence: ${plan.model.licenseType})`,
   ];
   const inputLine = formatInputImageLine(plan.inputTarget);
@@ -698,28 +874,256 @@ async function runRigging(
   };
 }
 
-/**
- * Generate one mesh: upload a local input image if needed, call fal once,
- * download the GLB, and write the output plus its manifest. With `--rig`, run
- * the rigging step and rewrite the manifest with the rigging section.
- */
-export async function generate3d(
-  opts: Generate3dOptions,
-  deps: Generate3dDeps
-): Promise<Generate3dResult> {
-  requireFalKey(deps);
-  const plan = await planGenerate3d(opts, deps);
+/** The master variant entry: what fal returned, unchanged. */
+function buildMasterVariant(args: {
+  stem: string;
+  masterBytes: Uint8Array;
+  masterSha256: string;
+  source: GlbStats;
+}): Generate3dPackageVariant {
+  return {
+    name: 'master',
+    file: `${args.stem}.glb`,
+    bytes: args.masterBytes.byteLength,
+    sha256: args.masterSha256,
+    triangles: args.source.triangles,
+    textures: args.source.textures,
+    extensionsUsed: args.source.extensionsUsed,
+  };
+}
 
-  // Preflight before the paid call: create the parent directory so a
-  // successful generation cannot fail on a missing dir.
-  await deps.ensureParentDir(plan.outPath);
-  const inputImage = await uploadInputImage(deps, plan.inputTarget);
-  const input = plan.model.buildInput({
-    prompt: opts.prompt,
-    imageUrl: inputImage?.url,
+/** The web variant entry, with the settings that produced it. */
+function buildWebVariantEntry(stem: string, web: WebVariant): Generate3dPackageVariant {
+  return {
+    name: 'web',
+    file: `web/${stem}.web.glb`,
+    bytes: web.bytes.byteLength,
+    sha256: createHash('sha256').update(web.bytes).digest('hex'),
+    triangles: web.triangles,
+    textures: web.textures,
+    extensionsUsed: web.extensionsUsed,
+    settings: {
+      maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
+      textureFormat: 'jpeg',
+      quality: WEB_VARIANT_TEXTURE_QUALITY,
+      triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
+      simplified: web.simplified,
+    },
+  };
+}
+
+/**
+ * Build `manifest.json` for the package: what the zip holds, how each variant
+ * was made, and the provenance a consumer needs without the sidecar.
+ */
+function buildPackageManifest(args: {
+  packageName: string;
+  createdAt: string;
+  model: Generate3dModelSpec;
+  requestId: string;
+  prompt: string | undefined;
+  inputImage: { source: string; url: string } | null;
+  masterBytes: Uint8Array;
+  masterSha256: string;
+  web: WebVariant;
+  stem: string;
+  totalUsd: number;
+}): Generate3dPackageManifest {
+  return {
+    schemaVersion: 1,
+    package: {
+      name: args.packageName,
+      zip: `${args.packageName}.zip`,
+      createdAt: args.createdAt,
+    },
+    generator: {
+      tool: 'chatroom generate-3d',
+      model: args.model.id,
+      requestId: args.requestId,
+      prompt: args.prompt?.trim() ?? null,
+      // The path or URL the user gave, not the temporary fal storage URL.
+      inputImage: args.inputImage?.source ?? null,
+    },
+    variants: [
+      buildMasterVariant({
+        stem: args.stem,
+        masterBytes: args.masterBytes,
+        masterSha256: args.masterSha256,
+        source: args.web.source,
+      }),
+      buildWebVariantEntry(args.stem, args.web),
+    ],
+    licence: args.model.licenseType,
+    pricing: {
+      // Three decimals keeps a per-mille price such as $0.225 exact while
+      // dropping binary-float noise from the sum.
+      estimatedTotalUsd: Math.round(args.totalUsd * 1000) / 1000,
+      note: PACKAGE_PRICING_NOTE,
+    },
+  };
+}
+
+/** The three zip entries; `zipPackage` sorts them. */
+function buildPackageEntries(args: {
+  stem: string;
+  masterBytes: Uint8Array;
+  webBytes: Uint8Array;
+  manifestJson: string;
+}): ZipEntry[] {
+  return [
+    { path: `${args.stem}.glb`, bytes: args.masterBytes },
+    { path: `web/${args.stem}.web.glb`, bytes: args.webBytes },
+    { path: PACKAGE_MANIFEST_NAME, bytes: new TextEncoder().encode(args.manifestJson) },
+  ];
+}
+
+/** The package paths, resolved after the call when `{requestId8}` deferred them. */
+function resolvePackagePaths(
+  plan: Generate3dPlan,
+  requestId: string
+): { packageName: string; zipPath: string } {
+  const packageName =
+    plan.packageName ??
+    renderPackageName(plan.nameTemplate, {
+      stem: plan.stem,
+      model: plan.model.id,
+      timestamp: plan.timestamp,
+      requestId8: requestId.slice(0, 8),
+    });
+  return { packageName, zipPath: packageZipPath(plan.packageDir, packageName) };
+}
+
+/** Wrap one packaging step so a failure names what was kept. */
+function packageFailure(plan: Generate3dPlan, step: string, err: unknown): Generate3dError {
+  return new Generate3dError(
+    `Failed to ${step}: ${describeError(err)}. The master mesh and manifest are kept: ${plan.outPath}.`
+  );
+}
+
+/** Build the web variant, reporting a failure without discarding the master. */
+async function buildWebVariant(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  masterBytes: Uint8Array
+): Promise<WebVariant> {
+  try {
+    return await deps.createWebVariant(masterBytes, {
+      triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
+      maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
+      quality: WEB_VARIANT_TEXTURE_QUALITY,
+    });
+  } catch (err) {
+    throw packageFailure(plan, 'build the web variant', err);
+  }
+}
+
+/** Build the zip bytes in memory, before anything is written. */
+function buildZip(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  args: {
+    packageManifest: Generate3dPackageManifest;
+    masterBytes: Uint8Array;
+    webBytes: Uint8Array;
+  }
+): Uint8Array {
+  try {
+    return deps.zipPackage(
+      buildPackageEntries({
+        stem: plan.stem,
+        masterBytes: args.masterBytes,
+        webBytes: args.webBytes,
+        manifestJson: JSON.stringify(args.packageManifest, null, 2),
+      })
+    );
+  } catch (err) {
+    throw packageFailure(plan, 'build the package zip', err);
+  }
+}
+
+/**
+ * Build and write the package zip.
+ *
+ * The master is already on disk, so every failure here is reported without
+ * discarding it: the web variant, the package manifest, and the zip are built in
+ * memory first, and the zip is the only file written.
+ */
+async function writePackage(args: {
+  plan: Generate3dPlan;
+  deps: Generate3dDeps;
+  master: MasterOutput;
+  packageName: string;
+  zipPath: string;
+  prompt: string | undefined;
+}): Promise<string> {
+  const { plan, deps, master } = args;
+  const web = await buildWebVariant(plan, deps, master.bytes);
+  const packageManifest = buildPackageManifest({
+    packageName: args.packageName,
+    createdAt: deps.now().toISOString(),
+    model: plan.model,
+    requestId: master.requestId,
+    prompt: args.prompt,
+    inputImage: master.inputImage,
+    masterBytes: master.bytes,
+    masterSha256: master.sha256,
+    web,
+    stem: plan.stem,
+    totalUsd: totalUsd(plan.costLines),
+  });
+  const zipBytes = buildZip(plan, deps, {
+    packageManifest,
+    masterBytes: master.bytes,
+    webBytes: web.bytes,
   });
 
+  try {
+    await deps.writeFile(args.zipPath, zipBytes);
+  } catch (err) {
+    throw packageFailure(plan, `save the package ${args.zipPath}`, err);
+  }
+  return args.zipPath;
+}
+
+/** What one paid generation produced, before rigging and packaging. */
+interface MasterOutput {
+  bytes: Uint8Array;
+  sha256: string;
+  requestId: string;
+  inputImage: { source: string; url: string } | null;
+  /** The fal GLB URL, needed by the rigging step. */
+  glbUrl: string;
+  /** The sidecar manifest as first written, before any rigging section. */
+  manifest: Generate3dManifest;
+}
+
+/**
+ * Run the paid half: upload the input image if any, call fal once, download the
+ * GLB, and write both the master and its sidecar manifest.
+ *
+ * A `{requestId8}` package name can only be rendered after the call, so its zip
+ * collision is checked here, before anything from this run is written.
+ */
+async function generateMaster(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  opts: Generate3dOptions
+): Promise<MasterOutput> {
+  // Preflight before the paid call: create the directories so a successful
+  // generation cannot fail on a missing one. Only the directory matters for the
+  // package, so a deferred name still gets a writable destination.
+  await deps.ensureParentDir(plan.outPath);
+  await deps.ensureParentDir(plan.zipPath ?? packageZipPath(plan.packageDir, plan.stem));
+
+  const inputImage = await uploadInputImage(deps, plan.inputTarget);
+  const input = plan.model.buildInput({ prompt: opts.prompt, imageUrl: inputImage?.url });
   const result = await deps.falSubscribe(plan.model.id, input);
+
+  const packagePaths = resolvePackagePaths(plan, result.requestId);
+  if (plan.packageName === null) {
+    await requireWritablePath(deps, packagePaths.zipPath, 'Package', opts.force === true);
+  }
+
   const output = readModelOutput(plan.model, result.data, result.requestId);
   const recovery = { requestId: result.requestId, url: output.glbUrl };
   const bytes = await withRecovery('download', recovery, () => deps.fetchGlb(output.glbUrl));
@@ -738,19 +1142,52 @@ export async function generate3d(
     generatedAt: deps.now().toISOString(),
     sdkVersion: deps.sdkVersion,
   });
-  // Write the generation manifest first so a failed rig still leaves both the
-  // mesh and its provenance on disk.
+  // Write the generation manifest first so a failed rig or package still leaves
+  // both the mesh and its provenance on disk.
   await deps.writeJson(plan.manifestPath, manifest);
 
+  return {
+    bytes,
+    sha256,
+    requestId: result.requestId,
+    inputImage,
+    glbUrl: output.glbUrl,
+    manifest,
+  };
+}
+
+/**
+ * Generate one mesh: run the paid generation, optionally rig it, then package the
+ * master with a web variant and a package manifest.
+ */
+export async function generate3d(
+  opts: Generate3dOptions,
+  deps: Generate3dDeps
+): Promise<Generate3dResult> {
+  requireFalKey(deps);
+  const plan = await planGenerate3d(opts, deps);
+  const master = await generateMaster(plan, deps, opts);
+
   if (plan.riggingRequest !== null) {
-    const rigging = await runRigging(plan, deps, output.glbUrl);
-    await deps.writeJson(plan.manifestPath, { ...manifest, rigging });
+    const rigging = await runRigging(plan, deps, master.glbUrl);
+    await deps.writeJson(plan.manifestPath, { ...master.manifest, rigging });
   }
+
+  const packagePaths = resolvePackagePaths(plan, master.requestId);
+  const zipPath = await writePackage({
+    plan,
+    deps,
+    master,
+    packageName: packagePaths.packageName,
+    zipPath: packagePaths.zipPath,
+    prompt: opts.prompt,
+  });
 
   return {
     outPath: plan.outPath,
     manifestPath: plan.manifestPath,
-    sha256,
+    zipPath,
+    sha256: master.sha256,
     costLines: formatGenerate3dCost(plan.costLines),
   };
 }
