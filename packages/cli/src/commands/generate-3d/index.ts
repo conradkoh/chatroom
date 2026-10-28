@@ -99,35 +99,34 @@ async function readExtraInput(
 
 const HELP_AFTER = `
 Examples:
-  chatroom generate-3d --platform=fal --input-image ./concept.png --out concept.glb
-  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb
-  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --rig --animation-action-id 0
-  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --package-dir dist/models
-  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --input '{"resolution":1536}' --out concept.glb
-  chatroom generate-3d --platform=fal --model fal-ai/some-future-model --prompt "a stone knight" --out knight.glb
-
-Package:
-  Every run writes two files beside --out (or in --package-dir):
-    <base>.zip   <stem>.glb, web/<stem>.web.glb (smaller JPEG-textured
-                 variant), and manifest.json
-    <base>.html  separate preview page of the web variant, GLB embedded
-  <base> is <out-stem>-<timestamp>, using the UTC timestamp of the run,
-  so --out alone sets the folder and the name.
-
-Rigging uses Meshy (fal-ai/meshy/rigging) and expects a humanoid mesh;
-non-humanoid meshes fail on fal. Each --animation-action-id is a Meshy preset id
-(0-696) and requires --rig.
+  chatroom generate-3d --prompt "a wooden chest" --out chest.glb
+  chatroom generate-3d --input-image ./concept.png --out chest.glb
+  chatroom generate-3d --model meshy/v7.1/image-to-3d --input-image ./concept.png --out chest.glb --rig --animation-action-id 0 --confirm-cost
 
 Models:
-  Any fal endpoint id is accepted. The ids below have a specialist adapter, a
-  capability check, and a list price:
+  Default: fal-ai/trellis-2 (image-to-3D). A prompt on it generates a reference
+  image with FLUX 2 Flash first (1024x1024), and that image is bundled with the
+  mesh.
+  Known ids have a price and a capability check. Unknown ids have neither;
+  --rig is still refused for them.
 ${knownModelLines()}
-  Any other id is passed through: --prompt maps to "prompt", --input-image to
-  "image_url", and --input carries everything else. Such a model gets no
-  capability check and no price, so its cost prints as unknown.
 
-Cost lines for known models are list-price estimates as of ${GENERATE_3D_PRICES_AS_OF}:
-fal returns no billed cost. Check the fal dashboard for the actual bill.
+Rigging and animation:
+  Meshy 7.1 only: --model meshy/v7.1/text-to-3d or meshy/v7.1/image-to-3d.
+  A real run needs --confirm-cost, after you confirm the priced --dry-run.
+  Rigging is verified only for Meshy GLBs and expects a humanoid mesh;
+  non-humanoid meshes fail on fal. --animation-action-id takes presets 0-696.
+
+Package:
+  <base>.zip holds the master GLB, web/<stem>.web.glb, and manifest.json; the
+  reference image at reference/... when one was generated or supplied; and the
+  rigged and animation GLBs with their web versions when rigging ran.
+  <base>.html is a standalone preview. <base> is <out-stem>-<timestamp>.
+
+Cost:
+  List prices as of ${GENERATE_3D_PRICES_AS_OF}, not billed amounts; fal returns no
+  billed cost, so check the fal dashboard. An unknown id prints
+  "Generation cost unknown".
 `;
 
 interface Generate3dCliOptions {
@@ -214,7 +213,7 @@ export function registerGenerate3dCommand(program: Command): void {
     .description(
       'Generate one 3D mesh (GLB) with a fal model, plus its JSON manifest and a zip/preview package'
     )
-    .option('--model <id>', 'fal endpoint id (default fal-ai/trellis-2). Any id is accepted.')
+    .option('--model <id>', 'fal endpoint id (default fal-ai/trellis-2); any id is accepted')
     .requiredOption('--out <path>', 'Output GLB path (manifest is written to <path>.json)')
     .option(
       '--platform <name>',
@@ -222,15 +221,18 @@ export function registerGenerate3dCommand(program: Command): void {
       parsePlatform,
       DEFAULT_GENERATE_3D_PLATFORM
     )
-    .option('--prompt <text>', 'Text prompt for a text-to-3D model')
+    .option(
+      '--prompt <text>',
+      'text prompt; with the default model, a reference image is generated first'
+    )
     .option(
       '--input-image <path-or-url>',
-      'Reference image for an image-to-3D model: a local .png, .jpg, or .jpeg (uploaded to fal) or an http(s) URL'
+      'reference image (local file or URL); the image-to-3D input'
     )
-    .option('--force', 'Overwrite existing output and manifest files')
+    .option('--force', 'replace existing output, package, preview, rig, and clip files')
     .option(
       '--rig',
-      'Rig the generated mesh with Meshy (fal-ai/meshy/rigging). Humanoid meshes only'
+      'rig with Meshy 7.1 (requires --model meshy/v7.1/...); needs --confirm-cost on a real run'
     )
     .option(
       '--animation-action-id <id>',
@@ -244,11 +246,11 @@ export function registerGenerate3dCommand(program: Command): void {
     )
     .option(
       '--input <json|@file>',
-      'Extra fal request fields as a JSON object, merged over the model defaults; @file reads JSON from a file'
+      'extra fal request fields as a JSON object, merged over the model defaults; reserved: prompt, image_url; @file reads JSON from a file'
     )
     .option(
       '--confirm-cost',
-      'Confirm the priced plan for a real run that rigs or animates (Meshy 7.1 only). Not needed for --dry-run'
+      'confirm the priced plan for a real run that rigs or animates (Meshy 7.1 only), after the user confirms the priced dry run; not needed for --dry-run'
     )
     .option(
       '--dry-run',

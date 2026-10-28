@@ -135,10 +135,11 @@ describe('chatroom generate-3d wiring', () => {
       },
     });
     command?.outputHelp();
-    expect(afterHelp).toContain('--input-image ./concept.png --out concept.glb');
-    expect(afterHelp).toContain('--model meshy/v7.1/text-to-3d --prompt "a stone knight"');
-    expect(afterHelp).toContain('--rig --animation-action-id 0');
+    expect(afterHelp).toContain('--prompt "a wooden chest" --out chest.glb');
+    expect(afterHelp).toContain('--input-image ./concept.png --out chest.glb');
+    expect(afterHelp).toContain('--rig --animation-action-id 0 --confirm-cost');
     expect(afterHelp).toContain('humanoid mesh');
+    expect(afterHelp).toContain('FLUX 2 Flash first');
     expect(afterHelp).toContain('Models:');
     expect(afterHelp).toContain('meshy/v7.1/text-to-3d');
     expect(afterHelp).toContain('--prompt, --rig');
@@ -147,13 +148,14 @@ describe('chatroom generate-3d wiring', () => {
     for (const model of GENERATE_3D_MODELS) {
       expect(afterHelp).toContain(model.id);
     }
-    expect(afterHelp).toContain('Any fal endpoint id is accepted');
+    expect(afterHelp).toContain('Known ids have a price and a capability check.');
     expect(afterHelp).toContain('--input-image, --rig');
-    expect(afterHelp).toContain('cost prints as unknown');
+    expect(afterHelp).toContain('Generation cost unknown');
+    expect(afterHelp).toContain('Unknown ids have neither');
     expect(afterHelp).toContain('web/<stem>.web.glb');
     expect(afterHelp).toContain('manifest.json');
     expect(afterHelp).toContain('<base>.html');
-    expect(afterHelp).toContain('separate preview page of the web variant');
+    expect(afterHelp).toContain('<base>.html is a standalone preview');
     expect(afterHelp).toContain('<base> is <out-stem>-<timestamp>');
     expect(command?.options.map((option) => option.long)).not.toContain('--name');
   });
