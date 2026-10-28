@@ -26,6 +26,7 @@
 import {
   NodeIO,
   Primitive,
+  TextureChannel,
   type Document,
   type Texture,
   type Transform,
@@ -193,7 +194,8 @@ function alphaBoundTextures(document: Document): Set<Texture> {
 /** How one texture is encoded: PNG for alpha, otherwise JPEG at its class quality. */
 interface TexturePlan {
   targetFormat: 'jpeg' | 'png';
-  quality: number;
+  /** Omitted for PNG: a quality makes sharp quantise to a palette. */
+  quality?: number | undefined;
 }
 
 /**
@@ -206,12 +208,20 @@ function texturePlan(
   texture: Texture,
   alphaBound: ReadonlySet<Texture>,
   colourSpace: (texture: Texture) => 'srgb' | null,
+  channelMask: (texture: Texture) => number,
   opts: WebVariantOptions
 ): TexturePlan {
-  // Lossless: the PNG encoder ignores quality.
-  if (alphaBound.has(texture)) return { targetFormat: 'png', quality: opts.quality };
+  // PNG truecolour: no quality, because a quality makes sharp quantise to a palette.
+  if (alphaBound.has(texture) || hasAlphaChannel(channelMask(texture))) {
+    return { targetFormat: 'png' };
+  }
   const isColour = colourSpace(texture) === 'srgb';
   return { targetFormat: 'jpeg', quality: isColour ? opts.quality : opts.dataQuality };
+}
+
+/** True when any slot that uses the texture relies on its alpha channel. */
+function hasAlphaChannel(mask: number): boolean {
+  return (mask & TextureChannel.A) !== 0;
 }
 
 /** Image types `compressTexture` decodes and re-encodes; others stay untouched. */
@@ -245,17 +255,25 @@ async function compressTextures(args: {
   document: Document;
   compressTexture: CompressTexture;
   getTextureColorSpace: (texture: Texture) => 'srgb' | null;
+  getTextureChannelMask: (texture: Texture) => number;
   sharp: unknown;
   opts: WebVariantOptions;
 }): Promise<void> {
   const alphaBound = alphaBoundTextures(args.document);
   for (const texture of args.document.getRoot().listTextures()) {
     if (!COMPRESSIBLE_MIME_TYPES.has(texture.getMimeType())) continue;
-    const plan = texturePlan(texture, alphaBound, args.getTextureColorSpace, args.opts);
+    const plan = texturePlan(
+      texture,
+      alphaBound,
+      args.getTextureColorSpace,
+      args.getTextureChannelMask,
+      args.opts
+    );
     await args.compressTexture(texture, {
       encoder: args.sharp,
       resize: [args.opts.maxTexturePx, args.opts.maxTexturePx],
-      ...plan,
+      targetFormat: plan.targetFormat,
+      ...(plan.quality === undefined ? {} : { quality: plan.quality }),
     });
   }
   dropUnusedWebpExtension(args.document);
@@ -321,7 +339,7 @@ export async function createWebVariant(
 ): Promise<WebVariant> {
   requireNoDraco(glb);
   const [
-    { weld, simplify, compressTexture, prune, dedup, getTextureColorSpace },
+    { weld, simplify, compressTexture, prune, dedup, getTextureColorSpace, getTextureChannelMask },
     { default: sharp },
   ] = await Promise.all([import('@gltf-transform/functions'), import('sharp')]);
   await MeshoptSimplifier.ready;
@@ -345,7 +363,14 @@ export async function createWebVariant(
     simplifyAt: (ratio) =>
       simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.01, lockBorder: true }),
   });
-  await compressTextures({ document, compressTexture, getTextureColorSpace, sharp, opts });
+  await compressTextures({
+    document,
+    compressTexture,
+    getTextureColorSpace,
+    getTextureChannelMask,
+    sharp,
+    opts,
+  });
   await document.transform(prune(), dedup());
 
   return {

@@ -163,6 +163,45 @@ async function texturePixels(width: number, height: number): Promise<Buffer> {
   return pixels;
 }
 
+/** A smooth RGB gradient with far more than 256 distinct colours. */
+async function gradientTexture(): Promise<Uint8Array> {
+  const width = 512;
+  const height = 512;
+  const pixels = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      pixels[index] = x % 256;
+      pixels[index + 1] = y % 256;
+      pixels[index + 2] = (x + y) % 256;
+      pixels[index + 3] = 255;
+    }
+  }
+  return new Uint8Array(
+    await sharp(pixels, { raw: { width, height, channels: 4 } })
+      .png()
+      .toBuffer()
+  );
+}
+
+/** Distinct RGBA values in an encoded image, decoded with sharp. */
+async function distinctColours(bytes: Uint8Array): Promise<number> {
+  const { data, info } = await sharp(Buffer.from(bytes))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const seen = new Set<number>();
+  for (let index = 0; index < data.length; index += info.channels) {
+    const value =
+      ((data[index] ?? 0) << 24) |
+      ((data[index + 1] ?? 0) << 16) |
+      ((data[index + 2] ?? 0) << 8) |
+      (data[index + 3] ?? 0);
+    seen.add(value >>> 0);
+  }
+  return seen.size;
+}
+
 /** The same varied image, encoded as PNG, JPEG, or WebP. */
 async function encodedTexture(
   width: number,
@@ -441,6 +480,22 @@ describe('createWebVariant', () => {
     // The texture survives serialisation, still as JPEG.
     const reread = await glbIo().readBinary(variant.bytes);
     expect(reread.getRoot().listTextures()[0]?.getMimeType()).toBe('image/jpeg');
+  });
+
+  it('keeps an alpha-bound base colour as truecolour PNG, not a 256-colour palette', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: await gradientTexture(), mimeType: 'image/png' },
+      alphaMode: 'BLEND',
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.textures[0]?.mimeType).toBe('image/png');
+    const reread = await glbIo().readBinary(variant.bytes);
+    const image = reread.getRoot().listTextures()[0]?.getImage();
+    expect(image).toBeTruthy();
+    expect(await distinctColours(image ?? new Uint8Array())).toBeGreaterThan(256);
   });
 
   it('keeps a texture PNG when a blending material relies on its alpha', async () => {
