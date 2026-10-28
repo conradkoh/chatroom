@@ -2,14 +2,16 @@
  * Generate 3D — pure logic for `chatroom generate-3d`.
  *
  * Generates one GLB mesh through an injected fal subscriber, writes the bytes
- * to `out`, writes a JSON sidecar manifest to `<out>.json`, then packages the
- * run: a web variant of the master mesh, a package manifest, and a zip holding
- * both. With `--rig` it first calls Meshy's rigging endpoint, writes
- * `<stem>.rigged.glb`, writes one `<stem>.anim-<id>.glb` per requested preset
- * clip, and rewrites the sidecar manifest with a `rigging` section.
+ * to `out`, and writes a JSON sidecar manifest to `<out>.json`. It then packages
+ * the run — a web variant of the master, a package manifest, the zip, and the
+ * preview — and only afterwards, with `--rig`, calls Meshy's rigging endpoint to
+ * write `<stem>.rigged.glb` and one `<stem>.anim-<id>.glb` per requested preset
+ * clip. The sidecar is rewritten after packaging and again after rigging.
  *
- * The mesh is written before the rigging call and before packaging, so a rig or
- * packaging failure never discards a paid generation. No SDK, network, clock, or
+ * Packaging runs before rigging because the package is a pure function of the
+ * master: a rig failure must not cost the user the packaged asset. The master
+ * and sidecar are written before either step, so no packaging or rigging failure
+ * discards a paid generation. No SDK, network, clock, or
  * filesystem access is imported here; all of it arrives through
  * `Generate3dDeps`, so the unit tests run fully offline.
  */
@@ -44,11 +46,6 @@ import {
 import type { GlbStats, WebVariant } from './web-variant.js';
 import type { ZipEntry } from './zip-package.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../generate-image/image.js';
-
-// The error type is exported from this module for callers that only import the
-// orchestration layer; the registry remains its definition.
-// fallow-ignore-next-line unused-export
-export { Generate3dError } from './model-registry.js';
 
 /** Only fal is wired for 3D generation today. */
 export type Generate3dPlatform = 'fal';
@@ -119,6 +116,11 @@ export interface Generate3dManifest {
   };
   /** Separate texture files returned by the model; empty when embedded in the GLB. */
   textureUrls: string[];
+  /**
+   * Package files written beside the sidecar. Present once packaging ran; the
+   * names are base-name siblings of the zip and the preview.
+   */
+  package?: { zip: string; html: string };
   /** Present only when the rigging step succeeded. */
   rigging?: Generate3dRiggingManifest;
   generatedAt: string;
@@ -1033,6 +1035,23 @@ function packageFailure(plan: Generate3dPlan, step: string, err: unknown): Gener
   );
 }
 
+/**
+ * A packaging failure after the paid call. It names the request id and the GLB
+ * URL like `withRecovery` does, so the mesh can be recovered without paying again.
+ */
+function packageFailureForRequest(args: {
+  plan: Generate3dPlan;
+  master: MasterOutput;
+  step: string;
+  err: unknown;
+}): Generate3dError {
+  return packageFailure(
+    args.plan,
+    `${args.step} for request ${args.master.requestId} (${args.master.glbUrl})`,
+    args.err
+  );
+}
+
 /** Build the web variant, reporting a failure without discarding the master. */
 async function buildWebVariant(
   plan: Generate3dPlan,
@@ -1093,12 +1112,27 @@ async function removeQuietly(deps: Generate3dDeps, path: string): Promise<string
 async function writeZipAndPreview(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
-  files: { zipPath: string; zipBytes: Uint8Array; htmlPath: string; html: string }
+  files: {
+    zipPath: string;
+    zipBytes: Uint8Array;
+    htmlPath: string;
+    html: string;
+    force: boolean;
+  }
 ): Promise<void> {
+  // With --force and a fixed --name, the previous pair would otherwise stay
+  // beside the new master. Both are removed first, then written fresh.
+  if (files.force) {
+    await removeQuietly(deps, files.zipPath);
+    await removeQuietly(deps, files.htmlPath);
+  }
+
   try {
     await deps.writeFile(files.zipPath, files.zipBytes);
   } catch (err) {
-    throw packageFailure(plan, `save the package ${files.zipPath}`, err);
+    // A failed write can leave a truncated zip; do not keep it.
+    const cleanup = await removeQuietly(deps, files.zipPath);
+    throw packageFailure(plan, `save the package ${files.zipPath}${cleanup}`, err);
   }
 
   try {
@@ -1122,6 +1156,26 @@ interface PackageOutput {
  * discarding it: the web variant, the package manifest, the zip, and the preview
  * are built in memory first, then written in that order.
  */
+/** A package failure that names the paid request and the URL it can be recovered from. */
+async function requirePackagePaths(args: {
+  plan: Generate3dPlan;
+  deps: Generate3dDeps;
+  master: MasterOutput;
+  paths: PackageOutput;
+  force: boolean;
+}): Promise<void> {
+  try {
+    await requireWritablePackage(args.deps, args.paths, args.force);
+  } catch (err) {
+    throw packageFailureForRequest({
+      plan: args.plan,
+      master: args.master,
+      step: 'write the package',
+      err,
+    });
+  }
+}
+
 async function writePackage(args: {
   plan: Generate3dPlan;
   deps: Generate3dDeps;
@@ -1129,8 +1183,14 @@ async function writePackage(args: {
   packageName: string;
   paths: PackageOutput;
   prompt: string | undefined;
+  force: boolean;
 }): Promise<PackageOutput> {
   const { plan, deps, master, paths } = args;
+  // The pre-call plan checks a name it can render; a `{requestId8}` name only
+  // exists now, so its collision is checked here, after the master and sidecar
+  // are already safe on disk.
+  await requirePackagePaths({ plan, deps, master, paths, force: args.force });
+
   const web = await buildWebVariant(plan, deps, master.bytes);
   const webSha256 = createHash('sha256').update(web.bytes).digest('hex');
   const packageManifest = buildPackageManifest({
@@ -1167,7 +1227,7 @@ async function writePackage(args: {
     zipName: `${args.packageName}.zip`,
   });
 
-  await writeZipAndPreview(plan, deps, { ...paths, zipBytes, html });
+  await writeZipAndPreview(plan, deps, { ...paths, zipBytes, html, force: args.force });
   return paths;
 }
 
@@ -1187,8 +1247,9 @@ interface MasterOutput {
  * Run the paid half: upload the input image if any, call fal once, download the
  * GLB, and write both the master and its sidecar manifest.
  *
- * A `{requestId8}` package name can only be rendered after the call, so its zip
- * collision is checked here, before anything from this run is written.
+ * Nothing about the package is checked or written here: the master and its
+ * provenance have to survive a package-name collision, so the package is planned
+ * from the finished master in {@link writePackage}.
  */
 async function generateMaster(
   plan: Generate3dPlan,
@@ -1204,15 +1265,6 @@ async function generateMaster(
   const inputImage = await uploadInputImage(deps, plan.inputTarget);
   const input = plan.model.buildInput({ prompt: opts.prompt, imageUrl: inputImage?.url });
   const result = await deps.falSubscribe(plan.model.id, input);
-
-  if (plan.packageName === null) {
-    await requireWritablePackage(
-      deps,
-      resolvePackagePaths(plan, result.requestId),
-      opts.force === true
-    );
-  }
-
   const output = readModelOutput(plan.model, result.data, result.requestId);
   const recovery = { requestId: result.requestId, url: output.glbUrl };
   const bytes = await withRecovery('download', recovery, () => deps.fetchGlb(output.glbUrl));
@@ -1256,13 +1308,10 @@ export async function generate3d(
   requireFalKey(deps);
   const plan = await planGenerate3d(opts, deps);
   const master = await generateMaster(plan, deps, opts);
-
-  if (plan.riggingRequest !== null) {
-    const rigging = await runRigging(plan, deps, master.glbUrl);
-    await deps.writeJson(plan.manifestPath, { ...master.manifest, rigging });
-  }
-
   const { packageName, zipPath, htmlPath } = resolvePackagePaths(plan, master.requestId);
+
+  // Package before rigging: the package is a pure function of the master, so a
+  // rig failure cannot cost the user the packaged asset.
   await writePackage({
     plan,
     deps,
@@ -1270,7 +1319,20 @@ export async function generate3d(
     packageName,
     paths: { zipPath, htmlPath },
     prompt: opts.prompt,
+    force: opts.force === true,
   });
+
+  // Link the package files in the sidecar now that their names are resolved.
+  const manifest: Generate3dManifest = {
+    ...master.manifest,
+    package: { zip: basename(zipPath), html: basename(htmlPath) },
+  };
+  await deps.writeJson(plan.manifestPath, manifest);
+
+  if (plan.riggingRequest !== null) {
+    const rigging = await runRigging(plan, deps, master.glbUrl);
+    await deps.writeJson(plan.manifestPath, { ...manifest, rigging });
+  }
 
   return {
     outPath: plan.outPath,

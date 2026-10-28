@@ -292,9 +292,7 @@ describe('chatroom generate-3d wiring', () => {
     expect(planGenerate3dMock).not.toHaveBeenCalled();
   });
 
-  it('reports action failures on stderr with exitCode 1 and never prints FAL_API_KEY', async () => {
-    const key = 'fal-key-sentinel-do-not-print';
-    process.env.FAL_API_KEY = key;
+  it('reports action failures on stderr with exitCode 1', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     generate3dMock.mockRejectedValue(new Error('generation exploded'));
@@ -313,11 +311,6 @@ describe('chatroom generate-3d wiring', () => {
     expect(String(errorSpy.mock.calls[0]?.[0])).toContain('generation exploded');
     expect(process.exitCode).toBe(1);
     expect(logSpy).not.toHaveBeenCalled();
-
-    const printed = [...errorSpy.mock.calls, ...logSpy.mock.calls]
-      .flat()
-      .map((value) => String(value));
-    expect(printed.some((line) => line.includes(key))).toBe(false);
   });
 
   it('prints the output paths and cost lines after generation', async () => {

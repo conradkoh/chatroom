@@ -331,18 +331,36 @@ URL only and never written to disk. The manifest records the rigged file in
 
 ### Failure semantics
 
-The mesh and its generation-only manifest are written before the rigging call
-starts. A rigging failure therefore:
+A run writes in this order: the master GLB, its sidecar manifest, the package
+(zip, then preview), and finally the rig files. Everything after the master is
+optional in the sense that its failure never discards a paid generation, but the
+stage that failed decides what you have on disk.
 
-- keeps the paid mesh at `--out` and the manifest at `<out>.json`;
-- may leave the rigged GLB and the clips already downloaded, because each file is
-  written as soon as its download succeeds;
-- exits non-zero with a message naming the rigging endpoint, the rigging request
-  id when fal returned one, and the path of the kept mesh.
+**Packaging fails.** The master and its sidecar are already saved, so they stay.
+The error names the request id and the GLB URL, so the mesh can be recovered
+without paying for another generation. Within packaging:
 
-Re-running the same command needs `--force`, because the mesh and manifest
-already exist. Re-running just the rig is not a separate command; the mesh is
-regenerated and billed again.
+- a failed zip write removes the partial zip;
+- a failed preview write removes the zip written moments earlier, so a package
+  directory never holds a zip without its preview;
+- a package-name collision (`Package already exists` / `Preview already exists`)
+  is checked before either file is written. For a name that needs
+  `{requestId8}`, that check can only happen after the paid call — the master and
+  sidecar are kept and only the package is refused.
+
+**Rigging fails.** Packaging runs _before_ rigging, because the package is a pure
+function of the master. A rig failure therefore leaves the master, the sidecar,
+the zip, and the preview in place; only the rigged GLB and the clips are missing.
+The sidecar records no `rigging` section, and the error names the rigging
+endpoint, the rigging request id when fal returned one, and the kept mesh. Any
+rigged or clip file already downloaded stays, because each is written as soon as
+its download succeeds.
+
+**Re-running.** The same command needs `--force`, because the master and sidecar
+already exist. With `--force` and a fixed `--name`, the previous zip and preview
+are removed before the new pair is written, so the directory never holds a stale
+package beside a new master. Re-running just the rig is not a separate command;
+the mesh is regenerated and billed again.
 
 ## The package
 
@@ -441,6 +459,8 @@ Every mesh gets a `<out>.json` sidecar with the provenance of the generation.
 - `output.contentType` — `model/gltf-binary`.
 - `textureUrls` — separate texture files the model returned; empty when the
   textures are embedded in the GLB (Trellis-2).
+- `package` — `{ zip, html }`, the package files written beside the sidecar.
+  Present once packaging succeeded.
 - `generatedAt` — ISO timestamp of the generation.
 
 With `--rig`, the manifest gains a `rigging` section:

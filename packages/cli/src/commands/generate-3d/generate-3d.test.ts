@@ -162,7 +162,9 @@ describe('generate3d', () => {
 
     expect(deps.fetchGlb).toHaveBeenCalledWith(GLB_URL);
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
-    expect(deps.writeJson).toHaveBeenCalledTimes(1);
+    // The sidecar is written once for the generation, then rewritten to link the
+    // package files now that their base name is resolved.
+    expect(deps.writeJson).toHaveBeenCalledTimes(2);
 
     const sha256 = createHash('sha256').update(GLB_BYTES).digest('hex');
     const manifest = writtenManifest(deps);
@@ -467,6 +469,84 @@ describe('generate3d packaging', () => {
     ).rejects.toThrow(/could not be removed/);
   });
 
+  it('writes the master, sidecar, zip, and preview in that order', async () => {
+    const deps = createDeps();
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const fileCalls = vi.mocked(deps.writeFile);
+    const fileOrder = (path: string): number => {
+      const index = fileCalls.mock.calls.findIndex(([written]) => written === path);
+      return fileCalls.mock.invocationCallOrder[index] ?? -1;
+    };
+    const sidecarOrder = vi.mocked(deps.writeJson).mock.invocationCallOrder[0] ?? -1;
+
+    expect(fileOrder(OUT_PATH)).toBeGreaterThan(0);
+    expect(fileOrder(OUT_PATH)).toBeLessThan(sidecarOrder);
+    expect(sidecarOrder).toBeLessThan(fileOrder(ZIP_PATH));
+    expect(fileOrder(ZIP_PATH)).toBeLessThan(fileOrder(HTML_PATH));
+  });
+
+  it('never writes the API key into the sidecar, a file, or a zip entry', async () => {
+    const deps = createDeps();
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const sidecarWrites = vi
+      .mocked(deps.writeJson)
+      .mock.calls.map(([path, value]) => `${String(path)} ${JSON.stringify(value)}`);
+    const fileWrites = vi
+      .mocked(deps.writeFile)
+      .mock.calls.map(
+        ([path, bytes]) => `${String(path)} ${Buffer.from(bytes).toString('binary')}`
+      );
+    const zipEntries = vi
+      .mocked(deps.zipPackage)
+      .mock.calls.flatMap(([entries]) =>
+        entries.map((entry) => `${entry.path} ${Buffer.from(entry.bytes).toString('binary')}`)
+      );
+
+    for (const artifact of [...sidecarWrites, ...fileWrites, ...zipEntries]) {
+      expect(artifact).not.toContain(FAL_API_KEY);
+    }
+  });
+
+  it('removes a partially written zip when the zip write fails', async () => {
+    const deps = createDeps();
+    vi.mocked(deps.writeFile).mockImplementation(async (path) => {
+      if (path === ZIP_PATH) throw new Error('no space left on device');
+    });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/save the package .*no space left.*hero\.glb/s);
+
+    expect(deps.removeFile).toHaveBeenCalledWith(ZIP_PATH);
+    expect(deps.writeFile).not.toHaveBeenCalledWith(HTML_PATH, expect.anything());
+  });
+
+  it('sanitizes an --out stem with spaces into a valid package name', async () => {
+    const outPath = '/tmp/generated/My Chest.glb';
+    const deps = createDeps();
+
+    const result = await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: outPath }, deps);
+
+    expect(result.zipPath).toBe('/tmp/generated/My-Chest-20261027-000000.zip');
+    expect(result.htmlPath).toBe('/tmp/generated/My-Chest-20261027-000000.html');
+    expect(deps.writeFile).toHaveBeenCalledWith(outPath, GLB_BYTES);
+  });
+
+  it('links the package files in the sidecar', async () => {
+    const deps = createDeps();
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    expect(lastWrittenManifest(deps).package).toEqual({
+      zip: `${PACKAGE_NAME}.zip`,
+      html: `${PACKAGE_NAME}.html`,
+    });
+  });
+
   it('records both variants, the generator, and the price caveat in the package manifest', async () => {
     const deps = createDeps();
 
@@ -563,7 +643,7 @@ describe('generate3d packaging', () => {
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
-  it('re-checks a deferred {requestId8} package after the call and writes nothing', async () => {
+  it('keeps the paid master when a deferred {requestId8} package collides', async () => {
     const deps = createDeps({
       pathStatus: vi.fn(existingFiles('/tmp/generated/hero-req-123.zip')),
     });
@@ -573,12 +653,20 @@ describe('generate3d packaging', () => {
         { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, name: '{stem}-{requestId8}' },
         deps
       )
-    ).rejects.toThrow(/Package already exists.*--force/);
+    ).rejects.toThrow(
+      /Failed to write the package for request req-123 \(https:\/\/fal\.test\/generated\/hero\.glb\): Package already exists.*--force.*kept/s
+    );
 
-    // The name is only known after the paid call, so the call happened.
+    // The name is only known after the paid call, so the call happened and its
+    // output is kept: only the package is refused.
     expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
-    expect(deps.writeFile).not.toHaveBeenCalled();
-    expect(deps.writeJson).not.toHaveBeenCalled();
+    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
+    expect(deps.writeJson).toHaveBeenCalledTimes(1);
+    expect(writtenManifest(deps).package).toBeUndefined();
+    expect(deps.writeFile).not.toHaveBeenCalledWith(
+      '/tmp/generated/hero-req-123.zip',
+      expect.anything()
+    );
   });
 
   it('rejects an invalid --name before any fal call', async () => {
@@ -646,7 +734,8 @@ describe('generate3d --rig', () => {
 
     expect(deps.fetchGlb).toHaveBeenCalledWith(RIGGED_GLB_URL);
     expect(deps.writeFile).toHaveBeenCalledWith(RIGGED_OUT_PATH, GLB_BYTES);
-    expect(deps.writeJson).toHaveBeenCalledTimes(2);
+    // generation sidecar, package link, then the rigging rewrite
+    expect(deps.writeJson).toHaveBeenCalledTimes(3);
 
     expect(writtenManifest(deps).rigging).toBeUndefined();
     const manifest = lastWrittenManifest(deps);
@@ -773,17 +862,22 @@ describe('generate3d --rig', () => {
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
-  it('keeps the mesh and generation-only manifest when rigging fails', async () => {
+  it('keeps the mesh, sidecar, and package when rigging fails', async () => {
     const deps = createRigDeps({});
 
     await expect(
       generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
     ).rejects.toThrow(/Rigging failed for request rig-456.*rigged_character_glb\.url.*hero\.glb/);
 
-    expect(deps.writeFile).toHaveBeenCalledTimes(1);
+    // The master and the package are both on disk; only rigging is missing.
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
-    expect(deps.writeJson).toHaveBeenCalledTimes(1);
-    expect(writtenManifest(deps).rigging).toBeUndefined();
+    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
+    expect(deps.writeJson).toHaveBeenCalledTimes(2);
+    expect(lastWrittenManifest(deps).rigging).toBeUndefined();
+    expect(lastWrittenManifest(deps).package).toEqual({
+      zip: `${PACKAGE_NAME}.zip`,
+      html: `${PACKAGE_NAME}.html`,
+    });
   });
 
   it('keeps the mesh and names the rig endpoint when the rigging call fails', async () => {
@@ -798,8 +892,10 @@ describe('generate3d --rig', () => {
       generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
     ).rejects.toThrow(/Rigging failed \(fal-ai\/meshy\/rigging\).*rig queue exploded.*hero\.glb/);
 
-    expect(deps.writeFile).toHaveBeenCalledTimes(1);
-    expect(deps.writeJson).toHaveBeenCalledTimes(1);
+    // Packaging runs before rigging, so the master and the package survive.
+    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
+    expect(deps.writeFile).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES);
+    expect(deps.writeJson).toHaveBeenCalledTimes(2);
   });
 });
 
