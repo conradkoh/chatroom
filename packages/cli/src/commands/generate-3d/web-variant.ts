@@ -3,9 +3,10 @@
  *
  * The master GLB is what fal returned; the web variant is a smaller copy for a
  * browser: welded geometry, optionally simplified toward a triangle target, and
- * textures downscaled to at most `maxTexturePx` on the longest edge. JPEG is
- * deliberate — WebP or meshopt compression would add a GLB extension, and the
- * variant must stay loadable by a plain glTF 2.0 viewer.
+ * textures of JPEG, PNG or WebP re-encoded to at most `maxTexturePx` on the
+ * longest edge, with the aspect ratio preserved. JPEG is deliberate — WebP or
+ * meshopt output would add a GLB extension, and the variant must stay loadable
+ * by a plain glTF 2.0 viewer.
  *
  * Two input features need care:
  *
@@ -30,6 +31,7 @@ import {
   type Transform,
 } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import type { CompressTextureOptions } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptSimplifier } from 'meshoptimizer';
 
 import { Generate3dError } from './model-registry.js';
@@ -39,7 +41,7 @@ export interface WebVariantOptions {
   triangleTarget: number;
   /** Longest texture edge, in pixels; aspect ratio is preserved. */
   maxTexturePx: number;
-  /** Encoder quality for re-encoded textures. */
+  /** Encoder quality for re-encoded colour textures. */
   quality: number;
 }
 
@@ -158,14 +160,8 @@ function readTextures(document: Document): WebVariantTexture[] {
     });
 }
 
-/** Texture slots and formats for one optimize pass. */
-type TextureCompress = (options: {
-  encoder: unknown;
-  targetFormat: 'jpeg' | 'png';
-  resize: [number, number];
-  quality: number;
-  pattern: RegExp;
-}) => Transform;
+/** Re-encode one texture in place; `compressTexture` from gltf-transform. */
+type CompressTexture = (texture: Texture, options: CompressTextureOptions) => Promise<void>;
 
 /** Every number and picture the package manifest needs about one GLB. */
 function describeDocument(document: Document): GlbStats {
@@ -192,48 +188,59 @@ function alphaBoundTextures(document: Document): Set<Texture> {
   return textures;
 }
 
-/** Escape a literal string for use inside a `RegExp`. */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+/** Image types `compressTexture` decodes and re-encodes; others stay untouched. */
+const COMPRESSIBLE_MIME_TYPES: ReadonlySet<string> = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
 
-/**
- * A pattern matching exactly one texture, by the URI it is given here.
- *
- * The URI needs its image extension: `textureCompress` reads the target format
- * from it, and an extension-less URI makes the encoder write `image/texture-0`
- * instead of a real MIME type.
- */
-function texturePattern(texture: Texture, index: number): RegExp {
-  const extension = texture.getMimeType() === 'image/jpeg' ? 'jpeg' : 'png';
-  const uri = texture.getURI() || `texture-${index}.${extension}`;
-  texture.setURI(uri);
-  return new RegExp(`^${escapeRegExp(uri)}$`);
+const WEBP_EXTENSION = 'EXT_texture_webp';
+
+/** Dispose a declared extension by name, so the writer stops declaring it. */
+function disposeExtension(document: Document, name: string): void {
+  document
+    .getRoot()
+    .listExtensionsUsed()
+    .find((extension) => extension.extensionName === name)
+    ?.dispose();
 }
 
 /**
  * Re-encode every texture to at most `maxTexturePx` on its longest edge, one
  * texture at a time so an alpha-bearing map can stay PNG while the rest become
  * JPEG.
+ *
+ * Each texture is encoded from its own bytes: `compressTexture` reads the real
+ * image type, unlike a URI pattern, which made WebP bytes look like PNG and
+ * stretched them.
  */
 async function compressTextures(args: {
   document: Document;
-  textureCompress: TextureCompress;
+  compressTexture: CompressTexture;
   sharp: unknown;
   opts: WebVariantOptions;
 }): Promise<void> {
   const alphaBound = alphaBoundTextures(args.document);
-  for (const [index, texture] of args.document.getRoot().listTextures().entries()) {
-    await args.document.transform(
-      args.textureCompress({
-        encoder: args.sharp,
-        targetFormat: alphaBound.has(texture) ? 'png' : 'jpeg',
-        resize: [args.opts.maxTexturePx, args.opts.maxTexturePx],
-        quality: args.opts.quality,
-        pattern: texturePattern(texture, index),
-      })
-    );
+  for (const texture of args.document.getRoot().listTextures()) {
+    if (!COMPRESSIBLE_MIME_TYPES.has(texture.getMimeType())) continue;
+    await args.compressTexture(texture, {
+      encoder: args.sharp,
+      resize: [args.opts.maxTexturePx, args.opts.maxTexturePx],
+      targetFormat: alphaBound.has(texture) ? 'png' : 'jpeg',
+      quality: args.opts.quality,
+    });
   }
+  dropUnusedWebpExtension(args.document);
+}
+
+/** Drop the WebP declaration once no WebP texture remains, or plain viewers break. */
+function dropUnusedWebpExtension(document: Document): void {
+  const stillWebp = document
+    .getRoot()
+    .listTextures()
+    .some((texture) => texture.getMimeType() === 'image/webp');
+  if (!stillWebp) disposeExtension(document, WEBP_EXTENSION);
 }
 
 /** Draco-compressed geometry needs a decoder this command does not ship. */
@@ -266,21 +273,6 @@ function glbExtensionNames(glb: Uint8Array): string[] {
   );
 }
 
-/**
- * Drop meshopt compression metadata.
- *
- * The decoder registered below already expanded the geometry on read, so the
- * document is plain glTF; without this the writer would re-declare
- * `EXT_meshopt_compression` and the variant would need a decoder in the browser.
- */
-function stripMeshoptCompression(document: Document): void {
-  const extension = document
-    .getRoot()
-    .listExtensionsUsed()
-    .find((candidate) => candidate.extensionName === MESHOPT_EXTENSION);
-  extension?.dispose();
-}
-
 /** Refuse a Draco-compressed master before any texture or geometry work. */
 function requireNoDraco(glb: Uint8Array): void {
   if (glbExtensionNames(glb).includes(DRACO_EXTENSION)) {
@@ -301,7 +293,7 @@ export async function createWebVariant(
   opts: WebVariantOptions
 ): Promise<WebVariant> {
   requireNoDraco(glb);
-  const [{ weld, simplify, textureCompress, prune, dedup }, { default: sharp }] = await Promise.all(
+  const [{ weld, simplify, compressTexture, prune, dedup }, { default: sharp }] = await Promise.all(
     [import('@gltf-transform/functions'), import('sharp')]
   );
   await MeshoptSimplifier.ready;
@@ -310,7 +302,9 @@ export async function createWebVariant(
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
   const document = await io.readBinary(glb);
-  stripMeshoptCompression(document);
+  // The decoder already expanded the geometry on read; without this the writer
+  // would re-declare `EXT_meshopt_compression` and need a decoder in the browser.
+  disposeExtension(document, MESHOPT_EXTENSION);
   // No-op logger: prune() reports every removed property otherwise.
   document.setLogger(SILENT_LOGGER);
 
@@ -323,7 +317,7 @@ export async function createWebVariant(
     simplifyAt: (ratio) =>
       simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.01, lockBorder: true }),
   });
-  await compressTextures({ document, textureCompress, sharp, opts });
+  await compressTextures({ document, compressTexture, sharp, opts });
   await document.transform(prune(), dedup());
 
   return {

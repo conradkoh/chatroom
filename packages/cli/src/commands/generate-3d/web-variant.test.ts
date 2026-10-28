@@ -9,7 +9,7 @@
  */
 
 import { Document, NodeIO, Primitive } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
 import { meshopt } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
@@ -31,12 +31,15 @@ interface BuildGlbOptions {
   alphaMode?: 'OPAQUE' | 'BLEND' | undefined;
   /** glTF primitive mode; defaults to TRIANGLES. */
   mode?: ReturnType<Primitive['getMode']> | undefined;
+  /** Declare `EXT_texture_webp` as required, as a WebP master does. */
+  declareWebp?: boolean | undefined;
 }
 
 /** One mesh, one primitive, an optional material, written as a real GLB. */
 async function buildGlb(opts: BuildGlbOptions): Promise<Uint8Array> {
   const document = new Document();
   const buffer = document.createBuffer();
+  if (opts.declareWebp === true) document.createExtension(EXTTextureWebP).setRequired(true);
   // Copy into fresh typed arrays: accessors require `ArrayBuffer`-backed views.
   const position = document
     .createAccessor()
@@ -129,6 +132,77 @@ async function pngTexture(): Promise<Uint8Array> {
   return new Uint8Array(bytes);
 }
 
+/** A `width` x `height` RGBA image with varied pixels, so prune keeps it. */
+async function texturePixels(width: number, height: number): Promise<Buffer> {
+  const pixels = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      pixels[index] = (x * 7 + y * 3) % 256;
+      pixels[index + 1] = (x + y * 13) % 256;
+      pixels[index + 2] = (x * 29 + y * 5) % 256;
+      pixels[index + 3] = 255;
+    }
+  }
+  return pixels;
+}
+
+/** The same varied image, encoded as PNG, JPEG, or WebP. */
+async function encodedTexture(
+  width: number,
+  height: number,
+  format: 'png' | 'jpeg' | 'webp'
+): Promise<Uint8Array> {
+  const image = sharp(await texturePixels(width, height), {
+    raw: { width, height, channels: 4 },
+  });
+  const bytes =
+    format === 'png'
+      ? await image.png().toBuffer()
+      : format === 'jpeg'
+        ? await image.jpeg({ quality: 95 }).toBuffer()
+        : await image.webp({ quality: 95 }).toBuffer();
+  return new Uint8Array(bytes);
+}
+
+/** Real pixel size and format of each texture, read with sharp from the bytes. */
+async function realSize(glb: Uint8Array): Promise<
+  {
+    width: number | undefined;
+    height: number | undefined;
+    format: string | undefined;
+    chromaSubsampling: string | undefined;
+  }[]
+> {
+  const document = await glbIo().readBinary(glb);
+  return Promise.all(
+    document
+      .getRoot()
+      .listTextures()
+      .map(async (texture) => {
+        const metadata = await sharp(
+          Buffer.from(texture.getImage() ?? new Uint8Array())
+        ).metadata();
+        return {
+          width: metadata.width,
+          height: metadata.height,
+          format: metadata.format,
+          chromaSubsampling: metadata.chromaSubsampling,
+        };
+      })
+  );
+}
+
+/** Extension names a GLB declares as required, read from its JSON chunk. */
+function declaredRequired(glb: Uint8Array): string[] {
+  const view = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);
+  const jsonLength = view.getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + jsonLength))) as {
+    extensionsRequired?: string[];
+  };
+  return json.extensionsRequired ?? [];
+}
+
 /**
  * A GLB whose geometry is meshopt-compressed, to prove the variant strips it.
  *
@@ -183,8 +257,13 @@ function withExtensionsUsed(glb: Uint8Array, extensions: string[]): Uint8Array {
 }
 
 /** A skinned, animated GLB: two joints, JOINTS_0/WEIGHTS_0, one rotation channel. */
-async function buildSkinnedGlb(): Promise<Uint8Array> {
+async function buildSkinnedGlb(texture?: {
+  bytes: Uint8Array;
+  mimeType: string;
+  declareWebp?: boolean;
+}): Promise<Uint8Array> {
   const document = new Document();
+  if (texture?.declareWebp === true) document.createExtension(EXTTextureWebP).setRequired(true);
   const buffer = document.createBuffer();
   const positions = new Float32Array([0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1]);
   const position = document.createAccessor().setType('VEC3').setArray(positions).setBuffer(buffer);
@@ -215,6 +294,13 @@ async function buildSkinnedGlb(): Promise<Uint8Array> {
     .setAttribute('JOINTS_0', joints)
     .setAttribute('WEIGHTS_0', weights)
     .setIndices(indices);
+  if (texture !== undefined) {
+    const image = document
+      .createTexture('skin')
+      .setImage(texture.bytes)
+      .setMimeType(texture.mimeType);
+    primitive.setMaterial(document.createMaterial('skin').setBaseColorTexture(image));
+  }
   const mesh = document.createMesh().addPrimitive(primitive);
 
   const jointA = document.createNode('jointA');
@@ -352,6 +438,111 @@ describe('createWebVariant', () => {
 
     expect(variant.textures[0]?.mimeType).toBe('image/png');
     expect(variant.textures[0]?.width).toBe(1024);
+  });
+
+  it.each(['image/png', 'image/jpeg', 'image/webp'] as const)(
+    'keeps the aspect ratio when re-encoding a 2048x512 %s texture',
+    async (mimeType) => {
+      const format = mimeType === 'image/png' ? 'png' : mimeType === 'image/jpeg' ? 'jpeg' : 'webp';
+      const glb = await buildGlb({
+        ...disjointTriangles(2),
+        texture: { bytes: await encodedTexture(2048, 512, format), mimeType },
+        declareWebp: mimeType === 'image/webp',
+      });
+
+      const variant = await createWebVariant(glb, OPTIONS);
+
+      expect(variant.textures).toEqual([{ width: 1024, height: 256, mimeType: 'image/jpeg' }]);
+      expect(await realSize(variant.bytes)).toEqual([
+        expect.objectContaining({ width: 1024, height: 256, format: 'jpeg' }),
+      ]);
+    }
+  );
+
+  it('keeps the aspect ratio of a 2048x1024 source', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: await encodedTexture(2048, 1024, 'png'), mimeType: 'image/png' },
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.textures[0]).toMatchObject({ width: 1024, height: 512 });
+  });
+
+  it('keeps the aspect ratio of a non-power-of-two source within a pixel', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: await encodedTexture(1500, 700, 'png'), mimeType: 'image/png' },
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.textures[0]?.width).toBe(1024);
+    expect(Math.abs((variant.textures[0]?.height ?? 0) - 478)).toBeLessThanOrEqual(1);
+  });
+
+  it('converts a WebP master and drops the WebP extension', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: await encodedTexture(2048, 512, 'webp'), mimeType: 'image/webp' },
+      declareWebp: true,
+    });
+    expect(declaredExtensions(glb)).toContain('EXT_texture_webp');
+    expect(declaredRequired(glb)).toContain('EXT_texture_webp');
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.textures).toEqual([{ width: 1024, height: 256, mimeType: 'image/jpeg' }]);
+    expect(variant.extensionsUsed).toEqual([]);
+    expect(declaredRequired(variant.bytes)).not.toContain('EXT_texture_webp');
+  });
+
+  it('keeps a WebP alpha-bound base colour as PNG', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: await encodedTexture(2048, 512, 'webp'), mimeType: 'image/webp' },
+      declareWebp: true,
+      alphaMode: 'BLEND',
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.textures[0]).toMatchObject({
+      width: 1024,
+      height: 256,
+      mimeType: 'image/png',
+    });
+    expect(variant.extensionsUsed).toEqual([]);
+    expect(declaredRequired(variant.bytes)).not.toContain('EXT_texture_webp');
+  });
+
+  it('keeps skins and animations when a skinned mesh has a WebP texture', async () => {
+    const glb = await buildSkinnedGlb({
+      bytes: await encodedTexture(2048, 512, 'webp'),
+      mimeType: 'image/webp',
+      declareWebp: true,
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.skinnedPath).toBe('non-destructive');
+    expect(variant.textures[0]).toMatchObject({
+      width: 1024,
+      height: 256,
+      mimeType: 'image/jpeg',
+    });
+
+    const reread = await glbIo().readBinary(variant.bytes);
+    const root = reread.getRoot();
+    expect(root.listSkins()).toHaveLength(1);
+    const primitive = root.listMeshes()[0]?.listPrimitives()[0];
+    expect(primitive?.getAttribute('JOINTS_0')).not.toBeNull();
+    expect(primitive?.getAttribute('WEIGHTS_0')).not.toBeNull();
+    expect(root.listAnimations()).toHaveLength(1);
+    expect(await realSize(variant.bytes)).toEqual([
+      expect.objectContaining({ width: 1024, height: 256, format: 'jpeg' }),
+    ]);
   });
 
   it('adds no extensions even when it re-encodes textures', async () => {
