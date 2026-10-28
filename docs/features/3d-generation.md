@@ -7,9 +7,9 @@
 
 `chatroom generate-3d` generates one 3D mesh with a fal model and writes the mesh
 as a GLB at `--out`, plus a JSON sidecar manifest at `<out>.json`. It then
-packages the run as two sibling files: `<base>.zip` (the master, a smaller web
-variant, and a package manifest) and `<base>.html` (a standalone preview of the
-web variant). With `--rig` it also rigs the mesh with Meshy and writes
+packages the run as two sibling files: `<out-stem>-<timestamp>.zip` (the master,
+a smaller web variant, and a package manifest) and `<out-stem>-<timestamp>.html`
+(a standalone preview of the web variant). With `--rig` it also rigs the mesh with Meshy and writes
 `<stem>.rigged.glb`, plus one `<stem>.anim-<id>.glb` per requested animation clip.
 
 `--model` is required; there is no default and no free-form passthrough. Only
@@ -173,8 +173,7 @@ as Hunyuan's optional PBR maps, appears with `excluded from the total`.
 `--dry-run` also refuses an existing output path, an existing package zip or
 preview, an unknown model id, a missing or mismatched input flag, an invalid
 animation clip id, and a rigging output that already exists — the same checks the
-real run performs. A package name that needs `{requestId8}` is validated here but
-its final paths can only be shown after the call.
+real run performs.
 
 ### Choose the model
 
@@ -232,7 +231,6 @@ Without `--force`, the command refuses before making the paid fal call.
 | `--input-image <path-or-url>` | Reference image for an image-to-3D model. Required for, and only accepted by, an `image-to-3D` model.                      |
 | `--rig`                       | Rig the generated mesh with Meshy (`fal-ai/meshy/rigging`). Humanoid meshes only.                                          |
 | `--animation-action-id <id>`  | Meshy preset animation id from 0 to 696, repeatable; switches to `fal-ai/meshy/rigging/multi-animation`. Requires `--rig`. |
-| `--name <template>`           | Package base name: `{stem}`, `{model}`, `{timestamp}`, `{requestId8}`; default `{stem}-{timestamp}`.                       |
 | `--package-dir <dir>`         | Directory for the package zip and preview (default: the directory of `--out`).                                             |
 | `--force`                     | Replace existing output, manifest, package, preview, rigged, and clip files.                                               |
 | `--dry-run`                   | Validate, print the request and the static list-price estimate; no upload or fal generation call.                          |
@@ -344,9 +342,8 @@ without paying for another generation. Within packaging:
 - a failed preview write removes the zip written moments earlier, so a package
   directory never holds a zip without its preview;
 - a package-name collision (`Package already exists` / `Preview already exists`)
-  is checked before either file is written. For a name that needs
-  `{requestId8}`, that check can only happen after the paid call — the master and
-  sidecar are kept and only the package is refused.
+  is checked before the paid call, together with the master and sidecar paths, so
+  no money is spent on a run that cannot write its package.
 
 **Rigging fails.** Packaging runs _before_ rigging, because the package is a pure
 function of the master. A rig failure therefore leaves the master, the sidecar,
@@ -357,10 +354,10 @@ rigged or clip file already downloaded stays, because each is written as soon as
 its download succeeds.
 
 **Re-running.** The same command needs `--force`, because the master and sidecar
-already exist. With `--force` and a fixed `--name`, the previous zip and preview
-are removed before the new pair is written, so the directory never holds a stale
-package beside a new master. Re-running just the rig is not a separate command;
-the mesh is regenerated and billed again.
+already exist. With a fixed `--package-dir`, a `--force` run also removes the
+previous zip and preview before writing the new pair, so the directory never holds
+a stale package beside a new master. Re-running just the rig is not a separate
+command; the mesh is regenerated and billed again.
 
 ## The package
 
@@ -372,25 +369,20 @@ each other:
 | `<base>.zip`  | `<stem>.glb`, `web/<stem>.web.glb`, `manifest.json` |
 | `<base>.html` | A standalone preview page of `web/<stem>.web.glb`   |
 
-`<base>` comes from `--name`; the directory comes from `--package-dir` (default:
-the directory of `--out`). The zip entry names use `<stem>`, not `<base>`, so the
-master keeps a stable name inside the archive.
+`<base>` is the `--out` file name without its `.glb` suffix, plus the UTC
+timestamp of the run (`YYYYMMDD-HHmmss`, taken once before the fal call), for
+example `stone-knight-20261028-011838`. `--out` therefore sets both the folder
+and the package name, and consecutive runs never collide.
 
-### Naming the package
+The base is still a file name, so the stem is sanitised: characters outside
+`[A-Za-z0-9._-]` become `-` and a leading non-alphanumeric is dropped, which
+turns `--out "My Chest.glb"` into `My-Chest-<timestamp>`. A stem with nothing
+usable left, such as a name written entirely in a non-ASCII script, is refused
+before the paid call with a message naming `--out`.
 
-| Placeholder    | Value                                                 |
-| -------------- | ----------------------------------------------------- |
-| `{stem}`       | `--out`'s file name without its `.glb` suffix         |
-| `{model}`      | The model id, with `/` replaced by `-`                |
-| `{timestamp}`  | UTC `YYYYMMDD-HHmmss`, taken once before the fal call |
-| `{requestId8}` | The first 8 characters of the fal request id          |
-
-The default is `{stem}-{timestamp}`, for example `stone-knight-20261028-011838`.
-The rendered value must be a plain file name: an unknown placeholder, an unclosed
-brace, a path separator, `..`, or a character outside `[A-Za-z0-9._-]` is refused
-before the paid call. `{requestId8}` is allowed, but the name cannot be known
-until fal answers, so its collision check runs immediately after the call and
-before anything from the run is written.
+The directory comes from `--package-dir` (default: the directory of `--out`).
+The zip entry names use `<stem>`, not `<base>`, so the master keeps a stable name
+inside the archive.
 
 ```bash
 chatroom generate-3d \
@@ -398,13 +390,12 @@ chatroom generate-3d \
   --model meshy/v7.1/text-to-3d \
   --prompt "a weathered stone knight statue" \
   --out assets/models/stone-knight.glb \
-  --name stone-knight \
   --package-dir dist/models
 ```
 
-That writes `dist/models/stone-knight.zip` and `dist/models/stone-knight.html`.
-Pass a name the user asks for through `--name` rather than renaming the output
-afterwards; the two package files always share it.
+That writes `dist/models/stone-knight-<timestamp>.zip` and
+`dist/models/stone-knight-<timestamp>.html`; without `--package-dir` both sit
+beside `assets/models/stone-knight.glb`.
 
 ### The zip
 
@@ -566,17 +557,15 @@ path or add `--force` to replace them all.
 
 ### `Package already exists` / `Preview already exists`
 
-The zip or the preview for the rendered base name is already on disk. Pick a new
-`--name`, a new `--package-dir`, or add `--force` to replace both. When `--name`
-uses `{requestId8}` this check runs right after the fal call, before any file from
-the run is written.
+The zip or the preview for this run's base name is already on disk. Run again a
+second later for a new timestamp, pass a different `--package-dir`, or add
+`--force` to replace both. The check runs before the paid call.
 
-### `Unknown --name placeholder` / `not a valid file name`
+### `The output file name ... cannot form a package name`
 
-The `--name` template rendered something the command cannot use: an unknown
-placeholder, an unclosed brace, a path separator, `..`, or a character outside
-`[A-Za-z0-9._-]`. Use the placeholders in [Naming the package](#naming-the-package) and keep the
-result to a plain file name.
+The `--out` file name has nothing usable after sanitising — every character is
+outside `[A-Za-z0-9._-]`, as with a name written entirely in a non-ASCII script.
+Rename `--out` so the package can be named after it.
 
 ### `Failed to build the web variant`
 
