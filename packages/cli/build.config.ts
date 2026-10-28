@@ -26,6 +26,10 @@ const config: BuildConfig = {
     // @anthropic-ai/claude-agent-sdk is loaded at runtime via importBundledClaudeSdk().
     '@anthropic-ai/claude-agent-sdk',
     '@anthropic-ai/claude-agent-sdk/extract',
+    // sharp ships per-platform native binaries and is imported lazily by the
+    // generate-3d web variant, so it must resolve from the install root at
+    // runtime instead of being bundled.
+    'sharp',
   ],
 };
 
