@@ -5,10 +5,12 @@
 
 ---
 
-`chatroom generate-3d` generates one 3D mesh with a fal model and writes two
-files: the mesh as a GLB at `--out`, and a JSON manifest at `<out>.json`. With
-`--rig` it also rigs the mesh with Meshy and writes `<stem>.rigged.glb`, plus one
-`<stem>.anim-<id>.glb` per requested animation clip.
+`chatroom generate-3d` generates one 3D mesh with a fal model and writes the mesh
+as a GLB at `--out`, plus a JSON sidecar manifest at `<out>.json`. It then
+packages the run as two sibling files: `<base>.zip` (the master, a smaller web
+variant, and a package manifest) and `<base>.html` (a standalone preview of the
+web variant). With `--rig` it also rigs the mesh with Meshy and writes
+`<stem>.rigged.glb`, plus one `<stem>.anim-<id>.glb` per requested animation clip.
 
 `--model` is required; there is no default and no free-form passthrough. Only
 the model ids in [Choose the model](#choose-the-model) are accepted. Run a
@@ -92,12 +94,14 @@ chatroom generate-3d \
   --out assets/models/stone-knight.glb
 ```
 
-The command writes both files, then prints the output paths and a static
-list-price estimate:
+The command writes the files, then prints their paths and a static list-price
+estimate:
 
 ```text
 Generated /path/to/your/project/assets/models/stone-knight.glb
 Manifest /path/to/your/project/assets/models/stone-knight.glb.json
+Package /path/to/your/project/assets/models/stone-knight-20261028-011838.zip
+Preview /path/to/your/project/assets/models/stone-knight-20261028-011838.html
 Cost estimate (prices as of 2026-10-27; estimate; fal returns no billed cost):
 - base $0.80
 - textures +$0.40
@@ -116,8 +120,8 @@ result can be recovered.
 ### Check a request first (`--dry-run`)
 
 `--dry-run` runs every check the real command runs, then prints the model, the
-output paths, the exact request JSON, the rigging request and clip paths when
-`--rig` is set, and a `Cost estimate` block. It makes no upload and no fal
+output, package, and preview paths, the exact request JSON, the rigging request
+and clip paths when `--rig` is set, and a `Cost estimate` block. It makes no upload and no fal
 generation call, and it needs no `FAL_API_KEY`.
 
 ```bash
@@ -134,6 +138,8 @@ chatroom generate-3d \
 ```text
 Would generate /path/to/your/project/assets/models/stone-knight.glb
 Manifest /path/to/your/project/assets/models/stone-knight.glb.json
+Package /path/to/your/project/assets/models/stone-knight-20261028-011838.zip
+Preview /path/to/your/project/assets/models/stone-knight-20261028-011838.html
 Model meshy/v7.1/text-to-3d (text-to-3D, licence: commercial)
 Request:
 {
@@ -164,9 +170,11 @@ dashboard for the actual bill. The block names the price date, lists one line pe
 charge, and ends with `Estimated total`. A charge that was not requested, such
 as Hunyuan's optional PBR maps, appears with `excluded from the total`.
 
-`--dry-run` also refuses an existing output path, an unknown model id, a missing
-or mismatched input flag, an invalid animation clip id, and a rigging output
-that already exists — the same checks the real run performs.
+`--dry-run` also refuses an existing output path, an existing package zip or
+preview, an unknown model id, a missing or mismatched input flag, an invalid
+animation clip id, and a rigging output that already exists — the same checks the
+real run performs. A package name that needs `{requestId8}` is validated here but
+its final paths can only be shown after the call.
 
 ### Choose the model
 
@@ -224,7 +232,9 @@ Without `--force`, the command refuses before making the paid fal call.
 | `--input-image <path-or-url>` | Reference image for an image-to-3D model. Required for, and only accepted by, an `image-to-3D` model.                      |
 | `--rig`                       | Rig the generated mesh with Meshy (`fal-ai/meshy/rigging`). Humanoid meshes only.                                          |
 | `--animation-action-id <id>`  | Meshy preset animation id from 0 to 696, repeatable; switches to `fal-ai/meshy/rigging/multi-animation`. Requires `--rig`. |
-| `--force`                     | Replace existing output, manifest, rigged, and clip files.                                                                 |
+| `--name <template>`           | Package base name: `{stem}`, `{model}`, `{timestamp}`, `{requestId8}`; default `{stem}-{timestamp}`.                       |
+| `--package-dir <dir>`         | Directory for the package zip and preview (default: the directory of `--out`).                                             |
+| `--force`                     | Replace existing output, manifest, package, preview, rigged, and clip files.                                               |
 | `--dry-run`                   | Validate, print the request and the static list-price estimate; no upload or fal generation call.                          |
 
 ## Generating from a reference image
@@ -302,12 +312,14 @@ discarded — see [Failure semantics](#failure-semantics).
 
 ### Output files
 
-Each step writes its own file next to `--out`:
+Each step writes its own file: the mesh, sidecar, rig, and clips beside `--out`, the package zip and preview in `--package-dir`.
 
 | Step                | File                                     |
 | ------------------- | ---------------------------------------- |
 | Mesh                | `<out>` (for example `stone-knight.glb`) |
 | Manifest            | `<out>.json`                             |
+| Package             | `<packageDir>/<base>.zip`                |
+| Preview             | `<packageDir>/<base>.html`               |
 | Rig                 | `<stem>.rigged.glb`                      |
 | Each animation clip | `<stem>.anim-<id>.glb`                   |
 
@@ -332,9 +344,87 @@ Re-running the same command needs `--force`, because the mesh and manifest
 already exist. Re-running just the rig is not a separate command; the mesh is
 regenerated and billed again.
 
-## The manifest
+## The package
 
-Every mesh gets a `<out>.json` sidecar with the provenance of the generation:
+Every successful run writes two files that share a base name, so they sort next to
+each other:
+
+| File          | Contents                                            |
+| ------------- | --------------------------------------------------- |
+| `<base>.zip`  | `<stem>.glb`, `web/<stem>.web.glb`, `manifest.json` |
+| `<base>.html` | A standalone preview page of `web/<stem>.web.glb`   |
+
+`<base>` comes from `--name`; the directory comes from `--package-dir` (default:
+the directory of `--out`). The zip entry names use `<stem>`, not `<base>`, so the
+master keeps a stable name inside the archive.
+
+### Naming the package
+
+| Placeholder    | Value                                                 |
+| -------------- | ----------------------------------------------------- |
+| `{stem}`       | `--out`'s file name without its `.glb` suffix         |
+| `{model}`      | The model id, with `/` replaced by `-`                |
+| `{timestamp}`  | UTC `YYYYMMDD-HHmmss`, taken once before the fal call |
+| `{requestId8}` | The first 8 characters of the fal request id          |
+
+The default is `{stem}-{timestamp}`, for example `stone-knight-20261028-011838`.
+The rendered value must be a plain file name: an unknown placeholder, an unclosed
+brace, a path separator, `..`, or a character outside `[A-Za-z0-9._-]` is refused
+before the paid call. `{requestId8}` is allowed, but the name cannot be known
+until fal answers, so its collision check runs immediately after the call and
+before anything from the run is written.
+
+```bash
+chatroom generate-3d \
+  --platform=fal \
+  --model meshy/v7.1/text-to-3d \
+  --prompt "a weathered stone knight statue" \
+  --out assets/models/stone-knight.glb \
+  --name stone-knight \
+  --package-dir dist/models
+```
+
+That writes `dist/models/stone-knight.zip` and `dist/models/stone-knight.html`.
+Pass a name the user asks for through `--name` rather than renaming the output
+afterwards; the two package files always share it.
+
+### The zip
+
+The zip holds exactly three entries, written in sorted order:
+
+- `<stem>.glb` — the master, byte-for-byte what fal returned. It is never
+  re-encoded, so this file is the one to archive.
+- `web/<stem>.web.glb` — a welded copy with textures re-encoded as JPEG at
+  `1024×1024`, simplified toward 30,000 triangles when the master is over that
+  target. It adds no glTF extension, so any glTF 2.0 viewer can load it.
+- `manifest.json` — the package manifest, described below.
+
+The archive is reproducible: entries are sorted and every entry carries the same
+fixed timestamp, so the same master and settings produce byte-identical bytes.
+
+### The preview
+
+`<base>.html` is a self-contained page for the **web variant**: the GLB is
+embedded as a `data:model/gltf-binary;base64,...` URI, so it opens from `file://`
+with no server and no sibling file. It loads only
+[`@google/model-viewer@3`](https://cdn.jsdelivr.net/npm/@google/model-viewer@3/dist/model-viewer.min.js)
+from jsDelivr and turns on orbit controls, auto-rotation, and shadows.
+
+The caption above the viewer lists the model id, prompt, fal request id, the
+master and web triangle counts, both sizes, the web variant's SHA-256, and the
+sibling zip that holds the full-resolution master. Every value that comes from
+the model, the prompt, the request, or the chosen name is HTML-escaped, so a
+prompt containing markup shows as text.
+
+The mesh itself is embedded, so the page works offline apart from the viewer
+script; without network access the caption still renders and the viewer frame
+stays empty.
+
+## The sidecar manifest
+
+Every mesh gets a `<out>.json` sidecar with the provenance of the generation.
+`manifest.json` inside the package is a different, smaller document described in
+[The package manifest](#the-package-manifest).
 
 - `platform` — generation platform (`fal`).
 - `tool` — `chatroom generate-3d`.
@@ -375,6 +465,25 @@ claim about the licence or commercial rights of the generated output; check
 fal's terms and the selected model's page yourself before using an asset in
 production.
 
+## The package manifest
+
+`manifest.json` inside the zip describes the package rather than the call:
+
+- `schemaVersion` — `1`.
+- `package.name`, `package.zip`, `package.createdAt` — the rendered base name, the
+  zip file name, and the ISO timestamp the zip was built.
+- `generator.tool`, `generator.model`, `generator.requestId`,
+  `generator.prompt`, `generator.inputImage` — the generator and its provenance.
+  `prompt` is `null` for an image-to-3D run; `inputImage` is the path or URL the
+  user gave, not the temporary fal storage URL.
+- `variants` — one entry per file. `master` records the unchanged fal bytes;
+  `web` also records its `settings` (`maxTexturePx`, `textureFormat`, `quality`,
+  `triangleTarget`, `simplified`). Each entry carries `file`, `bytes`, `sha256`,
+  `triangles`, `textures`, and `extensionsUsed`.
+- `licence` — the model's catalogue licence value, copied from the registry.
+- `pricing.estimatedTotalUsd` and `pricing.note` — the same list-price estimate
+  the CLI printed, with the reminder that it is not a billed amount.
+
 ## Limits
 
 - **One mesh per invocation.** The command generates one GLB from text or one
@@ -391,6 +500,12 @@ production.
 - **No model parameters.** There is no `--input` escape hatch: the request body
   for each model is fixed. The resolution, texture mode, and PBR settings are the
   ones described in [Choose the model](#choose-the-model).
+- **Always packaged.** A successful run always writes the zip and the preview;
+  neither can be switched off. Use `--package-dir` to keep them out of the asset
+  folder.
+- **Preview needs the CDN.** The preview's mesh is embedded, but the model-viewer
+  module comes from jsDelivr, so the viewer needs network access the first time
+  the page is opened.
 - **Paid calls.** Every real generation, rig, and clip is billed to your fal
   account. The command prints a static list-price estimate, but fal returns no
   billed cost; the estimate is not a bill. Check the fal dashboard for the
@@ -424,6 +539,35 @@ The command writes a GLB mesh only. Rename the output to end in `.glb`.
 The output, its manifest, or a rigged/clip file is already on disk. Choose a new
 path or add `--force` to replace them all.
 
+### `Package already exists` / `Preview already exists`
+
+The zip or the preview for the rendered base name is already on disk. Pick a new
+`--name`, a new `--package-dir`, or add `--force` to replace both. When `--name`
+uses `{requestId8}` this check runs right after the fal call, before any file from
+the run is written.
+
+### `Unknown --name placeholder` / `not a valid file name`
+
+The `--name` template rendered something the command cannot use: an unknown
+placeholder, an unclosed brace, a path separator, `..`, or a character outside
+`[A-Za-z0-9._-]`. Use the placeholders in [Naming the package](#naming-the-package) and keep the
+result to a plain file name.
+
+### `Failed to build the web variant`
+
+The glTF optimizer or its image encoder (`sharp`) failed, most often because the
+native `sharp` binary is missing for this platform. The master GLB and its sidecar
+manifest are kept, and no package files are written. Reinstall the CLI
+(`npm install -g chatroom-cli@latest`) to get the matching binary, or run the same
+command with `--force` after fixing the environment.
+
+### `Failed to build the package zip` / `Failed to save the preview`
+
+The zip could not be built or the preview could not be written. The master and
+its sidecar are kept. If the preview write fails, the zip written moments earlier
+is removed, so a package directory never holds a zip without its preview; the
+message says so if the removal itself fails.
+
 ### `--animation-action-id requires --rig`
 
 Animation clips are a rigging feature. Add `--rig`, or drop the clip ids.
@@ -445,6 +589,12 @@ rigging request id when available, and the kept mesh path. Read the underlying
 fal message: the most common cause is a non-humanoid mesh. The mesh and its
 manifest are intact, so the mesh does not need to be paid for again if you can
 rig it another way; re-running `generate-3d` does generate and bill a new mesh.
+
+### `--package-dir` rejects the path
+
+`--package-dir` must be a directory the process can create and write. The command
+creates it before the paid call, so a permission error there fails before any
+charge.
 
 ### `unsupported platform`
 
