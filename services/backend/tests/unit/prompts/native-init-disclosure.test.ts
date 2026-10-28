@@ -34,10 +34,11 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * contract, API, and schema/persistence changes through the architect first (~275 characters),
  * then from 16800 to admit the 3D-model generation routing and model-id requirement
  * in the game-assets-via-designer delegation rule (~200 characters),
- * then from 17000 to admit the generate-3d package name template, package
- * directory, and zip/preview layout in the same rule (~440 characters).
+ * then from 17000 to admit the generate-3d package name template and package
+ * directory in the same rule (~190 characters; the zip/preview layout lives in
+ * the designer prompt and handoff template, not here).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 17500;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 17300;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];
