@@ -51,6 +51,29 @@ describe('renderPackageName', () => {
     expect(renderPackageName('{model}', VARS)).toBe('meshy-v7.1-text-to-3d');
   });
 
+  it.each([
+    ['My Chest', 'My-Chest'],
+    ['chest (1)', 'chest-1-'],
+    ['_tmp', 'tmp'],
+    ['.hidden', 'hidden'],
+    ['--flag', 'flag'],
+    ['宝箱', 'asset'],
+    ['***', 'asset'],
+    ['knight final', 'knight-final'],
+    ['a/b', 'a-b'],
+  ])('sanitizes a %s stem into a valid name', (stem, expected) => {
+    const rendered = renderPackageName(DEFAULT_NAME_TEMPLATE, { ...VARS, stem });
+
+    expect(rendered).toBe(`${expected}-20261028-011838`);
+    expect(rendered).toMatch(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+  });
+
+  it('names the rendered value and the input in an invalid-name error', () => {
+    expect(() => renderPackageName('-{stem}', { ...VARS, stem: 'My Chest' })).toThrow(
+      /rendered "-My-Chest".*template "-\{stem\}" with \{stem\} "My Chest"/
+    );
+  });
+
   it('rejects an unknown placeholder and names it', () => {
     expect(() => renderPackageName('{stem}-{version}', VARS)).toThrow(
       /Unknown --name placeholder "\{version\}"/
