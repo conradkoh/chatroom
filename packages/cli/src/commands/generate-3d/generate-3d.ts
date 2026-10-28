@@ -560,7 +560,7 @@ async function requireWritablePlanPaths(args: {
   await requireWritablePackage(args.deps, args.naming, args.force);
 }
 
-/** Refuse to clobber the package zip or its preview when their names are known. */
+/** Refuse to clobber the package zip or its preview. */
 async function requireWritablePackage(
   deps: Generate3dDeps,
   paths: { zipPath: string; htmlPath: string },
@@ -1155,9 +1155,9 @@ interface MasterOutput {
  * Run the paid half: upload the input image if any, call fal once, download the
  * GLB, and write both the master and its sidecar manifest.
  *
- * Nothing about the package is checked or written here: the master and its
- * provenance have to survive a package-name collision, so the package is planned
- * from the finished master in {@link writePackage}.
+ * Package paths and their collisions are settled in the plan, before this runs;
+ * packaging itself waits for the finished master so the master and its
+ * provenance survive a packaging failure.
  */
 async function generateMaster(
   plan: Generate3dPlan,

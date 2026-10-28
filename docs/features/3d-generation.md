@@ -334,9 +334,8 @@ A run writes in this order: the master GLB, its sidecar manifest, the package
 optional in the sense that its failure never discards a paid generation, but the
 stage that failed decides what you have on disk.
 
-**Packaging fails.** The master and its sidecar are already saved, so they stay.
-The error names the request id and the GLB URL, so the mesh can be recovered
-without paying for another generation. Within packaging:
+**Packaging fails.** The master and its sidecar are already saved, so they stay,
+and the error names the kept master path. Within packaging:
 
 - a failed zip write removes the partial zip;
 - a failed preview write removes the zip written moments earlier, so a package
@@ -345,19 +344,24 @@ without paying for another generation. Within packaging:
   is checked before the paid call, together with the master and sidecar paths, so
   no money is spent on a run that cannot write its package.
 
-**Rigging fails.** Packaging runs _before_ rigging, because the package is a pure
-function of the master. A rig failure therefore leaves the master, the sidecar,
-the zip, and the preview in place; only the rigged GLB and the clips are missing.
-The sidecar records no `rigging` section, and the error names the rigging
-endpoint, the rigging request id when fal returned one, and the kept mesh. Any
-rigged or clip file already downloaded stays, because each is written as soon as
-its download succeeds.
+Rigging still runs after a packaging failure: the run was paid for, so a rig that
+was asked for is attempted and saved, and the packaging error is reported at the
+end with a note that the rig completed. Packaging runs _before_ rigging for the
+same reason — the package is a pure function of the master, so a rig failure
+cannot cost the packaged asset.
+
+**Rigging fails.** The master, the sidecar, the zip, and the preview stay in
+place; only the rigged GLB and the clips are missing. The sidecar records no
+`rigging` section, and the error names the rigging endpoint, the rigging request
+id when fal returned one, and the kept mesh. Any rigged or clip file already
+downloaded stays, because each is written as soon as its download succeeds.
 
 **Re-running.** The same command needs `--force`, because the master and sidecar
-already exist. With a fixed `--package-dir`, a `--force` run also removes the
-previous zip and preview before writing the new pair, so the directory never holds
-a stale package beside a new master. Re-running just the rig is not a separate
-command; the mesh is regenerated and billed again.
+already exist. Each run writes a new timestamped pair; earlier pairs stay until
+you delete them, and the sidecar's `package` field names the pair from the latest
+run. A `--force` run for the same base name also removes that pair before writing
+the new one. Re-running just the rig is not a separate command; the mesh is
+regenerated and billed again.
 
 ## The package
 
@@ -557,9 +561,10 @@ path or add `--force` to replace them all.
 
 ### `Package already exists` / `Preview already exists`
 
-The zip or the preview for this run's base name is already on disk. Run again a
-second later for a new timestamp, pass a different `--package-dir`, or add
-`--force` to replace both. The check runs before the paid call.
+The zip or the preview for this run's base name is already on disk, which happens
+when another run used the same `--out` in the same second. The check runs before
+the paid call: wait a second for a new timestamp, pass a different
+`--package-dir`, or add `--force` to replace both.
 
 ### `The output file name ... cannot form a package name`
 

@@ -446,6 +446,51 @@ describe('generate3d packaging', () => {
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
+  it('removes the previous package pair before a --force rewrite', async () => {
+    const deps = createDeps();
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, force: true }, deps);
+
+    const removeCalls = vi.mocked(deps.removeFile);
+    const writeCalls = vi.mocked(deps.writeFile);
+    const orderOfRemove = (path: string): number => {
+      const index = removeCalls.mock.calls.findIndex(([removed]) => removed === path);
+      return removeCalls.mock.invocationCallOrder[index] ?? -1;
+    };
+    const orderOfWrite = (path: string): number => {
+      const index = writeCalls.mock.calls.findIndex(([written]) => written === path);
+      return writeCalls.mock.invocationCallOrder[index] ?? -1;
+    };
+
+    expect(orderOfRemove(ZIP_PATH)).toBeGreaterThan(0);
+    expect(orderOfRemove(ZIP_PATH)).toBeLessThan(orderOfWrite(ZIP_PATH));
+    expect(orderOfRemove(HTML_PATH)).toBeLessThan(orderOfWrite(HTML_PATH));
+    // With --force the pair is written without the exclusive flag.
+    expect(writeCalls).toHaveBeenCalledWith(ZIP_PATH, ZIP_BYTES, { exclusive: false });
+  });
+
+  it('fails the package on EEXIST without discarding the master or sidecar', async () => {
+    const deps = createDeps();
+    vi.mocked(deps.writeFile).mockImplementation(async (path) => {
+      if (path !== ZIP_PATH) return;
+      const error = new Error('EEXIST: file already exists') as NodeJS.ErrnoException;
+      error.code = 'EEXIST';
+      throw error;
+    });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/save the package .*EEXIST.*hero\.glb/s);
+
+    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
+    expect(deps.writeJson).toHaveBeenCalledTimes(1);
+    expect(deps.writeFile).not.toHaveBeenCalledWith(
+      HTML_PATH,
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
   it('removes the zip when the preview cannot be written', async () => {
     const deps = createDeps();
     vi.mocked(deps.writeFile).mockImplementation(async (path) => {
@@ -870,6 +915,24 @@ describe('generate3d --rig', () => {
       zip: `${PACKAGE_NAME}.zip`,
       html: `${PACKAGE_NAME}.html`,
     });
+  });
+
+  it('still rigs when packaging fails, then reports the packaging error', async () => {
+    const deps = createRigDeps(RIGGING_FIXTURE, {
+      createWebVariant: vi.fn().mockRejectedValue(new Error('sharp is not installed')),
+    });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+    ).rejects.toThrow(
+      /web variant: sharp is not installed.*hero\.glb.*rig completed and was saved/s
+    );
+
+    // The rig ran and was saved even though the package could not be written.
+    expect(deps.writeFile).toHaveBeenCalledWith(RIGGED_OUT_PATH, GLB_BYTES);
+    const manifest = lastWrittenManifest(deps);
+    expect(manifest.rigging).toBeDefined();
+    expect(manifest.package).toBeUndefined();
   });
 
   it('keeps the mesh and names the rig endpoint when the rigging call fails', async () => {

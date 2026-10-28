@@ -140,7 +140,7 @@ describe('chatroom generate-3d wiring', () => {
     expect(afterHelp).toContain('<base>.html');
     expect(afterHelp).toContain('separate preview page of the web variant');
     expect(afterHelp).toContain('<base> is <out-stem>-<timestamp>');
-    expect(afterHelp).not.toContain('--name');
+    expect(command?.options.map((option) => option.long)).not.toContain('--name');
   });
 
   it('requires --model and --out', async () => {
@@ -152,6 +152,24 @@ describe('chatroom generate-3d wiring', () => {
     await expect(parse(program, ['--prompt', 'x', '--out', '/tmp/x.glb'])).rejects.toMatchObject({
       code: 'commander.missingMandatoryOptionValue',
     });
+  });
+
+  it('rejects --name as an unknown option', async () => {
+    const program = createProgram();
+
+    await expect(
+      parse(program, [
+        '--model',
+        'meshy/v7.1/text-to-3d',
+        '--prompt',
+        'x',
+        '--out',
+        '/tmp/x.glb',
+        '--name',
+        'chest',
+      ])
+    ).rejects.toMatchObject({ code: 'commander.unknownOption' });
+    expect(generate3dMock).not.toHaveBeenCalled();
   });
 
   it('rejects an unsupported --platform before running', async () => {
