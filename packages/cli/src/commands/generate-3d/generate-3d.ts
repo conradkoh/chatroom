@@ -140,10 +140,13 @@ export interface Generate3dRiggingManifest {
     actionId: number | null;
     path: string;
     bytes: number;
-    triangles: number;
-    webPath: string;
-    webBytes: number;
-    webTriangles: number;
+    /** Null when the web variant failed; the raw file is still in the zip. */
+    triangles: number | null;
+    webPath: string | null;
+    webBytes: number | null;
+    webTriangles: number | null;
+    /** Why the web variant is missing, when it failed. */
+    webError: string | null;
   }[];
   costLines: { label: string; usd: number }[];
 }
@@ -204,9 +207,10 @@ interface Generate3dPackageVariant {
   file: string;
   bytes: number;
   sha256: string;
-  triangles: number;
-  textures: { width: number; height: number; mimeType: string }[];
-  extensionsUsed: string[];
+  /** Absent only when the file could not be inspected (a failed web variant). */
+  triangles?: number;
+  textures?: { width: number; height: number; mimeType: string }[];
+  extensionsUsed?: string[];
   /** Present on the web variant only; the master is whatever fal returned. */
   settings?: {
     maxTexturePx: number;
@@ -231,6 +235,8 @@ interface Generate3dPackageManifest {
     inputImage: string | null;
   };
   variants: Generate3dPackageVariant[];
+  /** Rig files whose web variant failed; the raw files are still in the zip. */
+  riggingWebFailures?: { file: string; message: string }[];
   /** The bundled reference image, or null when nothing was bundled. */
   referenceImage: {
     source: 'generated' | 'user-supplied';
@@ -414,12 +420,22 @@ const INPUT_REQUIREMENTS: Record<
 function requireInputKind(model: Generate3dModelSpec, opts: Generate3dOptions): void {
   const inputKind = model.inputKind;
   if (inputKind === undefined) return;
-  // A prompt that becomes a reference image satisfies an image-only model.
-  if (needsReferenceImage(model, opts)) return;
+  // A prompt that becomes a reference image satisfies an image-only model, but
+  // only real text: FLUX has nothing else to draw from.
+  if (needsReferenceImage(model, opts)) {
+    requireReferencePrompt(opts.prompt);
+    return;
+  }
 
   const requirement = INPUT_REQUIREMENTS[inputKind];
   if (isFilled(requirement.value(opts))) return;
   throw new Generate3dError(`${requirement.flag} is required for ${model.id}.`);
+}
+
+/** An image-first run needs real prompt text, checked before any call. */
+function requireReferencePrompt(prompt: string | undefined): void {
+  if (isFilled(prompt)) return;
+  throw new Generate3dError('--prompt must not be empty when the model needs a reference image.');
 }
 
 /** True when an optional input value has real content. */
@@ -561,6 +577,7 @@ function requireCostConfirmation(plan: Generate3dPlan): void {
     [
       'This run rigs and animates with Meshy 7.1, which is billed in addition to the mesh:',
       ...formatGenerate3dCost(plan.costLines, plan.model.id, plan.generationCostKnown),
+      ...inputNoteLines(plan),
       'Add --confirm-cost to run.',
     ].join('\n')
   );
@@ -968,10 +985,6 @@ function modelWarningFor(model: Generate3dModelSpec): string | undefined {
 /** How the plan labels the reference URL before FLUX has produced one. */
 const GENERATED_REFERENCE_URL = '<generated reference image URL>';
 
-/**
- * Decide what the reference step does: generate a PNG with FLUX, bundle the
- * user's local file, or record a URL that is never downloaded.
- */
 /** The reference step for a prompt on an image-only model. */
 function generatedReferencePlan(
   opts: Generate3dOptions,
@@ -1094,11 +1107,6 @@ async function requireWritablePackage(
   await requireWritablePath(deps, paths.htmlPath, 'Preview', force, PACKAGE_COLLISION_HINT);
 }
 
-/**
- * Run every preflight check and build the request without a paid call or an
- * upload. The static cost table needs no network, so `--dry-run` works offline
- * and without `FAL_API_KEY`.
- */
 /** Resolve the model and run every pure check that needs no filesystem access. */
 function resolvePlanTarget(opts: Generate3dOptions): {
   model: Generate3dModelSpec;
@@ -1129,6 +1137,11 @@ function resolvePlanTarget(opts: Generate3dOptions): {
   return { model, outPath, flagContext };
 }
 
+/**
+ * Run every preflight check and build the request without a paid call or an
+ * upload. The static cost table needs no network, so `--dry-run` works offline
+ * and without `FAL_API_KEY`.
+ */
 export async function planGenerate3d(
   opts: Generate3dOptions,
   deps: Generate3dDeps
@@ -1201,7 +1214,6 @@ function formatRiggingPlan(plan: Generate3dPlan): string[] {
   ];
 }
 
-/** Render a plan for `--dry-run`: paths, model, request, and cost estimate. */
 /** The model line, the input line, and the unknown-model note. */
 function planModelLines(plan: Generate3dPlan): string[] {
   const lines = [
@@ -1210,7 +1222,7 @@ function planModelLines(plan: Generate3dPlan): string[] {
   const inputLine = formatInputImageLine(plan.inputTarget);
   if (inputLine !== undefined) lines.push(inputLine);
   if (plan.model.inputKind === undefined) {
-    lines.push('No capability data; flags are passed through and fal validates them.');
+    lines.push('No capability data: --prompt and --input-image are sent to fal unchecked.');
   }
   return lines;
 }
@@ -1510,7 +1522,10 @@ interface RigFilePackage {
   /** Absolute path of the loose file beside `--out`. */
   path: string;
   bytes: Uint8Array;
-  web: WebVariant;
+  /** Null when the web variant failed; the raw file is still bundled. */
+  web: WebVariant | null;
+  /** Why the web variant is missing, when it failed. */
+  webError: string | null;
   /** Zip entry names for the file and its web variant. */
   entry: string;
   webEntry: string;
@@ -1532,14 +1547,56 @@ function rigEntryNames(
 }
 
 /** Build the web variant for every rig file written. */
-async function buildRigFiles(
+/** The rig files and the first web-variant failure, reported after packaging. */
+interface RigFileBuild {
+  files: RigFilePackage[];
+  error: Generate3dError | null;
+}
+
+/** One file to package: the rigged GLB or an animation clip. */
+interface RigFileInput {
+  kind: 'rigged' | 'animation';
+  actionId: number | null;
+  path: string;
+  bytes: Uint8Array;
+}
+
+/** One rig file with its web variant, or the reason the variant is missing. */
+interface RigFileAttempt {
+  packaged: RigFilePackage;
+  /** The web-variant error message, or null on success. */
+  message: string | null;
+}
+
+/** Build one rig file's web variant, keeping the raw file on failure. */
+async function buildOneRigFile(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
-  rig: RigBundle
-): Promise<RigFilePackage[]> {
-  const files = [
+  file: RigFileInput
+): Promise<RigFileAttempt> {
+  const names = rigEntryNames(plan.stem, file.kind, file.actionId);
+  try {
+    const web = await buildWebVariant(plan, deps, file.bytes);
+    return { packaged: { ...file, ...names, web, webError: null }, message: null };
+  } catch (err) {
+    // Keep the raw file: it is paid for, and the package must still ship it.
+    const message = describeError(err);
+    return { packaged: { ...file, ...names, web: null, webError: message }, message };
+  }
+}
+
+/** The error reported after a successful package when a web variant failed. */
+function rigWebFailure(entry: string, message: string): Generate3dError {
+  return new Generate3dError(
+    `Failed to build the web variant for ${entry}; the raw rig files are bundled. ${message}`
+  );
+}
+
+/** The rig bundle as the flat list the package writes. */
+function rigFileInputs(plan: Generate3dPlan, rig: RigBundle): RigFileInput[] {
+  return [
     {
-      kind: 'rigged' as const,
+      kind: 'rigged',
       actionId: null,
       path: plan.riggedOutPath ?? '',
       bytes: rig.riggedBytes,
@@ -1551,13 +1608,52 @@ async function buildRigFiles(
       bytes: animation.bytes,
     })),
   ];
+}
 
-  const packaged: RigFilePackage[] = [];
-  for (const file of files) {
-    const web = await buildWebVariant(plan, deps, file.bytes);
-    packaged.push({ ...file, web, ...rigEntryNames(plan.stem, file.kind, file.actionId) });
+/** The first web-variant failure, as the error reported after packaging. */
+function firstWebFailure(attempts: readonly RigFileAttempt[]): Generate3dError | null {
+  for (const attempt of attempts) {
+    if (attempt.message !== null) {
+      return rigWebFailure(attempt.packaged.entry, attempt.message);
+    }
   }
-  return packaged;
+  return null;
+}
+
+async function buildRigFiles(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  rig: RigBundle
+): Promise<RigFileBuild> {
+  const attempts: RigFileAttempt[] = [];
+  for (const file of rigFileInputs(plan, rig)) {
+    attempts.push(await buildOneRigFile(plan, deps, file));
+  }
+  return {
+    files: attempts.map((attempt) => attempt.packaged),
+    error: firstWebFailure(attempts),
+  };
+}
+
+/** One `rigging.files` entry; the web fields are null when the variant failed. */
+function rigFileManifestEntry(file: RigFilePackage): Generate3dRiggingManifest['files'][number] {
+  const common = {
+    kind: file.kind,
+    actionId: file.actionId,
+    path: file.path,
+    bytes: file.bytes.byteLength,
+    webError: file.webError,
+  };
+  if (file.web === null) {
+    return { ...common, triangles: null, webPath: null, webBytes: null, webTriangles: null };
+  }
+  return {
+    ...common,
+    triangles: file.web.source.triangles,
+    webPath: file.webEntry,
+    webBytes: file.web.bytes.byteLength,
+    webTriangles: file.web.triangles,
+  };
 }
 
 /** The rigging section with its files list filled in. */
@@ -1567,36 +1663,40 @@ function withRigFiles(
 ): Generate3dRiggingManifest {
   return {
     ...section,
-    files: files.map((file) => ({
-      kind: file.kind,
-      actionId: file.actionId,
-      path: file.path,
-      bytes: file.bytes.byteLength,
-      triangles: file.web.source.triangles,
-      webPath: file.webEntry,
-      webBytes: file.web.bytes.byteLength,
-      webTriangles: file.web.triangles,
-    })),
+    files: files.map(rigFileManifestEntry),
   };
 }
 
 /** The package variants for the rig files: each file and its web variant. */
+/** The variant name for a rig file: `rigged`, `animation-<id>`, or their `-web`. */
+function rigVariantName(file: RigFilePackage, web: boolean): string {
+  if (file.kind === 'rigged') return web ? 'rigged-web' : 'rigged';
+  return web ? `animation-${file.actionId}-web` : `animation-${file.actionId}`;
+}
+
 function rigVariants(files: readonly RigFilePackage[]): Generate3dPackageVariant[] {
-  return files.flatMap((file) => [
-    variantEntry({
-      name: file.kind === 'rigged' ? 'rigged' : `animation-${file.actionId}`,
-      file: file.entry,
-      bytes: file.bytes,
-      stats: file.web.source,
-    }),
-    variantEntry({
-      name: file.kind === 'rigged' ? 'rigged-web' : `animation-${file.actionId}-web`,
-      file: file.webEntry,
-      bytes: file.web.bytes,
-      stats: file.web,
-      settings: webSettings(file.web),
-    }),
-  ]);
+  const variants: Generate3dPackageVariant[] = [];
+  for (const file of files) {
+    variants.push(
+      variantEntry({
+        name: rigVariantName(file, false),
+        file: file.entry,
+        bytes: file.bytes,
+        ...(file.web === null ? {} : { stats: file.web.source }),
+      })
+    );
+    if (file.web === null) continue;
+    variants.push(
+      variantEntry({
+        name: rigVariantName(file, true),
+        file: file.webEntry,
+        bytes: file.web.bytes,
+        stats: file.web,
+        settings: webSettings(file.web),
+      })
+    );
+  }
+  return variants;
 }
 
 /** The master variant entry: what fal returned, unchanged. */
@@ -1618,6 +1718,13 @@ function buildMasterVariant(args: {
 }
 
 /** The web variant entry, with the settings that produced it. */
+/** The package-manifest list of rig files whose web variant failed. */
+function rigWebFailures(files: readonly RigFilePackage[]): { file: string; message: string }[] {
+  return files
+    .filter((file) => file.webError !== null)
+    .map((file) => ({ file: file.entry, message: file.webError ?? '' }));
+}
+
 /** The settings a web variant ran with, recorded so it is reproducible. */
 function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['settings']> {
   return {
@@ -1635,7 +1742,8 @@ function variantEntry(args: {
   name: string;
   file: string;
   bytes: Uint8Array;
-  stats: GlbStats;
+  /** Absent when the file could not be described (a failed web variant). */
+  stats?: GlbStats;
   settings?: Generate3dPackageVariant['settings'];
 }): Generate3dPackageVariant {
   return {
@@ -1643,9 +1751,13 @@ function variantEntry(args: {
     file: args.file,
     bytes: args.bytes.byteLength,
     sha256: createHash('sha256').update(args.bytes).digest('hex'),
-    triangles: args.stats.triangles,
-    textures: args.stats.textures,
-    extensionsUsed: args.stats.extensionsUsed,
+    ...(args.stats === undefined
+      ? {}
+      : {
+          triangles: args.stats.triangles,
+          textures: args.stats.textures,
+          extensionsUsed: args.stats.extensionsUsed,
+        }),
     ...(args.settings === undefined ? {} : { settings: args.settings }),
   };
 }
@@ -1671,6 +1783,13 @@ function buildWebVariantEntry(
  * Build `manifest.json` for the package: what the zip holds, how each variant
  * was made, and the provenance a consumer needs without the sidecar.
  */
+/** The manifest field for web-variant failures, omitted when there are none. */
+function optionalWebFailures(
+  failures: { file: string; message: string }[]
+): Partial<Generate3dPackageManifest> {
+  return failures.length === 0 ? {} : { riggingWebFailures: failures };
+}
+
 function buildPackageManifest(args: {
   packageName: string;
   createdAt: string;
@@ -1687,6 +1806,7 @@ function buildPackageManifest(args: {
   totalUsd: number;
   reference: Generate3dPackageManifest['referenceImage'];
   rigVariants: Generate3dPackageVariant[];
+  riggingWebFailures: { file: string; message: string }[];
 }): Generate3dPackageManifest {
   return {
     schemaVersion: 1,
@@ -1714,6 +1834,7 @@ function buildPackageManifest(args: {
       ...args.rigVariants,
     ],
     referenceImage: args.reference,
+    ...optionalWebFailures(args.riggingWebFailures),
     licence: args.model.licenseType,
     pricing: {
       // Three decimals keeps a per-mille price such as $0.225 exact while
@@ -1739,7 +1860,7 @@ function buildPackageEntries(args: {
 }): ZipEntry[] {
   const rigEntries = args.rigFiles.flatMap((file) => [
     { path: file.entry, bytes: file.bytes },
-    { path: file.webEntry, bytes: file.web.bytes },
+    ...(file.web === null ? [] : [{ path: file.webEntry, bytes: file.web.bytes }]),
   ]);
   return [
     { path: `${args.stem}.glb`, bytes: args.masterBytes },
@@ -1901,6 +2022,7 @@ async function writePackage(args: {
     totalUsd: totalUsd(plan.costLines),
     reference: reference?.manifest ?? null,
     rigVariants: rigVariants(args.rigFiles),
+    riggingWebFailures: rigWebFailures(args.rigFiles),
   });
   const zipBytes = buildZip(plan, deps, {
     packageManifest,
@@ -1971,7 +2093,6 @@ interface BundledReference {
  * local file. A URL input is recorded in the sidecar and never downloaded, so
  * it is not bundled.
  */
-/** The bytes to bundle: the just-generated PNG, or the user's local file. */
 async function referenceBytes(
   reference: Generate3dReferenceImagePlan,
   deps: Generate3dDeps,
@@ -2113,6 +2234,8 @@ interface RigOutcome {
   section: Generate3dRiggingManifest | null;
   bundle: RigBundle | null;
   error: Generate3dError | null;
+  /** The first web-variant failure; the package is written before it surfaces. */
+  webError: Generate3dError | null;
   /** Web variants and entry names for every rig file; empty on failure. */
   files: RigFilePackage[];
 }
@@ -2124,41 +2247,30 @@ async function rigOrError(
   master: MasterOutput
 ): Promise<RigOutcome> {
   if (plan.riggingRequest === null) {
-    return { section: null, bundle: null, error: null, files: [] };
+    return { section: null, bundle: null, error: null, webError: null, files: [] };
   }
   try {
     const bundle = await runRigging(plan, deps, master.glbUrl);
-    return { section: bundle.section, bundle, error: null, files: [] };
+    return { section: bundle.section, bundle, error: null, webError: null, files: [] };
   } catch (err) {
     return {
       section: null,
       bundle: null,
       error: err instanceof Generate3dError ? err : new Generate3dError(describeError(err)),
+      webError: null,
       files: [],
     };
   }
 }
 
-/**
- * Build the rig files' web variants. If that fails, record the rigging section
- * without the files list first, so the paid rig is not lost from the sidecar.
- */
-async function rigFilesOrRecordFailure(
+/** Build the rig files' web variants, if the rig succeeded. */
+async function buildRigFilesOrEmpty(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
-  master: MasterOutput,
   rigging: RigOutcome
-): Promise<RigFilePackage[]> {
-  if (rigging.bundle === null) return [];
-  try {
-    return await buildRigFiles(plan, deps, rigging.bundle);
-  } catch (err) {
-    await deps.writeJson(plan.manifestPath, {
-      ...master.manifest,
-      rigging: rigging.bundle.section,
-    });
-    throw err;
-  }
+): Promise<RigFileBuild> {
+  if (rigging.bundle === null) return { files: [], error: null };
+  return buildRigFiles(plan, deps, rigging.bundle);
 }
 
 /** The sidecar with the rigging section, or null when nothing was rigged. */
@@ -2208,6 +2320,14 @@ async function packageOrError(args: {
   }
 }
 
+/** The first failure to report: the rig, then its web variant, then packaging. */
+function firstFailure(
+  rigging: RigOutcome,
+  packageError: Generate3dError | null
+): Generate3dError | null {
+  return rigging.error ?? rigging.webError ?? packageError;
+}
+
 /**
  * Package the run, link the sidecar, then throw whichever failure came first.
  *
@@ -2237,7 +2357,7 @@ async function packageRun(args: {
       packagedManifest(args.master, args.rigging, args.plan)
     );
   }
-  const failure = args.rigging.error ?? packageError;
+  const failure = firstFailure(args.rigging, packageError);
   if (failure !== null) throw failure;
 }
 
@@ -2264,7 +2384,9 @@ export async function generate3d(
   // master, the reference, and every rig file. A rig failure keeps the paid
   // mesh and still packages it, then reports the rig error.
   const rigging = await rigOrError(plan, deps, master);
-  rigging.files = await rigFilesOrRecordFailure(plan, deps, master, rigging);
+  const built = await buildRigFilesOrEmpty(plan, deps, rigging);
+  rigging.files = built.files;
+  rigging.webError = built.error;
   const rigged = rigManifest(master, rigging);
   if (rigged !== null) await deps.writeJson(plan.manifestPath, rigged);
 

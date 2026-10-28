@@ -799,6 +799,19 @@ describe('default model and rig gate', () => {
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
+  it('refuses a blank prompt before generating the reference image', async () => {
+    const deps = createDeps();
+
+    await expect(
+      generate3d({ model: TRELLIS_2, prompt: '   ', out: OUT_PATH }, deps)
+    ).rejects.toThrow('--prompt must not be empty when the model needs a reference image.');
+
+    expect(deps.generateReferenceImage).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
   it('refuses a real rigging run without --confirm-cost, before any upload', async () => {
     const deps = createRigDeps();
 
@@ -812,6 +825,27 @@ describe('default model and rig gate', () => {
     expect(deps.uploadFile).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
     expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('shows the --input caveat in the confirmation message', async () => {
+    const deps = createRigDeps();
+
+    await expect(
+      generate3d(
+        {
+          model: MESHY_TEXT,
+          prompt: 'a knight',
+          out: OUT_PATH,
+          rig: true,
+          extraInput: { seed: 7 },
+        },
+        deps
+      )
+    ).rejects.toThrow(
+      /Estimate assumes model defaults; --input may change the price\.\n--input keys: seed/
+    );
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
   it('rigs a Meshy run once --confirm-cost is given', async () => {
@@ -1141,6 +1175,7 @@ describe('generate3d --rig', () => {
           bytes: GLB_BYTES.byteLength,
           triangles: 27_438,
           webPath: 'web/hero.rigged.web.glb',
+          webError: null,
           webBytes: WEB_GLB_BYTES.byteLength,
           webTriangles: 2,
         },
@@ -1282,9 +1317,24 @@ describe('generate3d --rig', () => {
     });
   });
 
-  it('keeps the rig files when their web variant fails, and reports it', async () => {
+  it('still bundles the raw rig file when its web variant fails, then reports it', async () => {
+    // The rig file's variant fails; the master's (built later, for the package)
+    // succeeds, so the package can still be written.
+    let calls = 0;
     const deps = createRigDeps(RIGGING_FIXTURE, {
-      createWebVariant: vi.fn().mockRejectedValue(new Error('sharp is not installed')),
+      createWebVariant: vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) throw new Error('sharp is not installed');
+        return {
+          bytes: WEB_GLB_BYTES,
+          triangles: 2,
+          simplified: false,
+          skinnedPath: 'default' as const,
+          textures: WEB_TEXTURES,
+          extensionsUsed: [],
+          source: { triangles: 27_438, textures: SOURCE_TEXTURES, extensionsUsed: [] },
+        };
+      }),
     });
 
     await expect(
@@ -1292,14 +1342,34 @@ describe('generate3d --rig', () => {
         { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
         deps
       )
-    ).rejects.toThrow(/web variant: sharp is not installed/);
+    ).rejects.toThrow(
+      /Failed to build the web variant for hero\.rigged\.glb; the raw rig files are bundled\./
+    );
 
-    // The rig ran and its loose files are saved, but no package was written.
-    expect(deps.writeFile).toHaveBeenCalledWith(RIGGED_OUT_PATH, GLB_BYTES);
-    expect(deps.zipPackage).not.toHaveBeenCalled();
+    // The package is written with the master and the raw rigged GLB, then the
+    // web-variant error surfaces.
+    const entries = (vi.mocked(deps.zipPackage).mock.calls[0]?.[0] ?? []).map(
+      (entry) => entry.path
+    );
+    expect(entries).toContain('hero.glb');
+    expect(entries).toContain('web/hero.web.glb');
+    expect(entries).toContain('hero.rigged.glb');
+    expect(entries).not.toContain('web/hero.rigged.web.glb');
+
     const manifest = lastWrittenManifest(deps);
-    expect(manifest.rigging).toBeDefined();
-    expect(manifest.package).toBeUndefined();
+    expect(manifest.rigging?.files[0]).toMatchObject({
+      kind: 'rigged',
+      webPath: null,
+      webBytes: null,
+      webError: expect.stringContaining('sharp is not installed'),
+    });
+    expect(zippedManifest(deps)['riggingWebFailures']).toEqual([
+      {
+        file: 'hero.rigged.glb',
+        message: expect.stringContaining('sharp is not installed'),
+      },
+    ]);
+    expect(manifest.package).toBeDefined();
   });
 
   it('bundles the rigged GLB and every clip with their web variants', async () => {
@@ -1631,7 +1701,9 @@ describe('planGenerate3d', () => {
 
     expect(plan.costLines).toEqual([]);
     expect(plan.input).toEqual({ prompt: 'a knight' });
-    expect(text).toContain('No capability data; flags are passed through and fal validates them.');
+    expect(text).toContain(
+      'No capability data: --prompt and --input-image are sent to fal unchecked.'
+    );
     expect(text).toContain('Generation cost unknown: no list price for fal-ai/some-future-model.');
     expect(text).not.toContain('Estimated total');
     expect(text).toContain('Model fal-ai/some-future-model (input unknown, licence: unknown)');
