@@ -110,6 +110,8 @@ alike; `prompt` and `image_url` are reserved for `--prompt` and `--input-image`.
   reduced.
 - A local `--input-image` is uploaded to fal storage and its URL lasts one day; a
   URL is passed through, never downloaded.
-- A rig failure keeps the paid master, its manifest, and the package, and exits 1.
+- A rig failure keeps the paid master, its manifest, and the package, and exits 1;
+  a failed rig web version still ships the raw rig GLB, listed under
+  `riggingWebFailures`.
 - The global `chatroom` install may predate this command; check with
   `chatroom generate-3d --help`.

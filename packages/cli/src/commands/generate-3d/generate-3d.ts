@@ -1546,7 +1546,6 @@ function rigEntryNames(
   };
 }
 
-/** Build the web variant for every rig file written. */
 /** The rig files and the first web-variant failure, reported after packaging. */
 interface RigFileBuild {
   files: RigFilePackage[];
@@ -1622,6 +1621,7 @@ function firstWebFailure(attempts: readonly RigFileAttempt[]): Generate3dError |
   return null;
 }
 
+/** Build the web variant for every rig file written. */
 async function buildRigFiles(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
@@ -1669,13 +1669,13 @@ function withRigFiles(
   };
 }
 
-/** The package variants for the rig files: each file and its web variant. */
 /** The variant name for a rig file: `rigged`, `animation-<id>`, or their `-web`. */
 function rigVariantName(file: RigFilePackage, web: boolean): string {
   if (file.kind === 'rigged') return web ? 'rigged-web' : 'rigged';
   return web ? `animation-${file.actionId}-web` : `animation-${file.actionId}`;
 }
 
+/** The package variants for the rig files: each file and its web variant. */
 function rigVariants(files: readonly RigFilePackage[]): Generate3dPackageVariant[] {
   const variants: Generate3dPackageVariant[] = [];
   for (const file of files) {
@@ -1719,7 +1719,6 @@ function buildMasterVariant(args: {
   };
 }
 
-/** The web variant entry, with the settings that produced it. */
 /** The package-manifest list of rig files whose web variant failed. */
 function rigWebFailures(files: readonly RigFilePackage[]): { file: string; message: string }[] {
   return files
@@ -1764,6 +1763,7 @@ function variantEntry(args: {
   };
 }
 
+/** The web variant entry, with the settings that produced it. */
 function buildWebVariantEntry(
   stem: string,
   web: WebVariant,
@@ -1781,10 +1781,6 @@ function buildWebVariantEntry(
   };
 }
 
-/**
- * Build `manifest.json` for the package: what the zip holds, how each variant
- * was made, and the provenance a consumer needs without the sidecar.
- */
 /** The manifest field for web-variant failures, omitted when there are none. */
 function optionalWebFailures(
   failures: { file: string; message: string }[]
@@ -1792,6 +1788,10 @@ function optionalWebFailures(
   return failures.length === 0 ? {} : { riggingWebFailures: failures };
 }
 
+/**
+ * Build `manifest.json` for the package: what the zip holds, how each variant
+ * was made, and the provenance a consumer needs without the sidecar.
+ */
 function buildPackageManifest(args: {
   packageName: string;
   createdAt: string;
