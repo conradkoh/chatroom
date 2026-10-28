@@ -21,11 +21,11 @@ import { basename, dirname, extname, join, resolve } from 'node:path';
 
 import type { Generate3dDeps } from './deps.js';
 import {
-  allowedGenerate3dModelIds,
-  findGenerate3dModel,
   Generate3dError,
   GENERATE_3D_PRICES_AS_OF,
+  resolveGenerate3dModel,
   type Generate3dCostLine,
+  type Generate3dInputKind,
   type Generate3dModelSpec,
 } from './model-registry.js';
 import { formatTimestamp, packageBaseName } from './package-name.js';
@@ -297,15 +297,12 @@ function inputImageContentType(path: string): string {
   return contentType;
 }
 
+/**
+ * Resolve `--model` to a spec. There is no allowlist: an id the registry does
+ * not know becomes the generic passthrough, and fal validates it.
+ */
 function requireModel(modelId: string): Generate3dModelSpec {
-  const id = requireNonEmpty(modelId, '--model must not be empty.');
-  const model = findGenerate3dModel(id);
-  if (model === undefined) {
-    throw new Generate3dError(
-      `Unknown --model ${id}. Allowed models: ${allowedGenerate3dModelIds().join(', ')}.`
-    );
-  }
-  return model;
+  return resolveGenerate3dModel(requireNonEmpty(modelId, '--model must not be empty.'));
 }
 
 function requireTextInput(model: Generate3dModelSpec, opts: Generate3dOptions): void {
@@ -332,9 +329,11 @@ function requireImageInput(model: Generate3dModelSpec, opts: Generate3dOptions):
 
 /**
  * Enforce the model's dedicated input flag before any filesystem or network
- * work. Text models take `--prompt`; image models take `--input-image`.
+ * work. Text models take `--prompt`; image models take `--input-image`; a model
+ * the registry does not know has no adapter, so its flags pass through.
  */
 function requireInputKind(model: Generate3dModelSpec, opts: Generate3dOptions): void {
+  if (model.inputKind === undefined) return;
   if (model.inputKind === 'text') {
     requireTextInput(model, opts);
     return;
@@ -436,11 +435,22 @@ function totalUsd(lines: readonly Generate3dCostLine[]): number {
   return lines.reduce((sum, line) => sum + line.usd, 0);
 }
 
+/** How the plan labels a model's input; unknown models have none. */
+function describeInputKind(inputKind: Generate3dInputKind | undefined): string {
+  return inputKind === undefined ? 'input unknown' : `${inputKind}-to-3D`;
+}
+
 /**
  * Render the static list-price estimate. The header states the price date and
  * that the figure is not a bill; fal returns no billed cost.
+ *
+ * A model the registry does not know has no price data, so the block says so
+ * and prints no total rather than guessing one.
  */
-function formatGenerate3dCost(lines: readonly Generate3dCostLine[]): string[] {
+function formatGenerate3dCost(lines: readonly Generate3dCostLine[], modelId: string): string[] {
+  if (lines.length === 0) {
+    return [`Cost unknown: no list price for ${modelId}.`];
+  }
   return [
     `Cost estimate (prices as of ${GENERATE_3D_PRICES_AS_OF}; estimate; fal returns no billed cost):`,
     ...lines.map((line) => `- ${line.label}`),
@@ -616,7 +626,7 @@ export async function planGenerate3d(
     riggedOutPath: rigging.riggedOutPath,
     animationOutPaths: rigging.animationOutPaths,
     riggingRequest: rigging.riggingRequest,
-    costLines: [...model.cost().lines, ...rigging.extraCostLines],
+    costLines: [...(model.cost()?.lines ?? []), ...rigging.extraCostLines],
     ...naming,
   };
 }
@@ -649,15 +659,18 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
     `Manifest ${plan.manifestPath}`,
     `Package ${plan.zipPath}`,
     `Preview ${plan.htmlPath}`,
-    `Model ${plan.model.id} (${plan.model.inputKind}-to-3D, licence: ${plan.model.licenseType})`,
+    `Model ${plan.model.id} (${describeInputKind(plan.model.inputKind)}, licence: ${plan.model.licenseType})`,
   ];
   const inputLine = formatInputImageLine(plan.inputTarget);
   if (inputLine !== undefined) lines.push(inputLine);
+  if (plan.model.inputKind === undefined) {
+    lines.push('No capability data; flags are passed through and fal validates them.');
+  }
   lines.push(
     'Request:',
     JSON.stringify(plan.input, null, 2),
     ...formatRiggingPlan(plan),
-    ...formatGenerate3dCost(plan.costLines),
+    ...formatGenerate3dCost(plan.costLines, plan.model.id),
     'No upload or fal generation call was made.'
   );
   return lines.join('\n');
@@ -1289,6 +1302,6 @@ export async function generate3d(
     zipPath: plan.zipPath,
     htmlPath: plan.htmlPath,
     sha256: master.sha256,
-    costLines: formatGenerate3dCost(plan.costLines),
+    costLines: formatGenerate3dCost(plan.costLines, plan.model.id),
   };
 }

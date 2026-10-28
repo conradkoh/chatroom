@@ -1,18 +1,18 @@
 /**
  * Generate 3D model registry tests.
  *
- * The registry is the allowlist, so these tests pin the exact ids, the request
- * shapes (including fields that must be omitted), and the per-model output
- * adapters. No network is involved: fixtures are literal fal results.
+ * The registry is a capability table plus the generic passthrough, so these
+ * tests pin the known ids, the request shapes (including fields that must be
+ * omitted), the per-model output adapters, and the generic GLB search. No
+ * network is involved: fixtures are literal fal results.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import {
-  allowedGenerate3dModelIds,
-  findGenerate3dModel,
   Generate3dError,
   GENERATE_3D_MODELS,
+  resolveGenerate3dModel,
   type Generate3dModelSpec,
 } from './model-registry.js';
 
@@ -52,9 +52,13 @@ const trellisResult = {
 };
 
 function requireModel(id: string): Generate3dModelSpec {
-  const model = findGenerate3dModel(id);
-  if (model === undefined) throw new Error(`expected ${id} to be allowlisted`);
-  return model;
+  return resolveGenerate3dModel(id);
+}
+
+function costLines(model: Generate3dModelSpec): { label: string; usd: number }[] {
+  const cost = model.cost();
+  if (cost === undefined) throw new Error(`expected a price for ${model.id}`);
+  return cost.lines;
 }
 
 function total(lines: readonly { usd: number }[]): number {
@@ -62,8 +66,8 @@ function total(lines: readonly { usd: number }[]): number {
 }
 
 describe('generate-3d model registry', () => {
-  it('allowlists exactly the four v1 models', () => {
-    expect(allowedGenerate3dModelIds()).toEqual([
+  it('lists exactly the four specialised models', () => {
+    expect(GENERATE_3D_MODELS.map((model) => model.id)).toEqual([
       MESHY_TEXT,
       HUNYUAN_RAPID,
       MESHY_IMAGE,
@@ -71,12 +75,19 @@ describe('generate-3d model registry', () => {
     ]);
   });
 
-  it.each(allowedGenerate3dModelIds())('finds %s', (id) => {
-    expect(findGenerate3dModel(id)?.id).toBe(id);
+  it.each([MESHY_TEXT, HUNYUAN_RAPID, MESHY_IMAGE, TRELLIS_2])('finds %s', (id) => {
+    expect(resolveGenerate3dModel(id).id).toBe(id);
+    expect(resolveGenerate3dModel(id).inputKind).toBeDefined();
   });
 
-  it('returns undefined for an unknown model', () => {
-    expect(findGenerate3dModel('fal-ai/flux/dev')).toBeUndefined();
+  it('falls back to a generic spec for an unknown model', () => {
+    const model = resolveGenerate3dModel('fal-ai/some-future-model');
+
+    expect(model.id).toBe('fal-ai/some-future-model');
+    expect(model.inputKind).toBeUndefined();
+    expect(model.cost()).toBeUndefined();
+    expect(model.pageUrl).toBe('https://fal.ai/models/fal-ai/some-future-model');
+    expect(model.licenseType).toBe('commercial');
   });
 
   it.each(GENERATE_3D_MODELS)('$id records a commercial licence and page URL', (model) => {
@@ -183,17 +194,71 @@ describe('generate-3d model registry', () => {
     });
   });
 
+  describe('generic passthrough', () => {
+    const FUTURE = 'fal-ai/some-future-model';
+
+    it('maps --prompt and --input-image onto the conventional fields', () => {
+      const model = requireModel(FUTURE);
+
+      expect(model.buildInput({ prompt: ' a knight ' })).toEqual({ prompt: 'a knight' });
+      expect(model.buildInput({ imageUrl: 'https://example.test/hero.png' })).toEqual({
+        image_url: 'https://example.test/hero.png',
+      });
+    });
+
+    it('merges --input over the conventional fields', () => {
+      const model = requireModel(FUTURE);
+
+      const input = model.buildInput({
+        prompt: 'a knight',
+        extraInput: { resolution: 512, prompt: 'a queen' },
+      });
+
+      expect(input).toEqual({ prompt: 'a queen', resolution: 512 });
+    });
+
+    it.each([
+      ['model_glb', { model_glb: { url: 'https://fal.test/a/model.glb' } }],
+      ['model_urls.glb', { model_urls: { glb: { url: 'https://fal.test/b/model.glb' } } }],
+      [
+        'a nested url',
+        { output: { assets: [{ kind: 'mesh', url: 'https://fal.test/c/model.glb?v=2' }] } },
+      ],
+    ])('finds the GLB at %s', (_label, fixture) => {
+      expect(requireModel(FUTURE).readOutput(fixture).glbUrl).toContain('/model.glb');
+    });
+
+    it('prefers model_glb over model_urls and a nested url', () => {
+      const glbUrl = requireModel(FUTURE).readOutput({
+        model_glb: { url: 'https://fal.test/first/model.glb' },
+        model_urls: { glb: { url: 'https://fal.test/second/model.glb' } },
+      }).glbUrl;
+
+      expect(glbUrl).toBe('https://fal.test/first/model.glb');
+    });
+
+    it('names the model and the top-level keys when no GLB is present', () => {
+      expect(() => requireModel(FUTURE).readOutput({ nope: 1, other: 2 })).toThrow(
+        /no GLB for model fal-ai\/some-future-model.*nope, other/
+      );
+    });
+
+    it('has no price data', () => {
+      expect(requireModel(FUTURE).cost()).toBeUndefined();
+    });
+  });
+
   describe('cost tables', () => {
     it('bills Meshy as the textured $1.20 request', () => {
-      const lines = requireModel(MESHY_TEXT).cost().lines;
+      const lines = costLines(requireModel(MESHY_TEXT));
 
       expect(lines.map((line) => line.label)).toEqual(['base $0.80', 'textures +$0.40']);
       expect(total(lines)).toBeCloseTo(1.2, 3);
-      expect(requireModel(MESHY_IMAGE).cost().lines).toEqual(lines);
+      expect(costLines(requireModel(MESHY_IMAGE))).toEqual(lines);
     });
 
     it('bills Hunyuan rapid at $0.225 and excludes the optional PBR line', () => {
-      const lines = requireModel(HUNYUAN_RAPID).cost().lines;
+      const lines = costLines(requireModel(HUNYUAN_RAPID));
 
       expect(lines.map((line) => line.label)).toEqual([
         'base $0.225',
@@ -203,7 +268,7 @@ describe('generate-3d model registry', () => {
     });
 
     it('bills Trellis-2 at the resolution actually sent', () => {
-      const lines = requireModel(TRELLIS_2).cost().lines;
+      const lines = costLines(requireModel(TRELLIS_2));
 
       expect(lines.map((line) => line.label)).toEqual(['resolution 1024 $0.30']);
       expect(total(lines)).toBeCloseTo(0.3, 3);

@@ -1,8 +1,13 @@
 /**
- * Generate 3D — the allowlist of fal models `chatroom generate-3d` can call.
+ * Generate 3D — the known fal models and the generic passthrough.
  *
- * Each model differs in request shape, result shape, and price, so it gets one
- * small spec: an input builder, an output adapter, and a static cost table.
+ * Any fal endpoint id is accepted by `chatroom generate-3d`. The ids below have
+ * a specialised adapter: an input builder that sends the fields the model
+ * expects, an output adapter that knows where its GLB lives, and a static cost
+ * table. Every other id goes through a generic spec that maps `--prompt` to
+ * `prompt`, `--input-image` to `image_url`, merges `--input`, and finds the GLB
+ * by shape.
+ *
  * Nothing here touches the network; the adapters receive the raw fal result and
  * narrow it themselves.
  *
@@ -42,20 +47,28 @@ export interface Generate3dCostLine {
 export interface Generate3dModelSpec {
   /** fal endpoint id, passed to fal.subscribe unchanged. */
   id: string;
-  inputKind: Generate3dInputKind;
+  /** Which dedicated input flag the model takes; absent for an unknown model. */
+  inputKind?: Generate3dInputKind | undefined;
   /** Public model page, recorded in the manifest. */
   pageUrl: string;
   /** Catalog licence value copied verbatim to the manifest. */
   licenseType: 'commercial';
-  /** Build the fal request body. Throws Generate3dError for a missing or invalid input. */
+  /**
+   * Build the fal request body. Throws Generate3dError for a missing or invalid
+   * input. `extraInput` (`--input`) is merged last, over the adapter's defaults.
+   */
   buildInput(args: {
     prompt?: string | undefined;
     imageUrl?: string | undefined;
+    extraInput?: Record<string, unknown> | undefined;
   }): Record<string, unknown>;
   /** Pull the GLB URL and texture URLs out of the fal result. Throws if the GLB URL is missing. */
   readOutput(data: unknown): { glbUrl: string; textureUrls: string[] };
-  /** Base list price and surcharges for a default request. */
-  cost(): { lines: Generate3dCostLine[] };
+  /**
+   * Base list price and surcharges for a default request, or undefined when the
+   * registry has no price data for the model. Never a guess.
+   */
+  cost(): { lines: Generate3dCostLine[] } | undefined;
 }
 
 // ─── result helpers ─────────────────────────────────────────────────────────
@@ -141,7 +154,7 @@ const MESHY_TEXT_TO_3D: Generate3dModelSpec = {
   inputKind: 'text',
   pageUrl: 'https://fal.ai/models/meshy/v7.1/text-to-3d',
   licenseType: 'commercial',
-  buildInput: (args) => ({ prompt: requirePrompts(args.prompt) }),
+  buildInput: (args) => ({ prompt: requirePrompts(args.prompt), ...args.extraInput }),
   readOutput: (data) => meshyOutput(MESHY_TEXT_TO_3D.id, data),
   cost: meshyCost,
 };
@@ -151,7 +164,7 @@ const MESHY_IMAGE_TO_3D: Generate3dModelSpec = {
   inputKind: 'image',
   pageUrl: 'https://fal.ai/models/meshy/v7.1/image-to-3d',
   licenseType: 'commercial',
-  buildInput: (args) => ({ image_url: requireInputImageUrl(args.imageUrl) }),
+  buildInput: (args) => ({ image_url: requireInputImageUrl(args.imageUrl), ...args.extraInput }),
   readOutput: (data) => meshyOutput(MESHY_IMAGE_TO_3D.id, data),
   cost: meshyCost,
 };
@@ -168,7 +181,7 @@ const HUNYUAN_RAPID_TEXT_TO_3D: Generate3dModelSpec = {
   inputKind: 'text',
   pageUrl: 'https://fal.ai/models/fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d',
   licenseType: 'commercial',
-  buildInput: (args) => ({ prompt: requirePrompts(args.prompt) }),
+  buildInput: (args) => ({ prompt: requirePrompts(args.prompt), ...args.extraInput }),
   readOutput: (data) => {
     if (!isRecord(data)) throw missingGlb(HUNYUAN_RAPID_TEXT_TO_3D.id);
     const modelUrls = isRecord(data.model_urls) ? data.model_urls : {};
@@ -209,6 +222,7 @@ const TRELLIS_2: Generate3dModelSpec = {
   buildInput: (args) => ({
     image_url: requireInputImageUrl(args.imageUrl),
     resolution: TRELLIS_2_RESOLUTION,
+    ...args.extraInput,
   }),
   readOutput: (data) => {
     if (!isRecord(data)) throw missingGlb(TRELLIS_2.id);
@@ -220,11 +234,12 @@ const TRELLIS_2: Generate3dModelSpec = {
   cost: () => ({ lines: [{ label: `resolution ${TRELLIS_2_RESOLUTION} $0.30`, usd: 0.3 }] }),
 };
 
-// ─── Allowlist ──────────────────────────────────────────────────────────────
+// ─── Known models ───────────────────────────────────────────────────────────
 
 /**
- * The only model ids `generate-3d` accepts. Adding one here is the whole
- * change; there is deliberately no free-form model passthrough in v1.
+ * The ids with a specialised adapter. This is a capability table for help text
+ * and validation, not an allowlist: every other fal id goes through the generic
+ * passthrough below.
  */
 export const GENERATE_3D_MODELS: readonly Generate3dModelSpec[] = [
   MESHY_TEXT_TO_3D,
@@ -233,10 +248,72 @@ export const GENERATE_3D_MODELS: readonly Generate3dModelSpec[] = [
   TRELLIS_2,
 ];
 
-export function findGenerate3dModel(id: string): Generate3dModelSpec | undefined {
-  return GENERATE_3D_MODELS.find((model) => model.id === id);
+// ─── Generic passthrough ────────────────────────────────────────────────────
+
+/** A GLB URL, with or without a query string or fragment. */
+const GLB_URL_PATTERN = /^https?:\/\/\S+\.glb(?:[?#]\S*)?$/i;
+
+/** The values to search in order: array items, or an object's values. */
+function childValues(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (!isRecord(value)) return [];
+  return Object.values(value);
 }
 
-export function allowedGenerate3dModelIds(): string[] {
-  return GENERATE_3D_MODELS.map((model) => model.id);
+/** The first `.glb` URL anywhere in a fal result, in key order. */
+function findGlbUrlDeep(value: unknown): string | undefined {
+  if (typeof value === 'string') return GLB_URL_PATTERN.test(value) ? value : undefined;
+  return childValues(value)
+    .map(findGlbUrlDeep)
+    .find((url) => url !== undefined);
+}
+
+/** The GLB in the two conventional fal fields, if either is present. */
+function conventionalGlbUrl(data: Record<string, unknown>): string | undefined {
+  const modelUrls = isRecord(data['model_urls']) ? data['model_urls'] : {};
+  return fileUrl(data['model_glb']) ?? fileUrl(modelUrls['glb']);
+}
+
+/** A no-GLB error that lists the top-level keys, so a field guess is cheap. */
+function missingGlbWithKeys(id: string, data: Record<string, unknown>): Generate3dError {
+  const keys = Object.keys(data).join(', ') || '(none)';
+  return new Generate3dError(
+    `fal returned no GLB for model ${id}. Top-level result keys: ${keys}. Nothing was written.`
+  );
+}
+
+/**
+ * The GLB for a model the registry does not know: the two conventional fields
+ * first, then any `.glb` URL in the result. The caller appends the request id to
+ * this error.
+ */
+function genericOutput(id: string, data: unknown): { glbUrl: string; textureUrls: string[] } {
+  if (!isRecord(data)) throw missingGlb(id);
+  const glbUrl = conventionalGlbUrl(data) ?? findGlbUrlDeep(data);
+  if (glbUrl === undefined) throw missingGlbWithKeys(id, data);
+  return { glbUrl, textureUrls: [] };
+}
+
+/** A spec for any fal id the registry has no adapter for. */
+function genericSpec(id: string): Generate3dModelSpec {
+  return {
+    id,
+    pageUrl: `https://fal.ai/models/${id}`,
+    licenseType: 'commercial',
+    buildInput: (args) => ({
+      ...(args.prompt === undefined ? {} : { prompt: args.prompt.trim() }),
+      ...(args.imageUrl === undefined ? {} : { image_url: args.imageUrl }),
+      ...args.extraInput,
+    }),
+    readOutput: (data) => genericOutput(id, data),
+    cost: () => undefined,
+  };
+}
+
+/**
+ * The spec for `id`: the registered adapter when there is one, otherwise the
+ * generic passthrough. There is no rejection path — fal validates the id.
+ */
+export function resolveGenerate3dModel(id: string): Generate3dModelSpec {
+  return GENERATE_3D_MODELS.find((model) => model.id === id) ?? genericSpec(id);
 }

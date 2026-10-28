@@ -225,16 +225,38 @@ describe('generate3d', () => {
     expect(writtenManifest(deps).inputImage).toEqual({ source, url: source });
   });
 
-  it('rejects an unknown model before any upload or fal call', async () => {
-    const deps = createDeps();
+  it('passes an unknown model through with the conventional fields', async () => {
+    const deps = createDeps({
+      falSubscribe: vi.fn().mockResolvedValue({
+        requestId: 'req-123',
+        data: { output: { model: { url: 'https://fal.test/future/model.glb' } } },
+      }),
+    });
+
+    await generate3d(
+      { model: 'fal-ai/some-future-model', prompt: '  a knight  ', out: OUT_PATH },
+      deps
+    );
+
+    expect(deps.falSubscribe).toHaveBeenCalledWith('fal-ai/some-future-model', {
+      prompt: 'a knight',
+    });
+    expect(deps.fetchGlb).toHaveBeenCalledWith('https://fal.test/future/model.glb');
+    expect(writtenManifest(deps).model).toBe('fal-ai/some-future-model');
+    expect(writtenManifest(deps).licenseType).toBe('commercial');
+  });
+
+  it('reports the model, request id, and result keys when an unknown result has no GLB', async () => {
+    const deps = createDeps({
+      falSubscribe: vi
+        .fn()
+        .mockResolvedValue({ requestId: 'req-123', data: { nope: 1, other: 2 } }),
+    });
 
     await expect(
-      generate3d({ model: 'fal-ai/flux/dev', prompt: 'a knight', out: OUT_PATH }, deps)
-    ).rejects.toThrow(/Unknown --model fal-ai\/flux\/dev.*meshy\/v7\.1\/text-to-3d/);
+      generate3d({ model: 'fal-ai/some-future-model', prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/no GLB for model fal-ai\/some-future-model.*nope, other.*req-123/s);
 
-    expect(deps.uploadFile).not.toHaveBeenCalled();
-    expect(deps.falSubscribe).not.toHaveBeenCalled();
-    expect(deps.fetchGlb).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
     expect(deps.writeJson).not.toHaveBeenCalled();
   });
@@ -1096,6 +1118,24 @@ describe('planGenerate3d', () => {
 
     expect(text).toContain(`Package ${ZIP_PATH}`);
     expect(text).toContain(`Preview ${HTML_PATH}`);
+  });
+
+  it('plans an unknown model with no capability data and no price', async () => {
+    const deps = createDeps();
+    const plan = await planGenerate3d(
+      { model: 'fal-ai/some-future-model', prompt: 'a knight', out: OUT_PATH },
+      deps
+    );
+    const text = formatGenerate3dPlan(plan);
+
+    expect(plan.costLines).toEqual([]);
+    expect(plan.input).toEqual({ prompt: 'a knight' });
+    expect(text).toContain('No capability data; flags are passed through and fal validates them.');
+    expect(text).toContain('Cost unknown: no list price for fal-ai/some-future-model.');
+    expect(text).toContain('Model fal-ai/some-future-model (input unknown, licence: commercial)');
+    expect(text).toContain('No upload or fal generation call was made.');
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.uploadFile).not.toHaveBeenCalled();
   });
 
   it('formats the price date, lines, total, and disclaimer', async () => {
