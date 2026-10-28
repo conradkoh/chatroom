@@ -31,9 +31,11 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * then from 16000 to admit the asset-generation and asset-integration routing rule
  * that replaces it (~300 characters),
  * then from 16500 to admit the architect-gate delegation rule that routes backend
- * contract, API, and schema/persistence changes through the architect first (~275 characters).
+ * contract, API, and schema/persistence changes through the architect first (~275 characters),
+ * then from 16800 to admit the 3D-model generation routing and model-id requirement
+ * in the game-assets-via-designer delegation rule (~200 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 16800;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 17000;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];
