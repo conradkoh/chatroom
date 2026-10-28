@@ -2,11 +2,14 @@
  * Generate 3D — pure logic for `chatroom generate-3d`.
  *
  * Generates one GLB mesh through an injected fal subscriber, writes the bytes
- * to `out`, and writes a JSON sidecar manifest to `<out>.json`. Rigging and
- * animation are out of scope: this command produces a static mesh.
+ * to `out`, and writes a JSON sidecar manifest to `<out>.json`. With `--rig`
+ * it then calls Meshy's rigging endpoint, writes `<stem>.rigged.glb`, and
+ * rewrites the manifest with a `rigging` section.
  *
- * No SDK, network, clock, or filesystem access is imported here; all of it
- * arrives through `Generate3dDeps`, so the unit tests run fully offline.
+ * The mesh is written before the rigging call, so a rig failure never discards
+ * a paid generation. No SDK, network, clock, or filesystem access is imported
+ * here; all of it arrives through `Generate3dDeps`, so the unit tests run fully
+ * offline.
  */
 
 import { createHash } from 'node:crypto';
@@ -21,6 +24,13 @@ import {
   type Generate3dCostLine,
   type Generate3dModelSpec,
 } from './model-registry.js';
+import {
+  buildRiggingRequest,
+  readRiggingOutput,
+  riggingCostLines,
+  type RiggingOutput,
+  type RiggingRequest,
+} from './rigging.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../generate-image/image.js';
 
 // The error type is exported from this module for callers that only import the
@@ -42,6 +52,23 @@ export interface Generate3dOptions {
   out: string;
   /** Allow replacing an existing output or manifest file. */
   force?: boolean | undefined;
+  /** Also rig the generated mesh and write `<stem>.rigged.glb`. */
+  rig?: boolean | undefined;
+}
+
+/** The rigging provenance written to the manifest after a successful rig. */
+export interface Generate3dRiggingManifest {
+  endpoint: string;
+  /** Rigging request id; null only when fal returned no envelope id. */
+  requestId: string | null;
+  /** The exact fal request body sent to the rigging endpoint. */
+  input: Record<string, unknown>;
+  riggedGlbPath: string;
+  riggedGlbUrl: string;
+  riggedFbxUrl: string | null;
+  /** Basic walking/running variants recorded by URL only; never downloaded. */
+  basicAnimationUrls: Record<string, string>;
+  costLines: { label: string; usd: number }[];
 }
 
 /** Sidecar manifest written next to the generated GLB. */
@@ -67,6 +94,8 @@ export interface Generate3dManifest {
   };
   /** Separate texture files returned by the model; empty when embedded in the GLB. */
   textureUrls: string[];
+  /** Present only when the rigging step succeeded. */
+  rigging?: Generate3dRiggingManifest;
   generatedAt: string;
 }
 
@@ -92,11 +121,34 @@ export interface Generate3dPlan {
   inputTarget: Generate3dInputTarget | undefined;
   /** What the manifest would record; a local file shows a placeholder URL. */
   inputImage: { source: string; url: string } | null;
+  /** Rigged GLB path, or null when `--rig` was not passed. */
+  riggedOutPath: string | null;
+  /** The rigging call the plan would make; null without `--rig`. */
+  riggingRequest: RiggingRequest | null;
   costLines: Generate3dCostLine[];
 }
 
 const GLB_CONTENT_TYPE = 'model/gltf-binary';
 const GLB_EXTENSION = '.glb';
+
+/**
+ * `--dry-run` runs before generation, so the real mesh URL does not exist yet.
+ * The plan shows this placeholder in the rigging body.
+ */
+const PLANNED_MODEL_URL = '<generated mesh GLB URL>';
+
+const RIGGING_HUMANOID_WARNING =
+  'Rigging (Meshy) expects a humanoid mesh; non-humanoid meshes fail on fal.';
+
+/** `<out>` without its `.glb` suffix, used for the rigged and clip paths. */
+function outputStem(outPath: string): string {
+  return outPath.slice(0, -GLB_EXTENSION.length);
+}
+
+/** `<stem>.rigged.glb`. */
+function riggedOutputPath(outPath: string): string {
+  return `${outputStem(outPath)}.rigged${GLB_EXTENSION}`;
+}
 
 const HTTP_URL_PATTERN = /^https?:\/\//i;
 
@@ -294,6 +346,28 @@ function formatGenerate3dCost(lines: readonly Generate3dCostLine[]): string[] {
 }
 
 /**
+ * The rigging half of a plan. Extracted so the plan reads as one path when
+ * `--rig` is absent and one when it is present.
+ */
+function buildRiggingPlan(
+  outPath: string,
+  rig: boolean
+): {
+  riggedOutPath: string | null;
+  riggingRequest: RiggingRequest | null;
+  extraCostLines: Generate3dCostLine[];
+} {
+  if (!rig) {
+    return { riggedOutPath: null, riggingRequest: null, extraCostLines: [] };
+  }
+  return {
+    riggedOutPath: riggedOutputPath(outPath),
+    riggingRequest: buildRiggingRequest({ modelGlbUrl: PLANNED_MODEL_URL }),
+    extraCostLines: riggingCostLines(),
+  };
+}
+
+/**
  * Run every preflight check and build the request without a paid call or an
  * upload. The static cost table needs no network, so `--dry-run` works offline
  * and without `FAL_API_KEY`.
@@ -307,9 +381,13 @@ export async function planGenerate3d(
   requireGlbExtension(outPath);
   requireInputKind(model, opts);
 
+  const rigging = buildRiggingPlan(outPath, opts.rig === true);
   const manifestPath = `${outPath}.json`;
   const inputTarget = await validateInputImage(deps, opts.inputImage);
   await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
+  if (rigging.riggedOutPath !== null) {
+    await requireWritablePath(deps, rigging.riggedOutPath, 'Rigged GLB', opts.force === true);
+  }
 
   const input = model.buildInput({
     prompt: opts.prompt,
@@ -322,7 +400,9 @@ export async function planGenerate3d(
     input,
     inputTarget,
     inputImage: planInputImageRecord(inputTarget),
-    costLines: model.cost().lines,
+    riggedOutPath: rigging.riggedOutPath,
+    riggingRequest: rigging.riggingRequest,
+    costLines: [...model.cost().lines, ...rigging.extraCostLines],
   };
 }
 
@@ -331,6 +411,17 @@ function formatInputImageLine(target: Generate3dInputTarget | undefined): string
   return target.kind === 'url'
     ? `Input image ${target.url} (passed through)`
     : `Input image ${target.path} (would be uploaded to fal storage, 1-day lifetime)`;
+}
+
+/** The rigging half of a `--dry-run` plan: endpoint, body, paths, warning. */
+function formatRiggingPlan(plan: Generate3dPlan): string[] {
+  if (plan.riggingRequest === null || plan.riggedOutPath === null) return [];
+  return [
+    `Rigging request (${plan.riggingRequest.endpoint}):`,
+    JSON.stringify(plan.riggingRequest.input, null, 2),
+    `Rigged GLB ${plan.riggedOutPath}`,
+    RIGGING_HUMANOID_WARNING,
+  ];
 }
 
 /** Render a plan for `--dry-run`: paths, model, request, and cost estimate. */
@@ -345,6 +436,7 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
   lines.push(
     'Request:',
     JSON.stringify(plan.input, null, 2),
+    ...formatRiggingPlan(plan),
     ...formatGenerate3dCost(plan.costLines),
     'No upload or fal generation call was made.'
   );
@@ -417,9 +509,111 @@ function readModelOutput(
   }
 }
 
+function describeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * A rig failure keeps the already-written mesh and generation manifest: the
+ * paid generation is never discarded. The rig request id is included whenever
+ * fal returned one so the rig can be investigated separately.
+ */
+function riggingFailure(args: {
+  endpoint: string;
+  requestId: string | null;
+  detail: string;
+  meshPath: string;
+}): Generate3dError {
+  const request = args.requestId === null ? '' : ` for request ${args.requestId}`;
+  return new Generate3dError(
+    `Rigging failed${request} (${args.endpoint}): ${args.detail}. The generated mesh and manifest are kept: ${args.meshPath}.`
+  );
+}
+
+/** Download one rigged or clip GLB and save it; failures name the file. */
+async function downloadAndSaveGlb(args: {
+  deps: Generate3dDeps;
+  url: string;
+  path: string;
+  label: string;
+  fail: (detail: string) => Generate3dError;
+}): Promise<void> {
+  let bytes: Uint8Array;
+  try {
+    bytes = await args.deps.fetchGlb(args.url);
+  } catch (err) {
+    throw args.fail(`Failed to download ${args.label} (${args.url}): ${describeError(err)}`);
+  }
+  try {
+    await args.deps.writeFile(args.path, bytes);
+  } catch (err) {
+    throw args.fail(`Failed to save ${args.label} ${args.path}: ${describeError(err)}`);
+  }
+}
+
+/**
+ * Run the rigging step after the mesh is on disk: one fal call, then one
+ * download per returned GLB. Only GLBs are downloaded; the FBX and basic
+ * walking/running variants stay as manifest URLs.
+ */
+async function runRigging(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  modelGlbUrl: string
+): Promise<Generate3dRiggingManifest> {
+  if (plan.riggedOutPath === null) {
+    throw new Generate3dError('Rigging was planned without a rigged output path.');
+  }
+  const riggedGlbPath = plan.riggedOutPath;
+  const request = buildRiggingRequest({ modelGlbUrl });
+
+  let result: Awaited<ReturnType<Generate3dDeps['falSubscribe']>>;
+  try {
+    result = await deps.falSubscribe(request.endpoint, request.input);
+  } catch (err) {
+    throw riggingFailure({
+      endpoint: request.endpoint,
+      requestId: null,
+      detail: describeError(err),
+      meshPath: plan.outPath,
+    });
+  }
+
+  const requestId = result.requestId;
+  const fail = (detail: string): Generate3dError =>
+    riggingFailure({ endpoint: request.endpoint, requestId, detail, meshPath: plan.outPath });
+
+  let output: RiggingOutput;
+  try {
+    output = readRiggingOutput(result.data);
+  } catch (err) {
+    throw fail(describeError(err));
+  }
+
+  await downloadAndSaveGlb({
+    deps,
+    url: output.riggedGlbUrl,
+    path: riggedGlbPath,
+    label: 'rigged GLB',
+    fail,
+  });
+
+  return {
+    endpoint: request.endpoint,
+    requestId,
+    input: request.input,
+    riggedGlbPath,
+    riggedGlbUrl: output.riggedGlbUrl,
+    riggedFbxUrl: output.riggedFbxUrl,
+    basicAnimationUrls: output.basicAnimationUrls,
+    costLines: riggingCostLines(),
+  };
+}
+
 /**
  * Generate one mesh: upload a local input image if needed, call fal once,
- * download the GLB, and write the output plus its manifest.
+ * download the GLB, and write the output plus its manifest. With `--rig`, run
+ * the rigging step and rewrite the manifest with the rigging section.
  */
 export async function generate3d(
   opts: Generate3dOptions,
@@ -444,21 +638,26 @@ export async function generate3d(
   await withRecovery('save', recovery, () => deps.writeFile(plan.outPath, bytes));
 
   const sha256 = createHash('sha256').update(bytes).digest('hex');
-  await deps.writeJson(
-    plan.manifestPath,
-    buildManifest({
-      model: plan.model,
-      input,
-      inputImage,
-      requestId: result.requestId,
-      outPath: plan.outPath,
-      sha256,
-      byteLength: bytes.byteLength,
-      textureUrls: output.textureUrls,
-      generatedAt: deps.now().toISOString(),
-      sdkVersion: deps.sdkVersion,
-    })
-  );
+  const manifest = buildManifest({
+    model: plan.model,
+    input,
+    inputImage,
+    requestId: result.requestId,
+    outPath: plan.outPath,
+    sha256,
+    byteLength: bytes.byteLength,
+    textureUrls: output.textureUrls,
+    generatedAt: deps.now().toISOString(),
+    sdkVersion: deps.sdkVersion,
+  });
+  // Write the generation manifest first so a failed rig still leaves both the
+  // mesh and its provenance on disk.
+  await deps.writeJson(plan.manifestPath, manifest);
+
+  if (plan.riggingRequest !== null) {
+    const rigging = await runRigging(plan, deps, output.glbUrl);
+    await deps.writeJson(plan.manifestPath, { ...manifest, rigging });
+  }
 
   return {
     outPath: plan.outPath,

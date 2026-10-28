@@ -32,6 +32,10 @@ const HELP_AFTER = `
 Examples:
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb
   chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out concept.glb
+  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --rig
+
+Rigging uses Meshy (fal-ai/meshy/rigging) and expects a humanoid mesh;
+non-humanoid meshes fail on fal.
 
 Allowed models:
   text-to-3D:  ${modelIdsFor('text')}
@@ -48,6 +52,7 @@ interface Generate3dCliOptions {
   inputImage?: string | undefined;
   out: string;
   force?: boolean | undefined;
+  rig?: boolean | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -72,6 +77,7 @@ async function executeGenerate3d(options: Generate3dCliOptions): Promise<void> {
     model: options.model,
     out: options.out,
     force: options.force,
+    rig: options.rig,
   };
   if (options.dryRun === true) {
     const { formatGenerate3dPlan, planGenerate3d } = await import('./generate-3d.js');
@@ -113,6 +119,10 @@ export function registerGenerate3dCommand(program: Command): void {
       `Reference image for an image-to-3D model: local .png, .jpg, or .jpeg (uploaded to fal) or an http(s) URL (${modelIdsFor('image')})`
     )
     .option('--force', 'Overwrite existing output and manifest files')
+    .option(
+      '--rig',
+      'Rig the generated mesh with Meshy (fal-ai/meshy/rigging). Humanoid meshes only'
+    )
     .option(
       '--dry-run',
       'Validate and print the request and the static list-price estimate. No upload or fal generation call is made; FAL_API_KEY is not required'

@@ -60,12 +60,13 @@ export interface Generate3dModelSpec {
 
 // ─── result helpers ─────────────────────────────────────────────────────────
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+/** Shared guard: fal results and request helpers are plain JSON objects. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** The `url` of a fal `File` object, or undefined when the field is absent. */
-function fileUrl(value: unknown): string | undefined {
+export function fileUrl(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
   const url = value.url;
   return typeof url === 'string' && url.trim().length > 0 ? url : undefined;

@@ -18,6 +18,7 @@ import {
   planGenerate3d,
   type Generate3dManifest,
 } from './generate-3d.js';
+import { RIGGING_ENDPOINT } from './rigging.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const MESHY_TEXT = 'meshy/v7.1/text-to-3d';
@@ -26,10 +27,14 @@ const TRELLIS_2 = 'fal-ai/trellis-2';
 
 const OUT_PATH = '/tmp/generated/hero.glb';
 const MANIFEST_PATH = `${OUT_PATH}.json`;
+const RIGGED_OUT_PATH = '/tmp/generated/hero.rigged.glb';
 const INPUT_IMAGE = '/tmp/inputs/hero.png';
 const UPLOADED_IMAGE_URL = 'https://fal.test/uploaded/hero.png';
 const GLB_URL = 'https://fal.test/generated/hero.glb';
 const BASE_COLOR_URL = 'https://fal.test/generated/base-color.png';
+const RIGGED_GLB_URL = 'https://fal.test/rigged/hero.rigged.glb';
+const RIGGED_FBX_URL = 'https://fal.test/rigged/hero.rigged.fbx';
+const RIGGING_REQUEST_ID = 'rig-456';
 
 /** GLB magic "glTF" followed by version 2 and no body. */
 const GLB_BYTES = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00]);
@@ -37,6 +42,17 @@ const GLB_BYTES = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00
 const MESHY_FIXTURE = {
   model_glb: { url: GLB_URL, content_type: 'model/gltf-binary' },
   texture_urls: [{ base_color: { url: BASE_COLOR_URL } }],
+};
+
+/** A rig-only result: rigged character, FBX, and basic walking/running URLs. */
+const RIGGING_FIXTURE = {
+  rigged_character_glb: { url: RIGGED_GLB_URL },
+  rigged_character_fbx: { url: RIGGED_FBX_URL },
+  basic_animations: {
+    walking_glb: { url: 'https://fal.test/basic/walking.glb' },
+    running_glb: { url: 'https://fal.test/basic/running.glb' },
+  },
+  rig_task_id: RIGGING_REQUEST_ID,
 };
 
 function createDeps(overrides: Partial<Generate3dDeps> = {}): Generate3dDeps {
@@ -55,8 +71,31 @@ function createDeps(overrides: Partial<Generate3dDeps> = {}): Generate3dDeps {
   };
 }
 
+/**
+ * Deps whose subscription answers the mesh call and then the rigging call, so
+ * the two paid steps never touch the network.
+ */
+function createRigDeps(
+  rigFixture: unknown = RIGGING_FIXTURE,
+  overrides: Partial<Generate3dDeps> = {}
+): Generate3dDeps {
+  const falSubscribe = vi.fn().mockImplementation(async (model: string) => {
+    if (model === MESHY_TEXT) return { requestId: 'req-123', data: MESHY_FIXTURE };
+    return { requestId: RIGGING_REQUEST_ID, data: rigFixture };
+  });
+  return createDeps({ falSubscribe, ...overrides });
+}
+
 function writtenManifest(deps: Generate3dDeps): Generate3dManifest {
   const call = vi.mocked(deps.writeJson).mock.calls[0];
+  if (call === undefined) throw new Error('expected a manifest write');
+  return call[1] as Generate3dManifest;
+}
+
+/** The final manifest write, which carries the rigging section after `--rig`. */
+function lastWrittenManifest(deps: Generate3dDeps): Generate3dManifest {
+  const calls = vi.mocked(deps.writeJson).mock.calls;
+  const call = calls[calls.length - 1];
   if (call === undefined) throw new Error('expected a manifest write');
   return call[1] as Generate3dManifest;
 }
@@ -304,6 +343,94 @@ describe('generate3d', () => {
   });
 });
 
+describe('generate3d --rig', () => {
+  it('rigs the generated mesh, writes the rigged GLB, and adds the manifest section', async () => {
+    const deps = createRigDeps();
+
+    const result = await generate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true },
+      deps
+    );
+
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(deps.falSubscribe).mock.calls[0]).toEqual([
+      MESHY_TEXT,
+      { prompt: 'a knight' },
+    ]);
+    expect(vi.mocked(deps.falSubscribe).mock.calls[1]).toEqual([
+      RIGGING_ENDPOINT,
+      { model_url: GLB_URL },
+    ]);
+
+    expect(deps.fetchGlb).toHaveBeenCalledWith(RIGGED_GLB_URL);
+    expect(deps.writeFile).toHaveBeenCalledWith(RIGGED_OUT_PATH, GLB_BYTES);
+    expect(deps.writeJson).toHaveBeenCalledTimes(2);
+
+    expect(writtenManifest(deps).rigging).toBeUndefined();
+    const manifest = lastWrittenManifest(deps);
+    expect(manifest.requestId).toBe('req-123');
+    expect(manifest.rigging).toEqual({
+      endpoint: RIGGING_ENDPOINT,
+      requestId: RIGGING_REQUEST_ID,
+      input: { model_url: GLB_URL },
+      riggedGlbPath: RIGGED_OUT_PATH,
+      riggedGlbUrl: RIGGED_GLB_URL,
+      riggedFbxUrl: RIGGED_FBX_URL,
+      basicAnimationUrls: {
+        walking_glb: 'https://fal.test/basic/walking.glb',
+        running_glb: 'https://fal.test/basic/running.glb',
+      },
+      costLines: [{ label: 'rigging (Meshy) $0.20', usd: 0.2 }],
+    });
+
+    const cost = result.costLines.join('\n');
+    expect(cost).toContain('- rigging (Meshy) $0.20');
+    expect(cost).toContain('Estimated total: $1.40');
+  });
+
+  it('refuses an existing rigged GLB without --force', async () => {
+    const deps = createRigDeps(RIGGING_FIXTURE, {
+      pathStatus: vi.fn(existingFiles(RIGGED_OUT_PATH)),
+    });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+    ).rejects.toThrow(/Rigged GLB already exists.*--force/);
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('keeps the mesh and generation-only manifest when rigging fails', async () => {
+    const deps = createRigDeps({});
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+    ).rejects.toThrow(/Rigging failed for request rig-456.*rigged_character_glb\.url.*hero\.glb/);
+
+    expect(deps.writeFile).toHaveBeenCalledTimes(1);
+    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
+    expect(deps.writeJson).toHaveBeenCalledTimes(1);
+    expect(writtenManifest(deps).rigging).toBeUndefined();
+  });
+
+  it('keeps the mesh and names the rig endpoint when the rigging call fails', async () => {
+    const deps = createRigDeps(RIGGING_FIXTURE, {
+      falSubscribe: vi
+        .fn()
+        .mockResolvedValueOnce({ requestId: 'req-123', data: MESHY_FIXTURE })
+        .mockRejectedValueOnce(new Error('rig queue exploded')),
+    });
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+    ).rejects.toThrow(/Rigging failed \(fal-ai\/meshy\/rigging\).*rig queue exploded.*hero\.glb/);
+
+    expect(deps.writeFile).toHaveBeenCalledTimes(1);
+    expect(deps.writeJson).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('planGenerate3d', () => {
   it('builds the request and cost estimate without upload, fal, or download', async () => {
     const deps = createDeps();
@@ -324,9 +451,63 @@ describe('planGenerate3d', () => {
     expect(deps.writeJson).not.toHaveBeenCalled();
   });
 
+  it('formats the rigging request, paths, warning, and cost lines for --dry-run', async () => {
+    const deps = createDeps();
+
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true },
+      deps
+    );
+    const text = formatGenerate3dPlan(plan);
+
+    expect(plan.riggedOutPath).toBe(RIGGED_OUT_PATH);
+    expect(text).toContain(`Rigging request (${RIGGING_ENDPOINT}):`);
+    expect(text).toContain('"model_url": "<generated mesh GLB URL>"');
+    expect(text).toContain(`Rigged GLB ${RIGGED_OUT_PATH}`);
+    expect(text).toContain(
+      'Rigging (Meshy) expects a humanoid mesh; non-humanoid meshes fail on fal.'
+    );
+    expect(text).toContain('- rigging (Meshy) $0.20');
+    expect(text).toContain('Estimated total: $1.40');
+
+    expect(deps.uploadFile).not.toHaveBeenCalled();
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.fetchGlb).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('checks the planned rigged path for conflicts', async () => {
+    const deps = createDeps({
+      pathStatus: vi.fn(existingFiles(RIGGED_OUT_PATH)),
+    });
+
+    await expect(
+      planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true }, deps)
+    ).rejects.toThrow(/Rigged GLB already exists.*--force/);
+  });
+
+  it('has no rigging section or cost when --rig is absent', async () => {
+    const deps = createDeps();
+
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH },
+      deps
+    );
+
+    expect(plan.riggingRequest).toBeNull();
+    expect(plan.riggedOutPath).toBeNull();
+    expect(plan.costLines).toEqual(
+      expect.arrayContaining([
+        { label: 'base $0.80', usd: 0.8 },
+        { label: 'textures +$0.40', usd: 0.4 },
+      ])
+    );
+    expect(formatGenerate3dPlan(plan)).not.toContain('Rigging request');
+  });
+
   it('shows a storage placeholder for a local input image', async () => {
     const deps = createDeps({ pathStatus: vi.fn(existingFiles(INPUT_IMAGE)) });
-
     const plan = await planGenerate3d(
       { model: TRELLIS_2, inputImage: INPUT_IMAGE, out: OUT_PATH },
       deps

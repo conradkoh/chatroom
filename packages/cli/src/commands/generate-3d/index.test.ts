@@ -104,6 +104,7 @@ describe('chatroom generate-3d wiring', () => {
       '--prompt',
       '--input-image',
       '--force',
+      '--rig',
       '--dry-run',
     ]) {
       expect(help).toContain(flag);
@@ -121,6 +122,8 @@ describe('chatroom generate-3d wiring', () => {
     command?.outputHelp();
     expect(afterHelp).toContain('--model meshy/v7.1/text-to-3d --prompt "a stone knight"');
     expect(afterHelp).toContain('--model fal-ai/trellis-2 --input-image ./concept.png');
+    expect(afterHelp).toContain('--out knight.glb --rig');
+    expect(afterHelp).toContain('humanoid mesh');
     expect(afterHelp).toContain('text-to-3D:');
     expect(afterHelp).toContain('image-to-3D:');
     expect(afterHelp).toContain('2026-10-27');
