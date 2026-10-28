@@ -51,6 +51,30 @@ describe('zipPackage', () => {
     expect(sha256(zipPackage(reversed))).toBe(sha256(zipPackage(ENTRIES)));
   });
 
+  it('keeps reference, rig, clip, and web entries in sorted order', () => {
+    const archive = zipPackage([
+      { path: 'web/chest.web.glb', bytes: WEB },
+      { path: 'web/chest.rigged.web.glb', bytes: WEB },
+      { path: 'web/chest.anim-0.web.glb', bytes: WEB },
+      { path: 'chest.anim-0.glb', bytes: MASTER },
+      { path: 'chest.rigged.glb', bytes: MASTER },
+      { path: 'reference/chest-reference.png', bytes: MANIFEST },
+      { path: 'manifest.json', bytes: MANIFEST },
+      { path: 'chest.glb', bytes: MASTER },
+    ]);
+
+    expect(Object.keys(unzipSync(archive))).toEqual([
+      'chest.anim-0.glb',
+      'chest.glb',
+      'chest.rigged.glb',
+      'manifest.json',
+      'reference/chest-reference.png',
+      'web/chest.anim-0.web.glb',
+      'web/chest.rigged.web.glb',
+      'web/chest.web.glb',
+    ]);
+  });
+
   it('writes a single-entry archive unchanged through a round trip', () => {
     const unzipped = unzipSync(zipPackage([{ path: 'only.glb', bytes: MASTER }]));
 

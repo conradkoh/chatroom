@@ -182,6 +182,79 @@ function withExtensionsUsed(glb: Uint8Array, extensions: string[]): Uint8Array {
   return out;
 }
 
+/** A skinned, animated GLB: two joints, JOINTS_0/WEIGHTS_0, one rotation channel. */
+async function buildSkinnedGlb(): Promise<Uint8Array> {
+  const document = new Document();
+  const buffer = document.createBuffer();
+  const positions = new Float32Array([0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1]);
+  const position = document.createAccessor().setType('VEC3').setArray(positions).setBuffer(buffer);
+  const joints = document
+    .createAccessor()
+    .setType('VEC4')
+    .setArray(new Uint16Array([0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0]))
+    .setBuffer(buffer);
+  const weights = document
+    .createAccessor()
+    .setType('VEC4')
+    .setArray(new Float32Array(16).fill(0.5))
+    .setBuffer(buffer);
+  const indices = document
+    .createAccessor()
+    .setType('SCALAR')
+    .setArray(new Uint32Array([0, 1, 2, 2, 1, 3]))
+    .setBuffer(buffer);
+  const inverseBind = document
+    .createAccessor()
+    .setType('MAT4')
+    .setArray(new Float32Array(32))
+    .setBuffer(buffer);
+
+  const primitive = document
+    .createPrimitive()
+    .setAttribute('POSITION', position)
+    .setAttribute('JOINTS_0', joints)
+    .setAttribute('WEIGHTS_0', weights)
+    .setIndices(indices);
+  const mesh = document.createMesh().addPrimitive(primitive);
+
+  const jointA = document.createNode('jointA');
+  const jointB = document.createNode('jointB');
+  const skin = document
+    .createSkin('rig')
+    .addJoint(jointA)
+    .addJoint(jointB)
+    .setInverseBindMatrices(inverseBind);
+
+  const scene = document.createScene();
+  scene.addChild(document.createNode('mesh').setMesh(mesh).setSkin(skin));
+  scene.addChild(jointA);
+  scene.addChild(jointB);
+
+  const input = document
+    .createAccessor()
+    .setType('SCALAR')
+    .setArray(new Float32Array([0, 1]))
+    .setBuffer(buffer);
+  const output = document
+    .createAccessor()
+    .setType('VEC4')
+    .setArray(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1]))
+    .setBuffer(buffer);
+  const sampler = document
+    .createAnimationSampler()
+    .setInput(input)
+    .setOutput(output)
+    .setInterpolation('LINEAR');
+  const channel = document
+    .createAnimationChannel()
+    .setTargetNode(jointA)
+    .setTargetPath('rotation')
+    .setSampler(sampler);
+  document.createAnimation('spin').addSampler(sampler).addChannel(channel);
+
+  return glbIo().writeBinary(document);
+}
+
 describe('createWebVariant', () => {
   it('counts triangles and skips simplify when under target', async () => {
     const glb = await buildGlb(disjointTriangles(2));
@@ -301,6 +374,30 @@ describe('createWebVariant', () => {
     expect(variant.extensionsUsed).not.toContain('EXT_meshopt_compression');
     expect(variant.triangles).toBe(32);
     expect(Buffer.from(variant.bytes).subarray(0, 4).toString('latin1')).toBe('glTF');
+  });
+
+  it('keeps skins, joint attributes, and animations on a skinned mesh', async () => {
+    const glb = await buildSkinnedGlb();
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.skinnedPath).toBe('non-destructive');
+    expect(variant.simplified).toBe(false);
+
+    const reread = await glbIo().readBinary(variant.bytes);
+    const root = reread.getRoot();
+    expect(root.listSkins()).toHaveLength(1);
+    const primitive = root.listMeshes()[0]?.listPrimitives()[0];
+    expect(primitive?.getAttribute('JOINTS_0')).not.toBeNull();
+    expect(primitive?.getAttribute('WEIGHTS_0')).not.toBeNull();
+    expect(root.listAnimations()).toHaveLength(1);
+    expect(root.listAnimations()[0]?.listChannels()).toHaveLength(1);
+  });
+
+  it('reports the default path for a plain mesh', async () => {
+    const variant = await createWebVariant(await buildGlb(disjointTriangles(2)), OPTIONS);
+
+    expect(variant.skinnedPath).toBe('default');
   });
 
   it('refuses a Draco-compressed master with an error naming the extension', async () => {

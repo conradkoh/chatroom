@@ -111,6 +111,7 @@ function createDeps(overrides: Partial<Generate3dDeps> = {}): Generate3dDeps {
       bytes: WEB_GLB_BYTES,
       triangles: 2,
       simplified: false,
+      skinnedPath: 'default',
       textures: WEB_TEXTURES,
       extensionsUsed: [],
       source: { triangles: 27_438, textures: SOURCE_TEXTURES, extensionsUsed: [] },
@@ -1079,6 +1080,18 @@ describe('generate3d --rig', () => {
         running_glb: 'https://fal.test/basic/running.glb',
       },
       animations: [],
+      files: [
+        {
+          kind: 'rigged',
+          actionId: null,
+          path: RIGGED_OUT_PATH,
+          bytes: GLB_BYTES.byteLength,
+          triangles: 27_438,
+          webPath: 'web/hero.rigged.web.glb',
+          webBytes: WEB_GLB_BYTES.byteLength,
+          webTriangles: 2,
+        },
+      ],
       costLines: [{ label: 'rigging (Meshy) $0.20', usd: 0.2 }],
     });
 
@@ -1216,7 +1229,7 @@ describe('generate3d --rig', () => {
     });
   });
 
-  it('still rigs when packaging fails, then reports the packaging error', async () => {
+  it('keeps the rig files when their web variant fails, and reports it', async () => {
     const deps = createRigDeps(RIGGING_FIXTURE, {
       createWebVariant: vi.fn().mockRejectedValue(new Error('sharp is not installed')),
     });
@@ -1226,15 +1239,91 @@ describe('generate3d --rig', () => {
         { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
         deps
       )
-    ).rejects.toThrow(
-      /web variant: sharp is not installed.*hero\.glb.*rig completed and was saved/s
-    );
+    ).rejects.toThrow(/web variant: sharp is not installed/);
 
-    // The rig ran and was saved even though the package could not be written.
+    // The rig ran and its loose files are saved, but no package was written.
     expect(deps.writeFile).toHaveBeenCalledWith(RIGGED_OUT_PATH, GLB_BYTES);
+    expect(deps.zipPackage).not.toHaveBeenCalled();
     const manifest = lastWrittenManifest(deps);
     expect(manifest.rigging).toBeDefined();
     expect(manifest.package).toBeUndefined();
+  });
+
+  it('bundles the rigged GLB and every clip with their web variants', async () => {
+    const deps = createRigDeps(MULTI_ANIMATION_FIXTURE);
+
+    await generate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        rig: true,
+        confirmCost: true,
+        animationActionIds: ['0', '92'],
+      },
+      deps
+    );
+
+    const entries = (vi.mocked(deps.zipPackage).mock.calls[0]?.[0] ?? []).map(
+      (entry) => entry.path
+    );
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        'hero.glb',
+        'web/hero.web.glb',
+        'hero.rigged.glb',
+        'web/hero.rigged.web.glb',
+        'hero.anim-0.glb',
+        'web/hero.anim-0.web.glb',
+        'hero.anim-92.glb',
+        'web/hero.anim-92.web.glb',
+      ])
+    );
+
+    const variants = zippedManifest(deps)['variants'] as Record<string, unknown>[];
+    expect(variants.map((variant) => variant['name'])).toEqual([
+      'master',
+      'web',
+      'rigged',
+      'rigged-web',
+      'animation-0',
+      'animation-0-web',
+      'animation-92',
+      'animation-92-web',
+    ]);
+    expect(variants[2]).toMatchObject({ file: 'hero.rigged.glb', triangles: 27_438 });
+    expect(variants[3]).toMatchObject({
+      file: 'web/hero.rigged.web.glb',
+      settings: { skinnedPath: 'default' },
+    });
+
+    expect(lastWrittenManifest(deps).rigging?.files).toHaveLength(3);
+    expect(lastWrittenManifest(deps).rigging?.files[1]).toMatchObject({
+      kind: 'animation',
+      actionId: 0,
+      path: ANIM_0_PATH,
+      webPath: 'web/hero.anim-0.web.glb',
+    });
+  });
+
+  it('still packages the master and reference when rigging fails', async () => {
+    const deps = createRigDeps({});
+
+    await expect(
+      generate3d(
+        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, rig: true, confirmCost: true },
+        deps
+      )
+    ).rejects.toThrow(/Rigging failed for request rig-456/);
+
+    // The package is written from the master alone, then the rig error surfaces.
+    expect(deps.zipPackage).toHaveBeenCalledTimes(1);
+    const entries = (vi.mocked(deps.zipPackage).mock.calls[0]?.[0] ?? []).map(
+      (entry) => entry.path
+    );
+    expect(entries).toContain('hero.glb');
+    expect(entries).not.toContain('hero.rigged.glb');
+    expect(lastWrittenManifest(deps).package).toBeDefined();
   });
 
   it('keeps the mesh and names the rig endpoint when the rigging call fails', async () => {

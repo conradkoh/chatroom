@@ -61,6 +61,11 @@ export interface WebVariant extends GlbStats {
   /** True when simplify ran; false when the source was already under target. */
   simplified: boolean;
   /**
+   * `non-destructive` for a skinned or animated mesh, where weld and simplify
+   * are skipped; `default` for a plain mesh.
+   */
+  skinnedPath: 'non-destructive' | 'default';
+  /**
    * Stats of the input GLB. Returned here because the source document is already
    * parsed, and the package manifest needs the master's numbers next to the
    * web variant's.
@@ -98,6 +103,39 @@ function countTriangles(document: Document): number {
     .flatMap((mesh) => mesh.listPrimitives())
     .reduce((sum, primitive) => sum + primitiveTriangles(primitive), 0);
   return Math.round(total);
+}
+
+/**
+ * A skinned or animated mesh: welding merges vertices and simplify remaps
+ * attributes, and neither is worth the risk of losing a joint, a weight, or an
+ * animation channel for a size win.
+ */
+function isSkinnedOrAnimated(document: Document): boolean {
+  const root = document.getRoot();
+  return root.listSkins().length > 0 || root.listAnimations().length > 0;
+}
+
+/**
+ * The geometry pass. A skinned or animated mesh skips weld and simplify and is
+ * left exactly as it was; a plain mesh is welded and, when over target,
+ * simplified.
+ */
+async function optimizeGeometry(args: {
+  document: Document;
+  triangles: number;
+  opts: WebVariantOptions;
+  weld: () => Transform;
+  simplifyAt: (ratio: number) => Transform;
+}): Promise<{ simplified: boolean; skinnedPath: 'non-destructive' | 'default' }> {
+  if (isSkinnedOrAnimated(args.document)) {
+    return { simplified: false, skinnedPath: 'non-destructive' };
+  }
+  const shouldSimplify = args.triangles > args.opts.triangleTarget;
+  await args.document.transform(
+    args.weld(),
+    ...(shouldSimplify ? [args.simplifyAt(args.opts.triangleTarget / args.triangles)] : [])
+  );
+  return { simplified: shouldSimplify, skinnedPath: 'default' };
 }
 
 /** Declared GLB extension names, e.g. `KHR_texture_basisu`. */
@@ -277,27 +315,22 @@ export async function createWebVariant(
   document.setLogger(SILENT_LOGGER);
 
   const source = describeDocument(document);
-  const shouldSimplify = source.triangles > opts.triangleTarget;
-  await document.transform(
-    weld(),
-    ...(shouldSimplify
-      ? [
-          simplify({
-            simplifier: MeshoptSimplifier,
-            ratio: opts.triangleTarget / source.triangles,
-            error: 0.01,
-            lockBorder: true,
-          }),
-        ]
-      : [])
-  );
+  const geometry = await optimizeGeometry({
+    document,
+    triangles: source.triangles,
+    opts,
+    weld: () => weld(),
+    simplifyAt: (ratio) =>
+      simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.01, lockBorder: true }),
+  });
   await compressTextures({ document, textureCompress, sharp, opts });
   await document.transform(prune(), dedup());
 
   return {
     bytes: await io.writeBinary(document),
     ...describeDocument(document),
-    simplified: shouldSimplify,
+    simplified: geometry.simplified,
+    skinnedPath: geometry.skinnedPath,
     source,
   };
 }

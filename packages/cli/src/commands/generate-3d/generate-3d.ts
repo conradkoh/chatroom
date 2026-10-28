@@ -131,6 +131,20 @@ export interface Generate3dRiggingManifest {
   /** Basic walking/running variants recorded by URL only; never downloaded. */
   basicAnimationUrls: Record<string, string>;
   animations: { actionId: number; path: string; glbUrl: string }[];
+  /**
+   * Every rig file written, with the web variant made from it. The bytes are
+   * recorded so a consumer can match the loose files to the zip entries.
+   */
+  files: {
+    kind: 'rigged' | 'animation';
+    actionId: number | null;
+    path: string;
+    bytes: number;
+    triangles: number;
+    webPath: string;
+    webBytes: number;
+    webTriangles: number;
+  }[];
   costLines: { label: string; usd: number }[];
 }
 
@@ -186,7 +200,7 @@ export interface Generate3dResult {
 
 /** One variant entry in the package manifest. */
 interface Generate3dPackageVariant {
-  name: 'master' | 'web';
+  name: string;
   file: string;
   bytes: number;
   sha256: string;
@@ -200,6 +214,8 @@ interface Generate3dPackageVariant {
     quality: number;
     triangleTarget: number;
     simplified: boolean;
+    /** `non-destructive` when weld and simplify were skipped for a skin. */
+    skinnedPath?: 'non-destructive' | 'default';
   };
 }
 
@@ -1366,7 +1382,7 @@ async function downloadAndSaveGlb(args: {
   path: string;
   label: string;
   fail: (detail: string) => Generate3dError;
-}): Promise<void> {
+}): Promise<Uint8Array> {
   let bytes: Uint8Array;
   try {
     bytes = await args.deps.fetchGlb(args.url);
@@ -1378,6 +1394,7 @@ async function downloadAndSaveGlb(args: {
   } catch (err) {
     throw args.fail(`Failed to save ${args.label} ${args.path}: ${describeError(err)}`);
   }
+  return bytes;
 }
 
 /** Download and save each returned clip, in the requested order. */
@@ -1386,27 +1403,29 @@ async function downloadAnimations(
   deps: Generate3dDeps,
   output: RiggingOutput,
   fail: (detail: string) => Generate3dError
-): Promise<Generate3dRiggingManifest['animations']> {
+): Promise<{ section: Generate3dRiggingManifest['animations']; bytes: AnimationFile[] }> {
   const animations: Generate3dRiggingManifest['animations'] = [];
+  const files: AnimationFile[] = [];
   for (const [index, animation] of output.animations.entries()) {
     const planned = plan.animationOutPaths[index];
     if (planned === undefined || planned.actionId !== animation.actionId) {
       throw fail(`No planned output path for animation clip ${animation.actionId}.`);
     }
-    await downloadAndSaveGlb({
+    const bytes = await downloadAndSaveGlb({
       deps,
       url: animation.glbUrl,
       path: planned.path,
       label: `animation clip ${animation.actionId}`,
       fail,
     });
+    files.push({ actionId: animation.actionId, path: planned.path, bytes });
     animations.push({
       actionId: animation.actionId,
       path: planned.path,
       glbUrl: animation.glbUrl,
     });
   }
-  return animations;
+  return { section: animations, bytes: files };
 }
 
 /**
@@ -1418,7 +1437,7 @@ async function runRigging(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
   modelGlbUrl: string
-): Promise<Generate3dRiggingManifest> {
+): Promise<RigBundle> {
   if (plan.riggedOutPath === null) {
     throw new Generate3dError('Rigging was planned without a rigged output path.');
   }
@@ -1451,7 +1470,7 @@ async function runRigging(
     throw fail(describeError(err));
   }
 
-  await downloadAndSaveGlb({
+  const riggedBytes = await downloadAndSaveGlb({
     deps,
     url: output.riggedGlbUrl,
     path: riggedGlbPath,
@@ -1461,16 +1480,118 @@ async function runRigging(
   const animations = await downloadAnimations(plan, deps, output, fail);
 
   return {
-    endpoint: request.endpoint,
-    requestId,
-    input: request.input,
-    riggedGlbPath,
-    riggedGlbUrl: output.riggedGlbUrl,
-    riggedFbxUrl: output.riggedFbxUrl,
-    basicAnimationUrls: output.basicAnimationUrls,
-    animations,
-    costLines: riggingCostLines(plan.animationActionIds.length),
+    section: {
+      endpoint: request.endpoint,
+      requestId,
+      input: request.input,
+      riggedGlbPath,
+      riggedGlbUrl: output.riggedGlbUrl,
+      riggedFbxUrl: output.riggedFbxUrl,
+      basicAnimationUrls: output.basicAnimationUrls,
+      animations: animations.section,
+      // Filled in once the web variants exist, before the sidecar is written.
+      files: [],
+      costLines: riggingCostLines(plan.animationActionIds.length),
+    },
+    riggedBytes,
+    animations: animations.bytes,
   };
+}
+
+/** One rig file plus the web variant made from it. */
+interface RigFilePackage {
+  kind: 'rigged' | 'animation';
+  actionId: number | null;
+  /** Absolute path of the loose file beside `--out`. */
+  path: string;
+  bytes: Uint8Array;
+  web: WebVariant;
+  /** Zip entry names for the file and its web variant. */
+  entry: string;
+  webEntry: string;
+}
+
+/** Zip entry names for one rig file, derived from the package stem. */
+function rigEntryNames(
+  stem: string,
+  kind: 'rigged' | 'animation',
+  actionId: number | null
+): { entry: string; webEntry: string } {
+  if (kind === 'rigged') {
+    return { entry: `${stem}.rigged.glb`, webEntry: `web/${stem}.rigged.web.glb` };
+  }
+  return {
+    entry: `${stem}.anim-${actionId}.glb`,
+    webEntry: `web/${stem}.anim-${actionId}.web.glb`,
+  };
+}
+
+/** Build the web variant for every rig file written. */
+async function buildRigFiles(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  rig: RigBundle
+): Promise<RigFilePackage[]> {
+  const files = [
+    {
+      kind: 'rigged' as const,
+      actionId: null,
+      path: plan.riggedOutPath ?? '',
+      bytes: rig.riggedBytes,
+    },
+    ...rig.animations.map((animation) => ({
+      kind: 'animation' as const,
+      actionId: animation.actionId,
+      path: animation.path,
+      bytes: animation.bytes,
+    })),
+  ];
+
+  const packaged: RigFilePackage[] = [];
+  for (const file of files) {
+    const web = await buildWebVariant(plan, deps, file.bytes);
+    packaged.push({ ...file, web, ...rigEntryNames(plan.stem, file.kind, file.actionId) });
+  }
+  return packaged;
+}
+
+/** The rigging section with its files list filled in. */
+function withRigFiles(
+  section: Generate3dRiggingManifest,
+  files: readonly RigFilePackage[]
+): Generate3dRiggingManifest {
+  return {
+    ...section,
+    files: files.map((file) => ({
+      kind: file.kind,
+      actionId: file.actionId,
+      path: file.path,
+      bytes: file.bytes.byteLength,
+      triangles: file.web.source.triangles,
+      webPath: file.webEntry,
+      webBytes: file.web.bytes.byteLength,
+      webTriangles: file.web.triangles,
+    })),
+  };
+}
+
+/** The package variants for the rig files: each file and its web variant. */
+function rigVariants(files: readonly RigFilePackage[]): Generate3dPackageVariant[] {
+  return files.flatMap((file) => [
+    variantEntry({
+      name: file.kind === 'rigged' ? 'rigged' : `animation-${file.actionId}`,
+      file: file.entry,
+      bytes: file.bytes,
+      stats: file.web.source,
+    }),
+    variantEntry({
+      name: file.kind === 'rigged' ? 'rigged-web' : `animation-${file.actionId}-web`,
+      file: file.webEntry,
+      bytes: file.web.bytes,
+      stats: file.web,
+      settings: webSettings(file.web),
+    }),
+  ]);
 }
 
 /** The master variant entry: what fal returned, unchanged. */
@@ -1492,26 +1613,52 @@ function buildMasterVariant(args: {
 }
 
 /** The web variant entry, with the settings that produced it. */
+/** The settings a web variant ran with, recorded so it is reproducible. */
+function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['settings']> {
+  return {
+    maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
+    textureFormat: 'jpeg',
+    quality: WEB_VARIANT_TEXTURE_QUALITY,
+    triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
+    simplified: web.simplified,
+    skinnedPath: web.skinnedPath,
+  };
+}
+
+/** One variant entry: a file, its stats, and the settings used to make it. */
+function variantEntry(args: {
+  name: string;
+  file: string;
+  bytes: Uint8Array;
+  stats: GlbStats;
+  settings?: Generate3dPackageVariant['settings'];
+}): Generate3dPackageVariant {
+  return {
+    name: args.name,
+    file: args.file,
+    bytes: args.bytes.byteLength,
+    sha256: createHash('sha256').update(args.bytes).digest('hex'),
+    triangles: args.stats.triangles,
+    textures: args.stats.textures,
+    extensionsUsed: args.stats.extensionsUsed,
+    ...(args.settings === undefined ? {} : { settings: args.settings }),
+  };
+}
+
 function buildWebVariantEntry(
   stem: string,
   web: WebVariant,
   webSha256: string
 ): Generate3dPackageVariant {
   return {
-    name: 'web',
-    file: `web/${stem}.web.glb`,
-    bytes: web.bytes.byteLength,
+    ...variantEntry({
+      name: 'web',
+      file: `web/${stem}.web.glb`,
+      bytes: web.bytes,
+      stats: web,
+      settings: webSettings(web),
+    }),
     sha256: webSha256,
-    triangles: web.triangles,
-    textures: web.textures,
-    extensionsUsed: web.extensionsUsed,
-    settings: {
-      maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
-      textureFormat: 'jpeg',
-      quality: WEB_VARIANT_TEXTURE_QUALITY,
-      triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
-      simplified: web.simplified,
-    },
   };
 }
 
@@ -1534,6 +1681,7 @@ function buildPackageManifest(args: {
   stem: string;
   totalUsd: number;
   reference: Generate3dPackageManifest['referenceImage'];
+  rigVariants: Generate3dPackageVariant[];
 }): Generate3dPackageManifest {
   return {
     schemaVersion: 1,
@@ -1558,6 +1706,7 @@ function buildPackageManifest(args: {
         source: args.web.source,
       }),
       buildWebVariantEntry(args.stem, args.web, args.webSha256),
+      ...args.rigVariants,
     ],
     referenceImage: args.reference,
     licence: args.model.licenseType,
@@ -1581,13 +1730,19 @@ function buildPackageEntries(args: {
   webBytes: Uint8Array;
   manifestJson: string;
   reference: { zipPath: string; bytes: Uint8Array } | null;
+  rigFiles: readonly RigFilePackage[];
 }): ZipEntry[] {
+  const rigEntries = args.rigFiles.flatMap((file) => [
+    { path: file.entry, bytes: file.bytes },
+    { path: file.webEntry, bytes: file.web.bytes },
+  ]);
   return [
     { path: `${args.stem}.glb`, bytes: args.masterBytes },
     { path: `web/${args.stem}.web.glb`, bytes: args.webBytes },
     ...(args.reference === null
       ? []
       : [{ path: args.reference.zipPath, bytes: args.reference.bytes }]),
+    ...rigEntries,
     { path: PACKAGE_MANIFEST_NAME, bytes: new TextEncoder().encode(args.manifestJson) },
   ];
 }
@@ -1625,6 +1780,7 @@ function buildZip(
     masterBytes: Uint8Array;
     webBytes: Uint8Array;
     reference: { zipPath: string; bytes: Uint8Array } | null;
+    rigFiles: readonly RigFilePackage[];
   }
 ): Uint8Array {
   try {
@@ -1635,6 +1791,7 @@ function buildZip(
         webBytes: args.webBytes,
         manifestJson: JSON.stringify(args.packageManifest, null, 2),
         reference: args.reference,
+        rigFiles: args.rigFiles,
       })
     );
   } catch (err) {
@@ -1719,6 +1876,7 @@ async function writePackage(args: {
   prompt: string | undefined;
   force: boolean;
   reference: BundledReference | null;
+  rigFiles: readonly RigFilePackage[];
 }): Promise<PackageOutput> {
   const { plan, deps, master, paths, reference } = args;
   const web = await buildWebVariant(plan, deps, master.bytes);
@@ -1737,12 +1895,14 @@ async function writePackage(args: {
     stem: plan.stem,
     totalUsd: totalUsd(plan.costLines),
     reference: reference?.manifest ?? null,
+    rigVariants: rigVariants(args.rigFiles),
   });
   const zipBytes = buildZip(plan, deps, {
     packageManifest,
     masterBytes: master.bytes,
     webBytes: web.bytes,
     reference,
+    rigFiles: args.rigFiles,
   });
   const html = renderPreviewHtml({
     title: args.packageName,
@@ -1852,6 +2012,20 @@ async function bundleReference(
   };
 }
 
+/** One animation clip written beside `--out`, with the bytes for the zip. */
+interface AnimationFile {
+  actionId: number;
+  path: string;
+  bytes: Uint8Array;
+}
+
+/** What the rig step produced: the manifest section and the bytes to bundle. */
+export interface RigBundle {
+  section: Generate3dRiggingManifest;
+  riggedBytes: Uint8Array;
+  animations: AnimationFile[];
+}
+
 /** What one paid generation produced, before rigging and packaging. */
 interface MasterOutput {
   bytes: Uint8Array;
@@ -1923,10 +2097,78 @@ async function generateMaster(
   };
 }
 
+/** What the rig step produced, or why it failed. */
+interface RigOutcome {
+  section: Generate3dRiggingManifest | null;
+  bundle: RigBundle | null;
+  error: Generate3dError | null;
+  /** Web variants and entry names for every rig file; empty on failure. */
+  files: RigFilePackage[];
+}
+
+/** Run the rig when asked, holding a failure instead of throwing it. */
+async function rigOrError(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  master: MasterOutput
+): Promise<RigOutcome> {
+  if (plan.riggingRequest === null) {
+    return { section: null, bundle: null, error: null, files: [] };
+  }
+  try {
+    const bundle = await runRigging(plan, deps, master.glbUrl);
+    return { section: bundle.section, bundle, error: null, files: [] };
+  } catch (err) {
+    return {
+      section: null,
+      bundle: null,
+      error: err instanceof Generate3dError ? err : new Generate3dError(describeError(err)),
+      files: [],
+    };
+  }
+}
+
 /**
- * Generate one mesh: run the paid generation, optionally rig it, then package the
- * master with a web variant and a package manifest.
+ * Build the rig files' web variants. If that fails, record the rigging section
+ * without the files list first, so the paid rig is not lost from the sidecar.
  */
+async function rigFilesOrRecordFailure(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  master: MasterOutput,
+  rigging: RigOutcome
+): Promise<RigFilePackage[]> {
+  if (rigging.bundle === null) return [];
+  try {
+    return await buildRigFiles(plan, deps, rigging.bundle);
+  } catch (err) {
+    await deps.writeJson(plan.manifestPath, {
+      ...master.manifest,
+      rigging: rigging.bundle.section,
+    });
+    throw err;
+  }
+}
+
+/** The sidecar with the rigging section, or null when nothing was rigged. */
+function rigManifest(master: MasterOutput, rigging: RigOutcome): Generate3dManifest | null {
+  if (rigging.section === null) return null;
+  return { ...master.manifest, rigging: withRigFiles(rigging.section, rigging.files) };
+}
+
+/** The final sidecar: the rigging section when present, plus the package link. */
+function packagedManifest(
+  master: MasterOutput,
+  rigging: RigOutcome,
+  plan: Generate3dPlan
+): Generate3dManifest {
+  const base = rigManifest(master, rigging) ?? master.manifest;
+  return {
+    ...base,
+    package: { zip: basename(plan.zipPath), html: basename(plan.htmlPath) },
+  };
+}
+
 /** Build and write the package, returning its failure instead of throwing it. */
 async function packageOrError(args: {
   plan: Generate3dPlan;
@@ -1935,6 +2177,7 @@ async function packageOrError(args: {
   prompt: string | undefined;
   force: boolean;
   reference: BundledReference | null;
+  rigFiles: readonly RigFilePackage[];
 }): Promise<Generate3dError | null> {
   try {
     await writePackage({
@@ -1946,6 +2189,7 @@ async function packageOrError(args: {
       prompt: args.prompt,
       force: args.force,
       reference: args.reference,
+      rigFiles: args.rigFiles,
     });
     return null;
   } catch (err) {
@@ -1953,33 +2197,43 @@ async function packageOrError(args: {
   }
 }
 
-/** The sidecar with the package files linked. */
-function withPackageLink(manifest: Generate3dManifest, plan: Generate3dPlan): Generate3dManifest {
-  return {
-    ...manifest,
-    package: { zip: basename(plan.zipPath), html: basename(plan.htmlPath) },
-  };
-}
-
-/** Run the rig when asked; returns whether it completed. */
-async function rigIfRequested(args: {
+/**
+ * Package the run, link the sidecar, then throw whichever failure came first.
+ *
+ * A rig failure still gets a package built from the master (and the reference
+ * image), because the mesh is paid for either way.
+ */
+async function packageRun(args: {
   plan: Generate3dPlan;
   deps: Generate3dDeps;
   master: MasterOutput;
-  manifest: Generate3dManifest;
-}): Promise<boolean> {
-  if (args.plan.riggingRequest === null) return false;
-  const rigging = await runRigging(args.plan, args.deps, args.master.glbUrl);
-  await args.deps.writeJson(args.plan.manifestPath, { ...args.manifest, rigging });
-  return true;
+  opts: Generate3dOptions;
+  reference: BundledReference | null;
+  rigging: RigOutcome;
+}): Promise<void> {
+  const packageError = await packageOrError({
+    plan: args.plan,
+    deps: args.deps,
+    master: args.master,
+    prompt: args.opts.prompt,
+    force: args.opts.force === true,
+    reference: args.reference,
+    rigFiles: args.rigging.files,
+  });
+  if (packageError === null) {
+    await args.deps.writeJson(
+      args.plan.manifestPath,
+      packagedManifest(args.master, args.rigging, args.plan)
+    );
+  }
+  const failure = args.rigging.error ?? packageError;
+  if (failure !== null) throw failure;
 }
 
-/** A packaging failure that records whether the rig still ran. */
-function rigAwarePackageError(err: Generate3dError, rigged: boolean): Generate3dError {
-  if (!rigged) return err;
-  return new Generate3dError(`${err.message} The rig completed and was saved.`);
-}
-
+/**
+ * Generate one mesh: run the paid generation (with a reference image first when
+ * the model needs one), optionally rig it, then package everything.
+ */
 export async function generate3d(
   opts: Generate3dOptions,
   deps: Generate3dDeps
@@ -1992,22 +2246,15 @@ export async function generate3d(
   const bundledReference = await bundleReference(plan, deps, reference);
   const master = await generateMaster(plan, deps, opts, reference);
 
-  // Package first: it is a pure function of the master, so a rig failure cannot
-  // cost the user the package. A packaging failure is held so the rig can still
-  // run and be saved before the error surfaces.
-  const packageError = await packageOrError({
-    plan,
-    deps,
-    master,
-    prompt: opts.prompt,
-    force: opts.force === true,
-    reference: bundledReference,
-  });
-  const manifest = packageError === null ? withPackageLink(master.manifest, plan) : master.manifest;
-  if (packageError === null) await deps.writeJson(plan.manifestPath, manifest);
+  // Rig before packaging: the package is the one artefact that must hold the
+  // master, the reference, and every rig file. A rig failure keeps the paid
+  // mesh and still packages it, then reports the rig error.
+  const rigging = await rigOrError(plan, deps, master);
+  rigging.files = await rigFilesOrRecordFailure(plan, deps, master, rigging);
+  const rigged = rigManifest(master, rigging);
+  if (rigged !== null) await deps.writeJson(plan.manifestPath, rigged);
 
-  const rigged = await rigIfRequested({ plan, deps, master, manifest });
-  if (packageError !== null) throw rigAwarePackageError(packageError, rigged);
+  await packageRun({ plan, deps, master, opts, reference: bundledReference, rigging });
 
   return {
     outPath: plan.outPath,
