@@ -12,3 +12,7 @@ Application-specific (non-framework) documentation.
 ## Image generation
 
 - **Guide:** [Set up and use `chatroom generate-image`](../features/image-generation.md)
+
+## 3D generation
+
+- **Guide:** [Set up and use `chatroom generate-3d`](../features/3d-generation.md)
