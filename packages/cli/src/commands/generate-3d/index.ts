@@ -229,7 +229,7 @@ export function registerGenerate3dCommand(program: Command): void {
       '--input-image <path-or-url>',
       'reference image (local file or URL); the image-to-3D input'
     )
-    .option('--force', 'replace existing output, package, preview, rig, and clip files')
+    .option('--force', 'replace existing output, reference, package, preview, rig, and clip files')
     .option(
       '--rig',
       'rig with Meshy 7.1 (requires --model meshy/v7.1/...); needs --confirm-cost on a real run'

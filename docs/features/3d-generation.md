@@ -70,7 +70,9 @@ Every run writes `<base>.zip` next to `--out` (or in `--package-dir`), where
 - `<stem>.glb` — the master, byte-for-byte what fal returned.
 - `web/<stem>.web.glb` — the browser-sized web version.
 - `manifest.json` — the package record: files, sizes, triangle counts, request ids.
-- `reference/<name>.png` — the reference image, when one was generated or supplied.
+- `reference/<name>` — the reference image with its original extension, when one
+  was generated or supplied; a generated image also sits beside `--out` as
+  `<stem>-reference.png`.
 - `<stem>.rigged.glb` and `web/<stem>.rigged.web.glb` — when rigging ran.
 - `<stem>.anim-<id>.glb` and `web/<stem>.anim-<id>.web.glb` — one pair per clip.
 
@@ -96,7 +98,7 @@ alike; `prompt` and `image_url` are reserved for `--prompt` and `--input-image`.
 | `--animation-action-id <id>`  | Meshy preset clip (0–696), repeatable; requires `--rig`.                     |
 | `--confirm-cost`              | Confirm the priced plan for a real rigging run; not needed with `--dry-run`. |
 | `--package-dir <dir>`         | Directory for the zip and preview; defaults to the directory of `--out`.     |
-| `--force`                     | Replace existing output, package, preview, rig, and clip files.              |
+| `--force`                     | Replace existing output, reference, package, preview, rig, and clip files.   |
 | `--dry-run`                   | Print the request and the list-price estimate; no upload or fal call.        |
 | `--platform <name>`           | Generation platform; only `fal`.                                             |
 
@@ -104,6 +106,8 @@ alike; `prompt` and `image_url` are reserved for `--prompt` and `--input-image`.
 
 - The 30,000-triangle target for the web version is best effort; the manifest
   records what was achieved.
+- Rigged and animated web versions keep full geometry; only their textures are
+  reduced.
 - A local `--input-image` is uploaded to fal storage and its URL lasts one day; a
   URL is passed through, never downloaded.
 - A rig failure keeps the paid master, its manifest, and the package, and exits 1.
