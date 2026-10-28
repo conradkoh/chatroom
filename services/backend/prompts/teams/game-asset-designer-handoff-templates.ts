@@ -14,7 +14,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom generate-3d --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator; for a 3D model also fill \`## Package name\`, whose \`--name\` and \`--package-dir\` stay on the \`generate-3d\` entry. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom generate-3d --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator; for a 3D model also fill \`## Output paths\`, whose \`--package-dir\` stays on the \`generate-3d\` entry. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -40,8 +40,8 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ## Model parameters
 <a JSON object as text passed to \`generate-image --input\`; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none; \`Not Applicable.\` for a 3D model, which takes no model parameters>
 
-## Package name
-<for a 3D model: the \`--name\` template (placeholders \`{stem}\`, \`{model}\`, \`{timestamp}\`, \`{requestId8}\`; default \`{stem}-{timestamp}\`) and the \`--package-dir\` directory (default: the master's directory). The run writes \`<base>.zip\` (\`<stem>.glb\`, \`web/<stem>.web.glb\`, \`manifest.json\`) and \`<base>.html\`, a separate preview of the web variant; a name the user asks for is passed through, never hard-coded. \`Not Applicable.\` for a 2D-only request>
+## Output paths
+<for a 3D model: the \`--out\` path, whose file name becomes the package base \`<out-stem>-<timestamp>\`, and the optional \`--package-dir\` directory (default: the master's directory). The run writes \`<base>.zip\` (\`<stem>.glb\`, \`web/<stem>.web.glb\`, \`manifest.json\`) and \`<base>.html\`, a separate preview of the web variant, beside the master or in that directory. \`Not Applicable.\` for a 2D-only request>
 
 ## Spec consumer
 <who integrates these assets from the spec: \`builder\` (application logic outside the allowed edit paths) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
