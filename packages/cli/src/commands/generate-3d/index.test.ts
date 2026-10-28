@@ -104,7 +104,7 @@ describe('chatroom generate-3d wiring', () => {
     expect(program.commands[0]?.name()).toBe('generate-3d');
   });
 
-  it('lists every flag, the allowed models, and examples in help output', () => {
+  it('lists every flag, the known models and their capabilities, and examples', () => {
     const program = createProgram();
     const command = program.commands[0];
 
@@ -120,13 +120,12 @@ describe('chatroom generate-3d wiring', () => {
       '--rig',
       '--animation-action-id',
       '--package-dir',
+      '--input',
       '--dry-run',
     ]) {
       expect(help).toContain(flag);
     }
-    for (const model of GENERATE_3D_MODELS) {
-      expect(help).toContain(model.id);
-    }
+    expect(help).toContain('any fal endpoint id is');
 
     let afterHelp = '';
     command?.configureOutput({
@@ -139,10 +138,17 @@ describe('chatroom generate-3d wiring', () => {
     expect(afterHelp).toContain('--model fal-ai/trellis-2 --input-image ./concept.png');
     expect(afterHelp).toContain('--rig --animation-action-id 0');
     expect(afterHelp).toContain('humanoid mesh');
-    expect(afterHelp).toContain('text-to-3D:');
-    expect(afterHelp).toContain('image-to-3D:');
+    expect(afterHelp).toContain('Models:');
+    expect(afterHelp).toContain('meshy/v7.1/text-to-3d');
+    expect(afterHelp).toContain('--prompt, --rig');
     expect(afterHelp).toContain('2026-10-27');
     expect(afterHelp).toContain('fal returns');
+    for (const model of GENERATE_3D_MODELS) {
+      expect(afterHelp).toContain(model.id);
+    }
+    expect(afterHelp).toContain('Any fal endpoint id is accepted');
+    expect(afterHelp).toContain('--input-image, --rig');
+    expect(afterHelp).toContain('cost prints as unknown');
     expect(afterHelp).toContain('web/<stem>.web.glb');
     expect(afterHelp).toContain('manifest.json');
     expect(afterHelp).toContain('<base>.html');

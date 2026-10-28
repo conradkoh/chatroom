@@ -35,7 +35,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not Applicable.\` for 3D models and audio; or \`Not specified.\`>
 
 ## Model
-<for a 2D asset: \`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset. For a 3D model: one allowlisted \`generate-3d\` id, as listed by \`chatroom generate-3d --help\`>
+<for a 2D asset: \`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset. For a 3D model: one fal 3D model id; \`chatroom generate-3d --help\` lists the known ids and the flags each takes>
 
 ## Model parameters
 <a JSON object as text passed to \`generate-image --input\`; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none; \`Not Applicable.\` for a 3D model, which takes no model parameters>

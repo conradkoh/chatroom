@@ -24,10 +24,26 @@ function parsePlatform(value: string): Generate3dPlatform {
   return value as Generate3dPlatform;
 }
 
-function modelIdsFor(kind: 'text' | 'image'): string {
-  return GENERATE_3D_MODELS.filter((model) => model.inputKind === kind)
-    .map((model) => model.id)
+/** The flags each capability turns into, for the help table. */
+const CAPABILITY_FLAGS = [
+  { capability: 'prompt', flag: '--prompt' },
+  { capability: 'image', flag: '--input-image' },
+  { capability: 'rig', flag: '--rig' },
+] as const;
+
+/** The flags a known model accepts, for the help table. */
+function capabilityLine(model: (typeof GENERATE_3D_MODELS)[number]): string {
+  return CAPABILITY_FLAGS.filter(({ capability }) => model.capabilities?.[capability] === true)
+    .map(({ flag }) => flag)
     .join(', ');
+}
+
+/** `id` padded for the help table, followed by its flags. */
+function knownModelLines(): string {
+  const width = Math.max(...GENERATE_3D_MODELS.map((model) => model.id.length));
+  return GENERATE_3D_MODELS.map(
+    (model) => `  ${model.id.padEnd(width)}  ${capabilityLine(model)}`
+  ).join('\n');
 }
 
 /** Commander value parser for a repeatable option: append in the given order. */
@@ -87,6 +103,8 @@ Examples:
   chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out concept.glb
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --rig --animation-action-id 0
   chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt "a stone knight" --out knight.glb --package-dir dist/models
+  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --input '{"resolution":1536}' --out concept.glb
+  chatroom generate-3d --platform=fal --model fal-ai/some-future-model --prompt "a stone knight" --out knight.glb
 
 Package:
   Every run writes two files beside --out (or in --package-dir):
@@ -100,12 +118,16 @@ Rigging uses Meshy (fal-ai/meshy/rigging) and expects a humanoid mesh;
 non-humanoid meshes fail on fal. Each --animation-action-id is a Meshy preset id
 (0-696) and requires --rig.
 
-Allowed models:
-  text-to-3D:  ${modelIdsFor('text')}
-  image-to-3D: ${modelIdsFor('image')}
+Models:
+  Any fal endpoint id is accepted. The ids below have a specialist adapter, a
+  capability check, and a list price:
+${knownModelLines()}
+  Any other id is passed through: --prompt maps to "prompt", --input-image to
+  "image_url", and --input carries everything else. Such a model gets no
+  capability check and no price, so its cost prints as unknown.
 
-Cost lines are list-price estimates as of ${GENERATE_3D_PRICES_AS_OF}: fal returns
-no billed cost. Check the fal dashboard for the actual bill.
+Cost lines for known models are list-price estimates as of ${GENERATE_3D_PRICES_AS_OF}:
+fal returns no billed cost. Check the fal dashboard for the actual bill.
 `;
 
 interface Generate3dCliOptions {
@@ -192,7 +214,7 @@ export function registerGenerate3dCommand(program: Command): void {
     )
     .requiredOption(
       '--model <id>',
-      `fal model id (required); allowed: ${GENERATE_3D_MODELS.map((model) => model.id).join(', ')}`
+      'fal model id (required); any fal endpoint id is accepted (known ids and their flags are listed below)'
     )
     .requiredOption('--out <path>', 'Output GLB path (manifest is written to <path>.json)')
     .option(
@@ -201,10 +223,10 @@ export function registerGenerate3dCommand(program: Command): void {
       parsePlatform,
       DEFAULT_GENERATE_3D_PLATFORM
     )
-    .option('--prompt <text>', `Text prompt for a text-to-3D model (${modelIdsFor('text')})`)
+    .option('--prompt <text>', 'Text prompt for a text-to-3D model')
     .option(
       '--input-image <path-or-url>',
-      `Reference image for an image-to-3D model: local .png, .jpg, or .jpeg (uploaded to fal) or an http(s) URL (${modelIdsFor('image')})`
+      'Reference image for an image-to-3D model: a local .png, .jpg, or .jpeg (uploaded to fal) or an http(s) URL'
     )
     .option('--force', 'Overwrite existing output and manifest files')
     .option(

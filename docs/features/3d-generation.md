@@ -12,10 +12,11 @@ a smaller web variant, and a package manifest) and `<out-stem>-<timestamp>.html`
 (a standalone preview of the web variant). With `--rig` it also rigs the mesh with Meshy and writes
 `<stem>.rigged.glb`, plus one `<stem>.anim-<id>.glb` per requested animation clip.
 
-`--model` is required; there is no default and no free-form passthrough. Only
-the model ids in [Choose the model](#choose-the-model) are accepted. Run a
-command with `--dry-run` first to see the exact request, the planned output
-paths, and the estimated cost of the run.
+`--model` is required and accepts **any fal endpoint id**. The ids in
+[Known models](#known-models) have a specialist adapter, a capability check, and
+a list price; any other id is passed through to fal. Run a command with
+`--dry-run` first to see the exact request, the planned output paths, and the
+estimated cost of the run.
 
 The command talks to fal directly and does not require chatroom authentication.
 
@@ -175,18 +176,33 @@ preview, an unknown model id, a missing or mismatched input flag, an invalid
 animation clip id, and a rigging output that already exists — the same checks the
 real run performs.
 
-### Choose the model
+### Known models
 
 Pass the model id with `--model`; the command fails without it
-(`error: required option '--model <id>' not specified`). The allowlist is
-closed: an id that is not in this table is refused before any upload or fal call.
+(`error: required option '--model <id>' not specified`). These ids have a
+specialist adapter and a capability check:
 
-| Model id                                  | Task            | fal endpoint                              | Output                          | List price (2026-10-27) |
-| ----------------------------------------- | --------------- | ----------------------------------------- | ------------------------------- | ----------------------- |
-| `meshy/v7.1/text-to-3d`                   | `--prompt`      | `meshy/v7.1/text-to-3d`                   | GLB + separate texture files    | $1.20                   |
-| `fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d` | `--prompt`      | `fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d` | GLB; texture URL when returned  | $0.225                  |
-| `meshy/v7.1/image-to-3d`                  | `--input-image` | `meshy/v7.1/image-to-3d`                  | GLB + separate texture files    | $1.20                   |
-| `fal-ai/trellis-2`                        | `--input-image` | `fal-ai/trellis-2`                        | GLB only; textures are embedded | $0.30                   |
+| Model id                                  | Accepts                  | Output                          | List price (2026-10-27) |
+| ----------------------------------------- | ------------------------ | ------------------------------- | ----------------------- |
+| `meshy/v7.1/text-to-3d`                   | `--prompt`, `--rig`      | GLB + separate texture files    | $1.20                   |
+| `fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d` | `--prompt`               | GLB; texture URL when returned  | $0.225                  |
+| `meshy/v7.1/image-to-3d`                  | `--input-image`, `--rig` | GLB + separate texture files    | $1.20                   |
+| `fal-ai/trellis-2`                        | `--input-image`          | GLB only; textures are embedded | $0.30                   |
+
+Hunyuan rapid takes no `--rig`: rigging is only verified against Meshy GLBs.
+Trellis-2 takes no `--rig` either. Rigging an unsupported model would fail after
+the paid call, so the command refuses it up front:
+
+```text
+fal-ai/trellis-2 does not support --rig, --animation-action-id 0. Omit: --rig, --animation-action-id 0
+Corrected command:
+  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out concept.glb
+```
+
+The check runs in `--dry-run` too, names every offending flag as you typed it,
+and prints the same command with those flags removed. If removing a flag leaves
+the model without its input, the corrected command carries
+`--input-image <path-or-url>` or `--prompt <text>` and says so.
 
 Prices are fal list prices read from the public model pages on 2026-10-27. They
 are not a billed amount. The per-model breakdown is:
@@ -205,6 +221,33 @@ Every model records the same `licenseType` value of `commercial`, copied
 verbatim from the fal catalog. That is the catalog's label, not a legal
 interpretation: check fal's terms and the model page before using an asset in
 production.
+
+### Any other model
+
+An id outside the table is sent to fal as-is:
+
+- `--prompt` becomes the request's `prompt`, and `--input-image` becomes
+  `image_url` (a local file is uploaded exactly as for a known model).
+- `--input '<json>'` (or `--input @file`) adds any other field. It is merged
+  over the request for known models too, which is how a model-specific setting
+  such as `resolution` reaches the endpoint.
+- The GLB is read from `model_glb.url`, then `model_urls.glb`, then the first
+  `.glb` URL anywhere in the result. If none is present the command fails with
+  the model id, the request id, and the result's top-level keys, so a wrong
+  field name costs no second paid call.
+- There is no capability check and no price data: flags are passed through and
+  fal validates them, and the plan prints `Cost unknown: no list price for
+<id>.` with no total.
+
+```bash
+chatroom generate-3d \
+  --platform=fal \
+  --model fal-ai/some-future-model \
+  --prompt "a stone knight" \
+  --input '{"resolution":1024}' \
+  --out assets/models/knight.glb \
+  --dry-run
+```
 
 ### Overwrite an existing file
 
@@ -252,7 +295,7 @@ chatroom generate-3d \
 - A local file with a `.png`, `.jpg`, or `.jpeg` extension. The file is uploaded
   to fal storage with a one-day lifetime, and only the returned URL is sent to
   the model. Any other extension — including `.webp` and `.gif` — is rejected
-  before the upload; the allowlist follows the formats Meshy's image-to-3D
+  before the upload; the accepted set follows the formats Meshy's image-to-3D
   endpoint accepts.
 - A public `http(s)` URL. It is passed to fal unchanged, so it must be reachable
   without authentication for the duration of the call.
@@ -509,10 +552,10 @@ production.
 - **One mesh per invocation.** The command generates one GLB from text or one
   reference image, then optionally rigs it. It does not do multi-asset batches or
   write textures as separate files.
-- **Closed allowlist.** Only the four model ids in
-  [Choose the model](#choose-the-model) are accepted. There is no free-form
-  `--model` passthrough; a new model is a change to the
-  `packages/cli/src/commands/generate-3d/model-registry.ts` allowlist.
+- **Known models are checked; unknown ones are not.** The four ids in
+  [Known models](#known-models) refuse unsupported flags before the paid call.
+  Any other id goes to fal unchecked, so an invalid request fails on fal's side
+  and still costs nothing until a generation starts.
 - **Humanoid rigs only.** Rigging is Meshy's humanoid rigger. Non-humanoid
   meshes fail on fal and keep only the mesh.
 - **Animation ids only.** Meshy publishes no preset name map, so clips are
@@ -542,13 +585,17 @@ key.
 
 ### `required option '--model <id>' not specified`
 
-`--model` has no default. Pass `--model meshy/v7.1/text-to-3d` (or another id
-from the allowlist).
+`--model` has no default. Pass `--model meshy/v7.1/text-to-3d` (or any fal
+endpoint id; see [Known models](#known-models)).
 
-### `Unknown --model <id>`
+### `<id> does not support --<flag>`
 
-The id is not in the allowlist. The message lists every accepted id. Copy one
-from the allowlist rather than editing the id.
+The model cannot take that flag. The message lists every offending flag as you
+typed it and prints the same command with those flags removed; copy that
+command. If the corrected command carries `--input-image <path-or-url>` or
+`--prompt <text>`, fill in the input the model actually needs. A model the
+command does not know has no capability data, so its flags are passed through
+and fal decides.
 
 ### `--out must end with .glb`
 
