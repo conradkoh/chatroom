@@ -30,7 +30,7 @@ chatroom generate-3d --input-image ./concept.png --out chest.glb
 Meshy rig with a clip (confirm the priced dry run first):
 
 ```bash
-chatroom generate-3d --model meshy/v7.1/image-to-3d --input-image ./concept.png --out knight.glb --rig --animation-action-id 0 --confirm-cost
+chatroom generate-3d --model meshy/v7.1/image-to-3d --input-image ./concept.png --out knight.glb --rig --animation-action-id 0 --dry-run
 ```
 
 ## Models
@@ -58,7 +58,8 @@ rig flags before any paid call:
 fal-ai/trellis-2 cannot rig. Bones and animation come from Meshy 7.1 only.
 Omit: --rig
 Corrected command:
-  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt 'a chest' --rig --confirm-cost --out chest.glb
+  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt 'a chest' --rig --out chest.glb
+Review the estimate, then re-run with --confirm-cost.
 ```
 
 ## The bundle

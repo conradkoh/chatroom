@@ -825,7 +825,12 @@ function meshyInputParts(ctx: Generate3dFlagContext): string[] {
   return ['--prompt TEXT'];
 }
 
-/** The same run against Meshy 7.1, with the rig flags kept and the cost confirmed. */
+/**
+ * The same run against Meshy 7.1, with the rig flags kept.
+ *
+ * The suggestion never pre-approves the paid run: it keeps `--dry-run` when the
+ * user used it, and leaves `--confirm-cost` to them after they see the estimate.
+ */
 function meshyRigCommand(ctx: Generate3dFlagContext): string {
   return [
     'chatroom',
@@ -834,7 +839,6 @@ function meshyRigCommand(ctx: Generate3dFlagContext): string {
     `--model ${meshyModelFor(ctx)}`,
     ...meshyInputParts(ctx),
     ...rigFlagList(ctx),
-    '--confirm-cost',
     ...outputParts(ctx),
     ...repeatParts(ctx),
   ].join(' ');
@@ -848,6 +852,7 @@ function riggingModelError(ctx: Generate3dFlagContext): Generate3dError {
     `Omit: ${omitted}`,
     'Corrected command:',
     `  ${meshyRigCommand(ctx)}`,
+    'Review the estimate, then re-run with --confirm-cost.',
   ];
   if (ctx.prompt === undefined && ctx.inputImage === undefined) {
     lines.push('The corrected command needs a prompt: replace TEXT with your description.');

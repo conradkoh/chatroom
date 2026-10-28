@@ -137,7 +137,8 @@ describe('chatroom generate-3d wiring', () => {
     command?.outputHelp();
     expect(afterHelp).toContain('--prompt "a wooden chest" --out chest.glb');
     expect(afterHelp).toContain('--input-image ./concept.png --out chest.glb');
-    expect(afterHelp).toContain('--rig --animation-action-id 0 --confirm-cost');
+    expect(afterHelp).toContain('--rig --animation-action-id 0 --dry-run');
+    expect(afterHelp).toContain('A real run needs --confirm-cost');
     expect(afterHelp).toContain('humanoid mesh');
     expect(afterHelp).toContain('FLUX 2 Flash first');
     expect(afterHelp).toContain('Models:');

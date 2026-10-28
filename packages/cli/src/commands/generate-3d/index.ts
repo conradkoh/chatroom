@@ -101,7 +101,7 @@ const HELP_AFTER = `
 Examples:
   chatroom generate-3d --prompt "a wooden chest" --out chest.glb
   chatroom generate-3d --input-image ./concept.png --out chest.glb
-  chatroom generate-3d --model meshy/v7.1/image-to-3d --input-image ./concept.png --out chest.glb --rig --animation-action-id 0 --confirm-cost
+  chatroom generate-3d --model meshy/v7.1/image-to-3d --input-image ./concept.png --out chest.glb --rig --animation-action-id 0 --dry-run
 
 Models:
   Default: fal-ai/trellis-2 (image-to-3D). A prompt on it generates a reference

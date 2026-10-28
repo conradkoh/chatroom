@@ -1003,13 +1003,37 @@ describe('capability checks', () => {
         'fal-ai/trellis-2 cannot rig. Bones and animation come from Meshy 7.1 only.',
         'Omit: --rig, --animation-action-id 0',
         'Corrected command:',
-        '  chatroom generate-3d --platform=fal --model meshy/v7.1/image-to-3d --input-image ./concept.png --rig --animation-action-id 0 --confirm-cost --out /tmp/generated/hero.glb',
+        '  chatroom generate-3d --platform=fal --model meshy/v7.1/image-to-3d --input-image ./concept.png --rig --animation-action-id 0 --out /tmp/generated/hero.glb',
+        'Review the estimate, then re-run with --confirm-cost.',
       ].join('\n')
     );
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.uploadFile).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('keeps --dry-run in a rig suggestion and never adds --confirm-cost', async () => {
+    const deps = createDeps();
+
+    const error = await planGenerate3d(
+      {
+        model: TRELLIS_2,
+        prompt: 'a chest',
+        out: OUT_PATH,
+        rig: true,
+        dryRun: true,
+      },
+      deps
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toContain(
+      "chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt 'a chest' --rig --out /tmp/generated/hero.glb --dry-run"
+    );
+    expect(message).not.toContain('--confirm-cost --out');
+    expect(message).toContain('Review the estimate, then re-run with --confirm-cost.');
   });
 
   it('accepts --prompt on Trellis by generating the reference image first', async () => {
@@ -1062,7 +1086,8 @@ describe('capability checks', () => {
         'fal-ai/some-future-model cannot rig. Bones and animation come from Meshy 7.1 only.',
         'Omit: --rig, --animation-action-id 0',
         'Corrected command:',
-        "  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt 'a knight' --rig --animation-action-id 0 --confirm-cost --out /tmp/generated/hero.glb",
+        "  chatroom generate-3d --platform=fal --model meshy/v7.1/text-to-3d --prompt 'a knight' --rig --animation-action-id 0 --out /tmp/generated/hero.glb",
+        'Review the estimate, then re-run with --confirm-cost.',
       ].join('\n')
     );
     expect(deps.falSubscribe).not.toHaveBeenCalled();
