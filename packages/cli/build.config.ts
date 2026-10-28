@@ -26,10 +26,17 @@ const config: BuildConfig = {
     // @anthropic-ai/claude-agent-sdk is loaded at runtime via importBundledClaudeSdk().
     '@anthropic-ai/claude-agent-sdk',
     '@anthropic-ai/claude-agent-sdk/extract',
-    // sharp ships per-platform native binaries and is imported lazily by the
-    // generate-3d web variant, so it must resolve from the install root at
-    // runtime instead of being bundled.
+    // sharp ships per-platform native binaries, so it must resolve from the
+    // install root at runtime instead of being bundled.
     'sharp',
+    // Both of these reach sharp at their module top level, and both are only
+    // needed at runtime for one command each (3D packaging and PDF parsing).
+    // Bundling them would hoist their `import sharp from "sharp"` to the top of
+    // this bundle, so every CLI invocation would load sharp before any command
+    // ran; marked external, Bun keeps the callers' `await import(...)` lazy and
+    // the module graph loads only when that command runs.
+    '@gltf-transform/functions',
+    '@llamaindex/liteparse',
   ],
 };
 
