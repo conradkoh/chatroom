@@ -38,7 +38,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <for a 2D asset: \`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset. For a 3D model: one fal 3D model id; \`chatroom generate-3d --help\` lists the known ids and the flags each takes>
 
 ## Model parameters
-<a JSON object as text passed to \`generate-image --input\`; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none; \`Not Applicable.\` for a 3D model, which takes no model parameters>
+<a JSON object as text passed to \`generate-image --input\`, or to \`generate-3d --input\` for a 3D model; one object for every call of a set; its keys must pass the model's --dry-run check; \`Not specified.\` if none>
 
 ## Output paths
 <for a 3D model: the \`--out\` path, whose file name becomes the package base \`<out-stem>-<timestamp>\`, and the optional \`--package-dir\` directory (default: the master's directory). The run writes \`<base>.zip\` (\`<stem>.glb\`, \`web/<stem>.web.glb\`, \`manifest.json\`) and \`<base>.html\`, a separate preview of the web variant, beside the master or in that directory. \`Not Applicable.\` for a 2D-only request>
@@ -129,7 +129,7 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 <one entry per candidate in the brief: pack name, licence quoted from the pack's own licence file, file sizes checked, decision (\`use\`, \`adapt\`, or \`reject\`), asset IDs covered, and the reason; for \`adapt\`, the edits made; write exactly \`None.\` if the brief named no candidates>
 
 ## Asset manifest
-<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, \`--seed\`, \`--input\`, and \`--input-image\` values, or \`chatroom generate-3d\` with its \`--platform\`, \`--model\`, \`--prompt\`/\`--input-image\`, \`--rig\`, and \`--animation-action-id\` values), the sheet and tile manifests, and the isolated asset manifest path>
+<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the generator command line (\`chatroom generate-image\` with its \`--platform\`, \`--model\`, \`--seed\`, \`--input\`, and \`--input-image\` values, or \`chatroom generate-3d\` with its \`--platform\`, \`--model\`, \`--prompt\`/\`--input-image\`, \`--input\`, \`--rig\`, and \`--animation-action-id\` values), the sheet and tile manifests, and the isolated asset manifest path>
 
 ## Quality checklist results
 <per asset: each applicable checklist item as \`pass\`, \`fail\`, \`n/a\`, or \`not checked\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>
