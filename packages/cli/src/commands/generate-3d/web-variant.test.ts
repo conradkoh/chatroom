@@ -9,7 +9,12 @@
  */
 
 import { Document, NodeIO, Primitive } from '@gltf-transform/core';
-import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
+import {
+  ALL_EXTENSIONS,
+  EXTTextureWebP,
+  KHRMaterialsSpecular,
+  KHRTextureBasisu,
+} from '@gltf-transform/extensions';
 import { meshopt } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
@@ -40,6 +45,12 @@ interface BuildGlbOptions {
   mode?: ReturnType<Primitive['getMode']> | undefined;
   /** Declare `EXT_texture_webp` as required, as a WebP master does. */
   declareWebp?: boolean | undefined;
+  /** Declare `KHR_texture_basisu` as required, as a KTX2 master does. */
+  declareBasisu?: boolean | undefined;
+  /** Use the base-colour texture in the metallic-roughness slot too. */
+  shareTextureWithData?: boolean | undefined;
+  /** A texture in `KHR_materials_specular`'s alpha-carrying slot. */
+  specularTexture?: { bytes: Uint8Array; mimeType: string } | undefined;
 }
 
 /** One mesh, one primitive, an optional material, written as a real GLB. */
@@ -47,6 +58,7 @@ async function buildGlb(opts: BuildGlbOptions): Promise<Uint8Array> {
   const document = new Document();
   const buffer = document.createBuffer();
   if (opts.declareWebp === true) document.createExtension(EXTTextureWebP).setRequired(true);
+  if (opts.declareBasisu === true) document.createExtension(KHRTextureBasisu).setRequired(true);
   // Copy into fresh typed arrays: accessors require `ArrayBuffer`-backed views.
   const position = document
     .createAccessor()
@@ -63,7 +75,11 @@ async function buildGlb(opts: BuildGlbOptions): Promise<Uint8Array> {
     primitive.setIndices(indices);
   }
   if (opts.mode !== undefined) primitive.setMode(opts.mode);
-  if (opts.texture !== undefined || opts.dataTexture !== undefined) {
+  if (
+    opts.texture !== undefined ||
+    opts.dataTexture !== undefined ||
+    opts.specularTexture !== undefined
+  ) {
     const material = document.createMaterial('mat').setAlphaMode(opts.alphaMode ?? 'OPAQUE');
     if (opts.texture !== undefined) {
       material.setBaseColorTexture(
@@ -79,6 +95,20 @@ async function buildGlb(opts: BuildGlbOptions): Promise<Uint8Array> {
           .createTexture('data')
           .setImage(opts.dataTexture.bytes)
           .setMimeType(opts.dataTexture.mimeType)
+      );
+    }
+    if (opts.shareTextureWithData === true) {
+      const shared = material.getBaseColorTexture();
+      if (shared !== null) material.setMetallicRoughnessTexture(shared);
+    }
+    if (opts.specularTexture !== undefined) {
+      const specular = document.createExtension(KHRMaterialsSpecular).createSpecular();
+      material.setExtension('KHR_materials_specular', specular);
+      specular.setSpecularTexture(
+        document
+          .createTexture('specular')
+          .setImage(opts.specularTexture.bytes)
+          .setMimeType(opts.specularTexture.mimeType)
       );
     }
     primitive.setMaterial(material);
@@ -311,6 +341,49 @@ function withExtensionsUsed(glb: Uint8Array, extensions: string[]): Uint8Array {
   return out;
 }
 
+/** A minimal, valid KTX2 container: identifier, header, level index, and DFD. */
+function ktx2Bytes(width: number, height: number): Uint8Array {
+  const identifier = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
+  const headerLength = 17 * 4;
+  const levelIndexLength = 24;
+  const dfdLength = 28;
+  const dfdOffset = identifier.length + headerLength + levelIndexLength;
+  const levelDataOffset = dfdOffset + dfdLength;
+  const bytes = Buffer.alloc(levelDataOffset);
+  identifier.forEach((value, index) => bytes.writeUInt8(value, index));
+
+  const header = [
+    0, // vkFormat: undefined
+    1, // typeSize
+    width,
+    height,
+    0, // pixelDepth
+    0, // layerCount
+    1, // faceCount
+    1, // levelCount
+    0, // supercompressionScheme
+    dfdOffset,
+    dfdLength,
+    0, // kvdByteOffset
+    0, // kvdByteLength
+  ];
+  header.forEach((value, index) => bytes.writeUInt32LE(value, identifier.length + index * 4));
+  bytes.writeBigUInt64LE(BigInt(0), identifier.length + 52); // sgdByteOffset
+  bytes.writeBigUInt64LE(BigInt(0), identifier.length + 60); // sgdByteLength
+
+  const levelOffset = identifier.length + headerLength;
+  bytes.writeBigUInt64LE(BigInt(levelDataOffset), levelOffset);
+  bytes.writeBigUInt64LE(BigInt(0), levelOffset + 8);
+  bytes.writeBigUInt64LE(BigInt(0), levelOffset + 16);
+
+  bytes.writeUInt32LE(dfdLength, dfdOffset); // totalSize
+  bytes.writeUInt16LE(0, dfdOffset + 4); // vendorId
+  bytes.writeUInt16LE(0, dfdOffset + 6); // descriptorType
+  bytes.writeUInt16LE(2, dfdOffset + 8); // versionNumber
+  bytes.writeUInt16LE(24, dfdOffset + 10); // descriptorBlockSize: no samples
+  return new Uint8Array(bytes);
+}
+
 /** A skinned, animated GLB: two joints, JOINTS_0/WEIGHTS_0, one rotation channel. */
 async function buildSkinnedGlb(texture?: {
   bytes: Uint8Array;
@@ -541,7 +614,7 @@ describe('createWebVariant', () => {
     expect(variant.textures[0]).toMatchObject({ width: 1024, height: 512 });
   });
 
-  it('keeps the aspect ratio of a non-power-of-two source within a pixel', async () => {
+  it('keeps the aspect ratio of a non-power-of-two PNG source within a pixel', async () => {
     const glb = await buildGlb({
       ...disjointTriangles(2),
       texture: { bytes: await encodedTexture(1500, 700, 'png'), mimeType: 'image/png' },
@@ -549,8 +622,24 @@ describe('createWebVariant', () => {
 
     const variant = await createWebVariant(glb, OPTIONS);
 
-    expect(variant.textures[0]?.width).toBe(1024);
-    expect(Math.abs((variant.textures[0]?.height ?? 0) - 478)).toBeLessThanOrEqual(1);
+    const [real] = await realSize(variant.bytes);
+    expect(real?.width).toBe(1024);
+    expect(Math.abs((real?.height ?? 0) - 478)).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps the aspect ratio of a non-power-of-two WebP source within a pixel', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: await encodedTexture(1500, 700, 'webp'), mimeType: 'image/webp' },
+      declareWebp: true,
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    const [real] = await realSize(variant.bytes);
+    expect(real?.width).toBe(1024);
+    expect(Math.abs((real?.height ?? 0) - 478)).toBeLessThanOrEqual(1);
+    expect(real?.format).toBe('jpeg');
   });
 
   it('converts a WebP master and drops the WebP extension', async () => {
@@ -705,6 +794,57 @@ describe('createWebVariant', () => {
     const variant = await createWebVariant(await buildGlb(disjointTriangles(2)), OPTIONS);
 
     expect(variant.skinnedPath).toBe('default');
+  });
+
+  it('leaves a KTX2 texture byte-identical and keeps its extension', async () => {
+    const ktx2 = ktx2Bytes(1024, 1024);
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: ktx2, mimeType: 'image/ktx2' },
+      declareBasisu: true,
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.extensionsUsed).toContain('KHR_texture_basisu');
+    const reread = await glbIo().readBinary(variant.bytes);
+    const texture = reread.getRoot().listTextures()[0];
+    expect(texture?.getMimeType()).toBe('image/ktx2');
+    expect(Buffer.from(texture?.getImage() ?? new Uint8Array()).equals(Buffer.from(ktx2))).toBe(
+      true
+    );
+  });
+
+  it('treats a texture shared by a colour and a data slot as colour', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      texture: { bytes: await encodedTexture(2048, 512, 'png'), mimeType: 'image/png' },
+      shareTextureWithData: true,
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.textures).toHaveLength(1);
+    const [real] = await realSize(variant.bytes);
+    expect(real?.format).toBe('jpeg');
+    expect(real?.chromaSubsampling).toBe('4:2:0');
+  });
+
+  it('keeps a texture with an alpha channel in a non-colour slot as PNG', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      specularTexture: { bytes: await encodedTexture(2048, 512, 'png'), mimeType: 'image/png' },
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    expect(variant.textures[0]).toMatchObject({
+      width: 1024,
+      height: 256,
+      mimeType: 'image/png',
+    });
+    const [real] = await realSize(variant.bytes);
+    expect(real?.format).toBe('png');
   });
 
   it('refuses a Draco-compressed master with an error naming the extension', async () => {
