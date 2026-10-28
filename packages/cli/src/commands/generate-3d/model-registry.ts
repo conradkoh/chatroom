@@ -34,6 +34,20 @@ export class Generate3dError extends Error {
 /** Which dedicated input flag a model accepts. */
 export type Generate3dInputKind = 'text' | 'image';
 
+/**
+ * What a registered model can do, checked before any paid call. A model the
+ * registry does not know has no capabilities, so its flags are passed through
+ * and fal validates them.
+ */
+export interface Generate3dCapabilities {
+  /** The model takes `--prompt`. */
+  prompt: boolean;
+  /** The model takes `--input-image`. */
+  image: boolean;
+  /** The model's GLB can be rigged with Meshy. */
+  rig: boolean;
+}
+
 export interface Generate3dCostLine {
   /** Human-readable charge, including its list price. */
   label: string;
@@ -49,6 +63,8 @@ export interface Generate3dModelSpec {
   id: string;
   /** Which dedicated input flag the model takes; absent for an unknown model. */
   inputKind?: Generate3dInputKind | undefined;
+  /** What the model accepts; absent for an unknown model, which skips checks. */
+  capabilities?: Generate3dCapabilities | undefined;
   /** Public model page, recorded in the manifest. */
   pageUrl: string;
   /** Catalog licence value copied verbatim to the manifest. */
@@ -152,6 +168,7 @@ function meshyCost(): { lines: Generate3dCostLine[] } {
 const MESHY_TEXT_TO_3D: Generate3dModelSpec = {
   id: 'meshy/v7.1/text-to-3d',
   inputKind: 'text',
+  capabilities: { prompt: true, image: false, rig: true },
   pageUrl: 'https://fal.ai/models/meshy/v7.1/text-to-3d',
   licenseType: 'commercial',
   buildInput: (args) => ({ prompt: requirePrompts(args.prompt), ...args.extraInput }),
@@ -162,6 +179,7 @@ const MESHY_TEXT_TO_3D: Generate3dModelSpec = {
 const MESHY_IMAGE_TO_3D: Generate3dModelSpec = {
   id: 'meshy/v7.1/image-to-3d',
   inputKind: 'image',
+  capabilities: { prompt: false, image: true, rig: true },
   pageUrl: 'https://fal.ai/models/meshy/v7.1/image-to-3d',
   licenseType: 'commercial',
   buildInput: (args) => ({ image_url: requireInputImageUrl(args.imageUrl), ...args.extraInput }),
@@ -179,6 +197,9 @@ const MESHY_IMAGE_TO_3D: Generate3dModelSpec = {
 const HUNYUAN_RAPID_TEXT_TO_3D: Generate3dModelSpec = {
   id: 'fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d',
   inputKind: 'text',
+  // Rigging is only verified against Meshy GLBs, so Hunyuan output is not
+  // offered the rig flag rather than failing after a paid call.
+  capabilities: { prompt: true, image: false, rig: false },
   pageUrl: 'https://fal.ai/models/fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d',
   licenseType: 'commercial',
   buildInput: (args) => ({ prompt: requirePrompts(args.prompt), ...args.extraInput }),
@@ -217,6 +238,7 @@ const TRELLIS_2_RESOLUTION = 1024;
 const TRELLIS_2: Generate3dModelSpec = {
   id: 'fal-ai/trellis-2',
   inputKind: 'image',
+  capabilities: { prompt: false, image: true, rig: false },
   pageUrl: 'https://fal.ai/models/fal-ai/trellis-2',
   licenseType: 'commercial',
   buildInput: (args) => ({

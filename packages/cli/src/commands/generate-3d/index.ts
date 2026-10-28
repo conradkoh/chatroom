@@ -148,6 +148,7 @@ function toGenerate3dOptions(
     rig: options.rig,
     packageDir: options.packageDir,
     extraInput,
+    dryRun: options.dryRun,
   };
   return options.animationActionId.length > 0
     ? { ...base, animationActionIds: options.animationActionId }

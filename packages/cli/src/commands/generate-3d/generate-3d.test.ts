@@ -261,18 +261,6 @@ describe('generate3d', () => {
     expect(deps.writeJson).not.toHaveBeenCalled();
   });
 
-  it('rejects --input-image on a text model', async () => {
-    const deps = createDeps();
-
-    await expect(
-      generate3d(
-        { model: MESHY_TEXT, prompt: 'a knight', inputImage: INPUT_IMAGE, out: OUT_PATH },
-        deps
-      )
-    ).rejects.toThrow(/text-to-3D model.*--prompt, not --input-image/);
-    expect(deps.falSubscribe).not.toHaveBeenCalled();
-  });
-
   it('rejects a missing --prompt on a text model', async () => {
     const deps = createDeps();
 
@@ -288,18 +276,6 @@ describe('generate3d', () => {
     await expect(generate3d({ model: MESHY_IMAGE, out: OUT_PATH }, deps)).rejects.toThrow(
       /--input-image is required/
     );
-    expect(deps.falSubscribe).not.toHaveBeenCalled();
-  });
-
-  it('rejects --prompt on an image model', async () => {
-    const deps = createDeps();
-
-    await expect(
-      generate3d(
-        { model: TRELLIS_2, prompt: 'a knight', inputImage: INPUT_IMAGE, out: OUT_PATH },
-        deps
-      )
-    ).rejects.toThrow(/image-to-3D model.*--input-image, not --prompt/);
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
@@ -769,6 +745,89 @@ describe('generate3d packaging', () => {
 
     expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
     expect(deps.writeFile).not.toHaveBeenCalledWith(ZIP_PATH, expect.anything());
+  });
+});
+
+describe('capability checks', () => {
+  it('refuses --rig and clips for an image-only model, with a corrected command', async () => {
+    const deps = createDeps();
+
+    await expect(
+      generate3d(
+        {
+          model: TRELLIS_2,
+          inputImage: './concept.png',
+          out: OUT_PATH,
+          rig: true,
+          animationActionIds: ['0'],
+        },
+        deps
+      )
+    ).rejects.toThrow(
+      [
+        'fal-ai/trellis-2 does not support --rig, --animation-action-id 0. Omit: --rig, --animation-action-id 0',
+        'Corrected command:',
+        '  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image ./concept.png --out /tmp/generated/hero.glb',
+      ].join('\n')
+    );
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('refuses --prompt for an image-only model and supplies the right input', async () => {
+    const deps = createDeps();
+
+    await expect(
+      generate3d({ model: TRELLIS_2, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(
+      [
+        'fal-ai/trellis-2 does not support --prompt "a knight". Omit: --prompt "a knight"',
+        'Corrected command:',
+        '  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image <path-or-url> --out /tmp/generated/hero.glb',
+        'The corrected command still needs an input: replace <path-or-url> with your value.',
+      ].join('\n')
+    );
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('refuses --input-image for a text-only model and supplies a prompt', async () => {
+    const deps = createDeps();
+
+    await expect(
+      generate3d({ model: MESHY_TEXT, inputImage: './x.png', out: OUT_PATH }, deps)
+    ).rejects.toThrow(
+      /meshy\/v7\.1\/text-to-3d does not support --input-image \.\/x\.png.*--prompt <text>/s
+    );
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+  });
+
+  it('checks flags in the dry-run plan too', async () => {
+    await expect(
+      planGenerate3d(
+        { model: TRELLIS_2, prompt: 'a knight', out: OUT_PATH, dryRun: true },
+        createDeps()
+      )
+    ).rejects.toThrow(/fal-ai\/trellis-2 does not support --prompt/);
+  });
+
+  it('does not validate an unknown model, which fal checks instead', async () => {
+    const deps = createDeps();
+    const plan = await planGenerate3d(
+      {
+        model: 'fal-ai/some-future-model',
+        prompt: 'a knight',
+        out: OUT_PATH,
+        rig: true,
+        animationActionIds: ['0'],
+      },
+      deps
+    );
+
+    expect(plan.riggedOutPath).toBe(RIGGED_OUT_PATH);
+    expect(plan.riggingRequest).not.toBeNull();
   });
 });
 

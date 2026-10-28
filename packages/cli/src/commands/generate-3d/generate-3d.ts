@@ -24,6 +24,7 @@ import {
   Generate3dError,
   GENERATE_3D_PRICES_AS_OF,
   resolveGenerate3dModel,
+  type Generate3dCapabilities,
   type Generate3dCostLine,
   type Generate3dInputKind,
   type Generate3dModelSpec,
@@ -71,6 +72,8 @@ export interface Generate3dOptions {
    * not know, and how a known model's defaults can be overridden.
    */
   extraInput?: Record<string, unknown> | undefined;
+  /** True only on the `--dry-run` path; used in the corrected-command hint. */
+  dryRun?: boolean | undefined;
 }
 
 /** The rigging provenance written to the manifest after a successful rig. */
@@ -311,40 +314,26 @@ function requireModel(modelId: string): Generate3dModelSpec {
   return resolveGenerate3dModel(requireNonEmpty(modelId, '--model must not be empty.'));
 }
 
-function requireTextInput(model: Generate3dModelSpec, opts: Generate3dOptions): void {
-  if (opts.inputImage !== undefined) {
-    throw new Generate3dError(
-      `${model.id} is a text-to-3D model; pass --prompt, not --input-image.`
-    );
-  }
-  if ((opts.prompt ?? '').trim().length === 0) {
-    throw new Generate3dError(`--prompt is required for ${model.id}.`);
-  }
-}
-
-function requireImageInput(model: Generate3dModelSpec, opts: Generate3dOptions): void {
-  if (opts.prompt !== undefined) {
-    throw new Generate3dError(
-      `${model.id} is an image-to-3D model; pass --input-image, not --prompt.`
-    );
-  }
-  if ((opts.inputImage ?? '').trim().length === 0) {
-    throw new Generate3dError(`--input-image is required for ${model.id}.`);
-  }
-}
+/** The flag and value each input kind needs. */
+const INPUT_REQUIREMENTS: Record<
+  Generate3dInputKind,
+  { flag: string; value: (opts: Generate3dOptions) => string | undefined }
+> = {
+  text: { flag: '--prompt', value: (opts) => opts.prompt },
+  image: { flag: '--input-image', value: (opts) => opts.inputImage },
+};
 
 /**
- * Enforce the model's dedicated input flag before any filesystem or network
- * work. Text models take `--prompt`; image models take `--input-image`; a model
- * the registry does not know has no adapter, so its flags pass through.
+ * Require the model's own input flag. A flag the model cannot take is refused
+ * earlier by `validateGenerate3dFlags`; this only covers "nothing was passed".
+ * A model the registry does not know has no adapter, so its flags pass through.
  */
 function requireInputKind(model: Generate3dModelSpec, opts: Generate3dOptions): void {
-  if (model.inputKind === undefined) return;
-  if (model.inputKind === 'text') {
-    requireTextInput(model, opts);
-    return;
-  }
-  requireImageInput(model, opts);
+  const inputKind = model.inputKind;
+  if (inputKind === undefined) return;
+  const requirement = INPUT_REQUIREMENTS[inputKind];
+  if ((requirement.value(opts) ?? '').trim().length > 0) return;
+  throw new Generate3dError(`${requirement.flag} is required for ${model.id}.`);
 }
 
 /**
@@ -555,6 +544,214 @@ function resolvePackageNaming(
   return { stem, packageDir, packageName, ...packageFilePaths(packageDir, packageName) };
 }
 
+/** Shell-quote one value: bare when it is simple, single-quoted when it is not. */
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9._/:=@+-]+$/.test(value)) return value;
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/** One flag the run passed, with everything needed to render it back. */
+interface PassedFlag {
+  flag: string;
+  value?: string | undefined;
+  /** Double-quote the value in the "Omit:" list (`--prompt "x"`). */
+  quoteInList: boolean;
+}
+
+/** Which capability allows each flag. */
+const FLAG_CAPABILITY = {
+  '--prompt': 'prompt',
+  '--input-image': 'image',
+  '--rig': 'rig',
+  '--animation-action-id': 'rig',
+} as const satisfies Record<string, keyof Generate3dCapabilities>;
+
+/** The input flags, for "did the run pass an input the command can keep". */
+const INPUT_FLAG_NAMES: readonly string[] = ['--prompt', '--input-image'];
+
+/** The placeholder for a model whose only input is prompt or image. */
+const INPUT_PLACEHOLDERS: Record<Generate3dInputKind, string> = {
+  text: '--prompt <text>',
+  image: '--input-image <path-or-url>',
+};
+
+/** Every input and rig flag the run passed, in reporting order. */
+function passedFlags(ctx: Generate3dFlagContext): PassedFlag[] {
+  const inputs: PassedFlag[] = [
+    { flag: '--prompt', value: ctx.prompt, quoteInList: true },
+    { flag: '--input-image', value: ctx.inputImage, quoteInList: false },
+  ];
+  const rig = ctx.rig === true ? [{ flag: '--rig', quoteInList: false }] : [];
+  const clips = ctx.animationActionIds.map((id) => ({
+    flag: '--animation-action-id',
+    value: id,
+    quoteInList: false,
+  }));
+  return [...inputs.filter((entry) => entry.value !== undefined), ...rig, ...clips];
+}
+
+/** Whether the model allows one flag. */
+function isAllowed(flag: string, capabilities: Generate3dCapabilities): boolean {
+  return capabilities[FLAG_CAPABILITY[flag as keyof typeof FLAG_CAPABILITY]] === true;
+}
+
+/** A flag as the "Omit:" list writes it. */
+function formatFlag(entry: PassedFlag): string {
+  if (entry.value === undefined) return entry.flag;
+  return entry.quoteInList ? `${entry.flag} "${entry.value}"` : `${entry.flag} ${entry.value}`;
+}
+
+/** A flag as a runnable command writes it. */
+function formatForCommand(entry: PassedFlag): string {
+  if (entry.value === undefined) return entry.flag;
+  return `${entry.flag} ${shellQuote(entry.value)}`;
+}
+
+/** The passed input the corrected command can keep, if any. */
+function keptInput(
+  ctx: Generate3dFlagContext,
+  capabilities: Generate3dCapabilities
+): PassedFlag | undefined {
+  return passedFlags(ctx).find(
+    (entry) => INPUT_FLAG_NAMES.includes(entry.flag) && isAllowed(entry.flag, capabilities)
+  );
+}
+
+/** The capability behind each input kind. */
+const INPUT_CAPABILITY: Record<Generate3dInputKind, keyof Generate3dCapabilities> = {
+  text: 'prompt',
+  image: 'image',
+};
+
+/** The placeholder a model needs when no usable input remains. */
+function placeholderInput(capabilities: Generate3dCapabilities): string | undefined {
+  const kinds = (Object.keys(INPUT_CAPABILITY) as Generate3dInputKind[]).filter(
+    (kind) => capabilities[INPUT_CAPABILITY[kind]]
+  );
+  return kinds.length === 1 ? INPUT_PLACEHOLDERS[kinds[0] as Generate3dInputKind] : undefined;
+}
+
+/** The `--prompt` / `--input-image` part of a corrected command. */
+function inputParts(ctx: Generate3dFlagContext, capabilities: Generate3dCapabilities): string[] {
+  const kept = keptInput(ctx, capabilities);
+  if (kept !== undefined) return [formatForCommand(kept)];
+  const placeholder = placeholderInput(capabilities);
+  return placeholder === undefined ? [] : [placeholder];
+}
+
+/** The `--rig` and clip part of a corrected command. */
+function rigParts(ctx: Generate3dFlagContext, capabilities: Generate3dCapabilities): string[] {
+  return passedFlags(ctx)
+    .filter((entry) => !INPUT_FLAG_NAMES.includes(entry.flag))
+    .filter((entry) => isAllowed(entry.flag, capabilities))
+    .map(formatForCommand);
+}
+
+/** `--out`, `--force`, and `--package-dir`: the same in every corrected command. */
+function outputParts(ctx: Generate3dFlagContext): string[] {
+  const parts = [`--out ${shellQuote(ctx.out)}`];
+  if (ctx.force === true) parts.push('--force');
+  if (ctx.packageDir !== undefined) parts.push(`--package-dir ${shellQuote(ctx.packageDir)}`);
+  return parts;
+}
+
+/** `--dry-run` and `--input`, repeated so the corrected command behaves the same. */
+function repeatParts(ctx: Generate3dFlagContext): string[] {
+  const dryRun = ctx.dryRun === true ? ['--dry-run'] : [];
+  const input =
+    ctx.extraInput === undefined ? [] : [`--input ${shellQuote(JSON.stringify(ctx.extraInput))}`];
+  return [...dryRun, ...input];
+}
+
+/** Rebuild the user's command with the unsupported flags removed. */
+function correctedCommand(
+  ctx: Generate3dFlagContext,
+  capabilities: Generate3dCapabilities
+): string {
+  return [
+    'chatroom',
+    'generate-3d',
+    '--platform=fal',
+    `--model ${ctx.model.id}`,
+    ...inputParts(ctx, capabilities),
+    ...rigParts(ctx, capabilities),
+    ...outputParts(ctx),
+    ...repeatParts(ctx),
+  ].join(' ');
+}
+
+/** The line telling the user the corrected command still needs an input. */
+function inputHint(
+  ctx: Generate3dFlagContext,
+  capabilities: Generate3dCapabilities
+): string | undefined {
+  if (keptInput(ctx, capabilities) !== undefined) return undefined;
+  const placeholder = placeholderInput(capabilities);
+  if (placeholder === undefined) return undefined;
+  return `The corrected command still needs an input: replace ${placeholder.split(' ')[1]} with your value.`;
+}
+
+/** The error for unsupported flags: what to omit, and the command that works. */
+function flagError(
+  ctx: Generate3dFlagContext,
+  capabilities: Generate3dCapabilities,
+  flags: readonly string[]
+): Generate3dError {
+  const list = flags.join(', ');
+  const lines = [
+    `${ctx.model.id} does not support ${list}. Omit: ${list}`,
+    'Corrected command:',
+    `  ${correctedCommand(ctx, capabilities)}`,
+  ];
+  const hint = inputHint(ctx, capabilities);
+  if (hint !== undefined) lines.push(hint);
+  return new Generate3dError(lines.join('\n'));
+}
+
+/** Everything the flag check needs: the model, its args, and the run shape. */
+interface Generate3dFlagContext {
+  model: Generate3dModelSpec;
+  prompt?: string | undefined;
+  inputImage?: string | undefined;
+  rig?: boolean | undefined;
+  /** Raw `--animation-action-id` values, exactly as typed. */
+  animationActionIds: readonly string[];
+  extraInput?: Record<string, unknown> | undefined;
+  out: string;
+  force?: boolean | undefined;
+  packageDir?: string | undefined;
+  dryRun?: boolean | undefined;
+}
+
+/**
+ * Refuse flags a registered model cannot take, before any upload or fal call.
+ *
+ * The error names every offending flag as typed and includes the same command
+ * with those flags removed, so the fix is a copy-paste. A model the registry
+ * does not know has no capabilities and is left to fal.
+ */
+function validateGenerate3dFlags(ctx: Generate3dFlagContext): void {
+  const capabilities = ctx.model.capabilities;
+  if (capabilities === undefined) return; // unknown model: fal validates the flags
+
+  const flags = passedFlags(ctx)
+    .filter((entry) => !isAllowed(entry.flag, capabilities))
+    .map(formatFlag);
+  if (flags.length === 0) return;
+  throw flagError(ctx, capabilities, flags);
+}
+
+/** Parse the clip ids and build the rig half of the plan. */
+function planRigging(
+  opts: Generate3dOptions,
+  outPath: string
+): PlannedRigging & { animationActionIds: number[] } {
+  const rig = opts.rig === true;
+  const animationActionIds = parseAnimationActionIds(opts.animationActionIds ?? []);
+  requireRigForClips(rig, animationActionIds);
+  return { animationActionIds, ...buildRiggingPlan(outPath, rig, animationActionIds) };
+}
+
 /** Clips are a rigging feature, so the flag pairing is checked with the args. */
 function requireRigForClips(rig: boolean, animationActionIds: readonly number[]): void {
   if (animationActionIds.length > 0 && !rig) {
@@ -598,12 +795,23 @@ export async function planGenerate3d(
   const model = requireModel(opts.model);
   const outPath = resolve(requireNonEmpty(opts.out, '--out must not be empty.'));
   requireGlbExtension(outPath);
+
+  validateGenerate3dFlags({
+    model,
+    prompt: opts.prompt,
+    inputImage: opts.inputImage,
+    rig: opts.rig === true,
+    animationActionIds: opts.animationActionIds ?? [],
+    extraInput: opts.extraInput,
+    // The user's `--out` as typed, so the corrected command can be re-used.
+    out: opts.out,
+    force: opts.force,
+    packageDir: opts.packageDir,
+    dryRun: opts.dryRun,
+  });
   requireInputKind(model, opts);
 
-  const rig = opts.rig === true;
-  const animationActionIds = parseAnimationActionIds(opts.animationActionIds ?? []);
-  requireRigForClips(rig, animationActionIds);
-  const rigging = buildRiggingPlan(outPath, rig, animationActionIds);
+  const { animationActionIds, ...rigging } = planRigging(opts, outPath);
 
   const manifestPath = `${outPath}.json`;
   const inputTarget = await validateInputImage(deps, opts.inputImage);
