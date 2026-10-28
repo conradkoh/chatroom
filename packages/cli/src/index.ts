@@ -9,6 +9,7 @@
 
 import { Command } from 'commander';
 
+import { registerGenerate3dCommand } from './commands/generate-3d/index.js';
 import { registerGenerateImageCommand } from './commands/generate-image/index.js';
 import { registerChatroomRoleCommand } from './commands/register-chatroom-role-command.js';
 import { registerRemoveImageBackgroundCommand } from './commands/remove-image-background/remove-image-background-command.js';
@@ -187,6 +188,7 @@ toolCommand
 // ============================================================================
 
 registerGenerateImageCommand(program);
+registerGenerate3dCommand(program);
 
 // ============================================================================
 // SLICE-IMAGE COMMAND (no auth required — local asset slicing)

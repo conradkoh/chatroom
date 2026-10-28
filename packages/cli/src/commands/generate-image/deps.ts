@@ -282,7 +282,7 @@ function createFalSubscribe(
  * `generate-image` adapter: uploads an input image so the edit model can fetch
  * it by URL. A one-day lifetime keeps the temporary object from accumulating.
  */
-function createFalUploadFile(
+export function createFalUploadFile(
   env: Record<string, string | undefined>
 ): GenerateImageDeps['uploadFile'] {
   return async (path, contentType) => {

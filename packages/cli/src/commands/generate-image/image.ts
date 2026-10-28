@@ -122,7 +122,7 @@ export interface GenerateImageManifest {
 const LICENSING = 'unverified' as const;
 
 export const FAL_API_KEY_MISSING_MESSAGE =
-  'FAL_API_KEY is not set. Set FAL_API_KEY in your environment to generate images with fal. (FAL_KEY_ID/FAL_KEY_SECRET are not supported by this command.)';
+  'FAL_API_KEY is not set. Set FAL_API_KEY in your environment and retry. (FAL_KEY_ID/FAL_KEY_SECRET are not supported.)';
 
 /** File extensions we can reason about when validating --output-format. */
 const EXTENSION_FORMATS: Record<string, ImageOutputFormat> = {

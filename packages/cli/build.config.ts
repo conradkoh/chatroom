@@ -26,6 +26,25 @@ const config: BuildConfig = {
     // @anthropic-ai/claude-agent-sdk is loaded at runtime via importBundledClaudeSdk().
     '@anthropic-ai/claude-agent-sdk',
     '@anthropic-ai/claude-agent-sdk/extract',
+    // sharp ships per-platform native binaries, so it must resolve from the
+    // install root at runtime instead of being bundled.
+    'sharp',
+    // All of these reach sharp at their module top level, and all of them are
+    // only needed at runtime for one command each (3D packaging and PDF
+    // parsing). Bundling them would hoist their `import sharp from "sharp"` to
+    // the top of this bundle, so every CLI invocation would load sharp before
+    // any command ran; marked external, Bun keeps the callers' `await
+    // import(...)` lazy and the module graph loads only when that command runs.
+    '@gltf-transform/functions',
+    // core and extensions must be external for the same reason a package is
+    // external: `@gltf-transform/functions` keeps a `Document` registry in
+    // core's static `_GRAPH_DOCUMENTS` map, so a bundled copy of core would be
+    // a second instance that the external functions never fills, and `weld()`
+    // would fail with "Cannot read properties of null (reading 'getLogger')".
+    // All four therefore have to resolve from one node_modules copy.
+    '@gltf-transform/core',
+    '@gltf-transform/extensions',
+    '@llamaindex/liteparse',
   ],
 };
 
