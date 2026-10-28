@@ -136,7 +136,9 @@ async function runGenerate3d(options: Generate3dCliOptions): Promise<void> {
 export function registerGenerate3dCommand(program: Command): void {
   program
     .command('generate-3d')
-    .description('Generate one 3D mesh (GLB) with a fal model and write a JSON manifest next to it')
+    .description(
+      'Generate one 3D mesh (GLB) with a fal model, plus its JSON manifest and a zip/preview package'
+    )
     .requiredOption(
       '--model <id>',
       `fal model id (required); allowed: ${GENERATE_3D_MODELS.map((model) => model.id).join(', ')}`
@@ -170,7 +172,7 @@ export function registerGenerate3dCommand(program: Command): void {
     )
     .option(
       '--package-dir <dir>',
-      'Directory for the package zip (default: the directory of --out)'
+      'Directory for the package zip and preview (default: the directory of --out)'
     )
     .option(
       '--dry-run',

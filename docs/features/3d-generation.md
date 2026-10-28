@@ -412,21 +412,26 @@ The zip holds exactly three entries, written in sorted order:
 
 - `<stem>.glb` — the master, byte-for-byte what fal returned. It is never
   re-encoded, so this file is the one to archive.
-- `web/<stem>.web.glb` — a welded copy with textures re-encoded as JPEG at
-  `1024×1024`, simplified toward 30,000 triangles when the master is over that
-  target. It adds no glTF extension, so any glTF 2.0 viewer can load it.
+- `web/<stem>.web.glb` — a welded copy with textures re-encoded as JPEG at most
+  `1024` px on the longest edge, simplified toward 30,000 triangles when the master
+  is over that target. A texture that a non-opaque material uses as its base
+  colour stays PNG, because JPEG has no alpha channel. The variant adds no glTF
+  extension, so any glTF 2.0 viewer can load it.
 - `manifest.json` — the package manifest, described below.
 
-The archive is reproducible: entries are sorted and every entry carries the same
-fixed timestamp, so the same master and settings produce byte-identical bytes.
+The zip writer is deterministic for identical entries: entries are sorted and
+each carries the same fixed timestamp. `manifest.json` records `createdAt`, so two
+runs of the same input still produce different bytes.
 
 ### The preview
 
 `<base>.html` is a self-contained page for the **web variant**: the GLB is
 embedded as a `data:model/gltf-binary;base64,...` URI, so it opens from `file://`
-with no server and no sibling file. It loads only
-[`@google/model-viewer@3`](https://cdn.jsdelivr.net/npm/@google/model-viewer@3/dist/model-viewer.min.js)
-from jsDelivr and turns on orbit controls, auto-rotation, and shadows.
+with no server and no sibling file. It loads one pinned viewer build,
+[`@google/model-viewer@3.5.0`](https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js),
+from jsDelivr with a `sha384` subresource-integrity hash, and turns on orbit
+controls, auto-rotation, and shadows. A CDN response that does not match the hash
+is refused by the browser rather than executed.
 
 The caption above the viewer lists the model id, prompt, fal request id, the
 master and web triangle counts, both sizes, the web variant's SHA-256, and the
