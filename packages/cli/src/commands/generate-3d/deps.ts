@@ -7,10 +7,14 @@
  * about `@fal-ai/client` and `node:fs/promises`.
  */
 
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { Generate3dError } from './model-registry.js';
+import {
+  Generate3dError,
+  IMAGE_FIRST_REFERENCE_MODEL_ID,
+  REFERENCE_IMAGE_SIZE,
+} from './model-registry.js';
 import { createWebVariant, type WebVariant, type WebVariantOptions } from './web-variant.js';
 import { zipPackage, type ZipEntry } from './zip-package.js';
 import { createFalRawSubscribe, createFalUploadFile } from '../generate-image/deps.js';
@@ -21,6 +25,30 @@ import {
   type PathStatus,
 } from '../image-shared/output-files.js';
 import { readInstalledPackageVersion } from '../image-shared/package-version.js';
+
+/** The FLUX request that produces a reference image. Pure, so the plan prints it. */
+export interface GenerateReferenceImageRequest {
+  prompt: string;
+  image_size: string;
+  output_format: 'png';
+}
+
+/** What one FLUX call produced: the downloaded PNG and its provenance. */
+export interface GenerateReferenceImageResult {
+  bytes: Uint8Array;
+  requestId: string;
+  /** The fal-hosted URL the image was downloaded from. */
+  url: string;
+}
+
+/** The FLUX request for a prompt; the plan and the real call share it. */
+export function buildReferenceImageRequest(prompt: string): GenerateReferenceImageRequest {
+  return {
+    prompt: prompt.trim(),
+    image_size: REFERENCE_IMAGE_SIZE,
+    output_format: 'png',
+  };
+}
 
 /** The subset of a fal 3D result the command depends on before adaptation. */
 export interface Generate3dFalResult {
@@ -34,6 +62,15 @@ export interface Generate3dDeps {
   env: Record<string, string | undefined>;
   /** Queue submit + poll for one model, returning the completed raw result. */
   falSubscribe(model: string, input: Record<string, unknown>): Promise<Generate3dFalResult>;
+  /**
+   * Generate the reference image with FLUX and download its PNG. Used when an
+   * image-only model is given a prompt.
+   */
+  generateReferenceImage(
+    request: GenerateReferenceImageRequest
+  ): Promise<GenerateReferenceImageResult>;
+  /** Read a local file, used to bundle a user-supplied reference image. */
+  readFile(path: string): Promise<Uint8Array>;
   /** Download the generated GLB bytes and verify the GLB magic. */
   fetchGlb(url: string): Promise<Uint8Array>;
   /**
@@ -140,12 +177,56 @@ async function fetchGlb(url: string): Promise<Uint8Array> {
   return bytes;
 }
 
+/** The first image URL in a FLUX result, or a clear error. */
+function firstImageUrl(data: unknown, requestId: string): string {
+  const images = isRecord(data) && Array.isArray(data['images']) ? data['images'] : [];
+  const url = images
+    .map((image) => (isRecord(image) ? image['url'] : undefined))
+    .find((value): value is string => typeof value === 'string' && value.length > 0);
+  if (url === undefined) {
+    throw new Generate3dError(
+      `FLUX returned no image for ${IMAGE_FIRST_REFERENCE_MODEL_ID} [requestId: ${requestId}]`
+    );
+  }
+  return url;
+}
+
+/**
+ * Image-first dependency: one FLUX call, then the PNG download.
+ *
+ * The request body is built by the plan's own `buildReferenceImageRequest`, so
+ * the printed request and the sent request cannot drift.
+ */
+function createGenerateReferenceImage(
+  subscribe: (model: string, input: Record<string, unknown>) => Promise<unknown>
+): (request: GenerateReferenceImageRequest) => Promise<GenerateReferenceImageResult> {
+  return async (request) => {
+    const result = validateFalResult(
+      await subscribe(IMAGE_FIRST_REFERENCE_MODEL_ID, { ...request })
+    );
+    const url = firstImageUrl(result.data, result.requestId);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Generate3dError(
+        `Failed to download the reference image (HTTP ${response.status} ${response.statusText}) [requestId: ${result.requestId}]`
+      );
+    }
+    return {
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      requestId: result.requestId,
+      url,
+    };
+  };
+}
+
 export function createDefaultGenerate3dDeps(): Generate3dDeps {
   const env = process.env;
   const subscribe = createFalRawSubscribe(env);
   return {
     env,
     falSubscribe: async (model, input) => validateFalResult(await subscribe(model, input)),
+    generateReferenceImage: createGenerateReferenceImage(subscribe),
+    readFile: async (path) => new Uint8Array(await readFile(path)),
     fetchGlb,
     uploadFile: createFalUploadFile(env),
     writeFile: writeFileBytes,

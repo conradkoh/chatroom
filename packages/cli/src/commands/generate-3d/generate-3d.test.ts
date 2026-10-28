@@ -31,6 +31,7 @@ const RIGGED_OUT_PATH = '/tmp/generated/hero.rigged.glb';
 const ANIM_0_PATH = '/tmp/generated/hero.anim-0.glb';
 const ANIM_92_PATH = '/tmp/generated/hero.anim-92.glb';
 const INPUT_IMAGE = '/tmp/inputs/hero.png';
+const REFERENCE_PATH = '/tmp/generated/hero-reference.png';
 const UPLOADED_IMAGE_URL = 'https://fal.test/uploaded/hero.png';
 const GLB_URL = 'https://fal.test/generated/hero.glb';
 const BASE_COLOR_URL = 'https://fal.test/generated/base-color.png';
@@ -42,6 +43,9 @@ const RIGGING_REQUEST_ID = 'rig-456';
 
 /** GLB magic "glTF" followed by version 2 and no body. */
 const GLB_BYTES = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00]);
+
+/** The bytes a fake FLUX call or a fake local read returns. */
+const REFERENCE_PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** Stand-in web variant and zip; the real optimiser runs in web-variant.test.ts. */
 const WEB_GLB_BYTES = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 1, 2, 3]);
@@ -97,6 +101,12 @@ function createDeps(overrides: Partial<Generate3dDeps> = {}): Generate3dDeps {
     writeJson: vi.fn().mockResolvedValue(undefined),
     pathStatus: vi.fn().mockResolvedValue('missing'),
     ensureParentDir: vi.fn().mockResolvedValue(undefined),
+    generateReferenceImage: vi.fn().mockResolvedValue({
+      bytes: REFERENCE_PNG,
+      requestId: 'flux-1',
+      url: 'https://fal.test/flux/reference.png',
+    }),
+    readFile: vi.fn().mockResolvedValue(REFERENCE_PNG),
     createWebVariant: vi.fn().mockResolvedValue({
       bytes: WEB_GLB_BYTES,
       triangles: 2,
@@ -125,6 +135,14 @@ function createRigDeps(
     return { requestId: RIGGING_REQUEST_ID, data: rigFixture };
   });
   return createDeps({ falSubscribe, ...overrides });
+}
+
+/** The package manifest parsed back out of the zip entries. */
+function zippedManifest(deps: Generate3dDeps): Record<string, unknown> {
+  const entries = vi.mocked(deps.zipPackage).mock.calls[0]?.[0];
+  const manifestEntry = entries?.find((entry) => entry.path === 'manifest.json');
+  if (manifestEntry === undefined) throw new Error('expected a manifest.json zip entry');
+  return JSON.parse(new TextDecoder().decode(manifestEntry.bytes)) as Record<string, unknown>;
 }
 
 function writtenManifest(deps: Generate3dDeps): Generate3dManifest {
@@ -385,14 +403,6 @@ describe('generate3d', () => {
 });
 
 describe('generate3d packaging', () => {
-  /** The package manifest parsed back out of the zip entries. */
-  function zippedManifest(deps: Generate3dDeps): Record<string, unknown> {
-    const entries = vi.mocked(deps.zipPackage).mock.calls[0]?.[0];
-    const manifestEntry = entries?.find((entry) => entry.path === 'manifest.json');
-    if (manifestEntry === undefined) throw new Error('expected a manifest.json zip entry');
-    return JSON.parse(new TextDecoder().decode(manifestEntry.bytes)) as Record<string, unknown>;
-  }
-
   it('writes the zip with the master, the web variant, and a manifest', async () => {
     const deps = createDeps();
 
@@ -760,18 +770,31 @@ describe('default model and rig gate', () => {
     expect(plan.input).toEqual({ image_url: 'https://example.test/hero.png', resolution: 1024 });
   });
 
-  it('refuses a prompt with the default model and points at the text-to-3D model', async () => {
+  it('runs image-first when the default model gets a prompt', async () => {
     const deps = createDeps();
+    const plan = await planGenerate3d({ prompt: 'a chest', out: OUT_PATH }, deps);
 
-    await expect(planGenerate3d({ prompt: 'a chest', out: OUT_PATH }, deps)).rejects.toThrow(
-      [
-        'fal-ai/trellis-2 does not support --prompt "a chest". Omit: --prompt "a chest"',
-        'Corrected command:',
-        '  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image PATH_OR_URL --out /tmp/generated/hero.glb',
-        'The corrected command still needs an input: replace PATH_OR_URL with your value.',
-        'A prompt-only run needs a text-to-3D model: --model meshy/v7.1/text-to-3d.',
-      ].join('\n')
-    );
+    expect(plan.model.id).toBe('fal-ai/trellis-2');
+    expect(plan.referenceImage).toMatchObject({
+      source: 'generated',
+      localPath: '/tmp/generated/hero-reference.png',
+      zipPath: 'reference/hero-reference.png',
+      request: { prompt: 'a chest', image_size: 'square_hd', output_format: 'png' },
+    });
+    expect(plan.input).toEqual({
+      image_url: '<generated reference image URL>',
+      resolution: 1024,
+    });
+    expect(plan.costLines).toEqual([
+      { label: 'reference image (FLUX 2 Flash, 1024×1024) $0.005', usd: 0.005243 },
+      { label: 'resolution 1024 $0.30', usd: 0.3 },
+    ]);
+
+    const text = formatGenerate3dPlan(plan);
+    expect(text).toContain('Reference image (FLUX 2 Flash) will be generated first');
+    expect(text).toContain('"image_size": "square_hd"');
+    expect(text).toContain('Reference image /tmp/generated/hero-reference.png');
+    expect(text).toContain('Estimated total: $0.305');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
@@ -836,6 +859,100 @@ describe('default model and rig gate', () => {
   });
 });
 
+describe('reference image', () => {
+  /** The zip entries a packaging run produced. */
+  function zipEntries(deps: Generate3dDeps): readonly { path: string; bytes: Uint8Array }[] {
+    return vi.mocked(deps.zipPackage).mock.calls[0]?.[0] ?? [];
+  }
+
+  it('generates the reference first and hands Trellis its uploaded URL', async () => {
+    const deps = createDeps();
+
+    await generate3d({ model: TRELLIS_2, prompt: 'a chest', out: OUT_PATH }, deps);
+
+    expect(deps.generateReferenceImage).toHaveBeenCalledWith({
+      prompt: 'a chest',
+      image_size: 'square_hd',
+      output_format: 'png',
+    });
+    expect(deps.writeFile).toHaveBeenCalledWith(REFERENCE_PATH, REFERENCE_PNG);
+    expect(deps.uploadFile).toHaveBeenCalledWith(REFERENCE_PATH, 'image/png');
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
+    expect(deps.falSubscribe).toHaveBeenCalledWith(TRELLIS_2, {
+      image_url: UPLOADED_IMAGE_URL,
+      resolution: 1024,
+    });
+
+    const referenceOrder = vi.mocked(deps.generateReferenceImage).mock.invocationCallOrder[0] ?? -1;
+    const meshOrder = vi.mocked(deps.falSubscribe).mock.invocationCallOrder[0] ?? -1;
+    expect(referenceOrder).toBeLessThan(meshOrder);
+
+    expect(zipEntries(deps).map((entry) => entry.path)).toContain('reference/hero-reference.png');
+    expect(writtenManifest(deps).referenceImage).toMatchObject({
+      source: 'generated',
+      prompt: 'a chest',
+      requestId: 'flux-1',
+      url: UPLOADED_IMAGE_URL,
+      path: REFERENCE_PATH,
+    });
+    expect(zippedManifest(deps)['referenceImage']).toMatchObject({
+      source: 'generated',
+      requestId: 'flux-1',
+      file: 'reference/hero-reference.png',
+    });
+  });
+
+  it('stops before the mesh when the reference image fails', async () => {
+    const deps = createDeps({
+      generateReferenceImage: vi
+        .fn()
+        .mockRejectedValue(new Error('FLUX request failed [requestId: flux-9]')),
+    });
+
+    await expect(
+      generate3d({ model: TRELLIS_2, prompt: 'a chest', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/FLUX request failed.*flux-9/);
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.zipPackage).not.toHaveBeenCalled();
+  });
+
+  it('bundles a user-supplied local image', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(INPUT_IMAGE)) });
+
+    await generate3d({ model: MESHY_IMAGE, inputImage: INPUT_IMAGE, out: OUT_PATH }, deps);
+
+    expect(deps.readFile).toHaveBeenCalledWith(INPUT_IMAGE);
+    expect(zipEntries(deps).map((entry) => entry.path)).toContain('reference/hero.png');
+    expect(writtenManifest(deps).referenceImage).toMatchObject({
+      source: 'user-supplied',
+      prompt: null,
+      requestId: null,
+      url: UPLOADED_IMAGE_URL,
+      path: INPUT_IMAGE,
+    });
+  });
+
+  it('records a user-supplied URL without downloading it', async () => {
+    const deps = createDeps();
+
+    await generate3d(
+      { model: MESHY_IMAGE, inputImage: 'https://example.test/hero.png', out: OUT_PATH },
+      deps
+    );
+
+    expect(deps.readFile).not.toHaveBeenCalled();
+    expect(zipEntries(deps).map((entry) => entry.path)).not.toContain('reference/hero.png');
+    expect(writtenManifest(deps).referenceImage).toMatchObject({
+      source: 'user-supplied',
+      url: 'https://example.test/hero.png',
+      path: null,
+    });
+    expect(zippedManifest(deps)['referenceImage']).toBeNull();
+  });
+});
+
 describe('capability checks', () => {
   it('hands a refused rig to Meshy with every flag kept and the cost gate added', async () => {
     const deps = createDeps();
@@ -866,22 +983,13 @@ describe('capability checks', () => {
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
-  it('refuses --prompt for an image-only model and supplies the right input', async () => {
+  it('accepts --prompt on Trellis by generating the reference image first', async () => {
     const deps = createDeps();
 
-    await expect(
-      generate3d({ model: TRELLIS_2, prompt: 'a knight', out: OUT_PATH }, deps)
-    ).rejects.toThrow(
-      [
-        'fal-ai/trellis-2 does not support --prompt "a knight". Omit: --prompt "a knight"',
-        'Corrected command:',
-        '  chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --input-image PATH_OR_URL --out /tmp/generated/hero.glb',
-        'The corrected command still needs an input: replace PATH_OR_URL with your value.',
-        'A prompt-only run needs a text-to-3D model: --model meshy/v7.1/text-to-3d.',
-      ].join('\n')
-    );
+    const result = await generate3d({ model: TRELLIS_2, prompt: 'a knight', out: OUT_PATH }, deps);
 
-    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(result.zipPath).toBe(ZIP_PATH);
+    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
   });
 
   it('refuses --input-image for a text-only model and supplies a prompt', async () => {
@@ -899,10 +1007,10 @@ describe('capability checks', () => {
   it('checks flags in the dry-run plan too', async () => {
     await expect(
       planGenerate3d(
-        { model: TRELLIS_2, prompt: 'a knight', out: OUT_PATH, dryRun: true },
+        { model: MESHY_TEXT, inputImage: './x.png', out: OUT_PATH, dryRun: true },
         createDeps()
       )
-    ).rejects.toThrow(/fal-ai\/trellis-2 does not support --prompt/);
+    ).rejects.toThrow(/meshy\/v7\.1\/text-to-3d does not support --input-image/);
   });
 
   it('refuses rigging on an unknown model, which has no Meshy equivalent', async () => {

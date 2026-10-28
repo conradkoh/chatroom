@@ -19,12 +19,19 @@
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 
-import type { Generate3dDeps } from './deps.js';
+import {
+  buildReferenceImageRequest,
+  type Generate3dDeps,
+  type GenerateReferenceImageRequest,
+} from './deps.js';
 import {
   DEFAULT_GENERATE_3D_MODEL_ID,
   Generate3dError,
   GENERATE_3D_MODELS,
   GENERATE_3D_PRICES_AS_OF,
+  needsReferenceImage,
+  REFERENCE_IMAGE_COST_LABEL,
+  REFERENCE_IMAGE_COST_USD,
   resolveGenerate3dModel,
   supportsRigging,
   type Generate3dCapabilities,
@@ -85,6 +92,32 @@ export interface Generate3dOptions {
   confirmCost?: boolean | undefined;
 }
 
+/** The reference image the run produced or bundled. */
+export interface Generate3dReferenceImageManifest {
+  source: 'generated' | 'user-supplied';
+  /** Prompt sent to FLUX; null for a user-supplied image. */
+  prompt: string | null;
+  /** FLUX request id; null for a user-supplied image. */
+  requestId: string | null;
+  /** The URL handed to the 3D model. */
+  url: string | null;
+  /** Loose PNG beside `--out` for a generated image; null otherwise. */
+  path: string | null;
+}
+
+/** The reference image a plan will generate or bundle. */
+export interface Generate3dReferenceImagePlan {
+  source: 'generated' | 'user-supplied';
+  /** Absolute path of the PNG on disk; null for a URL input (not downloaded). */
+  localPath: string | null;
+  /** Zip entry path; null for a URL input, which is recorded only. */
+  zipPath: string | null;
+  /** The FLUX request; null when the image is user-supplied. */
+  request: GenerateReferenceImageRequest | null;
+  /** The prompt the reference image came from; null for a user-supplied image. */
+  prompt: string | null;
+}
+
 /** The rigging provenance written to the manifest after a successful rig. */
 export interface Generate3dRiggingManifest {
   endpoint: string;
@@ -129,6 +162,11 @@ export interface Generate3dManifest {
    * names are base-name siblings of the zip and the preview.
    */
   package?: { zip: string; html: string };
+  /**
+   * The reference image this run generated or bundled, or absent when the run
+   * used no image at all.
+   */
+  referenceImage?: Generate3dReferenceImageManifest;
   /** Present only when the rigging step succeeded. */
   rigging?: Generate3dRiggingManifest;
   generatedAt: string;
@@ -177,6 +215,15 @@ interface Generate3dPackageManifest {
     inputImage: string | null;
   };
   variants: Generate3dPackageVariant[];
+  /** The bundled reference image, or null when nothing was bundled. */
+  referenceImage: {
+    source: 'generated' | 'user-supplied';
+    prompt: string | null;
+    requestId: string | null;
+    file: string;
+    bytes: number;
+    sha256: string;
+  } | null;
   licence: Generate3dModelSpec['licenseType'];
   pricing: { estimatedTotalUsd: number; note: string };
 }
@@ -203,6 +250,8 @@ export interface Generate3dPlan {
   animationOutPaths: { actionId: number; path: string }[];
   /** The rigging call the plan would make; null without `--rig`. */
   riggingRequest: RiggingRequest | null;
+  /** The reference image to generate or bundle; null when no image is used. */
+  referenceImage: Generate3dReferenceImagePlan | null;
   costLines: Generate3dCostLine[];
   /** False when the model has no price data, so no total can be honest. */
   generationCostKnown: boolean;
@@ -349,9 +398,17 @@ const INPUT_REQUIREMENTS: Record<
 function requireInputKind(model: Generate3dModelSpec, opts: Generate3dOptions): void {
   const inputKind = model.inputKind;
   if (inputKind === undefined) return;
+  // A prompt that becomes a reference image satisfies an image-only model.
+  if (needsReferenceImage(model, opts)) return;
+
   const requirement = INPUT_REQUIREMENTS[inputKind];
-  if ((requirement.value(opts) ?? '').trim().length > 0) return;
+  if (isFilled(requirement.value(opts))) return;
   throw new Generate3dError(`${requirement.flag} is required for ${model.id}.`);
+}
+
+/** True when an optional input value has real content. */
+function isFilled(value: string | undefined): boolean {
+  return value !== undefined && value.trim().length > 0;
 }
 
 /**
@@ -630,8 +687,14 @@ function passedFlags(ctx: Generate3dFlagContext): PassedFlag[] {
   return [...inputs.filter((entry) => entry.value !== undefined), ...rig, ...clips];
 }
 
-/** Whether the model allows one flag. */
-function isAllowed(flag: string, capabilities: Generate3dCapabilities): boolean {
+/**
+ * Whether the model allows one flag. `--prompt` is allowed on an image-only
+ * model that generates a reference image from it.
+ */
+function isAllowed(flag: string, model: Generate3dModelSpec): boolean {
+  const capabilities = model.capabilities;
+  if (capabilities === undefined) return false;
+  if (flag === '--prompt' && model.promptNeedsReferenceImage === true) return true;
   return capabilities[FLAG_CAPABILITY[flag as keyof typeof FLAG_CAPABILITY]] === true;
 }
 
@@ -648,12 +711,9 @@ function formatForCommand(entry: PassedFlag): string {
 }
 
 /** The passed input the corrected command can keep, if any. */
-function keptInput(
-  ctx: Generate3dFlagContext,
-  capabilities: Generate3dCapabilities
-): PassedFlag | undefined {
+function keptInput(ctx: Generate3dFlagContext): PassedFlag | undefined {
   return passedFlags(ctx).find(
-    (entry) => INPUT_FLAG_NAMES.includes(entry.flag) && isAllowed(entry.flag, capabilities)
+    (entry) => INPUT_FLAG_NAMES.includes(entry.flag) && isAllowed(entry.flag, ctx.model)
   );
 }
 
@@ -673,17 +733,17 @@ function placeholderInput(capabilities: Generate3dCapabilities): string | undefi
 
 /** The `--prompt` / `--input-image` part of a corrected command. */
 function inputParts(ctx: Generate3dFlagContext, capabilities: Generate3dCapabilities): string[] {
-  const kept = keptInput(ctx, capabilities);
+  const kept = keptInput(ctx);
   if (kept !== undefined) return [formatForCommand(kept)];
   const placeholder = placeholderInput(capabilities);
   return placeholder === undefined ? [] : [placeholder];
 }
 
 /** The `--rig` and clip part of a corrected command. */
-function rigParts(ctx: Generate3dFlagContext, capabilities: Generate3dCapabilities): string[] {
+function rigParts(ctx: Generate3dFlagContext): string[] {
   return passedFlags(ctx)
     .filter((entry) => !INPUT_FLAG_NAMES.includes(entry.flag))
-    .filter((entry) => isAllowed(entry.flag, capabilities))
+    .filter((entry) => isAllowed(entry.flag, ctx.model))
     .map(formatForCommand);
 }
 
@@ -714,7 +774,7 @@ function correctedCommand(
     '--platform=fal',
     `--model ${ctx.model.id}`,
     ...inputParts(ctx, capabilities),
-    ...rigParts(ctx, capabilities),
+    ...rigParts(ctx),
     ...outputParts(ctx),
     ...repeatParts(ctx),
   ].join(' ');
@@ -725,7 +785,7 @@ function inputHint(
   ctx: Generate3dFlagContext,
   capabilities: Generate3dCapabilities
 ): string | undefined {
-  if (keptInput(ctx, capabilities) !== undefined) return undefined;
+  if (keptInput(ctx) !== undefined) return undefined;
   const placeholder = placeholderInput(capabilities);
   if (placeholder === undefined) return undefined;
   return `The corrected command still needs an input: replace ${placeholder.split(' ')[1]} with your value.`;
@@ -791,15 +851,6 @@ function validateRigging(ctx: Generate3dFlagContext): void {
   throw riggingModelError(ctx);
 }
 
-/** A hint pointing a refused prompt at the text-to-3D model. */
-function promptHint(
-  ctx: Generate3dFlagContext,
-  capabilities: Generate3dCapabilities
-): string | undefined {
-  if (capabilities.prompt || ctx.prompt === undefined) return undefined;
-  return 'A prompt-only run needs a text-to-3D model: --model meshy/v7.1/text-to-3d.';
-}
-
 /** The error for unsupported flags: what to omit, and the command that works. */
 function flagError(
   ctx: Generate3dFlagContext,
@@ -811,9 +862,7 @@ function flagError(
     `${ctx.model.id} does not support ${list}. Omit: ${list}`,
     'Corrected command:',
     `  ${correctedCommand(ctx, capabilities)}`,
-    ...[inputHint(ctx, capabilities), promptHint(ctx, capabilities)].filter(
-      (hint): hint is string => hint !== undefined
-    ),
+    inputHint(ctx, capabilities),
   ];
   return new Generate3dError(lines.join('\n'));
 }
@@ -845,7 +894,7 @@ function validateGenerate3dFlags(ctx: Generate3dFlagContext): void {
   if (capabilities === undefined) return; // unknown model: fal validates the flags
 
   const flags = passedFlags(ctx)
-    .filter((entry) => !isAllowed(entry.flag, capabilities))
+    .filter((entry) => !isAllowed(entry.flag, ctx.model))
     .map(formatFlag);
   if (flags.length === 0) return;
   throw flagError(ctx, capabilities, flags);
@@ -893,6 +942,104 @@ function modelWarningFor(model: Generate3dModelSpec): string | undefined {
   const suggestion = suggestRegisteredModel(model.id);
   if (suggestion === undefined) return undefined;
   return `Warning: ${model.id} is not a registered id; did you mean ${suggestion}? It still runs as an unregistered model.`;
+}
+
+/** How the plan labels the reference URL before FLUX has produced one. */
+const GENERATED_REFERENCE_URL = '<generated reference image URL>';
+
+/**
+ * Decide what the reference step does: generate a PNG with FLUX, bundle the
+ * user's local file, or record a URL that is never downloaded.
+ */
+/** The reference step for a prompt on an image-only model. */
+function generatedReferencePlan(
+  opts: Generate3dOptions,
+  outPath: string
+): Generate3dReferenceImagePlan {
+  const stem = packageStem(outPath);
+  return {
+    source: 'generated',
+    localPath: join(dirname(outPath), `${stem}-reference.png`),
+    zipPath: `reference/${stem}-reference.png`,
+    request: buildReferenceImageRequest(opts.prompt ?? ''),
+    prompt: opts.prompt?.trim() ?? null,
+  };
+}
+
+/** The reference step for a user-supplied image: bundle a file, record a URL. */
+function suppliedReferencePlan(target: Generate3dInputTarget): Generate3dReferenceImagePlan {
+  if (target.kind === 'url') {
+    return { source: 'user-supplied', localPath: null, zipPath: null, request: null, prompt: null };
+  }
+  return {
+    source: 'user-supplied',
+    localPath: target.path,
+    zipPath: `reference/${basename(target.path)}`,
+    request: null,
+    prompt: null,
+  };
+}
+
+/**
+ * Decide what the reference step does: generate a PNG with FLUX, bundle the
+ * user's local file, or record a URL that is never downloaded.
+ */
+function resolveReferenceImagePlan(args: {
+  model: Generate3dModelSpec;
+  opts: Generate3dOptions;
+  outPath: string;
+  inputTarget: Generate3dInputTarget | undefined;
+}): Generate3dReferenceImagePlan | null {
+  if (needsReferenceImage(args.model, args.opts)) {
+    return generatedReferencePlan(args.opts, args.outPath);
+  }
+  if (args.inputTarget === undefined) return null;
+  return suppliedReferencePlan(args.inputTarget);
+}
+
+/** What the plan hands the model and the sidecar for the reference step. */
+interface PlannedReferenceStep {
+  referenceImage: Generate3dReferenceImagePlan | null;
+  imageUrl: string | undefined;
+  inputImage: { source: string; url: string } | null;
+  costLines: Generate3dCostLine[];
+}
+
+/** The reference step's inputs, paths, and cost line for the plan. */
+function planReferenceStep(args: {
+  model: Generate3dModelSpec;
+  opts: Generate3dOptions;
+  outPath: string;
+  inputTarget: Generate3dInputTarget | undefined;
+}): PlannedReferenceStep {
+  const referenceImage = resolveReferenceImagePlan(args);
+  if (referenceImage?.source !== 'generated') {
+    return {
+      referenceImage,
+      imageUrl: planInputImageUrl(args.inputTarget),
+      inputImage: planInputImageRecord(args.inputTarget),
+      costLines: [],
+    };
+  }
+  return {
+    referenceImage,
+    imageUrl: GENERATED_REFERENCE_URL,
+    inputImage: {
+      source: referenceImage.localPath ?? GENERATED_REFERENCE_URL,
+      url: GENERATED_REFERENCE_URL,
+    },
+    costLines: [{ label: REFERENCE_IMAGE_COST_LABEL, usd: REFERENCE_IMAGE_COST_USD }],
+  };
+}
+
+/** Refuse to overwrite the generated reference PNG without `--force`. */
+async function requireWritableReference(
+  deps: Generate3dDeps,
+  reference: Generate3dReferenceImagePlan | null,
+  force: boolean
+): Promise<void> {
+  if (reference?.source !== 'generated' || reference.localPath === null) return;
+  await requireWritablePath(deps, reference.localPath, 'Reference image', force);
 }
 
 /** Clips are a rigging feature, so the flag pairing is checked with the args. */
@@ -980,9 +1127,11 @@ export async function planGenerate3d(
     naming,
   });
 
+  const referenceStep = planReferenceStep({ model, opts, outPath, inputTarget });
+  await requireWritableReference(deps, referenceStep.referenceImage, opts.force === true);
   const input = model.buildInput({
     prompt: opts.prompt,
-    imageUrl: planInputImageUrl(inputTarget),
+    imageUrl: referenceStep.imageUrl,
     extraInput: opts.extraInput,
   });
   return {
@@ -991,12 +1140,17 @@ export async function planGenerate3d(
     manifestPath,
     input,
     inputTarget,
-    inputImage: planInputImageRecord(inputTarget),
+    inputImage: referenceStep.inputImage,
     animationActionIds,
     riggedOutPath: rigging.riggedOutPath,
     animationOutPaths: rigging.animationOutPaths,
     riggingRequest: rigging.riggingRequest,
-    costLines: [...(model.cost()?.lines ?? []), ...rigging.extraCostLines],
+    referenceImage: referenceStep.referenceImage,
+    costLines: [
+      ...referenceStep.costLines,
+      ...(model.cost()?.lines ?? []),
+      ...rigging.extraCostLines,
+    ],
     generationCostKnown: model.cost() !== undefined,
     inputKeys: Object.keys(opts.extraInput ?? {}),
     modelWarning: modelWarningFor(model),
@@ -1040,6 +1194,27 @@ function planModelLines(plan: Generate3dPlan): string[] {
   return lines;
 }
 
+/** The reference-image step, when the plan has one. */
+function formatReferencePlan(plan: Generate3dPlan): string[] {
+  const reference = plan.referenceImage;
+  if (reference === null) return [];
+
+  const lines =
+    reference.request === null
+      ? []
+      : [
+          'Reference image (FLUX 2 Flash) will be generated first',
+          'Reference image request:',
+          JSON.stringify(reference.request, null, 2),
+        ];
+  if (reference.zipPath === null) {
+    lines.push('Reference image supplied by URL (recorded in the manifest, not downloaded)');
+  } else {
+    lines.push(`Reference image ${reference.localPath} (bundled as ${reference.zipPath})`);
+  }
+  return lines;
+}
+
 /** The model-id warning line, when there is one. */
 function modelWarningLines(plan: Generate3dPlan): string[] {
   return plan.modelWarning === undefined ? [] : [plan.modelWarning];
@@ -1067,6 +1242,7 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
     `Preview ${plan.htmlPath}`,
     ...planModelLines(plan),
     ...modelWarningLines(plan),
+    ...formatReferencePlan(plan),
     'Request:',
     JSON.stringify(plan.input, null, 2),
     ...formatRiggingPlan(plan),
@@ -1075,6 +1251,23 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
     ...confirmationLines(plan),
     'No upload or fal generation call was made.',
   ].join('\n');
+}
+
+/** What the sidecar records about the reference image, when there is one. */
+function buildReferenceManifest(
+  plan: Generate3dPlan,
+  generated: GeneratedReference | null,
+  inputImage: { source: string; url: string } | null
+): Generate3dReferenceImageManifest | null {
+  const reference = plan.referenceImage;
+  if (reference === null) return null;
+  return {
+    source: reference.source,
+    prompt: reference.prompt,
+    requestId: generated === null ? null : generated.requestId,
+    url: inputImage === null ? null : inputImage.url,
+    path: reference.localPath,
+  };
 }
 
 /**
@@ -1100,6 +1293,7 @@ function buildManifest(args: {
   model: Generate3dModelSpec;
   input: Record<string, unknown>;
   inputImage: { source: string; url: string } | null;
+  referenceImage: Generate3dReferenceImageManifest | null;
   requestId: string;
   outPath: string;
   sha256: string;
@@ -1125,6 +1319,7 @@ function buildManifest(args: {
       contentType: GLB_CONTENT_TYPE,
     },
     textureUrls: args.textureUrls,
+    ...(args.referenceImage === null ? {} : { referenceImage: args.referenceImage }),
     generatedAt: args.generatedAt,
   };
 }
@@ -1338,6 +1533,7 @@ function buildPackageManifest(args: {
   webSha256: string;
   stem: string;
   totalUsd: number;
+  reference: Generate3dPackageManifest['referenceImage'];
 }): Generate3dPackageManifest {
   return {
     schemaVersion: 1,
@@ -1363,6 +1559,7 @@ function buildPackageManifest(args: {
       }),
       buildWebVariantEntry(args.stem, args.web, args.webSha256),
     ],
+    referenceImage: args.reference,
     licence: args.model.licenseType,
     pricing: {
       // Three decimals keeps a per-mille price such as $0.225 exact while
@@ -1373,16 +1570,24 @@ function buildPackageManifest(args: {
   };
 }
 
-/** The three zip entries; `zipPackage` sorts them. */
+/**
+ * The zip entries. `zipPackage` sorts by path, which fixes the order for a
+ * given set of names: `<stem>.glb`, `manifest.json`, `reference/…`,
+ * `web/<stem>.web.glb`, and (slice 2) the rigged and clip files.
+ */
 function buildPackageEntries(args: {
   stem: string;
   masterBytes: Uint8Array;
   webBytes: Uint8Array;
   manifestJson: string;
+  reference: { zipPath: string; bytes: Uint8Array } | null;
 }): ZipEntry[] {
   return [
     { path: `${args.stem}.glb`, bytes: args.masterBytes },
     { path: `web/${args.stem}.web.glb`, bytes: args.webBytes },
+    ...(args.reference === null
+      ? []
+      : [{ path: args.reference.zipPath, bytes: args.reference.bytes }]),
     { path: PACKAGE_MANIFEST_NAME, bytes: new TextEncoder().encode(args.manifestJson) },
   ];
 }
@@ -1419,6 +1624,7 @@ function buildZip(
     packageManifest: Generate3dPackageManifest;
     masterBytes: Uint8Array;
     webBytes: Uint8Array;
+    reference: { zipPath: string; bytes: Uint8Array } | null;
   }
 ): Uint8Array {
   try {
@@ -1428,6 +1634,7 @@ function buildZip(
         masterBytes: args.masterBytes,
         webBytes: args.webBytes,
         manifestJson: JSON.stringify(args.packageManifest, null, 2),
+        reference: args.reference,
       })
     );
   } catch (err) {
@@ -1511,8 +1718,9 @@ async function writePackage(args: {
   paths: PackageOutput;
   prompt: string | undefined;
   force: boolean;
+  reference: BundledReference | null;
 }): Promise<PackageOutput> {
-  const { plan, deps, master, paths } = args;
+  const { plan, deps, master, paths, reference } = args;
   const web = await buildWebVariant(plan, deps, master.bytes);
   const webSha256 = createHash('sha256').update(web.bytes).digest('hex');
   const packageManifest = buildPackageManifest({
@@ -1528,11 +1736,13 @@ async function writePackage(args: {
     webSha256,
     stem: plan.stem,
     totalUsd: totalUsd(plan.costLines),
+    reference: reference?.manifest ?? null,
   });
   const zipBytes = buildZip(plan, deps, {
     packageManifest,
     masterBytes: master.bytes,
     webBytes: web.bytes,
+    reference,
   });
   const html = renderPreviewHtml({
     title: args.packageName,
@@ -1551,6 +1761,95 @@ async function writePackage(args: {
 
   await writeZipAndPreview(plan, deps, { ...paths, zipBytes, html, force: args.force });
   return paths;
+}
+
+/** The reference image a run generated, with the URL the model will use. */
+interface GeneratedReference {
+  requestId: string;
+  inputImage: { source: string; url: string };
+  bytes: Uint8Array;
+}
+
+/**
+ * Run the FLUX reference step: one image call, write the PNG beside `--out`,
+ * upload it, and hand the URL to the 3D model.
+ *
+ * A FLUX failure stops here, before the 3D model runs, so nothing is paid for a
+ * mesh that could not be generated.
+ */
+async function generateReferenceFile(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps
+): Promise<GeneratedReference | null> {
+  const reference = plan.referenceImage;
+  if (reference === null || reference.request === null || reference.localPath === null) return null;
+
+  const generated = await deps.generateReferenceImage(reference.request);
+  await deps.writeFile(reference.localPath, generated.bytes);
+  const url = await deps.uploadFile(reference.localPath, 'image/png');
+  return {
+    requestId: generated.requestId,
+    inputImage: { source: reference.localPath, url },
+    bytes: generated.bytes,
+  };
+}
+
+/** The reference image as it goes into the zip, with its manifest entry. */
+interface BundledReference {
+  zipPath: string;
+  bytes: Uint8Array;
+  manifest: Generate3dPackageManifest['referenceImage'];
+}
+
+/**
+ * Load the reference bytes to bundle: the just-generated PNG, or the user's
+ * local file. A URL input is recorded in the sidecar and never downloaded, so
+ * it is not bundled.
+ */
+/** The bytes to bundle: the just-generated PNG, or the user's local file. */
+async function referenceBytes(
+  reference: Generate3dReferenceImagePlan,
+  deps: Generate3dDeps,
+  generated: GeneratedReference | null
+): Promise<Uint8Array | null> {
+  if (generated !== null) return generated.bytes;
+  if (reference.localPath === null) return null;
+  return deps.readFile(reference.localPath);
+}
+
+/** The package-manifest entry for a bundled reference image. */
+function referenceManifestEntry(args: {
+  reference: Generate3dReferenceImagePlan;
+  zipPath: string;
+  bytes: Uint8Array;
+  generated: GeneratedReference | null;
+}): NonNullable<Generate3dPackageManifest['referenceImage']> {
+  return {
+    source: args.reference.source,
+    prompt: args.reference.prompt,
+    requestId: args.generated === null ? null : args.generated.requestId,
+    file: args.zipPath,
+    bytes: args.bytes.byteLength,
+    sha256: createHash('sha256').update(args.bytes).digest('hex'),
+  };
+}
+
+async function bundleReference(
+  plan: Generate3dPlan,
+  deps: Generate3dDeps,
+  generated: GeneratedReference | null
+): Promise<BundledReference | null> {
+  const reference = plan.referenceImage;
+  if (reference === null || reference.zipPath === null) return null;
+
+  const zipPath = reference.zipPath;
+  const bytes = await referenceBytes(reference, deps, generated);
+  if (bytes === null) return null;
+  return {
+    zipPath,
+    bytes,
+    manifest: referenceManifestEntry({ reference, zipPath, bytes, generated }),
+  };
 }
 
 /** What one paid generation produced, before rigging and packaging. */
@@ -1576,14 +1875,15 @@ interface MasterOutput {
 async function generateMaster(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
-  opts: Generate3dOptions
+  opts: Generate3dOptions,
+  reference: GeneratedReference | null = null
 ): Promise<MasterOutput> {
   // Preflight before the paid call: create the output and package directories so
   // a successful generation cannot fail on a missing one.
   await deps.ensureParentDir(plan.outPath);
   await deps.ensureParentDir(plan.zipPath);
 
-  const inputImage = await uploadInputImage(deps, plan.inputTarget);
+  const inputImage = reference?.inputImage ?? (await uploadInputImage(deps, plan.inputTarget));
   const input = plan.model.buildInput({
     prompt: opts.prompt,
     imageUrl: inputImage?.url,
@@ -1605,6 +1905,7 @@ async function generateMaster(
     sha256,
     byteLength: bytes.byteLength,
     textureUrls: output.textureUrls,
+    referenceImage: buildReferenceManifest(plan, reference, inputImage),
     generatedAt: deps.now().toISOString(),
     sdkVersion: deps.sdkVersion,
   });
@@ -1633,6 +1934,7 @@ async function packageOrError(args: {
   master: MasterOutput;
   prompt: string | undefined;
   force: boolean;
+  reference: BundledReference | null;
 }): Promise<Generate3dError | null> {
   try {
     await writePackage({
@@ -1643,6 +1945,7 @@ async function packageOrError(args: {
       paths: { zipPath: args.plan.zipPath, htmlPath: args.plan.htmlPath },
       prompt: args.prompt,
       force: args.force,
+      reference: args.reference,
     });
     return null;
   } catch (err) {
@@ -1685,7 +1988,9 @@ export async function generate3d(
   const plan = await planGenerate3d(opts, deps);
   // Before the upload and the paid call: a rig needs the priced plan confirmed.
   requireCostConfirmation(plan);
-  const master = await generateMaster(plan, deps, opts);
+  const reference = await generateReferenceFile(plan, deps);
+  const bundledReference = await bundleReference(plan, deps, reference);
+  const master = await generateMaster(plan, deps, opts, reference);
 
   // Package first: it is a pure function of the master, so a rig failure cannot
   // cost the user the package. A packaging failure is held so the rig can still
@@ -1696,6 +2001,7 @@ export async function generate3d(
     master,
     prompt: opts.prompt,
     force: opts.force === true,
+    reference: bundledReference,
   });
   const manifest = packageError === null ? withPackageLink(master.manifest, plan) : master.manifest;
   if (packageError === null) await deps.writeJson(plan.manifestPath, manifest);
