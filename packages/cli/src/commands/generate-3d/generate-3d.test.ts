@@ -610,7 +610,7 @@ describe('generate3d packaging', () => {
     expect(zippedManifest(deps)['generator']).toMatchObject({ inputImage: INPUT_IMAGE });
   });
 
-  it('honours --name and --package-dir', async () => {
+  it('names the package from the --out stem and the timestamp, in --package-dir', async () => {
     const deps = createDeps();
 
     const result = await generate3d(
@@ -618,18 +618,20 @@ describe('generate3d packaging', () => {
         model: MESHY_TEXT,
         prompt: 'a knight',
         out: OUT_PATH,
-        name: '{stem}-{requestId8}',
         packageDir: '/tmp/packages',
       },
       deps
     );
 
-    expect(result.zipPath).toBe('/tmp/packages/hero-req-123.zip');
-    expect(deps.writeFile).toHaveBeenCalledWith('/tmp/packages/hero-req-123.zip', ZIP_BYTES);
-    // The package directory is created before the paid call, when the exact
-    // name is still unknown, so only the directory is asserted.
-    expect(deps.ensureParentDir).toHaveBeenCalledWith(expect.stringContaining('/tmp/packages/'));
-    expect(zippedManifest(deps)['package']).toMatchObject({ name: 'hero-req-123' });
+    // OUT_PATH is /tmp/generated/hero.glb and the fixed clock is 2026-10-27T00:00:00Z.
+    expect(result.zipPath).toBe('/tmp/packages/hero-20261027-000000.zip');
+    expect(result.htmlPath).toBe('/tmp/packages/hero-20261027-000000.html');
+    expect(deps.writeFile).toHaveBeenCalledWith(
+      '/tmp/packages/hero-20261027-000000.zip',
+      ZIP_BYTES
+    );
+    expect(deps.ensureParentDir).toHaveBeenCalledWith('/tmp/packages/hero-20261027-000000.zip');
+    expect(zippedManifest(deps)['package']).toMatchObject({ name: 'hero-20261027-000000' });
   });
 
   it('refuses an existing package without --force before the paid call', async () => {
@@ -643,43 +645,25 @@ describe('generate3d packaging', () => {
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
-  it('keeps the paid master when a deferred {requestId8} package collides', async () => {
-    const deps = createDeps({
-      pathStatus: vi.fn(existingFiles('/tmp/generated/hero-req-123.zip')),
-    });
+  it('refuses an existing preview without --force before the paid call', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(HTML_PATH)) });
 
     await expect(
-      generate3d(
-        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, name: '{stem}-{requestId8}' },
-        deps
-      )
-    ).rejects.toThrow(
-      /Failed to write the package for request req-123 \(https:\/\/fal\.test\/generated\/hero\.glb\): Package already exists.*--force.*kept/s
-    );
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/Preview already exists.*--force/);
 
-    // The name is only known after the paid call, so the call happened and its
-    // output is kept: only the package is refused.
-    expect(deps.falSubscribe).toHaveBeenCalledTimes(1);
-    expect(deps.writeFile).toHaveBeenCalledWith(OUT_PATH, GLB_BYTES);
-    expect(deps.writeJson).toHaveBeenCalledTimes(1);
-    expect(writtenManifest(deps).package).toBeUndefined();
-    expect(deps.writeFile).not.toHaveBeenCalledWith(
-      '/tmp/generated/hero-req-123.zip',
-      expect.anything()
-    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 
-  it('rejects an invalid --name before any fal call', async () => {
+  it('rejects an --out name that cannot form a package name before any fal call', async () => {
     const deps = createDeps();
 
     await expect(
-      generate3d(
-        { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, name: 'nested/{stem}' },
-        deps
-      )
-    ).rejects.toThrow(/path separator/);
+      generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: '/tmp/generated/宝箱.glb' }, deps)
+    ).rejects.toThrow(/cannot form a package name.*Rename --out/s);
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
   it('keeps the master and sidecar but writes no zip when the web variant fails', async () => {
@@ -1041,17 +1025,6 @@ describe('planGenerate3d', () => {
 
     expect(text).toContain(`Package ${ZIP_PATH}`);
     expect(text).toContain(`Preview ${HTML_PATH}`);
-  });
-
-  it('marks both package paths as deferred for a {requestId8} name', async () => {
-    const plan = await planGenerate3d(
-      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, name: '{stem}-{requestId8}' },
-      createDeps()
-    );
-    const text = formatGenerate3dPlan(plan);
-
-    expect(text).toContain('Package /tmp/generated (name depends on {requestId8})');
-    expect(text).toContain('Preview /tmp/generated (name depends on {requestId8})');
   });
 
   it('formats the price date, lines, total, and disclaimer', async () => {

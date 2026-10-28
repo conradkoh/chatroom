@@ -111,7 +111,6 @@ describe('chatroom generate-3d wiring', () => {
       '--force',
       '--rig',
       '--animation-action-id',
-      '--name',
       '--package-dir',
       '--dry-run',
     ]) {
@@ -140,10 +139,8 @@ describe('chatroom generate-3d wiring', () => {
     expect(afterHelp).toContain('manifest.json');
     expect(afterHelp).toContain('<base>.html');
     expect(afterHelp).toContain('separate preview page of the web variant');
-    expect(afterHelp).toContain('{timestamp} (UTC), and {requestId8}');
-    expect(afterHelp).toContain('Default: {stem}-{timestamp}');
-    expect(help).toContain('Package base name template ({stem}, {model},');
-    expect(help).toContain('{timestamp}, {requestId8}');
+    expect(afterHelp).toContain('<base> is <out-stem>-<timestamp>');
+    expect(afterHelp).not.toContain('--name');
   });
 
   it('requires --model and --out', async () => {
@@ -335,7 +332,7 @@ describe('chatroom generate-3d wiring', () => {
     ]);
   });
 
-  it('forwards --name and --package-dir', async () => {
+  it('forwards --package-dir', async () => {
     const program = createProgram();
 
     await parse(program, [
@@ -345,15 +342,10 @@ describe('chatroom generate-3d wiring', () => {
       'x',
       '--out',
       '/tmp/x.glb',
-      '--name',
-      '{stem}-{requestId8}',
       '--package-dir',
       '/tmp/packages',
     ]);
 
-    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({
-      name: '{stem}-{requestId8}',
-      packageDir: '/tmp/packages',
-    });
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({ packageDir: '/tmp/packages' });
   });
 });

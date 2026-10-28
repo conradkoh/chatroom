@@ -28,12 +28,7 @@ import {
   type Generate3dCostLine,
   type Generate3dModelSpec,
 } from './model-registry.js';
-import {
-  DEFAULT_NAME_TEMPLATE,
-  formatTimestamp,
-  renderPackageName,
-  templateNeedsRequestId,
-} from './package-name.js';
+import { formatTimestamp, packageBaseName } from './package-name.js';
 import { renderPreviewHtml } from './preview-html.js';
 import {
   buildRiggingRequest,
@@ -68,12 +63,7 @@ export interface Generate3dOptions {
    * plan so an invalid id fails before any paid call. Requires `rig`.
    */
   animationActionIds?: readonly string[] | undefined;
-  /**
-   * Template for the package base name. Defaults to
-   * {@link DEFAULT_NAME_TEMPLATE}; validated by the plan before the paid call.
-   */
-  name?: string | undefined;
-  /** Directory for the package zip; defaults to the directory of `out`. */
+  /** Directory for the package zip and preview; defaults to the directory of `out`. */
   packageDir?: string | undefined;
 }
 
@@ -198,21 +188,14 @@ export interface Generate3dPlan {
   costLines: Generate3dCostLine[];
   /** Master file name without its `.glb` suffix; used for the zip entries. */
   stem: string;
-  /** The `--name` template, already validated. */
-  nameTemplate: string;
-  /** UTC `YYYYMMDD-HHmmss`, taken once when the plan is built. */
-  timestamp: string;
-  /** Directory the package zip is written to. */
+  /** Directory the package zip and preview are written to. */
   packageDir: string;
-  /**
-   * Rendered package base name, or null when the template needs the fal request
-   * id and the name can only be rendered after the call.
-   */
-  packageName: string | null;
-  /** `<packageDir>/<packageName>.zip`, or null when the name is deferred. */
-  zipPath: string | null;
-  /** `<packageDir>/<packageName>.html`, or null when the name is deferred. */
-  htmlPath: string | null;
+  /** `<stem>-<timestamp>`, the base the zip and the preview share. */
+  packageName: string;
+  /** `<packageDir>/<packageName>.zip`. */
+  zipPath: string;
+  /** `<packageDir>/<packageName>.html`. */
+  htmlPath: string;
 }
 
 const GLB_CONTENT_TYPE = 'model/gltf-binary';
@@ -509,15 +492,11 @@ async function requireWritableRiggingPaths(
 /** Package naming decided before the fal call. */
 interface ResolvedPackageNaming {
   stem: string;
-  nameTemplate: string;
-  timestamp: string;
   packageDir: string;
-  /** Rendered base name, or null when it needs the fal request id. */
-  packageName: string | null;
-  /** `<packageDir>/<base>.zip`, or null when the name is deferred. */
-  zipPath: string | null;
-  /** `<packageDir>/<base>.html`, or null when the name is deferred. */
-  htmlPath: string | null;
+  /** `<stem>-<timestamp>`. */
+  packageName: string;
+  zipPath: string;
+  htmlPath: string;
 }
 
 /**
@@ -535,47 +514,20 @@ function resolvePackageDir(outPath: string, packageDir: string | undefined): str
 }
 
 /**
- * Resolve and validate the package name.
+ * Resolve the package name and its two paths.
  *
- * A template without `{requestId8}` renders here, so its collision check runs
- * before the paid call. A template with it cannot render yet: the shape is
- * validated with a stand-in id, and the real name is rendered after the call.
+ * Everything is decided before the paid call, so every collision is reported
+ * before money is spent.
  */
 function resolvePackageNaming(
   opts: Generate3dOptions,
-  model: Generate3dModelSpec,
   outPath: string,
   now: Date
 ): ResolvedPackageNaming {
-  const nameTemplate = opts.name ?? DEFAULT_NAME_TEMPLATE;
   const stem = packageStem(outPath);
-  const timestamp = formatTimestamp(now);
   const packageDir = resolvePackageDir(outPath, opts.packageDir);
-  const vars = { stem, model: model.id, timestamp };
-
-  if (templateNeedsRequestId(nameTemplate)) {
-    // Validate the template now; the id itself only exists after the call.
-    renderPackageName(nameTemplate, { ...vars, requestId8: '00000000' });
-    return {
-      stem,
-      nameTemplate,
-      timestamp,
-      packageDir,
-      packageName: null,
-      zipPath: null,
-      htmlPath: null,
-    };
-  }
-
-  const packageName = renderPackageName(nameTemplate, vars);
-  return {
-    stem,
-    nameTemplate,
-    timestamp,
-    packageDir,
-    packageName,
-    ...packageFilePaths(packageDir, packageName),
-  };
+  const packageName = packageBaseName({ stem, timestamp: formatTimestamp(now) });
+  return { stem, packageDir, packageName, ...packageFilePaths(packageDir, packageName) };
 }
 
 /** Clips are a rigging feature, so the flag pairing is checked with the args. */
@@ -602,11 +554,11 @@ async function requireWritablePlanPaths(args: {
 /** Refuse to clobber the package zip or its preview when their names are known. */
 async function requireWritablePackage(
   deps: Generate3dDeps,
-  paths: { zipPath: string | null; htmlPath: string | null },
+  paths: { zipPath: string; htmlPath: string },
   force: boolean
 ): Promise<void> {
-  if (paths.zipPath !== null) await requireWritablePath(deps, paths.zipPath, 'Package', force);
-  if (paths.htmlPath !== null) await requireWritablePath(deps, paths.htmlPath, 'Preview', force);
+  await requireWritablePath(deps, paths.zipPath, 'Package', force);
+  await requireWritablePath(deps, paths.htmlPath, 'Preview', force);
 }
 
 /**
@@ -630,7 +582,7 @@ export async function planGenerate3d(
 
   const manifestPath = `${outPath}.json`;
   const inputTarget = await validateInputImage(deps, opts.inputImage);
-  const naming = resolvePackageNaming(opts, model, outPath, deps.now());
+  const naming = resolvePackageNaming(opts, outPath, deps.now());
   await requireWritablePlanPaths({
     deps,
     force: opts.force === true,
@@ -686,8 +638,8 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
   const lines = [
     `Would generate ${plan.outPath}`,
     `Manifest ${plan.manifestPath}`,
-    `Package ${plan.zipPath ?? `${plan.packageDir} (name depends on {requestId8})`}`,
-    `Preview ${plan.htmlPath ?? `${plan.packageDir} (name depends on {requestId8})`}`,
+    `Package ${plan.zipPath}`,
+    `Preview ${plan.htmlPath}`,
     `Model ${plan.model.id} (${plan.model.inputKind}-to-3D, licence: ${plan.model.licenseType})`,
   ];
   const inputLine = formatInputImageLine(plan.inputTarget);
@@ -1012,43 +964,10 @@ function buildPackageEntries(args: {
   ];
 }
 
-/** The package paths, resolved after the call when `{requestId8}` deferred them. */
-function resolvePackagePaths(
-  plan: Generate3dPlan,
-  requestId: string
-): { packageName: string; zipPath: string; htmlPath: string } {
-  const packageName =
-    plan.packageName ??
-    renderPackageName(plan.nameTemplate, {
-      stem: plan.stem,
-      model: plan.model.id,
-      timestamp: plan.timestamp,
-      requestId8: requestId.slice(0, 8),
-    });
-  return { packageName, ...packageFilePaths(plan.packageDir, packageName) };
-}
-
 /** Wrap one packaging step so a failure names what was kept. */
 function packageFailure(plan: Generate3dPlan, step: string, err: unknown): Generate3dError {
   return new Generate3dError(
     `Failed to ${step}: ${describeError(err)}. The master mesh and manifest are kept: ${plan.outPath}.`
-  );
-}
-
-/**
- * A packaging failure after the paid call. It names the request id and the GLB
- * URL like `withRecovery` does, so the mesh can be recovered without paying again.
- */
-function packageFailureForRequest(args: {
-  plan: Generate3dPlan;
-  master: MasterOutput;
-  step: string;
-  err: unknown;
-}): Generate3dError {
-  return packageFailure(
-    args.plan,
-    `${args.step} for request ${args.master.requestId} (${args.master.glbUrl})`,
-    args.err
   );
 }
 
@@ -1120,8 +1039,9 @@ async function writeZipAndPreview(
     force: boolean;
   }
 ): Promise<void> {
-  // With --force and a fixed --name, the previous pair would otherwise stay
-  // beside the new master. Both are removed first, then written fresh.
+  // A run for the same --out in the same second can only reach here with
+  // --force, and the previous pair would otherwise stay beside the new master.
+  // Both are removed first, then written fresh.
   if (files.force) {
     await removeQuietly(deps, files.zipPath);
     await removeQuietly(deps, files.htmlPath);
@@ -1156,26 +1076,6 @@ interface PackageOutput {
  * discarding it: the web variant, the package manifest, the zip, and the preview
  * are built in memory first, then written in that order.
  */
-/** A package failure that names the paid request and the URL it can be recovered from. */
-async function requirePackagePaths(args: {
-  plan: Generate3dPlan;
-  deps: Generate3dDeps;
-  master: MasterOutput;
-  paths: PackageOutput;
-  force: boolean;
-}): Promise<void> {
-  try {
-    await requireWritablePackage(args.deps, args.paths, args.force);
-  } catch (err) {
-    throw packageFailureForRequest({
-      plan: args.plan,
-      master: args.master,
-      step: 'write the package',
-      err,
-    });
-  }
-}
-
 async function writePackage(args: {
   plan: Generate3dPlan;
   deps: Generate3dDeps;
@@ -1186,11 +1086,6 @@ async function writePackage(args: {
   force: boolean;
 }): Promise<PackageOutput> {
   const { plan, deps, master, paths } = args;
-  // The pre-call plan checks a name it can render; a `{requestId8}` name only
-  // exists now, so its collision is checked here, after the master and sidecar
-  // are already safe on disk.
-  await requirePackagePaths({ plan, deps, master, paths, force: args.force });
-
   const web = await buildWebVariant(plan, deps, master.bytes);
   const webSha256 = createHash('sha256').update(web.bytes).digest('hex');
   const packageManifest = buildPackageManifest({
@@ -1256,11 +1151,10 @@ async function generateMaster(
   deps: Generate3dDeps,
   opts: Generate3dOptions
 ): Promise<MasterOutput> {
-  // Preflight before the paid call: create the directories so a successful
-  // generation cannot fail on a missing one. Only the directory matters for the
-  // package, so a deferred name still gets a writable destination.
+  // Preflight before the paid call: create the output and package directories so
+  // a successful generation cannot fail on a missing one.
   await deps.ensureParentDir(plan.outPath);
-  await deps.ensureParentDir(packageFilePaths(plan.packageDir, plan.stem).zipPath);
+  await deps.ensureParentDir(plan.zipPath);
 
   const inputImage = await uploadInputImage(deps, plan.inputTarget);
   const input = plan.model.buildInput({ prompt: opts.prompt, imageUrl: inputImage?.url });
@@ -1308,7 +1202,6 @@ export async function generate3d(
   requireFalKey(deps);
   const plan = await planGenerate3d(opts, deps);
   const master = await generateMaster(plan, deps, opts);
-  const { packageName, zipPath, htmlPath } = resolvePackagePaths(plan, master.requestId);
 
   // Package before rigging: the package is a pure function of the master, so a
   // rig failure cannot cost the user the packaged asset.
@@ -1316,8 +1209,8 @@ export async function generate3d(
     plan,
     deps,
     master,
-    packageName,
-    paths: { zipPath, htmlPath },
+    packageName: plan.packageName,
+    paths: { zipPath: plan.zipPath, htmlPath: plan.htmlPath },
     prompt: opts.prompt,
     force: opts.force === true,
   });
@@ -1325,7 +1218,7 @@ export async function generate3d(
   // Link the package files in the sidecar now that their names are resolved.
   const manifest: Generate3dManifest = {
     ...master.manifest,
-    package: { zip: basename(zipPath), html: basename(htmlPath) },
+    package: { zip: basename(plan.zipPath), html: basename(plan.htmlPath) },
   };
   await deps.writeJson(plan.manifestPath, manifest);
 
@@ -1337,8 +1230,8 @@ export async function generate3d(
   return {
     outPath: plan.outPath,
     manifestPath: plan.manifestPath,
-    zipPath,
-    htmlPath,
+    zipPath: plan.zipPath,
+    htmlPath: plan.htmlPath,
     sha256: master.sha256,
     costLines: formatGenerate3dCost(plan.costLines),
   };
