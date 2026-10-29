@@ -17,9 +17,10 @@ import {
   type BackgroundEngine,
   type RemoveBackgroundFalDeps,
 } from './remove-image-background-fal.js';
-import { listUnitPrices, type FalUnitPrice } from '../generate-image/fal-pricing.js';
+import { listUnitPrices, type FalUnitPrice } from '../image-shared/fal-pricing.js';
 import type { PathStatus } from '../image-shared/output-files.js';
 
+// The command must never load the fal SDK.
 vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');
 });

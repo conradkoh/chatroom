@@ -17,7 +17,7 @@ import {
 } from './model-registry.js';
 import { createWebVariant, type WebVariant, type WebVariantOptions } from './web-variant.js';
 import { zipPackage, type ZipEntry } from './zip-package.js';
-import { createFalRawSubscribe, createFalUploadFile } from '../generate-image/deps.js';
+import { createFalRawSubscribe, createFalUploadFile } from '../image-shared/fal-client.js';
 import {
   pathStatus,
   writeFileBytes,

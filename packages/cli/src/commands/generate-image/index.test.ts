@@ -17,6 +17,12 @@ import type * as ImageModule from './image.js';
 import { registerGenerateImageCommand } from './index.js';
 import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
 
+// Registering the command must never load the fal SDK; the adapter is imported
+// inside the action.
+vi.mock('@fal-ai/client', () => {
+  throw new Error('must not load fal');
+});
+
 const { generateImageMock, planGenerateImageMock, formatGenerateImagePlanMock } = vi.hoisted(
   () => ({
     generateImageMock: vi.fn(),

@@ -1,9 +1,10 @@
 /**
  * Generate Deps Unit Tests
  *
- * Exercises the fal adapter with a mocked `fal.subscribe` and a mocked global
- * `fetch`. The real `ApiError`/`ValidationError` classes are kept so error
- * mapping is tested against the SDK's actual shapes. No network calls are made.
+ * Exercises the `GenerateImageDeps` adapter with a mocked `fal.subscribe` and a
+ * mocked global `fetch`. The real `ApiError`/`ValidationError` classes are kept
+ * so that the translation into `GenerateImageError` is tested against the
+ * SDK's actual shapes. No network calls are made.
  */
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -14,7 +15,7 @@ import type * as FalModule from '@fal-ai/client';
 import { ApiError, ValidationError } from '@fal-ai/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createDefaultGenerateImageDeps, createFalRawSubscribe } from './deps.js';
+import { createDefaultGenerateImageDeps } from './deps.js';
 import type { GenerateImageDeps } from './deps.js';
 import { GenerateImageError } from './image.js';
 
@@ -39,7 +40,6 @@ vi.mock('@fal-ai/client', async (importOriginal) => {
 
 const FAL_API_KEY = 'fal-api-key-sentinel-never-printed';
 const IMAGE_URL = 'https://fal.test/generated/hero.png';
-const UPLOADED_URL = 'https://fal.test/uploaded/hero.png';
 
 /** Temp dirs created by a test, removed in afterEach. */
 const tempDirs: string[] = [];
@@ -100,22 +100,6 @@ describe('createDefaultGenerateImageDeps', () => {
     });
   });
 
-  it('returns the raw result from the unvalidated subscriber', async () => {
-    const raw = { data: { image: { url: IMAGE_URL } }, requestId: 'req-raw' };
-    subscribeMock.mockResolvedValue(raw);
-
-    const subscribe = createFalRawSubscribe(process.env);
-
-    await expect(
-      subscribe('fal-ai/birefnet/v2', { image_url: 'data:image/png;base64,AA==' })
-    ).resolves.toEqual(raw);
-    expect(subscribeMock).toHaveBeenCalledWith('fal-ai/birefnet/v2', {
-      input: { image_url: 'data:image/png;base64,AA==' },
-      logs: false,
-      startTimeout: 300,
-    });
-  });
-
   it('passes FAL_API_KEY to the SDK credentials explicitly without leaking it', async () => {
     subscribeMock.mockResolvedValue({
       data: { images: [{ url: IMAGE_URL }] },
@@ -142,22 +126,6 @@ describe('createDefaultGenerateImageDeps', () => {
     );
     expect(configMock).not.toHaveBeenCalled();
     expect(subscribeMock).not.toHaveBeenCalled();
-  });
-
-  it('uploads a file with its content type and a one-day lifetime', async () => {
-    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-    const path = await writeTempFile(bytes);
-    uploadMock.mockResolvedValue(UPLOADED_URL);
-
-    await expect(deps.uploadFile(path, 'image/png')).resolves.toBe(UPLOADED_URL);
-
-    expect(uploadMock).toHaveBeenCalledTimes(1);
-    const [blob, options] = uploadMock.mock.calls[0] as [Blob, unknown];
-    expect(blob).toBeInstanceOf(Blob);
-    expect(blob.type).toBe('image/png');
-    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(bytes);
-    expect(options).toEqual({ lifecycle: { expiresIn: '1d' } });
-    expect(configMock).toHaveBeenCalledWith({ credentials: FAL_API_KEY });
   });
 
   it('wraps an ApiError upload rejection', async () => {
@@ -265,6 +233,30 @@ describe('createDefaultGenerateImageDeps', () => {
     expect(error.message).toContain('invalid model id');
     expect(error.message).toContain('req-400');
     expect(error.message.includes(FAL_API_KEY)).toBe(false);
+  });
+
+  it('re-throws shared fal failures as GenerateImageError', async () => {
+    subscribeMock.mockRejectedValue(
+      new ValidationError({
+        message: 'Unprocessable Entity',
+        status: 422,
+        body: { detail: [] },
+        requestId: 'req-translate',
+      })
+    );
+
+    const subscribeError = await captureError(
+      deps.falSubscribe('fal-ai/flux/dev', { prompt: 'x' })
+    );
+    expect(subscribeError).toBeInstanceOf(GenerateImageError);
+
+    const path = await writeTempFile(new Uint8Array([1, 2, 3]));
+    uploadMock.mockRejectedValue(
+      new ApiError({ message: 'Bad Request', status: 400, body: {}, requestId: 'req-translate' })
+    );
+
+    const uploadError = await captureError(deps.uploadFile(path, 'image/png'));
+    expect(uploadError).toBeInstanceOf(GenerateImageError);
   });
 
   it('rejects a result whose data.images is not an array', async () => {

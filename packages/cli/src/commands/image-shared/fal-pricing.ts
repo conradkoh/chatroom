@@ -12,7 +12,7 @@
  * throws for a lookup failure and never includes the key in an error or output.
  */
 
-import { isRecord } from '../image-shared/image-preflight.js';
+import { isRecord } from './image-preflight.js';
 
 /** Date the hard-coded fallback rates were read from fal's model pages. */
 export const LIST_PRICES_AS_OF = '2026-10-25';

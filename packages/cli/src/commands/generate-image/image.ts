@@ -12,20 +12,21 @@ import { extname, resolve } from 'node:path';
 
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 import {
-  formatCostDisclosure,
-  formatCostEstimate,
-  imageSizeMegapixels,
-  lookupUnitPrice,
-  type FalCostDisclosure,
-  type FalUnitPrice,
-} from './fal-pricing.js';
-import {
   describeConstraints,
   FLUX_2_FLASH_EDIT_MODEL,
   getModelCapability,
   type ConstraintDisclosure,
   type ModelCapability,
 } from './model-capabilities.js';
+import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
+import {
+  formatCostDisclosure,
+  formatCostEstimate,
+  imageSizeMegapixels,
+  lookupUnitPrice,
+  type FalCostDisclosure,
+  type FalUnitPrice,
+} from '../image-shared/fal-pricing.js';
 import { readPngDimensions } from '../image-shared/image-preflight.js';
 
 /**
@@ -120,9 +121,6 @@ export interface GenerateImageManifest {
  * manifest records `unverified` until a human confirms the licence.
  */
 const LICENSING = 'unverified' as const;
-
-export const FAL_API_KEY_MISSING_MESSAGE =
-  'FAL_API_KEY is not set. Set FAL_API_KEY in your environment and retry. (FAL_KEY_ID/FAL_KEY_SECRET are not supported.)';
 
 /** File extensions we can reason about when validating --output-format. */
 const EXTENSION_FORMATS: Record<string, ImageOutputFormat> = {

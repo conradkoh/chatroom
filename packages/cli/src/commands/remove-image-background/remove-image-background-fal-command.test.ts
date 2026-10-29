@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerRemoveImageBackgroundFalCommand } from './remove-image-background-fal-command.js';
 import type * as RemoveModule from './remove-image-background-fal.js';
 
+// The command must never load the fal SDK.
 vi.mock('@fal-ai/client', () => {
   throw new Error('must not load fal');
 });
