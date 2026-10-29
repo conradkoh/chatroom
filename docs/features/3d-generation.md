@@ -96,8 +96,10 @@ Every written GLB gets the same material normalisation (`material-normalise.ts`)
   `NON_METAL_FRACTION_MAX` (0.01, meaning fewer than 1% of texels have metal
   ≥ 0.5) gets `metallicFactor` 0. The texture is kept, so roughness is
   unaffected.
-- An untextured material whose `metallicFactor` is 1 also becomes 0; an explicit
-  factor below 1 is left alone.
+- An untextured material whose `metallicFactor` is 1 becomes 0; a constant metal
+  with no texture is almost always a model default.
+- A material with an explicit `metallicFactor` other than 1 is left alone,
+  textured or untextured. The normaliser only fills in the default factor.
 - A real metal material keeps `metallicFactor` 1, and its blue channel is
   masked: blue values below `METAL_MASK_THRESHOLD` (128) become 0, then the map
   is saved as lossless PNG. Green (roughness) is never changed.
