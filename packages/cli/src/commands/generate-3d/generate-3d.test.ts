@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { Document, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
+import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { analyseDocument } from './asset-analysis.js';
@@ -22,6 +23,7 @@ import {
   planGenerate3d,
   type Generate3dManifest,
 } from './generate-3d.js';
+import { normaliseMaterials } from './material-normalise.js';
 import { RIGGING_ENDPOINT, RIGGING_MULTI_ANIMATION_ENDPOINT } from './rigging.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
@@ -67,6 +69,34 @@ async function boxGlb(): Promise<Uint8Array> {
   const primitive = doc.createPrimitive().setAttribute('POSITION', positions);
   const mesh = doc.createMesh('box').addPrimitive(primitive);
   doc.createScene('scene').addChild(doc.createNode('box-node').setMesh(mesh));
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  return io.writeBinary(doc);
+}
+
+/** A 1 m triangle with one metallic-roughness texture of the given blue value. */
+async function materialGlb(blue: number): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0, 0.5, 0]))
+    .setBuffer(buffer);
+  const png = await sharp({
+    create: { width: 1, height: 1, channels: 3, background: { r: 0, g: 128, b: blue } },
+  })
+    .png()
+    .toBuffer();
+  const texture = doc
+    .createTexture('metallic-roughness')
+    .setImage(new Uint8Array(png))
+    .setMimeType('image/png');
+  const material = doc.createMaterial('rig-material').setMetallicRoughnessTexture(texture);
+  const primitive = doc.createPrimitive().setAttribute('POSITION', positions).setMaterial(material);
+  const mesh = doc.createMesh('rig-mesh').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('rig-node').setMesh(mesh));
   const io = new NodeIO()
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
@@ -1239,6 +1269,67 @@ describe('generate3d --rig', () => {
     }
   });
 
+  it('normalises the rigged output and records its material decisions', async () => {
+    const deps = createRigDeps(RIGGING_FIXTURE, {
+      fetchGlb: vi.fn().mockResolvedValue(await materialGlb(0)),
+    });
+
+    await generate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        rig: true,
+        confirmCost: true,
+      },
+      deps
+    );
+
+    const riggedWrite = vi
+      .mocked(deps.writeFile)
+      .mock.calls.find(([path]) => path === RIGGED_OUT_PATH);
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+    const reread = await io.readBinary(riggedWrite?.[1] ?? new Uint8Array());
+    expect(reread.getRoot().listMaterials()[0]?.getMetallicFactor()).toBe(0);
+
+    const riggedEntry = lastWrittenManifest(deps).rigging?.files.find(
+      (file) => file.kind === 'rigged'
+    );
+    expect(riggedEntry?.materials).toMatchObject([
+      { index: 0, name: 'rig-material', decision: 'non-metal', metalFraction: 0 },
+    ]);
+  });
+
+  it('normalises an already-normalised rig output to the same bytes', async () => {
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+    const first = await io.readBinary(await materialGlb(255));
+    const firstDecisions = await normaliseMaterials(first, await analyseDocument(first));
+    const once = await io.writeBinary(first);
+
+    const second = await io.readBinary(once);
+    const secondDecisions = await normaliseMaterials(second, await analyseDocument(second));
+
+    expect(firstDecisions[0]?.decision).toBe('metal-masked');
+    expect(secondDecisions[0]?.decision).toBe('metal-masked');
+    expect(await io.writeBinary(second)).toEqual(once);
+
+    const nonMetalFirst = await io.readBinary(await materialGlb(0));
+    await normaliseMaterials(nonMetalFirst, await analyseDocument(nonMetalFirst));
+    const nonMetalOnce = await io.writeBinary(nonMetalFirst);
+    const nonMetalSecond = await io.readBinary(nonMetalOnce);
+    const nonMetalDecisions = await normaliseMaterials(
+      nonMetalSecond,
+      await analyseDocument(nonMetalSecond)
+    );
+
+    expect(nonMetalDecisions[0]?.decision).toBe('non-metal');
+    expect(await io.writeBinary(nonMetalSecond)).toEqual(nonMetalOnce);
+  });
+
   it('rigs the generated mesh, writes the rigged GLB, and adds the manifest section', async () => {
     const deps = createRigDeps();
 
@@ -1283,6 +1374,7 @@ describe('generate3d --rig', () => {
           actionId: null,
           path: RIGGED_OUT_PATH,
           bytes: GLB_BYTES.byteLength,
+          materials: [],
           triangles: 27_438,
           webPath: 'web/hero.rigged.web.glb',
           webError: null,

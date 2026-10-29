@@ -152,6 +152,8 @@ export interface Generate3dRiggingManifest {
     actionId: number | null;
     path: string;
     bytes: number;
+    /** What material normalisation decided for this file, in material order. */
+    materials: MaterialDecision[];
     /** Null when the web variant failed; the raw file is still in the zip. */
     triangles: number | null;
     webPath: string | null;
@@ -1443,60 +1445,65 @@ function riggingFailure(args: {
   );
 }
 
-/** Apply the optional in-memory transform to a downloaded GLB. */
-async function prepareDownloadedGlb(args: {
+/** A downloaded GLB after normalisation (and the optional fit). */
+interface PreparedGlb {
+  bytes: Uint8Array;
+  materials: MaterialDecision[];
+}
+
+/** Apply the master's normalisation and fit to one downloaded rig GLB. */
+async function prepareRigGlb(args: {
   downloaded: Uint8Array;
-  prepare: ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined;
+  fit: FitOptions | undefined;
   label: string;
   url: string;
   fail: (detail: string) => Generate3dError;
-}): Promise<Uint8Array> {
-  if (args.prepare === undefined) return args.downloaded;
+}): Promise<PreparedGlb> {
   try {
-    return await args.prepare(args.downloaded);
+    return await normaliseMasterGlb(args.downloaded, args.fit);
   } catch (err) {
-    throw args.fail(`Failed to fit ${args.label} (${args.url}): ${describeError(err)}`);
+    throw args.fail(`Failed to normalise ${args.label} (${args.url}): ${describeError(err)}`);
   }
 }
 
-/** Download one rigged or clip GLB, fit it when requested, and save it. */
+/** Download one rigged or clip GLB, normalise it, fit it, and save it. */
 async function downloadAndSaveGlb(args: {
   deps: Generate3dDeps;
   url: string;
   path: string;
   label: string;
   fail: (detail: string) => Generate3dError;
-  /** Optional in-memory transform (the origin/height fit). */
-  prepare?: ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined;
-}): Promise<Uint8Array> {
+  /** The origin/height fit; undefined leaves the normalised scale alone. */
+  fit: FitOptions | undefined;
+}): Promise<PreparedGlb> {
   let downloaded: Uint8Array;
   try {
     downloaded = await args.deps.fetchGlb(args.url);
   } catch (err) {
     throw args.fail(`Failed to download ${args.label} (${args.url}): ${describeError(err)}`);
   }
-  const bytes = await prepareDownloadedGlb({
+  const prepared = await prepareRigGlb({
     downloaded,
-    prepare: args.prepare,
+    fit: args.fit,
     label: args.label,
     url: args.url,
     fail: args.fail,
   });
   try {
-    await args.deps.writeFile(args.path, bytes);
+    await args.deps.writeFile(args.path, prepared.bytes);
   } catch (err) {
     throw args.fail(`Failed to save ${args.label} ${args.path}: ${describeError(err)}`);
   }
-  return bytes;
+  return prepared;
 }
 
-/** Download and save each returned clip, in the requested order. */
+/** Download, normalise, fit, and save each returned clip, in the requested order. */
 async function downloadAnimations(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
   output: RiggingOutput,
   fail: (detail: string) => Generate3dError,
-  prepare: ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined
+  fit: FitOptions | undefined
 ): Promise<{ section: Generate3dRiggingManifest['animations']; bytes: AnimationFile[] }> {
   const animations: Generate3dRiggingManifest['animations'] = [];
   const files: AnimationFile[] = [];
@@ -1505,15 +1512,20 @@ async function downloadAnimations(
     if (planned === undefined || planned.actionId !== animation.actionId) {
       throw fail(`No planned output path for animation clip ${animation.actionId}.`);
     }
-    const bytes = await downloadAndSaveGlb({
+    const prepared = await downloadAndSaveGlb({
       deps,
       url: animation.glbUrl,
       path: planned.path,
       label: `animation clip ${animation.actionId}`,
       fail,
-      prepare,
+      fit,
     });
-    files.push({ actionId: animation.actionId, path: planned.path, bytes });
+    files.push({
+      actionId: animation.actionId,
+      path: planned.path,
+      bytes: prepared.bytes,
+      materials: prepared.materials,
+    });
     animations.push({
       actionId: animation.actionId,
       path: planned.path,
@@ -1565,17 +1577,15 @@ async function runRigging(
     throw fail(describeError(err));
   }
 
-  const prepare = fitPrepare(plan.fit);
-
-  const riggedBytes = await downloadAndSaveGlb({
+  const rigged = await downloadAndSaveGlb({
     deps,
     url: output.riggedGlbUrl,
     path: riggedGlbPath,
     label: 'rigged GLB',
     fail,
-    prepare,
+    fit: plan.fit,
   });
-  const animations = await downloadAnimations(plan, deps, output, fail, prepare);
+  const animations = await downloadAnimations(plan, deps, output, fail, plan.fit);
 
   return {
     section: {
@@ -1591,7 +1601,8 @@ async function runRigging(
       files: [],
       costLines: riggingCostLines(plan.animationActionIds.length),
     },
-    riggedBytes,
+    riggedBytes: rigged.bytes,
+    riggedMaterials: rigged.materials,
     animations: animations.bytes,
   };
 }
@@ -1603,6 +1614,8 @@ interface RigFilePackage {
   /** Absolute path of the loose file beside `--out`. */
   path: string;
   bytes: Uint8Array;
+  /** What material normalisation decided for this file. */
+  materials: MaterialDecision[];
   /** Null when the web variant failed; the raw file is still bundled. */
   web: WebVariant | null;
   /** Why the web variant is missing, when it failed. */
@@ -1639,6 +1652,7 @@ interface RigFileInput {
   actionId: number | null;
   path: string;
   bytes: Uint8Array;
+  materials: MaterialDecision[];
 }
 
 /** One rig file with its web variant, or the reason the variant is missing. */
@@ -1682,12 +1696,14 @@ function rigFileInputs(plan: Generate3dPlan, rig: RigBundle): RigFileInput[] {
       actionId: null,
       path: plan.riggedOutPath ?? '',
       bytes: rig.riggedBytes,
+      materials: rig.riggedMaterials,
     },
     ...rig.animations.map((animation) => ({
       kind: 'animation' as const,
       actionId: animation.actionId,
       path: animation.path,
       bytes: animation.bytes,
+      materials: animation.materials,
     })),
   ];
 }
@@ -1725,6 +1741,7 @@ function rigFileManifestEntry(file: RigFilePackage): Generate3dRiggingManifest['
     actionId: file.actionId,
     path: file.path,
     bytes: file.bytes.byteLength,
+    materials: file.materials,
     webError: file.webError,
   };
   if (file.web === null) {
@@ -2257,12 +2274,14 @@ interface AnimationFile {
   actionId: number;
   path: string;
   bytes: Uint8Array;
+  materials: MaterialDecision[];
 }
 
 /** What the rig step produced: the manifest section and the bytes to bundle. */
 export interface RigBundle {
   section: Generate3dRiggingManifest;
   riggedBytes: Uint8Array;
+  riggedMaterials: MaterialDecision[];
   animations: AnimationFile[];
 }
 
@@ -2296,36 +2315,16 @@ async function ensureOutputDirs(plan: Generate3dPlan, deps: Generate3dDeps): Pro
   await deps.ensureParentDir(plan.zipPath);
 }
 
-/** The optional byte transform that fits each downloaded rig output. */
-function fitPrepare(
-  fit: FitOptions | undefined
-): ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined {
-  return fit === undefined ? undefined : (bytes) => fitGlbWithOptions(bytes, fit);
-}
-
 /**
- * Fit a GLB in memory, for a rig output that arrives as bytes rather than as a
- * parsed document. No material normalisation runs here: the fit is the only
- * change this path makes.
- */
-async function fitGlbWithOptions(glb: Uint8Array, fit: FitOptions): Promise<Uint8Array> {
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
-  const document = await io.readBinary(glb);
-  const analysis = await analyseDocument(document);
-  await applyFit(document, analysis, fit);
-  return io.writeBinary(document);
-}
-
-/**
- * Normalise a master GLB in memory and apply the optional fit.
+ * Normalise a GLB in memory and apply the optional fit.
  *
- * The reader is the same one the web pipeline uses, so every extension fal can
- * return is understood; meshopt-compressed geometry is decoded on read. The
- * document is written back once, which keeps the master on disk and in the zip
- * identical to what the preview embeds. With no fit requested, `applyFit` is
- * skipped, so the default bytes match the pre-fit pipeline.
+ * Used for the master and for every downloaded rig output, so each written GLB
+ * gets the same material fixes before its own fit. The reader is the same one
+ * the web pipeline uses, so every extension fal can return is understood;
+ * meshopt-compressed geometry is decoded on read. The document is written back
+ * once, which keeps the file on disk and in the zip identical to the preview
+ * input. With no fit requested, `applyFit` is skipped, so the master default
+ * bytes match the pre-fit pipeline.
  */
 async function normaliseMasterGlb(
   glb: Uint8Array,
