@@ -121,7 +121,12 @@ Package:
   <base>.zip holds the master GLB, web/<stem>.web.glb, and manifest.json; the
   reference image at reference/... when one was generated or supplied; and the
   rigged and animation GLBs with their web versions when rigging ran.
-  <base>.html is a standalone preview. <base> is <out-stem>-<timestamp>.
+  <base>.html is a standalone preview of both variants: the full-resolution
+  master and the scaled-down web variant. <base> is <out-stem>-<timestamp>.
+
+Preview:
+  chatroom generate-3d preview <base>.zip rebuilds <base>.html from an existing
+  package without contacting fal. Pass --force to replace an existing page.
 
 Cost:
   List prices as of ${GENERATE_3D_PRICES_AS_OF}, not billed amounts; fal returns no

@@ -213,7 +213,11 @@ describe('chatroom generate-3d wiring', () => {
     expect(afterHelp).toContain('web/<stem>.web.glb');
     expect(afterHelp).toContain('manifest.json');
     expect(afterHelp).toContain('<base>.html');
-    expect(afterHelp).toContain('<base>.html is a standalone preview');
+    expect(afterHelp).toContain('<base>.html is a standalone preview of both variants');
+    expect(afterHelp).toContain('full-resolution');
+    expect(afterHelp).toContain('scaled-down web variant');
+    expect(afterHelp).toContain('chatroom generate-3d preview <base>.zip');
+    expect(afterHelp).toContain('without contacting fal');
     expect(afterHelp).toContain('<base> is <out-stem>-<timestamp>');
     expect(command?.options.map((option) => option.long)).not.toContain('--name');
   });
