@@ -71,14 +71,15 @@ Every run writes `<base>.zip` next to `--out` (or in `--package-dir`), where
 - `<stem>.glb` — the master, with materials normalised (and fitted when the fit
   flags are used). Its `sha256` is the hash of the written bytes; the package
   manifest also records `sourceSha256`, the hash of the bytes fal returned.
-- `web/<stem>.web.glb` — the browser-sized web variant. It gets the same material
-  normalisation and fit as the master, with reduced textures and best-effort
-  simplified geometry.
+- `web/<stem>.web.glb` — the browser-sized web variant. It reuses the master's
+  material decisions and fit, then reduces textures and simplifies geometry.
 - `<stem>.rigged.glb` and `web/<stem>.rigged.web.glb`, plus
   `<stem>.anim-<id>.glb` and `web/<stem>.anim-<id>.web.glb` per clip — each
-  written rig file is normalised and fitted like the master.
+  written rig file is normalised, and all rig files share the fit computed from
+  the rigged GLB; every entry records that fit.
 - `manifest.json` — the package record: files, sizes, triangle counts, request
-  ids, material decisions, fit results, and asset checks.
+  ids, material decisions, fit results (including the wrapper translation), and
+  asset checks.
 - `reference/<name>` — the reference image with its original extension, when one
   was generated or supplied; a generated image also sits beside `--out` as
   `<stem>-reference.png`.
@@ -107,8 +108,9 @@ Every written GLB gets the same material normalisation (`material-normalise.ts`)
   between 26 and 127 inclusive. Values from 0 to 25 are also zeroed, but they
   were already non-metal, so they are not counted as masked.
 - A metallic-roughness texture used by more than one material, or by a slot of
-  another material, is cloned before masking, so no other material or
-  base-colour map changes.
+  another material, gets one shared masked copy when a user remains on the
+  original; otherwise the original is masked in place. Unused textures are
+  pruned before the master is written.
 
 The decisions are recorded in the manifest. The master, web variant, and every
 rig output use the same rules.
@@ -123,6 +125,12 @@ output:
 - `--origin feet|center|as-is` moves the origin. `feet` puts the bottom centre at
   the origin, `center` puts the bounding-box centre there, and `as-is` is the
   default.
+
+The fit is applied through one wrapper node above the scene roots, so existing
+root transforms and animation channels are untouched. For rigging, the wrapper
+scale and offset are computed once from the rigged GLB and applied to every
+clip; each `rigging.files[]` entry records the same `FitResult`, including its
+`translation`.
 
 With no fit flags, output is unchanged from before this change except for the
 material normalisation above. Example:
