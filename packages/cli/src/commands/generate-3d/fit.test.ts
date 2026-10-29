@@ -144,8 +144,71 @@ describe('applyFit', () => {
       origin: 'as-is',
       targetHeight: null,
       scale: 1,
+      translation: [0, 0, 0],
       bounds: analysis.bounds,
     });
+  });
+
+  it('uses a wrapper for as-is plus target height and leaves the roots alone', async () => {
+    const doc = createBoxDocument();
+    const scene = doc.getRoot().listScenes()[0];
+    const root = scene?.listChildren()[0];
+    root?.setTranslation([1, 2, 3]).setScale([2, 2, 2]);
+    const analysis = await analyseDocument(doc);
+
+    const result = await applyFit(doc, analysis, { origin: 'as-is', targetHeight: 4 });
+
+    expect(root?.getTranslation()).toEqual([1, 2, 3]);
+    expect(root?.getScale()).toEqual([2, 2, 2]);
+    const wrappers = doc
+      .getRoot()
+      .listNodes()
+      .filter((node) => node.getName() === 'Fit');
+    expect(wrappers).toHaveLength(1);
+    expect(wrappers[0]?.getScale()).toEqual([2, 2, 2]);
+    expect(wrappers[0]?.getTranslation()).toEqual([0, 0, 0]);
+    expect(result.bounds.max[1] - result.bounds.min[1]).toBeCloseTo(4, 6);
+  });
+
+  it('keeps an animated root channel untouched under the wrapper', async () => {
+    const doc = createBoxDocument();
+    const buffer = doc.createBuffer();
+    const scene = doc.getRoot().listScenes()[0];
+    const root = scene?.listChildren()[0];
+    root?.setTranslation([1, 0, 0]);
+    const input = doc
+      .createAccessor('time')
+      .setType('SCALAR')
+      .setArray(new Float32Array([0, 1]))
+      .setBuffer(buffer);
+    const output = doc
+      .createAccessor('translation')
+      .setType('VEC3')
+      .setArray(new Float32Array([1, 0, 0, 2, 0, 0]))
+      .setBuffer(buffer);
+    const sampler = doc
+      .createAnimationSampler('sampler')
+      .setInput(input)
+      .setOutput(output)
+      .setInterpolation('LINEAR');
+    const channel = doc
+      .createAnimationChannel('channel')
+      .setTargetNode(root)
+      .setTargetPath('translation')
+      .setSampler(sampler);
+    doc.createAnimation('move').addSampler(sampler).addChannel(channel);
+    const analysis = await analyseDocument(doc);
+
+    await applyFit(doc, analysis, { origin: 'as-is', targetHeight: 2 });
+
+    expect(root?.getTranslation()).toEqual([1, 0, 0]);
+    expect(root?.getScale()).toEqual([1, 1, 1]);
+    expect(channel.getTargetNode()).toBe(root);
+    const wrapper = doc
+      .getRoot()
+      .listNodes()
+      .find((node) => node.getName() === 'Fit');
+    expect(wrapper?.getScale()).toEqual([2, 2, 2]);
   });
 
   it('throws when a target height is requested for a flat document', async () => {

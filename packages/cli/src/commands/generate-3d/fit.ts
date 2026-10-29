@@ -1,24 +1,27 @@
 /**
  * Generate 3D — fit an asset to the game board.
  *
- * Two optional operations, applied to the scene roots:
+ * Two optional operations, applied through one new wrapper node:
  *
  * - `feet` puts the bottom centre at the origin; `center` puts the bounding-box
  *   centre there; `as-is` leaves the origin untouched.
  * - `targetHeight` uniformly scales the model so its vertical extent is the
  *   requested number of metres.
  *
- * The origin step runs first, then the scale, so a `feet` model keeps its feet
- * at the origin instead of floating or sinking as it grows. Root translation is
- * scaled with the root's scale: a uniform scale about the scene origin must move
- * a translated root as well, otherwise the centred pivot drifts.
+ * The wrapper becomes the single parent of every existing scene root, so the
+ * model's own root transforms and animation channels are never edited. With no
+ * requested change (`as-is` and no height) the document is not touched at all.
  *
- * Only root node transforms change. Skins stay valid because inverse bind
- * matrices are local to the skeleton, and animation channels are unaffected.
+ * Skins stay valid because inverse bind matrices are local to the skeleton, and
+ * the wrapper transform applies to the whole hierarchy. `getBounds` measures the
+ * bind-pose vertices (it does not evaluate skinning), which is the right pose for
+ * sizing a rigged asset at rest; joint poses and animation clips are not baked
+ * into the bounds.
+ *
  * The document is read for bounds and mutated in place; there is no I/O.
  */
 
-import type { Document, Node, Scene, Transform } from '@gltf-transform/core';
+import type { Document, Scene } from '@gltf-transform/core';
 
 import { mergeBounds, type AssetAnalysis, type SceneBounds } from './asset-analysis.js';
 
@@ -34,42 +37,21 @@ export interface FitOptions {
 export interface FitResult {
   origin: OriginMode;
   targetHeight: number | null;
-  /** Uniform scale applied to the scene root nodes. 1 when no scale. */
+  /** Uniform scale applied by the wrapper. 1 when no scale. */
   scale: number;
+  /** Wrapper translation in scene units, already multiplied by `scale`. */
+  translation: [number, number, number];
   /** Bounds after the fit, recomputed from the document. */
   bounds: { min: [number, number, number]; max: [number, number, number] };
 }
 
 type Bounds = FitResult['bounds'];
 
-/** Every distinct node that is a direct child of a scene. */
-function sceneRoots(scenes: readonly Scene[]): Node[] {
-  const roots = new Set<Node>();
-  for (const scene of scenes) {
-    for (const child of scene.listChildren()) roots.add(child);
-  }
-  return [...roots];
-}
-
-/**
- * Scale one scene root about the scene origin.
- *
- * Both the local scale and the translation are multiplied, because a root that
- * was translated to centre the model must move with the scale; otherwise the
- * bottom-centre pivot drifts away from the origin.
- */
-function scaleRoot(node: Node, scale: number): void {
-  const [sx, sy, sz] = node.getScale();
-  node.setScale([sx * scale, sy * scale, sz * scale]);
-  const [tx, ty, tz] = node.getTranslation();
-  node.setTranslation([tx * scale, ty * scale, tz * scale]);
-}
+/** The dynamic `getBounds`, narrowed to the scene call this module makes. */
+type GetBounds = (node: Scene) => SceneBounds;
 
 /** Recompute bounds from the current document. */
-async function currentBounds(
-  doc: Document,
-  getBounds: (node: Scene) => SceneBounds
-): Promise<Bounds> {
+async function currentBounds(doc: Document, getBounds: GetBounds): Promise<Bounds> {
   return mergeBounds(
     doc
       .getRoot()
@@ -78,17 +60,13 @@ async function currentBounds(
   );
 }
 
-/** The dynamic `getBounds`, narrowed to the scene call this module makes. */
-type GetBounds = (node: Scene) => SceneBounds;
-
-/** Move the scene roots so the requested pivot is at the origin. */
-async function applyOrigin(
-  doc: Document,
-  origin: OriginMode,
-  center: (options: { pivot: 'center' | 'below' }) => Transform
-): Promise<void> {
-  if (origin === 'as-is') return;
-  await doc.transform(center({ pivot: origin === 'feet' ? 'below' : 'center' }));
+/** The wrapper translation before scaling: the pre-scale origin offset. */
+function originOffset(bounds: Bounds, origin: OriginMode): [number, number, number] {
+  if (origin === 'as-is') return [0, 0, 0];
+  const midX = (bounds.min[0] + bounds.max[0]) / 2;
+  const midZ = (bounds.min[2] + bounds.max[2]) / 2;
+  const y = origin === 'feet' ? bounds.min[1] : (bounds.min[1] + bounds.max[1]) / 2;
+  return [-midX, -y, -midZ];
 }
 
 /** The uniform scale for a target height, refusing a zero-height scene. */
@@ -100,22 +78,54 @@ function scaleForHeight(bounds: Bounds, targetHeight: number): number {
   return targetHeight / height;
 }
 
-/** Scale the roots when a target height is set, then report the new bounds. */
-async function scaleToHeight(
-  doc: Document,
-  targetHeight: number | undefined,
-  getBounds: GetBounds
-): Promise<{ scale: number; bounds: Bounds }> {
-  const bounds = await currentBounds(doc, getBounds);
-  if (targetHeight === undefined) return { scale: 1, bounds };
+/** Add one wrapper per scene and move its existing roots underneath. */
+function addWrapper(doc: Document, translation: [number, number, number], scale: number): void {
+  for (const scene of doc.getRoot().listScenes()) {
+    const roots = [...scene.listChildren()];
+    const wrapper = doc
+      .createNode('Fit')
+      .setTranslation(translation)
+      .setScale([scale, scale, scale]);
+    for (const root of roots) wrapper.addChild(root);
+    scene.addChild(wrapper);
+  }
+}
 
-  const scale = scaleForHeight(bounds, targetHeight);
-  for (const root of sceneRoots(doc.getRoot().listScenes())) scaleRoot(root, scale);
-  return { scale, bounds: await currentBounds(doc, getBounds) };
+/** True when a fit result is the identity and needs no wrapper. */
+function isIdentity(fit: Pick<FitResult, 'scale' | 'translation'>): boolean {
+  return (
+    fit.scale === 1 &&
+    fit.translation[0] === 0 &&
+    fit.translation[1] === 0 &&
+    fit.translation[2] === 0
+  );
 }
 
 /**
- * Apply origin then scale to the scene roots. Mutates `doc`.
+ * Apply an existing fit to another document, for animation clips that must
+ * share the rigged GLB's scale and offset.
+ */
+export function applyFitTransform(doc: Document, fit: FitResult): void {
+  if (isIdentity(fit)) return;
+  addWrapper(doc, fit.translation, fit.scale);
+}
+
+/** The scale and wrapper translation for an origin/height request. */
+function fitTransform(
+  bounds: Bounds,
+  options: FitOptions
+): { scale: number; translation: [number, number, number] } {
+  const offset = originOffset(bounds, options.origin);
+  const scale =
+    options.targetHeight === undefined ? 1 : scaleForHeight(bounds, options.targetHeight);
+  return {
+    scale,
+    translation: [offset[0] * scale, offset[1] * scale, offset[2] * scale],
+  };
+}
+
+/**
+ * Apply origin then scale through a wrapper. Mutates `doc`.
  *
  * `analysis` must describe the document before this call. With no requested
  * change (`as-is` and no height) the document is not touched and its existing
@@ -127,20 +137,28 @@ export async function applyFit(
   options: FitOptions
 ): Promise<FitResult> {
   if (options.origin === 'as-is' && options.targetHeight === undefined) {
-    return { origin: 'as-is', targetHeight: null, scale: 1, bounds: analysis.bounds };
+    return {
+      origin: 'as-is',
+      targetHeight: null,
+      scale: 1,
+      translation: [0, 0, 0],
+      bounds: analysis.bounds,
+    };
   }
 
-  const { center, getBounds } = await import('@gltf-transform/functions');
-  await applyOrigin(doc, options.origin, center);
-  const scaled = await scaleToHeight(doc, options.targetHeight, getBounds);
+  const { scale, translation } = fitTransform(analysis.bounds, options);
+  addWrapper(doc, translation, scale);
 
+  const { getBounds } = await import('@gltf-transform/functions');
+  const bounds = await currentBounds(doc, getBounds);
   return {
     origin: options.origin,
     targetHeight: options.targetHeight ?? null,
-    scale: scaled.scale,
+    scale,
+    translation,
     bounds: {
-      min: [scaled.bounds.min[0], scaled.bounds.min[1], scaled.bounds.min[2]],
-      max: [scaled.bounds.max[0], scaled.bounds.max[1], scaled.bounds.max[2]],
+      min: [bounds.min[0], bounds.min[1], bounds.min[2]],
+      max: [bounds.max[0], bounds.max[1], bounds.max[2]],
     },
   };
 }

@@ -725,6 +725,7 @@ describe('generate3d packaging', () => {
           origin: 'as-is',
           targetHeight: null,
           scale: 1,
+          translation: [0, 0, 0],
           bounds: { min: [0, 0, 0], max: [0, 0, 0] },
         },
       },
@@ -921,6 +922,7 @@ describe('generate3d packaging', () => {
           origin: 'as-is' as const,
           targetHeight: null,
           scale: 1,
+          translation: [0, 0, 0] as [number, number, number],
           bounds: {
             min: [0, 0, 0] as [number, number, number],
             max: [0, 0, 0] as [number, number, number],
@@ -1624,6 +1626,43 @@ describe('generate3d --rig', () => {
     expect(String(entry?.fitError)).toMatch(/Fit failed.*height is 0/);
   });
 
+  it('applies one fit to the rigged GLB and every clip and records it', async () => {
+    const source = await boxGlb();
+    const deps = createRigDeps(MULTI_ANIMATION_FIXTURE, {
+      fetchGlb: vi.fn().mockResolvedValue(source),
+    });
+
+    await generate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        rig: true,
+        confirmCost: true,
+        animationActionIds: ['0', '92'],
+        fit: { origin: 'feet', targetHeight: 0.75 },
+      },
+      deps
+    );
+
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+    const paths = [RIGGED_OUT_PATH, ANIM_0_PATH, ANIM_92_PATH];
+    for (const path of paths) {
+      const bytes = vi.mocked(deps.writeFile).mock.calls.find(([file]) => file === path)?.[1];
+      const analysis = await analyseDocument(await io.readBinary(bytes ?? new Uint8Array()));
+      expect(analysis.bounds.max[1] - analysis.bounds.min[1]).toBeCloseTo(0.75, 6);
+    }
+
+    const files = lastWrittenManifest(deps).rigging?.files ?? [];
+    expect(files).toHaveLength(3);
+    for (const file of files) {
+      expect(file.fit).toEqual(files[0]?.fit);
+      expect(file.fit?.scale).toBeCloseTo(0.75, 6);
+    }
+  });
+
   it('rigs the generated mesh, writes the rigged GLB, and adds the manifest section', async () => {
     const deps = createRigDeps();
 
@@ -1669,6 +1708,13 @@ describe('generate3d --rig', () => {
           path: RIGGED_OUT_PATH,
           bytes: GLB_BYTES.byteLength,
           materials: [],
+          fit: {
+            origin: 'as-is',
+            targetHeight: null,
+            scale: 1,
+            translation: [0, 0, 0],
+            bounds: { min: [0, 0, 0], max: [0, 0, 0] },
+          },
           triangles: 27_438,
           webPath: 'web/hero.rigged.web.glb',
           webError: null,
@@ -1851,6 +1897,7 @@ describe('generate3d --rig', () => {
             origin: 'as-is' as const,
             targetHeight: null,
             scale: 1,
+            translation: [0, 0, 0] as [number, number, number],
             bounds: {
               min: [0, 0, 0] as [number, number, number],
               max: [0, 0, 0] as [number, number, number],

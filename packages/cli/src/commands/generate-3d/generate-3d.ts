@@ -30,7 +30,7 @@ import {
   type Generate3dDeps,
   type GenerateReferenceImageRequest,
 } from './deps.js';
-import { applyFit, type FitOptions, type FitResult } from './fit.js';
+import { applyFit, applyFitTransform, type FitOptions, type FitResult } from './fit.js';
 import { normaliseMaterials, type MaterialDecision } from './material-normalise.js';
 import {
   DEFAULT_GENERATE_3D_MODEL_ID,
@@ -155,6 +155,8 @@ export interface Generate3dRiggingManifest {
     bytes: number;
     /** What material normalisation decided for this file, in material order. */
     materials: MaterialDecision[];
+    /** The fitted wrapper for this file, shared with the rigged GLB. */
+    fit: FitResult | null;
     /** Why normalisation was skipped and the source bytes kept. */
     normaliseError?: string;
     /** Why the fit was skipped and the source bytes kept. */
@@ -1476,14 +1478,18 @@ function riggingFailure(args: {
 }
 
 /** A downloaded rig GLB carries the master's preparation outcome. */
-type PreparedGlb = Pick<PreparedMasterGlb, 'bytes' | 'materials' | 'normaliseError' | 'fitError'>;
+type PreparedGlb = Pick<
+  PreparedMasterGlb,
+  'bytes' | 'materials' | 'fit' | 'normaliseError' | 'fitError'
+>;
 
 /** Apply the master's normalisation and fit to one downloaded rig GLB. */
 async function prepareRigGlb(args: {
   downloaded: Uint8Array;
   fit: FitOptions | undefined;
+  sharedFit?: FitResult | null | undefined;
 }): Promise<PreparedGlb> {
-  return normaliseMasterGlb(args.downloaded, args.fit);
+  return normaliseMasterGlb(args.downloaded, args.fit, args.sharedFit);
 }
 
 /** Download one rigged or clip GLB, normalise it, fit it, and save it. */
@@ -1495,6 +1501,8 @@ async function downloadAndSaveGlb(args: {
   fail: (detail: string) => Generate3dError;
   /** The origin/height fit; undefined leaves the normalised scale alone. */
   fit: FitOptions | undefined;
+  /** A fit already computed from the rigged GLB, shared by every clip. */
+  sharedFit?: FitResult | null | undefined;
 }): Promise<PreparedGlb> {
   let downloaded: Uint8Array;
   try {
@@ -1505,6 +1513,7 @@ async function downloadAndSaveGlb(args: {
   const prepared = await prepareRigGlb({
     downloaded,
     fit: args.fit,
+    sharedFit: args.sharedFit,
   });
   try {
     await args.deps.writeFile(args.path, prepared.bytes);
@@ -1520,7 +1529,7 @@ async function downloadAnimations(
   deps: Generate3dDeps,
   output: RiggingOutput,
   fail: (detail: string) => Generate3dError,
-  fit: FitOptions | undefined
+  sharedFit: FitResult | null
 ): Promise<{ section: Generate3dRiggingManifest['animations']; bytes: AnimationFile[] }> {
   const animations: Generate3dRiggingManifest['animations'] = [];
   const files: AnimationFile[] = [];
@@ -1535,13 +1544,15 @@ async function downloadAnimations(
       path: planned.path,
       label: `animation clip ${animation.actionId}`,
       fail,
-      fit,
+      fit: undefined,
+      sharedFit,
     });
     files.push({
       actionId: animation.actionId,
       path: planned.path,
       bytes: prepared.bytes,
       materials: prepared.materials,
+      fit: prepared.fit,
       ...definedErrors(prepared.normaliseError, prepared.fitError),
     });
     animations.push({
@@ -1603,7 +1614,7 @@ async function runRigging(
     fail,
     fit: plan.fit,
   });
-  const animations = await downloadAnimations(plan, deps, output, fail, plan.fit);
+  const animations = await downloadAnimations(plan, deps, output, fail, rigged.fit);
 
   return {
     section: {
@@ -1621,6 +1632,7 @@ async function runRigging(
     },
     riggedBytes: rigged.bytes,
     riggedMaterials: rigged.materials,
+    riggedFit: rigged.fit,
     ...riggedErrorFields(rigged),
     animations: animations.bytes,
   };
@@ -1635,6 +1647,8 @@ interface RigFilePackage {
   bytes: Uint8Array;
   /** What material normalisation decided for this file. */
   materials: MaterialDecision[];
+  /** The fit shared with the rigged GLB; null on a fallback. */
+  fit: FitResult | null;
   normaliseError?: string;
   fitError?: string;
   /** Null when the web variant failed; the raw file is still bundled. */
@@ -1674,6 +1688,7 @@ interface RigFileInput {
   path: string;
   bytes: Uint8Array;
   materials: MaterialDecision[];
+  fit: FitResult | null;
   normaliseError?: string;
   fitError?: string;
 }
@@ -1699,7 +1714,7 @@ async function buildOneRigFile(
       file.bytes,
       webVariantOptions(plan, {
         materials: file.materials,
-        fit: null,
+        fit: file.fit,
       })
     );
     return { packaged: { ...file, ...names, web, webError: null }, message: null };
@@ -1726,6 +1741,7 @@ function rigFileInputs(plan: Generate3dPlan, rig: RigBundle): RigFileInput[] {
       path: plan.riggedOutPath ?? '',
       bytes: rig.riggedBytes,
       materials: rig.riggedMaterials,
+      fit: rig.riggedFit,
       ...definedErrors(rig.riggedNormaliseError, rig.riggedFitError),
     },
     ...rig.animations.map((animation) => ({
@@ -1734,6 +1750,7 @@ function rigFileInputs(plan: Generate3dPlan, rig: RigBundle): RigFileInput[] {
       path: animation.path,
       bytes: animation.bytes,
       materials: animation.materials,
+      fit: animation.fit,
       ...definedErrors(animation.normaliseError, animation.fitError),
     })),
   ];
@@ -1773,6 +1790,7 @@ function rigFileManifestEntry(file: RigFilePackage): Generate3dRiggingManifest['
     path: file.path,
     bytes: file.bytes.byteLength,
     materials: file.materials,
+    fit: file.fit,
     ...definedErrors(file.normaliseError, file.fitError),
     webError: file.webError,
   };
@@ -2352,6 +2370,7 @@ interface AnimationFile {
   path: string;
   bytes: Uint8Array;
   materials: MaterialDecision[];
+  fit: FitResult | null;
   normaliseError?: string;
   fitError?: string;
 }
@@ -2361,6 +2380,7 @@ export interface RigBundle {
   section: Generate3dRiggingManifest;
   riggedBytes: Uint8Array;
   riggedMaterials: MaterialDecision[];
+  riggedFit: FitResult | null;
   riggedNormaliseError?: string;
   riggedFitError?: string;
   animations: AnimationFile[];
@@ -2494,11 +2514,57 @@ async function readGlbDocument(
   }
 }
 
+/** The identity fit used when no fit flags were passed. */
+function defaultFitResult(analysis: AssetAnalysis): FitResult {
+  return {
+    origin: 'as-is',
+    targetHeight: null,
+    scale: 1,
+    translation: [0, 0, 0],
+    bounds: analysis.bounds,
+  };
+}
+
+/** Apply the shared rig fit to another document, if it has one. */
+function applySharedFit(
+  document: Document,
+  sharedFit: FitResult | null
+): { fit: FitResult | null } {
+  if (sharedFit !== null) applyFitTransform(document, sharedFit);
+  return { fit: sharedFit };
+}
+
+/** Compute the fit for a document from its own options. */
+async function fitByOptions(
+  document: Document,
+  analysis: AssetAnalysis,
+  fit: FitOptions | undefined
+): Promise<{ fit: FitResult } | ErrorFields> {
+  if (fit === undefined) return { fit: defaultFitResult(analysis) };
+  try {
+    return { fit: await applyFit(document, analysis, fit) };
+  } catch (err) {
+    return { fitError: `Fit failed: ${describeError(err)}` };
+  }
+}
+
+/** The fit for a document, or the error that must keep the source bytes. */
+async function prepareFit(
+  document: Document,
+  analysis: AssetAnalysis,
+  fit: FitOptions | undefined,
+  sharedFit: FitResult | null | undefined
+): Promise<{ fit: FitResult | null } | ErrorFields> {
+  if (sharedFit !== undefined) return applySharedFit(document, sharedFit);
+  return fitByOptions(document, analysis, fit);
+}
+
 /** Analyse, normalise, and optionally fit one parsed document. */
 async function prepareDocument(
   document: Document,
-  fit: FitOptions | undefined
-): Promise<{ materials: MaterialDecision[]; fit: FitResult } | ErrorFields> {
+  fit: FitOptions | undefined,
+  sharedFit?: FitResult | null
+): Promise<{ materials: MaterialDecision[]; fit: FitResult | null } | ErrorFields> {
   let analysis: AssetAnalysis;
   let materials: MaterialDecision[];
   try {
@@ -2508,17 +2574,9 @@ async function prepareDocument(
     return { normaliseError: `Normalisation failed: ${describeError(err)}` };
   }
 
-  if (fit === undefined) {
-    return {
-      materials,
-      fit: { origin: 'as-is', targetHeight: null, scale: 1, bounds: analysis.bounds },
-    };
-  }
-  try {
-    return { materials, fit: await applyFit(document, analysis, fit) };
-  } catch (err) {
-    return { fitError: `Fit failed: ${describeError(err)}` };
-  }
+  const preparedFit = await prepareFit(document, analysis, fit, sharedFit);
+  if (!('fit' in preparedFit)) return preparedFit;
+  return { materials, fit: preparedFit.fit };
 }
 
 /** Write a prepared document; null means the caller must keep the source bytes. */
@@ -2541,13 +2599,14 @@ async function writePreparedDocument(io: NodeIO, document: Document): Promise<Ui
  */
 async function normaliseMasterGlb(
   glb: Uint8Array,
-  fit: FitOptions | undefined
+  fit: FitOptions | undefined,
+  sharedFit?: FitResult | null
 ): Promise<PreparedMasterGlb> {
   const read = await readGlbDocument(glb);
   if ('normaliseError' in read) return sourceFallback(glb, read);
 
   dropMeshoptExtension(read.document);
-  const prepared = await prepareDocument(read.document, fit);
+  const prepared = await prepareDocument(read.document, fit, sharedFit);
   if (!('materials' in prepared)) return sourceFallback(glb, prepared);
 
   // Masking can leave an unused original behind when every user moved to a

@@ -839,6 +839,7 @@ describe('createWebVariant', () => {
         origin: 'feet',
         targetHeight: 2,
         scale: 2,
+        translation: [0, 0, 0],
         bounds: { min: [0, 0, 0], max: [1, 1, 1] },
       },
     };
@@ -867,6 +868,7 @@ describe('createWebVariant', () => {
         origin: 'feet',
         targetHeight: 2,
         scale: 2,
+        translation: [0, 0, 0],
         bounds: { min: [0, 0, 0], max: [1, 2, 1] },
       },
     };
