@@ -185,6 +185,32 @@ async function mixedMetalGlb(): Promise<Uint8Array> {
   return io.writeBinary(doc);
 }
 
+/** A textured GLB with one referenced texture and one orphan texture. */
+async function glbWithOrphanTexture(): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0, 0.5, 0]))
+    .setBuffer(buffer);
+  const png = await sharp({
+    create: { width: 1, height: 1, channels: 3, background: { r: 0, g: 128, b: 255 } },
+  })
+    .png()
+    .toBuffer();
+  const used = doc.createTexture('used').setImage(new Uint8Array(png)).setMimeType('image/png');
+  doc.createTexture('orphan').setImage(new Uint8Array(png)).setMimeType('image/png');
+  const material = doc.createMaterial('used-material').setMetallicRoughnessTexture(used);
+  const primitive = doc.createPrimitive().setAttribute('POSITION', positions).setMaterial(material);
+  const mesh = doc.createMesh('orphan-mesh').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('orphan-node').setMesh(mesh));
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  return io.writeBinary(doc);
+}
+
 /** The bytes a fake FLUX call or a fake local read returns. */
 const REFERENCE_PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -660,6 +686,20 @@ describe('generate3d packaging', () => {
     });
     expect(writtenSha).not.toBe(sourceSha);
     expect(result.sha256).toBe(writtenSha);
+  });
+
+  it('prunes unused textures from the written master', async () => {
+    const source = await glbWithOrphanTexture();
+    const deps = createDeps({ fetchGlb: vi.fn().mockResolvedValue(source) });
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const written = vi.mocked(deps.writeFile).mock.calls.find(([path]) => path === OUT_PATH)?.[1];
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+    const reread = await io.readBinary(written ?? new Uint8Array());
+    expect(reread.getRoot().listTextures()).toHaveLength(1);
   });
 
   it('writes the zip with the master, the web variant, and a manifest', async () => {

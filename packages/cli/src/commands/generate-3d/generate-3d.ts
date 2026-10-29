@@ -2407,6 +2407,14 @@ function glbIo(): NodeIO {
     .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
 }
 
+/** glTF-Transform logs every prune decision to the console by default. */
+const SILENT_LOGGER = {
+  debug: (): void => {},
+  info: (): void => {},
+  warn: (): void => {},
+  error: (): void => {},
+};
+
 /** Parse a GLB and analyse it; used for the post-write checks. */
 async function analyseGlb(glb: Uint8Array): Promise<AssetAnalysis> {
   return analyseDocument(await glbIo().readBinary(glb));
@@ -2541,6 +2549,12 @@ async function normaliseMasterGlb(
   dropMeshoptExtension(read.document);
   const prepared = await prepareDocument(read.document, fit);
   if (!('materials' in prepared)) return sourceFallback(glb, prepared);
+
+  // Masking can leave an unused original behind when every user moved to a
+  // shared clone; drop unused textures before the writer emits their images.
+  const { prune } = await import('@gltf-transform/functions');
+  read.document.setLogger(SILENT_LOGGER);
+  await read.document.transform(prune({ propertyTypes: ['Texture'], keepSolidTextures: true }));
 
   const bytes = await writePreparedDocument(glbIo(), read.document);
   if (bytes === null) {

@@ -6,7 +6,9 @@
  * texture back through sharp to prove green (roughness) is untouched.
  */
 
-import { Document } from '@gltf-transform/core';
+import { Document, NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
@@ -218,12 +220,13 @@ describe('normaliseMaterials', () => {
     expect(shared.getImage()).toEqual(originalImage);
   });
 
-  it('clones a shared texture instead of editing it in place', async () => {
-    const originalImage = await png(new Uint8Array([0, 0, 255, 255]), 1, 1);
+  it('masks a shared texture once and keeps both masked materials on it', async () => {
+    const image = await png(new Uint8Array([0, 128, 255, 255, 0, 128, 40, 255]), 2, 1);
     const doc = new Document();
-    const texture = doc.createTexture('shared').setImage(originalImage).setMimeType('image/png');
-    const first = doc.createMaterial('first').setMetallicRoughnessTexture(texture);
-    const second = doc.createMaterial('second').setMetallicRoughnessTexture(texture);
+    doc.createBuffer();
+    const shared = doc.createTexture('shared').setImage(image).setMimeType('image/png');
+    const first = doc.createMaterial('first').setMetallicRoughnessTexture(shared);
+    const second = doc.createMaterial('second').setMetallicRoughnessTexture(shared);
     const analysis = await analyseDocument(doc);
 
     const decisions = await normaliseMaterials(doc, analysis);
@@ -232,9 +235,41 @@ describe('normaliseMaterials', () => {
       'metal-masked',
       'metal-masked',
     ]);
-    expect(texture.getImage()).toEqual(originalImage);
-    expect(first.getMetallicRoughnessTexture()).not.toBe(texture);
-    expect(second.getMetallicRoughnessTexture()).not.toBe(texture);
-    expect(first.getMetallicRoughnessTexture()).not.toBe(second.getMetallicRoughnessTexture());
+    expect(first.getMetallicRoughnessTexture()).toBe(shared);
+    expect(second.getMetallicRoughnessTexture()).toBe(shared);
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+    const reread = await io.readBinary(await io.writeBinary(doc));
+    const materials = reread.getRoot().listMaterials();
+    expect(reread.getRoot().listTextures()).toHaveLength(1);
+    expect(materials[0]?.getMetallicRoughnessTexture()).toBe(
+      materials[1]?.getMetallicRoughnessTexture()
+    );
+    const output = await decode(
+      materials[0]?.getMetallicRoughnessTexture()?.getImage() ?? new Uint8Array()
+    );
+    expect(output[2]).toBe(255);
+    expect(output[6]).toBe(0);
+  });
+
+  it('keeps the original for a non-masked shared user and clones for the masked one', async () => {
+    const originalImage = await png(new Uint8Array([0, 128, 255, 255, 0, 128, 40, 255]), 2, 1);
+    const doc = new Document();
+    const shared = doc.createTexture('shared').setImage(originalImage).setMimeType('image/png');
+    const masked = doc.createMaterial('masked').setMetallicRoughnessTexture(shared);
+    const explicit = doc
+      .createMaterial('explicit')
+      .setMetallicRoughnessTexture(shared)
+      .setMetallicFactor(0);
+    const analysis = await analyseDocument(doc);
+
+    const decisions = await normaliseMaterials(doc, analysis);
+
+    expect(decisions[0]).toMatchObject({ decision: 'metal-masked' });
+    expect(decisions[1]).toMatchObject({ decision: 'unchanged', reason: 'explicit-factor' });
+    expect(masked.getMetallicRoughnessTexture()).not.toBe(shared);
+    expect(explicit.getMetallicRoughnessTexture()).toBe(shared);
+    expect(shared.getImage()).toEqual(originalImage);
   });
 });
