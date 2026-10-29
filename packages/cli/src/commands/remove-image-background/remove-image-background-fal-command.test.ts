@@ -11,23 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerRemoveImageBackgroundFalCommand } from './remove-image-background-fal-command.js';
 import type * as RemoveModule from './remove-image-background-fal.js';
 
-// The command's pure path only imports the shared missing-key message; it must
-// never call the SDK. Stub the module so any real call still fails loudly,
-// without pulling the real client into the import graph.
+// The command must never load the fal SDK.
 vi.mock('@fal-ai/client', () => {
-  const mustNotUseFal = (): never => {
-    throw new Error('must not use fal');
-  };
-  class StubFalError extends Error {}
-  return {
-    ApiError: StubFalError,
-    ValidationError: StubFalError,
-    fal: {
-      config: mustNotUseFal,
-      subscribe: mustNotUseFal,
-      storage: { upload: mustNotUseFal },
-    },
-  };
+  throw new Error('must not load fal');
 });
 
 const { removeMock } = vi.hoisted(() => ({ removeMock: vi.fn() }));
