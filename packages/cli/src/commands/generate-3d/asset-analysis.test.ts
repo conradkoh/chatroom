@@ -10,7 +10,7 @@ import { Document } from '@gltf-transform/core';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import { analyseDocument, channelStats } from './asset-analysis.js';
+import { analyseDocument, channelStats, decodeImageRgba } from './asset-analysis.js';
 
 /** A 2×2 RGBA image: two texels with blue 0 and two with blue 255. */
 const BLUE_QUARTERS = new Uint8Array([0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 255]);
@@ -52,6 +52,14 @@ function createBoxDocument(): Document {
   const node = doc.createNode('box-node').setMesh(mesh);
   doc.createScene('scene').addChild(node);
 
+  return doc;
+}
+
+/** A document with one material and a metallic-roughness image. */
+function docWithMrImage(image: Uint8Array, mimeType: string): Document {
+  const doc = new Document();
+  const texture = doc.createTexture('metallic-roughness').setImage(image).setMimeType(mimeType);
+  doc.createMaterial('textured').setMetallicRoughnessTexture(texture);
   return doc;
 }
 
@@ -133,5 +141,45 @@ describe('analyseDocument', () => {
     expect(material?.metal?.fractionAtLeastHalf).toBe(1);
     expect(material?.metal?.mean).toBe(1);
     expect(material?.roughness?.fractionAtMostTenth).toBe(1);
+  });
+
+  it('decodes a greyscale-with-alpha map to four channels with matching statistics', async () => {
+    const greys = [40, 200, 10, 250];
+    const greyPng = await sharp(Buffer.from(greys), {
+      raw: { width: 2, height: 2, channels: 1 },
+    })
+      .ensureAlpha()
+      .toColourspace('b-w')
+      .png()
+      .toBuffer();
+    const rgbaBytes = greys.flatMap((value) => [value, value, value, 255]);
+    const rgbaPng = await sharp(Buffer.from(rgbaBytes), {
+      raw: { width: 2, height: 2, channels: 4 },
+    })
+      .png()
+      .toBuffer();
+
+    const grey = await analyseDocument(docWithMrImage(new Uint8Array(greyPng), 'image/png'));
+    const rgba = await analyseDocument(docWithMrImage(new Uint8Array(rgbaPng), 'image/png'));
+
+    expect(grey.materials[0]?.metal).toEqual(rgba.materials[0]?.metal);
+    expect(grey.materials[0]?.roughness).toEqual(rgba.materials[0]?.roughness);
+
+    const decoded = await decodeImageRgba(new Uint8Array(greyPng), sharp);
+    expect(decoded.pixels.length).toBe(4 * 4);
+  });
+
+  it('reduces a 16-bit image to 8-bit RGBA pixels', async () => {
+    const png = await sharp(Buffer.from([10, 20, 30, 255]), {
+      raw: { width: 1, height: 1, channels: 4 },
+    })
+      .toColourspace('rgb16')
+      .png()
+      .toBuffer();
+
+    const decoded = await decodeImageRgba(new Uint8Array(png), sharp);
+
+    expect(decoded.pixels.length).toBe(4);
+    expect(decoded.pixels[0]).toBe(10);
   });
 });

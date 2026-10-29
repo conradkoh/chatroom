@@ -185,6 +185,16 @@ describe('renderPreviewHtml', () => {
     expect(renderPreviewHtml(INPUT)).toContain('No issues found.');
   });
 
+  it('shows a checks note instead of warnings', () => {
+    const html = renderPreviewHtml({
+      ...INPUT,
+      checksNote: 'Checks unavailable: <bad archive>',
+    });
+
+    expect(html).toContain('Checks unavailable: &lt;bad archive&gt;');
+    expect(html).not.toContain('No issues found.');
+  });
+
   it('generates a PNG for the directional environment', async () => {
     const png = await directionalEnvironmentPng();
 

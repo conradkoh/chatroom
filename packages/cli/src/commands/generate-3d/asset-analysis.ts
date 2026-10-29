@@ -79,9 +79,6 @@ const EMPTY_STATS: ChannelStats = {
   fractionAtMostTenth: 0,
 };
 
-/** The sharp factory the caller imported dynamically. */
-type SharpFactory = typeof sharp;
-
 /** One scene's AABB, as returned by glTF-Transform's `getBounds`. */
 export interface SceneBounds {
   min: readonly [number, number, number];
@@ -186,12 +183,43 @@ export const DECODABLE_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
   'image/webp',
 ]);
 
+/** The sharp factory the caller imported dynamically. */
+export type SharpFactory = typeof sharp;
+
+/** One image decoded to the 8-bit RGBA layout the channel code needs. */
+export interface DecodedImage {
+  pixels: Uint8Array;
+  width: number;
+  height: number;
+}
+
+/**
+ * Decode an image to 8-bit RGBA.
+ *
+ * Colour space is normalised to sRGB, `ensureAlpha()` fixes the stride at four,
+ * and sharp's default raw depth reduces 16-bit input to 8-bit. A channel count
+ * other than four means the decoder did not produce the layout the statistics
+ * need, so it is refused rather than read at the wrong stride.
+ */
+export async function decodeImageRgba(
+  image: Uint8Array,
+  sharpFactory: SharpFactory
+): Promise<DecodedImage> {
+  const { data, info } = await sharpFactory(Buffer.from(image))
+    .toColourspace('srgb')
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  if (info.channels !== 4) {
+    throw new Error(`Image decoded to ${info.channels} channels; expected 4 (RGBA).`);
+  }
+  return { pixels: new Uint8Array(data), width: info.width, height: info.height };
+}
+
 /**
  * Decode one metallic-roughness texture to RGBA pixels.
  *
- * `ensureAlpha()` makes the stride four whatever the source channel count is
- * (JPEG metallic-roughness maps are usually RGB), so `channelStats` can index a
- * fixed stride. A texture shared by two materials is decoded once.
+ * A texture shared by two materials is decoded once.
  */
 async function decodePixels(
   texture: Texture,
@@ -205,11 +233,7 @@ async function decodePixels(
   if (image === null || image.length === 0) {
     throw new Error('A metallic-roughness texture has no embedded image.');
   }
-  const { data } = await sharp(Buffer.from(image))
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const pixels = new Uint8Array(data);
+  const { pixels } = await decodeImageRgba(image, sharp);
   cache.set(texture, pixels);
   return pixels;
 }

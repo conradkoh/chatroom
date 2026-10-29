@@ -65,6 +65,29 @@ async function buildWebGlb(): Promise<Uint8Array> {
     .writeBinary(new Document());
 }
 
+/** A valid GLB whose MR image bytes are not a decodable PNG. */
+async function buildUnreadableMasterGlb(): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0, 0.5, 0]))
+    .setBuffer(buffer);
+  const texture = doc
+    .createTexture('unreadable')
+    .setImage(new Uint8Array([1, 2, 3, 4]))
+    .setMimeType('image/png');
+  const material = doc.createMaterial('unreadable').setMetallicRoughnessTexture(texture);
+  const primitive = doc.createPrimitive().setAttribute('POSITION', positions).setMaterial(material);
+  const mesh = doc.createMesh('unreadable').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('unreadable-node').setMesh(mesh));
+  return new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder })
+    .writeBinary(doc);
+}
+
 const MASTER_GLB = await buildMasterGlb();
 const WEB_GLB = await buildWebGlb();
 
@@ -215,6 +238,43 @@ describe('rebuildPreviewFromZip', () => {
       )
     );
     await expect(readFile(join(dir, `${BASE}.html`))).rejects.toThrow(/ENOENT/);
+  });
+
+  it('rebuilds with a checks note when the master cannot be analysed', async () => {
+    const dir = await createDir();
+    const master = await buildUnreadableMasterGlb();
+    const manifest = {
+      ...MANIFEST,
+      variants: [{ ...MANIFEST.variants[0], bytes: master.byteLength }, MANIFEST.variants[1]],
+    };
+    const zipPath = join(dir, ZIP_NAME);
+    await writeFile(
+      zipPath,
+      zipPackage([
+        { path: 'chest.glb', bytes: master },
+        { path: 'web/chest.web.glb', bytes: WEB_GLB },
+        {
+          path: 'manifest.json',
+          bytes: new TextEncoder().encode(JSON.stringify(manifest)),
+        },
+      ])
+    );
+
+    const htmlPath = await rebuildPreviewFromZip(zipPath, { force: false });
+
+    const html = await readFile(htmlPath, 'utf8');
+    expect(html).toContain('Checks unavailable:');
+  });
+
+  it('fails on an existing preview before opening the zip', async () => {
+    const dir = await createDir();
+    const htmlPath = join(dir, `${BASE}.html`);
+    await writeFile(htmlPath, 'keep me', 'utf8');
+
+    await expect(rebuildPreviewFromZip(join(dir, `${BASE}.zip`), { force: false })).rejects.toThrow(
+      /Preview already exists/
+    );
+    expect(await readFile(htmlPath, 'utf8')).toBe('keep me');
   });
 
   it('keeps an existing preview without --force', async () => {

@@ -48,6 +48,8 @@ export interface PreviewHtmlInput {
   zipName: string;
   /** Advisory checks for the Checks panel. */
   checks: AssetCheck[];
+  /** Optional note shown instead of the checks, for example when analysis fails. */
+  checksNote?: string | null;
   /** Equirectangular PNG that lights the directional mode. */
   directionalEnvironmentPng: Uint8Array;
 }
@@ -130,8 +132,11 @@ function lightingButton(mode: 'studio' | 'directional' | 'unlit', pressed: boole
   return `  <button type="button" class="lighting-option" data-lighting="${mode}" aria-pressed="${pressed}">${label}</button>`;
 }
 
-/** The Checks panel: escaped messages, or the all-clear line. */
-function checksPanel(checks: readonly AssetCheck[]): string {
+/** The Checks panel: escaped messages, a note, or the all-clear line. */
+function checksPanel(checks: readonly AssetCheck[], note?: string | null): string {
+  if (note !== undefined && note !== null) {
+    return `  <p class="ok">${escapeHtml(note)}</p>`;
+  }
   if (checks.length === 0) {
     return `  <p class="ok">No issues found.</p>`;
   }
@@ -233,7 +238,7 @@ export function renderPreviewHtml(input: PreviewHtmlInput): string {
     lightingButton('directional', false),
     lightingButton('unlit', false),
   ].join('\n');
-  const checks = checksPanel(input.checks);
+  const checks = checksPanel(input.checks, input.checksNote);
 
   return `<!DOCTYPE html>
 <html lang="en">

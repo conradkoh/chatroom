@@ -21,13 +21,14 @@
  */
 
 import type { Document, Material, Texture } from '@gltf-transform/core';
-import type sharp from 'sharp';
 
 import {
   DECODABLE_IMAGE_MIME_TYPES,
+  decodeImageRgba,
   type AssetAnalysis,
   type ChannelStats,
   type MaterialStats,
+  type SharpFactory,
 } from './asset-analysis.js';
 
 /** A material is non-metal when fewer than this fraction of its texels are metal. */
@@ -59,9 +60,6 @@ export type MaterialDecision =
       maskedFraction: number;
     }
   | { index: number; name: string | null; decision: 'unchanged'; reason: string };
-
-/** The sharp factory the caller imported dynamically. */
-type SharpFactory = typeof sharp;
 
 /** Material display name, or null when the model left it empty. */
 function materialName(material: Material): string | null {
@@ -135,11 +133,7 @@ function isPartlyMetal(value: number): boolean {
  * i.e. the values whose appearance actually changed.
  */
 async function maskBlueChannel(texture: Texture, sharpFactory: SharpFactory): Promise<number> {
-  const { data, info } = await sharpFactory(Buffer.from(requireImage(texture)))
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const pixels = new Uint8Array(data);
+  const { pixels, width, height } = await decodeImageRgba(requireImage(texture), sharpFactory);
   let masked = 0;
 
   for (let index = 2; index < pixels.length; index += 4) {
@@ -150,7 +144,7 @@ async function maskBlueChannel(texture: Texture, sharpFactory: SharpFactory): Pr
   }
 
   const png = await sharpFactory(Buffer.from(pixels), {
-    raw: { width: info.width, height: info.height, channels: 4 },
+    raw: { width, height, channels: 4 },
   })
     .png()
     .toBuffer();

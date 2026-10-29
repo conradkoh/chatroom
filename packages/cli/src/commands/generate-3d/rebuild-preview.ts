@@ -22,7 +22,7 @@ import { unzipSync } from 'fflate';
 import { MeshoptDecoder } from 'meshoptimizer';
 
 import { analyseDocument } from './asset-analysis.js';
-import { computeChecks } from './checks.js';
+import { computeChecks, type AssetCheck } from './checks.js';
 import { directionalEnvironmentPng, renderPreviewHtml } from './preview-html.js';
 
 /** File name of the package manifest inside the zip; matches the writer. */
@@ -246,11 +246,21 @@ export async function rebuildPreviewFromZip(
   const zipName = basename(zipPath);
   const base = packageBase(zipName, zipPath);
   const htmlPath = join(dirname(zipPath), `${base}.html`);
+  // Fail fast on a collision, before opening or analysing the archive.
+  await requireWritablePreview(htmlPath, options.force);
   const { manifest, masterGlb, webGlb } = loadPackage(zipPath, await readArchive(zipPath));
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
-  const checks = computeChecks(await analyseDocument(await io.readBinary(masterGlb)));
+
+  let checks: AssetCheck[] = [];
+  let checksNote: string | null = null;
+  try {
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+    checks = computeChecks(await analyseDocument(await io.readBinary(masterGlb)));
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    checksNote = `Checks unavailable: ${detail}`;
+  }
   const directionalEnvironment = await directionalEnvironmentPng();
 
   const html = renderPreviewHtml({
@@ -268,6 +278,7 @@ export async function rebuildPreviewFromZip(
     masterZipEntry: manifest.master.file,
     zipName,
     checks,
+    checksNote,
     directionalEnvironmentPng: directionalEnvironment,
   });
 
