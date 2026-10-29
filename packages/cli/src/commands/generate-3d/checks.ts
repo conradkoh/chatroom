@@ -43,14 +43,23 @@ function formatMean(mean: number): string {
   return mean.toFixed(2);
 }
 
+/** True when the material's factor and map agree that it is all metal. */
+function isWholeTextureMetal(material: AssetAnalysis['materials'][number]): boolean {
+  if (material.metal === null) {
+    return (
+      !material.hasMetallicRoughnessTexture &&
+      material.metallicFactor >= CHECK_THRESHOLDS.wholeTextureMetalFraction
+    );
+  }
+  return (
+    material.metallicFactor > 0 &&
+    material.metal.fractionAtLeastHalf >= CHECK_THRESHOLDS.wholeTextureMetalFraction
+  );
+}
+
 /** `metal-whole-texture` for one material, when its factor and map agree it is all metal. */
 function metalWholeTextureFor(material: AssetAnalysis['materials'][number]): AssetCheck | null {
-  const wholeTexture =
-    material.metal === null
-      ? material.metallicFactor >= CHECK_THRESHOLDS.wholeTextureMetalFraction
-      : material.metallicFactor > 0 &&
-        material.metal.fractionAtLeastHalf >= CHECK_THRESHOLDS.wholeTextureMetalFraction;
-  if (!wholeTexture) return null;
+  if (!isWholeTextureMetal(material)) return null;
   return {
     id: 'metal-whole-texture',
     severity: 'warning',

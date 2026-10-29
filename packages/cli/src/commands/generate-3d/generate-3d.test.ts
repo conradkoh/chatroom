@@ -11,7 +11,8 @@ import { createHash } from 'node:crypto';
 
 import { Document, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { MeshoptDecoder } from 'meshoptimizer';
+import { meshopt } from '@gltf-transform/functions';
+import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -101,6 +102,59 @@ async function materialGlb(blue: number): Promise<Uint8Array> {
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
   return io.writeBinary(doc);
+}
+
+/** A 1 m triangle with a metallic-roughness map this package cannot decode. */
+async function unsupportedTextureGlb(): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0, 0.5, 0]))
+    .setBuffer(buffer);
+  const texture = doc
+    .createTexture('ktx2-map')
+    .setImage(new Uint8Array([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb]))
+    .setMimeType('image/ktx2');
+  const material = doc.createMaterial('unsupported-material').setMetallicRoughnessTexture(texture);
+  const primitive = doc.createPrimitive().setAttribute('POSITION', positions).setMaterial(material);
+  const mesh = doc.createMesh('unsupported-mesh').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('unsupported-node').setMesh(mesh));
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  return io.writeBinary(doc);
+}
+
+/** A flat triangle at y = 0, so a target-height fit cannot divide by zero. */
+async function flatGlb(): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(new Float32Array([-0.5, 0, -0.5, 0.5, 0, -0.5, 0, 0, 0.5]))
+    .setBuffer(buffer);
+  const primitive = doc.createPrimitive().setAttribute('POSITION', positions);
+  const mesh = doc.createMesh('flat').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('flat-node').setMesh(mesh));
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  return io.writeBinary(doc);
+}
+
+/** Compress a GLB with EXT_meshopt_compression, as some fal masters arrive. */
+async function meshoptCompressed(source: Uint8Array): Promise<Uint8Array> {
+  await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready]);
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+    'meshopt.encoder': MeshoptEncoder,
+    'meshopt.decoder': MeshoptDecoder,
+  });
+  const document = await io.readBinary(source);
+  await document.transform(meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
+  return io.writeBinary(document);
 }
 
 /** The bytes a fake FLUX call or a fake local read returns. */
@@ -501,6 +555,55 @@ describe('fit options', () => {
     );
 
     expect(formatGenerate3dPlan(plan)).not.toContain('Fit:');
+  });
+
+  it('writes a meshopt-compressed master instead of failing normalisation', async () => {
+    const source = await meshoptCompressed(await boxGlb());
+    const deps = createDeps({ fetchGlb: vi.fn().mockResolvedValue(source) });
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const written = vi.mocked(deps.writeFile).mock.calls.find(([path]) => path === OUT_PATH);
+    expect(written).toBeDefined();
+    const master = (zippedManifest(deps)['variants'] as Record<string, unknown>[])[0];
+    expect(master).not.toHaveProperty('normaliseError');
+  });
+
+  it('keeps the source bytes when the metallic-roughness image is unsupported', async () => {
+    const source = await unsupportedTextureGlb();
+    const deps = createDeps({ fetchGlb: vi.fn().mockResolvedValue(source) });
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const written = vi.mocked(deps.writeFile).mock.calls.find(([path]) => path === OUT_PATH)?.[1];
+    expect(written).toEqual(source);
+    const master = (zippedManifest(deps)['variants'] as Record<string, unknown>[])[0];
+    expect(master).not.toHaveProperty('normaliseError');
+    expect(master?.['materials']).toEqual([
+      expect.objectContaining({ decision: 'unchanged', reason: 'unsupported-image' }),
+    ]);
+  });
+
+  it('keeps the source bytes and reports a fit error for a zero-height master', async () => {
+    const source = await flatGlb();
+    const deps = createDeps({ fetchGlb: vi.fn().mockResolvedValue(source) });
+
+    const result = await generate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        fit: { origin: 'as-is', targetHeight: 0.75 },
+      },
+      deps
+    );
+
+    const written = vi.mocked(deps.writeFile).mock.calls.find(([path]) => path === OUT_PATH)?.[1];
+    expect(written).toEqual(source);
+    const master = (zippedManifest(deps)['variants'] as Record<string, unknown>[])[0];
+    expect(master?.['fit']).toBeNull();
+    expect(String(master?.['fitError'])).toMatch(/Fit failed.*height is 0/);
+    expect(result.warnings.join('\n')).toMatch(/Fit failed.*height is 0/);
   });
 });
 
@@ -1344,8 +1447,35 @@ describe('generate3d --rig', () => {
       await analyseDocument(nonMetalSecond)
     );
 
-    expect(nonMetalDecisions[0]?.decision).toBe('non-metal');
+    expect(nonMetalDecisions[0]?.decision).toBe('unchanged');
+    expect(nonMetalDecisions[0]).toMatchObject({ reason: 'explicit-factor' });
     expect(await io.writeBinary(nonMetalSecond)).toEqual(nonMetalOnce);
+  });
+
+  it('records a rig fit error and keeps the source bytes', async () => {
+    const source = await flatGlb();
+    const deps = createRigDeps(RIGGING_FIXTURE, {
+      fetchGlb: vi.fn().mockResolvedValue(source),
+    });
+
+    await generate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        rig: true,
+        confirmCost: true,
+        fit: { origin: 'as-is', targetHeight: 0.75 },
+      },
+      deps
+    );
+
+    const rigged = vi
+      .mocked(deps.writeFile)
+      .mock.calls.find(([path]) => path === RIGGED_OUT_PATH)?.[1];
+    expect(rigged).toEqual(source);
+    const entry = lastWrittenManifest(deps).rigging?.files.find((file) => file.kind === 'rigged');
+    expect(String(entry?.fitError)).toMatch(/Fit failed.*height is 0/);
   });
 
   it('rigs the generated mesh, writes the rigged GLB, and adds the manifest section', async () => {

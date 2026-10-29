@@ -92,6 +92,7 @@ describe('chatroom generate-3d wiring', () => {
       htmlPath: '/tmp/x-20261027-000000.html',
       sha256: 'deadbeef',
       checks: [],
+      warnings: [],
       costLines: ['Estimated total: $1.20'],
     });
     planGenerate3dMock.mockReset();

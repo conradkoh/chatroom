@@ -23,7 +23,12 @@
 import type { Document, Material, Texture } from '@gltf-transform/core';
 import type sharp from 'sharp';
 
-import type { AssetAnalysis, MaterialStats } from './asset-analysis.js';
+import {
+  DECODABLE_IMAGE_MIME_TYPES,
+  type AssetAnalysis,
+  type ChannelStats,
+  type MaterialStats,
+} from './asset-analysis.js';
 
 /** A material is non-metal when fewer than this fraction of its texels are metal. */
 // fallow-ignore-next-line unused-export
@@ -197,6 +202,18 @@ async function texturedDecision(args: {
   return { index, name, decision: 'metal-masked', metalFraction, maskedFraction };
 }
 
+/** True when the texture can supply both channel statistics. */
+function hasUsableImage(
+  texture: Texture,
+  stats: MaterialStats
+): stats is MaterialStats & { metal: ChannelStats; roughness: ChannelStats } {
+  return (
+    DECODABLE_IMAGE_MIME_TYPES.has(texture.getMimeType()) &&
+    stats.metal !== null &&
+    stats.roughness !== null
+  );
+}
+
 /** Route one material to the untextured or textured decision. */
 async function decideMaterial(args: {
   index: number;
@@ -215,8 +232,16 @@ async function decideMaterial(args: {
       reason: 'missing-analysis',
     };
   }
-  if (stats.metal === null || texture === null) {
+  if (texture === null) {
     return untexturedDecision(index, material);
+  }
+  if (!hasUsableImage(texture, stats)) {
+    return {
+      index,
+      name: materialName(material),
+      decision: 'unchanged',
+      reason: 'unsupported-image',
+    };
   }
   return texturedDecision({
     index,

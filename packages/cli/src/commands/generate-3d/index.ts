@@ -184,6 +184,7 @@ function printResult(result: Generate3dResult): void {
   console.log(`Package ${result.zipPath}`);
   console.log(`Preview ${result.htmlPath}`);
   for (const check of result.checks) console.log(`Warning: ${check.message}`);
+  for (const warning of result.warnings) console.log(`Warning: ${warning}`);
   for (const line of result.costLines) console.log(line);
 }
 

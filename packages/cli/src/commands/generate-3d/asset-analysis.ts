@@ -179,6 +179,13 @@ function extentsOf(bounds: AssetAnalysis['bounds']): [number, number, number] {
   ];
 }
 
+/** Image types sharp can decode for metallic-roughness statistics. */
+export const DECODABLE_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
 /**
  * Decode one metallic-roughness texture to RGBA pixels.
  *
@@ -223,6 +230,11 @@ async function describeMaterial(
     hasMetallicRoughnessTexture: texture !== null,
   };
   if (texture === null) return { ...base, metal: null, roughness: null };
+  // An unsupported map (for example KTX2) has no channel statistics; keep the
+  // material out of the texture checks instead of failing the whole analysis.
+  if (!DECODABLE_IMAGE_MIME_TYPES.has(texture.getMimeType())) {
+    return { ...base, metal: null, roughness: null };
+  }
 
   const pixels = await decodePixels(texture, sharp, cache);
   return { ...base, metal: channelStats(pixels, 2), roughness: channelStats(pixels, 1) };
