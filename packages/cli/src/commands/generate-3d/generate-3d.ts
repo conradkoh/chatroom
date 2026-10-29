@@ -23,7 +23,8 @@ import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
 
-import { analyseDocument } from './asset-analysis.js';
+import { analyseDocument, type AssetAnalysis } from './asset-analysis.js';
+import { computeChecks, type AssetCheck } from './checks.js';
 import {
   buildReferenceImageRequest,
   type Generate3dDeps,
@@ -48,7 +49,7 @@ import {
   type Generate3dModelSpec,
 } from './model-registry.js';
 import { formatTimestamp, packageBaseName } from './package-name.js';
-import { renderPreviewHtml } from './preview-html.js';
+import { renderPreviewHtml, directionalEnvironmentPng } from './preview-html.js';
 import {
   buildRiggingRequest,
   parseAnimationActionIds,
@@ -214,6 +215,8 @@ export interface Generate3dResult {
   /** The standalone preview of the web variant, beside the zip. */
   htmlPath: string;
   sha256: string;
+  /** Advisory warnings from the written master, printed after the paths. */
+  checks: AssetCheck[];
   /** Cost lines for the CLI to print after the output paths. */
   costLines: string[];
 }
@@ -237,6 +240,8 @@ interface Generate3dPackageVariant {
   materials?: MaterialDecision[];
   /** Master only: the origin/height fit applied to the document. */
   fit?: FitResult;
+  /** Master only: advisory checks from the written document. */
+  checks?: AssetCheck[];
   /**
    * Present on the web variant only. `textureFormat` is the default:
    * alpha-bound colour maps stay PNG, and `textures[].mimeType` is the
@@ -257,6 +262,8 @@ interface Generate3dPackageVariant {
     materials: MaterialDecision[];
     /** The origin/height fit applied to the web document. */
     fit: FitResult;
+    /** Advisory checks from the written web document. */
+    checks?: AssetCheck[];
   };
 }
 
@@ -1807,6 +1814,7 @@ function buildMasterVariant(args: {
   sourceSha256: string;
   materials: MaterialDecision[];
   fit: FitResult;
+  checks: AssetCheck[];
   source: GlbStats;
 }): Generate3dPackageVariant {
   return {
@@ -1817,6 +1825,7 @@ function buildMasterVariant(args: {
     sourceSha256: args.sourceSha256,
     materials: args.materials,
     fit: args.fit,
+    checks: args.checks,
     triangles: args.source.triangles,
     textures: args.source.textures,
     extensionsUsed: args.source.extensionsUsed,
@@ -1831,7 +1840,10 @@ function rigWebFailures(files: readonly RigFilePackage[]): { file: string; messa
 }
 
 /** The settings a web variant ran with, recorded so it is reproducible. */
-function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['settings']> {
+function webSettings(
+  web: WebVariant,
+  checks?: AssetCheck[]
+): NonNullable<Generate3dPackageVariant['settings']> {
   return {
     maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
     textureFormat: 'jpeg',
@@ -1842,6 +1854,7 @@ function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['set
     skinnedPath: web.skinnedPath,
     materials: web.materials,
     fit: web.fit,
+    ...(checks === undefined ? {} : { checks }),
   };
 }
 
@@ -1874,7 +1887,8 @@ function variantEntry(args: {
 function buildWebVariantEntry(
   stem: string,
   web: WebVariant,
-  webSha256: string
+  webSha256: string,
+  checks: AssetCheck[]
 ): Generate3dPackageVariant {
   return {
     ...variantEntry({
@@ -1882,7 +1896,7 @@ function buildWebVariantEntry(
       file: `web/${stem}.web.glb`,
       bytes: web.bytes,
       stats: web,
-      settings: webSettings(web),
+      settings: webSettings(web, checks),
     }),
     sha256: webSha256,
   };
@@ -1914,6 +1928,10 @@ function buildPackageManifest(args: {
   masterMaterials: MaterialDecision[];
   /** The fit applied to the master document. */
   masterFit: FitResult;
+  /** Advisory checks from the written master. */
+  masterChecks: AssetCheck[];
+  /** Advisory checks from the written web document. */
+  webChecks: AssetCheck[];
   web: WebVariant;
   /** SHA-256 of the web variant bytes; also shown by the preview. */
   webSha256: string;
@@ -1946,9 +1964,10 @@ function buildPackageManifest(args: {
         sourceSha256: args.masterSourceSha256,
         materials: args.masterMaterials,
         fit: args.masterFit,
+        checks: args.masterChecks,
         source: args.web.source,
       }),
-      buildWebVariantEntry(args.stem, args.web, args.webSha256),
+      buildWebVariantEntry(args.stem, args.web, args.webSha256, args.webChecks),
       ...args.rigVariants,
     ],
     referenceImage: args.reference,
@@ -2130,10 +2149,13 @@ async function writePackage(args: {
   force: boolean;
   reference: BundledReference | null;
   rigFiles: readonly RigFilePackage[];
+  masterChecks: AssetCheck[];
 }): Promise<PackageOutput> {
   const { plan, deps, master, paths, reference } = args;
   const web = await buildWebVariant(plan, deps, master.bytes);
   const webSha256 = createHash('sha256').update(web.bytes).digest('hex');
+  const webChecks = computeChecks(await analyseGlb(web.bytes));
+  const directionalEnvironment = await directionalEnvironmentPng();
   const packageManifest = buildPackageManifest({
     packageName: args.packageName,
     createdAt: deps.now().toISOString(),
@@ -2146,6 +2168,8 @@ async function writePackage(args: {
     masterSourceSha256: master.sourceSha256,
     masterMaterials: master.materials,
     masterFit: master.fit,
+    masterChecks: args.masterChecks,
+    webChecks,
     web,
     webSha256,
     stem: plan.stem,
@@ -2175,6 +2199,8 @@ async function writePackage(args: {
     webBytes: web.bytes.byteLength,
     masterZipEntry: `${plan.stem}.glb`,
     zipName: `${args.packageName}.zip`,
+    checks: args.masterChecks,
+    directionalEnvironmentPng: directionalEnvironment,
   });
 
   await writeZipAndPreview(plan, deps, { ...paths, zipBytes, html, force: args.force });
@@ -2315,6 +2341,18 @@ async function ensureOutputDirs(plan: Generate3dPlan, deps: Generate3dDeps): Pro
   await deps.ensureParentDir(plan.zipPath);
 }
 
+/** The reader/writer every generate-3d GLB pass uses. */
+function glbIo(): NodeIO {
+  return new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+}
+
+/** Parse a GLB and analyse it; used for the post-write checks. */
+async function analyseGlb(glb: Uint8Array): Promise<AssetAnalysis> {
+  return analyseDocument(await glbIo().readBinary(glb));
+}
+
 /**
  * Normalise a GLB in memory and apply the optional fit.
  *
@@ -2330,9 +2368,7 @@ async function normaliseMasterGlb(
   glb: Uint8Array,
   fit: FitOptions | undefined
 ): Promise<{ bytes: Uint8Array; materials: MaterialDecision[]; fit: FitResult }> {
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  const io = glbIo();
   const document = await io.readBinary(glb);
   const analysis = await analyseDocument(document);
   const materials = await normaliseMaterials(document, analysis);
@@ -2479,6 +2515,7 @@ async function packageOrError(args: {
   force: boolean;
   reference: BundledReference | null;
   rigFiles: readonly RigFilePackage[];
+  masterChecks: AssetCheck[];
 }): Promise<Generate3dError | null> {
   try {
     await writePackage({
@@ -2491,6 +2528,7 @@ async function packageOrError(args: {
       force: args.force,
       reference: args.reference,
       rigFiles: args.rigFiles,
+      masterChecks: args.masterChecks,
     });
     return null;
   } catch (err) {
@@ -2523,6 +2561,7 @@ async function packageRun(args: {
   opts: Generate3dOptions;
   reference: BundledReference | null;
   rigging: RigOutcome;
+  masterChecks: AssetCheck[];
 }): Promise<void> {
   const packageError = await packageOrError({
     plan: args.plan,
@@ -2532,6 +2571,7 @@ async function packageRun(args: {
     force: args.opts.force === true,
     reference: args.reference,
     rigFiles: args.rigging.files,
+    masterChecks: args.masterChecks,
   });
   if (packageError === null) {
     await args.deps.writeJson(
@@ -2561,6 +2601,7 @@ export async function generate3d(
   const reference = await generateReferenceFile(plan, deps);
   const bundledReference = await bundleReference(plan, deps, reference);
   const master = await generateMaster(plan, deps, opts, reference);
+  const masterChecks = computeChecks(await analyseGlb(master.bytes));
 
   // Rig before packaging: the package is the one artefact that must hold the
   // master, the reference, and every rig file. A rig failure keeps the paid
@@ -2572,7 +2613,15 @@ export async function generate3d(
   const rigged = rigManifest(master, rigging);
   if (rigged !== null) await deps.writeJson(plan.manifestPath, rigged);
 
-  await packageRun({ plan, deps, master, opts, reference: bundledReference, rigging });
+  await packageRun({
+    plan,
+    deps,
+    master,
+    opts,
+    reference: bundledReference,
+    rigging,
+    masterChecks,
+  });
 
   return {
     outPath: plan.outPath,
@@ -2580,6 +2629,7 @@ export async function generate3d(
     zipPath: plan.zipPath,
     htmlPath: plan.htmlPath,
     sha256: master.sha256,
+    checks: masterChecks,
     costLines: formatGenerate3dCost(plan.costLines, plan.model.id, plan.generationCostKnown),
   };
 }

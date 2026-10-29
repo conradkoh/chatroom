@@ -8,7 +8,11 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { renderPreviewHtml, type PreviewHtmlInput } from './preview-html.js';
+import {
+  directionalEnvironmentPng,
+  renderPreviewHtml,
+  type PreviewHtmlInput,
+} from './preview-html.js';
 
 /** A minimal GLB: magic "glTF", version 2, then a few payload bytes. */
 const MASTER_GLB = new Uint8Array([
@@ -31,6 +35,8 @@ const INPUT: PreviewHtmlInput = {
   webBytes: 1_391_260,
   masterZipEntry: 'chest.glb',
   zipName: 'chest-20261028-011838.zip',
+  checks: [],
+  directionalEnvironmentPng: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x01, 0x02, 0x03]),
 };
 
 /** The base64 payload of the viewer's `src` attribute (the web variant). */
@@ -138,5 +144,50 @@ describe('renderPreviewHtml', () => {
     expect(html).toContain('x&quot;y.zip');
     expect(html).toContain('z&lt;1&gt;.glb');
     expect(html).not.toContain('a&b<c>');
+  });
+
+  it('offers Studio, Directional, and Unlit lighting with Studio selected', () => {
+    const html = renderPreviewHtml(INPUT);
+
+    expect(html).toContain('role="group" aria-label="Lighting"');
+    expect(html).toContain('data-lighting="studio" aria-pressed="true"');
+    expect(html).toContain('data-lighting="directional" aria-pressed="false"');
+    expect(html).toContain('data-lighting="unlit" aria-pressed="false"');
+  });
+
+  it('embeds the directional environment as a PNG data URI', () => {
+    const html = renderPreviewHtml(INPUT);
+    const encoded = Buffer.from(INPUT.directionalEnvironmentPng).toString('base64');
+
+    expect(html).toContain(`data-directional-environment="data:image/png;base64,${encoded}"`);
+  });
+
+  it('lists checks and escapes their messages', () => {
+    const hostile = '</script><img src=x onerror=alert(1)>';
+    const html = renderPreviewHtml({
+      ...INPUT,
+      checks: [
+        {
+          id: 'not-on-feet',
+          severity: 'warning',
+          materialIndex: null,
+          message: hostile,
+        },
+      ],
+    });
+
+    expect(html).toContain('<h2>Checks</h2>');
+    expect(html).toContain('&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).not.toContain(hostile);
+  });
+
+  it('shows the all-clear when there are no checks', () => {
+    expect(renderPreviewHtml(INPUT)).toContain('No issues found.');
+  });
+
+  it('generates a PNG for the directional environment', async () => {
+    const png = await directionalEnvironmentPng();
+
+    expect([...png.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
   });
 });

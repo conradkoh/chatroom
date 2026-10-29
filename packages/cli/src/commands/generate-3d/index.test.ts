@@ -91,6 +91,7 @@ describe('chatroom generate-3d wiring', () => {
       zipPath: '/tmp/x-20261027-000000.zip',
       htmlPath: '/tmp/x-20261027-000000.html',
       sha256: 'deadbeef',
+      checks: [],
       costLines: ['Estimated total: $1.20'],
     });
     planGenerate3dMock.mockReset();
@@ -378,6 +379,44 @@ describe('chatroom generate-3d wiring', () => {
     ]);
 
     expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({ fit: undefined });
+  });
+
+  it('prints advisory check warnings after the preview line', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    generate3dMock.mockResolvedValue({
+      outPath: '/tmp/x.glb',
+      manifestPath: '/tmp/x.glb.json',
+      zipPath: '/tmp/x.zip',
+      htmlPath: '/tmp/x.html',
+      sha256: 'deadbeef',
+      checks: [
+        {
+          id: 'flat',
+          severity: 'warning',
+          materialIndex: null,
+          message: 'Model is flat (thickness is under 5% of its width).',
+        },
+      ],
+      costLines: [],
+    });
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'meshy/v7.1/text-to-3d',
+      '--prompt',
+      'a knight',
+      '--out',
+      '/tmp/x.glb',
+    ]);
+
+    expect(logSpy.mock.calls.map((call) => String(call[0]))).toEqual([
+      'Generated /tmp/x.glb',
+      'Manifest /tmp/x.glb.json',
+      'Package /tmp/x.zip',
+      'Preview /tmp/x.html',
+      'Warning: Model is flat (thickness is under 5% of its width).',
+    ]);
   });
 
   it.each([

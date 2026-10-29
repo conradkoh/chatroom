@@ -183,6 +183,7 @@ function printResult(result: Generate3dResult): void {
   console.log(`Manifest ${result.manifestPath}`);
   console.log(`Package ${result.zipPath}`);
   console.log(`Preview ${result.htmlPath}`);
+  for (const check of result.checks) console.log(`Warning: ${check.message}`);
   for (const line of result.costLines) console.log(line);
 }
 

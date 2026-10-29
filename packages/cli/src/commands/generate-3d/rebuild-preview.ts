@@ -16,9 +16,14 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
+import { NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { unzipSync } from 'fflate';
+import { MeshoptDecoder } from 'meshoptimizer';
 
-import { renderPreviewHtml } from './preview-html.js';
+import { analyseDocument } from './asset-analysis.js';
+import { computeChecks } from './checks.js';
+import { directionalEnvironmentPng, renderPreviewHtml } from './preview-html.js';
 
 /** File name of the package manifest inside the zip; matches the writer. */
 const PACKAGE_MANIFEST_NAME = 'manifest.json';
@@ -242,6 +247,11 @@ export async function rebuildPreviewFromZip(
   const base = packageBase(zipName, zipPath);
   const htmlPath = join(dirname(zipPath), `${base}.html`);
   const { manifest, masterGlb, webGlb } = loadPackage(zipPath, await readArchive(zipPath));
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  const checks = computeChecks(await analyseDocument(await io.readBinary(masterGlb)));
+  const directionalEnvironment = await directionalEnvironmentPng();
 
   const html = renderPreviewHtml({
     title: base,
@@ -257,6 +267,8 @@ export async function rebuildPreviewFromZip(
     webBytes: manifest.web.bytes,
     masterZipEntry: manifest.master.file,
     zipName,
+    checks,
+    directionalEnvironmentPng: directionalEnvironment,
   });
 
   await writePreview(htmlPath, html, options.force);

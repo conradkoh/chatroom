@@ -107,7 +107,7 @@ async function materialGlb(blue: number): Promise<Uint8Array> {
 const REFERENCE_PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** Stand-in web variant and zip; the real optimiser runs in web-variant.test.ts. */
-const WEB_GLB_BYTES = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 1, 2, 3]);
+const WEB_GLB_BYTES = await emptyGlb();
 const ZIP_BYTES = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 9, 9]);
 const SOURCE_TEXTURES = [{ width: 2048, height: 2048, mimeType: 'image/png' }];
 const WEB_TEXTURES = [{ width: 1024, height: 1024, mimeType: 'image/jpeg' }];
@@ -697,6 +697,24 @@ describe('generate3d packaging', () => {
     expect(result.zipPath).toBe('/tmp/generated/My-Chest-20261027-000000.zip');
     expect(result.htmlPath).toBe('/tmp/generated/My-Chest-20261027-000000.html');
     expect(deps.writeFile).toHaveBeenCalledWith(outPath, GLB_BYTES);
+  });
+
+  it('records advisory checks on the master and the web settings', async () => {
+    const deps = createDeps({ fetchGlb: vi.fn().mockResolvedValue(await boxGlb()) });
+
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const variants = zippedManifest(deps)['variants'] as Record<string, unknown>[];
+    expect(variants[0]?.['checks']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'not-on-feet',
+          severity: 'warning',
+          materialIndex: null,
+        }),
+      ])
+    );
+    expect(variants[1]?.['settings']).toMatchObject({ checks: [] });
   });
 
   it('links the package files in the sidecar', async () => {
