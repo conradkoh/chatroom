@@ -41,6 +41,12 @@ import { applyFit, type FitOptions, type FitResult } from './fit.js';
 import { normaliseMaterials, type MaterialDecision } from './material-normalise.js';
 import { Generate3dError } from './model-registry.js';
 
+/** Decisions already made by the master/rig preparation. */
+export interface ProcessedVariant {
+  materials: MaterialDecision[];
+  fit: FitResult | null;
+}
+
 export interface WebVariantOptions {
   /** Target triangle count; paired with a 1% error bound, so it is best effort. */
   triangleTarget: number;
@@ -50,8 +56,14 @@ export interface WebVariantOptions {
   quality: number;
   /** Encoder quality for data textures: metallic-roughness, occlusion, normal. */
   dataQuality: number;
-  /** Optional origin and height fit, applied after material normalisation. */
+  /** Optional origin and height fit, applied when no processed input is given. */
   fit?: FitOptions | undefined;
+  /**
+   * Materials and fit from the already-prepared document. When present the web
+   * step skips analysis, normalisation, and fit, and only changes geometry and
+   * textures.
+   */
+  processed?: ProcessedVariant | undefined;
 }
 
 export interface WebVariantTexture {
@@ -84,8 +96,8 @@ export interface WebVariant extends GlbStats {
   source: GlbStats;
   /** What the material normalisation decided for this document. */
   materials: MaterialDecision[];
-  /** The origin/height fit applied to this document. */
-  fit: FitResult;
+  /** The origin/height fit applied to this document; null on a fallback. */
+  fit: FitResult | null;
 }
 
 /** glTF-Transform logs every prune/dedup decision to the console by default. */
@@ -373,11 +385,18 @@ export async function createWebVariant(
     simplifyAt: (ratio) =>
       simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.01, lockBorder: true }),
   });
-  // Normalise before texture compression so each texture is encoded only once,
-  // and so the compressed web map already has the corrected blue channel.
-  const analysis = await analyseDocument(document);
-  const materials = await normaliseMaterials(document, analysis);
-  const fit = await applyFit(document, analysis, opts.fit ?? { origin: 'as-is' });
+  // A master or rig GLB has already been normalised and fitted; only geometry
+  // and textures change here. A raw GLB still gets the material and fit steps.
+  let materials: MaterialDecision[];
+  let fit: FitResult | null;
+  if (opts.processed !== undefined) {
+    materials = opts.processed.materials;
+    fit = opts.processed.fit;
+  } else {
+    const analysis = await analyseDocument(document);
+    materials = await normaliseMaterials(document, analysis);
+    fit = await applyFit(document, analysis, opts.fit ?? { origin: 'as-is' });
+  }
   await compressTextures({
     document,
     compressTexture,

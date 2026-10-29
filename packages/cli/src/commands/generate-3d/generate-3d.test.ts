@@ -679,6 +679,15 @@ describe('generate3d packaging', () => {
       maxTexturePx: 1024,
       quality: 80,
       dataQuality: 95,
+      processed: {
+        materials: [],
+        fit: {
+          origin: 'as-is',
+          targetHeight: null,
+          scale: 1,
+          bounds: { min: [0, 0, 0], max: [0, 0, 0] },
+        },
+      },
     });
 
     const entries = vi.mocked(deps.zipPackage).mock.calls[0]?.[0] ?? [];

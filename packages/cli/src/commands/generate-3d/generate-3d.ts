@@ -58,7 +58,7 @@ import {
   type RiggingOutput,
   type RiggingRequest,
 } from './rigging.js';
-import type { GlbStats, WebVariant } from './web-variant.js';
+import type { GlbStats, ProcessedVariant, WebVariant } from './web-variant.js';
 import type { ZipEntry } from './zip-package.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../generate-image/image.js';
 
@@ -270,8 +270,8 @@ interface Generate3dPackageVariant {
     skinnedPath?: 'non-destructive' | 'default';
     /** What material normalisation decided for the web document. */
     materials: MaterialDecision[];
-    /** The origin/height fit applied to the web document. */
-    fit: FitResult;
+    /** The origin/height fit applied to the web document; null on a fallback. */
+    fit: FitResult | null;
     /** Advisory checks from the written web document. */
     checks?: AssetCheck[];
   };
@@ -1695,7 +1695,13 @@ async function buildOneRigFile(
   try {
     // The bare cause only: the package-failure wrapper would add an absolute
     // path, and the manifest records this string.
-    const web = await deps.createWebVariant(file.bytes, webVariantOptions(plan));
+    const web = await deps.createWebVariant(
+      file.bytes,
+      webVariantOptions(plan, {
+        materials: file.materials,
+        fit: null,
+      })
+    );
     return { packaged: { ...file, ...names, web, webError: null }, message: null };
   } catch (err) {
     // Keep the raw file: it is paid for, and the package must still ship it.
@@ -2052,18 +2058,33 @@ const WEB_VARIANT_OPTIONS = {
   dataQuality: WEB_VARIANT_DATA_TEXTURE_QUALITY,
 };
 
-/** Web-variant options with the plan's fit, when one was requested. */
-function webVariantOptions(plan: Generate3dPlan) {
-  return plan.fit === undefined ? WEB_VARIANT_OPTIONS : { ...WEB_VARIANT_OPTIONS, fit: plan.fit };
+/** Web-variant options with the plan's fit and the processed decisions. */
+function webVariantOptions(
+  plan: Generate3dPlan,
+  processed: ProcessedVariant
+): {
+  triangleTarget: number;
+  maxTexturePx: number;
+  quality: number;
+  dataQuality: number;
+  fit?: FitOptions;
+  processed: ProcessedVariant;
+} {
+  return {
+    ...WEB_VARIANT_OPTIONS,
+    ...(plan.fit === undefined ? {} : { fit: plan.fit }),
+    processed,
+  };
 }
 
 async function buildWebVariant(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
-  masterBytes: Uint8Array
+  masterBytes: Uint8Array,
+  processed: ProcessedVariant
 ): Promise<WebVariant> {
   try {
-    return await deps.createWebVariant(masterBytes, webVariantOptions(plan));
+    return await deps.createWebVariant(masterBytes, webVariantOptions(plan, processed));
   } catch (err) {
     throw packageFailure(plan, 'build the web variant', err);
   }
@@ -2178,7 +2199,10 @@ async function writePackage(args: {
   masterChecks: AssetCheck[];
 }): Promise<PackageOutput> {
   const { plan, deps, master, paths, reference } = args;
-  const web = await buildWebVariant(plan, deps, master.bytes);
+  const web = await buildWebVariant(plan, deps, master.bytes, {
+    materials: master.materials,
+    fit: master.fit,
+  });
   const webSha256 = createHash('sha256').update(web.bytes).digest('hex');
   const webChecks = await checksForGlb(web.bytes);
   const directionalEnvironment = await directionalEnvironmentPng();

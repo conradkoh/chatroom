@@ -21,7 +21,7 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
 import { analyseDocument } from './asset-analysis.js';
-import { createWebVariant, type WebVariantOptions } from './web-variant.js';
+import { createWebVariant, type ProcessedVariant, type WebVariantOptions } from './web-variant.js';
 
 const OPTIONS: WebVariantOptions = {
   triangleTarget: 30_000,
@@ -817,7 +817,65 @@ describe('createWebVariant', () => {
 
     expect(analysis.bounds.min[1]).toBeCloseTo(0, 6);
     expect(analysis.bounds.max[1] - analysis.bounds.min[1]).toBeCloseTo(2, 6);
-    expect(variant.fit.scale).toBeCloseTo(2, 6);
+    expect(variant.fit?.scale).toBeCloseTo(2, 6);
+  });
+
+  it('skips normalisation and fit when given processed decisions', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      dataTexture: { bytes: await splitMetalTexture(), mimeType: 'image/png' },
+    });
+    const processed: ProcessedVariant = {
+      materials: [
+        {
+          index: 0,
+          name: 'mat',
+          decision: 'metal-masked',
+          metalFraction: 0.5,
+          maskedFraction: 0.5,
+        },
+      ],
+      fit: {
+        origin: 'feet',
+        targetHeight: 2,
+        scale: 2,
+        bounds: { min: [0, 0, 0], max: [1, 1, 1] },
+      },
+    };
+
+    const variant = await createWebVariant(glb, { ...OPTIONS, processed });
+
+    expect(variant.materials).toEqual(processed.materials);
+    expect(variant.fit).toEqual(processed.fit);
+    const reread = await glbIo().readBinary(variant.bytes);
+    const image = reread.getRoot().listMaterials()[0]?.getMetallicRoughnessTexture()?.getImage();
+    const { data, info } = await sharp(Buffer.from(image ?? new Uint8Array()))
+      .toColourspace('srgb')
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const blueAt = (x: number, y: number): number => data[(y * info.width + x) * 4 + 2] ?? 0;
+    expect(blueAt(64, 128)).toBeGreaterThan(240);
+    expect(blueAt(192, 128)).toBeGreaterThan(25);
+    expect(blueAt(192, 128)).toBeLessThan(55);
+  });
+
+  it('does not re-apply the fit when processed decisions are given', async () => {
+    const processed: ProcessedVariant = {
+      materials: [],
+      fit: {
+        origin: 'feet',
+        targetHeight: 2,
+        scale: 2,
+        bounds: { min: [0, 0, 0], max: [1, 2, 1] },
+      },
+    };
+
+    const variant = await createWebVariant(await buildUnitBoxGlb(), { ...OPTIONS, processed });
+
+    const analysis = await analyseDocument(await glbIo().readBinary(variant.bytes));
+    expect(analysis.bounds.max[1] - analysis.bounds.min[1]).toBeCloseTo(1, 6);
+    expect(variant.fit).toEqual(processed.fit);
   });
 
   it('spends more bytes on a data map at dataQuality 95 than at 60', async () => {
