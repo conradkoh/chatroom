@@ -24,8 +24,23 @@ const { PNG } = pngjs;
 
 const { depsHolder } = vi.hoisted(() => ({ depsHolder: { current: undefined as unknown } }));
 
+// The command's pure path only imports the shared missing-key message; it must
+// never call the SDK. Stub the module so any real call still fails loudly,
+// without pulling the real client into the import graph.
 vi.mock('@fal-ai/client', () => {
-  throw new Error('must not load fal');
+  const mustNotUseFal = (): never => {
+    throw new Error('must not use fal');
+  };
+  class StubFalError extends Error {}
+  return {
+    ApiError: StubFalError,
+    ValidationError: StubFalError,
+    fal: {
+      config: mustNotUseFal,
+      subscribe: mustNotUseFal,
+      storage: { upload: mustNotUseFal },
+    },
+  };
 });
 
 vi.mock('./remove-image-background-fal-deps.js', () => ({

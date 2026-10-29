@@ -26,6 +26,7 @@ import {
   type ConstraintDisclosure,
   type ModelCapability,
 } from './model-capabilities.js';
+import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-client.js';
 import { readPngDimensions } from '../image-shared/image-preflight.js';
 
 /**
@@ -120,9 +121,6 @@ export interface GenerateImageManifest {
  * manifest records `unverified` until a human confirms the licence.
  */
 const LICENSING = 'unverified' as const;
-
-export const FAL_API_KEY_MISSING_MESSAGE =
-  'FAL_API_KEY is not set. Set FAL_API_KEY in your environment and retry. (FAL_KEY_ID/FAL_KEY_SECRET are not supported.)';
 
 /** File extensions we can reason about when validating --output-format. */
 const EXTENSION_FORMATS: Record<string, ImageOutputFormat> = {

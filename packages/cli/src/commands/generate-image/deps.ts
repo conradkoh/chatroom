@@ -1,23 +1,27 @@
 /**
  * Generate Deps — dependency boundary for local asset generation commands.
  *
- * The fal SDK, the network, the filesystem, and the clock are all injected so
- * `image.ts` stays pure logic and its unit tests never touch the network or
- * the real disk. `createDefaultGenerateImageDeps` is the only place that knows
- * about `@fal-ai/client` and `node:fs/promises`.
+ * The network, the filesystem, and the clock are all injected so `image.ts`
+ * stays pure logic and its unit tests never touch the network or the real
+ * disk. `createDefaultGenerateImageDeps` is the only place that knows about
+ * `node:fs/promises`; the fal SDK wiring itself lives in `image-shared`, and
+ * this file adapts it to the `GenerateImageDeps` shape.
  */
 
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-
-import { ApiError, ValidationError, fal } from '@fal-ai/client';
 
 import {
   createDefaultFalPricingDeps,
   lookupFalUnitPrices,
   type FalUnitPrice,
 } from './fal-pricing.js';
-import { GenerateImageError, FAL_API_KEY_MISSING_MESSAGE } from './image.js';
+import { GenerateImageError } from './image.js';
+import {
+  FalClientError,
+  createFalRawSubscribe,
+  createFalUploadFile,
+} from '../image-shared/fal-client.js';
 import {
   pathStatus,
   writeFileBytes,
@@ -81,9 +85,6 @@ export interface GenerateImageDeps {
   /** Print normal command output, including cost disclosures. */
   log: (message: string) => void;
 }
-
-/** Server-side timeout for the queued generation (the SDK takes seconds). */
-const SUBSCRIBE_TIMEOUT_SECONDS = 300;
 
 // ─── fal result validation ─────────────────────────────────────────────────
 
@@ -174,127 +175,37 @@ function validateFalResult(raw: unknown): FalImageResult {
   return { requestId: requireRequestId(raw.requestId), data: requireData(raw.data) };
 }
 
-// ─── fal error mapping ─────────────────────────────────────────────────────
-
-function requestSuffix(requestId: string | undefined): string {
-  return requestId ? ` [requestId: ${requestId}]` : '';
-}
-
-/** Render one `{ loc, msg }` pair, omitting whichever part is absent. */
-function formatDetailParts(loc: unknown, msg: unknown): string {
-  const location = Array.isArray(loc) ? loc.join('.') : '';
-  const message = typeof msg === 'string' ? msg : '';
-  return [location, message].filter((part) => part.length > 0).join(': ');
-}
-
-function formatDetailList(detail: unknown[]): string | undefined {
-  const parts = detail
-    .filter(isRecord)
-    .map((item) => formatDetailParts(item.loc, item.msg))
-    .filter((part) => part.length > 0);
-  return parts.length > 0 ? parts.join('; ') : undefined;
-}
-
-function formatBodyMessage(message: unknown): string | undefined {
-  if (typeof message !== 'string' || message.length === 0) return undefined;
-  return message;
-}
-
-function formatBodyDetail(body: unknown): string | undefined {
-  if (!isRecord(body)) return undefined;
-  if (Array.isArray(body.detail)) return formatDetailList(body.detail);
-  return formatBodyMessage(body.message);
-}
-
-function formatValidationError(err: ValidationError): string {
-  const detail = formatDetailList(Array.isArray(err.fieldErrors) ? err.fieldErrors : []);
-  return `fal rejected the request (HTTP ${err.status})${detail ? `: ${detail}` : ''}${requestSuffix(err.requestId)}`;
-}
-
-function formatApiError(err: ApiError<unknown>): string {
-  const detail = formatBodyDetail(err.body);
-  return `fal request failed (HTTP ${err.status})${detail ? `: ${detail}` : ''}${requestSuffix(err.requestId)}`;
-}
+// ─── fal adapter wrappers ──────────────────────────────────────────────────
 
 /**
- * fal's 422 bodies carry a `detail[]` list, but `ApiError.message` only holds
- * the status text ("Unprocessable Entity"). Surface the field errors and the
- * request id instead. Headers, and therefore the API key, are never included.
+ * Translate the shared adapter's failure into this command's error class.
+ * Anything else (notably a `validateFalResult` failure) is already a
+ * `GenerateImageError` and passes through untouched.
  */
-function describeFalError(err: unknown): string {
-  if (err instanceof ValidationError) return formatValidationError(err);
-  if (err instanceof ApiError) return formatApiError(err);
-  return err instanceof Error ? err.message : String(err);
+function asGenerateImageError(err: unknown): unknown {
+  return err instanceof FalClientError ? new GenerateImageError(err.message) : err;
 }
 
-/**
- * Point the SDK at the command's API key. The SDK's built-in credential
- * resolver does not read `FAL_API_KEY`, so it is passed explicitly; the key is
- * never logged or included in an error message.
- */
-function configureFal(env: Record<string, string | undefined>): void {
-  const credentials = env.FAL_API_KEY;
-  if (!credentials) {
-    // Defense in depth: image.ts guards first, and this keeps a direct adapter
-    // call from silently falling back to the SDK's environment lookup.
-    throw new GenerateImageError(FAL_API_KEY_MISSING_MESSAGE);
-  }
-  fal.config({ credentials });
-}
-
-/**
- * Adapter around the official fal SDK. `fal.subscribe` performs queue submit +
- * poll.
- *
- * The result is returned unvalidated: command-specific validators differ by
- * model shape (`images[]` for text-to-image, `image` for BiRefNet), so each
- * caller narrows the raw result itself.
- */
-export function createFalRawSubscribe(
-  env: Record<string, string | undefined>
-): (model: string, input: Record<string, unknown>) => Promise<unknown> {
-  return async (model, input) => {
-    configureFal(env);
-
-    try {
-      return await fal.subscribe(model, {
-        input,
-        logs: false,
-        startTimeout: SUBSCRIBE_TIMEOUT_SECONDS,
-      });
-    } catch (err) {
-      throw new GenerateImageError(describeFalError(err));
-    }
-  };
-}
-
-/**
- * `generate-image` adapter: raw fal result narrowed to the `images[]` shape.
- */
 function createFalSubscribe(
   env: Record<string, string | undefined>
 ): GenerateImageDeps['falSubscribe'] {
   const subscribe = createFalRawSubscribe(env);
-  return async (model, input) => validateFalResult(await subscribe(model, input));
+  return async (model, input) => {
+    try {
+      return validateFalResult(await subscribe(model, input));
+    } catch (err) {
+      throw asGenerateImageError(err);
+    }
+  };
 }
 
-/**
- * `generate-image` adapter: uploads an input image so the edit model can fetch
- * it by URL. A one-day lifetime keeps the temporary object from accumulating.
- */
-export function createFalUploadFile(
-  env: Record<string, string | undefined>
-): GenerateImageDeps['uploadFile'] {
+function wrapUploadFile(env: Record<string, string | undefined>): GenerateImageDeps['uploadFile'] {
+  const upload = createFalUploadFile(env);
   return async (path, contentType) => {
-    configureFal(env);
     try {
-      const bytes = await readFile(path);
-      const blob = new Blob([new Uint8Array(bytes)], { type: contentType });
-      return await fal.storage.upload(blob, { lifecycle: { expiresIn: '1d' } });
+      return await upload(path, contentType);
     } catch (err) {
-      throw new GenerateImageError(
-        `Failed to upload input image ${path}: ${describeFalError(err)}`
-      );
+      throw asGenerateImageError(err);
     }
   };
 }
@@ -331,7 +242,7 @@ export function createDefaultGenerateImageDeps(): GenerateImageDeps {
   return {
     env,
     falSubscribe: createFalSubscribe(env),
-    uploadFile: createFalUploadFile(env),
+    uploadFile: wrapUploadFile(env),
     fetchBytes,
     readFileBytes: async (path) => new Uint8Array(await readFile(path)),
     lookupPrices: (ids) => lookupFalUnitPrices(ids, pricingDeps),

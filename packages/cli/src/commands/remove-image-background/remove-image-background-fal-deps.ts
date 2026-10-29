@@ -12,8 +12,8 @@ import {
   MAX_FAL_RESULT_BYTES,
   type RemoveBackgroundFalDeps,
 } from './remove-image-background-fal.js';
-import { createFalRawSubscribe } from '../generate-image/deps.js';
 import { createDefaultFalPricingDeps, lookupFalUnitPrices } from '../generate-image/fal-pricing.js';
+import { createFalRawSubscribe } from '../image-shared/fal-client.js';
 import { readInstalledPackageVersion } from '../image-shared/package-version.js';
 import { createDefaultSliceImageDeps } from '../slice-image/slice-deps.js';
 
