@@ -857,7 +857,29 @@ describe('generate3d packaging', () => {
   });
 
   it('records advisory checks on the master and the web settings', async () => {
-    const deps = createDeps({ fetchGlb: vi.fn().mockResolvedValue(await boxGlb()) });
+    const webBytes = await boxGlb();
+    const deps = createDeps({
+      fetchGlb: vi.fn().mockResolvedValue(await boxGlb()),
+      createWebVariant: vi.fn().mockResolvedValue({
+        bytes: webBytes,
+        triangles: 1,
+        simplified: false,
+        skinnedPath: 'default',
+        textures: [],
+        extensionsUsed: [],
+        materials: [],
+        fit: {
+          origin: 'as-is' as const,
+          targetHeight: null,
+          scale: 1,
+          bounds: {
+            min: [0, 0, 0] as [number, number, number],
+            max: [0, 0, 0] as [number, number, number],
+          },
+        },
+        source: { triangles: 1, textures: [], extensionsUsed: [] },
+      }),
+    });
 
     await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
 
@@ -871,7 +893,10 @@ describe('generate3d packaging', () => {
         }),
       ])
     );
-    expect(variants[1]?.['settings']).toMatchObject({ checks: [] });
+    const settings = variants[1]?.['settings'] as { checks?: { id: string }[] };
+    expect(settings.checks).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'not-on-feet' })])
+    );
   });
 
   it('links the package files in the sidecar', async () => {

@@ -166,6 +166,8 @@ describe('applyFit', () => {
 
     await applyFit(doc, analysis, { origin: 'feet', targetHeight: 0.75 });
 
+    const after = await analyseDocument(doc);
+    expect(after.bounds.max[1] - after.bounds.min[1]).toBeCloseTo(0.75, 6);
     expect(skin?.listJoints()).toHaveLength(jointCount);
     expect(skin?.getInverseBindMatrices()?.getCount()).toBe(matrixCount);
     expect(jointCount).toBe(1);
