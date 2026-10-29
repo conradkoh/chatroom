@@ -157,6 +157,34 @@ async function meshoptCompressed(source: Uint8Array): Promise<Uint8Array> {
   return io.writeBinary(document);
 }
 
+/** A textured GLB with both metal and weak texels, so normalisation changes it. */
+async function mixedMetalGlb(): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0, 0.5, 0]))
+    .setBuffer(buffer);
+  const png = await sharp(Buffer.from([0, 128, 255, 255, 0, 128, 40, 255]), {
+    raw: { width: 2, height: 1, channels: 4 },
+  })
+    .png()
+    .toBuffer();
+  const texture = doc
+    .createTexture('mixed-metal')
+    .setImage(new Uint8Array(png))
+    .setMimeType('image/png');
+  const material = doc.createMaterial('mixed-material').setMetallicRoughnessTexture(texture);
+  const primitive = doc.createPrimitive().setAttribute('POSITION', positions).setMaterial(material);
+  const mesh = doc.createMesh('mixed-mesh').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('mixed-node').setMesh(mesh));
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  return io.writeBinary(doc);
+}
+
 /** The bytes a fake FLUX call or a fake local read returns. */
 const REFERENCE_PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -518,9 +546,10 @@ describe('generate3d', () => {
 
 describe('fit options', () => {
   it('writes the same master bytes with as-is as with no fit option', async () => {
-    const plain = createDeps();
+    const source = await mixedMetalGlb();
+    const plain = createDeps({ fetchGlb: vi.fn().mockResolvedValue(source) });
     await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, plain);
-    const asIs = createDeps();
+    const asIs = createDeps({ fetchGlb: vi.fn().mockResolvedValue(source) });
     await generate3d(
       { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, fit: { origin: 'as-is' } },
       asIs
@@ -608,6 +637,31 @@ describe('fit options', () => {
 });
 
 describe('generate3d packaging', () => {
+  it('hashes the written normalised master and keeps the fal source hash', async () => {
+    const source = await mixedMetalGlb();
+    const deps = createDeps({ fetchGlb: vi.fn().mockResolvedValue(source) });
+
+    const result = await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps);
+
+    const written = vi.mocked(deps.writeFile).mock.calls.find(([path]) => path === OUT_PATH)?.[1];
+    expect(written).toBeDefined();
+    const entries = vi.mocked(deps.zipPackage).mock.calls[0]?.[0] ?? [];
+    expect(entries.find((entry) => entry.path === 'hero.glb')?.bytes).toEqual(written);
+
+    const writtenSha = createHash('sha256')
+      .update(written ?? new Uint8Array())
+      .digest('hex');
+    const sourceSha = createHash('sha256').update(source).digest('hex');
+    const master = (zippedManifest(deps)['variants'] as Record<string, unknown>[])[0];
+    expect(master).toMatchObject({
+      bytes: written?.byteLength,
+      sha256: writtenSha,
+      sourceSha256: sourceSha,
+    });
+    expect(writtenSha).not.toBe(sourceSha);
+    expect(result.sha256).toBe(writtenSha);
+  });
+
   it('writes the zip with the master, the web variant, and a manifest', async () => {
     const deps = createDeps();
 
