@@ -190,7 +190,7 @@ describe('rebuildPreviewFromZip', () => {
     expect(html).toContain('48,984 master / 27,438 web');
     expect(html).toContain(WEB_SHA256);
     expect(html).toContain('chest.glb (in chest-20261028-011838.zip)');
-    expect(html).toContain('not standing on its base');
+    expect(html).toContain('Model&#39;s base is not at the origin');
     expect(html).toContain('data-lighting="studio" aria-pressed="true"');
     expect(html).toContain('data-directional-environment="data:image/png;base64,');
   });

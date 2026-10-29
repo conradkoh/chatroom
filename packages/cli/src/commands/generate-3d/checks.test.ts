@@ -122,6 +122,55 @@ describe('computeChecks', () => {
     expect(ids(metal)).not.toContain('glossy-non-metal');
   });
 
+  it('combines roughness factor with the textured mean for glossy non-metal', () => {
+    const glossy = computeChecks(
+      analysis({
+        materials: [
+          material({
+            metal: channel(0),
+            roughness: channel(0.5),
+            roughnessFactor: 0.5,
+          }),
+        ],
+      })
+    );
+    const rough = computeChecks(
+      analysis({
+        materials: [
+          material({
+            metal: channel(0),
+            roughness: channel(0.5),
+            roughnessFactor: 1,
+          }),
+        ],
+      })
+    );
+
+    expect(ids(glossy)).toContain('glossy-non-metal');
+    expect(glossy.find((check) => check.id === 'glossy-non-metal')?.message).toContain('mean 0.25');
+    expect(ids(rough)).not.toContain('glossy-non-metal');
+  });
+
+  it('checks the roughness factor directly for an untextured non-metal', () => {
+    const untextured = (roughnessFactor: number) =>
+      material({
+        metallicFactor: 0,
+        metal: null,
+        roughness: null,
+        hasMetallicRoughnessTexture: false,
+        roughnessFactor,
+      });
+
+    const glossy = computeChecks(analysis({ materials: [untextured(0.2)] }));
+    const rough = computeChecks(analysis({ materials: [untextured(0.8)] }));
+
+    expect(ids(glossy)).toContain('glossy-non-metal');
+    expect(glossy.find((check) => check.id === 'glossy-non-metal')?.message).toContain(
+      'factor 0.20'
+    );
+    expect(ids(rough)).not.toContain('glossy-non-metal');
+  });
+
   it('puts model checks before material checks in material order', () => {
     const checks = computeChecks(
       analysis({

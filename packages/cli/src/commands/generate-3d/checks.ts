@@ -10,6 +10,7 @@
  */
 
 import type { AssetAnalysis, ChannelStats } from './asset-analysis.js';
+import { NON_METAL_FRACTION_MAX } from './material-normalise.js';
 
 export type CheckId = 'metal-whole-texture' | 'flat' | 'not-on-feet' | 'glossy-non-metal';
 
@@ -35,8 +36,8 @@ export const CHECK_THRESHOLDS = {
   glossyRoughnessMean: 0.35,
 } as const;
 
-/** The metal fraction a material needs to count as non-metal. */
-const NON_METAL_FRACTION_MAX = 0.01;
+/** A non-metal material is below half metal when it has no texture. */
+const NON_METAL_FACTOR_MAX = 0.5;
 
 /** `2` for messages that quote the roughness mean. */
 function formatMean(mean: number): string {
@@ -95,31 +96,60 @@ function feetChecks(analysis: AssetAnalysis): AssetCheck[] {
       id: 'not-on-feet',
       severity: 'warning',
       materialIndex: null,
-      message:
-        'Model is centred on its origin, not standing on its base. Use --origin feet to move the base to the origin.',
+      message: `Model's base is not at the origin. Use --origin feet to move the base to the origin.`,
     },
   ];
 }
 
-/** True when a textured non-metal material is smooth enough to look glossy. */
-function isGlossyNonMetal(metal: ChannelStats, roughness: ChannelStats): boolean {
-  return (
-    metal.fractionAtLeastHalf < NON_METAL_FRACTION_MAX &&
-    roughness.mean < CHECK_THRESHOLDS.glossyRoughnessMean
-  );
+/** The effective roughness and the label the check should quote. */
+interface GlossyValue {
+  value: number;
+  label: 'mean' | 'factor';
+}
+
+/** A material with both metallic-roughness channel distributions. */
+type TexturedMaterial = AssetAnalysis['materials'][number] & {
+  metal: ChannelStats;
+  roughness: ChannelStats;
+};
+
+/** True when the analysis produced both channel distributions. */
+function hasChannels(material: AssetAnalysis['materials'][number]): material is TexturedMaterial {
+  return material.metal !== null && material.roughness !== null;
+}
+
+/** The textured branch: effective roughness from the map and the factor. */
+function texturedGlossy(material: AssetAnalysis['materials'][number]): GlossyValue | null {
+  if (!hasChannels(material)) return null;
+  if (material.metal.fractionAtLeastHalf >= NON_METAL_FRACTION_MAX) return null;
+  const value = material.roughness.mean * material.roughnessFactor;
+  return value < CHECK_THRESHOLDS.glossyRoughnessMean ? { value, label: 'mean' } : null;
+}
+
+/** The untextured branch: the factor itself is the roughness. */
+function untexturedGlossy(material: AssetAnalysis['materials'][number]): GlossyValue | null {
+  if (material.metallicFactor >= NON_METAL_FACTOR_MAX) return null;
+  return material.roughnessFactor < CHECK_THRESHOLDS.glossyRoughnessMean
+    ? { value: material.roughnessFactor, label: 'factor' }
+    : null;
+}
+
+/** The value to compare for `glossy-non-metal`, or null when it does not apply. */
+function glossyValue(material: AssetAnalysis['materials'][number]): GlossyValue | null {
+  return material.hasMetallicRoughnessTexture
+    ? texturedGlossy(material)
+    : untexturedGlossy(material);
 }
 
 /** `glossy-non-metal` for one non-metal material with low roughness. */
 function glossyFor(material: AssetAnalysis['materials'][number]): AssetCheck | null {
-  const metal = material.metal;
-  const roughness = material.roughness;
-  if (metal === null || roughness === null) return null;
-  if (!isGlossyNonMetal(metal, roughness)) return null;
+  const glossy = glossyValue(material);
+  if (glossy === null) return null;
   return {
     id: 'glossy-non-metal',
     severity: 'warning',
     materialIndex: material.index,
-    message: `Material ${material.index} is non-metal with low roughness (mean ${formatMean(roughness.mean)}); it may look glossy or metallic under light.`,
+    message: `Material ${material.index} is non-metal with low roughness (${glossy.label} ${formatMean(glossy.value)}); it may look glossy or metallic under light.`,
   };
 }
 

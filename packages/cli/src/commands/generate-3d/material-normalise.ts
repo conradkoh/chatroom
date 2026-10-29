@@ -15,9 +15,9 @@
  *
  * The function mutates the document it is given and returns one decision per
  * material; it never re-analyses. Decoding and re-encoding is lossless PNG, so
- * the roughness channel survives exactly. A texture used by more than one slot
- * or material is cloned before masking, so no other material or base-colour
- * output changes.
+ * the roughness channel survives exactly. A texture used by more than one
+ * material, or by a slot of another material, is cloned before masking, so no
+ * other material or base-colour output changes.
  */
 
 import type { Document, Material, Texture } from '@gltf-transform/core';
@@ -32,7 +32,6 @@ import {
 } from './asset-analysis.js';
 
 /** A material is non-metal when fewer than this fraction of its texels are metal. */
-// fallow-ignore-next-line unused-export
 export const NON_METAL_FRACTION_MAX = 0.01;
 
 /** Blue values below this byte become non-metal in a metal material (128/255 ≈ 0.5). */
@@ -86,7 +85,7 @@ function metallicRoughnessUseCounts(materials: readonly Material[]): Map<Texture
   return counts;
 }
 
-/** True when a texture has more than one slot or material referencing it. */
+/** True when a texture has more than one material or slot referencing it. */
 function isSharedTexture(texture: Texture): boolean {
   return texture.listParents().filter((parent) => parent.propertyType !== 'Root').length > 1;
 }

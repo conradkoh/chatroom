@@ -185,6 +185,13 @@ describe('renderPreviewHtml', () => {
     expect(renderPreviewHtml(INPUT)).toContain('No issues found.');
   });
 
+  it('uses the base colour factor as the unlit emissive tint', () => {
+    const html = renderPreviewHtml(INPUT);
+
+    expect(html).toContain('material.setEmissiveFactor(state.baseColorFactor.slice(0, 3))');
+    expect(html).not.toContain('base ? [1, 1, 1]');
+  });
+
   it('shows a checks note instead of warnings', () => {
     const html = renderPreviewHtml({
       ...INPUT,

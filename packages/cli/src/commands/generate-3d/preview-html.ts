@@ -313,9 +313,7 @@ ${lightingButtons}
         pbr.setRoughnessFactor(1);
         material.setEmissiveStrength(1);
         material.emissiveTexture.setTexture(base);
-        material.setEmissiveFactor(
-          base ? [1, 1, 1] : state.baseColorFactor.slice(0, 3)
-        );
+        material.setEmissiveFactor(state.baseColorFactor.slice(0, 3));
       } else if (saved) {
         pbr.setBaseColorFactor(saved.baseColorFactor);
         pbr.setMetallicFactor(saved.metallicFactor);
