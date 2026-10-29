@@ -29,6 +29,7 @@ import {
   type Generate3dDeps,
   type GenerateReferenceImageRequest,
 } from './deps.js';
+import { applyFit, type FitOptions, type FitResult } from './fit.js';
 import { normaliseMaterials, type MaterialDecision } from './material-normalise.js';
 import {
   DEFAULT_GENERATE_3D_MODEL_ID,
@@ -83,6 +84,11 @@ export interface Generate3dOptions {
   animationActionIds?: readonly string[] | undefined;
   /** Directory for the package zip and preview; defaults to the directory of `out`. */
   packageDir?: string | undefined;
+  /**
+   * Optional origin and height fit applied to the master, the web variant, and
+   * every rig output. Undefined leaves the model exactly as generated.
+   */
+  fit?: FitOptions | undefined;
   /**
    * Extra fal request fields (`--input`), merged over the model adapter's
    * defaults. This is how model-specific fields reach a model the registry does
@@ -227,6 +233,8 @@ interface Generate3dPackageVariant {
   sourceSha256?: string;
   /** Master only: one normalisation decision per material. */
   materials?: MaterialDecision[];
+  /** Master only: the origin/height fit applied to the document. */
+  fit?: FitResult;
   /**
    * Present on the web variant only. `textureFormat` is the default:
    * alpha-bound colour maps stay PNG, and `textures[].mimeType` is the
@@ -245,6 +253,8 @@ interface Generate3dPackageVariant {
     skinnedPath?: 'non-destructive' | 'default';
     /** What material normalisation decided for the web document. */
     materials: MaterialDecision[];
+    /** The origin/height fit applied to the web document. */
+    fit: FitResult;
   };
 }
 
@@ -308,6 +318,8 @@ export interface Generate3dPlan {
   modelWarning?: string | undefined;
   /** True when the caller passed `--confirm-cost`. */
   confirmCost: boolean;
+  /** Optional origin and height fit; undefined leaves the output untouched. */
+  fit?: FitOptions | undefined;
   /** Master file name without its `.glb` suffix; used for the zip entries. */
   stem: string;
   /** Directory the package zip and preview are written to. */
@@ -1216,6 +1228,7 @@ export async function planGenerate3d(
     inputKeys: Object.keys(opts.extraInput ?? {}),
     modelWarning: modelWarningFor(model),
     confirmCost: opts.confirmCost === true,
+    fit: opts.fit,
     ...naming,
   };
 }
@@ -1294,6 +1307,14 @@ function confirmationLines(plan: Generate3dPlan): string[] {
   return plan.riggingRequest !== null && !plan.confirmCost ? ['Add --confirm-cost to run.'] : [];
 }
 
+/** The optional fit settings, applied to the master, web, and rig outputs. */
+function fitLines(plan: Generate3dPlan): string[] {
+  if (plan.fit === undefined) return [];
+  const height =
+    plan.fit.targetHeight === undefined ? 'no scale' : `target height ${plan.fit.targetHeight} m`;
+  return [`Fit: ${height}, origin ${plan.fit.origin} (master, web, and rig outputs)`];
+}
+
 export function formatGenerate3dPlan(plan: Generate3dPlan): string {
   return [
     `Would generate ${plan.outPath}`,
@@ -1302,6 +1323,7 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
     `Preview ${plan.htmlPath}`,
     ...planModelLines(plan),
     ...modelWarningLines(plan),
+    ...fitLines(plan),
     ...formatReferencePlan(plan),
     'Request:',
     JSON.stringify(plan.input, null, 2),
@@ -1421,20 +1443,45 @@ function riggingFailure(args: {
   );
 }
 
-/** Download one rigged or clip GLB and save it; failures name the file. */
+/** Apply the optional in-memory transform to a downloaded GLB. */
+async function prepareDownloadedGlb(args: {
+  downloaded: Uint8Array;
+  prepare: ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined;
+  label: string;
+  url: string;
+  fail: (detail: string) => Generate3dError;
+}): Promise<Uint8Array> {
+  if (args.prepare === undefined) return args.downloaded;
+  try {
+    return await args.prepare(args.downloaded);
+  } catch (err) {
+    throw args.fail(`Failed to fit ${args.label} (${args.url}): ${describeError(err)}`);
+  }
+}
+
+/** Download one rigged or clip GLB, fit it when requested, and save it. */
 async function downloadAndSaveGlb(args: {
   deps: Generate3dDeps;
   url: string;
   path: string;
   label: string;
   fail: (detail: string) => Generate3dError;
+  /** Optional in-memory transform (the origin/height fit). */
+  prepare?: ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined;
 }): Promise<Uint8Array> {
-  let bytes: Uint8Array;
+  let downloaded: Uint8Array;
   try {
-    bytes = await args.deps.fetchGlb(args.url);
+    downloaded = await args.deps.fetchGlb(args.url);
   } catch (err) {
     throw args.fail(`Failed to download ${args.label} (${args.url}): ${describeError(err)}`);
   }
+  const bytes = await prepareDownloadedGlb({
+    downloaded,
+    prepare: args.prepare,
+    label: args.label,
+    url: args.url,
+    fail: args.fail,
+  });
   try {
     await args.deps.writeFile(args.path, bytes);
   } catch (err) {
@@ -1448,7 +1495,8 @@ async function downloadAnimations(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
   output: RiggingOutput,
-  fail: (detail: string) => Generate3dError
+  fail: (detail: string) => Generate3dError,
+  prepare: ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined
 ): Promise<{ section: Generate3dRiggingManifest['animations']; bytes: AnimationFile[] }> {
   const animations: Generate3dRiggingManifest['animations'] = [];
   const files: AnimationFile[] = [];
@@ -1463,6 +1511,7 @@ async function downloadAnimations(
       path: planned.path,
       label: `animation clip ${animation.actionId}`,
       fail,
+      prepare,
     });
     files.push({ actionId: animation.actionId, path: planned.path, bytes });
     animations.push({
@@ -1516,14 +1565,17 @@ async function runRigging(
     throw fail(describeError(err));
   }
 
+  const prepare = fitPrepare(plan.fit);
+
   const riggedBytes = await downloadAndSaveGlb({
     deps,
     url: output.riggedGlbUrl,
     path: riggedGlbPath,
     label: 'rigged GLB',
     fail,
+    prepare,
   });
-  const animations = await downloadAnimations(plan, deps, output, fail);
+  const animations = await downloadAnimations(plan, deps, output, fail, prepare);
 
   return {
     section: {
@@ -1606,7 +1658,7 @@ async function buildOneRigFile(
   try {
     // The bare cause only: the package-failure wrapper would add an absolute
     // path, and the manifest records this string.
-    const web = await deps.createWebVariant(file.bytes, WEB_VARIANT_OPTIONS);
+    const web = await deps.createWebVariant(file.bytes, webVariantOptions(plan));
     return { packaged: { ...file, ...names, web, webError: null }, message: null };
   } catch (err) {
     // Keep the raw file: it is paid for, and the package must still ship it.
@@ -1737,6 +1789,7 @@ function buildMasterVariant(args: {
   masterSha256: string;
   sourceSha256: string;
   materials: MaterialDecision[];
+  fit: FitResult;
   source: GlbStats;
 }): Generate3dPackageVariant {
   return {
@@ -1746,6 +1799,7 @@ function buildMasterVariant(args: {
     sha256: args.masterSha256,
     sourceSha256: args.sourceSha256,
     materials: args.materials,
+    fit: args.fit,
     triangles: args.source.triangles,
     textures: args.source.textures,
     extensionsUsed: args.source.extensionsUsed,
@@ -1770,6 +1824,7 @@ function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['set
     simplified: web.simplified,
     skinnedPath: web.skinnedPath,
     materials: web.materials,
+    fit: web.fit,
   };
 }
 
@@ -1840,6 +1895,8 @@ function buildPackageManifest(args: {
   masterSourceSha256: string;
   /** Material decisions for the normalised master, in material order. */
   masterMaterials: MaterialDecision[];
+  /** The fit applied to the master document. */
+  masterFit: FitResult;
   web: WebVariant;
   /** SHA-256 of the web variant bytes; also shown by the preview. */
   webSha256: string;
@@ -1871,6 +1928,7 @@ function buildPackageManifest(args: {
         masterSha256: args.masterSha256,
         sourceSha256: args.masterSourceSha256,
         materials: args.masterMaterials,
+        fit: args.masterFit,
         source: args.web.source,
       }),
       buildWebVariantEntry(args.stem, args.web, args.webSha256),
@@ -1932,13 +1990,18 @@ const WEB_VARIANT_OPTIONS = {
   dataQuality: WEB_VARIANT_DATA_TEXTURE_QUALITY,
 };
 
+/** Web-variant options with the plan's fit, when one was requested. */
+function webVariantOptions(plan: Generate3dPlan) {
+  return plan.fit === undefined ? WEB_VARIANT_OPTIONS : { ...WEB_VARIANT_OPTIONS, fit: plan.fit };
+}
+
 async function buildWebVariant(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
   masterBytes: Uint8Array
 ): Promise<WebVariant> {
   try {
-    return await deps.createWebVariant(masterBytes, WEB_VARIANT_OPTIONS);
+    return await deps.createWebVariant(masterBytes, webVariantOptions(plan));
   } catch (err) {
     throw packageFailure(plan, 'build the web variant', err);
   }
@@ -2065,6 +2128,7 @@ async function writePackage(args: {
     masterSha256: master.sha256,
     masterSourceSha256: master.sourceSha256,
     masterMaterials: master.materials,
+    masterFit: master.fit,
     web,
     webSha256,
     stem: plan.stem,
@@ -2211,6 +2275,8 @@ interface MasterOutput {
   sourceSha256: string;
   /** What material normalisation changed, in material order. */
   materials: MaterialDecision[];
+  /** The origin/height fit applied to the master. */
+  fit: FitResult;
   requestId: string;
   inputImage: { source: string; url: string } | null;
   /** The fal GLB URL, needed by the rigging step. */
@@ -2230,24 +2296,52 @@ async function ensureOutputDirs(plan: Generate3dPlan, deps: Generate3dDeps): Pro
   await deps.ensureParentDir(plan.zipPath);
 }
 
+/** The optional byte transform that fits each downloaded rig output. */
+function fitPrepare(
+  fit: FitOptions | undefined
+): ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined {
+  return fit === undefined ? undefined : (bytes) => fitGlbWithOptions(bytes, fit);
+}
+
 /**
- * Normalise a master GLB in memory.
+ * Fit a GLB in memory, for a rig output that arrives as bytes rather than as a
+ * parsed document. No material normalisation runs here: the fit is the only
+ * change this path makes.
+ */
+async function fitGlbWithOptions(glb: Uint8Array, fit: FitOptions): Promise<Uint8Array> {
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  const document = await io.readBinary(glb);
+  const analysis = await analyseDocument(document);
+  await applyFit(document, analysis, fit);
+  return io.writeBinary(document);
+}
+
+/**
+ * Normalise a master GLB in memory and apply the optional fit.
  *
  * The reader is the same one the web pipeline uses, so every extension fal can
  * return is understood; meshopt-compressed geometry is decoded on read. The
  * document is written back once, which keeps the master on disk and in the zip
- * identical to what the preview embeds.
+ * identical to what the preview embeds. With no fit requested, `applyFit` is
+ * skipped, so the default bytes match the pre-fit pipeline.
  */
 async function normaliseMasterGlb(
-  glb: Uint8Array
-): Promise<{ bytes: Uint8Array; materials: MaterialDecision[] }> {
+  glb: Uint8Array,
+  fit: FitOptions | undefined
+): Promise<{ bytes: Uint8Array; materials: MaterialDecision[]; fit: FitResult }> {
   const io = new NodeIO()
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
   const document = await io.readBinary(glb);
   const analysis = await analyseDocument(document);
   const materials = await normaliseMaterials(document, analysis);
-  return { bytes: await io.writeBinary(document), materials };
+  const fitResult =
+    fit === undefined
+      ? { origin: 'as-is' as const, targetHeight: null, scale: 1, bounds: analysis.bounds }
+      : await applyFit(document, analysis, fit);
+  return { bytes: await io.writeBinary(document), materials, fit: fitResult };
 }
 
 /**
@@ -2277,7 +2371,7 @@ async function generateMaster(
   // Normalise before the bytes are written, hashed, zipped, or handed to the
   // web and rig steps: every downstream consumer sees the same master.
   const normalised = await withRecovery('normalise materials in', recovery, () =>
-    normaliseMasterGlb(sourceBytes)
+    normaliseMasterGlb(sourceBytes, plan.fit)
   );
   await withRecovery('save', recovery, () => deps.writeFile(plan.outPath, normalised.bytes));
 
@@ -2306,6 +2400,7 @@ async function generateMaster(
     sha256,
     sourceSha256,
     materials: normalised.materials,
+    fit: normalised.fit,
     requestId: result.requestId,
     inputImage,
     glbUrl: output.glbUrl,

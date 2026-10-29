@@ -37,6 +37,7 @@ import type { CompressTextureOptions } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptSimplifier } from 'meshoptimizer';
 
 import { analyseDocument } from './asset-analysis.js';
+import { applyFit, type FitOptions, type FitResult } from './fit.js';
 import { normaliseMaterials, type MaterialDecision } from './material-normalise.js';
 import { Generate3dError } from './model-registry.js';
 
@@ -49,6 +50,8 @@ export interface WebVariantOptions {
   quality: number;
   /** Encoder quality for data textures: metallic-roughness, occlusion, normal. */
   dataQuality: number;
+  /** Optional origin and height fit, applied after material normalisation. */
+  fit?: FitOptions | undefined;
 }
 
 export interface WebVariantTexture {
@@ -81,6 +84,8 @@ export interface WebVariant extends GlbStats {
   source: GlbStats;
   /** What the material normalisation decided for this document. */
   materials: MaterialDecision[];
+  /** The origin/height fit applied to this document. */
+  fit: FitResult;
 }
 
 /** glTF-Transform logs every prune/dedup decision to the console by default. */
@@ -372,6 +377,7 @@ export async function createWebVariant(
   // and so the compressed web map already has the corrected blue channel.
   const analysis = await analyseDocument(document);
   const materials = await normaliseMaterials(document, analysis);
+  const fit = await applyFit(document, analysis, opts.fit ?? { origin: 'as-is' });
   await compressTextures({
     document,
     compressTexture,
@@ -389,5 +395,6 @@ export async function createWebVariant(
     skinnedPath: geometry.skinnedPath,
     source,
     materials,
+    fit,
   };
 }

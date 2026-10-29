@@ -83,7 +83,7 @@ const EMPTY_STATS: ChannelStats = {
 type SharpFactory = typeof sharp;
 
 /** One scene's AABB, as returned by glTF-Transform's `getBounds`. */
-interface SceneBounds {
+export interface SceneBounds {
   min: readonly [number, number, number];
   max: readonly [number, number, number];
 }
@@ -156,7 +156,7 @@ function isFiniteBox(min: readonly number[], max: readonly number[]): boolean {
 }
 
 /** Merge scene AABBs into one; a document with no finite bounds reports zeros. */
-function mergeBounds(boxes: readonly SceneBounds[]): AssetAnalysis['bounds'] {
+export function mergeBounds(boxes: readonly SceneBounds[]): AssetAnalysis['bounds'] {
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
   for (const box of boxes) {

@@ -174,6 +174,8 @@ describe('chatroom generate-3d wiring', () => {
       '--prompt',
       '--input-image',
       '--force',
+      '--target-height',
+      '--origin',
       '--rig',
       '--animation-action-id',
       '--package-dir',
@@ -218,6 +220,10 @@ describe('chatroom generate-3d wiring', () => {
     expect(afterHelp).toContain('scaled-down web variant');
     expect(afterHelp).toContain('chatroom generate-3d preview <base>.zip');
     expect(afterHelp).toContain('without contacting fal');
+    expect(afterHelp).toContain(
+      '--target-height and --origin apply to the master, the web variant'
+    );
+    expect(afterHelp).toContain('rig output');
     expect(afterHelp).toContain('<base> is <out-stem>-<timestamp>');
     expect(command?.options.map((option) => option.long)).not.toContain('--name');
   });
@@ -336,6 +342,67 @@ describe('chatroom generate-3d wiring', () => {
       out: '/tmp/x.glb',
       force: true,
     });
+  });
+
+  it('forwards --target-height and --origin as one fit option', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'meshy/v7.1/text-to-3d',
+      '--prompt',
+      'a knight',
+      '--out',
+      '/tmp/x.glb',
+      '--target-height',
+      '0.75',
+      '--origin',
+      'feet',
+    ]);
+
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({
+      fit: { origin: 'feet', targetHeight: 0.75 },
+    });
+  });
+
+  it('leaves fit undefined for the default as-is origin', async () => {
+    const program = createProgram();
+
+    await parse(program, [
+      '--model',
+      'meshy/v7.1/text-to-3d',
+      '--prompt',
+      'a knight',
+      '--out',
+      '/tmp/x.glb',
+    ]);
+
+    expect(generate3dMock.mock.calls[0]?.[0]).toMatchObject({ fit: undefined });
+  });
+
+  it.each([
+    ['--target-height', '0'],
+    ['--target-height', '-1'],
+    ['--target-height', 'abc'],
+    ['--target-height', 'NaN'],
+    ['--origin', 'nope'],
+  ])('rejects %s %s before running the generator', async (flag, value) => {
+    const program = createProgram();
+
+    await expect(
+      parse(program, [
+        '--model',
+        'meshy/v7.1/text-to-3d',
+        '--prompt',
+        'a knight',
+        '--out',
+        '/tmp/x.glb',
+        flag,
+        value,
+      ])
+    ).rejects.toMatchObject({ code: 'commander.invalidArgument' });
+    expect(generate3dMock).not.toHaveBeenCalled();
+    expect(planGenerate3dMock).not.toHaveBeenCalled();
   });
 
   it('forwards the image options', async () => {

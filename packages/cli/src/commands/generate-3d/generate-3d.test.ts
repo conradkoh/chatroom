@@ -14,6 +14,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { analyseDocument } from './asset-analysis.js';
 import { createDefaultGenerate3dDeps, type Generate3dDeps } from './deps.js';
 import {
   formatGenerate3dPlan,
@@ -52,6 +53,24 @@ async function emptyGlb(): Promise<Uint8Array> {
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
   return io.writeBinary(new Document());
+}
+
+/** A triangle 1 m tall, so a fit can be measured without any texture work. */
+async function boxGlb(): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0, 0.5, 0]))
+    .setBuffer(buffer);
+  const primitive = doc.createPrimitive().setAttribute('POSITION', positions);
+  const mesh = doc.createMesh('box').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('box-node').setMesh(mesh));
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  return io.writeBinary(doc);
 }
 
 /** The bytes a fake FLUX call or a fake local read returns. */
@@ -410,6 +429,48 @@ describe('generate3d', () => {
     expect(deps.fetchGlb).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
     expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+});
+
+describe('fit options', () => {
+  it('writes the same master bytes with as-is as with no fit option', async () => {
+    const plain = createDeps();
+    await generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, plain);
+    const asIs = createDeps();
+    await generate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, fit: { origin: 'as-is' } },
+      asIs
+    );
+
+    const masterBytes = (deps: Generate3dDeps) =>
+      vi.mocked(deps.writeFile).mock.calls.find(([path]) => path === OUT_PATH)?.[1];
+
+    expect(masterBytes(asIs)).toEqual(masterBytes(plain));
+  });
+
+  it('shows the fit settings in the dry-run plan', async () => {
+    const plan = await planGenerate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        fit: { origin: 'feet', targetHeight: 0.75 },
+      },
+      createDeps()
+    );
+
+    const text = formatGenerate3dPlan(plan);
+
+    expect(text).toContain('Fit: target height 0.75 m, origin feet (master, web, and rig outputs)');
+  });
+
+  it('omits the fit line when no fit is requested', async () => {
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH },
+      createDeps()
+    );
+
+    expect(formatGenerate3dPlan(plan)).not.toContain('Fit:');
   });
 });
 
@@ -1141,6 +1202,43 @@ describe('capability checks', () => {
 });
 
 describe('generate3d --rig', () => {
+  it('fits the rigged output and passes the fit to every web variant', async () => {
+    const deps = createRigDeps(RIGGING_FIXTURE, {
+      fetchGlb: vi.fn().mockResolvedValue(await boxGlb()),
+    });
+    const fit = { origin: 'feet' as const, targetHeight: 0.75 };
+
+    await generate3d(
+      {
+        model: MESHY_TEXT,
+        prompt: 'a knight',
+        out: OUT_PATH,
+        rig: true,
+        confirmCost: true,
+        fit,
+      },
+      deps
+    );
+
+    const riggedWrite = vi
+      .mocked(deps.writeFile)
+      .mock.calls.find(([path]) => path === RIGGED_OUT_PATH);
+    expect(riggedWrite).toBeDefined();
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+    const analysis = await analyseDocument(
+      await io.readBinary(riggedWrite?.[1] ?? new Uint8Array())
+    );
+    expect(analysis.bounds.min[1]).toBeCloseTo(0, 6);
+    expect(analysis.bounds.max[1] - analysis.bounds.min[1]).toBeCloseTo(0.75, 6);
+
+    expect(vi.mocked(deps.createWebVariant).mock.calls.length).toBeGreaterThan(0);
+    for (const [, options] of vi.mocked(deps.createWebVariant).mock.calls) {
+      expect(options).toMatchObject({ fit });
+    }
+  });
+
   it('rigs the generated mesh, writes the rigged GLB, and adds the manifest section', async () => {
     const deps = createRigDeps();
 
@@ -1363,6 +1461,15 @@ describe('generate3d --rig', () => {
           textures: WEB_TEXTURES,
           extensionsUsed: [],
           materials: [],
+          fit: {
+            origin: 'as-is' as const,
+            targetHeight: null,
+            scale: 1,
+            bounds: {
+              min: [0, 0, 0] as [number, number, number],
+              max: [0, 0, 0] as [number, number, number],
+            },
+          },
           source: { triangles: 27_438, textures: SOURCE_TEXTURES, extensionsUsed: [] },
         };
       }),
