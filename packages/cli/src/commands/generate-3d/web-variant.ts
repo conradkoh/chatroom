@@ -36,6 +36,8 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import type { CompressTextureOptions } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptSimplifier } from 'meshoptimizer';
 
+import { analyseDocument } from './asset-analysis.js';
+import { normaliseMaterials, type MaterialDecision } from './material-normalise.js';
 import { Generate3dError } from './model-registry.js';
 
 export interface WebVariantOptions {
@@ -77,6 +79,8 @@ export interface WebVariant extends GlbStats {
    * web variant's.
    */
   source: GlbStats;
+  /** What the material normalisation decided for this document. */
+  materials: MaterialDecision[];
 }
 
 /** glTF-Transform logs every prune/dedup decision to the console by default. */
@@ -364,6 +368,10 @@ export async function createWebVariant(
     simplifyAt: (ratio) =>
       simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.01, lockBorder: true }),
   });
+  // Normalise before texture compression so each texture is encoded only once,
+  // and so the compressed web map already has the corrected blue channel.
+  const analysis = await analyseDocument(document);
+  const materials = await normaliseMaterials(document, analysis);
   await compressTextures({
     document,
     compressTexture,
@@ -380,5 +388,6 @@ export async function createWebVariant(
     simplified: geometry.simplified,
     skinnedPath: geometry.skinnedPath,
     source,
+    materials,
   };
 }

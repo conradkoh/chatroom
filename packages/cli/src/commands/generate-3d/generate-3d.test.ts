@@ -9,6 +9,9 @@
 
 import { createHash } from 'node:crypto';
 
+import { Document, NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createDefaultGenerate3dDeps, type Generate3dDeps } from './deps.js';
@@ -41,8 +44,15 @@ const ANIM_0_URL = 'https://fal.test/anim/hero.anim-0.glb';
 const ANIM_92_URL = 'https://fal.test/anim/hero.anim-92.glb';
 const RIGGING_REQUEST_ID = 'rig-456';
 
-/** GLB magic "glTF" followed by version 2 and no body. */
-const GLB_BYTES = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00]);
+/** A minimal valid GLB (empty scene); the normaliser round-trips it unchanged. */
+const GLB_BYTES = await emptyGlb();
+
+async function emptyGlb(): Promise<Uint8Array> {
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  return io.writeBinary(new Document());
+}
 
 /** The bytes a fake FLUX call or a fake local read returns. */
 const REFERENCE_PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -1352,6 +1362,7 @@ describe('generate3d --rig', () => {
           skinnedPath: 'default' as const,
           textures: WEB_TEXTURES,
           extensionsUsed: [],
+          materials: [],
           source: { triangles: 27_438, textures: SOURCE_TEXTURES, extensionsUsed: [] },
         };
       }),
@@ -1776,7 +1787,10 @@ describe('createDefaultGenerate3dDeps().fetchGlb', () => {
   });
 
   it('accepts a body that starts with the glTF magic', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(GLB_BYTES, { status: 200 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(Buffer.from(GLB_BYTES), { status: 200 }))
+    );
 
     const bytes = await createDefaultGenerate3dDeps().fetchGlb(GLB_URL);
 

@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-file
-// This slice adds the analysis API; the material-fix slices import it.
 /**
  * Generate 3D — geometry bounds and material statistics for a master GLB.
  *
@@ -124,6 +122,7 @@ function countInRange(histogram: Uint32Array, first: number, last: number): numb
  * The buffer must be RGBA (`sharp(...).ensureAlpha().raw()`), so every fourth
  * byte belongs to the requested channel.
  */
+// fallow-ignore-next-line unused-export
 export function channelStats(
   pixels: Uint8Array | Uint8ClampedArray,
   channel: 0 | 1 | 2

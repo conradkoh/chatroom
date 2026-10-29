@@ -19,11 +19,17 @@
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 
+import { NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
+
+import { analyseDocument } from './asset-analysis.js';
 import {
   buildReferenceImageRequest,
   type Generate3dDeps,
   type GenerateReferenceImageRequest,
 } from './deps.js';
+import { normaliseMaterials, type MaterialDecision } from './material-normalise.js';
 import {
   DEFAULT_GENERATE_3D_MODEL_ID,
   Generate3dError,
@@ -168,7 +174,10 @@ export interface Generate3dManifest {
   requestId: string;
   output: {
     path: string;
+    /** SHA-256 of the bytes written to `path`, after material normalisation. */
     sha256: string;
+    /** SHA-256 of the bytes fal returned, before material normalisation. */
+    sourceSha256: string;
     bytes: number;
     contentType: string;
   };
@@ -212,9 +221,16 @@ interface Generate3dPackageVariant {
   textures?: { width: number; height: number; mimeType: string }[];
   extensionsUsed?: string[];
   /**
-   * Present on the web variant only; the master is whatever fal returned.
-   * `textureFormat` is the default: alpha-bound colour maps stay PNG, and
-   * `textures[].mimeType` is the per-texture truth.
+   * Master only: SHA-256 of the bytes fal returned, before material
+   * normalisation. `sha256` is the hash of the bytes actually in the zip.
+   */
+  sourceSha256?: string;
+  /** Master only: one normalisation decision per material. */
+  materials?: MaterialDecision[];
+  /**
+   * Present on the web variant only. `textureFormat` is the default:
+   * alpha-bound colour maps stay PNG, and `textures[].mimeType` is the
+   * per-texture truth.
    */
   settings?: {
     maxTexturePx: number;
@@ -227,6 +243,8 @@ interface Generate3dPackageVariant {
     simplified: boolean;
     /** `non-destructive` when weld and simplify were skipped for a skin. */
     skinnedPath?: 'non-destructive' | 'default';
+    /** What material normalisation decided for the web document. */
+    materials: MaterialDecision[];
   };
 }
 
@@ -1339,6 +1357,7 @@ function buildManifest(args: {
   requestId: string;
   outPath: string;
   sha256: string;
+  sourceSha256: string;
   byteLength: number;
   textureUrls: string[];
   generatedAt: string;
@@ -1357,6 +1376,7 @@ function buildManifest(args: {
     output: {
       path: args.outPath,
       sha256: args.sha256,
+      sourceSha256: args.sourceSha256,
       bytes: args.byteLength,
       contentType: GLB_CONTENT_TYPE,
     },
@@ -1710,11 +1730,13 @@ function rigVariants(files: readonly RigFilePackage[]): Generate3dPackageVariant
   return variants;
 }
 
-/** The master variant entry: what fal returned, unchanged. */
+/** The master variant entry: normalised locally, with fal's original hash kept. */
 function buildMasterVariant(args: {
   stem: string;
   masterBytes: Uint8Array;
   masterSha256: string;
+  sourceSha256: string;
+  materials: MaterialDecision[];
   source: GlbStats;
 }): Generate3dPackageVariant {
   return {
@@ -1722,6 +1744,8 @@ function buildMasterVariant(args: {
     file: `${args.stem}.glb`,
     bytes: args.masterBytes.byteLength,
     sha256: args.masterSha256,
+    sourceSha256: args.sourceSha256,
+    materials: args.materials,
     triangles: args.source.triangles,
     textures: args.source.textures,
     extensionsUsed: args.source.extensionsUsed,
@@ -1745,6 +1769,7 @@ function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['set
     triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
     simplified: web.simplified,
     skinnedPath: web.skinnedPath,
+    materials: web.materials,
   };
 }
 
@@ -1811,6 +1836,10 @@ function buildPackageManifest(args: {
   inputImage: { source: string; url: string } | null;
   masterBytes: Uint8Array;
   masterSha256: string;
+  /** SHA-256 of the bytes fal returned, before normalisation. */
+  masterSourceSha256: string;
+  /** Material decisions for the normalised master, in material order. */
+  masterMaterials: MaterialDecision[];
   web: WebVariant;
   /** SHA-256 of the web variant bytes; also shown by the preview. */
   webSha256: string;
@@ -1840,6 +1869,8 @@ function buildPackageManifest(args: {
         stem: args.stem,
         masterBytes: args.masterBytes,
         masterSha256: args.masterSha256,
+        sourceSha256: args.masterSourceSha256,
+        materials: args.masterMaterials,
         source: args.web.source,
       }),
       buildWebVariantEntry(args.stem, args.web, args.webSha256),
@@ -2032,6 +2063,8 @@ async function writePackage(args: {
     inputImage: master.inputImage,
     masterBytes: master.bytes,
     masterSha256: master.sha256,
+    masterSourceSha256: master.sourceSha256,
+    masterMaterials: master.materials,
     web,
     webSha256,
     stem: plan.stem,
@@ -2172,7 +2205,12 @@ export interface RigBundle {
 /** What one paid generation produced, before rigging and packaging. */
 interface MasterOutput {
   bytes: Uint8Array;
+  /** SHA-256 of the normalised bytes written to `--out`. */
   sha256: string;
+  /** SHA-256 of the bytes fal returned, before normalisation. */
+  sourceSha256: string;
+  /** What material normalisation changed, in material order. */
+  materials: MaterialDecision[];
   requestId: string;
   inputImage: { source: string; url: string } | null;
   /** The fal GLB URL, needed by the rigging step. */
@@ -2190,6 +2228,26 @@ interface MasterOutput {
 async function ensureOutputDirs(plan: Generate3dPlan, deps: Generate3dDeps): Promise<void> {
   await deps.ensureParentDir(plan.outPath);
   await deps.ensureParentDir(plan.zipPath);
+}
+
+/**
+ * Normalise a master GLB in memory.
+ *
+ * The reader is the same one the web pipeline uses, so every extension fal can
+ * return is understood; meshopt-compressed geometry is decoded on read. The
+ * document is written back once, which keeps the master on disk and in the zip
+ * identical to what the preview embeds.
+ */
+async function normaliseMasterGlb(
+  glb: Uint8Array
+): Promise<{ bytes: Uint8Array; materials: MaterialDecision[] }> {
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  const document = await io.readBinary(glb);
+  const analysis = await analyseDocument(document);
+  const materials = await normaliseMaterials(document, analysis);
+  return { bytes: await io.writeBinary(document), materials };
 }
 
 /**
@@ -2215,10 +2273,16 @@ async function generateMaster(
   const result = await deps.falSubscribe(plan.model.id, input);
   const output = readModelOutput(plan.model, result.data, result.requestId);
   const recovery = { requestId: result.requestId, url: output.glbUrl };
-  const bytes = await withRecovery('download', recovery, () => deps.fetchGlb(output.glbUrl));
-  await withRecovery('save', recovery, () => deps.writeFile(plan.outPath, bytes));
+  const sourceBytes = await withRecovery('download', recovery, () => deps.fetchGlb(output.glbUrl));
+  // Normalise before the bytes are written, hashed, zipped, or handed to the
+  // web and rig steps: every downstream consumer sees the same master.
+  const normalised = await withRecovery('normalise materials in', recovery, () =>
+    normaliseMasterGlb(sourceBytes)
+  );
+  await withRecovery('save', recovery, () => deps.writeFile(plan.outPath, normalised.bytes));
 
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex');
+  const sha256 = createHash('sha256').update(normalised.bytes).digest('hex');
   const manifest = buildManifest({
     model: plan.model,
     input,
@@ -2226,7 +2290,8 @@ async function generateMaster(
     requestId: result.requestId,
     outPath: plan.outPath,
     sha256,
-    byteLength: bytes.byteLength,
+    sourceSha256,
+    byteLength: normalised.bytes.byteLength,
     textureUrls: output.textureUrls,
     referenceImage: buildReferenceManifest(plan, reference, inputImage),
     generatedAt: deps.now().toISOString(),
@@ -2237,8 +2302,10 @@ async function generateMaster(
   await deps.writeJson(plan.manifestPath, manifest);
 
   return {
-    bytes,
+    bytes: normalised.bytes,
     sha256,
+    sourceSha256,
+    materials: normalised.materials,
     requestId: result.requestId,
     inputImage,
     glbUrl: output.glbUrl,
