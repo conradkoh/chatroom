@@ -1,10 +1,12 @@
 /**
  * Generate 3D — the standalone preview page for a package.
  *
- * The page is written beside `<base>.zip` as `<base>.html` and previews the
- * **web** variant, not the master: it is the smaller file, and it is the one the
- * package expects a browser to load. The GLB is embedded as a base64 `data:` URI
- * so the page opens from `file://` with no server and no sibling files.
+ * The page is written beside `<base>.zip` as `<base>.html` and previews both
+ * variants the package holds: the master (full-resolution mesh and textures) and
+ * the web variant (simplified mesh, scaled-down textures). The web variant is
+ * selected by default because it is the smaller file and the one the package
+ * expects a browser to load. Both GLBs are embedded as base64 `data:` URIs so
+ * the page opens from `file://` with no server and no sibling files.
  *
  * The viewer is the only remote asset, pinned to one published version and
  * guarded by a subresource-integrity hash, so a changed CDN response is refused
@@ -21,7 +23,9 @@ export interface PreviewHtmlInput {
   modelId: string;
   prompt: string | null;
   requestId: string;
-  /** The web variant bytes; embedded as the viewer source. */
+  /** The master GLB bytes, the full-resolution variant. */
+  masterGlb: Uint8Array;
+  /** The web variant bytes, the scaled-down variant. */
   webGlb: Uint8Array;
   webSha256: string;
   webTriangles: number;
@@ -61,6 +65,11 @@ const PANEL_STYLE = `
   .caption dt { color: #9aa3b2; }
   .caption dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
                 font-size: 12px; word-break: break-word; }
+  .variants { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+  .variant { padding: 8px 12px; border: 1px solid #2a2f3a; border-radius: 8px;
+             background: #171a21; color: #e6e8ec; font: inherit; cursor: pointer; }
+  .variant[aria-pressed="true"] { border-color: #6b8afd; background: #1d2436; }
+  .variant:focus-visible { outline: 2px solid #6b8afd; outline-offset: 2px; }
   model-viewer { width: 100%; height: 70vh; min-height: 420px;
                  background: #0b0d11; border: 1px solid #2a2f3a; border-radius: 8px; }
   .note { color: #9aa3b2; font-size: 12px; }
@@ -81,6 +90,16 @@ function captionRow(label: string, value: string): string {
   return `    <dt>${label}</dt><dd>${value}</dd>`;
 }
 
+/** One variant switch button; the label is escaped by the caller. */
+function variantButton(variant: 'master' | 'web', pressed: boolean, label: string): string {
+  return `  <button type="button" class="variant" data-variant="${variant}" aria-pressed="${pressed}">${label}</button>`;
+}
+
+/** A GLB as the `data:` URI model-viewer accepts from `file://`. */
+function glbDataUri(glb: Uint8Array): string {
+  return `data:model/gltf-binary;base64,${Buffer.from(glb).toString('base64')}`;
+}
+
 /**
  * Render the full page.
  *
@@ -90,7 +109,8 @@ function captionRow(label: string, value: string): string {
 export function renderPreviewHtml(input: PreviewHtmlInput): string {
   const title = escapeHtml(input.title);
   const prompt = input.prompt === null ? 'Not specified.' : escapeHtml(input.prompt);
-  const dataUri = `data:model/gltf-binary;base64,${Buffer.from(input.webGlb).toString('base64')}`;
+  const masterDataUri = glbDataUri(input.masterGlb);
+  const webDataUri = glbDataUri(input.webGlb);
 
   const rows = [
     captionRow('Model id', escapeHtml(input.modelId)),
@@ -111,6 +131,17 @@ export function renderPreviewHtml(input: PreviewHtmlInput): string {
     ),
   ].join('\n');
 
+  const masterLabel = `Full resolution (master, ${formatBytes(input.masterBytes)}, ${formatCount(
+    input.masterTriangles
+  )} triangles)`;
+  const webLabel = `Scaled down (web, ${formatBytes(input.webBytes)}, ${formatCount(
+    input.webTriangles
+  )} triangles)`;
+  const buttons = [
+    variantButton('master', false, masterLabel),
+    variantButton('web', true, webLabel),
+  ].join('\n');
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -126,15 +157,35 @@ export function renderPreviewHtml(input: PreviewHtmlInput): string {
 ${rows}
   </dl>
 </div>
+<div class="variants" role="group" aria-label="Variant">
+${buttons}
+</div>
 <model-viewer
-  src="${dataUri}"
+  src="${webDataUri}"
+  data-master-src="${masterDataUri}"
   alt="${title} preview"
   camera-controls
   auto-rotate
   shadow-intensity="1"
   exposure="1"
   touch-action="pan-y"></model-viewer>
-<p class="note">Preview of the web variant. Full-resolution master is in ${escapeHtml(input.zipName)}. Drag to orbit, scroll to zoom.</p>
+<p class="note">Switch between the full-resolution master and the scaled-down web variant. Drag to orbit, scroll to zoom.</p>
+<script>
+  const viewer = document.querySelector('model-viewer');
+  const variants = {
+    master: viewer.getAttribute('data-master-src'),
+    web: viewer.getAttribute('src'),
+  };
+  for (const button of document.querySelectorAll('button[data-variant]')) {
+    button.addEventListener('click', () => {
+      const name = button.getAttribute('data-variant');
+      viewer.setAttribute('src', variants[name]);
+      for (const other of document.querySelectorAll('button[data-variant]')) {
+        other.setAttribute('aria-pressed', String(other === button));
+      }
+    });
+  }
+</script>
 <script
   type="module"
   src="${MODEL_VIEWER_URL}"

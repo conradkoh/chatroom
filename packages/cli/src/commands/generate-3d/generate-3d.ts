@@ -2052,6 +2052,7 @@ async function writePackage(args: {
     modelId: plan.model.id,
     prompt: args.prompt?.trim() ?? null,
     requestId: master.requestId,
+    masterGlb: master.bytes,
     webGlb: web.bytes,
     webSha256,
     webTriangles: web.triangles,
