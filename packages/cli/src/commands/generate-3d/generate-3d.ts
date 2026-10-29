@@ -838,12 +838,23 @@ function rigParts(ctx: Generate3dFlagContext): string[] {
     .map(formatForCommand);
 }
 
-/** `--out`, `--force`, and `--package-dir`: the same in every corrected command. */
+/** The fit flags a corrected command should keep, when any were set. */
+function fitParts(fit: FitOptions | undefined): string[] {
+  if (fit === undefined) return [];
+  return [
+    ...(fit.targetHeight === undefined ? [] : [`--target-height ${fit.targetHeight}`]),
+    ...(fit.origin === 'as-is' ? [] : [`--origin ${fit.origin}`]),
+  ];
+}
+
+/** `--out`, `--force`, `--package-dir`, and the fit flags: the same in every corrected command. */
 function outputParts(ctx: Generate3dFlagContext): string[] {
-  const parts = [`--out ${shellQuote(ctx.out)}`];
-  if (ctx.force === true) parts.push('--force');
-  if (ctx.packageDir !== undefined) parts.push(`--package-dir ${shellQuote(ctx.packageDir)}`);
-  return parts;
+  return [
+    `--out ${shellQuote(ctx.out)}`,
+    ...(ctx.force === true ? ['--force'] : []),
+    ...(ctx.packageDir === undefined ? [] : [`--package-dir ${shellQuote(ctx.packageDir)}`]),
+    ...fitParts(ctx.fit),
+  ];
 }
 
 /** `--dry-run` and `--input`, repeated so the corrected command behaves the same. */
@@ -975,6 +986,7 @@ interface Generate3dFlagContext {
   out: string;
   force?: boolean | undefined;
   packageDir?: string | undefined;
+  fit?: FitOptions | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -1186,6 +1198,7 @@ function resolvePlanTarget(opts: Generate3dOptions): {
     out: opts.out,
     force: opts.force,
     packageDir: opts.packageDir,
+    fit: opts.fit,
     dryRun: opts.dryRun,
   };
   validateRigging(flagContext);

@@ -1350,6 +1350,24 @@ describe('capability checks', () => {
     expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
+  it('keeps fit flags in the corrected command', async () => {
+    const deps = createDeps();
+
+    await expect(
+      planGenerate3d(
+        {
+          model: TRELLIS_2,
+          inputImage: './concept.png',
+          out: OUT_PATH,
+          rig: true,
+          confirmCost: true,
+          fit: { origin: 'feet', targetHeight: 0.75 },
+        },
+        deps
+      )
+    ).rejects.toThrow(/--target-height 0\.75 --origin feet/);
+  });
+
   it('keeps --dry-run in a rig suggestion and never adds --confirm-cost', async () => {
     const deps = createDeps();
 
