@@ -182,6 +182,10 @@ async function texturedDecision(args: {
   const { index, material, metalFraction, texture, shared, sharpFactory } = args;
   const name = materialName(material);
 
+  if (material.getMetallicFactor() !== 1) {
+    return { index, name, decision: 'unchanged', reason: 'explicit-factor' };
+  }
+
   if (metalFraction < NON_METAL_FRACTION_MAX) {
     material.setMetallicFactor(0);
     return { index, name, decision: 'non-metal', metalFraction };

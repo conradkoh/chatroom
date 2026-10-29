@@ -109,6 +109,40 @@ describe('normaliseMaterials', () => {
     ]);
   });
 
+  it('leaves a textured material with explicit factor 0 alone', async () => {
+    const image = await png(new Uint8Array([0, 128, 255, 255, 0, 128, 255, 255]), 2, 1);
+    const doc = await docWithTexture('explicit-zero', image);
+    const material = doc.getRoot().listMaterials()[0];
+    material?.setMetallicFactor(0);
+    const before = material?.getMetallicRoughnessTexture()?.getImage();
+    const analysis = await analyseDocument(doc);
+
+    const decisions = await normaliseMaterials(doc, analysis);
+
+    expect(material?.getMetallicFactor()).toBe(0);
+    expect(material?.getMetallicRoughnessTexture()?.getImage()).toEqual(before);
+    expect(decisions[0]).toMatchObject({
+      index: 0,
+      decision: 'unchanged',
+      reason: 'explicit-factor',
+    });
+  });
+
+  it('leaves a textured material with an explicit fractional factor alone', async () => {
+    const image = await png(new Uint8Array([0, 128, 255, 255, 0, 128, 255, 255]), 2, 1);
+    const doc = await docWithTexture('explicit-fractional', image);
+    const material = doc.getRoot().listMaterials()[0];
+    material?.setMetallicFactor(0.4);
+    const before = material?.getMetallicRoughnessTexture()?.getImage();
+    const analysis = await analyseDocument(doc);
+
+    const decisions = await normaliseMaterials(doc, analysis);
+
+    expect(material?.getMetallicFactor()).toBe(0.4);
+    expect(material?.getMetallicRoughnessTexture()?.getImage()).toEqual(before);
+    expect(decisions[0]).toMatchObject({ decision: 'unchanged', reason: 'explicit-factor' });
+  });
+
   it('clones a shared texture instead of editing it in place', async () => {
     const originalImage = await png(new Uint8Array([0, 0, 255, 255]), 1, 1);
     const doc = new Document();
