@@ -19,7 +19,7 @@ import {
   type FalCostDisclosure,
   type FalUnitPrice,
 } from '../generate-image/fal-pricing.js';
-import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-client.js';
+import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
 import {
   MAX_SOURCE_PIXELS,
   hasPngMagic,

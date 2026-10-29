@@ -60,7 +60,7 @@ import {
 } from './rigging.js';
 import type { GlbStats, ProcessedVariant, WebVariant } from './web-variant.js';
 import type { ZipEntry } from './zip-package.js';
-import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-client.js';
+import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
 
 /** Only fal is wired for 3D generation today. */
 export type Generate3dPlatform = 'fal';

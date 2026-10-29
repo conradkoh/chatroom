@@ -12,15 +12,16 @@
  *
  * It imports nothing from a command folder: only `@fal-ai/client` and
  * `node:fs/promises`.
+ *
+ * Pure modules must not import this file; import shared constants from
+ * `fal-messages.ts` so the SDK stays lazy-loaded.
  */
 
 import { readFile } from 'node:fs/promises';
 
 import { ApiError, ValidationError, fal } from '@fal-ai/client';
 
-/** Printed when `FAL_API_KEY` is absent; shared so the wording cannot drift. */
-export const FAL_API_KEY_MISSING_MESSAGE =
-  'FAL_API_KEY is not set. Set FAL_API_KEY in your environment and retry. (FAL_KEY_ID/FAL_KEY_SECRET are not supported.)';
+import { FAL_API_KEY_MISSING_MESSAGE } from './fal-messages.js';
 
 /**
  * Failure raised by this adapter. Callers re-throw their own error class with

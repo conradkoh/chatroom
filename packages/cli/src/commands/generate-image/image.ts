@@ -26,7 +26,7 @@ import {
   type ConstraintDisclosure,
   type ModelCapability,
 } from './model-capabilities.js';
-import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-client.js';
+import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
 import { readPngDimensions } from '../image-shared/image-preflight.js';
 
 /**
