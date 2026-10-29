@@ -103,8 +103,12 @@ Every written GLB gets the same material normalisation (`material-normalise.ts`)
 - A real metal material keeps `metallicFactor` 1, and its blue channel is
   masked: blue values below `METAL_MASK_THRESHOLD` (128) become 0, then the map
   is saved as lossless PNG. Green (roughness) is never changed.
-- A metallic-roughness texture used by more than one material or slot is cloned
-  before masking, so no other material or base-colour map changes.
+- `maskedFraction` is the share of **all** texels whose original blue value was
+  between 26 and 127 inclusive. Values from 0 to 25 are also zeroed, but they
+  were already non-metal, so they are not counted as masked.
+- A metallic-roughness texture used by more than one material, or by a slot of
+  another material, is cloned before masking, so no other material or
+  base-colour map changes.
 
 The decisions are recorded in the manifest. The master, web variant, and every
 rig output use the same rules.
@@ -115,7 +119,7 @@ Both flags are optional and apply to the master, the web variant, and every rig
 output:
 
 - `--target-height <m>` scales the model uniformly so its height is that many
-  metres. A flat or empty scene is refused.
+  metres. A zero-height scene is refused.
 - `--origin feet|center|as-is` moves the origin. `feet` puts the bottom centre at
   the origin, `center` puts the bounding-box centre there, and `as-is` is the
   default.
@@ -124,7 +128,7 @@ With no fit flags, output is unchanged from before this change except for the
 material normalisation above. Example:
 
 ```bash
-chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --prompt "a wooden barrel" --out ./barrel.glb --target-height 0.75 --origin feet --confirm-cost
+chatroom generate-3d --platform=fal --model fal-ai/trellis-2 --prompt "a wooden barrel" --out ./barrel.glb --target-height 0.75 --origin feet
 ```
 
 ## Preview lighting
@@ -157,7 +161,7 @@ live in `CHECK_THRESHOLDS` in `checks.ts`:
 | `glossy-non-metal`    | Metal share < 0.01, roughness present, and roughness mean < `glossyRoughnessMean` (0.35)                         | `Material {index} is non-metal with low roughness (mean {mean}); it may look glossy or metallic under light.` |
 
 The CLI prints each warning as `Warning: <message>` after the `Preview` line.
-The preview page lists them in its Checks panel. `rebuild-preview` recomputes
+The preview page lists them in its Checks panel. `generate-3d preview` recomputes
 them from the zip; it does not trust the stored manifest checks.
 
 ## Rebuild without generating
@@ -202,5 +206,19 @@ alike; `prompt` and `image_url` are reserved for `--prompt` and `--input-image`.
 - The web variant's triangle simplification is best effort and can overshoot its
   30,000 target for some meshes (the barrel measures 45,483). This is tracked
   separately and is not changed by the material or fit work.
+
+## Troubleshooting
+
+- Web textures are capped at 1024 px on the longest edge. Colour (sRGB) maps are
+  JPEG q80 with 4:2:0 chroma; data maps (metallic-roughness, occlusion, normal)
+  are JPEG q95 with 4:4:4; alpha-bound colour maps stay truecolour PNG. Formats
+  outside JPEG/PNG/WebP, such as KTX2, are left unresized.
+- Rigged and animated web variants keep their full geometry; only their textures
+  are reduced.
+- A local `--input-image` is uploaded to fal storage and its URL lasts one day.
+  An http(s) URL is passed through and never downloaded.
+- A rig failure keeps the paid master, its manifest, and the package, then exits
+  with status 1. A failed rig web variant still ships the raw rig GLB and is
+  listed in `riggingWebFailures`.
 - The global `chatroom` install may predate this command; check with
   `chatroom generate-3d --help`.
