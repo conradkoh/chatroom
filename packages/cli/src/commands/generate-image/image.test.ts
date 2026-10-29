@@ -11,7 +11,6 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
-import { listUnitPrices, lookupFalUnitPrices, type FalUnitPrice } from './fal-pricing.js';
 import {
   formatGenerateImagePlan,
   GenerateImageError,
@@ -21,6 +20,11 @@ import {
 } from './image.js';
 import type { GenerateImagePlatform } from './image.js';
 import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
+import {
+  listUnitPrices,
+  lookupFalUnitPrices,
+  type FalUnitPrice,
+} from '../image-shared/fal-pricing.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const OUT_PATH = '/tmp/generated/hero.png';

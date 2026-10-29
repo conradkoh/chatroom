@@ -13,13 +13,13 @@
 
 import { basename, resolve } from 'node:path';
 
+import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
 import {
   formatCostDisclosure,
   lookupUnitPrice,
   type FalCostDisclosure,
   type FalUnitPrice,
-} from '../generate-image/fal-pricing.js';
-import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
+} from '../image-shared/fal-pricing.js';
 import {
   MAX_SOURCE_PIXELS,
   hasPngMagic,

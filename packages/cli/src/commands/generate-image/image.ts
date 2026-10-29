@@ -12,14 +12,6 @@ import { extname, resolve } from 'node:path';
 
 import type { FalImageResult, GenerateImageDeps } from './deps.js';
 import {
-  formatCostDisclosure,
-  formatCostEstimate,
-  imageSizeMegapixels,
-  lookupUnitPrice,
-  type FalCostDisclosure,
-  type FalUnitPrice,
-} from './fal-pricing.js';
-import {
   describeConstraints,
   FLUX_2_FLASH_EDIT_MODEL,
   getModelCapability,
@@ -27,6 +19,14 @@ import {
   type ModelCapability,
 } from './model-capabilities.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
+import {
+  formatCostDisclosure,
+  formatCostEstimate,
+  imageSizeMegapixels,
+  lookupUnitPrice,
+  type FalCostDisclosure,
+  type FalUnitPrice,
+} from '../image-shared/fal-pricing.js';
 import { readPngDimensions } from '../image-shared/image-preflight.js';
 
 /**
