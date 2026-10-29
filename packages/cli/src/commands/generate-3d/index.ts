@@ -198,7 +198,16 @@ async function executeGenerate3d(options: Generate3dCliOptions): Promise<void> {
 }
 
 /** Commander action body: run the generator, report failures on stderr. */
-async function runGenerate3d(options: Generate3dCliOptions): Promise<void> {
+async function runGenerate3d(options: Generate3dCliOptions, command: Command): Promise<void> {
+  // `--out` is mandatory for a generation run, but it cannot be a
+  // `requiredOption` on `generate-3d`: commander checks a parent's mandatory
+  // options for its subcommands too, which would make `generate-3d preview`
+  // demand `--out`. Report it here with commander's own wording and error code.
+  if (options.out === undefined) {
+    command.error("error: required option '--out <path>' not specified", {
+      code: 'commander.missingMandatoryOptionValue',
+    });
+  }
   try {
     await executeGenerate3d(options);
   } catch (err) {
@@ -207,14 +216,45 @@ async function runGenerate3d(options: Generate3dCliOptions): Promise<void> {
   }
 }
 
+/** Options for `generate-3d preview`. */
+interface Generate3dPreviewCliOptions {
+  force?: boolean | undefined;
+}
+
+/**
+ * Commander action body for `generate-3d preview`: rebuild offline.
+ *
+ * `rebuild-preview` is imported lazily like the generator, so a normal
+ * `generate-3d` run does not pay for the zip reader.
+ */
+async function runGenerate3dPreview(
+  zip: string,
+  options: Generate3dPreviewCliOptions,
+  command: Command
+): Promise<void> {
+  try {
+    const { rebuildPreviewFromZip } = await import('./rebuild-preview.js');
+    // Commander hands an unknown option up the tree, so `--force` after the
+    // zip is parsed by `generate-3d` rather than by `preview`. Read both.
+    const parentForce = command.parent?.opts<{ force?: boolean }>().force === true;
+    const htmlPath = await rebuildPreviewFromZip(zip, {
+      force: options.force === true || parentForce,
+    });
+    console.log(`Preview ${htmlPath}`);
+  } catch (err) {
+    console.error(`❌ ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+  }
+}
+
 export function registerGenerate3dCommand(program: Command): void {
-  program
+  const generate3d = program
     .command('generate-3d')
     .description(
       'Generate one 3D mesh (GLB) with a fal model, plus its JSON manifest and a zip/preview package'
     )
     .option('--model <id>', 'fal endpoint id (default fal-ai/trellis-2); any id is accepted')
-    .requiredOption('--out <path>', 'Output GLB path (manifest is written to <path>.json)')
+    .option('--out <path>', 'Output GLB path (required; manifest is written to <path>.json)')
     .option(
       '--platform <name>',
       'Generation platform: fal',
@@ -258,4 +298,10 @@ export function registerGenerate3dCommand(program: Command): void {
     )
     .addHelpText('after', HELP_AFTER)
     .action(runGenerate3d);
+
+  generate3d
+    .command('preview <zip>')
+    .description('Rebuild <base>.html from an existing package zip, offline')
+    .option('--force', 'replace an existing <base>.html')
+    .action(runGenerate3dPreview);
 }

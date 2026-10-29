@@ -17,31 +17,38 @@ import type * as Generate3dModule from './generate-3d.js';
 import { registerGenerate3dCommand } from './index.js';
 import { GENERATE_3D_MODELS } from './model-registry.js';
 
-const { generate3dMock, planGenerate3dMock, formatGenerate3dPlanMock, depsMock, falSubscribeMock } =
-  vi.hoisted(() => {
-    const falSubscribe = vi.fn();
-    return {
-      generate3dMock: vi.fn(),
-      planGenerate3dMock: vi.fn(),
-      formatGenerate3dPlanMock: vi.fn(),
-      falSubscribeMock: falSubscribe,
-      depsMock: {
-        env: {},
-        falSubscribe,
-        fetchGlb: vi.fn(),
-        uploadFile: vi.fn(),
-        writeFile: vi.fn(),
-        removeFile: vi.fn(),
-        writeJson: vi.fn(),
-        pathStatus: vi.fn(),
-        ensureParentDir: vi.fn(),
-        createWebVariant: vi.fn(),
-        zipPackage: vi.fn(),
-        now: () => new Date('2026-10-27T00:00:00.000Z'),
-        sdkVersion: '1.10.1',
-      },
-    };
-  });
+const {
+  generate3dMock,
+  planGenerate3dMock,
+  formatGenerate3dPlanMock,
+  depsMock,
+  falSubscribeMock,
+  rebuildPreviewMock,
+} = vi.hoisted(() => {
+  const falSubscribe = vi.fn();
+  return {
+    generate3dMock: vi.fn(),
+    planGenerate3dMock: vi.fn(),
+    formatGenerate3dPlanMock: vi.fn(),
+    falSubscribeMock: falSubscribe,
+    rebuildPreviewMock: vi.fn(),
+    depsMock: {
+      env: {},
+      falSubscribe,
+      fetchGlb: vi.fn(),
+      uploadFile: vi.fn(),
+      writeFile: vi.fn(),
+      removeFile: vi.fn(),
+      writeJson: vi.fn(),
+      pathStatus: vi.fn(),
+      ensureParentDir: vi.fn(),
+      createWebVariant: vi.fn(),
+      zipPackage: vi.fn(),
+      now: () => new Date('2026-10-27T00:00:00.000Z'),
+      sdkVersion: '1.10.1',
+    },
+  };
+});
 
 vi.mock('./generate-3d.js', async (importOriginal) => {
   const actual = await importOriginal<typeof Generate3dModule>();
@@ -55,6 +62,10 @@ vi.mock('./generate-3d.js', async (importOriginal) => {
 
 vi.mock('./deps.js', () => ({
   createDefaultGenerate3dDeps: () => depsMock,
+}));
+
+vi.mock('./rebuild-preview.js', () => ({
+  rebuildPreviewFromZip: rebuildPreviewMock,
 }));
 
 /** Temp dirs created by the `--input @file` tests. */
@@ -86,6 +97,7 @@ describe('chatroom generate-3d wiring', () => {
     planGenerate3dMock.mockResolvedValue({ plan: true });
     formatGenerate3dPlanMock.mockReset();
     formatGenerate3dPlanMock.mockReturnValue('dry run plan');
+    rebuildPreviewMock.mockReset();
     falSubscribeMock.mockReset();
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -102,6 +114,51 @@ describe('chatroom generate-3d wiring', () => {
     const program = createProgram();
 
     expect(program.commands[0]?.name()).toBe('generate-3d');
+  });
+
+  it('registers the offline preview subcommand with --force', () => {
+    const program = createProgram();
+    const preview = program.commands[0]?.commands.find((command) => command.name() === 'preview');
+
+    expect(preview).toBeDefined();
+    expect(preview?.description()).toContain('Rebuild <base>.html');
+    expect(preview?.options.map((option) => option.long)).toContain('--force');
+  });
+
+  it('rebuilds a preview without touching fal or requiring --out', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    rebuildPreviewMock.mockResolvedValue('/tmp/chest-20261027-000000.html');
+    const program = createProgram();
+
+    await parse(program, ['preview', '/tmp/chest-20261027-000000.zip']);
+
+    expect(rebuildPreviewMock).toHaveBeenCalledWith('/tmp/chest-20261027-000000.zip', {
+      force: false,
+    });
+    expect(logSpy).toHaveBeenCalledWith('Preview /tmp/chest-20261027-000000.html');
+    expect(generate3dMock).not.toHaveBeenCalled();
+    expect(falSubscribeMock).not.toHaveBeenCalled();
+  });
+
+  it('forwards --force to the preview rebuild', async () => {
+    rebuildPreviewMock.mockResolvedValue('/tmp/x.html');
+    const program = createProgram();
+
+    await parse(program, ['preview', '/tmp/x.zip', '--force']);
+
+    expect(rebuildPreviewMock).toHaveBeenCalledWith('/tmp/x.zip', { force: true });
+  });
+
+  it('reports preview failures on stderr with exitCode 1', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    rebuildPreviewMock.mockRejectedValue(new Error('manifest.json is missing from the zip.'));
+    const program = createProgram();
+
+    await parse(program, ['preview', '/tmp/x.zip']);
+
+    expect(errorSpy).toHaveBeenCalled();
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain('manifest.json is missing');
+    expect(process.exitCode).toBe(1);
   });
 
   it('lists every flag, the known models and their capabilities, and examples', () => {
