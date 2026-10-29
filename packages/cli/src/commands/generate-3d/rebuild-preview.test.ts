@@ -11,16 +11,85 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { Document, NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { rebuildPreviewFromZip } from './rebuild-preview.js';
 import { zipPackage, type ZipEntry } from './zip-package.js';
 
-/** A minimal GLB: magic "glTF", version 2, then a few payload bytes. */
-const MASTER_GLB = new Uint8Array([
-  0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 1, 2, 3, 4, 5, 6,
-]);
-const WEB_GLB = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 7, 8, 9, 10]);
+/** A valid box GLB, centred on the origin, so the page gets `not-on-feet`. */
+async function buildMasterGlb(): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(
+      new Float32Array([
+        -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5,
+        -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5,
+      ])
+    )
+    .setBuffer(buffer);
+  const indices = doc
+    .createAccessor('indices')
+    .setType('SCALAR')
+    .setArray(
+      new Uint16Array([
+        4, 5, 6, 4, 6, 7, 1, 0, 3, 1, 3, 2, 0, 4, 7, 0, 7, 3, 5, 1, 2, 5, 2, 6, 3, 7, 6, 3, 6, 2, 0,
+        1, 5, 0, 5, 4,
+      ])
+    )
+    .setBuffer(buffer);
+  const material = doc.createMaterial('box');
+  const primitive = doc
+    .createPrimitive()
+    .setAttribute('POSITION', positions)
+    .setIndices(indices)
+    .setMaterial(material);
+  const mesh = doc.createMesh('box').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('box-node').setMesh(mesh));
+  return new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder })
+    .writeBinary(doc);
+}
+
+/** A valid empty GLB; the rebuild embeds the web variant but checks the master. */
+async function buildWebGlb(): Promise<Uint8Array> {
+  return new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder })
+    .writeBinary(new Document());
+}
+
+/** A valid GLB whose MR image bytes are not a decodable PNG. */
+async function buildUnreadableMasterGlb(): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const positions = doc
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0, 0.5, 0]))
+    .setBuffer(buffer);
+  const texture = doc
+    .createTexture('unreadable')
+    .setImage(new Uint8Array([1, 2, 3, 4]))
+    .setMimeType('image/png');
+  const material = doc.createMaterial('unreadable').setMetallicRoughnessTexture(texture);
+  const primitive = doc.createPrimitive().setAttribute('POSITION', positions).setMaterial(material);
+  const mesh = doc.createMesh('unreadable').addPrimitive(primitive);
+  doc.createScene('scene').addChild(doc.createNode('unreadable-node').setMesh(mesh));
+  return new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder })
+    .writeBinary(doc);
+}
+
+const MASTER_GLB = await buildMasterGlb();
+const WEB_GLB = await buildWebGlb();
 
 const BASE = 'chest-20261028-011838';
 const ZIP_NAME = `${BASE}.zip`;
@@ -121,6 +190,9 @@ describe('rebuildPreviewFromZip', () => {
     expect(html).toContain('48,984 master / 27,438 web');
     expect(html).toContain(WEB_SHA256);
     expect(html).toContain('chest.glb (in chest-20261028-011838.zip)');
+    expect(html).toContain('Model&#39;s base is not at the origin');
+    expect(html).toContain('data-lighting="studio" aria-pressed="true"');
+    expect(html).toContain('data-directional-environment="data:image/png;base64,');
   });
 
   it('fails without writing when the web GLB is missing', async () => {
@@ -161,9 +233,48 @@ describe('rebuildPreviewFromZip', () => {
     );
 
     await expect(rebuildPreviewFromZip(zipPath, { force: false })).rejects.toThrow(
-      /web\/chest\.web\.glb is 13 bytes in the zip, but manifest\.json says 12/
+      new RegExp(
+        `web/chest\\.web\\.glb is ${WEB_GLB.byteLength + 1} bytes in the zip, but manifest\\.json says ${WEB_GLB.byteLength}`
+      )
     );
     await expect(readFile(join(dir, `${BASE}.html`))).rejects.toThrow(/ENOENT/);
+  });
+
+  it('rebuilds with a checks note when the master cannot be analysed', async () => {
+    const dir = await createDir();
+    const master = await buildUnreadableMasterGlb();
+    const manifest = {
+      ...MANIFEST,
+      variants: [{ ...MANIFEST.variants[0], bytes: master.byteLength }, MANIFEST.variants[1]],
+    };
+    const zipPath = join(dir, ZIP_NAME);
+    await writeFile(
+      zipPath,
+      zipPackage([
+        { path: 'chest.glb', bytes: master },
+        { path: 'web/chest.web.glb', bytes: WEB_GLB },
+        {
+          path: 'manifest.json',
+          bytes: new TextEncoder().encode(JSON.stringify(manifest)),
+        },
+      ])
+    );
+
+    const htmlPath = await rebuildPreviewFromZip(zipPath, { force: false });
+
+    const html = await readFile(htmlPath, 'utf8');
+    expect(html).toContain('Checks unavailable:');
+  });
+
+  it('fails on an existing preview before opening the zip', async () => {
+    const dir = await createDir();
+    const htmlPath = join(dir, `${BASE}.html`);
+    await writeFile(htmlPath, 'keep me', 'utf8');
+
+    await expect(rebuildPreviewFromZip(join(dir, `${BASE}.zip`), { force: false })).rejects.toThrow(
+      /Preview already exists/
+    );
+    expect(await readFile(htmlPath, 'utf8')).toBe('keep me');
   });
 
   it('keeps an existing preview without --force', async () => {

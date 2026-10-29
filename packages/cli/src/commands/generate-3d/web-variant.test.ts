@@ -20,7 +20,8 @@ import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import { createWebVariant, type WebVariantOptions } from './web-variant.js';
+import { analyseDocument } from './asset-analysis.js';
+import { createWebVariant, type ProcessedVariant, type WebVariantOptions } from './web-variant.js';
 
 const OPTIONS: WebVariantOptions = {
   triangleTarget: 30_000,
@@ -248,6 +249,59 @@ async function encodedTexture(
         ? await image.jpeg({ quality: 95 }).toBuffer()
         : await image.webp({ quality: 95 }).toBuffer();
   return new Uint8Array(bytes);
+}
+
+/** A 256x256 MR map: left half blue 255 (metal), right half blue 40 (weak). */
+async function splitMetalTexture(): Promise<Uint8Array> {
+  const width = 256;
+  const height = 256;
+  const pixels = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      pixels[index] = 0;
+      pixels[index + 1] = 128;
+      pixels[index + 2] = x < width / 2 ? 255 : 40;
+      pixels[index + 3] = 255;
+    }
+  }
+  const bytes = await sharp(pixels, { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer();
+  return new Uint8Array(bytes);
+}
+
+/** A unit box from -0.5 to 0.5, for the fit test. */
+async function buildUnitBoxGlb(): Promise<Uint8Array> {
+  const document = new Document();
+  const buffer = document.createBuffer();
+  const positions = document
+    .createAccessor('positions')
+    .setType('VEC3')
+    .setArray(
+      new Float32Array([
+        -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5,
+        -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5,
+      ])
+    )
+    .setBuffer(buffer);
+  const indices = document
+    .createAccessor('indices')
+    .setType('SCALAR')
+    .setArray(
+      new Uint16Array([
+        4, 5, 6, 4, 6, 7, 1, 0, 3, 1, 3, 2, 0, 4, 7, 0, 7, 3, 5, 1, 2, 5, 2, 6, 3, 7, 6, 3, 6, 2, 0,
+        1, 5, 0, 5, 4,
+      ])
+    )
+    .setBuffer(buffer);
+  const primitive = document
+    .createPrimitive()
+    .setAttribute('POSITION', positions)
+    .setIndices(indices);
+  const mesh = document.createMesh('box').addPrimitive(primitive);
+  document.createScene('scene').addChild(document.createNode('box-node').setMesh(mesh));
+  return glbIo().writeBinary(document);
 }
 
 /** Real pixel size and format of each texture, read with sharp from the bytes. */
@@ -729,6 +783,101 @@ describe('createWebVariant', () => {
     expect(dataMeta.chromaSubsampling).toBe('4:4:4');
     expect(baseMeta.width).toBe(1024);
     expect(dataMeta.width).toBe(1024);
+  });
+
+  it('masks weak metal before the metallic-roughness JPEG is written', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      dataTexture: { bytes: await splitMetalTexture(), mimeType: 'image/png' },
+    });
+
+    const variant = await createWebVariant(glb, OPTIONS);
+
+    const reread = await glbIo().readBinary(variant.bytes);
+    const image = reread.getRoot().listMaterials()[0]?.getMetallicRoughnessTexture()?.getImage();
+    const { data, info } = await sharp(Buffer.from(image ?? new Uint8Array()))
+      .toColourspace('srgb')
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect(info.channels).toBe(4);
+    const blueAt = (x: number, y: number): number => data[(y * info.width + x) * 4 + 2] ?? 0;
+
+    expect(blueAt(64, 128)).toBeGreaterThan(240);
+    expect(blueAt(192, 128)).toBeLessThan(10);
+  });
+
+  it('fits the web document when a fit is passed', async () => {
+    const variant = await createWebVariant(await buildUnitBoxGlb(), {
+      ...OPTIONS,
+      fit: { origin: 'feet', targetHeight: 2 },
+    });
+
+    const analysis = await analyseDocument(await glbIo().readBinary(variant.bytes));
+
+    expect(analysis.bounds.min[1]).toBeCloseTo(0, 6);
+    expect(analysis.bounds.max[1] - analysis.bounds.min[1]).toBeCloseTo(2, 6);
+    expect(variant.fit?.scale).toBeCloseTo(2, 6);
+  });
+
+  it('skips normalisation and fit when given processed decisions', async () => {
+    const glb = await buildGlb({
+      ...disjointTriangles(2),
+      dataTexture: { bytes: await splitMetalTexture(), mimeType: 'image/png' },
+    });
+    const processed: ProcessedVariant = {
+      materials: [
+        {
+          index: 0,
+          name: 'mat',
+          decision: 'metal-masked',
+          metalFraction: 0.5,
+          maskedFraction: 0.5,
+        },
+      ],
+      fit: {
+        origin: 'feet',
+        targetHeight: 2,
+        scale: 2,
+        translation: [0, 0, 0],
+        bounds: { min: [0, 0, 0], max: [1, 1, 1] },
+      },
+    };
+
+    const variant = await createWebVariant(glb, { ...OPTIONS, processed });
+
+    expect(variant.materials).toEqual(processed.materials);
+    expect(variant.fit).toEqual(processed.fit);
+    const reread = await glbIo().readBinary(variant.bytes);
+    const image = reread.getRoot().listMaterials()[0]?.getMetallicRoughnessTexture()?.getImage();
+    const { data, info } = await sharp(Buffer.from(image ?? new Uint8Array()))
+      .toColourspace('srgb')
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const blueAt = (x: number, y: number): number => data[(y * info.width + x) * 4 + 2] ?? 0;
+    expect(blueAt(64, 128)).toBeGreaterThan(240);
+    expect(blueAt(192, 128)).toBeGreaterThan(25);
+    expect(blueAt(192, 128)).toBeLessThan(55);
+  });
+
+  it('does not re-apply the fit when processed decisions are given', async () => {
+    const processed: ProcessedVariant = {
+      materials: [],
+      fit: {
+        origin: 'feet',
+        targetHeight: 2,
+        scale: 2,
+        translation: [0, 0, 0],
+        bounds: { min: [0, 0, 0], max: [1, 2, 1] },
+      },
+    };
+
+    const variant = await createWebVariant(await buildUnitBoxGlb(), { ...OPTIONS, processed });
+
+    const analysis = await analyseDocument(await glbIo().readBinary(variant.bytes));
+    expect(analysis.bounds.max[1] - analysis.bounds.min[1]).toBeCloseTo(1, 6);
+    expect(variant.fit).toEqual(processed.fit);
   });
 
   it('spends more bytes on a data map at dataQuality 95 than at 60', async () => {

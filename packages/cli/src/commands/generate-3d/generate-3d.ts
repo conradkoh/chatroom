@@ -19,11 +19,19 @@
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 
+import { NodeIO, type Document } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
+
+import { analyseDocument, type AssetAnalysis } from './asset-analysis.js';
+import { computeChecks, type AssetCheck } from './checks.js';
 import {
   buildReferenceImageRequest,
   type Generate3dDeps,
   type GenerateReferenceImageRequest,
 } from './deps.js';
+import { applyFit, applyFitTransform, type FitOptions, type FitResult } from './fit.js';
+import { normaliseMaterials, type MaterialDecision } from './material-normalise.js';
 import {
   DEFAULT_GENERATE_3D_MODEL_ID,
   Generate3dError,
@@ -41,7 +49,7 @@ import {
   type Generate3dModelSpec,
 } from './model-registry.js';
 import { formatTimestamp, packageBaseName } from './package-name.js';
-import { renderPreviewHtml } from './preview-html.js';
+import { renderPreviewHtml, directionalEnvironmentPng } from './preview-html.js';
 import {
   buildRiggingRequest,
   parseAnimationActionIds,
@@ -50,7 +58,7 @@ import {
   type RiggingOutput,
   type RiggingRequest,
 } from './rigging.js';
-import type { GlbStats, WebVariant } from './web-variant.js';
+import type { GlbStats, ProcessedVariant, WebVariant } from './web-variant.js';
 import type { ZipEntry } from './zip-package.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../generate-image/image.js';
 
@@ -77,6 +85,11 @@ export interface Generate3dOptions {
   animationActionIds?: readonly string[] | undefined;
   /** Directory for the package zip and preview; defaults to the directory of `out`. */
   packageDir?: string | undefined;
+  /**
+   * Optional origin and height fit applied to the master, the web variant, and
+   * every rig output. Undefined leaves the model exactly as generated.
+   */
+  fit?: FitOptions | undefined;
   /**
    * Extra fal request fields (`--input`), merged over the model adapter's
    * defaults. This is how model-specific fields reach a model the registry does
@@ -140,6 +153,14 @@ export interface Generate3dRiggingManifest {
     actionId: number | null;
     path: string;
     bytes: number;
+    /** What material normalisation decided for this file, in material order. */
+    materials: MaterialDecision[];
+    /** The fitted wrapper for this file, shared with the rigged GLB. */
+    fit: FitResult | null;
+    /** Why normalisation was skipped and the source bytes kept. */
+    normaliseError?: string;
+    /** Why the fit was skipped and the source bytes kept. */
+    fitError?: string;
     /** Null when the web variant failed; the raw file is still in the zip. */
     triangles: number | null;
     webPath: string | null;
@@ -168,7 +189,10 @@ export interface Generate3dManifest {
   requestId: string;
   output: {
     path: string;
+    /** SHA-256 of the bytes written to `path`, after material normalisation. */
     sha256: string;
+    /** SHA-256 of the bytes fal returned, before material normalisation. */
+    sourceSha256: string;
     bytes: number;
     contentType: string;
   };
@@ -197,6 +221,10 @@ export interface Generate3dResult {
   /** The standalone preview of the web variant, beside the zip. */
   htmlPath: string;
   sha256: string;
+  /** Advisory warnings from the written master, printed after the paths. */
+  checks: AssetCheck[];
+  /** Non-fatal preparation errors (normalisation/fit) for the master. */
+  warnings: string[];
   /** Cost lines for the CLI to print after the output paths. */
   costLines: string[];
 }
@@ -212,9 +240,24 @@ interface Generate3dPackageVariant {
   textures?: { width: number; height: number; mimeType: string }[];
   extensionsUsed?: string[];
   /**
-   * Present on the web variant only; the master is whatever fal returned.
-   * `textureFormat` is the default: alpha-bound colour maps stay PNG, and
-   * `textures[].mimeType` is the per-texture truth.
+   * Master only: SHA-256 of the bytes fal returned, before material
+   * normalisation. `sha256` is the hash of the bytes actually in the zip.
+   */
+  sourceSha256?: string;
+  /** Master only: one normalisation decision per material. */
+  materials?: MaterialDecision[];
+  /** Master only: the origin/height fit applied to the document; null on a fallback. */
+  fit?: FitResult | null;
+  /** Master only: why normalisation was skipped and the source bytes kept. */
+  normaliseError?: string;
+  /** Master only: why the fit was skipped and the source bytes kept. */
+  fitError?: string;
+  /** Master only: advisory checks from the written document. */
+  checks?: AssetCheck[];
+  /**
+   * Present on the web variant only. `textureFormat` is the default:
+   * alpha-bound colour maps stay PNG, and `textures[].mimeType` is the
+   * per-texture truth.
    */
   settings?: {
     maxTexturePx: number;
@@ -227,6 +270,12 @@ interface Generate3dPackageVariant {
     simplified: boolean;
     /** `non-destructive` when weld and simplify were skipped for a skin. */
     skinnedPath?: 'non-destructive' | 'default';
+    /** What material normalisation decided for the web document. */
+    materials: MaterialDecision[];
+    /** The origin/height fit applied to the web document; null on a fallback. */
+    fit: FitResult | null;
+    /** Advisory checks from the written web document. */
+    checks?: AssetCheck[];
   };
 }
 
@@ -290,6 +339,8 @@ export interface Generate3dPlan {
   modelWarning?: string | undefined;
   /** True when the caller passed `--confirm-cost`. */
   confirmCost: boolean;
+  /** Optional origin and height fit; undefined leaves the output untouched. */
+  fit?: FitOptions | undefined;
   /** Master file name without its `.glb` suffix; used for the zip entries. */
   stem: string;
   /** Directory the package zip and preview are written to. */
@@ -789,12 +840,23 @@ function rigParts(ctx: Generate3dFlagContext): string[] {
     .map(formatForCommand);
 }
 
-/** `--out`, `--force`, and `--package-dir`: the same in every corrected command. */
+/** The fit flags a corrected command should keep, when any were set. */
+function fitParts(fit: FitOptions | undefined): string[] {
+  if (fit === undefined) return [];
+  return [
+    ...(fit.targetHeight === undefined ? [] : [`--target-height ${fit.targetHeight}`]),
+    ...(fit.origin === 'as-is' ? [] : [`--origin ${fit.origin}`]),
+  ];
+}
+
+/** `--out`, `--force`, `--package-dir`, and the fit flags: the same in every corrected command. */
 function outputParts(ctx: Generate3dFlagContext): string[] {
-  const parts = [`--out ${shellQuote(ctx.out)}`];
-  if (ctx.force === true) parts.push('--force');
-  if (ctx.packageDir !== undefined) parts.push(`--package-dir ${shellQuote(ctx.packageDir)}`);
-  return parts;
+  return [
+    `--out ${shellQuote(ctx.out)}`,
+    ...(ctx.force === true ? ['--force'] : []),
+    ...(ctx.packageDir === undefined ? [] : [`--package-dir ${shellQuote(ctx.packageDir)}`]),
+    ...fitParts(ctx.fit),
+  ];
 }
 
 /** `--dry-run` and `--input`, repeated so the corrected command behaves the same. */
@@ -926,6 +988,7 @@ interface Generate3dFlagContext {
   out: string;
   force?: boolean | undefined;
   packageDir?: string | undefined;
+  fit?: FitOptions | undefined;
   dryRun?: boolean | undefined;
 }
 
@@ -1137,6 +1200,7 @@ function resolvePlanTarget(opts: Generate3dOptions): {
     out: opts.out,
     force: opts.force,
     packageDir: opts.packageDir,
+    fit: opts.fit,
     dryRun: opts.dryRun,
   };
   validateRigging(flagContext);
@@ -1198,6 +1262,7 @@ export async function planGenerate3d(
     inputKeys: Object.keys(opts.extraInput ?? {}),
     modelWarning: modelWarningFor(model),
     confirmCost: opts.confirmCost === true,
+    fit: opts.fit,
     ...naming,
   };
 }
@@ -1276,6 +1341,14 @@ function confirmationLines(plan: Generate3dPlan): string[] {
   return plan.riggingRequest !== null && !plan.confirmCost ? ['Add --confirm-cost to run.'] : [];
 }
 
+/** The optional fit settings, applied to the master, web, and rig outputs. */
+function fitLines(plan: Generate3dPlan): string[] {
+  if (plan.fit === undefined) return [];
+  const height =
+    plan.fit.targetHeight === undefined ? 'no scale' : `target height ${plan.fit.targetHeight} m`;
+  return [`Fit: ${height}, origin ${plan.fit.origin} (master, web, and rig outputs)`];
+}
+
 export function formatGenerate3dPlan(plan: Generate3dPlan): string {
   return [
     `Would generate ${plan.outPath}`,
@@ -1284,6 +1357,7 @@ export function formatGenerate3dPlan(plan: Generate3dPlan): string {
     `Preview ${plan.htmlPath}`,
     ...planModelLines(plan),
     ...modelWarningLines(plan),
+    ...fitLines(plan),
     ...formatReferencePlan(plan),
     'Request:',
     JSON.stringify(plan.input, null, 2),
@@ -1339,6 +1413,7 @@ function buildManifest(args: {
   requestId: string;
   outPath: string;
   sha256: string;
+  sourceSha256: string;
   byteLength: number;
   textureUrls: string[];
   generatedAt: string;
@@ -1357,6 +1432,7 @@ function buildManifest(args: {
     output: {
       path: args.outPath,
       sha256: args.sha256,
+      sourceSha256: args.sourceSha256,
       bytes: args.byteLength,
       contentType: GLB_CONTENT_TYPE,
     },
@@ -1401,34 +1477,59 @@ function riggingFailure(args: {
   );
 }
 
-/** Download one rigged or clip GLB and save it; failures name the file. */
+/** A downloaded rig GLB carries the master's preparation outcome. */
+type PreparedGlb = Pick<
+  PreparedMasterGlb,
+  'bytes' | 'materials' | 'fit' | 'normaliseError' | 'fitError'
+>;
+
+/** Apply the master's normalisation and fit to one downloaded rig GLB. */
+async function prepareRigGlb(args: {
+  downloaded: Uint8Array;
+  fit: FitOptions | undefined;
+  sharedFit?: FitResult | null | undefined;
+}): Promise<PreparedGlb> {
+  return normaliseMasterGlb(args.downloaded, args.fit, args.sharedFit);
+}
+
+/** Download one rigged or clip GLB, normalise it, fit it, and save it. */
 async function downloadAndSaveGlb(args: {
   deps: Generate3dDeps;
   url: string;
   path: string;
   label: string;
   fail: (detail: string) => Generate3dError;
-}): Promise<Uint8Array> {
-  let bytes: Uint8Array;
+  /** The origin/height fit; undefined leaves the normalised scale alone. */
+  fit: FitOptions | undefined;
+  /** A fit already computed from the rigged GLB, shared by every clip. */
+  sharedFit?: FitResult | null | undefined;
+}): Promise<PreparedGlb> {
+  let downloaded: Uint8Array;
   try {
-    bytes = await args.deps.fetchGlb(args.url);
+    downloaded = await args.deps.fetchGlb(args.url);
   } catch (err) {
     throw args.fail(`Failed to download ${args.label} (${args.url}): ${describeError(err)}`);
   }
+  const prepared = await prepareRigGlb({
+    downloaded,
+    fit: args.fit,
+    sharedFit: args.sharedFit,
+  });
   try {
-    await args.deps.writeFile(args.path, bytes);
+    await args.deps.writeFile(args.path, prepared.bytes);
   } catch (err) {
     throw args.fail(`Failed to save ${args.label} ${args.path}: ${describeError(err)}`);
   }
-  return bytes;
+  return prepared;
 }
 
-/** Download and save each returned clip, in the requested order. */
+/** Download, normalise, fit, and save each returned clip, in the requested order. */
 async function downloadAnimations(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
   output: RiggingOutput,
-  fail: (detail: string) => Generate3dError
+  fail: (detail: string) => Generate3dError,
+  sharedFit: FitResult | null
 ): Promise<{ section: Generate3dRiggingManifest['animations']; bytes: AnimationFile[] }> {
   const animations: Generate3dRiggingManifest['animations'] = [];
   const files: AnimationFile[] = [];
@@ -1437,14 +1538,23 @@ async function downloadAnimations(
     if (planned === undefined || planned.actionId !== animation.actionId) {
       throw fail(`No planned output path for animation clip ${animation.actionId}.`);
     }
-    const bytes = await downloadAndSaveGlb({
+    const prepared = await downloadAndSaveGlb({
       deps,
       url: animation.glbUrl,
       path: planned.path,
       label: `animation clip ${animation.actionId}`,
       fail,
+      fit: undefined,
+      sharedFit,
     });
-    files.push({ actionId: animation.actionId, path: planned.path, bytes });
+    files.push({
+      actionId: animation.actionId,
+      path: planned.path,
+      bytes: prepared.bytes,
+      materials: prepared.materials,
+      fit: prepared.fit,
+      ...definedErrors(prepared.normaliseError, prepared.fitError),
+    });
     animations.push({
       actionId: animation.actionId,
       path: planned.path,
@@ -1496,14 +1606,15 @@ async function runRigging(
     throw fail(describeError(err));
   }
 
-  const riggedBytes = await downloadAndSaveGlb({
+  const rigged = await downloadAndSaveGlb({
     deps,
     url: output.riggedGlbUrl,
     path: riggedGlbPath,
     label: 'rigged GLB',
     fail,
+    fit: plan.fit,
   });
-  const animations = await downloadAnimations(plan, deps, output, fail);
+  const animations = await downloadAnimations(plan, deps, output, fail, rigged.fit);
 
   return {
     section: {
@@ -1519,7 +1630,10 @@ async function runRigging(
       files: [],
       costLines: riggingCostLines(plan.animationActionIds.length),
     },
-    riggedBytes,
+    riggedBytes: rigged.bytes,
+    riggedMaterials: rigged.materials,
+    riggedFit: rigged.fit,
+    ...riggedErrorFields(rigged),
     animations: animations.bytes,
   };
 }
@@ -1531,6 +1645,12 @@ interface RigFilePackage {
   /** Absolute path of the loose file beside `--out`. */
   path: string;
   bytes: Uint8Array;
+  /** What material normalisation decided for this file. */
+  materials: MaterialDecision[];
+  /** The fit shared with the rigged GLB; null on a fallback. */
+  fit: FitResult | null;
+  normaliseError?: string;
+  fitError?: string;
   /** Null when the web variant failed; the raw file is still bundled. */
   web: WebVariant | null;
   /** Why the web variant is missing, when it failed. */
@@ -1567,6 +1687,10 @@ interface RigFileInput {
   actionId: number | null;
   path: string;
   bytes: Uint8Array;
+  materials: MaterialDecision[];
+  fit: FitResult | null;
+  normaliseError?: string;
+  fitError?: string;
 }
 
 /** One rig file with its web variant, or the reason the variant is missing. */
@@ -1586,7 +1710,13 @@ async function buildOneRigFile(
   try {
     // The bare cause only: the package-failure wrapper would add an absolute
     // path, and the manifest records this string.
-    const web = await deps.createWebVariant(file.bytes, WEB_VARIANT_OPTIONS);
+    const web = await deps.createWebVariant(
+      file.bytes,
+      webVariantOptions(plan, {
+        materials: file.materials,
+        fit: file.fit,
+      })
+    );
     return { packaged: { ...file, ...names, web, webError: null }, message: null };
   } catch (err) {
     // Keep the raw file: it is paid for, and the package must still ship it.
@@ -1610,12 +1740,18 @@ function rigFileInputs(plan: Generate3dPlan, rig: RigBundle): RigFileInput[] {
       actionId: null,
       path: plan.riggedOutPath ?? '',
       bytes: rig.riggedBytes,
+      materials: rig.riggedMaterials,
+      fit: rig.riggedFit,
+      ...definedErrors(rig.riggedNormaliseError, rig.riggedFitError),
     },
     ...rig.animations.map((animation) => ({
       kind: 'animation' as const,
       actionId: animation.actionId,
       path: animation.path,
       bytes: animation.bytes,
+      materials: animation.materials,
+      fit: animation.fit,
+      ...definedErrors(animation.normaliseError, animation.fitError),
     })),
   ];
 }
@@ -1653,6 +1789,9 @@ function rigFileManifestEntry(file: RigFilePackage): Generate3dRiggingManifest['
     actionId: file.actionId,
     path: file.path,
     bytes: file.bytes.byteLength,
+    materials: file.materials,
+    fit: file.fit,
+    ...definedErrors(file.normaliseError, file.fitError),
     webError: file.webError,
   };
   if (file.web === null) {
@@ -1710,11 +1849,17 @@ function rigVariants(files: readonly RigFilePackage[]): Generate3dPackageVariant
   return variants;
 }
 
-/** The master variant entry: what fal returned, unchanged. */
+/** The master variant entry: normalised locally, with fal's original hash kept. */
 function buildMasterVariant(args: {
   stem: string;
   masterBytes: Uint8Array;
   masterSha256: string;
+  sourceSha256: string;
+  materials: MaterialDecision[];
+  fit: FitResult | null;
+  normaliseError?: string | undefined;
+  fitError?: string | undefined;
+  checks: AssetCheck[];
   source: GlbStats;
 }): Generate3dPackageVariant {
   return {
@@ -1722,6 +1867,12 @@ function buildMasterVariant(args: {
     file: `${args.stem}.glb`,
     bytes: args.masterBytes.byteLength,
     sha256: args.masterSha256,
+    sourceSha256: args.sourceSha256,
+    materials: args.materials,
+    fit: args.fit,
+    ...(args.normaliseError === undefined ? {} : { normaliseError: args.normaliseError }),
+    ...(args.fitError === undefined ? {} : { fitError: args.fitError }),
+    checks: args.checks,
     triangles: args.source.triangles,
     textures: args.source.textures,
     extensionsUsed: args.source.extensionsUsed,
@@ -1736,7 +1887,10 @@ function rigWebFailures(files: readonly RigFilePackage[]): { file: string; messa
 }
 
 /** The settings a web variant ran with, recorded so it is reproducible. */
-function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['settings']> {
+function webSettings(
+  web: WebVariant,
+  checks?: AssetCheck[]
+): NonNullable<Generate3dPackageVariant['settings']> {
   return {
     maxTexturePx: WEB_VARIANT_MAX_TEXTURE_PX,
     textureFormat: 'jpeg',
@@ -1745,6 +1899,9 @@ function webSettings(web: WebVariant): NonNullable<Generate3dPackageVariant['set
     triangleTarget: WEB_VARIANT_TRIANGLE_TARGET,
     simplified: web.simplified,
     skinnedPath: web.skinnedPath,
+    materials: web.materials,
+    fit: web.fit,
+    ...(checks === undefined ? {} : { checks }),
   };
 }
 
@@ -1777,7 +1934,8 @@ function variantEntry(args: {
 function buildWebVariantEntry(
   stem: string,
   web: WebVariant,
-  webSha256: string
+  webSha256: string,
+  checks: AssetCheck[]
 ): Generate3dPackageVariant {
   return {
     ...variantEntry({
@@ -1785,7 +1943,7 @@ function buildWebVariantEntry(
       file: `web/${stem}.web.glb`,
       bytes: web.bytes,
       stats: web,
-      settings: webSettings(web),
+      settings: webSettings(web, checks),
     }),
     sha256: webSha256,
   };
@@ -1811,6 +1969,18 @@ function buildPackageManifest(args: {
   inputImage: { source: string; url: string } | null;
   masterBytes: Uint8Array;
   masterSha256: string;
+  /** SHA-256 of the bytes fal returned, before normalisation. */
+  masterSourceSha256: string;
+  /** Material decisions for the normalised master, in material order. */
+  masterMaterials: MaterialDecision[];
+  /** The fit applied to the master document. */
+  masterFit: FitResult | null;
+  /** Normalisation/fit errors recorded on the master entry. */
+  masterErrors: ErrorFields;
+  /** Advisory checks from the written master. */
+  masterChecks: AssetCheck[];
+  /** Advisory checks from the written web document. */
+  webChecks: AssetCheck[];
   web: WebVariant;
   /** SHA-256 of the web variant bytes; also shown by the preview. */
   webSha256: string;
@@ -1840,9 +2010,14 @@ function buildPackageManifest(args: {
         stem: args.stem,
         masterBytes: args.masterBytes,
         masterSha256: args.masterSha256,
+        sourceSha256: args.masterSourceSha256,
+        materials: args.masterMaterials,
+        fit: args.masterFit,
+        ...args.masterErrors,
+        checks: args.masterChecks,
         source: args.web.source,
       }),
-      buildWebVariantEntry(args.stem, args.web, args.webSha256),
+      buildWebVariantEntry(args.stem, args.web, args.webSha256, args.webChecks),
       ...args.rigVariants,
     ],
     referenceImage: args.reference,
@@ -1901,13 +2076,33 @@ const WEB_VARIANT_OPTIONS = {
   dataQuality: WEB_VARIANT_DATA_TEXTURE_QUALITY,
 };
 
+/** Web-variant options with the plan's fit and the processed decisions. */
+function webVariantOptions(
+  plan: Generate3dPlan,
+  processed: ProcessedVariant
+): {
+  triangleTarget: number;
+  maxTexturePx: number;
+  quality: number;
+  dataQuality: number;
+  fit?: FitOptions;
+  processed: ProcessedVariant;
+} {
+  return {
+    ...WEB_VARIANT_OPTIONS,
+    ...(plan.fit === undefined ? {} : { fit: plan.fit }),
+    processed,
+  };
+}
+
 async function buildWebVariant(
   plan: Generate3dPlan,
   deps: Generate3dDeps,
-  masterBytes: Uint8Array
+  masterBytes: Uint8Array,
+  processed: ProcessedVariant
 ): Promise<WebVariant> {
   try {
-    return await deps.createWebVariant(masterBytes, WEB_VARIANT_OPTIONS);
+    return await deps.createWebVariant(masterBytes, webVariantOptions(plan, processed));
   } catch (err) {
     throw packageFailure(plan, 'build the web variant', err);
   }
@@ -2019,10 +2214,16 @@ async function writePackage(args: {
   force: boolean;
   reference: BundledReference | null;
   rigFiles: readonly RigFilePackage[];
+  masterChecks: AssetCheck[];
 }): Promise<PackageOutput> {
   const { plan, deps, master, paths, reference } = args;
-  const web = await buildWebVariant(plan, deps, master.bytes);
+  const web = await buildWebVariant(plan, deps, master.bytes, {
+    materials: master.materials,
+    fit: master.fit,
+  });
   const webSha256 = createHash('sha256').update(web.bytes).digest('hex');
+  const webChecks = await checksForGlb(web.bytes);
+  const directionalEnvironment = await directionalEnvironmentPng();
   const packageManifest = buildPackageManifest({
     packageName: args.packageName,
     createdAt: deps.now().toISOString(),
@@ -2032,6 +2233,12 @@ async function writePackage(args: {
     inputImage: master.inputImage,
     masterBytes: master.bytes,
     masterSha256: master.sha256,
+    masterSourceSha256: master.sourceSha256,
+    masterMaterials: master.materials,
+    masterFit: master.fit,
+    masterErrors: definedErrors(master.normaliseError, master.fitError),
+    masterChecks: args.masterChecks,
+    webChecks,
     web,
     webSha256,
     stem: plan.stem,
@@ -2061,6 +2268,8 @@ async function writePackage(args: {
     webBytes: web.bytes.byteLength,
     masterZipEntry: `${plan.stem}.glb`,
     zipName: `${args.packageName}.zip`,
+    checks: args.masterChecks,
+    directionalEnvironmentPng: directionalEnvironment,
   });
 
   await writeZipAndPreview(plan, deps, { ...paths, zipBytes, html, force: args.force });
@@ -2160,19 +2369,38 @@ interface AnimationFile {
   actionId: number;
   path: string;
   bytes: Uint8Array;
+  materials: MaterialDecision[];
+  fit: FitResult | null;
+  normaliseError?: string;
+  fitError?: string;
 }
 
 /** What the rig step produced: the manifest section and the bytes to bundle. */
 export interface RigBundle {
   section: Generate3dRiggingManifest;
   riggedBytes: Uint8Array;
+  riggedMaterials: MaterialDecision[];
+  riggedFit: FitResult | null;
+  riggedNormaliseError?: string;
+  riggedFitError?: string;
   animations: AnimationFile[];
 }
 
 /** What one paid generation produced, before rigging and packaging. */
 interface MasterOutput {
   bytes: Uint8Array;
+  /** SHA-256 of the normalised bytes written to `--out`. */
   sha256: string;
+  /** SHA-256 of the bytes fal returned, before normalisation. */
+  sourceSha256: string;
+  /** What material normalisation changed, in material order. */
+  materials: MaterialDecision[];
+  /** The origin/height fit applied to the master; null on a fallback. */
+  fit: FitResult | null;
+  /** Why normalisation was skipped and the source bytes kept. */
+  normaliseError?: string;
+  /** Why the fit was skipped and the source bytes kept. */
+  fitError?: string;
   requestId: string;
   inputImage: { source: string; url: string } | null;
   /** The fal GLB URL, needed by the rigging step. */
@@ -2190,6 +2418,210 @@ interface MasterOutput {
 async function ensureOutputDirs(plan: Generate3dPlan, deps: Generate3dDeps): Promise<void> {
   await deps.ensureParentDir(plan.outPath);
   await deps.ensureParentDir(plan.zipPath);
+}
+
+/** The reader/writer every generate-3d GLB pass uses. */
+function glbIo(): NodeIO {
+  return new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+}
+
+/** glTF-Transform logs every prune decision to the console by default. */
+const SILENT_LOGGER = {
+  debug: (): void => {},
+  info: (): void => {},
+  warn: (): void => {},
+  error: (): void => {},
+};
+
+/** Parse a GLB and analyse it; used for the post-write checks. */
+async function analyseGlb(glb: Uint8Array): Promise<AssetAnalysis> {
+  return analyseDocument(await glbIo().readBinary(glb));
+}
+
+/** Checks never fail a run: an unreadable written GLB yields no checks. */
+async function checksForGlb(glb: Uint8Array): Promise<AssetCheck[]> {
+  try {
+    return computeChecks(await analyseGlb(glb));
+  } catch {
+    return [];
+  }
+}
+
+/** The result of normalising and fitting one downloaded GLB. */
+interface PreparedMasterGlb {
+  bytes: Uint8Array;
+  materials: MaterialDecision[];
+  /** Null when normalisation failed and the source bytes were kept. */
+  fit: FitResult | null;
+  normaliseError?: string;
+  fitError?: string;
+}
+
+/** Keep the paid bytes when normalisation or fit cannot safely rewrite them. */
+function sourceFallback(
+  glb: Uint8Array,
+  errors: { normaliseError?: string; fitError?: string }
+): PreparedMasterGlb {
+  return { bytes: glb, materials: [], fit: null, ...errors };
+}
+
+/** Drop the meshopt declaration after reading, so the writer needs no encoder. */
+function dropMeshoptExtension(document: Document): void {
+  document
+    .getRoot()
+    .listExtensionsUsed()
+    .find((extension) => extension.extensionName === 'EXT_meshopt_compression')
+    ?.dispose();
+}
+
+/** Optional error fields shared by the master and rig manifest entries. */
+interface ErrorFields {
+  normaliseError?: string;
+  fitError?: string;
+}
+
+/** Include only the error fields that exist, for exact optional properties. */
+function definedErrors(normaliseError?: string, fitError?: string): ErrorFields {
+  return {
+    ...(normaliseError === undefined ? {} : { normaliseError }),
+    ...(fitError === undefined ? {} : { fitError }),
+  };
+}
+
+/** The rig bundle's error fields for the rigged file. */
+function riggedErrorFields(prepared: PreparedGlb): {
+  riggedNormaliseError?: string;
+  riggedFitError?: string;
+} {
+  return {
+    ...(prepared.normaliseError === undefined
+      ? {}
+      : { riggedNormaliseError: prepared.normaliseError }),
+    ...(prepared.fitError === undefined ? {} : { riggedFitError: prepared.fitError }),
+  };
+}
+
+/** Read a GLB, capturing the failure that sends the caller to the source bytes. */
+async function readGlbDocument(
+  glb: Uint8Array
+): Promise<{ document: Document } | { normaliseError: string }> {
+  try {
+    return { document: await glbIo().readBinary(glb) };
+  } catch (err) {
+    return { normaliseError: `Normalisation failed: ${describeError(err)}` };
+  }
+}
+
+/** The identity fit used when no fit flags were passed. */
+function defaultFitResult(analysis: AssetAnalysis): FitResult {
+  return {
+    origin: 'as-is',
+    targetHeight: null,
+    scale: 1,
+    translation: [0, 0, 0],
+    bounds: analysis.bounds,
+  };
+}
+
+/** Apply the shared rig fit to another document, if it has one. */
+function applySharedFit(
+  document: Document,
+  sharedFit: FitResult | null
+): { fit: FitResult | null } {
+  if (sharedFit !== null) applyFitTransform(document, sharedFit);
+  return { fit: sharedFit };
+}
+
+/** Compute the fit for a document from its own options. */
+async function fitByOptions(
+  document: Document,
+  analysis: AssetAnalysis,
+  fit: FitOptions | undefined
+): Promise<{ fit: FitResult } | ErrorFields> {
+  if (fit === undefined) return { fit: defaultFitResult(analysis) };
+  try {
+    return { fit: await applyFit(document, analysis, fit) };
+  } catch (err) {
+    return { fitError: `Fit failed: ${describeError(err)}` };
+  }
+}
+
+/** The fit for a document, or the error that must keep the source bytes. */
+async function prepareFit(
+  document: Document,
+  analysis: AssetAnalysis,
+  fit: FitOptions | undefined,
+  sharedFit: FitResult | null | undefined
+): Promise<{ fit: FitResult | null } | ErrorFields> {
+  if (sharedFit !== undefined) return applySharedFit(document, sharedFit);
+  return fitByOptions(document, analysis, fit);
+}
+
+/** Analyse, normalise, and optionally fit one parsed document. */
+async function prepareDocument(
+  document: Document,
+  fit: FitOptions | undefined,
+  sharedFit?: FitResult | null
+): Promise<{ materials: MaterialDecision[]; fit: FitResult | null } | ErrorFields> {
+  let analysis: AssetAnalysis;
+  let materials: MaterialDecision[];
+  try {
+    analysis = await analyseDocument(document);
+    materials = await normaliseMaterials(document, analysis);
+  } catch (err) {
+    return { normaliseError: `Normalisation failed: ${describeError(err)}` };
+  }
+
+  const preparedFit = await prepareFit(document, analysis, fit, sharedFit);
+  if (!('fit' in preparedFit)) return preparedFit;
+  return { materials, fit: preparedFit.fit };
+}
+
+/** Write a prepared document; null means the caller must keep the source bytes. */
+async function writePreparedDocument(io: NodeIO, document: Document): Promise<Uint8Array | null> {
+  try {
+    return await io.writeBinary(document);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Normalise a GLB in memory and apply the optional fit.
+ *
+ * Used for the master and for every downloaded rig output. Any failure here
+ * keeps the paid source bytes: the run succeeds, records the error, and the
+ * caller can still package and preview the asset. Meshopt-compressed geometry is
+ * decoded on read and its declaration is dropped before writing; Draco masters
+ * have no decoder in this package, so their read failure takes the same fallback.
+ */
+async function normaliseMasterGlb(
+  glb: Uint8Array,
+  fit: FitOptions | undefined,
+  sharedFit?: FitResult | null
+): Promise<PreparedMasterGlb> {
+  const read = await readGlbDocument(glb);
+  if ('normaliseError' in read) return sourceFallback(glb, read);
+
+  dropMeshoptExtension(read.document);
+  const prepared = await prepareDocument(read.document, fit, sharedFit);
+  if (!('materials' in prepared)) return sourceFallback(glb, prepared);
+
+  // Masking can leave an unused original behind when every user moved to a
+  // shared clone; drop unused textures before the writer emits their images.
+  const { prune } = await import('@gltf-transform/functions');
+  read.document.setLogger(SILENT_LOGGER);
+  await read.document.transform(prune({ propertyTypes: ['Texture'], keepSolidTextures: true }));
+
+  const bytes = await writePreparedDocument(glbIo(), read.document);
+  if (bytes === null) {
+    return sourceFallback(glb, {
+      normaliseError: 'Normalisation failed: the GLB could not be written back.',
+    });
+  }
+  return { bytes, materials: prepared.materials, fit: prepared.fit };
 }
 
 /**
@@ -2215,10 +2647,15 @@ async function generateMaster(
   const result = await deps.falSubscribe(plan.model.id, input);
   const output = readModelOutput(plan.model, result.data, result.requestId);
   const recovery = { requestId: result.requestId, url: output.glbUrl };
-  const bytes = await withRecovery('download', recovery, () => deps.fetchGlb(output.glbUrl));
-  await withRecovery('save', recovery, () => deps.writeFile(plan.outPath, bytes));
+  const sourceBytes = await withRecovery('download', recovery, () => deps.fetchGlb(output.glbUrl));
+  // Normalise before the bytes are written, hashed, zipped, or handed to the
+  // web and rig steps: every downstream consumer sees the same master. A
+  // normalisation or fit failure keeps the paid source bytes and is recorded.
+  const normalised = await normaliseMasterGlb(sourceBytes, plan.fit);
+  await withRecovery('save', recovery, () => deps.writeFile(plan.outPath, normalised.bytes));
 
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex');
+  const sha256 = createHash('sha256').update(normalised.bytes).digest('hex');
   const manifest = buildManifest({
     model: plan.model,
     input,
@@ -2226,7 +2663,8 @@ async function generateMaster(
     requestId: result.requestId,
     outPath: plan.outPath,
     sha256,
-    byteLength: bytes.byteLength,
+    sourceSha256,
+    byteLength: normalised.bytes.byteLength,
     textureUrls: output.textureUrls,
     referenceImage: buildReferenceManifest(plan, reference, inputImage),
     generatedAt: deps.now().toISOString(),
@@ -2237,8 +2675,12 @@ async function generateMaster(
   await deps.writeJson(plan.manifestPath, manifest);
 
   return {
-    bytes,
+    bytes: normalised.bytes,
     sha256,
+    sourceSha256,
+    materials: normalised.materials,
+    fit: normalised.fit,
+    ...definedErrors(normalised.normaliseError, normalised.fitError),
     requestId: result.requestId,
     inputImage,
     glbUrl: output.glbUrl,
@@ -2318,6 +2760,7 @@ async function packageOrError(args: {
   force: boolean;
   reference: BundledReference | null;
   rigFiles: readonly RigFilePackage[];
+  masterChecks: AssetCheck[];
 }): Promise<Generate3dError | null> {
   try {
     await writePackage({
@@ -2330,6 +2773,7 @@ async function packageOrError(args: {
       force: args.force,
       reference: args.reference,
       rigFiles: args.rigFiles,
+      masterChecks: args.masterChecks,
     });
     return null;
   } catch (err) {
@@ -2362,6 +2806,7 @@ async function packageRun(args: {
   opts: Generate3dOptions;
   reference: BundledReference | null;
   rigging: RigOutcome;
+  masterChecks: AssetCheck[];
 }): Promise<void> {
   const packageError = await packageOrError({
     plan: args.plan,
@@ -2371,6 +2816,7 @@ async function packageRun(args: {
     force: args.opts.force === true,
     reference: args.reference,
     rigFiles: args.rigging.files,
+    masterChecks: args.masterChecks,
   });
   if (packageError === null) {
     await args.deps.writeJson(
@@ -2400,6 +2846,10 @@ export async function generate3d(
   const reference = await generateReferenceFile(plan, deps);
   const bundledReference = await bundleReference(plan, deps, reference);
   const master = await generateMaster(plan, deps, opts, reference);
+  const masterChecks = await checksForGlb(master.bytes);
+  const warnings = [master.normaliseError, master.fitError].filter(
+    (warning): warning is string => warning !== undefined
+  );
 
   // Rig before packaging: the package is the one artefact that must hold the
   // master, the reference, and every rig file. A rig failure keeps the paid
@@ -2411,7 +2861,15 @@ export async function generate3d(
   const rigged = rigManifest(master, rigging);
   if (rigged !== null) await deps.writeJson(plan.manifestPath, rigged);
 
-  await packageRun({ plan, deps, master, opts, reference: bundledReference, rigging });
+  await packageRun({
+    plan,
+    deps,
+    master,
+    opts,
+    reference: bundledReference,
+    rigging,
+    masterChecks,
+  });
 
   return {
     outPath: plan.outPath,
@@ -2419,6 +2877,8 @@ export async function generate3d(
     zipPath: plan.zipPath,
     htmlPath: plan.htmlPath,
     sha256: master.sha256,
+    checks: masterChecks,
+    warnings,
     costLines: formatGenerate3dCost(plan.costLines, plan.model.id, plan.generationCostKnown),
   };
 }

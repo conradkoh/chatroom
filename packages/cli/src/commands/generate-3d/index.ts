@@ -10,6 +10,7 @@ import { readFile, stat } from 'node:fs/promises';
 
 import { InvalidArgumentError, type Command } from 'commander';
 
+import type { FitOptions, OriginMode } from './fit.js';
 import type { Generate3dResult } from './generate-3d.js';
 import { GENERATE_3D_MODELS, GENERATE_3D_PRICES_AS_OF } from './model-registry.js';
 
@@ -22,6 +23,25 @@ function parsePlatform(value: string): Generate3dPlatform {
     throw new InvalidArgumentError(`must be one of ${GENERATE_3D_PLATFORMS.join(', ')}`);
   }
   return value as Generate3dPlatform;
+}
+
+const ORIGIN_MODES = ['feet', 'center', 'as-is'] as const;
+
+/** `--origin` must be one of the three supported modes. */
+function parseOrigin(value: string): OriginMode {
+  if (!ORIGIN_MODES.includes(value as OriginMode)) {
+    throw new InvalidArgumentError(`must be one of ${ORIGIN_MODES.join(', ')}`);
+  }
+  return value as OriginMode;
+}
+
+/** `--target-height` must be a finite number of metres greater than zero. */
+function parseTargetHeight(value: string): number {
+  const meters = Number(value);
+  if (!Number.isFinite(meters) || meters <= 0) {
+    throw new InvalidArgumentError('must be a positive, finite number of metres');
+  }
+  return meters;
 }
 
 /** The flags each capability turns into, for the help table. */
@@ -124,6 +144,10 @@ Package:
   <base>.html is a standalone preview of both variants: the full-resolution
   master and the scaled-down web variant. <base> is <out-stem>-<timestamp>.
 
+Fit:
+  --target-height and --origin apply to the master, the web variant, and every
+  rig output. With no flags the asset is written as the model returned it.
+
 Preview:
   chatroom generate-3d preview <base>.zip rebuilds <base>.html from an existing
   package without contacting fal. Pass --force to replace an existing page.
@@ -141,6 +165,10 @@ interface Generate3dCliOptions {
   inputImage?: string | undefined;
   out: string;
   force?: boolean | undefined;
+  /** `--target-height` in metres; undefined leaves the model unscaled. */
+  targetHeight?: number | undefined;
+  /** `--origin`; defaults to `as-is`. */
+  origin: OriginMode;
   rig?: boolean | undefined;
   /** Commander camel-cases `--animation-action-id` to this singular name. */
   animationActionId: string[];
@@ -155,7 +183,18 @@ function printResult(result: Generate3dResult): void {
   console.log(`Manifest ${result.manifestPath}`);
   console.log(`Package ${result.zipPath}`);
   console.log(`Preview ${result.htmlPath}`);
+  for (const check of result.checks) console.log(`Warning: ${check.message}`);
+  for (const warning of result.warnings) console.log(`Warning: ${warning}`);
   for (const line of result.costLines) console.log(line);
+}
+
+/**
+ * Collapse the two fit flags. `as-is` with no height is the default and is
+ * passed as undefined so the generator takes the byte-identical no-op path.
+ */
+function toFit(options: Generate3dCliOptions): FitOptions | undefined {
+  if (options.origin === 'as-is' && options.targetHeight === undefined) return undefined;
+  return { origin: options.origin, targetHeight: options.targetHeight };
 }
 
 /**
@@ -172,6 +211,7 @@ function toGenerate3dOptions(
     model: options.model,
     out: options.out,
     force: options.force,
+    fit: toFit(options),
     rig: options.rig,
     packageDir: options.packageDir,
     extraInput,
@@ -275,6 +315,17 @@ export function registerGenerate3dCommand(program: Command): void {
       'reference image (local file or URL); the image-to-3D input'
     )
     .option('--force', 'replace existing output, reference, package, preview, rig, and clip files')
+    .option(
+      '--target-height <meters>',
+      'Scale the model so its height is this many metres (positive, finite)',
+      parseTargetHeight
+    )
+    .option(
+      '--origin <origin>',
+      'Where the origin goes: feet (bottom centre), center, or as-is (default)',
+      parseOrigin,
+      'as-is'
+    )
     .option(
       '--rig',
       'rig with Meshy 7.1 (requires --model meshy/v7.1/...); needs --confirm-cost on a real run'
