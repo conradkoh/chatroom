@@ -31,6 +31,7 @@ const reportHeadings = [
   '## Asset manifest',
   '## Quality checklist results',
   '## Style consistency',
+  '## Lighting verification',
   '## Naming map',
   '## Created and edited paths',
   '## Commits',
@@ -91,6 +92,12 @@ describe('game asset designer handoff template snapshots', () => {
     expect(template).toContain('## Assets requested');
     expect(template).toContain('## Budgets and conventions');
     expect(template).toContain('## Style reference');
+    expect(template).toContain('## Lighting contract');
+    expect(template).toContain('`Not specified.` is not allowed');
+    expect(template).toContain('Unknown: designer to read <path>');
+    expect(template).toContain(
+      'do not author prompts, material treatment, style, or lighting art direction'
+    );
     expect(template).toContain('## Perspective');
     expect(template).toContain('no sheets');
     expect(template).toContain('## Spec consumer');
@@ -128,6 +135,11 @@ describe('game asset designer handoff template snapshots', () => {
     for (const position of positions) expect(position).toBeGreaterThan(-1);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(template.trimEnd().endsWith('```')).toBe(true);
+    expect(template).toContain('## Lighting verification');
+    expect(template).toContain('`Blocked: lighting not verified`');
+    expect(template).toContain(
+      "Lighting verified under the brief's Lighting contract, or the Summary starts `Blocked: lighting not verified`."
+    );
     expect(template).toContain('`None failed.`');
     expect(template).toContain('`None.`');
     expect(template).toContain('next-role="planner"');

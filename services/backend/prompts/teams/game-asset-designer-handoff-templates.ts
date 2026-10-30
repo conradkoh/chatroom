@@ -14,13 +14,13 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom generate-3d --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator; for a 3D model also fill \`## Output paths\`, whose \`--package-dir\` stays on the \`generate-3d\` entry. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default, except \`## Lighting contract\`, which is required for a brief with any 3D asset and may be \`Not applicable.\` only when the brief has only 2D or audio assets. Pass goals and constraints as an open problem: do not author prompts, material treatment, style, or lighting art direction; the designer proposes the palette, lighting anchor, and prompts. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom generate-3d --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator; for a 3D model also fill \`## Output paths\`, whose \`--package-dir\` stays on the \`generate-3d\` entry. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
 
 ## Target
-<engine and version; genre and camera; platform tier (mobile, PC, console, VR); render pipeline if known>
+<engine and version; genre and camera; platform tier (mobile, PC, console, VR); render pipeline (renderer, tone mapping) if known; lighting goes in the Lighting contract>
 
 ## Assets requested
 <numbered list with stable IDs \`A01\`, \`A02\`…; each item: asset name, category (3D model, PBR textures, 2D sprite/UI, audio, other), purpose, quantity or variants>
@@ -30,6 +30,9 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 
 ## Style reference
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
+
+## Lighting contract
+<required for a brief with any 3D asset; \`Not specified.\` is not allowed, and \`Not applicable.\` is only for a brief with only 2D or audio assets. State the goal ("consistent with the game's rig and palette") plus the rig facts the repo defines: lighting model (image-based / directional / unlit / toon); environment map present or absent; metalness policy; exposure and tone mapping; colour space; shadow setup; the repository paths that define the rig; and a target-rig reference render path (required for a 3D asset; the designer cannot produce it). If you do not know a fact write \`Unknown: designer to read <path>\`. Do not write prompts, material treatment, or art direction; the designer owns those.>
 
 ## Perspective
 <one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not Applicable.\` for 3D models and audio; or \`Not specified.\`>
@@ -123,6 +126,7 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 - [ ] Every asset ID has a file or \`Specified only.\`
 - [ ] Every sliced asset was isolated with \`remove-image-background\` and \`inspected\`.
 - [ ] Manifests are listed in the asset manifest.
+- [ ] Lighting verified under the brief's Lighting contract, or the Summary starts \`Blocked: lighting not verified\`.
 - [ ] Every candidate in the brief has a decision with its licence and file sizes labelled \`inspected\`.
 
 ## Target and assumptions
@@ -139,6 +143,9 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 
 ## Style consistency
 <how the set matches the style reference; deviations; what was compared and how>
+
+## Lighting verification
+<per 3D asset: the lighting contract you applied; the shared palette/lighting anchor you used; the preview mode(s) you inspected (Directional and Unlit are the game case; Studio is not evidence); the path of the real-rig render from \`## Lighting contract\` (required for \`pass\`); result \`pass\`, \`fail\`, or \`not checked\` with its evidence label. If any asset is \`not checked\`, the Summary must start \`Blocked: lighting not verified\`. Write \`n/a\` for 2D-only or audio-only requests and for \`spec only\` deliverables (no asset is rendered).>
 
 ## Naming map
 | cell stem | seen | assigned name | path | inspection note |
