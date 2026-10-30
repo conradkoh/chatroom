@@ -153,9 +153,9 @@ The preview page has three lighting modes:
 
 These modes are for inspecting the asset. Studio is image-based lighting: it is
 the best case, and it is **not evidence** that the asset renders in a game whose
-scene has no environment map. Directional and Unlit are the no-environment game
-case. An asset is not accepted until it has been rendered under the project's
-real rig.
+scene has no environment map. Directional and Unlit approximate the no-environment
+game case. An asset is not accepted until it has been rendered under the project's
+real rig, or the user explicitly accepts it.
 
 ## Checks
 
