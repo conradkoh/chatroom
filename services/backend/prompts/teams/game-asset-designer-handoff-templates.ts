@@ -145,7 +145,7 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 <how the set matches the style reference; deviations; what was compared and how>
 
 ## Lighting verification
-<per 3D asset: the lighting contract you applied; the shared palette/lighting anchor you used; the preview mode(s) you inspected (Directional and Unlit are the game case; Studio is not evidence); the path of any render under the project's real rig; result \`pass\`, \`fail\`, or \`not checked\` with its evidence label. If any asset is \`not checked\`, the Summary must start \`Blocked: lighting not verified\`. Write \`n/a\` for 2D-only or audio-only requests.>
+<per 3D asset: the lighting contract you applied; the shared palette/lighting anchor you used; the preview mode(s) you inspected (Directional and Unlit are the game case; Studio is not evidence); the path of the real-rig render from \`## Lighting contract\` (required for \`pass\`); result \`pass\`, \`fail\`, or \`not checked\` with its evidence label. If any asset is \`not checked\`, the Summary must start \`Blocked: lighting not verified\`. Write \`n/a\` for 2D-only or audio-only requests and for \`spec only\` deliverables (no asset is rendered).>
 
 ## Naming map
 | cell stem | seen | assigned name | path | inspection note |

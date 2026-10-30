@@ -33,13 +33,13 @@ ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 P1 Recover the brief. IF \`## Lighting contract\` is missing or \`Not specified.\` THEN ask \`{ENTRY_POINT_ROLE}\` (Blocked) ELSE read it. IF engine, tier, style, or budgets are missing and the repo cannot answer THEN ask \`{ENTRY_POINT_ROLE}\` (Summary "Blocked:", unreached "Not started") ELSE defaults+assumptions.
 P2 Inspect assets, names, folders, engine config; cite paths.
 P3 Classify each asset; one manifest entry per ID (\`A01\`…).
-P4 IF \`Deliverable mode\` = \`spec only\` OR \`Output location\`/\`Allowed tools\` missing/ambiguous THEN no files, deliver \`Specified only.\`, GOTO P10.
+P4 IF \`Deliverable mode\` = \`spec only\` OR \`Output location\`/\`Allowed tools\` missing/ambiguous THEN no files, deliver \`Specified only.\`, lighting \`n/a\` (no asset is rendered), GOTO P10.
 P5 IF the asset is 3D THEN \`generate-3d --platform=fal --model <Model>\` (\`--prompt\`/\`--input-image\`, \`--out <Output location>/<ascii-name>.glb\`, \`--rig\`/\`--animation-action-id\` only as R1 allows (approval quoted)), GOTO P9. ELSE Count N. IF N=1 or styles differ THEN per-asset \`generate-image\`, GOTO P8. ELSE use ceil(N / (C×R)) sheets of ≤(C×R) items per \`Sheet grid\` (2x2 default). Prompt: one item per cell, CxR grid, no lines/borders/frames/duplicates. Generate \`generate-image --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/_work/<sheet>.png\`.
 P6 \`chatroom slice-image --in <sheet> --out-dir <Output location>/_work/tiles --cols C --rows R\`. IF refused regenerate once; IF still refused one \`generate-image\` per asset (P5).
 P7 View each tile. IF any tile has 0/2+ items, a cut item, or count differs from the brief's requested count (extra cells OK) THEN regenerate once; IF still bad THEN one \`generate-image\` per asset (P5). Name from sight.
 P8 IF \`remove-image-background --help\` succeeds THEN run \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` (single: \`--in <image> --out <Output location>/<name>.png --trim\`); view results. IF warnings/halo THEN rerun with \`--tolerance\`/\`--force\` max twice, ELSE accept. ELSE rerun \`slice-image --names\`; record trimming not delivered as a failed item/open question.
 P9 Record model, seed, manifests, names.
-P10 Apply checklist, label evidence, fill proofs; apply the lighting item, and if it is \`not checked\`, deliver as \`Blocked: lighting not verified\`.
+P10 Apply checklist, label evidence, fill proofs; apply the lighting item (for \`spec only\` it is \`n/a\`), and if it is \`not checked\`, deliver as \`Blocked: lighting not verified\`.
 P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 
 ### Quality checklist (apply to each asset; mark each item pass, fail, or not applicable, with its evidence label)
@@ -58,7 +58,7 @@ P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 - UVs: non-overlapping unique layout where textures are unique, island padding, consistent texel density, no stretched islands; a second UV set if the engine needs baked lighting.
 - Collision and sockets use the engine's naming (Unreal \`UBX_\`/\`UCP_\`/\`USP_\`/\`UCX_\` + mesh name and \`SOCKET_\` + mesh name; Godot \`-col\`/\`-convcolonly\` suffixes).
 - Skinned meshes: bone count within budget, influences per vertex within the declared budget (commonly 4, marked \`unverified\`; glTF allows more via \`JOINTS_1\`), no leftover IK helpers, a named rest pose.
-- Lighting: renders correctly under the brief's \`## Lighting contract\` (visible, coloured and textured, not near-black) in the preview's Directional and Unlit modes and, when available, the project's real rig; materials set \`metallicFactor\` explicitly and are not whole-surface metal when the contract has no environment map. \`not checked\` blocks delivery (R18).
+- Lighting: renders correctly under the brief's \`## Lighting contract\` (visible, coloured and textured, not near-black) in the preview's Directional and Unlit modes, which is necessary but not sufficient; a \`pass\` also needs the real rig's render attached by path in \`## Lighting contract\` (or in the brief you are re-sent), and producing it is never your job; materials set \`metallicFactor\` explicitly and are not whole-surface metal when the contract has no environment map. \`not checked\` blocks delivery (R19).
 
 **PBR materials and textures**
 - Metallic-roughness workflow with documented channel packing (glTF: roughness in G, metallic in B, occlusion in R).
