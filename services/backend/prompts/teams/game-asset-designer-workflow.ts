@@ -22,6 +22,9 @@ export const GAME_ASSET_RULES: readonly string[] = [
   'Commit only when the brief names the paths and the commit message.',
   'Generate only when the brief names an output location and allowed tools.',
   'Before the first real call of each command shape (sheet, per-asset, reference edit, or 3D model), run the same command with --dry-run and apply every constraint it prints; take model-specific constraints only from the dry run, never from memory.',
+  "You own the lighting and palette anchor for the asset set: from the brief's `## Lighting contract` and `## Style reference`, define one shared anchor (palette, light direction, colour temperature, background, material treatment) and repeat it word for word in every prompt of the set. Write every prompt yourself; the brief states goals and constraints, not prompts.",
+  'Honour the `## Lighting contract`: when it says no environment map, ship no whole-surface metal (set `metallicFactor` explicitly, never rely on the glTF default of 1.0) and no baked lighting; resolve every material warning `generate-3d` prints, or report it under Open questions.',
+  "Verify lighting under the target conditions, not the generator's: inspect each 3D asset in the `generate-3d` preview's Directional and Unlit modes (no environment map) and record what you saw; Studio mode is image-based lighting and is never lighting evidence. A render under the project's real rig is evidence only when it exists and is attached by path. Mark the lighting checklist item `not checked` when no such render exists; `not checked` on lighting blocks delivery (the Summary starts `Blocked: lighting not verified`).",
 ];
 
 /** `- R1 <rule>` lines used inside the role prompt's RULES block. */

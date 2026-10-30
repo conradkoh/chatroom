@@ -36,6 +36,14 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).toContain('### RULES');
     expect(guidance).toContain('### PROCEDURE');
     expect(guidance).toContain('### Perspective consistency');
+    expect(guidance).toContain('### Lighting and palette anchor (asset sets)');
+    expect(guidance).toContain('You own the anchor');
+    expect(guidance).toContain(
+      'Studio mode is image-based lighting and is never lighting evidence'
+    );
+    expect(guidance).toContain('`Blocked: lighting not verified`');
+    expect(guidance).toContain('`## Lighting contract` is missing or `Not specified.`');
+    expect(guidance).toContain('Metalness follows the lighting contract');
     expect(guidance).not.toContain('negative_prompt');
     expect(guidance).toContain('--dry-run');
     expect(guidance).toContain('--model <Model>');
@@ -68,6 +76,6 @@ describe('game asset designer guidance snapshots', () => {
       guidance.indexOf('### PROCEDURE'),
       guidance.indexOf('### Quality checklist')
     );
-    expect(procedure.length).toBeLessThanOrEqual(2000);
+    expect(procedure.length).toBeLessThanOrEqual(2300);
   });
 });
