@@ -544,14 +544,18 @@ async function requireWritablePaths(
  * second-resolution timestamp, so two runs of the same `--out` in one second
  * collide.
  */
-const PACKAGE_COLLISION_HINT =
-  'Another run used this name in the same second; wait a second, use a different --package-dir, or pass --force.';
+const PACKAGE_COLLISION_CAUSE =
+  'Another run used this name in the same second; wait a second, use a different --package-dir';
+
+/** Real-run advice: `--force` replaces the colliding zip and preview pair. */
+const PACKAGE_COLLISION_HINT = `${PACKAGE_COLLISION_CAUSE}, or pass --force.`;
 
 /**
  * Dry-run advice for a package name collision: the base carries this run's
  * timestamp to the second, so a real run started later usually does not collide.
+ * The wording follows the shared overwrite hint because nothing is written.
  */
-const DRY_RUN_PACKAGE_HINT = `${PACKAGE_COLLISION_HINT} A dry run writes nothing.`;
+const DRY_RUN_PACKAGE_HINT = `${PACKAGE_COLLISION_CAUSE}. Add --force to print the plan; a dry run writes nothing.`;
 
 async function requireWritableOutput(
   deps: Generate3dDeps,
