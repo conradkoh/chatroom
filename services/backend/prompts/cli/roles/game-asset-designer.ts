@@ -58,7 +58,7 @@ P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 - UVs: non-overlapping unique layout where textures are unique, island padding, consistent texel density, no stretched islands; a second UV set if the engine needs baked lighting.
 - Collision and sockets use the engine's naming (Unreal \`UBX_\`/\`UCP_\`/\`USP_\`/\`UCX_\` + mesh name and \`SOCKET_\` + mesh name; Godot \`-col\`/\`-convcolonly\` suffixes).
 - Skinned meshes: bone count within budget, influences per vertex within the declared budget (commonly 4, marked \`unverified\`; glTF allows more via \`JOINTS_1\`), no leftover IK helpers, a named rest pose.
-- Lighting: renders correctly under the brief's \`## Lighting contract\` (visible, coloured and textured, not near-black) in the preview's Directional and Unlit modes, which is necessary but not sufficient; a \`pass\` also needs the real rig's render attached by path in \`## Lighting contract\` (or in the brief you are re-sent), and producing it is never your job; materials set \`metallicFactor\` explicitly and are not whole-surface metal when the contract has no environment map. \`not checked\` blocks delivery (R19).
+- Lighting: renders correctly under the brief's \`## Lighting contract\` (visible, coloured and textured, not near-black) in the preview's Directional and Unlit modes, which is necessary but not sufficient; a \`pass\` also needs the real rig's render attached by path in \`## Lighting contract\` (or in the brief you are re-sent), and producing it is never your job; materials are not whole-surface metal when the contract has no environment map, which \`generate-3d\` reports as the \`metal-whole-texture\` warning (R18). \`not checked\` blocks delivery (R19).
 
 **PBR materials and textures**
 - Metallic-roughness workflow with documented channel packing (glTF: roughness in G, metallic in B, occlusion in R).
@@ -67,7 +67,7 @@ P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 - Resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming, for example Unreal; confirm for the target engine version); compression format named.
 - Tiling textures wrap without a visible seam; no baked-in lighting or text in base color unless declared.
 - Maps in one set share texel density, value range, and naming (\`T_Name_BaseColor\`, \`_Normal\`, \`_ORM\`).
-- Metalness follows the lighting contract: with no environment map, metallic is 0 across the surface (metal has no diffuse response and renders near-black); set the factor explicitly.
+- Metalness follows the lighting contract: with no environment map, the written material is not whole-surface metal (metallic 0 across the surface; metal has no diffuse response and renders near-black). \`generate-3d\` reports a whole-surface metal material as the \`metal-whole-texture\` warning; if it remains after one regeneration, report it under Open questions.
 
 **2D sprites and UI art**
 - Fixed grid and pixels-per-unit declared; sprite sizes are multiples of the grid; no sub-pixel offsets.
