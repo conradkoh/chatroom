@@ -25,6 +25,7 @@ import {
   type Generate3dManifest,
 } from './generate-3d.js';
 import { normaliseMaterials } from './material-normalise.js';
+import { Generate3dError } from './model-registry.js';
 import { RIGGING_ENDPOINT, RIGGING_MULTI_ANIMATION_ENDPOINT } from './rigging.js';
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
@@ -494,6 +495,9 @@ describe('generate3d', () => {
     ).rejects.toThrow(
       /--out already exists.*Add --force to print the plan.*dry run writes nothing/
     );
+    await expect(
+      planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, dryRun: true }, deps)
+    ).rejects.toBeInstanceOf(Generate3dError);
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
@@ -1090,10 +1094,18 @@ describe('generate3d packaging', () => {
 
     await expect(
       generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
-    ).rejects.toThrow(/Package already exists.*--force/);
+    ).rejects.toThrow(/Package already exists.*in the same second.*pass --force\.$/);
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('keeps the timestamp collision explanation in a dry run', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(ZIP_PATH)) });
+
+    await expect(
+      planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, dryRun: true }, deps)
+    ).rejects.toThrow(/Package already exists.*in the same second.*A dry run writes nothing/);
   });
 
   it('refuses an existing preview without --force before the paid call', async () => {

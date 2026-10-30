@@ -29,7 +29,7 @@ import {
 } from '../image-shared/fal-pricing.js';
 import { readPngDimensions } from '../image-shared/image-preflight.js';
 import {
-  DRY_RUN_OVERWRITE_HINT,
+  dryRunOverwriteHint,
   findUnwritablePathMessage,
   type WritableTarget,
 } from '../image-shared/writable-path.js';
@@ -294,11 +294,6 @@ async function requireWritablePaths(
   if (message !== null) throw new GenerateImageError(message);
 }
 
-/** The `--force` advice for a collision: dry-run wording when nothing is written. */
-function overwriteHint(dryRun: boolean): string | undefined {
-  return dryRun ? DRY_RUN_OVERWRITE_HINT : undefined;
-}
-
 async function requireWritableOutput(
   deps: GenerateImageDeps,
   outPath: string,
@@ -309,8 +304,8 @@ async function requireWritableOutput(
   await requireWritablePaths(
     deps,
     [
-      { path: outPath, label: '--out', hint: overwriteHint(dryRun) },
-      { path: manifestPath, label: 'Manifest', hint: overwriteHint(dryRun) },
+      { path: outPath, label: '--out', hint: dryRunOverwriteHint(dryRun) },
+      { path: manifestPath, label: 'Manifest', hint: dryRunOverwriteHint(dryRun) },
     ],
     force
   );

@@ -12,6 +12,7 @@ import {
   DEFAULT_BACKGROUND_ENGINE,
   MAX_FAL_INPUT_BYTES,
   MAX_FAL_RESULT_BYTES,
+  RemoveBackgroundFalError,
   removeBackgroundFal,
   validateBackgroundResult,
   type BackgroundEngine,
@@ -262,6 +263,7 @@ describe('removeBackgroundFal', () => {
     const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
 
     expect(error.message).toBe(`--out already exists: ${OUT_PATH}. Pass --force to overwrite.`);
+    expect(error).toBeInstanceOf(RemoveBackgroundFalError);
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 

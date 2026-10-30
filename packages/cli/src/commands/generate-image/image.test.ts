@@ -929,6 +929,12 @@ describe('generateImage', () => {
     ).rejects.toThrow(
       /--out already exists.*Add --force to print the plan.*dry run writes nothing/
     );
+    await expect(
+      planGenerateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, dryRun: true },
+        deps
+      )
+    ).rejects.toBeInstanceOf(GenerateImageError);
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();

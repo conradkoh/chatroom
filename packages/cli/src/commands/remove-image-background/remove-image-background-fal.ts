@@ -68,7 +68,9 @@ const TOOL = 'chatroom remove-image-background-fal' as const;
  */
 const LICENSING = 'unverified' as const;
 
-class RemoveBackgroundFalError extends Error {
+// Exported so tests can assert the error class; fallow does not count test imports.
+// fallow-ignore-next-line unused-export
+export class RemoveBackgroundFalError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'RemoveBackgroundFalError';

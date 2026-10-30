@@ -62,7 +62,7 @@ import type { GlbStats, ProcessedVariant, WebVariant } from './web-variant.js';
 import type { ZipEntry } from './zip-package.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
 import {
-  DRY_RUN_OVERWRITE_HINT,
+  dryRunOverwriteHint,
   findUnwritablePathMessage,
   type WritableTarget,
 } from '../image-shared/writable-path.js';
@@ -101,7 +101,7 @@ export interface Generate3dOptions {
    * not know, and how a known model's defaults can be overridden.
    */
   extraInput?: Record<string, unknown> | undefined;
-  /** True only on the `--dry-run` path; used in the corrected-command hint. */
+  /** True only on the `--dry-run` path; changes the overwrite advice, not the checks. */
   dryRun?: boolean | undefined;
   /**
    * The user has seen the priced plan for a real run that rigs or animates.
@@ -539,11 +539,6 @@ async function requireWritablePaths(
   if (message !== null) throw new Generate3dError(message);
 }
 
-/** The `--force` advice for a collision: dry-run wording when nothing is written. */
-function overwriteHint(dryRun: boolean): string | undefined {
-  return dryRun ? DRY_RUN_OVERWRITE_HINT : undefined;
-}
-
 /**
  * Why a package path can already exist: the base is the out stem plus a
  * second-resolution timestamp, so two runs of the same `--out` in one second
@@ -551,6 +546,12 @@ function overwriteHint(dryRun: boolean): string | undefined {
  */
 const PACKAGE_COLLISION_HINT =
   'Another run used this name in the same second; wait a second, use a different --package-dir, or pass --force.';
+
+/**
+ * Dry-run advice for a package name collision: the base carries this run's
+ * timestamp to the second, so a real run started later usually does not collide.
+ */
+const DRY_RUN_PACKAGE_HINT = `${PACKAGE_COLLISION_HINT} A dry run writes nothing.`;
 
 async function requireWritableOutput(
   deps: Generate3dDeps,
@@ -562,8 +563,8 @@ async function requireWritableOutput(
   await requireWritablePaths(
     deps,
     [
-      { path: outPath, label: '--out', hint: overwriteHint(dryRun) },
-      { path: manifestPath, label: 'Manifest', hint: overwriteHint(dryRun) },
+      { path: outPath, label: '--out', hint: dryRunOverwriteHint(dryRun) },
+      { path: manifestPath, label: 'Manifest', hint: dryRunOverwriteHint(dryRun) },
     ],
     force
   );
@@ -693,11 +694,11 @@ async function requireWritableRiggingPaths(
   await requireWritablePaths(
     deps,
     [
-      { path: rigging.riggedOutPath, label: 'Rigged GLB', hint: overwriteHint(dryRun) },
+      { path: rigging.riggedOutPath, label: 'Rigged GLB', hint: dryRunOverwriteHint(dryRun) },
       ...rigging.animationOutPaths.map((animation) => ({
         path: animation.path,
         label: `Animation clip ${animation.actionId} GLB`,
-        hint: overwriteHint(dryRun),
+        hint: dryRunOverwriteHint(dryRun),
       })),
     ],
     force
@@ -1159,7 +1160,7 @@ async function requireWritableReference(
   if (reference?.source !== 'generated' || reference.localPath === null) return;
   await requireWritablePaths(
     deps,
-    [{ path: reference.localPath, label: 'Reference image', hint: overwriteHint(dryRun) }],
+    [{ path: reference.localPath, label: 'Reference image', hint: dryRunOverwriteHint(dryRun) }],
     force
   );
 }
@@ -1193,7 +1194,7 @@ async function requireWritablePackage(
   force: boolean,
   dryRun: boolean
 ): Promise<void> {
-  const hint = dryRun ? DRY_RUN_OVERWRITE_HINT : PACKAGE_COLLISION_HINT;
+  const hint = dryRun ? DRY_RUN_PACKAGE_HINT : PACKAGE_COLLISION_HINT;
   await requireWritablePaths(
     deps,
     [

@@ -1,10 +1,11 @@
 /**
  * Shared output-collision preflight for commands that write files.
  *
- * `generate-3d`, `generate-image`, and `remove-image-background` all refuse to
- * clobber an existing file unless the user passed `--force`, and all refuse a
- * directory outright even with `--force`. Returning the message instead of
- * throwing lets every command raise its own error class.
+ * `generate-3d`, `generate-3d preview`, `generate-image`, and
+ * `remove-image-background --engine fal` all refuse to clobber an existing file
+ * unless the user passed `--force`, and all refuse a directory outright even
+ * with `--force`. Returning the message instead of throwing lets every command
+ * raise its own error class.
  */
 
 import type { PathStatus } from './output-files.js';
@@ -30,8 +31,16 @@ const OVERWRITE_HINT = 'Pass --force to overwrite.';
  * run would refuse too — but "pass --force to overwrite" is misleading when
  * nothing is written, so a dry run says what `--force` actually buys.
  */
-export const DRY_RUN_OVERWRITE_HINT =
+const DRY_RUN_OVERWRITE_HINT =
   'A real run would also refuse this. Add --force to print the plan; a dry run writes nothing.';
+
+/**
+ * The `--force` advice for a collision: the dry-run wording when nothing would
+ * be written, otherwise undefined so the caller's default or custom hint wins.
+ */
+export function dryRunOverwriteHint(dryRun: boolean): string | undefined {
+  return dryRun ? DRY_RUN_OVERWRITE_HINT : undefined;
+}
 
 /** Refusal for a directory target; `--force` never rescues it. */
 function directoryRefusal(target: WritableTarget): string {
