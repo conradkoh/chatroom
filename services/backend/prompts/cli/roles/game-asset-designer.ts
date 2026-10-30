@@ -30,16 +30,16 @@ ${GAME_ASSET_EVIDENCE_DEFINITIONS}
 ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 
 ### PROCEDURE
-P1 Recover the brief. IF \`## Lighting contract\` is missing or \`Not specified.\` THEN ask \`{ENTRY_POINT_ROLE}\` (Blocked) ELSE read it. IF engine, tier, style, or budgets are missing and the repo cannot answer THEN ask \`{ENTRY_POINT_ROLE}\` (Summary "Blocked:", unreached "Not started") ELSE defaults+assumptions.
+P1 Recover the brief. IF \`## Lighting contract\` is missing, \`Not specified.\`, or \`Not applicable.\` for a 3D asset, or engine, tier, style, or budgets are missing and the repo cannot answer, THEN ask \`{ENTRY_POINT_ROLE}\` (Summary "Blocked:", unreached "Not started") ELSE read the contract (\`Not applicable.\` only for 2D-only or audio-only briefs) and apply defaults+assumptions.
 P2 Inspect assets, names, folders, engine config; cite paths.
 P3 Classify each asset; one manifest entry per ID (\`A01\`…).
-P4 IF \`Deliverable mode\` = \`spec only\` OR \`Output location\`/\`Allowed tools\` missing/ambiguous THEN no files, deliver \`Specified only.\`, lighting \`n/a\` (no asset is rendered), GOTO P10.
-P5 IF the asset is 3D THEN \`generate-3d --platform=fal --model <Model>\` (\`--prompt\`/\`--input-image\`, \`--out <Output location>/<ascii-name>.glb\`, \`--rig\`/\`--animation-action-id\` only as R1 allows (approval quoted)), GOTO P9. ELSE Count N. IF N=1 or styles differ THEN per-asset \`generate-image\`, GOTO P8. ELSE use ceil(N / (C×R)) sheets of ≤(C×R) items per \`Sheet grid\` (2x2 default). Prompt: one item per cell, CxR grid, no lines/borders/frames/duplicates. Generate \`generate-image --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/_work/<sheet>.png\`.
+P4 IF \`Deliverable mode\` = \`spec only\` OR \`Output location\`/\`Allowed tools\` missing/ambiguous THEN no files, deliver \`Specified only.\`, lighting \`n/a\` (nothing rendered), GOTO P10.
+P5 IF the asset is 3D THEN \`generate-3d --platform=fal --model <Model>\` (\`--prompt\`/\`--input-image\`, \`--out <Output location>/<ascii-name>.glb\`, \`--rig\`/\`--animation-action-id\` only as R1 allows), GOTO P9. ELSE Count N. IF N=1 or styles differ THEN per-asset \`generate-image\`, GOTO P8. ELSE use ceil(N / (C×R)) sheets of ≤(C×R) per \`Sheet grid\` (2x2 default). Prompt: one item per cell, CxR grid, no lines/borders/frames/duplicates. Generate \`generate-image --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/_work/<sheet>.png\`.
 P6 \`chatroom slice-image --in <sheet> --out-dir <Output location>/_work/tiles --cols C --rows R\`. IF refused regenerate once; IF still refused one \`generate-image\` per asset (P5).
-P7 View each tile. IF any tile has 0/2+ items, a cut item, or count differs from the brief's requested count (extra cells OK) THEN regenerate once; IF still bad THEN one \`generate-image\` per asset (P5). Name from sight.
-P8 IF \`remove-image-background --help\` succeeds THEN run \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` (single: \`--in <image> --out <Output location>/<name>.png --trim\`); view results. IF warnings/halo THEN rerun with \`--tolerance\`/\`--force\` max twice, ELSE accept. ELSE rerun \`slice-image --names\`; record trimming not delivered as a failed item/open question.
+P7 View each tile. IF any tile has 0/2+ items, a cut item, or count differs from the brief's (extra cells OK) THEN regenerate once; IF still bad THEN one \`generate-image\` per asset (P5). Name from sight.
+P8 IF \`remove-image-background --help\` succeeds THEN run \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` (single: \`--in <image> --out <Output location>/<name>.png --trim\`); view results. IF warnings/halo THEN rerun with \`--tolerance\`/\`--force\` max twice, ELSE accept. ELSE rerun \`slice-image --names\`; record the missing trim as a failed item/open question.
 P9 Record model, seed, manifests, names.
-P10 Apply checklist, label evidence, fill proofs; apply the lighting item (for \`spec only\` it is \`n/a\`), and if it is \`not checked\`, deliver as \`Blocked: lighting not verified\`.
+P10 Apply checklist, label evidence, fill proofs; apply the lighting item (\`n/a\` for \`spec only\`), and if \`not checked\`, deliver as \`Blocked: lighting not verified\`.
 P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 
 ### Quality checklist (apply to each asset; mark each item pass, fail, or not applicable, with its evidence label)

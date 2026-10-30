@@ -42,7 +42,8 @@ describe('game asset designer guidance snapshots', () => {
       'Studio mode is image-based lighting and is never lighting evidence'
     );
     expect(guidance).toContain('`Blocked: lighting not verified`');
-    expect(guidance).toContain('`## Lighting contract` is missing or `Not specified.`');
+    expect(guidance).toContain('`## Lighting contract` is missing, `Not specified.`');
+    expect(guidance).toContain('`Not applicable.` only for 2D-only or audio-only briefs');
     expect(guidance).toContain('Metalness follows the lighting contract');
     expect(guidance).not.toContain('negative_prompt');
     expect(guidance).toContain('--dry-run');
