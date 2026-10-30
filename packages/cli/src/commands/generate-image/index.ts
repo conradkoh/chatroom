@@ -102,6 +102,7 @@ async function runGenerateImage(options: GenerateImageCliOptions): Promise<void>
       input,
       inputImage: options.inputImage,
       force: options.force,
+      dryRun: options.dryRun === true,
     };
     if (options.dryRun === true) {
       const { formatGenerateImagePlan, planGenerateImage } = await import('./image.js');
@@ -155,7 +156,7 @@ export function registerGenerateImageCommand(program: Command): void {
     .option('--force', 'Overwrite existing output and manifest files')
     .option(
       '--dry-run',
-      'Validate and print the request, the model constraints the CLI knows, and the estimated fal cost. No upload or fal generation call is made; one read-only pricing request may be made when FAL_API_KEY is set (the key is not required)'
+      'Validate and print the request, the model constraints the CLI knows, and the estimated fal cost. No upload or fal generation call is made; one read-only pricing request may be made when FAL_API_KEY is set (the key is not required). Refuses an existing output like a real run; add --force to print the plan anyway (a dry run writes nothing)'
     )
     .addHelpText('after', HELP_AFTER)
     .action(runGenerateImage);

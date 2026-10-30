@@ -24,6 +24,8 @@ import { MeshoptDecoder } from 'meshoptimizer';
 import { analyseDocument } from './asset-analysis.js';
 import { computeChecks, type AssetCheck } from './checks.js';
 import { directionalEnvironmentPng, renderPreviewHtml } from './preview-html.js';
+import type { PathStatus } from '../image-shared/output-files.js';
+import { findUnwritablePathMessage } from '../image-shared/writable-path.js';
 
 /** File name of the package manifest inside the zip; matches the writer. */
 const PACKAGE_MANIFEST_NAME = 'manifest.json';
@@ -209,16 +211,24 @@ function packageBase(zipName: string, zipPath: string): string {
   return zipName.slice(0, -'.zip'.length);
 }
 
+/**
+ * `stat`-based classification that treats an unreadable path as free, as this
+ * command did before the shared preflight existed.
+ */
+async function previewPathStatus(path: string): Promise<PathStatus> {
+  const stats = await stat(path).catch(() => null);
+  if (stats === null) return 'missing';
+  return stats.isDirectory() ? 'directory' : 'file';
+}
+
 /** Refuse to clobber a file or a directory unless `--force` was passed. */
 async function requireWritablePreview(htmlPath: string, force: boolean): Promise<void> {
-  const stats = await stat(htmlPath).catch(() => null);
-  if (stats === null) return;
-  if (stats.isDirectory()) {
-    throw new Error(`Preview is a directory: ${htmlPath}. Pass a file path.`);
-  }
-  if (!force) {
-    throw new Error(`Preview already exists: ${htmlPath}. Pass --force to overwrite.`);
-  }
+  const message = await findUnwritablePathMessage(
+    { pathStatus: previewPathStatus },
+    [{ path: htmlPath, label: 'Preview' }],
+    force
+  );
+  if (message !== null) throw new Error(message);
 }
 
 /** Render and write the page; exclusive unless `--force` was passed. */

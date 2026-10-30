@@ -350,7 +350,7 @@ export function registerGenerate3dCommand(program: Command): void {
     )
     .option(
       '--dry-run',
-      'Validate and print the request and the static list-price estimate. No upload or fal generation call is made; FAL_API_KEY is not required'
+      'Validate and print the request and the static list-price estimate. No upload or fal generation call is made; FAL_API_KEY is not required. Refuses an existing output like a real run; add --force to print the plan anyway (a dry run writes nothing)'
     )
     .addHelpText('after', HELP_AFTER)
     .action(runGenerate3d);

@@ -28,6 +28,11 @@ import {
   type FalUnitPrice,
 } from '../image-shared/fal-pricing.js';
 import { readPngDimensions } from '../image-shared/image-preflight.js';
+import {
+  dryRunOverwriteHint,
+  findUnwritablePathMessage,
+  type WritableTarget,
+} from '../image-shared/writable-path.js';
 
 /**
  * Generation platforms the CLI can call today. New platforms are added here
@@ -66,6 +71,8 @@ export interface GenerateImageOptions {
   inputImage?: string | undefined;
   /** Allow replacing an existing output or manifest file. */
   force?: boolean | undefined;
+  /** True only on the `--dry-run` path; changes the overwrite advice, not the checks. */
+  dryRun?: boolean | undefined;
 }
 
 export interface GenerateImageResult {
@@ -277,33 +284,31 @@ function requireImage(
   return image;
 }
 
-/**
- * Refuse to clobber an existing file or write over a directory unless the user
- * asked with --force. Runs before the paid fal call.
- */
-async function requireWritablePath(
+/** Throw the shared refusal message with this command's error type. */
+async function requireWritablePaths(
   deps: GenerateImageDeps,
-  path: string,
-  label: string,
+  targets: readonly WritableTarget[],
   force: boolean
 ): Promise<void> {
-  const status = await deps.pathStatus(path);
-  if (status === 'directory') {
-    throw new GenerateImageError(`${label} is a directory: ${path}. Pass a file path.`);
-  }
-  if (status === 'file' && !force) {
-    throw new GenerateImageError(`${label} already exists: ${path}. Pass --force to overwrite.`);
-  }
+  const message = await findUnwritablePathMessage(deps, targets, force);
+  if (message !== null) throw new GenerateImageError(message);
 }
 
 async function requireWritableOutput(
   deps: GenerateImageDeps,
   outPath: string,
   manifestPath: string,
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
-  await requireWritablePath(deps, outPath, '--out', force);
-  await requireWritablePath(deps, manifestPath, 'Manifest', force);
+  await requireWritablePaths(
+    deps,
+    [
+      { path: outPath, label: '--out', hint: dryRunOverwriteHint(dryRun) },
+      { path: manifestPath, label: 'Manifest', hint: dryRunOverwriteHint(dryRun) },
+    ],
+    force
+  );
 }
 
 /**
@@ -809,7 +814,13 @@ export async function planGenerateImage(
   const manifestPath = `${outPath}.json`;
 
   // Refuse unwritable outputs before the paid call.
-  await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
+  await requireWritableOutput(
+    deps,
+    outPath,
+    manifestPath,
+    opts.force === true,
+    opts.dryRun === true
+  );
 
   const input = buildInput(prompt, opts, planInputImageUrl(inputTarget));
   const cost = await buildGenerateImageCost({ model, input, inputTarget, deps });

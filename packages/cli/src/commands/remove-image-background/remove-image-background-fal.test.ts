@@ -262,6 +262,7 @@ describe('removeBackgroundFal', () => {
     const error = await captureError(removeBackgroundFal({ in: IN_PATH, out: OUT_PATH }, deps));
 
     expect(error.message).toBe(`--out already exists: ${OUT_PATH}. Pass --force to overwrite.`);
+    expect(error.name).toBe('RemoveBackgroundFalError');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
   });
 

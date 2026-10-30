@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { Document, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { meshopt } from '@gltf-transform/functions';
+import { Command } from 'commander';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -24,8 +25,26 @@ import {
   planGenerate3d,
   type Generate3dManifest,
 } from './generate-3d.js';
+import { registerGenerate3dCommand } from './index.js';
 import { normaliseMaterials } from './material-normalise.js';
+import { Generate3dError } from './model-registry.js';
 import { RIGGING_ENDPOINT, RIGGING_MULTI_ANIMATION_ENDPOINT } from './rigging.js';
+
+/**
+ * The deps the command action resolves. Null keeps the real factory, so the
+ * `createDefaultGenerate3dDeps` tests below still exercise production wiring.
+ */
+const commandDeps = vi.hoisted(() => ({ current: null as Generate3dDeps | null }));
+
+vi.mock('./deps.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as {
+    createDefaultGenerate3dDeps: typeof createDefaultGenerate3dDeps;
+  };
+  return {
+    ...actual,
+    createDefaultGenerate3dDeps: () => commandDeps.current ?? actual.createDefaultGenerate3dDeps(),
+  };
+});
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const MESHY_TEXT = 'meshy/v7.1/text-to-3d';
@@ -484,6 +503,80 @@ describe('generate3d', () => {
     expect(deps.fetchGlb).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
     expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('points a dry run at --force when the output already exists', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(OUT_PATH)) });
+
+    const error = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, dryRun: true },
+      deps
+    ).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(Generate3dError);
+    expect((error as Error).message).toMatch(
+      /--out already exists.*Add --force to print the plan.*dry run writes nothing/
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('plans an existing output in a dry run when --force is passed', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(OUT_PATH)) });
+
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, dryRun: true, force: true },
+      deps
+    );
+
+    expect(plan.outPath).toBe(OUT_PATH);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing through the command action when a dry run with --force targets an existing output', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(OUT_PATH)) });
+    commandDeps.current = deps;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const program = new Command();
+    program.exitOverride();
+    registerGenerate3dCommand(program);
+
+    await program.parseAsync([
+      'node',
+      'chatroom',
+      'generate-3d',
+      '--platform=fal',
+      '--model',
+      MESHY_TEXT,
+      '--prompt',
+      'a knight',
+      '--out',
+      OUT_PATH,
+      '--dry-run',
+      '--force',
+    ]);
+
+    // Nothing is written, so the existing file keeps its bytes: the plan path
+    // reaches neither a writer nor fal.
+    expect(deps.pathStatus).toHaveBeenCalledWith(OUT_PATH);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+    expect(log.mock.calls.map((call) => String(call[0])).join('\n')).toContain(
+      `Would generate ${OUT_PATH}`
+    );
+    log.mockRestore();
+    commandDeps.current = null;
+  });
+
+  it('keeps the plain overwrite advice for a real run', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(OUT_PATH)) });
+
+    await expect(
+      planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/--out already exists.*Pass --force to overwrite\./);
   });
 
   it('refuses an existing manifest without --force', async () => {
@@ -1055,10 +1148,20 @@ describe('generate3d packaging', () => {
 
     await expect(
       generate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
-    ).rejects.toThrow(/Package already exists.*--force/);
+    ).rejects.toThrow(/Package already exists.*in the same second.*pass --force\.$/);
 
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('keeps the timestamp collision explanation in a dry run', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(ZIP_PATH)) });
+
+    await expect(
+      planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, dryRun: true }, deps)
+    ).rejects.toThrow(
+      /Package already exists.*in the same second.*Add --force to print the plan.*a dry run writes nothing/
+    );
   });
 
   it('refuses an existing preview without --force before the paid call', async () => {

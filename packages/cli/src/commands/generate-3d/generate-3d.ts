@@ -61,6 +61,11 @@ import {
 import type { GlbStats, ProcessedVariant, WebVariant } from './web-variant.js';
 import type { ZipEntry } from './zip-package.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
+import {
+  dryRunOverwriteHint,
+  findUnwritablePathMessage,
+  type WritableTarget,
+} from '../image-shared/writable-path.js';
 
 /** Only fal is wired for 3D generation today. */
 export type Generate3dPlatform = 'fal';
@@ -96,7 +101,7 @@ export interface Generate3dOptions {
    * not know, and how a known model's defaults can be overridden.
    */
   extraInput?: Record<string, unknown> | undefined;
-  /** True only on the `--dry-run` path; used in the corrected-command hint. */
+  /** True only on the `--dry-run` path; changes the overwrite advice, not the checks. */
   dryRun?: boolean | undefined;
   /**
    * The user has seen the priced plan for a real run that rigs or animates.
@@ -524,24 +529,14 @@ async function validateInputImage(
   return { kind: 'file', path: localPath, contentType };
 }
 
-/**
- * Refuse to clobber an existing file or write over a directory unless the user
- * asked with --force. Runs before the paid fal call.
- */
-async function requireWritablePath(
+/** Throw the shared refusal message with this command's error type. */
+async function requireWritablePaths(
   deps: Generate3dDeps,
-  path: string,
-  label: string,
-  force: boolean,
-  hint = 'Pass --force to overwrite.'
+  targets: readonly WritableTarget[],
+  force: boolean
 ): Promise<void> {
-  const status = await deps.pathStatus(path);
-  if (status === 'directory') {
-    throw new Generate3dError(`${label} is a directory: ${path}. Pass a file path.`);
-  }
-  if (status === 'file' && !force) {
-    throw new Generate3dError(`${label} already exists: ${path}. ${hint}`);
-  }
+  const message = await findUnwritablePathMessage(deps, targets, force);
+  if (message !== null) throw new Generate3dError(message);
 }
 
 /**
@@ -549,17 +544,34 @@ async function requireWritablePath(
  * second-resolution timestamp, so two runs of the same `--out` in one second
  * collide.
  */
-const PACKAGE_COLLISION_HINT =
-  'Another run used this name in the same second; wait a second, use a different --package-dir, or pass --force.';
+const PACKAGE_COLLISION_CAUSE =
+  'Another run used this name in the same second; wait a second, use a different --package-dir';
+
+/** Real-run advice: `--force` replaces the colliding zip and preview pair. */
+const PACKAGE_COLLISION_HINT = `${PACKAGE_COLLISION_CAUSE}, or pass --force.`;
+
+/**
+ * Dry-run advice for a package name collision: the base carries this run's
+ * timestamp to the second, so a real run started later usually does not collide.
+ * The wording follows the shared overwrite hint because nothing is written.
+ */
+const DRY_RUN_PACKAGE_HINT = `${PACKAGE_COLLISION_CAUSE}. Add --force to print the plan; a dry run writes nothing.`;
 
 async function requireWritableOutput(
   deps: Generate3dDeps,
   outPath: string,
   manifestPath: string,
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
-  await requireWritablePath(deps, outPath, '--out', force);
-  await requireWritablePath(deps, manifestPath, 'Manifest', force);
+  await requireWritablePaths(
+    deps,
+    [
+      { path: outPath, label: '--out', hint: dryRunOverwriteHint(dryRun) },
+      { path: manifestPath, label: 'Manifest', hint: dryRunOverwriteHint(dryRun) },
+    ],
+    force
+  );
 }
 
 /** The value shown for image_url before a local file is uploaded. */
@@ -679,18 +691,22 @@ function buildRiggingPlan(
 async function requireWritableRiggingPaths(
   deps: Generate3dDeps,
   rigging: PlannedRigging,
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
   if (rigging.riggedOutPath === null) return;
-  await requireWritablePath(deps, rigging.riggedOutPath, 'Rigged GLB', force);
-  for (const animation of rigging.animationOutPaths) {
-    await requireWritablePath(
-      deps,
-      animation.path,
-      `Animation clip ${animation.actionId} GLB`,
-      force
-    );
-  }
+  await requireWritablePaths(
+    deps,
+    [
+      { path: rigging.riggedOutPath, label: 'Rigged GLB', hint: dryRunOverwriteHint(dryRun) },
+      ...rigging.animationOutPaths.map((animation) => ({
+        path: animation.path,
+        label: `Animation clip ${animation.actionId} GLB`,
+        hint: dryRunOverwriteHint(dryRun),
+      })),
+    ],
+    force
+  );
 }
 
 /** Package naming decided before the fal call. */
@@ -1142,10 +1158,15 @@ function planReferenceStep(args: {
 async function requireWritableReference(
   deps: Generate3dDeps,
   reference: Generate3dReferenceImagePlan | null,
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
   if (reference?.source !== 'generated' || reference.localPath === null) return;
-  await requireWritablePath(deps, reference.localPath, 'Reference image', force);
+  await requireWritablePaths(
+    deps,
+    [{ path: reference.localPath, label: 'Reference image', hint: dryRunOverwriteHint(dryRun) }],
+    force
+  );
 }
 
 /** Clips are a rigging feature, so the flag pairing is checked with the args. */
@@ -1159,24 +1180,33 @@ function requireRigForClips(rig: boolean, animationActionIds: readonly number[])
 async function requireWritablePlanPaths(args: {
   deps: Generate3dDeps;
   force: boolean;
+  dryRun: boolean;
   outPath: string;
   manifestPath: string;
   rigging: PlannedRigging;
   naming: ResolvedPackageNaming;
 }): Promise<void> {
-  await requireWritableOutput(args.deps, args.outPath, args.manifestPath, args.force);
-  await requireWritableRiggingPaths(args.deps, args.rigging, args.force);
-  await requireWritablePackage(args.deps, args.naming, args.force);
+  await requireWritableOutput(args.deps, args.outPath, args.manifestPath, args.force, args.dryRun);
+  await requireWritableRiggingPaths(args.deps, args.rigging, args.force, args.dryRun);
+  await requireWritablePackage(args.deps, args.naming, args.force, args.dryRun);
 }
 
 /** Refuse to clobber the package zip or its preview. */
 async function requireWritablePackage(
   deps: Generate3dDeps,
   paths: { zipPath: string; htmlPath: string },
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
-  await requireWritablePath(deps, paths.zipPath, 'Package', force, PACKAGE_COLLISION_HINT);
-  await requireWritablePath(deps, paths.htmlPath, 'Preview', force, PACKAGE_COLLISION_HINT);
+  const hint = dryRun ? DRY_RUN_PACKAGE_HINT : PACKAGE_COLLISION_HINT;
+  await requireWritablePaths(
+    deps,
+    [
+      { path: paths.zipPath, label: 'Package', hint },
+      { path: paths.htmlPath, label: 'Preview', hint },
+    ],
+    force
+  );
 }
 
 /** Resolve the model and run every pure check that needs no filesystem access. */
@@ -1228,6 +1258,7 @@ export async function planGenerate3d(
   await requireWritablePlanPaths({
     deps,
     force: opts.force === true,
+    dryRun: opts.dryRun === true,
     outPath,
     manifestPath,
     rigging,
@@ -1235,7 +1266,12 @@ export async function planGenerate3d(
   });
 
   const referenceStep = planReferenceStep({ model, opts, outPath, inputTarget });
-  await requireWritableReference(deps, referenceStep.referenceImage, opts.force === true);
+  await requireWritableReference(
+    deps,
+    referenceStep.referenceImage,
+    opts.force === true,
+    opts.dryRun === true
+  );
   const input = model.buildInput({
     prompt: opts.prompt,
     imageUrl: referenceStep.imageUrl,

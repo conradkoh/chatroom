@@ -7,17 +7,34 @@
  * replaced with `--force`.
  */
 
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Document, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { rebuildPreviewFromZip } from './rebuild-preview.js';
 import { zipPackage, type ZipEntry } from './zip-package.js';
+
+/**
+ * One-shot `stat` failure, so the preview preflight's own error handling can be
+ * tested. Null keeps the real `stat`.
+ */
+const statFailure = vi.hoisted(() => ({ current: null as Error | null }));
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = (await importOriginal()) as {
+    stat: (path: string) => Promise<unknown>;
+  };
+  return {
+    ...actual,
+    stat: (path: string) =>
+      statFailure.current === null ? actual.stat(path) : Promise.reject(statFailure.current),
+  };
+});
 
 /** A valid box GLB, centred on the origin, so the page gets `not-on-feet`. */
 async function buildMasterGlb(): Promise<Uint8Array> {
@@ -169,6 +186,7 @@ function embeddedMasterBase64(html: string): string {
 }
 
 afterEach(async () => {
+  statFailure.current = null;
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
@@ -298,5 +316,34 @@ describe('rebuildPreviewFromZip', () => {
     await rebuildPreviewFromZip(zipPath, { force: true });
 
     expect(await readFile(htmlPath, 'utf8')).not.toBe('keep me');
+  });
+
+  it('refuses a directory at the preview path even with --force', async () => {
+    const dir = await createDir();
+    const zipPath = await writePackage(dir);
+    const htmlPath = join(dir, `${BASE}.html`);
+    await mkdir(htmlPath);
+
+    await expect(rebuildPreviewFromZip(zipPath, { force: true })).rejects.toThrow(
+      `Preview is a directory: ${htmlPath}. Pass a file path.`
+    );
+  });
+
+  it('treats a stat error other than ENOENT as a free preview path', async () => {
+    const dir = await createDir();
+    const zipPath = await writePackage(dir);
+    const htmlPath = join(dir, `${BASE}.html`);
+    statFailure.current = Object.assign(new Error('EACCES: permission denied'), {
+      code: 'EACCES',
+    });
+    // Prove the injected failure is the one the rebuild's stat call sees.
+    await expect(stat(htmlPath)).rejects.toThrow('EACCES');
+
+    const result = await rebuildPreviewFromZip(zipPath, { force: false });
+
+    // An unreadable stat result must not block the rebuild, as before the
+    // shared preflight existed.
+    expect(result).toBe(htmlPath);
+    expect(await readFile(htmlPath, 'utf8')).toContain('<title>');
   });
 });

@@ -139,6 +139,10 @@ block. It makes no upload and no fal generation call. Without `FAL_API_KEY` it
 makes no network call at all; with the key set it may make one read-only GET to
 fal's pricing API (3-second timeout).
 
+Because it runs the same checks, a dry run also refuses an existing `--out` or
+manifest unless you pass `--force`. `--dry-run --force` prints the plan and
+still writes nothing, which is the way to price a run that would overwrite.
+
 Each constraint line is `unsupported` (the model does not take that parameter),
 `unknown` (the CLI has no data for it), `default` (an unset parameter where the
 model's default applies), or `note`. A real call still sends an `unsupported`
