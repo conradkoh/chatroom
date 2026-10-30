@@ -61,7 +61,11 @@ import {
 import type { GlbStats, ProcessedVariant, WebVariant } from './web-variant.js';
 import type { ZipEntry } from './zip-package.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
-import { findUnwritablePathMessage, type WritableTarget } from '../image-shared/writable-path.js';
+import {
+  DRY_RUN_OVERWRITE_HINT,
+  findUnwritablePathMessage,
+  type WritableTarget,
+} from '../image-shared/writable-path.js';
 
 /** Only fal is wired for 3D generation today. */
 export type Generate3dPlatform = 'fal';
@@ -535,6 +539,11 @@ async function requireWritablePaths(
   if (message !== null) throw new Generate3dError(message);
 }
 
+/** The `--force` advice for a collision: dry-run wording when nothing is written. */
+function overwriteHint(dryRun: boolean): string | undefined {
+  return dryRun ? DRY_RUN_OVERWRITE_HINT : undefined;
+}
+
 /**
  * Why a package path can already exist: the base is the out stem plus a
  * second-resolution timestamp, so two runs of the same `--out` in one second
@@ -547,13 +556,14 @@ async function requireWritableOutput(
   deps: Generate3dDeps,
   outPath: string,
   manifestPath: string,
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
   await requireWritablePaths(
     deps,
     [
-      { path: outPath, label: '--out' },
-      { path: manifestPath, label: 'Manifest' },
+      { path: outPath, label: '--out', hint: overwriteHint(dryRun) },
+      { path: manifestPath, label: 'Manifest', hint: overwriteHint(dryRun) },
     ],
     force
   );
@@ -676,16 +686,18 @@ function buildRiggingPlan(
 async function requireWritableRiggingPaths(
   deps: Generate3dDeps,
   rigging: PlannedRigging,
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
   if (rigging.riggedOutPath === null) return;
   await requireWritablePaths(
     deps,
     [
-      { path: rigging.riggedOutPath, label: 'Rigged GLB' },
+      { path: rigging.riggedOutPath, label: 'Rigged GLB', hint: overwriteHint(dryRun) },
       ...rigging.animationOutPaths.map((animation) => ({
         path: animation.path,
         label: `Animation clip ${animation.actionId} GLB`,
+        hint: overwriteHint(dryRun),
       })),
     ],
     force
@@ -1141,12 +1153,13 @@ function planReferenceStep(args: {
 async function requireWritableReference(
   deps: Generate3dDeps,
   reference: Generate3dReferenceImagePlan | null,
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
   if (reference?.source !== 'generated' || reference.localPath === null) return;
   await requireWritablePaths(
     deps,
-    [{ path: reference.localPath, label: 'Reference image' }],
+    [{ path: reference.localPath, label: 'Reference image', hint: overwriteHint(dryRun) }],
     force
   );
 }
@@ -1162,27 +1175,30 @@ function requireRigForClips(rig: boolean, animationActionIds: readonly number[])
 async function requireWritablePlanPaths(args: {
   deps: Generate3dDeps;
   force: boolean;
+  dryRun: boolean;
   outPath: string;
   manifestPath: string;
   rigging: PlannedRigging;
   naming: ResolvedPackageNaming;
 }): Promise<void> {
-  await requireWritableOutput(args.deps, args.outPath, args.manifestPath, args.force);
-  await requireWritableRiggingPaths(args.deps, args.rigging, args.force);
-  await requireWritablePackage(args.deps, args.naming, args.force);
+  await requireWritableOutput(args.deps, args.outPath, args.manifestPath, args.force, args.dryRun);
+  await requireWritableRiggingPaths(args.deps, args.rigging, args.force, args.dryRun);
+  await requireWritablePackage(args.deps, args.naming, args.force, args.dryRun);
 }
 
 /** Refuse to clobber the package zip or its preview. */
 async function requireWritablePackage(
   deps: Generate3dDeps,
   paths: { zipPath: string; htmlPath: string },
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
+  const hint = dryRun ? DRY_RUN_OVERWRITE_HINT : PACKAGE_COLLISION_HINT;
   await requireWritablePaths(
     deps,
     [
-      { path: paths.zipPath, label: 'Package', hint: PACKAGE_COLLISION_HINT },
-      { path: paths.htmlPath, label: 'Preview', hint: PACKAGE_COLLISION_HINT },
+      { path: paths.zipPath, label: 'Package', hint },
+      { path: paths.htmlPath, label: 'Preview', hint },
     ],
     force
   );
@@ -1237,6 +1253,7 @@ export async function planGenerate3d(
   await requireWritablePlanPaths({
     deps,
     force: opts.force === true,
+    dryRun: opts.dryRun === true,
     outPath,
     manifestPath,
     rigging,
@@ -1244,7 +1261,12 @@ export async function planGenerate3d(
   });
 
   const referenceStep = planReferenceStep({ model, opts, outPath, inputTarget });
-  await requireWritableReference(deps, referenceStep.referenceImage, opts.force === true);
+  await requireWritableReference(
+    deps,
+    referenceStep.referenceImage,
+    opts.force === true,
+    opts.dryRun === true
+  );
   const input = model.buildInput({
     prompt: opts.prompt,
     imageUrl: referenceStep.imageUrl,

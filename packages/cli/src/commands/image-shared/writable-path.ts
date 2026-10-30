@@ -25,6 +25,14 @@ export interface WritableTarget {
 /** Advice shown when an existing file blocks the write. */
 const OVERWRITE_HINT = 'Pass --force to overwrite.';
 
+/**
+ * Advice for a collision met while planning. The refusal is correct — a real
+ * run would refuse too — but "pass --force to overwrite" is misleading when
+ * nothing is written, so a dry run says what `--force` actually buys.
+ */
+export const DRY_RUN_OVERWRITE_HINT =
+  'A real run would also refuse this. Add --force to print the plan; a dry run writes nothing.';
+
 /** Refusal for a directory target; `--force` never rescues it. */
 function directoryRefusal(target: WritableTarget): string {
   return `${target.label} is a directory: ${target.path}. Pass a file path.`;

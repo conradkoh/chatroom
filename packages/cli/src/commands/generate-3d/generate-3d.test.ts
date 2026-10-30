@@ -486,6 +486,41 @@ describe('generate3d', () => {
     expect(deps.writeJson).not.toHaveBeenCalled();
   });
 
+  it('points a dry run at --force when the output already exists', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(OUT_PATH)) });
+
+    await expect(
+      planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, dryRun: true }, deps)
+    ).rejects.toThrow(
+      /--out already exists.*Add --force to print the plan.*dry run writes nothing/
+    );
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('plans an existing output in a dry run when --force is passed', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(OUT_PATH)) });
+
+    const plan = await planGenerate3d(
+      { model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, dryRun: true, force: true },
+      deps
+    );
+
+    expect(plan.outPath).toBe(OUT_PATH);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+  });
+
+  it('keeps the plain overwrite advice for a real run', async () => {
+    const deps = createDeps({ pathStatus: vi.fn(existingFiles(OUT_PATH)) });
+
+    await expect(
+      planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH }, deps)
+    ).rejects.toThrow(/--out already exists.*Pass --force to overwrite\./);
+  });
+
   it('refuses an existing manifest without --force', async () => {
     const deps = createDeps({ pathStatus: vi.fn(existingFiles(MANIFEST_PATH)) });
 
