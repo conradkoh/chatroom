@@ -28,7 +28,11 @@ import {
   type FalUnitPrice,
 } from '../image-shared/fal-pricing.js';
 import { readPngDimensions } from '../image-shared/image-preflight.js';
-import { findUnwritablePathMessage, type WritableTarget } from '../image-shared/writable-path.js';
+import {
+  DRY_RUN_OVERWRITE_HINT,
+  findUnwritablePathMessage,
+  type WritableTarget,
+} from '../image-shared/writable-path.js';
 
 /**
  * Generation platforms the CLI can call today. New platforms are added here
@@ -67,6 +71,8 @@ export interface GenerateImageOptions {
   inputImage?: string | undefined;
   /** Allow replacing an existing output or manifest file. */
   force?: boolean | undefined;
+  /** True only on the `--dry-run` path; changes the overwrite advice, not the checks. */
+  dryRun?: boolean | undefined;
 }
 
 export interface GenerateImageResult {
@@ -288,17 +294,23 @@ async function requireWritablePaths(
   if (message !== null) throw new GenerateImageError(message);
 }
 
+/** The `--force` advice for a collision: dry-run wording when nothing is written. */
+function overwriteHint(dryRun: boolean): string | undefined {
+  return dryRun ? DRY_RUN_OVERWRITE_HINT : undefined;
+}
+
 async function requireWritableOutput(
   deps: GenerateImageDeps,
   outPath: string,
   manifestPath: string,
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
   await requireWritablePaths(
     deps,
     [
-      { path: outPath, label: '--out' },
-      { path: manifestPath, label: 'Manifest' },
+      { path: outPath, label: '--out', hint: overwriteHint(dryRun) },
+      { path: manifestPath, label: 'Manifest', hint: overwriteHint(dryRun) },
     ],
     force
   );
@@ -807,7 +819,13 @@ export async function planGenerateImage(
   const manifestPath = `${outPath}.json`;
 
   // Refuse unwritable outputs before the paid call.
-  await requireWritableOutput(deps, outPath, manifestPath, opts.force === true);
+  await requireWritableOutput(
+    deps,
+    outPath,
+    manifestPath,
+    opts.force === true,
+    opts.dryRun === true
+  );
 
   const input = buildInput(prompt, opts, planInputImageUrl(inputTarget));
   const cost = await buildGenerateImageCost({ model, input, inputTarget, deps });

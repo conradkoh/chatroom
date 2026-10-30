@@ -918,6 +918,35 @@ describe('generateImage', () => {
     expect(deps.ensureParentDir).not.toHaveBeenCalled();
   });
 
+  it('points a dry run at --force when the output already exists', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
+
+    await expect(
+      planGenerateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, dryRun: true },
+        deps
+      )
+    ).rejects.toThrow(
+      /--out already exists.*Add --force to print the plan.*dry run writes nothing/
+    );
+
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('plans an existing output in a dry run when --force is passed', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
+
+    const plan = await planGenerateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, dryRun: true, force: true },
+      deps
+    );
+
+    expect(plan.outPath).toBe(OUT_PATH);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
   it('refuses an unsupported output extension while planning', async () => {
     const deps = createDeps();
 
