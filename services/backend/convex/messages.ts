@@ -46,6 +46,7 @@ import {
 } from '../src/domain/usecase/task/complete-active-tasks';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { deleteUserMessageOrTask as deleteUserMessageOrTaskUsecase } from '../src/domain/usecase/task/delete-user-message-or-task';
+import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
 import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
@@ -516,7 +517,17 @@ export async function runHandoffHandler(
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const normalizedTargetRole = args.targetRole.toLowerCase();
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-  if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+  // A custom agent may still be executing when its definition file is removed,
+  // which drops it from the merged team. Let that sender hand back while it
+  // still owns an active task in this chatroom.
+  const senderInTeam = normalizedTeamRoles.includes(normalizedSenderRole);
+  const senderHasActiveTask =
+    !senderInTeam &&
+    (await findActiveAssignedTaskForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.senderRole,
+    })) !== null;
+  if (!senderInTeam && !senderHasActiveTask) {
     return {
       success: false,
       error: {

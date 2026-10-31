@@ -617,4 +617,48 @@ describe('chatroom team resolution with custom agents', () => {
     expect(roles).not.toContain('alpha');
     expect(roles).toContain('planner');
   });
+
+  test('lets an in-flight custom sender hand back after its definition is removed', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } =
+      await setupChatroom('in-flight-custom');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+    const activeTaskId = await seedActiveTask(chatroomId, 'alpha');
+
+    // Replace the pushed set with no agents, which removes the definition row.
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'empty',
+      agents: [],
+      issues: [],
+    });
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).not.toContain('alpha');
+
+    const handoff = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'alpha',
+      content: 'finished before removal',
+      targetRole: 'planner',
+    });
+    expect(handoff.success).toBe(true);
+    expect(handoff.completedTaskIds).toContain(activeTaskId);
+
+    // With no active task left, the same removed role can no longer send.
+    const rejected = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'alpha',
+      content: 'late message',
+      targetRole: 'planner',
+    });
+    expect(rejected.success).toBe(false);
+    expect(rejected.error?.code).toBe('INVALID_ROLE');
+  });
 });
