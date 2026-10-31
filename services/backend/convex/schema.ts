@@ -1,3 +1,4 @@
+import { CUSTOM_AGENT_ISSUE_REASONS } from '@workspace/shared/domain/custom-agent';
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -23,6 +24,19 @@ const attachedSnippetValidator = v.object({
   reference: v.string(),
   fileSource: v.string(),
   selectedContent: v.string(),
+});
+
+/**
+ * Custom agent definitions are authored on a machine and pushed to Convex.
+ * Keep the issue reasons in `@workspace/shared/domain/custom-agent` so writers,
+ * readers, and validators agree on one closed list.
+ */
+export const customAgentScopeValidator = v.union(v.literal('workspace'), v.literal('machine'));
+
+export const customAgentIssueValidator = v.object({
+  path: v.string(),
+  reason: v.union(...CUSTOM_AGENT_ISSUE_REASONS.map((reason) => v.literal(reason))),
+  detail: v.optional(v.string()),
 });
 
 // agentHarnessValidator re-exported for backward compatibility
@@ -2275,6 +2289,58 @@ export default defineSchema({
     ),
     syncedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  // ─── Custom Agents ──────────────────────────────────────────────────────────
+  // Definitions pushed by the daemon from workspace and machine agent directories.
+  // Machine-scope rows omit `workingDir`; the resolver queries them with
+  // `q.eq('workingDir', undefined)`.
+
+  /**
+   * One push snapshot per source. `contentHash` and `issues` are the change
+   * detection boundary: identical values make a sync a no-op.
+   */
+  chatroom_customAgentSources: defineTable({
+    machineId: v.string(),
+    scope: customAgentScopeValidator,
+    workingDir: v.optional(v.string()),
+    contentHash: v.string(),
+    agentCount: v.number(),
+    issues: v.array(customAgentIssueValidator),
+    updatedAt: v.number(),
+  }).index('by_machine_scope_workingDir', ['machineId', 'scope', 'workingDir']),
+
+  /**
+   * Custom agent identity, keyed by source and name. Descriptions are sanitized
+   * display summaries; prompts live in `chatroom_customAgentContents`.
+   */
+  chatroom_customAgents: defineTable({
+    sourceId: v.id('chatroom_customAgentSources'),
+    machineId: v.string(),
+    scope: customAgentScopeValidator,
+    workingDir: v.optional(v.string()),
+    name: v.string(),
+    description: v.string(),
+    contentHash: v.string(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_scope_workingDir_name', ['machineId', 'scope', 'workingDir', 'name'])
+    .index('by_source', ['sourceId']),
+
+  /** Authored bodies, kept separate so roster reads never load prompts. */
+  chatroom_customAgentContents: defineTable({
+    customAgentId: v.id('chatroom_customAgents'),
+    systemPrompt: v.string(),
+    inboundHandoffTemplate: v.optional(v.string()),
+    returnHandoffTemplate: v.optional(v.string()),
+  }).index('by_customAgent', ['customAgentId']),
+
+  /** Per-chatroom opt-out for a disableable role. Never stored in agent files. */
+  chatroom_disabledAgentRoles: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    disabledBy: v.id('users'),
+    disabledAt: v.number(),
+  }).index('by_chatroom_role', ['chatroomId', 'role']),
 
   /**
    * V2 command execution runs — metadata only. Live tail in chatroom_commandRunTailsV2.

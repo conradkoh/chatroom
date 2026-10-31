@@ -1,6 +1,3 @@
-// fallow-ignore-file unused-file
-// Introduced ahead of its consumers: the custom-agent CLI, backend, and webapp
-// slices import this module. Remove this suppression when the first consumer lands.
 import {
   AGENT_ROLE_DEFINITIONS,
   AgentRoleLifecycleTag,
