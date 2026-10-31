@@ -1,3 +1,4 @@
+import { CUSTOM_AGENT_RULES_VERSION } from '@workspace/shared/domain/custom-agent';
 import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -45,7 +46,7 @@ function makeAgent(
     description: overrides.description ?? `${name} role.`,
     systemPrompt: overrides.systemPrompt ?? `You are ${name}.`,
     contentHash,
-    disabled: false,
+    disabled: overrides.disabled ?? false,
     ...(overrides.inboundHandoffTemplate !== undefined
       ? { inboundHandoffTemplate: overrides.inboundHandoffTemplate }
       : {}),
@@ -95,6 +96,15 @@ async function readContents(customAgentId: Id<'chatroom_customAgents'>) {
     ctx.db
       .query('chatroom_customAgentContents')
       .withIndex('by_customAgent', (q) => q.eq('customAgentId', customAgentId))
+      .collect()
+  );
+}
+
+async function readHandoffTemplates(customAgentId: Id<'chatroom_customAgents'>) {
+  return await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_customAgentHandoffTemplates')
+      .withIndex('by_customAgent_direction', (q) => q.eq('customAgentId', customAgentId))
       .collect()
   );
 }
@@ -198,12 +208,12 @@ describe('customAgents.syncDefinitions', () => {
     expect(patched.updatedAt).toBe(FIXED_NOW + 1_000);
     expect(patched.description).toBe('Alpha updated.');
     expect(await readContents(patched._id)).toEqual([
-      expect.objectContaining({
-        systemPrompt: 'You are alpha, updated.',
-        inboundHandoffTemplate: 'inbound',
-      }),
+      expect.objectContaining({ systemPrompt: 'You are alpha, updated.' }),
     ]);
     expect(await readContents(patched._id)).toHaveLength(1);
+    expect(await readHandoffTemplates(patched._id)).toEqual([
+      expect.objectContaining({ direction: 'inbound', body: 'inbound' }),
+    ]);
 
     advanceClock(1_000);
     await sync('hash-3', [makeAgent('beta', 'b1')]);
@@ -213,6 +223,7 @@ describe('customAgents.syncDefinitions', () => {
     const remaining = await readAgents(thirdSource!._id);
     expect(remaining.map(({ name }) => name)).toEqual(['beta']);
     expect(await readContents(patched._id)).toEqual([]);
+    expect(await readHandoffTemplates(patched._id)).toEqual([]);
   });
 
   test('keeps valid agents while reporting invalid ones as rejections and issues', async () => {
@@ -307,15 +318,19 @@ describe('customAgents.syncDefinitions', () => {
   });
 });
 
-async function setupChatroom(suffix: string) {
+async function setupChatroom(
+  suffix: string,
+  teamStructureId = 'duo',
+  workingDir = '/test/workspace'
+) {
   const base = await setup(suffix);
   const { chatroomId } = await t.mutation(api.chatrooms.createWithWorkspace, {
     sessionId: base.sessionId,
-    teamStructureId: 'duo',
+    teamStructureId,
     machineId: base.machineId,
-    workingDir: base.workingDir,
+    workingDir,
   });
-  return { ...base, chatroomId };
+  return { ...base, workingDir, chatroomId };
 }
 
 async function syncWorkspaceAgent(
@@ -332,6 +347,23 @@ async function syncWorkspaceAgent(
     workingDir,
     contentHash,
     agents: [agent],
+    issues: [],
+  });
+}
+
+async function disableWorkspaceAgent(
+  sessionId: SessionId,
+  machineId: string,
+  workingDir: string,
+  agent: TestAgent
+) {
+  return t.mutation(api.customAgents.syncDefinitions, {
+    sessionId,
+    machineId,
+    scope: 'workspace',
+    workingDir,
+    contentHash: `disabled-${agent.contentHash}`,
+    agents: [{ ...agent, disabled: true }],
     issues: [],
   });
 }
@@ -409,98 +441,215 @@ describe('chatroom team resolution with custom agents', () => {
     expect(workspaceSource?.issues).toEqual([]);
   });
 
-  test('refuses to disable permanent roles and the entry point', async () => {
-    const { sessionId, chatroomId } = await setupChatroom('disable-permanent');
+  test('rejects a duplicate name in one push and keeps the first definition', async () => {
+    const { sessionId, machineId, workingDir } = await setup('duplicate-names');
 
-    for (const role of ['planner', 'builder']) {
-      await expect(
-        t.mutation(api.customAgents.setRoleDisabled, {
-          sessionId,
-          chatroomId,
-          role,
-          disabled: true,
-        })
-      ).rejects.toThrow(/ROLE_NOT_DISABLEABLE/);
-    }
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'hash-1',
+      agents: [
+        makeAgent('alpha', 'a1', { description: 'First alpha.' }),
+        makeAgent('alpha', 'a2', { description: 'Second alpha.' }),
+      ],
+      issues: [],
+    });
+
+    expect(result).toEqual({
+      applied: true,
+      rejected: [{ name: 'alpha', reason: 'shadowed' }],
+    });
+
+    const source = await readSource(machineId, 'workspace', workingDir);
+    expect(source!.issues).toEqual(
+      expect.arrayContaining([
+        { path: 'alpha', reason: 'shadowed', detail: 'duplicate name in one push' },
+      ])
+    );
+    const stored = await readAgents(source!._id);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.description).toBe('First alpha.');
+    expect(stored[0]!.contentHash).toBe('a1');
   });
 
-  test('toggles a builtin ephemeral role idempotently and keeps it in the roster', async () => {
-    const { sessionId, chatroomId } = await setupChatroom('disable-architect');
-    const setDisabled = (disabled: boolean) =>
-      t.mutation(api.customAgents.setRoleDisabled, {
-        sessionId,
+  test('applies a machine-scope disable to every chatroom on that machine', async () => {
+    const first = await setupChatroom('machine-wide-disable-a', 'duo', '/test/machine-wide-a');
+    const second = await t.mutation(api.chatrooms.createWithWorkspace, {
+      sessionId: first.sessionId,
+      teamStructureId: 'duo',
+      machineId: first.machineId,
+      workingDir: '/test/machine-wide-b',
+    });
+
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId: first.sessionId,
+      machineId: first.machineId,
+      scope: 'machine',
+      contentHash: 'm1',
+      agents: [makeAgent('alpha', 'a1', { disabled: true })],
+      issues: [],
+    });
+
+    for (const chatroomId of [first.chatroomId, second.chatroomId]) {
+      const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+        sessionId: first.sessionId,
         chatroomId,
-        role: 'architect',
-        disabled,
       });
+      expect(structure!.roles.map(({ role }) => role)).not.toContain('alpha');
+    }
 
-    expect(await setDisabled(true)).toEqual({ changed: true });
-    expect(await setDisabled(true)).toEqual({ changed: false });
-
-    const disabledStructure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
-      sessionId,
-      chatroomId,
+    const roster = await t.query(api.customAgents.getTeamRoster, {
+      sessionId: first.sessionId,
+      chatroomId: first.chatroomId,
     });
-    expect(disabledStructure!.roles.map(({ role }) => role)).not.toContain('architect');
-
-    const disabledRoster = await t.query(api.customAgents.getTeamRoster, { sessionId, chatroomId });
-    expect(disabledRoster.roster.find(({ role }) => role === 'architect')).toMatchObject({
-      source: 'builtin',
+    expect(roster.roster.find(({ role }) => role === 'alpha')).toMatchObject({
+      source: 'custom',
       disabled: true,
-      disableable: true,
     });
-
-    expect(await setDisabled(false)).toEqual({ changed: true });
-    expect(await setDisabled(false)).toEqual({ changed: false });
-
-    const enabledStructure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
-      sessionId,
-      chatroomId,
-    });
-    expect(enabledStructure!.roles.map(({ role }) => role)).toContain('architect');
   });
 
-  test('refuses to disable a role that has an active assigned task', async () => {
-    const { sessionId, chatroomId } = await setupChatroom('disable-busy');
-    await seedActiveTask(chatroomId, 'architect');
-
-    await expect(
-      t.mutation(api.customAgents.setRoleDisabled, {
-        sessionId,
-        chatroomId,
-        role: 'architect',
-        disabled: true,
-      })
-    ).rejects.toThrow(/ROLE_BUSY/);
-  });
-
-  test('can disable and re-enable a custom role', async () => {
-    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom('disable-custom');
+  test('patches only the identity row for a disabled-only change', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } =
+      await setupChatroom('disable-only-patch');
     await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
 
-    expect(
-      await t.mutation(api.customAgents.setRoleDisabled, {
-        sessionId,
-        chatroomId,
-        role: 'alpha',
-        disabled: true,
-      })
-    ).toEqual({ changed: true });
+    const source = await readSource(machineId, 'workspace', workingDir);
+    const [before] = await readAgents(source!._id);
+    const [contentBefore] = await readContents(before!._id);
+
+    advanceClock(1_000);
+    await syncWorkspaceAgent(
+      sessionId,
+      machineId,
+      workingDir,
+      makeAgent('alpha', 'a1', { disabled: true }),
+      'hash-2'
+    );
+
+    const after = (await readAgents(source!._id))[0]!;
+    expect(after._id).toBe(before!._id);
+    expect(after.disabled).toBe(true);
+    expect(after.updatedAt).toBe(FIXED_NOW + 1_000);
+    expect(after.contentHash).toBe('a1');
+    const [contentAfter] = await readContents(before!._id);
+    expect(contentAfter!._id).toBe(contentBefore!._id);
 
     const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
       sessionId,
       chatroomId,
     });
     expect(structure!.roles.map(({ role }) => role)).not.toContain('alpha');
+  });
 
-    expect(
-      await t.mutation(api.customAgents.setRoleDisabled, {
-        sessionId,
-        chatroomId,
-        role: 'alpha',
-        disabled: false,
-      })
-    ).toEqual({ changed: true });
+  test('rewrites agents when the stored rules version is stale', async () => {
+    const { sessionId, machineId, workingDir } = await setup('rules-version');
+    const agent = makeAgent('alpha', 'a1');
+
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, agent);
+    const source = await readSource(machineId, 'workspace', workingDir);
+    const [before] = await readAgents(source!._id);
+    const [contentBefore] = await readContents(before!._id);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_customAgentSources', source!._id, { rulesVersion: 'stale' });
+    });
+
+    advanceClock(1_000);
+    const result = await syncWorkspaceAgent(sessionId, machineId, workingDir, agent);
+    expect(result).toEqual({ applied: true, rejected: [] });
+
+    const refreshedSource = await readSource(machineId, 'workspace', workingDir);
+    expect(refreshedSource!.rulesVersion).toBe(CUSTOM_AGENT_RULES_VERSION);
+    const [contentAfter] = await readContents(before!._id);
+    expect(contentAfter!._id).not.toBe(contentBefore!._id);
+    expect(contentAfter!.systemPrompt).toBe('You are alpha.');
+  });
+
+  test('splits handoff templates out of the content row and deletes both with the agent', async () => {
+    const { sessionId, machineId, workingDir } = await setup('template-split');
+    await syncWorkspaceAgent(
+      sessionId,
+      machineId,
+      workingDir,
+      makeAgent('alpha', 'a1', { inboundHandoffTemplate: 'Hand this to alpha.' })
+    );
+
+    const source = await readSource(machineId, 'workspace', workingDir);
+    const [agent] = await readAgents(source!._id);
+    expect(agent).toMatchObject({
+      hasInboundHandoffTemplate: true,
+      hasReturnHandoffTemplate: false,
+    });
+    expect(await readContents(agent!._id)).toEqual([
+      expect.objectContaining({ customAgentId: agent!._id, systemPrompt: 'You are alpha.' }),
+    ]);
+    expect(await readContents(agent!._id)).toHaveLength(1);
+    expect(await readHandoffTemplates(agent!._id)).toEqual([
+      expect.objectContaining({ direction: 'inbound', body: 'Hand this to alpha.' }),
+    ]);
+
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'empty',
+      agents: [],
+      issues: [],
+    });
+
+    expect(await t.run(async (ctx) => ctx.db.get('chatroom_customAgents', agent!._id))).toBeNull();
+    expect(await readContents(agent!._id)).toEqual([]);
+    expect(await readHandoffTemplates(agent!._id)).toEqual([]);
+  });
+
+  test('never merges custom agents into a solo team', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'solo-no-customs',
+      'solo'
+    );
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).not.toContain('alpha');
+    expect(structure).toEqual(getTeamStructure({ teamId: 'solo' }));
+  });
+
+  test('leaves builtin roles untouched and rejects a builtin name at sync', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } =
+      await setupChatroom('builtin-not-disableable');
+
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'hash-1',
+      agents: [makeAgent('architect', 'a1', { disabled: true })],
+      issues: [],
+    });
+    expect(result).toEqual({
+      applied: true,
+      rejected: [{ name: 'architect', reason: 'reserved-name' }],
+    });
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).toContain('architect');
+
+    const roster = await t.query(api.customAgents.getTeamRoster, { sessionId, chatroomId });
+    expect(roster.roster.find(({ role }) => role === 'architect')).toMatchObject({
+      source: 'builtin',
+      disabled: false,
+      disableable: false,
+    });
   });
 
   test('classifies builtin and custom roles as ephemeral by chatroom membership', async () => {
@@ -577,13 +726,9 @@ describe('chatroom team resolution with custom agents', () => {
   test('rejects a handoff to a disabled custom role', async () => {
     const { sessionId, machineId, workingDir, chatroomId } =
       await setupChatroom('disabled-custom-target');
-    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
-    await t.mutation(api.customAgents.setRoleDisabled, {
-      sessionId,
-      chatroomId,
-      role: 'alpha',
-      disabled: true,
-    });
+    const agent = makeAgent('alpha', 'a1');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, agent);
+    await disableWorkspaceAgent(sessionId, machineId, workingDir, agent);
 
     const handoff = await t.mutation(api.messages.handoff, {
       sessionId,
@@ -601,12 +746,7 @@ describe('chatroom team resolution with custom agents', () => {
       'disabled-custom-start-all'
     );
     await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
-    await t.mutation(api.customAgents.setRoleDisabled, {
-      sessionId,
-      chatroomId,
-      role: 'alpha',
-      disabled: true,
-    });
+    await disableWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
 
     const result = await t.mutation(api.agents.requestChatroomAgentOperation, {
       sessionId,
