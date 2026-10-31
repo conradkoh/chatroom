@@ -329,7 +329,8 @@ describe('rebuildPreviewFromZip', () => {
     );
   });
 
-  it('treats a stat error other than ENOENT as a free preview path', async () => {
+  // Pins existing behavior: a non-ENOENT stat error is treated as a free preview path. Change this test if that behavior changes.
+  it('allows the preview path when stat fails with a non-ENOENT error', async () => {
     const dir = await createDir();
     const zipPath = await writePackage(dir);
     const htmlPath = join(dir, `${BASE}.html`);
