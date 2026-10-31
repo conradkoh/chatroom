@@ -5,7 +5,7 @@ import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 export function getEntryPointToResearcherHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.fromRole;
 
-  return `The automatically injected \`<user-message>\` is the authoritative request. Pass the decisions the research must ground, the specific research questions, known constraints, and the files or areas already suspected. Ask the researcher for a report only: do not edit files, implement code, or design alternative architectures.
+  return `The automatically injected \`<user-message>\` is the authoritative request. Pass the decisions the research must ground, the specific research questions, known constraints, and the files or areas already suspected. List the domain nouns the research must check for existing equivalents in the repository, and any source the researcher must prefer or avoid. Ask the researcher for a report only: do not edit files, implement code, or design alternative architectures.
 
 ### When to research
 
