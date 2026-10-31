@@ -1,4 +1,7 @@
-import { CUSTOM_AGENT_ISSUE_REASONS } from '@workspace/shared/domain/custom-agent';
+import {
+  CUSTOM_AGENT_ISSUE_REASONS,
+  CUSTOM_AGENT_SCOPES,
+} from '@workspace/shared/domain/custom-agent';
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -31,7 +34,14 @@ const attachedSnippetValidator = v.object({
  * Keep the issue reasons in `@workspace/shared/domain/custom-agent` so writers,
  * readers, and validators agree on one closed list.
  */
-export const customAgentScopeValidator = v.union(v.literal('workspace'), v.literal('machine'));
+export const customAgentScopeValidator = v.union(
+  ...CUSTOM_AGENT_SCOPES.map((scope) => v.literal(scope))
+);
+
+export const customAgentHandoffDirectionValidator = v.union(
+  v.literal('inbound'),
+  v.literal('return')
+);
 
 export const customAgentIssueValidator = v.object({
   path: v.string(),
@@ -2304,6 +2314,8 @@ export default defineSchema({
     scope: customAgentScopeValidator,
     workingDir: v.optional(v.string()),
     contentHash: v.string(),
+    /** CUSTOM_AGENT_RULES_VERSION at write time; mismatch forces revalidation. */
+    rulesVersion: v.string(),
     agentCount: v.number(),
     issues: v.array(customAgentIssueValidator),
     updatedAt: v.number(),
@@ -2321,26 +2333,30 @@ export default defineSchema({
     name: v.string(),
     description: v.string(),
     contentHash: v.string(),
+    /** Projection of ~/.chatroom/custom-agents.local.json; written only by the daemon sync. */
+    disabled: v.boolean(),
+    hasInboundHandoffTemplate: v.boolean(),
+    hasReturnHandoffTemplate: v.boolean(),
     updatedAt: v.number(),
   })
     .index('by_machine_scope_workingDir_name', ['machineId', 'scope', 'workingDir', 'name'])
     .index('by_source', ['sourceId']),
 
-  /** Authored bodies, kept separate so roster reads never load prompts. */
+  /**
+   * System prompt only; read solely when composing the custom role's own system
+   * prompt.
+   */
   chatroom_customAgentContents: defineTable({
     customAgentId: v.id('chatroom_customAgents'),
     systemPrompt: v.string(),
-    inboundHandoffTemplate: v.optional(v.string()),
-    returnHandoffTemplate: v.optional(v.string()),
   }).index('by_customAgent', ['customAgentId']),
 
-  /** Per-chatroom opt-out for a disableable role. Never stored in agent files. */
-  chatroom_disabledAgentRoles: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    disabledBy: v.id('users'),
-    disabledAt: v.number(),
-  }).index('by_chatroom_role', ['chatroomId', 'role']),
+  /** Authored handoff templates; absent row = generated default. */
+  chatroom_customAgentHandoffTemplates: defineTable({
+    customAgentId: v.id('chatroom_customAgents'),
+    direction: customAgentHandoffDirectionValidator,
+    body: v.string(),
+  }).index('by_customAgent_direction', ['customAgentId', 'direction']),
 
   /**
    * V2 command execution runs — metadata only. Live tail in chatroom_commandRunTailsV2.
