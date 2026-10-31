@@ -79,6 +79,7 @@ describe('game asset designer guidance snapshots', () => {
       guidance.indexOf('### PROCEDURE'),
       guidance.indexOf('### Quality checklist')
     );
+    // Raised from 2000 to 2300 to admit the lighting contract and verification-only branch.
     expect(procedure.length).toBeLessThanOrEqual(2300);
   });
 });
