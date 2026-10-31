@@ -62,6 +62,7 @@ import type { GlbStats, ProcessedVariant, WebVariant } from './web-variant.js';
 import type { ZipEntry } from './zip-package.js';
 import { FAL_API_KEY_MISSING_MESSAGE } from '../image-shared/fal-messages.js';
 import {
+  DRY_RUN_OVERWRITE_HINT,
   dryRunOverwriteHint,
   findUnwritablePathMessage,
   type WritableTarget,
@@ -555,7 +556,7 @@ const PACKAGE_COLLISION_HINT = `${PACKAGE_COLLISION_CAUSE}, or pass --force.`;
  * timestamp to the second, so a real run started later usually does not collide.
  * The wording follows the shared overwrite hint because nothing is written.
  */
-const DRY_RUN_PACKAGE_HINT = `${PACKAGE_COLLISION_CAUSE}. Add --force to print the plan; a dry run writes nothing.`;
+const DRY_RUN_PACKAGE_HINT = `${PACKAGE_COLLISION_CAUSE}. ${DRY_RUN_OVERWRITE_HINT}`;
 
 async function requireWritableOutput(
   deps: Generate3dDeps,

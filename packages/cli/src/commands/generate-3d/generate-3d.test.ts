@@ -1160,7 +1160,7 @@ describe('generate3d packaging', () => {
     await expect(
       planGenerate3d({ model: MESHY_TEXT, prompt: 'a knight', out: OUT_PATH, dryRun: true }, deps)
     ).rejects.toThrow(
-      /Package already exists.*in the same second.*Add --force to print the plan.*a dry run writes nothing/
+      /Package already exists.*in the same second.*Add --force to print the plan.*a dry run writes nothing.*do not carry --force into the real run unless overwriting is intended/
     );
   });
 
