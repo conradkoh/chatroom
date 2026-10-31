@@ -5,7 +5,7 @@ import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 export function getEntryPointToReviewerHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.fromRole;
 
-  return `Pass the review target and the review focus. State the exact commit range, branch, pull request, or file list to inspect, the focus areas (for example security, correctness, or test quality), and any known context or constraints. Ask the reviewer for a report only: do not edit files, run builds or tests, or implement fixes.
+  return `Pass the review target and the review focus. State the exact commit range, branch, pull request, or file list to inspect, the focus areas (for example security, correctness, or test quality), and any known context or constraints. Name the spec the change must satisfy (the user's request, an issue, or a file under \`docs/\`), or write \`no spec available\` when there is none. Ask the reviewer for a report only: do not edit files, run builds or tests, or implement fixes.
 
 ### When to review
 
@@ -32,16 +32,16 @@ ${handoffCommand({
 export function getReviewerToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.toRole;
 
-  return `Instructions (not part of the message): Return a complete review report for the target the planner named. The reviewer is advisory: do not edit files, implement fixes, run builds or tests, or propose architecture rewrites beyond each issue's suggested fix. Report only what you observed and mark anything unverified as such. Label every issue with a severity: \`blocker\`, \`major\`, \`minor\`, or \`nit\`. Group the issues by severity with blockers first, and cite the repository-relative file and line or line range for each. Use the exact sections below, in this order.
+  return `Instructions (not part of the message): Return a complete review report for the target the planner named. The reviewer is advisory: do not edit files, implement fixes, run builds or tests, or propose architecture rewrites beyond each issue's suggested fix. Report only what you observed and mark anything unverified as such. Label every issue with a severity: \`blocker\`, \`major\`, \`minor\`, or \`nit\`. Group the issues by severity with blockers first, and cite the repository-relative file and line or line range for each. Judge the target on two axes and tag each issue with its axis: \`standards\` (the repository's documented standards, such as \`CONTRIBUTING.md\`, \`AGENTS.md\`, or \`CLAUDE.md\` when present, and the conventions of the surrounding code; cite the standard by file and rule) or \`spec\` (the request, issue, or spec file named in \`## Review scope\`; quote the requirement). A change can pass one axis and fail the other, so report each axis on its own and do not let one mask the other. Mark each issue that is a heuristic call rather than a documented-standard breach or a demonstrable defect as \`judgement\`. Use the exact sections below, in this order.
 
 ## Summary
 <one to three sentences: overall state of the target and the count of blocker/major issues>
 
 ## Review scope
-<commits, paths, and PR/branch inspected; commands run, if any>
+<commits, paths, and PR/branch inspected; the spec source used for the spec axis, or exactly \`no spec available\` when none was named or found; the standards files read; commands run, if any>
 
 ## Issues
-<numbered list grouped by severity (blocker, major, minor, nit); each item: \`file:line\` — summary — evidence — suggested fix; write exactly \`None observed.\` if none>
+<numbered list grouped by severity (blocker, major, minor, nit); each item: severity, axis (\`standards\` or \`spec\`), \`file:line\` — summary — evidence — suggested fix; append \`(judgement)\` to the summary when the issue is a heuristic call; write exactly \`None observed.\` if none>
 
 ## Not reviewed
 <anything out of scope or unreadable; write exactly \`None.\` if none>
