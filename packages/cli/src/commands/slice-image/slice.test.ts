@@ -1070,6 +1070,11 @@ describe('sliceImage', () => {
     });
     const error = await captureError(sliceImage({ ...opts, dryRun: true }, conflicts));
     expect(error.message).toContain('already exists');
+    expect(error.message).not.toContain('Pass --force to overwrite.');
+    expect(error.message).toContain('A real run would also refuse this.');
+    expect(error.message).toContain(
+      'do not carry --force into the real run unless overwriting is intended'
+    );
     expect(conflicts.writeFile).not.toHaveBeenCalled();
   });
 
