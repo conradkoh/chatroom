@@ -31,8 +31,8 @@ const OVERWRITE_HINT = 'Pass --force to overwrite.';
  * run would refuse too — but "pass --force to overwrite" is misleading when
  * nothing is written, so a dry run says what `--force` actually buys.
  */
-const DRY_RUN_OVERWRITE_HINT =
-  'A real run would also refuse this. Add --force to print the plan; a dry run writes nothing.';
+export const DRY_RUN_OVERWRITE_HINT =
+  'A real run would also refuse this. Add --force to print the plan; a dry run writes nothing; do not carry --force into the real run unless overwriting is intended.';
 
 /**
  * The `--force` advice for a collision: the dry-run wording when nothing would
