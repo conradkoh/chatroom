@@ -22,10 +22,8 @@ import {
   clearChatroomUnread,
   markChatroomUnread,
 } from '../src/domain/usecase/chatroom/unread-status';
-import {
-  getActiveTeamStructure,
-  upsertActiveTeamStructure,
-} from '../src/domain/usecase/team/active-team-structure';
+import { upsertActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
+import { resolveChatroomTeamStructure } from '../src/domain/usecase/team/resolve-chatroom-team';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
@@ -101,10 +99,7 @@ export const getTeamStructureForChatroom = query({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const activeStructure = await getActiveTeamStructure(ctx, args.chatroomId);
-    const teamId = activeStructure?.teamStructureId;
-    if (!teamId) return null;
-    return getTeamStructure({ teamId });
+    return resolveChatroomTeamStructure(ctx, args.chatroomId);
   },
 });
 

@@ -1,9 +1,11 @@
+import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { isEphemeralRoleInChatroom } from '../src/domain/usecase/team/resolve-chatroom-team';
 
 const FIXED_NOW = 1_700_000_000_000;
 let clock = FIXED_NOW;
@@ -300,5 +302,227 @@ describe('customAgents.syncDefinitions', () => {
         issues,
       })
     ).rejects.toThrow(/INVALID_SCOPE/);
+  });
+});
+
+async function setupChatroom(suffix: string) {
+  const base = await setup(suffix);
+  const { chatroomId } = await t.mutation(api.chatrooms.createWithWorkspace, {
+    sessionId: base.sessionId,
+    teamStructureId: 'duo',
+    machineId: base.machineId,
+    workingDir: base.workingDir,
+  });
+  return { ...base, chatroomId };
+}
+
+async function syncWorkspaceAgent(
+  sessionId: SessionId,
+  machineId: string,
+  workingDir: string,
+  agent: TestAgent,
+  contentHash = agent.contentHash
+) {
+  return t.mutation(api.customAgents.syncDefinitions, {
+    sessionId,
+    machineId,
+    scope: 'workspace',
+    workingDir,
+    contentHash,
+    agents: [agent],
+    issues: [],
+  });
+}
+
+async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>, assignedTo: string) {
+  return t.run(async (ctx) =>
+    ctx.db.insert('chatroom_tasks', {
+      chatroomId,
+      createdBy: 'user',
+      content: 'Active work',
+      status: 'in_progress',
+      assignedTo,
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+      queuePosition: 0,
+    })
+  );
+}
+
+describe('chatroom team resolution with custom agents', () => {
+  test('appends a synced workspace agent as an optional ephemeral role after the builtins', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } =
+      await setupChatroom('resolve-workspace');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    const base = getTeamStructure({ teamId: 'duo' });
+
+    expect(structure!.teamStructureId).toBe('duo@1');
+    expect(structure!.roles.slice(0, base.roles.length)).toEqual(base.roles);
+    expect(structure!.roles.slice(base.roles.length)).toEqual([
+      { role: 'alpha', lifecycle: 'ephemeral', optional: true },
+    ]);
+  });
+
+  test('shadows a machine agent with the workspace agent of the same name', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom('resolve-shadow');
+    await syncWorkspaceAgent(
+      sessionId,
+      machineId,
+      workingDir,
+      makeAgent('alpha', 'a1', { description: 'Workspace alpha.' })
+    );
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'machine',
+      contentHash: 'm1',
+      agents: [makeAgent('alpha', 'm1', { description: 'Machine alpha.' })],
+      issues: [],
+    });
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.filter(({ role }) => role === 'alpha')).toHaveLength(1);
+
+    const settings = await t.query(api.customAgents.getTeamRoster, { sessionId, chatroomId });
+    expect(settings.roster.find(({ role }) => role === 'alpha')).toMatchObject({
+      source: 'custom',
+      scope: 'workspace',
+      summary: 'Workspace alpha.',
+      disabled: false,
+    });
+
+    const machineSource = settings.sources.find(({ scope }) => scope === 'machine');
+    expect(machineSource?.issues).toEqual(
+      expect.arrayContaining([{ path: 'alpha', reason: 'shadowed' }])
+    );
+    const workspaceSource = settings.sources.find(({ scope }) => scope === 'workspace');
+    expect(workspaceSource?.issues).toEqual([]);
+  });
+
+  test('refuses to disable permanent roles and the entry point', async () => {
+    const { sessionId, chatroomId } = await setupChatroom('disable-permanent');
+
+    for (const role of ['planner', 'builder']) {
+      await expect(
+        t.mutation(api.customAgents.setRoleDisabled, {
+          sessionId,
+          chatroomId,
+          role,
+          disabled: true,
+        })
+      ).rejects.toThrow(/ROLE_NOT_DISABLEABLE/);
+    }
+  });
+
+  test('toggles a builtin ephemeral role idempotently and keeps it in the roster', async () => {
+    const { sessionId, chatroomId } = await setupChatroom('disable-architect');
+    const setDisabled = (disabled: boolean) =>
+      t.mutation(api.customAgents.setRoleDisabled, {
+        sessionId,
+        chatroomId,
+        role: 'architect',
+        disabled,
+      });
+
+    expect(await setDisabled(true)).toEqual({ changed: true });
+    expect(await setDisabled(true)).toEqual({ changed: false });
+
+    const disabledStructure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(disabledStructure!.roles.map(({ role }) => role)).not.toContain('architect');
+
+    const disabledRoster = await t.query(api.customAgents.getTeamRoster, { sessionId, chatroomId });
+    expect(disabledRoster.roster.find(({ role }) => role === 'architect')).toMatchObject({
+      source: 'builtin',
+      disabled: true,
+      disableable: true,
+    });
+
+    expect(await setDisabled(false)).toEqual({ changed: true });
+    expect(await setDisabled(false)).toEqual({ changed: false });
+
+    const enabledStructure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(enabledStructure!.roles.map(({ role }) => role)).toContain('architect');
+  });
+
+  test('refuses to disable a role that has an active assigned task', async () => {
+    const { sessionId, chatroomId } = await setupChatroom('disable-busy');
+    await seedActiveTask(chatroomId, 'architect');
+
+    await expect(
+      t.mutation(api.customAgents.setRoleDisabled, {
+        sessionId,
+        chatroomId,
+        role: 'architect',
+        disabled: true,
+      })
+    ).rejects.toThrow(/ROLE_BUSY/);
+  });
+
+  test('can disable and re-enable a custom role', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom('disable-custom');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+
+    expect(
+      await t.mutation(api.customAgents.setRoleDisabled, {
+        sessionId,
+        chatroomId,
+        role: 'alpha',
+        disabled: true,
+      })
+    ).toEqual({ changed: true });
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).not.toContain('alpha');
+
+    expect(
+      await t.mutation(api.customAgents.setRoleDisabled, {
+        sessionId,
+        chatroomId,
+        role: 'alpha',
+        disabled: false,
+      })
+    ).toEqual({ changed: true });
+  });
+
+  test('classifies builtin and custom roles as ephemeral by chatroom membership', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom('ephemeral-check');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+
+    const isEphemeral = (role: string) =>
+      t.run(async (ctx) => isEphemeralRoleInChatroom(ctx, chatroomId, role));
+
+    expect(await isEphemeral('architect')).toBe(true);
+    expect(await isEphemeral('planner')).toBe(false);
+    expect(await isEphemeral('alpha')).toBe(true);
+    expect(await isEphemeral('user')).toBe(false);
+    expect(await isEphemeral('enhancer')).toBe(false);
+    expect(await isEphemeral('unknown-role')).toBe(false);
+  });
+
+  test('matches the static structure exactly when no customs or disabled rows exist', async () => {
+    const { sessionId, chatroomId } = await setupChatroom('zero-regression');
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure).toEqual(getTeamStructure({ teamId: 'duo' }));
   });
 });
