@@ -15,24 +15,31 @@ export interface AgentRoleTeamMembership {
   readonly order: number;
 }
 
+/** Max authored summary length enforced by the metadata validator. */
+const AGENT_ROLE_SUMMARY_MAX_LENGTH = 200;
+
 export interface AgentRoleMetadata {
   readonly tags: readonly [AgentRoleLifecycleTag];
   readonly teams: readonly [AgentRoleTeamMembership, ...AgentRoleTeamMembership[]];
+  readonly summary: string;
 }
 
-/** The sole authored source for builtin role lifecycle and team membership. */
+/** The sole authored source for builtin role lifecycle, team membership and summary. */
 const roleMetadata = {
   planner: {
     tags: [AgentRoleLifecycleTag.Permanent],
     teams: [{ teamId: 'duo', order: 10 }],
+    summary: 'Coordinates user communication, task decomposition, and team management.',
   },
   builder: {
     tags: [AgentRoleLifecycleTag.Permanent],
     teams: [{ teamId: 'duo', order: 50 }],
+    summary: 'Implements solutions by writing, verifying, and committing code.',
   },
   solo: {
     tags: [AgentRoleLifecycleTag.Permanent],
     teams: [{ teamId: 'solo', order: 10 }],
+    summary: 'Plans and executes tasks independently as a single agent.',
   },
   architect: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
@@ -40,6 +47,7 @@ const roleMetadata = {
       { teamId: 'duo', order: 20 },
       { teamId: 'solo', order: 20 },
     ],
+    summary: 'Designs one evidence-backed implementation plan for complex changes.',
   },
   triage: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
@@ -47,6 +55,7 @@ const roleMetadata = {
       { teamId: 'duo', order: 30 },
       { teamId: 'solo', order: 30 },
     ],
+    summary: 'Investigates reported bugs and returns an evidence-backed diagnosis.',
   },
   'uiux-engineer': {
     tags: [AgentRoleLifecycleTag.Ephemeral],
@@ -54,10 +63,12 @@ const roleMetadata = {
       { teamId: 'duo', order: 40 },
       { teamId: 'solo', order: 40 },
     ],
+    summary: 'Designs one complete interface and experience for the request.',
   },
   researcher: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
     teams: [{ teamId: 'duo', order: 25 }],
+    summary: 'Produces an evidence-backed research brief that grounds planning.',
   },
   verifier: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
@@ -65,14 +76,17 @@ const roleMetadata = {
       { teamId: 'duo', order: 45 },
       { teamId: 'solo', order: 45 },
     ],
+    summary: 'Judges from chatroom logs whether the last request was achieved.',
   },
   reviewer: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
     teams: [{ teamId: 'duo', order: 35 }],
+    summary: 'Inspects named code artifacts and reports observed issues as advisory feedback.',
   },
   'game-asset-designer': {
     tags: [AgentRoleLifecycleTag.Ephemeral],
     teams: [{ teamId: 'duo', order: 42 }],
+    summary: 'Specifies and generates production-quality game and UI assets.',
   },
 } as const satisfies Record<string, AgentRoleMetadata>;
 
@@ -172,6 +186,19 @@ function validateRoleLifecycle(definition: AgentRoleDefinition): void {
   }
 }
 
+function validateRoleSummary(definition: AgentRoleDefinition): void {
+  const { role, summary } = definition;
+  if (
+    typeof summary !== 'string' ||
+    summary.length === 0 ||
+    summary.length > AGENT_ROLE_SUMMARY_MAX_LENGTH
+  ) {
+    throw new Error(
+      `Agent role "${role}" must declare a summary of 1 to ${AGENT_ROLE_SUMMARY_MAX_LENGTH} characters`
+    );
+  }
+}
+
 function validateKnownTeam(role: string, teamId: TeamPresetId): void {
   if (!TEAM_PRESET_IDS.some((knownTeamId) => knownTeamId === teamId)) {
     throw new Error(`Agent role "${role}" has unknown team "${String(teamId)}"`);
@@ -249,6 +276,7 @@ export function validateAgentRoleDefinitions(definitions: readonly AgentRoleDefi
   for (const definition of definitions) {
     validateRoleName(definition.role, roleNames);
     validateRoleLifecycle(definition);
+    validateRoleSummary(definition);
     validateRoleMemberships(definition, teamOrders);
   }
 }

@@ -15,6 +15,9 @@ import {
   validateAgentRoleDefinitions,
 } from './agent-role';
 
+/** Summary used by malformed fixtures so only the intended field is invalid. */
+const REVIEW_SUMMARY = 'Reports observed code issues as advisory feedback.';
+
 describe('agent-role lifecycle tags', () => {
   test('known roles carry exactly one lifecycle tag', () => {
     expect(getAgentRoleTags('planner')).toEqual([AgentRoleLifecycleTag.Permanent]);
@@ -116,8 +119,32 @@ describe('agent-role lifecycle tags', () => {
     }
   });
 
+  test('every builtin role has a one-line summary within the authored limit', () => {
+    for (const definition of Object.values(AGENT_ROLE_DEFINITIONS)) {
+      expect(definition.summary.length).toBeGreaterThan(0);
+      expect(definition.summary.length).toBeLessThanOrEqual(200);
+      expect(definition.summary).not.toContain('\n');
+    }
+  });
+
+  test('rejects a summary longer than 200 characters', () => {
+    const malformed = [{ ...AGENT_ROLE_DEFINITIONS.reviewer, summary: 'a'.repeat(201) }];
+    expect(() =>
+      validateAgentRoleDefinitions(malformed as unknown as readonly AgentRoleDefinition[])
+    ).toThrow('Agent role "reviewer" must declare a summary of 1 to 200 characters');
+  });
+
+  test('rejects an empty summary', () => {
+    const malformed = [{ ...AGENT_ROLE_DEFINITIONS.reviewer, summary: '' }];
+    expect(() =>
+      validateAgentRoleDefinitions(malformed as unknown as readonly AgentRoleDefinition[])
+    ).toThrow('Agent role "reviewer" must declare a summary of 1 to 200 characters');
+  });
+
   test('rejects a definition without team membership', () => {
-    const malformed = [{ role: 'reviewer', tags: [AgentRoleLifecycleTag.Permanent] }];
+    const malformed = [
+      { role: 'reviewer', tags: [AgentRoleLifecycleTag.Permanent], summary: REVIEW_SUMMARY },
+    ];
     expect(() =>
       validateAgentRoleDefinitions(malformed as unknown as readonly AgentRoleDefinition[])
     ).toThrow('Agent role "reviewer" must declare at least one team membership');
@@ -128,6 +155,7 @@ describe('agent-role lifecycle tags', () => {
       {
         role: 'reviewer',
         tags: [AgentRoleLifecycleTag.Permanent],
+        summary: REVIEW_SUMMARY,
         teams: [],
       },
     ];
@@ -139,6 +167,7 @@ describe('agent-role lifecycle tags', () => {
       {
         role: 'reviewer',
         tags: [AgentRoleLifecycleTag.Permanent],
+        summary: REVIEW_SUMMARY,
         teams: [{ teamId: 'other', order: 10 }],
       },
     ];
@@ -152,6 +181,7 @@ describe('agent-role lifecycle tags', () => {
       {
         role: 'reviewer',
         tags: [AgentRoleLifecycleTag.Permanent],
+        summary: REVIEW_SUMMARY,
         teams: [
           { teamId: 'duo', order: 10 },
           { teamId: 'duo', order: 20 },
@@ -168,11 +198,13 @@ describe('agent-role lifecycle tags', () => {
       {
         role: 'reviewer',
         tags: [AgentRoleLifecycleTag.Permanent],
+        summary: REVIEW_SUMMARY,
         teams: [{ teamId: 'duo', order: 10 }],
       },
       {
         role: 'tester',
         tags: [AgentRoleLifecycleTag.Permanent],
+        summary: REVIEW_SUMMARY,
         teams: [{ teamId: 'duo', order: 10 }],
       },
     ];
@@ -188,6 +220,7 @@ describe('agent-role lifecycle tags', () => {
         {
           role: 'reviewer',
           tags: [AgentRoleLifecycleTag.Permanent],
+          summary: REVIEW_SUMMARY,
           teams: [{ teamId: 'duo', order }],
         },
       ];
@@ -204,6 +237,7 @@ describe('agent-role lifecycle tags', () => {
         {
           role: 'reviewer',
           tags: [AgentRoleLifecycleTag.Permanent, AgentRoleLifecycleTag.Ephemeral],
+          summary: REVIEW_SUMMARY,
           teams: [{ teamId: 'duo', order: 10 }],
         },
       ],
@@ -215,6 +249,7 @@ describe('agent-role lifecycle tags', () => {
         {
           role: 'Reviewer',
           tags: [AgentRoleLifecycleTag.Permanent],
+          summary: REVIEW_SUMMARY,
           teams: [{ teamId: 'duo', order: 10 }],
         },
       ],
@@ -226,6 +261,7 @@ describe('agent-role lifecycle tags', () => {
         {
           role: 'enhancer',
           tags: [AgentRoleLifecycleTag.Permanent],
+          summary: REVIEW_SUMMARY,
           teams: [{ teamId: 'duo', order: 10 }],
         },
       ],
@@ -237,6 +273,7 @@ describe('agent-role lifecycle tags', () => {
         {
           role: 'user',
           tags: [AgentRoleLifecycleTag.Permanent],
+          summary: REVIEW_SUMMARY,
           teams: [{ teamId: 'duo', order: 10 }],
         },
       ],
@@ -253,11 +290,13 @@ describe('agent-role lifecycle tags', () => {
       {
         role: 'reviewer',
         tags: [AgentRoleLifecycleTag.Permanent],
+        summary: REVIEW_SUMMARY,
         teams: [{ teamId: 'duo', order: 10 }],
       },
       {
         role: 'reviewer',
         tags: [AgentRoleLifecycleTag.Permanent],
+        summary: REVIEW_SUMMARY,
         teams: [{ teamId: 'solo', order: 10 }],
       },
     ];
