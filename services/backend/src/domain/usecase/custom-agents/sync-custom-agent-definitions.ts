@@ -10,6 +10,7 @@
 
 import {
   CUSTOM_AGENT_LIMITS,
+  CUSTOM_AGENT_RULES_VERSION,
   sanitizeCustomAgentSummary,
   validateCustomAgentPayload,
   type CustomAgentDefinitionPayload,
@@ -126,6 +127,12 @@ function validateAgent(agent: CustomAgentDefinitionPayload): ValidationResult {
   };
 }
 
+/**
+ * Splits the pushed agents into accepted and rejected sets. A name that appears
+ * more than once in one push keeps its first valid occurrence; later ones are
+ * rejected as `shadowed` so a duplicate can never overwrite the stored row.
+ * Names are validated first, so an invalid duplicate is never recorded as seen.
+ */
 function partitionAgents(agents: readonly CustomAgentDefinitionPayload[]): {
   accepted: CustomAgentDefinitionPayload[];
   rejected: RejectedCustomAgent[];
@@ -134,15 +141,26 @@ function partitionAgents(agents: readonly CustomAgentDefinitionPayload[]): {
   const accepted: CustomAgentDefinitionPayload[] = [];
   const rejected: RejectedCustomAgent[] = [];
   const issues: CustomAgentIssue[] = [];
+  const seenNames = new Set<string>();
 
   for (const agent of agents) {
     const result = validateAgent(agent);
-    if (result.accepted) {
-      accepted.push(result.definition);
-    } else {
+    if (!result.accepted) {
       rejected.push(result.rejected);
       issues.push(result.issue);
+      continue;
     }
+    if (seenNames.has(result.definition.name)) {
+      rejected.push({ name: result.definition.name, reason: 'shadowed' });
+      issues.push({
+        path: result.definition.name,
+        reason: 'shadowed',
+        detail: 'duplicate name in one push',
+      });
+      continue;
+    }
+    seenNames.add(result.definition.name);
+    accepted.push(result.definition);
   }
 
   return { accepted, rejected, issues };
@@ -167,6 +185,7 @@ async function upsertSource(
   existing: Doc<'chatroom_customAgentSources'> | null,
   snapshot: {
     contentHash: string;
+    rulesVersion: string;
     agentCount: number;
     issues: CustomAgentIssue[];
     updatedAt: number;
@@ -193,9 +212,16 @@ async function deleteContentRows(
   for (const content of contents) {
     await ctx.db.delete('chatroom_customAgentContents', content._id);
   }
+  const templates = await ctx.db
+    .query('chatroom_customAgentHandoffTemplates')
+    .withIndex('by_customAgent_direction', (q) => q.eq('customAgentId', customAgentId))
+    .take(2);
+  for (const template of templates) {
+    await ctx.db.delete('chatroom_customAgentHandoffTemplates', template._id);
+  }
 }
 
-async function insertContentRow(
+async function insertContentRows(
   ctx: MutationCtx,
   customAgentId: Id<'chatroom_customAgents'>,
   definition: CustomAgentDefinitionPayload
@@ -203,22 +229,51 @@ async function insertContentRow(
   await ctx.db.insert('chatroom_customAgentContents', {
     customAgentId,
     systemPrompt: definition.systemPrompt,
-    ...(definition.inboundHandoffTemplate !== undefined
-      ? { inboundHandoffTemplate: definition.inboundHandoffTemplate }
-      : {}),
-    ...(definition.returnHandoffTemplate !== undefined
-      ? { returnHandoffTemplate: definition.returnHandoffTemplate }
-      : {}),
   });
+  const templates: readonly [direction: 'inbound' | 'return', body: string | undefined][] = [
+    ['inbound', definition.inboundHandoffTemplate],
+    ['return', definition.returnHandoffTemplate],
+  ];
+  for (const [direction, body] of templates) {
+    if (body === undefined) continue;
+    await ctx.db.insert('chatroom_customAgentHandoffTemplates', {
+      customAgentId,
+      direction,
+      body,
+    });
+  }
 }
 
+/** Rewrites both body tables for one agent. A disabled-only change must not call this. */
 async function replaceContentRows(
   ctx: MutationCtx,
   customAgentId: Id<'chatroom_customAgents'>,
   definition: CustomAgentDefinitionPayload
 ): Promise<void> {
   await deleteContentRows(ctx, customAgentId);
-  await insertContentRow(ctx, customAgentId, definition);
+  await insertContentRows(ctx, customAgentId, definition);
+}
+
+/** Identity fields written on both insert and patch. */
+function toIdentityFields(
+  definition: CustomAgentDefinitionPayload,
+  updatedAt: number
+): {
+  description: string;
+  contentHash: string;
+  disabled: boolean;
+  hasInboundHandoffTemplate: boolean;
+  hasReturnHandoffTemplate: boolean;
+  updatedAt: number;
+} {
+  return {
+    description: definition.description,
+    contentHash: definition.contentHash,
+    disabled: definition.disabled,
+    hasInboundHandoffTemplate: definition.inboundHandoffTemplate !== undefined,
+    hasReturnHandoffTemplate: definition.returnHandoffTemplate !== undefined,
+    updatedAt,
+  };
 }
 
 async function insertAgent(
@@ -232,24 +287,26 @@ async function insertAgent(
     sourceId,
     ...key,
     name: definition.name,
-    description: definition.description,
-    contentHash: definition.contentHash,
-    updatedAt,
+    ...toIdentityFields(definition, updatedAt),
   });
-  await insertContentRow(ctx, customAgentId, definition);
+  await insertContentRows(ctx, customAgentId, definition);
 }
 
+/**
+ * Patches the identity row and rewrites both body tables. Used for content
+ * changes and for rules-version rewrites, never for a disabled-only toggle.
+ */
 async function patchAgent(
   ctx: MutationCtx,
   existing: Doc<'chatroom_customAgents'>,
   definition: CustomAgentDefinitionPayload,
   updatedAt: number
 ): Promise<void> {
-  await ctx.db.patch('chatroom_customAgents', existing._id, {
-    description: definition.description,
-    contentHash: definition.contentHash,
-    updatedAt,
-  });
+  await ctx.db.patch(
+    'chatroom_customAgents',
+    existing._id,
+    toIdentityFields(definition, updatedAt)
+  );
   await replaceContentRows(ctx, existing._id, definition);
 }
 
@@ -272,22 +329,64 @@ async function deleteMissingAgents(
   }
 }
 
-/** Inserts new agents and patches only agents whose content hash changed. */
+/** True when the stored row predates the current rules and must be fully rewritten. */
+function isDefinitionChanged(
+  current: Doc<'chatroom_customAgents'>,
+  definition: CustomAgentDefinitionPayload,
+  forceRewrite: boolean
+): boolean {
+  return forceRewrite || current.contentHash !== definition.contentHash;
+}
+
+/**
+ * Applies one accepted definition: insert when new, rewrite both body tables
+ * when the content or rules changed, or patch the disabled flag in place so the
+ * content and template rows keep their ids.
+ */
+async function applyAcceptedAgent(
+  ctx: MutationCtx,
+  key: SourceKey,
+  sourceId: Id<'chatroom_customAgentSources'>,
+  definition: CustomAgentDefinitionPayload,
+  current: Doc<'chatroom_customAgents'> | undefined,
+  updatedAt: number,
+  forceRewrite: boolean
+): Promise<void> {
+  if (current === undefined) {
+    await insertAgent(ctx, key, sourceId, definition, updatedAt);
+    return;
+  }
+  if (isDefinitionChanged(current, definition, forceRewrite)) {
+    await patchAgent(ctx, current, definition, updatedAt);
+    return;
+  }
+  if (current.disabled !== definition.disabled) {
+    await ctx.db.patch('chatroom_customAgents', current._id, {
+      disabled: definition.disabled,
+      updatedAt,
+    });
+  }
+}
+
 async function applyAcceptedAgents(
   ctx: MutationCtx,
   key: SourceKey,
   sourceId: Id<'chatroom_customAgentSources'>,
   accepted: readonly CustomAgentDefinitionPayload[],
   existingByName: ReadonlyMap<string, Doc<'chatroom_customAgents'>>,
-  updatedAt: number
+  updatedAt: number,
+  forceRewrite: boolean
 ): Promise<void> {
   for (const definition of accepted) {
-    const current = existingByName.get(definition.name);
-    if (!current) {
-      await insertAgent(ctx, key, sourceId, definition, updatedAt);
-    } else if (current.contentHash !== definition.contentHash) {
-      await patchAgent(ctx, current, definition, updatedAt);
-    }
+    await applyAcceptedAgent(
+      ctx,
+      key,
+      sourceId,
+      definition,
+      existingByName.get(definition.name),
+      updatedAt,
+      forceRewrite
+    );
   }
 }
 
@@ -302,7 +401,8 @@ async function reconcileAgents(
   key: SourceKey,
   sourceId: Id<'chatroom_customAgentSources'>,
   accepted: readonly CustomAgentDefinitionPayload[],
-  updatedAt: number
+  updatedAt: number,
+  forceRewrite: boolean
 ): Promise<void> {
   const existing = await ctx.db
     .query('chatroom_customAgents')
@@ -312,7 +412,7 @@ async function reconcileAgents(
   const acceptedNames = new Set(accepted.map((agent) => agent.name));
 
   await deleteMissingAgents(ctx, existing, acceptedNames);
-  await applyAcceptedAgents(ctx, key, sourceId, accepted, existingByName, updatedAt);
+  await applyAcceptedAgents(ctx, key, sourceId, accepted, existingByName, updatedAt, forceRewrite);
 }
 
 /** Narrows the push payload to the source index key. */
@@ -330,16 +430,25 @@ function isUnchangedSnapshot(
   issuesJson: string
 ): boolean {
   if (existing === null) return false;
+  if (existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION) return false;
   if (existing.contentHash !== contentHash) return false;
   return canonicalizeIssues(existing.issues).json === issuesJson;
 }
 
-/** An identical content hash means only the reported issues changed. */
+/**
+ * An identical content hash means only the reported issues changed — unless the
+ * stored snapshot predates the current validation rules, in which case the
+ * agents must be revalidated and rewritten.
+ */
 function needsAgentReconcile(
   existing: Doc<'chatroom_customAgentSources'> | null,
   contentHash: string
 ): boolean {
-  return existing === null || existing.contentHash !== contentHash;
+  return (
+    existing === null ||
+    existing.contentHash !== contentHash ||
+    existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION
+  );
 }
 
 async function writeSnapshot(
@@ -355,12 +464,14 @@ async function writeSnapshot(
   const now = Date.now();
   const sourceId = await upsertSource(ctx, key, existing, {
     contentHash: input.contentHash,
+    rulesVersion: CUSTOM_AGENT_RULES_VERSION,
     agentCount: input.accepted.length,
     issues: input.issues,
     updatedAt: now,
   });
   if (needsAgentReconcile(existing, input.contentHash)) {
-    await reconcileAgents(ctx, key, sourceId, input.accepted, now);
+    const forceRewrite = existing !== null && existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION;
+    await reconcileAgents(ctx, key, sourceId, input.accepted, now, forceRewrite);
   }
 }
 
