@@ -29,6 +29,20 @@ export const CUSTOM_AGENT_LIMITS = {
 export const CUSTOM_AGENT_SCOPES = ['workspace', 'machine'] as const;
 export type CustomAgentScope = (typeof CUSTOM_AGENT_SCOPES)[number];
 
+/**
+ * Teams that support custom agents. Only duo does: the prompt composer treats
+ * any multi-member team as duo, so merging customs into solo would corrupt
+ * solo prompts.
+ */
+export const CUSTOM_AGENT_SUPPORTED_TEAM_IDS = ['duo'] as const;
+
+/** True when the team supports custom agents. Tolerates case and whitespace. */
+export function supportsCustomAgents(teamId: string): boolean {
+  return CUSTOM_AGENT_SUPPORTED_TEAM_IDS.includes(
+    teamId.trim().toLowerCase() as (typeof CUSTOM_AGENT_SUPPORTED_TEAM_IDS)[number]
+  );
+}
+
 /** Frontmatter keys that would otherwise smuggle model or harness selection into a role. */
 export const CUSTOM_AGENT_FORBIDDEN_FRONTMATTER_KEYS = [
   'model',
@@ -72,7 +86,10 @@ export interface CustomAgentDefinitionPayload {
   systemPrompt: string;
   inboundHandoffTemplate?: string;
   returnHandoffTemplate?: string;
+  /** Per-agent content hash the client computes over [name, description, systemPrompt, inbound ?? null, return ?? null]. Excludes `disabled`. */
   contentHash: string;
+  /** Machine-local disable flag stamped by the daemon. */
+  disabled: boolean;
 }
 
 export interface CustomAgentIdentity {
@@ -117,6 +134,35 @@ const RESERVED_BLOCK_TAGS = [
 
 /** Delimiters that terminate a handoff payload; a body line equal to one would truncate it. */
 const RESERVED_DELIMITER_LINES = ['CHATROOM_HANDOFF_END', 'CHATROOM_NOTIFY_END'] as const;
+
+const CUSTOM_AGENT_RULES_REVISION = 1;
+
+/** FNV-1a 32-bit over UTF-16 code units. Pure, deterministic, no Node APIs. */
+function fnv1a32Hex(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Bump CUSTOM_AGENT_RULES_REVISION manually when validation semantics change in a way
+ * these inputs do not capture. Stored on each source row; a mismatch forces revalidation
+ * and a full rewrite (m5).
+ */
+export const CUSTOM_AGENT_RULES_VERSION = `r${CUSTOM_AGENT_RULES_REVISION}-${fnv1a32Hex(
+  JSON.stringify([
+    CUSTOM_AGENT_RULES_REVISION,
+    CUSTOM_AGENT_LIMITS,
+    CUSTOM_AGENT_FORBIDDEN_FRONTMATTER_KEYS,
+    Object.keys(AGENT_ROLE_DEFINITIONS).sort(),
+    'user',
+    'enhancer',
+    RESERVED_DELIMITER_LINES,
+  ])
+)}`;
 
 const textEncoder = new TextEncoder();
 
@@ -234,11 +280,11 @@ function hasReservedDelimiterBody(payload: CustomAgentDefinitionPayload): boolea
 }
 
 /**
- * True only when the role is ephemeral in the structure and is not the entry
- * point. Permanent roles are never disableable.
+ * Only ephemeral, non-builtin, non-entry-point roles are disableable. Builtins
+ * are never disableable, even when they are ephemeral.
  */
 export function isDisableableTeamRole(structure: TeamStructure, role: string): boolean {
-  if (role === structure.entryPoint) return false;
+  if (isBuiltinAgentRole(role) || role === structure.entryPoint) return false;
   const entry = structure.roles.find((candidate) => candidate.role === role);
   return entry?.lifecycle === AgentRoleLifecycleTag.Ephemeral;
 }
@@ -250,7 +296,9 @@ function byName(left: { name: string }, right: { name: string }): number {
 
 /**
  * Workspace agents come first so they win every name clash; later duplicates
- * are shadowed. Invalid and reserved names are dropped with an issue.
+ * are shadowed. Invalid and reserved names are dropped with an issue. Each
+ * source is sorted by name so the downstream cap is deterministic without
+ * re-sorting across scopes.
  */
 function resolveCustomAgentCandidates(
   workspaceAgents: readonly CustomAgentIdentity[],
@@ -259,8 +307,10 @@ function resolveCustomAgentCandidates(
   const issues: CustomAgentIssue[] = [];
   const candidates: CustomAgentIdentity[] = [];
   const seenNames = new Set<string>();
+  const sortedWorkspace = [...workspaceAgents].sort(byName);
+  const sortedMachine = [...machineAgents].sort(byName);
 
-  for (const agent of [...workspaceAgents, ...machineAgents]) {
+  for (const agent of [...sortedWorkspace, ...sortedMachine]) {
     const nameIssue = validateCustomAgentName(agent.name);
     if (nameIssue !== null) {
       issues.push({ path: agent.name, reason: nameIssue });
@@ -277,57 +327,53 @@ function resolveCustomAgentCandidates(
   return { candidates, issues };
 }
 
-/** Sorts by name and keeps at most the per-chatroom limit, reporting every extra. */
+/** Keeps the first agentsPerChatroom candidates in input order (workspace, then machine); reports the rest. */
 function capCustomAgentCandidates(candidates: readonly CustomAgentIdentity[]): {
   enabled: CustomAgentIdentity[];
   issues: CustomAgentIssue[];
 } {
-  const sorted = [...candidates].sort(byName);
   return {
-    enabled: sorted.slice(0, CUSTOM_AGENT_LIMITS.agentsPerChatroom),
-    issues: sorted
+    enabled: candidates.slice(0, CUSTOM_AGENT_LIMITS.agentsPerChatroom),
+    issues: candidates
       .slice(CUSTOM_AGENT_LIMITS.agentsPerChatroom)
       .map((agent) => ({ path: agent.name, reason: 'over-limit' as const })),
   };
 }
 
-/** Appends customs that the base structure does not already declare. */
+/** Appends customs as optional ephemeral roles. Names are already validated as non-builtin. */
 function appendCustomRoles(
   baseRoles: readonly TeamStructureRole[],
   agents: readonly CustomAgentIdentity[]
 ): TeamStructureRole[] {
-  const customRoles = agents
-    .filter((agent) => !baseRoles.some((entry) => entry.role === agent.name))
-    .map((agent) => ({
+  return [
+    ...baseRoles,
+    ...agents.map((agent) => ({
       role: agent.name,
       lifecycle: AgentRoleLifecycleTag.Ephemeral,
       optional: true,
-    }));
-  return customRoles.length === 0 ? [...baseRoles] : [...baseRoles, ...customRoles];
+    })),
+  ];
 }
 
-/** Every disabled role that is actually disableable in the combined structure. */
-function resolveDisabledRoleNames(
-  structure: TeamStructure,
-  disabledRoles: ReadonlySet<string>
-): ReadonlySet<string> {
-  return new Set(
-    structure.roles
-      .filter(
-        (entry) => disabledRoles.has(entry.role) && isDisableableTeamRole(structure, entry.role)
-      )
-      .map((entry) => entry.role)
-  );
+/** Roster entries for disabled customs, which are not present in `structure.roles`. */
+function buildDisabledCustomRoster(agents: readonly CustomAgentIdentity[]): TeamRosterEntry[] {
+  return agents.map((agent) => ({
+    role: agent.name,
+    lifecycle: AgentRoleLifecycleTag.Ephemeral,
+    source: 'custom',
+    summary: sanitizeCustomAgentSummary(agent.description),
+    disabled: true,
+    disableable: true,
+    scope: agent.scope,
+  }));
 }
 
 function buildRoster(
   structure: TeamStructure,
-  agents: readonly CustomAgentIdentity[],
-  disabledRoleNames: ReadonlySet<string>
+  agents: readonly CustomAgentIdentity[]
 ): TeamRosterEntry[] {
   const customByName = new Map(agents.map((agent) => [agent.name, agent]));
   return structure.roles.map((entry) => {
-    const disabled = disabledRoleNames.has(entry.role);
     const disableable = isDisableableTeamRole(structure, entry.role);
     if (isBuiltinAgentRole(entry.role)) {
       return {
@@ -335,7 +381,7 @@ function buildRoster(
         lifecycle: entry.lifecycle,
         source: 'builtin',
         summary: AGENT_ROLE_DEFINITIONS[entry.role].summary,
-        disabled,
+        disabled: false,
         disableable,
       };
     }
@@ -345,7 +391,7 @@ function buildRoster(
       lifecycle: entry.lifecycle,
       source: 'custom',
       summary: customAgent ? sanitizeCustomAgentSummary(customAgent.description) : '',
-      disabled,
+      disabled: false,
       disableable,
       ...(customAgent ? { scope: customAgent.scope } : {}),
     };
@@ -356,12 +402,13 @@ function buildRoster(
  * Merges custom agent identities into a resolved team structure.
  *
  * Workspace agents win name clashes against machine agents. Reserved or
- * invalid names are dropped with an issue, duplicate names shadow, and the
- * surviving customs are sorted by name and capped at the per-chatroom limit.
- * Surviving customs are appended as optional ephemeral roles. Disableable
- * roles listed in `disabledRoles` are removed from `structure.roles` while
- * remaining in the roster with `disabled: true`. With no customs and no
- * disabled roles, the resulting structure deep-equals the base.
+ * invalid names are dropped with an issue and duplicate names shadow. Custom
+ * agents listed in `disabledRoles` are removed before the cap, so they never
+ * consume a slot; they remain in the roster with `disabled: true`. The
+ * remaining customs keep scope order — workspace sorted by name, then machine
+ * sorted by name — and are capped at the per-chatroom limit. Only custom names
+ * are disableable: builtins and the entry point never are. With no customs and
+ * no disabled roles, the resulting structure deep-equals the base.
  */
 export function mergeTeamStructureWithCustomAgents(input: {
   base: TeamStructure;
@@ -370,40 +417,26 @@ export function mergeTeamStructureWithCustomAgents(input: {
   disabledRoles: ReadonlySet<string>;
 }): MergedTeam {
   const resolved = resolveCustomAgentCandidates(input.workspaceAgents, input.machineAgents);
-  const capped = capCustomAgentCandidates(resolved.candidates);
-  const combinedRoles = appendCustomRoles(input.base.roles, capped.enabled);
-  const combinedStructure: TeamStructure = { ...input.base, roles: combinedRoles };
-  const disabledRoleNames = resolveDisabledRoleNames(combinedStructure, input.disabledRoles);
-  const keptRoles =
-    disabledRoleNames.size === 0
-      ? combinedRoles
-      : combinedRoles.filter((entry) => !disabledRoleNames.has(entry.role));
+  // Disabled customs are removed before the cap, so they never consume a slot.
+  const disabledCandidates = resolved.candidates.filter((agent) =>
+    input.disabledRoles.has(agent.name)
+  );
+  const enabledCandidates = resolved.candidates.filter(
+    (agent) => !input.disabledRoles.has(agent.name)
+  );
+  const capped = capCustomAgentCandidates(enabledCandidates);
+
+  const structure: TeamStructure = {
+    ...input.base,
+    roles: appendCustomRoles(input.base.roles, capped.enabled),
+  };
+  const enabledRoster = buildRoster(structure, capped.enabled);
+  const disabledRoster = buildDisabledCustomRoster(disabledCandidates);
 
   return {
-    structure: { ...input.base, roles: keptRoles },
-    roster: buildRoster(combinedStructure, capped.enabled, disabledRoleNames),
+    structure,
+    roster: [...enabledRoster, ...disabledRoster],
     enabledCustomAgents: capped.enabled,
     issues: [...resolved.issues, ...capped.issues],
-  };
-}
-
-/**
- * Splits team roles into lifecycle buckets for the webapp. Retired roles and
- * `user` are never selectable agents.
- */
-export function partitionTeamRolesByLifecycle(roles: readonly TeamStructureRole[]): {
-  permanent: string[];
-  ephemeral: string[];
-} {
-  const selectable = roles.filter(
-    (entry) => entry.role !== 'user' && !isRetiredAgentRole(entry.role)
-  );
-  return {
-    permanent: selectable
-      .filter((entry) => entry.lifecycle === AgentRoleLifecycleTag.Permanent)
-      .map((entry) => entry.role),
-    ephemeral: selectable
-      .filter((entry) => entry.lifecycle === AgentRoleLifecycleTag.Ephemeral)
-      .map((entry) => entry.role),
   };
 }

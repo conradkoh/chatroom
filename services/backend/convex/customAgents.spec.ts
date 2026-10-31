@@ -32,6 +32,7 @@ type TestAgent = {
   inboundHandoffTemplate?: string;
   returnHandoffTemplate?: string;
   contentHash: string;
+  disabled: boolean;
 };
 
 function makeAgent(
@@ -44,6 +45,7 @@ function makeAgent(
     description: overrides.description ?? `${name} role.`,
     systemPrompt: overrides.systemPrompt ?? `You are ${name}.`,
     contentHash,
+    disabled: false,
     ...(overrides.inboundHandoffTemplate !== undefined
       ? { inboundHandoffTemplate: overrides.inboundHandoffTemplate }
       : {}),

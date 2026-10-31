@@ -19,6 +19,7 @@ type TestAgent = {
   description: string;
   systemPrompt: string;
   contentHash: string;
+  disabled: boolean;
 };
 
 function makeAgent(name: string, contentHash: string): TestAgent {
@@ -27,6 +28,7 @@ function makeAgent(name: string, contentHash: string): TestAgent {
     description: `${name} role.`,
     systemPrompt: `You are ${name}.`,
     contentHash,
+    disabled: false,
   };
 }
 

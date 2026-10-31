@@ -35,6 +35,7 @@ const customAgentDefinitionValidator = v.object({
   inboundHandoffTemplate: v.optional(v.string()),
   returnHandoffTemplate: v.optional(v.string()),
   contentHash: v.string(),
+  disabled: v.boolean(),
 });
 
 /**

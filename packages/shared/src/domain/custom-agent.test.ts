@@ -1,16 +1,17 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { AgentRoleLifecycleTag } from './agent-role';
 import {
   CUSTOM_AGENT_LIMITS,
   CUSTOM_AGENT_NAME_PATTERN,
+  CUSTOM_AGENT_RULES_VERSION,
   type CustomAgentDefinitionPayload,
   type CustomAgentIdentity,
   isDisableableTeamRole,
   mergeTeamStructureWithCustomAgents,
   neutralizeChatroomBlockTags,
-  partitionTeamRolesByLifecycle,
   sanitizeCustomAgentSummary,
+  supportsCustomAgents,
   validateCustomAgentName,
   validateCustomAgentPayload,
 } from './custom-agent';
@@ -32,6 +33,7 @@ function validPayload(
     description: 'Checks release readiness.',
     systemPrompt: 'You check releases.',
     contentHash: 'hash',
+    disabled: false,
     ...overrides,
   };
 }
@@ -248,7 +250,7 @@ describe('mergeTeamStructureWithCustomAgents', () => {
     }
   );
 
-  test('keeps builtin order and appends customs sorted by name', () => {
+  test('keeps builtin order and appends customs workspace-first, sorted by name per scope', () => {
     const base = getTeamStructure({ teamId: 'duo' });
     const merged = mergeTeamStructureWithCustomAgents({
       base,
@@ -260,18 +262,18 @@ describe('mergeTeamStructureWithCustomAgents', () => {
     expect(merged.structure.roles.map((entry) => entry.role)).toEqual([
       ...TEAM_PRESETS.duo.roles,
       'alpha',
-      'middle',
       'zeta',
+      'middle',
     ]);
     expect(merged.structure.roles.slice(TEAM_PRESETS.duo.roles.length)).toEqual([
       { role: 'alpha', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
-      { role: 'middle', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
       { role: 'zeta', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+      { role: 'middle', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
     ]);
     expect(merged.enabledCustomAgents.map((agent) => agent.name)).toEqual([
       'alpha',
-      'middle',
       'zeta',
+      'middle',
     ]);
   });
 
@@ -302,9 +304,9 @@ describe('mergeTeamStructureWithCustomAgents', () => {
 
     expect(merged.enabledCustomAgents).toEqual([]);
     expect(merged.issues).toEqual([
+      { path: 'enhancer', reason: 'reserved-name' },
       { path: 'planner', reason: 'reserved-name' },
       { path: 'user', reason: 'reserved-name' },
-      { path: 'enhancer', reason: 'reserved-name' },
     ]);
     expect(merged.structure).toEqual(base);
   });
@@ -329,26 +331,88 @@ describe('mergeTeamStructureWithCustomAgents', () => {
     );
   });
 
-  test('removes a disabled ephemeral builtin role but keeps it in the roster', () => {
+  test('ignores disabled builtin names, even ephemeral ones', () => {
     const base = getTeamStructure({ teamId: 'duo' });
     const merged = mergeTeamStructureWithCustomAgents({
       base,
       workspaceAgents: [],
       machineAgents: [],
-      disabledRoles: new Set(['architect']),
+      disabledRoles: new Set(['architect', 'researcher', 'planner']),
     });
 
-    expect(merged.structure.roles.map((entry) => entry.role)).not.toContain('architect');
-    const architect = merged.roster.find((entry) => entry.role === 'architect');
-    expect(architect).toEqual({
+    expect(merged.structure).toEqual(base);
+    expect(merged.structure.roles.map((entry) => entry.role)).toContain('architect');
+    expect(merged.roster.find((entry) => entry.role === 'architect')).toEqual({
       role: 'architect',
       lifecycle: AgentRoleLifecycleTag.Ephemeral,
       source: 'builtin',
       summary: 'Designs one evidence-backed implementation plan for complex changes.',
+      disabled: false,
+      disableable: false,
+    });
+    expect(merged.roster.find((entry) => entry.role === 'planner')?.disabled).toBe(false);
+  });
+
+  test('a disabled custom does not consume a cap slot', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const enabledNames = Array.from(
+      { length: CUSTOM_AGENT_LIMITS.agentsPerChatroom },
+      (_, index) => `enabled-${String(index).padStart(2, '0')}`
+    );
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [
+        ...enabledNames.map((name) => customAgent(name)),
+        customAgent('disabled-agent'),
+      ],
+      machineAgents: [],
+      disabledRoles: new Set(['disabled-agent']),
+    });
+
+    expect(merged.issues).toEqual([]);
+    expect(merged.enabledCustomAgents).toHaveLength(CUSTOM_AGENT_LIMITS.agentsPerChatroom);
+    expect(merged.structure.roles.map((entry) => entry.role)).not.toContain('disabled-agent');
+    expect(merged.roster.find((entry) => entry.role === 'disabled-agent')).toEqual({
+      role: 'disabled-agent',
+      lifecycle: AgentRoleLifecycleTag.Ephemeral,
+      source: 'custom',
+      summary: 'Does disabled-agent things.',
       disabled: true,
       disableable: true,
+      scope: 'workspace',
     });
-    expect(merged.roster.find((entry) => entry.role === 'builder')?.disabled).toBe(false);
+  });
+
+  test('fills the cap workspace-first without re-sorting across scopes', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const names = Array.from(
+      { length: 20 },
+      (_, index) => `agent-${String(index).padStart(2, '0')}`
+    );
+    const workspaceNames = names.filter((_, index) => index % 2 === 0);
+    const machineNames = names.filter((_, index) => index % 2 === 1);
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [...workspaceNames].reverse().map((name) => customAgent(name)),
+      machineAgents: [...machineNames]
+        .reverse()
+        .map((name) => customAgent(name, `Does ${name} things.`, 'machine')),
+      disabledRoles: new Set(),
+    });
+
+    const enabledNames = merged.enabledCustomAgents.map((agent) => agent.name);
+    expect(enabledNames).toEqual([
+      ...workspaceNames,
+      ...machineNames.slice(0, CUSTOM_AGENT_LIMITS.agentsPerChatroom - workspaceNames.length),
+    ]);
+    expect(merged.enabledCustomAgents.filter((agent) => agent.scope === 'workspace')).toHaveLength(
+      workspaceNames.length
+    );
+    expect(merged.issues).toEqual(
+      machineNames
+        .slice(CUSTOM_AGENT_LIMITS.agentsPerChatroom - workspaceNames.length)
+        .map((name) => ({ path: name, reason: 'over-limit' }))
+    );
   });
 
   test('ignores disabled rows for permanent roles and the entry point', () => {
@@ -417,33 +481,43 @@ describe('mergeTeamStructureWithCustomAgents', () => {
 });
 
 describe('isDisableableTeamRole', () => {
-  test('only ephemeral non-entry-point roles are disableable', () => {
+  test('only ephemeral, non-builtin, non-entry-point roles are disableable', () => {
     const base = getTeamStructure({ teamId: 'duo' });
     expect(isDisableableTeamRole(base, 'planner')).toBe(false);
     expect(isDisableableTeamRole(base, 'builder')).toBe(false);
-    expect(isDisableableTeamRole(base, 'architect')).toBe(true);
+    expect(isDisableableTeamRole(base, 'architect')).toBe(false);
+    expect(isDisableableTeamRole(base, 'researcher')).toBe(false);
     expect(isDisableableTeamRole(base, 'unknown-role')).toBe(false);
+  });
+
+  test('treats ephemeral custom roles as disableable', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [customAgent('alpha')],
+      machineAgents: [],
+      disabledRoles: new Set(),
+    });
+
+    expect(isDisableableTeamRole(merged.structure, 'alpha')).toBe(true);
   });
 });
 
-describe('partitionTeamRolesByLifecycle', () => {
-  test('splits roles by lifecycle while excluding user and retired names', () => {
-    const base = getTeamStructure({ teamId: 'duo' });
-    const partitioned = partitionTeamRolesByLifecycle([
-      ...base.roles,
-      { role: 'user', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-      { role: 'enhancer', lifecycle: AgentRoleLifecycleTag.Permanent, optional: false },
-    ]);
+describe('supportsCustomAgents', () => {
+  test('supports duo only, tolerating case and whitespace', () => {
+    expect(supportsCustomAgents('duo')).toBe(true);
+    expect(supportsCustomAgents(' DUO ')).toBe(true);
+    expect(supportsCustomAgents('solo')).toBe(false);
+    expect(supportsCustomAgents('unknown')).toBe(false);
+  });
+});
 
-    expect(partitioned.permanent).toEqual(['planner', 'builder']);
-    expect(partitioned.ephemeral).toEqual([
-      'architect',
-      'researcher',
-      'triage',
-      'reviewer',
-      'uiux-engineer',
-      'game-asset-designer',
-      'verifier',
-    ]);
+describe('CUSTOM_AGENT_RULES_VERSION', () => {
+  test('is a stable r1 fingerprint', async () => {
+    expect(CUSTOM_AGENT_RULES_VERSION).toMatch(/^r1-[0-9a-f]{8}$/);
+
+    vi.resetModules();
+    const reloaded = await import('./custom-agent');
+    expect(reloaded.CUSTOM_AGENT_RULES_VERSION).toBe(CUSTOM_AGENT_RULES_VERSION);
   });
 });
