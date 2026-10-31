@@ -33,7 +33,7 @@ ${handoffCommand({
 export function getResearcherToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.toRole;
 
-  return `Instructions (not part of the message): Return a complete, evidence-backed research brief for the authoritative request. The researcher is advisory: do not edit files, implement code, or present alternative architectures beyond what grounds the decision. Answer only the questions asked. Separate every finding into confirmed (with evidence), inferred (with reasoning), or unknown. Never present a guess as fact. External claims must cite the source URL together with the version or date checked. Use the exact sections below, in this order.
+  return `Instructions (not part of the message): Return a complete, evidence-backed research brief for the authoritative request. The researcher is advisory: do not edit files, implement code, or present alternative architectures beyond what grounds the decision. Answer only the questions asked. Separate every finding into confirmed (with evidence), inferred (with reasoning), or unknown. Never present a guess as fact. External claims must cite the source URL together with the version or date checked. Prefer primary sources (official documentation, the package's own source or changelog, the platform's release notes) over blog posts and summaries; if only a secondary source was found, label the claim as resting on it. Use the exact sections below, in this order.
 
 ## Summary
 <state the answer to the core question in two to four sentences and whether any decision remains open>
@@ -45,10 +45,10 @@ export function getResearcherToEntryPointHandoffTemplate(query: HandoffTemplateQ
 <one entry per question, each tagged \`confirmed\` (with evidence), \`inferred\` (with reasoning), or \`unknown\`>
 
 ## Repository evidence
-<concrete repository paths and symbols with what each shows; quote the relevant lines briefly>
+<concrete repository paths and symbols with what each shows; quote the relevant lines briefly; before recommending any new library, type, module, or abstraction, search the repository for an existing concept that does the same job under another name (search the domain nouns and their synonyms), and list each match with whether it fits and why>
 
 ## External sources
-<URL, version or date checked, and the specific claim each source supports; write exactly \`None consulted.\` if no external source was needed, and say why>
+<one line per source: URL, the version or date checked, whether it is primary (official documentation, source code, changelog, release notes) or secondary, and the specific claim it supports; write exactly \`None consulted.\` if no external source was needed, and say why>
 
 ## Grounded facts for the plan
 <the facts the planner can rely on when decomposing and delegating, each tagged confirmed or inferred>

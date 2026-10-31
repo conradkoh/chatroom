@@ -74,7 +74,7 @@ describe('researcher handoff template snapshots', () => {
     expect(template).toContain('`confirmed` (with evidence)');
     expect(template).toContain('`inferred` (with reasoning)');
     expect(template).toContain('`unknown`');
-    expect(template).toContain('URL, version or date checked');
+    expect(template).toContain('the version or date checked');
     expect(template).toContain('`None consulted.`');
     expect(template).toContain('`None observed.`');
     expect(template).toContain('do not edit files, implement code');
