@@ -8,6 +8,7 @@
 
 import { backlogSkill } from './modules/backlog/index';
 import { codeReviewSkill } from './modules/code-review/index';
+import { customAgentsSkill } from './modules/custom-agents/index';
 import { dataDesignSkill } from './modules/data-design/index';
 import { defragmentationSkill } from './modules/defragmentation/index';
 import { userCentricitySkill } from './modules/user-centricity/index';
@@ -26,4 +27,5 @@ export const SKILLS_REGISTRY: readonly SkillModule[] = [
   defragmentationSkill,
   userCentricitySkill,
   dataDesignSkill,
+  customAgentsSkill,
 ];

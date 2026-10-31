@@ -111,6 +111,27 @@ describe('skills.activate', () => {
     expect(result.skill.prompt).toContain('Not Applicable.');
   });
 
+  test('activates the custom-agents skill with authoring guidance', async () => {
+    const { sessionId } = await createTestSession('skills-activate-custom-agents-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'custom-agents',
+      role: 'builder',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.skill.skillId).toBe('custom-agents');
+    expect(result.skill.name).toBe('Custom Agents');
+    expect(result.skill.prompt).toContain('.chatroom/agents/');
+    expect(result.skill.prompt).toContain('AGENT.md');
+    expect(result.skill.prompt).toContain('inbound-handoff.md');
+    expect(result.skill.prompt).toContain('return-handoff.md');
+    expect(result.skill.prompt).toContain('reserved-name');
+  });
+
   test('throws ConvexError for an unknown skill', async () => {
     const { sessionId } = await createTestSession('skills-activate-unknown-1');
     const chatroomId = await createChatroom(sessionId);
@@ -204,6 +225,7 @@ describe('skills.list', () => {
     expect(skills.some((s) => s.skillId === 'defragmentation')).toBe(true);
     expect(skills.some((s) => s.skillId === 'user-centricity')).toBe(true);
     expect(skills.some((s) => s.skillId === 'data-design')).toBe(true);
+    expect(skills.some((s) => s.skillId === 'custom-agents')).toBe(true);
     expect(skills.some((s) => s.skillId === 'software-engineering')).toBe(false);
     expect(skills.some((s) => s.skillId === 'development-workflow')).toBe(false);
   });

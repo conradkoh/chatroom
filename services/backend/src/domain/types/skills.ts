@@ -23,6 +23,7 @@ const SKILLS = {
   defragmentation: { customizationType: null },
   'user-centricity': { customizationType: null },
   'data-design': { customizationType: null },
+  'custom-agents': { customizationType: null },
 } as const satisfies Record<string, { customizationType: string | null }>;
 
 // ─── Skill IDs ───────────────────────────────────────────────────────────

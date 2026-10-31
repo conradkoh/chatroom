@@ -164,6 +164,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - **defragmentation**: Use for large or multi-surface system revisions: study surfaces, establish a golden path, migrate callers, and delete legacy implementations.
       - **user-centricity**: Use when a request involves UI changes: turn user intent into complete, accessible flows with explicit states and project-consistent interaction details.
       - **data-design**: Use when persistence or query patterns change: make schema, index, scan, timeout, and invalidation decisions explicit.
+      - **custom-agents**: Use when creating, editing, or reviewing custom agents: file layout, frontmatter, handoff templates, limits, and the conventions they must follow.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
 
