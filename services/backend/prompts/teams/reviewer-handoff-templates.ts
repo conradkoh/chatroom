@@ -5,7 +5,7 @@ import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 export function getEntryPointToReviewerHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.fromRole;
 
-  return `Pass the review target and the review focus. State the exact commit range, branch, pull request, or file list to inspect, the focus areas (for example security, correctness, or test quality), and any known context or constraints. Ask the reviewer for a report only: do not edit files, run builds or tests, or implement fixes.
+  return `Pass the review target and the review focus. State the exact commit range, branch, pull request, or file list to inspect, the focus areas (for example security, correctness, or test quality), and any known context or constraints. Name the spec the change must satisfy (the user's request, an issue, or a file under \`docs/\`), or write \`no spec available\` when there is none. Ask the reviewer for a report only: do not edit files, run builds or tests, or implement fixes.
 
 ### When to review
 
