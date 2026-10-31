@@ -101,7 +101,6 @@ ${sharedContractsHeading}
 - Do not implement code or edit files as the architect; this handoff is advisory only.
 - Do not present alternative designs, generic advice, or requirements without concrete evidence and file-level consequences.
 - Do not invent APIs, schema fields, query shapes, indexes, or source-of-truth locations when existing repository patterns apply.
-- Do not add a seam, wrapper, or interface with a single implementation and no test that substitutes it; inline it instead.
 - <explicit task-specific anti-patterns, scope boundaries, and migration/source-of-truth pitfalls>
 
 ## Skills to activate
