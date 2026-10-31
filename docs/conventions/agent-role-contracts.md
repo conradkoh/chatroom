@@ -26,7 +26,7 @@ Builtin role visibility depends on several connected contracts. A successful pro
 
 1. Edit shared agent-role metadata once: add the canonical key, singleton lifecycle, and explicit nonempty ordered memberships. Never edit generated preset role arrays.
 2. Add a dedicated builtin `RoleTemplate` and a typed role-owned handoff contract for each supported team; wire both into their exhaustive capability catalogs.
-3. Preserve permanent team entry points, unique membership orders, reciprocal handoff edges, custom-role behavior, retired-role fallback, and permanent-only picker behavior.
+3. Preserve permanent team entry points, unique membership orders, reciprocal handoff edges, custom-role behavior (see [custom agents](custom-agents.md)), retired-role fallback, and permanent-only picker behavior.
 4. Run compiler negative fixtures, shared invariants, backend capability/API checks, rendered sidebar/settings checks, CLI preset checks, and the production-route sidebar E2E below.
 5. When reporting visibility, record the source commit/branch, executed checks, actual browser/backend target, and whether the change is merged or deployed. A pushed commit is not necessarily merged or deployed. Finite tests reduce risk; they cannot guarantee every future defect is impossible.
 
