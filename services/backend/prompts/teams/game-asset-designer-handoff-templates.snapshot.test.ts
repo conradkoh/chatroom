@@ -138,8 +138,9 @@ describe('game asset designer handoff template snapshots', () => {
     expect(template).toContain('## Lighting verification');
     expect(template).toContain('`Blocked: lighting not verified`');
     expect(template).toContain(
-      "Lighting verified under the brief's Lighting contract, or the Summary starts `Blocked: lighting not verified`."
+      "Lighting verified under the brief's Lighting contract with an **asset-in-rig render**"
     );
+    expect(template).toContain('otherwise the Summary starts `Blocked: lighting not verified`.');
     expect(template).toContain('`None failed.`');
     expect(template).toContain('`None.`');
     expect(template).toContain('next-role="planner"');

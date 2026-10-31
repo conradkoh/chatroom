@@ -32,7 +32,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
 
 ## Lighting contract
-<required for a brief with any 3D asset; \`Not specified.\` is not allowed, and \`Not applicable.\` is only for a brief with only 2D or audio assets. State the goal ("consistent with the game's rig and palette") plus the rig facts the repo defines: lighting model (image-based / directional / unlit / toon); environment map present or absent; metalness policy; exposure and tone mapping; colour space; shadow setup; the repository paths that define the rig; and a target-rig reference render path (required for a 3D asset; the designer cannot produce it). If you do not know a fact write \`Unknown: designer to read <path>\`. Do not write prompts, material treatment, or art direction; the designer owns those.>
+<required for a brief with any 3D asset; \`Not specified.\` is not allowed, and \`Not applicable.\` is only for a brief with only 2D or audio assets. State the goal ("consistent with the game's rig and palette") plus the rig facts the repo defines: lighting model (image-based / directional / unlit / toon); environment map present or absent; metalness policy; exposure and tone mapping; colour space; shadow setup; the repository paths that define the rig; and a **rig reference render** path (required for a 3D asset; the designer cannot produce it): "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`." The **asset-in-rig render** is produced after generation and reported under \`## Lighting verification\`. If you do not know a fact write \`Unknown: designer to read <path>\`. Do not write prompts, material treatment, or art direction; the designer owns those.>
 
 ## Perspective
 <one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not Applicable.\` for 3D models and audio; or \`Not specified.\`>
@@ -126,7 +126,7 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 - [ ] Every asset ID has a file or \`Specified only.\`
 - [ ] Every sliced asset was isolated with \`remove-image-background\` and \`inspected\`.
 - [ ] Manifests are listed in the asset manifest.
-- [ ] Lighting verified under the brief's Lighting contract, or the Summary starts \`Blocked: lighting not verified\`.
+- [ ] Lighting verified under the brief's Lighting contract with an **asset-in-rig render**: "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`." The **rig reference render** is "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`."; otherwise the Summary starts \`Blocked: lighting not verified\`.
 - [ ] Every candidate in the brief has a decision with its licence and file sizes labelled \`inspected\`.
 
 ## Target and assumptions
@@ -145,7 +145,7 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 <how the set matches the style reference; deviations; what was compared and how>
 
 ## Lighting verification
-<per 3D asset: the lighting contract you applied; the shared palette/lighting anchor you used; the preview mode(s) you inspected (Directional and Unlit are the game case; Studio is not evidence); the path of the real-rig render from \`## Lighting contract\` (required for \`pass\`); result \`pass\`, \`fail\`, or \`not checked\` with its evidence label. If any asset is \`not checked\`, the Summary must start \`Blocked: lighting not verified\`. Write \`n/a\` for 2D-only or audio-only requests and for \`spec only\` deliverables (no asset is rendered).>
+<per 3D asset: the lighting contract you applied; the shared palette/lighting anchor you used; the preview mode(s) you inspected (Directional and Unlit are the game case; Studio is not evidence); an **asset-in-rig render**: "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`."; the **rig reference render** path: "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`."; result \`pass\`, \`fail\`, or \`not checked\` with its evidence label. If any asset is \`not checked\`, the Summary must start \`Blocked: lighting not verified\`. Write \`n/a\` for 2D-only or audio-only requests and for \`spec only\` deliverables (no asset is rendered).>
 
 ## Naming map
 | cell stem | seen | assigned name | path | inspection note |
