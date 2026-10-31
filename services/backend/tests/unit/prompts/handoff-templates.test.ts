@@ -400,7 +400,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
-      <evidence the goal was met — list every file you modified>
+      <evidence the goal was met — list every file you modified; for each behavior the brief names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
       ## Code Change Verification
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
@@ -411,7 +411,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Notes for review
       <!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-      <specific areas for planner to check>
+      <specific areas for planner to check; any test written at a seam other than the one the brief named, and why>
       \`\`\`"
     `);
   });
@@ -439,6 +439,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       **Division of labor:** For backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You (planner) own slicing and sequencing of builder work. The UI/UX engineer owns UI/UX design. Include its target markup, classes, styles, and screen and flow drawings in UI implementation briefs; the builder implements the components.
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
+
+      **Test seams:** for each behavior the slice changes, name the public seam where a test observes it (the interface a caller uses, not an internal collaborator), with one line on what that test catches and misses. Write \`no test seam\` and the reason when the slice changes no observable behavior.
 
       Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
 
@@ -492,10 +494,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Requirements (acceptance criteria)
       - <verifiable outcome the builder can self-check>
+      - For each named seam, write the test first, run it and see it fail, then write the minimal implementation that passes it. Work one cycle at a time: one test, one minimal implementation, then the next test. Do not write every test before any implementation.
       - Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+      - Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
+      - Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.
       - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
       ## Skills to activate
@@ -532,6 +537,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
+      **Test seams:** for each behavior the slice changes, name the public seam where a test observes it (the interface a caller uses, not an internal collaborator), with one line on what that test catches and misses. Write \`no test seam\` and the reason when the slice changes no observable behavior.
+
       Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
 
       \`\`\`\`markdown
@@ -584,10 +591,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Requirements (acceptance criteria)
       - <verifiable outcome the builder can self-check>
+      - For each named seam, write the test first, run it and see it fail, then write the minimal implementation that passes it. Work one cycle at a time: one test, one minimal implementation, then the next test. Do not write every test before any implementation.
       - Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+      - Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
+      - Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.
       - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
       ## Skills to activate
