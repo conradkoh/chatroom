@@ -57,7 +57,7 @@ export function getArchitectToEntryPointHandoffTemplate(query: HandoffTemplateQu
 <cite the inspected repository patterns and complete the architect checklist below; do not provide a high-level essay>
 - Produce exactly one recommended design for ${getArchitectFocus()}.
 - Name concrete repository paths, existing abstractions, APIs/types, state/data flow, acceptance criteria, risks, and verification steps.
-- Name every seam (a port, adapter, or injected dependency) the design introduces. Each seam must have a named consumer: a test that substitutes it, or a second real adapter. Do not introduce a seam with neither.
+- Name every seam the design introduces. A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators. Each seam must have a named consumer: a test that substitutes it, or a second real adapter. Do not introduce a seam with neither.
 - Check \`memory/\` and \`docs/\` for prior decisions about the area being designed. Cite each relevant decision by path and state whether the design preserves it or overturns it, with the reason. Verify each path exists with \`ls\` before citing it.
 ${getArchitectRequirements()}
 
