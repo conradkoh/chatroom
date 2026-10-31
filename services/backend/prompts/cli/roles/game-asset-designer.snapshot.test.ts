@@ -42,8 +42,10 @@ describe('game asset designer guidance snapshots', () => {
       'Studio mode is image-based lighting and is never lighting evidence'
     );
     expect(guidance).toContain('`Blocked: lighting not verified`');
-    expect(guidance).toContain('`## Lighting contract` is missing, `Not specified.`');
-    expect(guidance).toContain('`Not applicable.` only for 2D-only or audio-only briefs');
+    expect(guidance).toContain(
+      '`## Lighting contract` is missing, not specified, or not applicable'
+    );
+    expect(guidance).toContain('`Not applicable.` only for 2D/audio');
     expect(guidance).toContain('Metalness follows the lighting contract');
     expect(guidance).not.toContain('negative_prompt');
     expect(guidance).toContain('--dry-run');
@@ -65,7 +67,7 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).toContain('Never switch generators');
     expect(guidance).toContain('production-ready');
     expect(guidance).toContain('Sheet grid');
-    expect(guidance).toContain('ceil(N / (C×R))');
+    expect(guidance).toContain('ceil(N/(C×R))');
     expect(guidance).toContain(
       'remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim'
     );
