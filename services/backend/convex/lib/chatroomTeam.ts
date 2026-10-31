@@ -23,7 +23,7 @@ export type ResolvedChatroom = Doc<'chatroom_rooms'> & {
  * expected by older domain helpers. The assignment table remains the only
  * source used to populate these fields; callers must not persist them.
  *
- * Custom agents and per-chatroom disabled roles are merged through
+ * Custom agents and machine-local disabled flags are merged through
  * `resolveChatroomTeam`, so every consumer sees the same team. With no customs
  * and no disabled roles the result matches the static structure exactly.
  */

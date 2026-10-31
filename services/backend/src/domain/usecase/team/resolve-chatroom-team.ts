@@ -3,7 +3,7 @@
  *
  * The single merge point between the immutable builtin team structure and the
  * custom agents pushed for the chatroom's primary workspace. Every team read
- * goes through here so precedence, limits, and per-chatroom disabling stay in
+ * goes through here so precedence, limits, and machine-local disabling stay in
  * one place.
  *
  * Read budget per resolution (keep exact):
@@ -11,7 +11,9 @@
  *   2. primary workspace                                 (1 workspace)
  *   3. custom agents, workspace scope                    (take 12)
  *   4. custom agents, machine scope                      (take 12)
- *   5. disabled roles for the chatroom                   (take 64)
+ *
+ * Steps 3 and 4 are skipped for teams that cannot carry custom agents (solo)
+ * and for chatrooms without a primary workspace.
  *
  * Source and content tables are deliberately not read here: source issues
  * belong to the settings query, and prompts belong to prompt composition.
@@ -25,6 +27,7 @@ import {
 import {
   CUSTOM_AGENT_LIMITS,
   mergeTeamStructureWithCustomAgents,
+  supportsCustomAgents,
   type CustomAgentIdentity,
   type CustomAgentScope,
   type MergedTeam,
@@ -38,12 +41,17 @@ import { getPrimaryWorkspaceForChatroom } from '../workspace/get-primary-workspa
 
 type DbCtx = MutationCtx | QueryCtx;
 
-const DISABLED_ROLES_READ_LIMIT = 64;
-
 export interface ResolvedCustomAgent extends CustomAgentIdentity {
   customAgentId: Id<'chatroom_customAgents'>;
   machineId: string;
   workingDir?: string;
+  hasInboundHandoffTemplate: boolean;
+  hasReturnHandoffTemplate: boolean;
+}
+
+export interface ResolveChatroomTeamOptions {
+  /** Legacy persisted roles for non-preset structure ids (start paths only). */
+  legacyRoom?: Pick<Doc<'chatroom_rooms'>, 'teamRoles' | 'teamEntryPoint'> | null;
 }
 
 export interface ResolvedChatroomTeam extends Omit<MergedTeam, 'enabledCustomAgents'> {
@@ -71,17 +79,6 @@ function readCustomAgents(
     .take(CUSTOM_AGENT_LIMITS.agentsPerSource);
 }
 
-async function readDisabledRoles(
-  ctx: DbCtx,
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<Set<string>> {
-  const rows = await ctx.db
-    .query('chatroom_disabledAgentRoles')
-    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId))
-    .take(DISABLED_ROLES_READ_LIMIT);
-  return new Set(rows.map((row) => row.role));
-}
-
 /**
  * Reattaches stored ids and origin metadata to the identities the pure merge
  * kept. Workspace rows win the name lookup, mirroring merge precedence.
@@ -104,40 +101,83 @@ function toResolvedCustomAgents(
       customAgentId: row._id,
       machineId: row.machineId,
       ...(row.workingDir !== undefined ? { workingDir: row.workingDir } : {}),
+      hasInboundHandoffTemplate: row.hasInboundHandoffTemplate,
+      hasReturnHandoffTemplate: row.hasReturnHandoffTemplate,
     };
   });
+}
+
+/** Custom agents only resolve for teams that support them and for chatrooms with a workspace. */
+function readAgentRows(
+  ctx: DbCtx,
+  base: TeamStructure,
+  primaryWorkspace: Doc<'chatroom_workspaces'> | null
+): Promise<[CustomAgentRow[], CustomAgentRow[]]> {
+  if (!primaryWorkspace || !supportsCustomAgents(base.teamId)) {
+    return Promise.resolve([[], []]);
+  }
+  return Promise.all([
+    readCustomAgents(ctx, primaryWorkspace.machineId, 'workspace', primaryWorkspace.workingDir),
+    readCustomAgents(ctx, primaryWorkspace.machineId, 'machine', undefined),
+  ]);
+}
+
+/**
+ * Machine-local disable is stamped onto each pushed definition, so the rows the
+ * resolver already loads are the projection: no separate disabled-roles read.
+ */
+function collectDisabledRoles(
+  workspaceRows: readonly CustomAgentRow[],
+  machineRows: readonly CustomAgentRow[]
+): Set<string> {
+  return new Set(
+    [...workspaceRows, ...machineRows].filter((row) => row.disabled).map((row) => row.name)
+  );
+}
+
+/**
+ * Legacy assignments carry their roles on the room row itself, which only the
+ * start paths pass in. `getTeamStructure` ignores these fields for preset ids.
+ * Null is passed (not undefined) because the builder rejects undefined under
+ * `exactOptionalPropertyTypes`.
+ */
+function legacyPersistedRoles(options?: ResolveChatroomTeamOptions): readonly string[] | null {
+  return options?.legacyRoom?.teamRoles ?? null;
+}
+
+function legacyPersistedEntryPoint(options?: ResolveChatroomTeamOptions): string | null {
+  return options?.legacyRoom?.teamEntryPoint ?? null;
 }
 
 /**
  * Resolves the chatroom's active team plus its custom agents, or null when the
  * chatroom has no active team assignment.
+ *
+ * `options.legacyRoom` supplies persisted roles for structure ids that are not
+ * presets. Normal reads pass nothing; start paths pass the room so a legacy
+ * assignment keeps its roles.
  */
 export async function resolveChatroomTeam(
   ctx: DbCtx,
-  chatroomId: Id<'chatroom_rooms'>
+  chatroomId: Id<'chatroom_rooms'>,
+  options?: ResolveChatroomTeamOptions
 ): Promise<ResolvedChatroomTeam | null> {
   const active = await getActiveTeamStructure(ctx, chatroomId);
   if (!active) return null;
 
+  const base = getTeamStructure({
+    teamId: active.teamStructureId,
+    persistedRoles: legacyPersistedRoles(options),
+    persistedEntryPoint: legacyPersistedEntryPoint(options),
+  });
   const primaryWorkspace = await getPrimaryWorkspaceForChatroom(ctx, chatroomId);
-  const workspaceRows = primaryWorkspace
-    ? await readCustomAgents(
-        ctx,
-        primaryWorkspace.machineId,
-        'workspace',
-        primaryWorkspace.workingDir
-      )
-    : [];
-  const machineRows = primaryWorkspace
-    ? await readCustomAgents(ctx, primaryWorkspace.machineId, 'machine', undefined)
-    : [];
-  const disabledRoles = await readDisabledRoles(ctx, chatroomId);
+  const [workspaceRows, machineRows] = await readAgentRows(ctx, base, primaryWorkspace);
 
   const merged = mergeTeamStructureWithCustomAgents({
-    base: getTeamStructure({ teamId: active.teamStructureId }),
+    base,
     workspaceAgents: workspaceRows.map(toIdentity),
     machineAgents: machineRows.map(toIdentity),
-    disabledRoles,
+    disabledRoles: collectDisabledRoles(workspaceRows, machineRows),
   });
 
   return {
@@ -154,9 +194,10 @@ export async function resolveChatroomTeam(
 /** Resolves only the merged structure, for read models that never need the roster. */
 export async function resolveChatroomTeamStructure(
   ctx: DbCtx,
-  chatroomId: Id<'chatroom_rooms'>
+  chatroomId: Id<'chatroom_rooms'>,
+  options?: ResolveChatroomTeamOptions
 ): Promise<TeamStructure | null> {
-  const resolved = await resolveChatroomTeam(ctx, chatroomId);
+  const resolved = await resolveChatroomTeam(ctx, chatroomId, options);
   return resolved?.structure ?? null;
 }
 

@@ -195,9 +195,6 @@ export type BackendErrorCode =
 
   // ── Custom agents ─────────────────────────────────────────────────
   | 'INVALID_SCOPE'
-  | 'ROLE_NOT_FOUND'
-  | 'ROLE_NOT_DISABLEABLE'
-  | 'ROLE_BUSY'
 
   // ── Conflict ──────────────────────────────────────────────────────
   | 'CONFLICT';
@@ -492,12 +489,6 @@ export const BACKEND_ERROR_CODES = {
   // ── Custom agents ──────────────────────────────────────────────────
   /** A custom-agent scope does not match its workingDir, or the push exceeds a limit */
   INVALID_SCOPE: 'INVALID_SCOPE',
-  /** The role is not part of the chatroom's resolved team */
-  ROLE_NOT_FOUND: 'ROLE_NOT_FOUND',
-  /** Permanent roles and entry points cannot be disabled */
-  ROLE_NOT_DISABLEABLE: 'ROLE_NOT_DISABLEABLE',
-  /** The role has an active assigned task and cannot be disabled */
-  ROLE_BUSY: 'ROLE_BUSY',
 
   // ── Conflict ────────────────────────────────────────────────────────
   /** Conflict (e.g. duplicate) */
@@ -619,9 +610,6 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
 
   // Custom agents
   BACKEND_ERROR_CODES.INVALID_SCOPE,
-  BACKEND_ERROR_CODES.ROLE_NOT_FOUND,
-  BACKEND_ERROR_CODES.ROLE_NOT_DISABLEABLE,
-  BACKEND_ERROR_CODES.ROLE_BUSY,
 
   // Git clone & workspace
   BACKEND_ERROR_CODES.INVALID_REPO_URL,

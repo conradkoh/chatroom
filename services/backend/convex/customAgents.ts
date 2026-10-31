@@ -2,8 +2,10 @@
  * Convex functions for custom agents.
  *
  * File-authored definitions reach Convex through `syncDefinitions`, which the
- * daemon calls as the machine owner. Resolution and settings reads live beside
- * this module in the custom-agent use cases.
+ * daemon calls as the machine owner. Disable state arrives only through
+ * `syncDefinitions`: the daemon stamps it from the machine-local flag file, and
+ * the resolver projects it onto the chatroom. Resolution and settings reads
+ * live beside this module in the custom-agent use cases.
  */
 
 import {
@@ -21,7 +23,6 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireSession } from './auth/session';
 import { customAgentIssueValidator, customAgentScopeValidator } from './schema';
 import { checkAccess } from '../modules/auth/accessCheck';
-import { setAgentRoleDisabled } from '../src/domain/usecase/custom-agents/set-agent-role-disabled';
 import { syncCustomAgentDefinitions } from '../src/domain/usecase/custom-agents/sync-custom-agent-definitions';
 import {
   resolveChatroomTeam,
@@ -69,25 +70,6 @@ export const syncDefinitions = mutation({
     }
 
     return syncCustomAgentDefinitions(ctx, args);
-  },
-});
-
-/** Disables or re-enables a role for this chatroom only. */
-export const setRoleDisabled = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    disabled: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return setAgentRoleDisabled(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-      disabled: args.disabled,
-      userId: session.userId,
-    });
   },
 });
 
