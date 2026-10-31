@@ -525,4 +525,96 @@ describe('chatroom team resolution with custom agents', () => {
     });
     expect(structure).toEqual(getTeamStructure({ teamId: 'duo' }));
   });
+
+  test('joins, sends, and hands off to an enabled custom role', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom('enabled-custom');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+
+    await expect(
+      t.mutation(api.participants.join, {
+        sessionId,
+        chatroomId,
+        role: 'alpha',
+        machineId,
+        agentType: 'remote',
+        action: 'get-next-task:started',
+      })
+    ).resolves.toBeTruthy();
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      machineId,
+      agentType: 'remote',
+      action: 'get-next-task:started',
+    });
+
+    const sent = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'alpha',
+      content: 'custom role reporting in',
+      type: 'message',
+    });
+    expect(sent).toBeTruthy();
+
+    const handoff = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      content: 'please pick this up',
+      targetRole: 'alpha',
+    });
+    expect(handoff.success).toBe(true);
+    expect(handoff.newTaskId).toBeTruthy();
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', handoff.newTaskId!));
+    expect(task?.assignedTo).toBe('alpha');
+  });
+
+  test('rejects a handoff to a disabled custom role', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } =
+      await setupChatroom('disabled-custom-target');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+    await t.mutation(api.customAgents.setRoleDisabled, {
+      sessionId,
+      chatroomId,
+      role: 'alpha',
+      disabled: true,
+    });
+
+    const handoff = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      content: 'please pick this up',
+      targetRole: 'alpha',
+    });
+    expect(handoff.success).toBe(false);
+    expect(handoff.error?.code).toBe('INVALID_TARGET_ROLE');
+  });
+
+  test('excludes a disabled custom role from start-all', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'disabled-custom-start-all'
+    );
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+    await t.mutation(api.customAgents.setRoleDisabled, {
+      sessionId,
+      chatroomId,
+      role: 'alpha',
+      disabled: true,
+    });
+
+    const result = await t.mutation(api.agents.requestChatroomAgentOperation, {
+      sessionId,
+      chatroomId,
+      operation: 'start',
+    });
+    const roles = [...result.requested, ...result.skipped, ...result.failed]
+      .map(({ role }) => role)
+      .filter((role): role is string => role !== undefined);
+    expect(roles).not.toContain('alpha');
+    expect(roles).toContain('planner');
+  });
 });

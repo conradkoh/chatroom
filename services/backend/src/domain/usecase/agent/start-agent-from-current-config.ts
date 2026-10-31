@@ -5,8 +5,7 @@ import { normalizeWorkingDir } from './workspace-match';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { AgentStartReasonCode } from '../../entities/agent';
-import { getTeamStructure } from '../../entities/team-presets';
-import { getActiveTeamStructure } from '../team/active-team-structure';
+import { resolveChatroomTeamStructure } from '../team/resolve-chatroom-team';
 import { getPrimaryWorkspaceForChatroom } from '../workspace/get-primary-workspace-for-chatroom';
 
 export type StartAgentFromCurrentConfigResult =
@@ -17,6 +16,7 @@ export type StartAgentFromCurrentConfigResult =
  * Start a configured role from the last configuration recorded for the
  * chatroom's active workspace. The caller may identify the workspace, while
  * machine identity and launch settings are always resolved from backend state.
+ * Role membership comes from the chatroom resolver, so custom agents are startable.
  */
 export async function startAgentFromCurrentWorkspaceConfig(
   ctx: MutationCtx,
@@ -30,16 +30,10 @@ export async function startAgentFromCurrentWorkspaceConfig(
   const role = input.role.trim();
   if (!role) return { status: 'skipped', role, reason: 'Role is required' };
 
-  const activeTeam = await getActiveTeamStructure(ctx, input.chatroomId);
-  if (!activeTeam) {
+  const team = await resolveChatroomTeamStructure(ctx, input.chatroomId);
+  if (!team) {
     return { status: 'skipped', role, reason: 'No active team structure' };
   }
-  const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
-  const team = getTeamStructure({
-    teamId: activeTeam.teamStructureId,
-    persistedRoles: chatroom?.teamRoles ?? null,
-    persistedEntryPoint: chatroom?.teamEntryPoint ?? null,
-  });
   if (!team.roles.some((candidate) => candidate.role.toLowerCase() === role.toLowerCase())) {
     return { status: 'skipped', role, reason: 'Role is not part of the active team' };
   }

@@ -7,9 +7,8 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { AgentStartReasonCode } from '../../entities/agent';
 import { USER_ROLE } from '../../entities/team';
-import { getTeamStructure } from '../../entities/team-presets';
 import { isActiveWorkspace } from '../../entities/workspace';
-import { getActiveTeamStructure } from '../team/active-team-structure';
+import { resolveChatroomTeamStructure } from '../team/resolve-chatroom-team';
 
 export type ChatroomAgentOperation = 'start' | 'stop' | 'restart';
 
@@ -43,15 +42,10 @@ export async function requestChatroomAgentOperation(
   }
 
   const room = await ctx.db.get('chatroom_rooms', input.chatroomId);
-  const activeTeam = await getActiveTeamStructure(ctx, input.chatroomId);
-  if (!room || !activeTeam) {
+  const team = await resolveChatroomTeamStructure(ctx, input.chatroomId);
+  if (!room || !team) {
     return { operation: input.operation, requested: [], skipped: [], failed: [], commandIds: [] };
   }
-  const team = getTeamStructure({
-    teamId: activeTeam.teamStructureId,
-    persistedRoles: room.teamRoles ?? null,
-    persistedEntryPoint: room.teamEntryPoint ?? null,
-  });
   const roles = team.roles.map(({ role }) => role).filter((role) => role !== USER_ROLE);
   const workspaces = (
     await ctx.db

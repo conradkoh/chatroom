@@ -185,9 +185,10 @@ async function hasCustomAgentDefinition(
  * agents. Any other name is a custom role only when the primary workspace has a
  * stored definition for it, whether or not that role is currently disabled.
  *
- * Consumed by the prompt and CLI slices that follow; the check lives here once.
+ * Consumed by the ephemeral lifecycle call sites (release, register, status
+ * projection, inbox events, and assigned-task reads), so a custom role gets the
+ * same ephemeral behaviour as a builtin one.
  */
-// fallow-ignore-next-line unused-export
 export async function isEphemeralRoleInChatroom(
   ctx: DbCtx,
   chatroomId: Id<'chatroom_rooms'>,

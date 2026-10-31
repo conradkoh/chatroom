@@ -4,12 +4,11 @@
  * Use Case: Fetch one assigned task with full content for daemon action (nudge/inject).
  */
 
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
-
 import type { AssignedTaskView, GetAssignedTaskForActionInput } from './assigned-tasks-types';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import { WorkspaceTaskAssigneeType } from '../../entities/chatroom-workspace-task-inbox';
 import { getLastSentLaunchRequestForRole } from '../agent/get-last-sent-launch-request';
+import { isEphemeralRoleInChatroom } from '../team/resolve-chatroom-team';
 
 export async function getAssignedTaskForAction(
   ctx: QueryCtx,
@@ -37,7 +36,8 @@ export async function getAssignedTaskForAction(
   if (!launchRequest || launchRequest.agentType !== 'remote') return null;
   if (launchRequest.machineId !== input.machineId) return null;
 
-  const ephemeral = isEphemeralAgentRole(launchRequest.role)
+  const isEphemeral = await isEphemeralRoleInChatroom(ctx, task.chatroomId, launchRequest.role);
+  const ephemeral = isEphemeral
     ? launchRequest.agentHarness && launchRequest.model && launchRequest.workingDir
       ? {
           agentHarness: launchRequest.agentHarness,

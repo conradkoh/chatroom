@@ -1,7 +1,5 @@
 // fallow-ignore-file complexity
 
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
-
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
@@ -13,6 +11,7 @@ import {
 } from '../../entities/chatroom-workspace-task-inbox';
 import { listLastSentLaunchRequestsForChatroom } from '../agent/get-last-sent-launch-request';
 import { removeActiveTaskHeader, syncActiveTaskHeader } from '../task/active-task-header';
+import { isEphemeralRoleInChatroom } from '../team/resolve-chatroom-team';
 
 /**
  * Builds the slim task header stored on inbox events and served by `listPending`.
@@ -69,6 +68,18 @@ export async function writeWorkspaceTaskInboxEvent(
 
   const taskPayload = toWorkspaceTaskInboxTaskHeader({ ...task, taskId: task._id });
 
+  // Lifecycle checks are chatroom-scoped, so cache per role to keep a single
+  // resolution for every target that shares the task's role.
+  const ephemeralByRole = new Map<string, boolean>();
+  const isEphemeral = async (role: string): Promise<boolean> => {
+    const key = role.toLowerCase();
+    const cached = ephemeralByRole.get(key);
+    if (cached !== undefined) return cached;
+    const resolved = await isEphemeralRoleInChatroom(ctx, task.chatroomId, role);
+    ephemeralByRole.set(key, resolved);
+    return resolved;
+  };
+
   const targets = new Map<
     string,
     { machineId: string; role: string; ephemeral?: EphemeralAgentConfig }
@@ -98,7 +109,7 @@ export async function writeWorkspaceTaskInboxEvent(
       targets.set(`${launchRequest.machineId}:${launchRequest.role.toLowerCase()}`, {
         machineId: launchRequest.machineId,
         role: launchRequest.role,
-        ...(isEphemeralAgentRole(launchRequest.role)
+        ...((await isEphemeral(launchRequest.role))
           ? { ephemeral: requireEphemeralAgentConfig(launchRequest) }
           : {}),
       });
@@ -107,7 +118,7 @@ export async function writeWorkspaceTaskInboxEvent(
 
   const eventIds: Id<'chatroomWorkspaceTaskInbox'>[] = [];
   for (const target of targets.values()) {
-    if (isEphemeralAgentRole(target.role) && !target.ephemeral) continue;
+    if ((await isEphemeral(target.role)) && !target.ephemeral) continue;
     const eventId = await ctx.db.insert('chatroomWorkspaceTaskInbox', {
       machineId: target.machineId,
       chatroomId: task.chatroomId,

@@ -1,4 +1,3 @@
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { ChatroomAgentActivityStatusValue } from '@workspace/shared/domain/chatroom-agent-activity-status';
 
 import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
@@ -6,6 +5,7 @@ import type { Id, Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { omitUndefined } from '../../../../convex/lib/omitUndefined';
 import { findActiveAssignedTaskForRole } from '../task/find-acknowledged-task-for-role';
+import { isEphemeralRoleInChatroom } from '../team/resolve-chatroom-team';
 
 export type AgentRoleStatusReadModelStatus = ChatroomAgentActivityStatusValue;
 
@@ -123,11 +123,14 @@ export async function projectAgentRoleStatusReadModel(
           occurredAt: now,
         }
       : undefined;
+  const roleKind = (await isEphemeralRoleInChatroom(ctx, args.chatroomId, role))
+    ? ('ephemeral' as const)
+    : ('persistent' as const);
   const fields = omitUndefined({
     chatroomId: args.chatroomId,
     workspaceId,
     role,
-    roleKind: isEphemeralAgentRole(role) ? ('ephemeral' as const) : ('persistent' as const),
+    roleKind,
     agentType: args.agentType ?? launchRequest?.agentType ?? existing?.agentType,
     status: event.status,
     machineId: args.sourceMachineId ?? launchRequest?.machineId ?? existing?.machineId,
