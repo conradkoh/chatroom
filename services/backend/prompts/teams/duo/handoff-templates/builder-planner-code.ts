@@ -33,7 +33,7 @@ ${getHandoffQualityPrinciplesSectionBlock()}
 ## Proof of Completion
 ${getDelegationBriefDisclosureBlock()}
 ${getFileReferenceProofOfCompletionExample()}
-<evidence the goal was met — list every file you modified>
+<evidence the goal was met — list every file you modified; for each behavior the brief names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
 ## Code Change Verification
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
@@ -44,7 +44,7 @@ ${getHandoffNotApplicableSectionComment('List blockers')}
 
 ## Notes for review
 ${getHandoffNotApplicableSectionComment('List review notes')}
-<specific areas for planner to check>
+<specific areas for planner to check; any test written at a seam other than the one the brief named, and why>
 \`\`\``;
 }
 

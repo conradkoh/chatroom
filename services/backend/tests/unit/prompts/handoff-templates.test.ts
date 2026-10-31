@@ -400,7 +400,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
-      <evidence the goal was met — list every file you modified>
+      <evidence the goal was met — list every file you modified; for each behavior the brief names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
       ## Code Change Verification
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
@@ -411,7 +411,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Notes for review
       <!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-      <specific areas for planner to check>
+      <specific areas for planner to check; any test written at a seam other than the one the brief named, and why>
       \`\`\`"
     `);
   });
