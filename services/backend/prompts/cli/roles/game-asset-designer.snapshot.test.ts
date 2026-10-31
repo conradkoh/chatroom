@@ -41,7 +41,7 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).toContain(
       'Studio mode is image-based lighting and is never lighting evidence'
     );
-    expect(guidance).toContain('`Blocked: lighting not verified`');
+    expect(guidance).toContain('`Delivered, lighting not verified:`');
     expect(guidance).toContain(
       '`## Lighting contract` is missing, not specified, or not applicable'
     );

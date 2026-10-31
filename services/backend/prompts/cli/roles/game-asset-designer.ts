@@ -39,7 +39,7 @@ P6 \`chatroom slice-image --in <sheet> --out-dir <Output location>/_work/tiles -
 P7 View each tile. IF any tile has 0/2+ items, a cut item, or count differs from the brief's (extra cells OK) THEN regenerate once; IF still bad THEN one \`generate-image\` per asset (P5). Name from sight.
 P8 IF \`remove-image-background --help\` succeeds THEN run \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` (single: \`--in <image> --out <Output location>/<name>.png --trim\`); view results. IF warnings/halo rerun with \`--tolerance\`/\`--force\` max twice, ELSE accept. ELSE rerun \`slice-image --names\`; record the missing trim as a failed item/open question.
 P9 Record model, seed, manifests, names.
-P10 Apply checklist, label evidence, fill proofs; apply the lighting item (\`n/a\` for \`spec only\`); if \`not checked\`, deliver as \`Blocked: lighting not verified\`.
+P10 Apply checklist, label evidence, fill proofs; apply the lighting item (\`n/a\` for \`spec only\`); if \`not checked\`, deliver as \`Delivered, lighting not verified:\`.
 P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 
 ### Quality checklist (apply to each asset; mark each item pass, fail, or not applicable, with its evidence label)
