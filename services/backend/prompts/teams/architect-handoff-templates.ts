@@ -26,7 +26,7 @@ export function getEntryPointToArchitectHandoffTemplate(query: HandoffTemplateQu
 
 Use this before any backend contract, API, or schema/persistence change.
 
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on ${getArchitectFocus()}.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in \`memory/\` or \`docs/\` the design must respect, and name the test seam the implementer will use for each new dependency. Ask for one evidence-backed design focused on ${getArchitectFocus()}.
 
 After completing the design, the \`architect\` must hand it back to \`${entryPoint}\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 

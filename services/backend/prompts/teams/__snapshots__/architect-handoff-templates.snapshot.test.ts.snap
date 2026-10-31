@@ -99,7 +99,7 @@ The automatically injected \`<user-message>\` is the authoritative request. Add 
 
 Use this before any backend contract, API, or schema/persistence change.
 
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in \`memory/\` or \`docs/\` the design must respect, and name the test seam the implementer will use for each new dependency. Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 
 After completing the design, the \`architect\` must hand it back to \`planner\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
@@ -210,7 +210,7 @@ The automatically injected \`<user-message>\` is the authoritative request. Add 
 
 Use this before any backend contract, API, or schema/persistence change.
 
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in \`memory/\` or \`docs/\` the design must respect, and name the test seam the implementer will use for each new dependency. Ask for one evidence-backed design focused on module boundaries, APIs, schemas, indexes and queries, invariants, failure and recovery handling, tests, and implementation sequence.
 
 After completing the design, the \`architect\` must hand it back to \`solo\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
