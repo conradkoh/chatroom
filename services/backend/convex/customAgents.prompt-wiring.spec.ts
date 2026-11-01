@@ -7,9 +7,11 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { readCustomAgentPromptContext } from '../src/domain/usecase/custom-agents/read-custom-agent-prompt-context';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { defaultInboundHandoffTemplate } from '../prompts/custom-agents/default-handoff-templates';
 
 type TestAgent = {
@@ -256,6 +258,32 @@ describe('custom agent prompt wiring', () => {
     );
     expect(withPrompt).not.toContain('<custom-agent-instructions>');
     expect(withPrompt).not.toContain('<team-roster>');
+  });
+
+  test('a duo chatroom with a workspace and no custom agents adds no custom context', async () => {
+    // The zero-agent case is the one that must stay byte-identical to a team
+    // with no custom-agent feature at all: a primary workspace exists, but no
+    // source was ever pushed.
+    const fixture = await setupChatroom('zero-agents');
+
+    const context = await t.run(async (ctx) => {
+      const chatroom = await ctx.db.get('chatroom_rooms', fixture.chatroomId);
+      if (chatroom === null) throw new Error('chatroom fixture is missing');
+      const resolved = await withActiveTeamStructure(ctx, chatroom);
+      expect(resolved.primaryWorkspace).not.toBeNull();
+      const custom = await readCustomAgentPromptContext(ctx, {
+        chatroom: resolved,
+        role: 'planner',
+      });
+      // `t.run` serialises `undefined` to `null`, so report the boolean instead.
+      return custom !== undefined;
+    });
+
+    expect(context).toBe(false);
+
+    const prompt = await rolePrompt(fixture, 'planner');
+    expect(prompt).not.toContain('<team-roster>');
+    expect(prompt).not.toContain('<custom-agent-instructions>');
   });
 });
 

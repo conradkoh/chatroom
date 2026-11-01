@@ -89,7 +89,10 @@ async function readKnownRoleContext(
   if (enabled !== undefined) {
     return await buildSelfContext(ctx, chatroom, toSelfSource(enabled));
   }
-  if (!isEntryPoint(chatroom, role)) return undefined;
+  // With no enabled delegates there is no roster to render, so the entry point
+  // gets no context at all and its prompt stays byte-identical to a team that
+  // never had the custom-agent feature.
+  if (!isEntryPoint(chatroom, role) || agents.length === 0) return undefined;
   return await buildEntryPointContext(ctx, chatroom, agents);
 }
 
@@ -98,12 +101,25 @@ async function buildStoredSelfContext(
   input: ReadCustomAgentPromptContextInput,
   role: string
 ): Promise<CustomAgentPromptContext | undefined> {
-  const workspace = await getPrimaryWorkspaceForChatroom(ctx, input.chatroom._id);
+  const workspace = await resolvePrimaryWorkspace(ctx, input.chatroom);
   if (workspace === null) return undefined;
 
   const row = await findCustomAgentForRole(ctx, workspace, role);
   if (row === null) return undefined;
   return await buildSelfContext(ctx, input.chatroom, toSelfSourceFromRow(row));
+}
+
+/**
+ * The chatroom's primary workspace. The resolved chatroom already carries the
+ * row, so the reader reuses it and only falls back to a query for callers that
+ * built the chatroom without the resolver.
+ */
+async function resolvePrimaryWorkspace(
+  ctx: QueryCtx,
+  chatroom: ResolvedChatroom
+): Promise<Doc<'chatroom_workspaces'> | null> {
+  if (chatroom.primaryWorkspace !== undefined) return chatroom.primaryWorkspace;
+  return await getPrimaryWorkspaceForChatroom(ctx, chatroom._id);
 }
 
 /** The role's own instructions: one content row plus an optional return template. */

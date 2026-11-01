@@ -16,6 +16,12 @@ export type ResolvedChatroom = Doc<'chatroom_rooms'> & {
   teamEntryPoint?: string;
   roster?: TeamRosterEntry[];
   customAgents?: ResolvedCustomAgent[];
+  /**
+   * The workspace the resolver already read. Present (possibly null) when the
+   * chatroom came from `withActiveTeamStructure`, so custom-agent readers can
+   * reuse it instead of reading the workspace table again.
+   */
+  primaryWorkspace?: Doc<'chatroom_workspaces'> | null;
 };
 
 /**
@@ -41,5 +47,6 @@ export async function withActiveTeamStructure(
     teamEntryPoint: resolved.structure.entryPoint,
     roster: resolved.roster,
     customAgents: resolved.enabledCustomAgents,
+    primaryWorkspace: resolved.primaryWorkspace,
   };
 }
