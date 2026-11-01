@@ -35,6 +35,9 @@ function createClock() {
 function createClient(options: {
   rosterValues?: readonly boolean[] | undefined;
   mutationError?: unknown;
+  issues?: readonly { path: string; reason: string; detail?: string }[] | undefined;
+  /** Drop the agent's roster row, as the backend does for over-limit agents. */
+  omitRosterRow?: boolean | undefined;
 }) {
   const mutations: { name: string; disabled: boolean }[] = [];
   let queryCount = 0;
@@ -43,14 +46,21 @@ function createClient(options: {
     query: async () => {
       const index = Math.min(queryCount, values.length - 1);
       queryCount += 1;
+      const row = {
+        role: 'alpha',
+        source: 'custom',
+        disabled: values[index],
+        disableable: true,
+      } satisfies RosterEntry;
       return {
-        roster: [
+        roster: options.omitRosterRow === true ? [] : [row],
+        sources: [
           {
-            role: 'alpha',
-            source: 'custom',
-            disabled: values[index],
-            disableable: true,
-          } satisfies RosterEntry,
+            scope: 'workspace',
+            workingDir: '/repo',
+            agentCount: 1,
+            issues: options.issues ?? [],
+          },
         ],
       };
     },
@@ -125,6 +135,26 @@ describe('setCustomAgentDisabled', () => {
     expect(fake.queries()).toBe(0);
     expect(harness.lines[0]).toContain('Invalid custom agent name "Bad_Name"');
     expect(harness.exitCodes).toEqual([1]);
+  });
+
+  it('reports an over-limit agent instead of timing out when enabling it', async () => {
+    // Agents past the per-chatroom cap never reach the roster, so waiting for a
+    // row would always time out even though the change was applied.
+    const fake = createClient({
+      rosterValues: [false],
+      omitRosterRow: true,
+      issues: [{ path: 'alpha', reason: 'over-limit' }],
+    });
+    const harness = createDeps(fake.client);
+
+    await setCustomAgentDisabled('chatroom-1', 'alpha', false, harness.deps);
+
+    expect(fake.mutations).toEqual([{ name: 'alpha', disabled: false }]);
+    expect(harness.lines).toEqual([
+      'enabled, but it is over the custom-agent limit of 16 and is not used until another agent is disabled',
+    ]);
+    expect(harness.exitCodes).toEqual([]);
+    expect(fake.queries()).toBe(1);
   });
 
   it('surfaces the backend error for a builtin role name', async () => {

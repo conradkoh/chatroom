@@ -10,6 +10,7 @@
 import {
   CUSTOM_AGENT_LIMITS,
   validateCustomAgentName,
+  type CustomAgentIssue,
   type TeamRosterEntry,
 } from '@workspace/shared/domain/custom-agent';
 
@@ -42,16 +43,32 @@ export async function setCustomAgentDisabled(
   deps: ToggleCustomAgentDeps
 ): Promise<void> {
   if (!isRequestableName(name)) {
-    deps.stdout(
-      `Invalid custom agent name "${name}". Use lowercase letters, digits, and hyphens ` +
-        `(max ${CUSTOM_AGENT_LIMITS.nameMaxLength} characters).`
-    );
-    deps.setExitCode(1);
+    reportInvalidName(name, deps);
     return;
   }
   if (!(await requestToggle(chatroomId, name, disabled, deps))) return;
-  if (await waitForRosterValue(chatroomId, name, disabled, deps)) {
+  reportOutcome(await waitForRosterValue(chatroomId, name, disabled, deps), deps);
+}
+
+function reportInvalidName(name: string, deps: ToggleCustomAgentDeps): void {
+  deps.stdout(
+    `Invalid custom agent name "${name}". Use lowercase letters, digits, and hyphens ` +
+      `(max ${CUSTOM_AGENT_LIMITS.nameMaxLength} characters).`
+  );
+  deps.setExitCode(1);
+}
+
+function reportOutcome(outcome: PollOutcome, deps: ToggleCustomAgentDeps): void {
+  if (outcome === 'confirmed') {
     deps.stdout('confirmed');
+    return;
+  }
+  if (outcome === 'over-limit') {
+    // The change is applied; the agent simply cannot join until a slot frees.
+    deps.stdout(
+      `enabled, but it is over the custom-agent limit of ${CUSTOM_AGENT_LIMITS.agentsPerChatroom} ` +
+        'and is not used until another agent is disabled'
+    );
     return;
   }
   deps.stdout('timed out waiting for the daemon; the change is still pending');
@@ -89,31 +106,71 @@ async function requestToggle(
   }
 }
 
+type PollOutcome = 'confirmed' | 'over-limit' | 'timeout';
+
 /** Polls the roster until the named agent shows `disabled`, or the deadline passes. */
 async function waitForRosterValue(
   chatroomId: string,
   name: string,
   disabled: boolean,
   deps: ToggleCustomAgentDeps
-): Promise<boolean> {
+): Promise<PollOutcome> {
   const deadline = deps.now() + CONFIRM_TIMEOUT_MS;
   for (;;) {
-    if (await rosterHasValue(chatroomId, name, disabled, deps)) return true;
-    if (deps.now() >= deadline) return false;
+    const outcome = await readRosterOutcome(chatroomId, name, disabled, deps);
+    if (outcome !== 'pending') return outcome;
+    if (deps.now() >= deadline) return 'timeout';
     await deps.sleep(POLL_INTERVAL_MS);
   }
 }
 
-/** The agent is confirmed only when the roster carries it with the wanted value. */
-async function rosterHasValue(
+/**
+ * What the roster currently says. An agent past the per-chatroom cap is removed
+ * by `mergeTeamStructureWithCustomAgents`, so it never appears as a row; the
+ * `over-limit` issue is the only evidence that the enable was applied.
+ */
+async function readRosterOutcome(
   chatroomId: string,
   name: string,
   disabled: boolean,
   deps: ToggleCustomAgentDeps
-): Promise<boolean> {
+): Promise<'pending' | 'confirmed' | 'over-limit'> {
   const result = (await deps.client.query(api.customAgents.getTeamRoster, {
     sessionId: deps.sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  })) as { roster: TeamRosterEntry[] };
-  return result.roster.find((entry) => entry.role === name)?.disabled === disabled;
+  })) as RosterResult;
+
+  if (rosterHasValue(result.roster, name, disabled)) return 'confirmed';
+  // Enabling an over-limit agent is the only case where waiting cannot succeed.
+  if (!disabled && isOverLimit(result.sources, name)) return 'over-limit';
+  return 'pending';
+}
+
+interface RosterResult {
+  roster: TeamRosterEntry[];
+  sources?: { issues?: CustomAgentIssue[] }[] | undefined;
+}
+
+/** The roster confirms the change only when it carries the agent with that value. */
+function rosterHasValue(
+  roster: readonly TeamRosterEntry[],
+  name: string,
+  disabled: boolean
+): boolean {
+  return roster.some((entry) => entry.role === name && entry.disabled === disabled);
+}
+
+/** True when a source reports the agent as past the per-chatroom cap. */
+function isOverLimit(
+  sources: readonly { issues?: CustomAgentIssue[] }[] | undefined,
+  name: string
+): boolean {
+  return (sources ?? []).some((source) =>
+    (source.issues ?? []).some((issue) => namesAgent(issue, name))
+  );
+}
+
+function namesAgent(issue: CustomAgentIssue, name: string): boolean {
+  if (issue.reason !== 'over-limit') return false;
+  return issue.path === name || (issue.detail?.includes(name) ?? false);
 }
