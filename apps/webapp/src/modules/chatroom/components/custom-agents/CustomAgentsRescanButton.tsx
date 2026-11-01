@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 'use client';
 
 /**
@@ -8,8 +7,6 @@
  * Success is never assumed from `{ queued: true }` — only a changed signature
  * proves the rescan found something. A 10 s wait reports "No changes found."
  * rather than implying the rescan failed.
- *
- * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -23,7 +20,7 @@ import { customAgentMutationErrorMessage } from './customAgentCopy';
 
 import { Button } from '@/components/ui/button';
 
-export const CUSTOM_AGENTS_RESCAN_WAIT_MS = 10_000;
+const CUSTOM_AGENTS_RESCAN_WAIT_MS = 10_000;
 const HINT_CLEAR_MS = 6_000;
 const UPDATED_TICK_MS = 1_000;
 

@@ -6,7 +6,8 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CUSTOM_AGENT_ISSUE_COPY, formatCustomAgentIssueDetail } from './customAgentCopy';
-import { CustomAgentsTab, resolveCustomAgentsGate } from './CustomAgentsTab';
+import { resolveCustomAgentsGate } from './customAgentsGate';
+import { CustomAgentsTab } from './CustomAgentsTab';
 import type { TeamRosterResult } from './customAgentsViewModel';
 
 const mocks = vi.hoisted(() => ({

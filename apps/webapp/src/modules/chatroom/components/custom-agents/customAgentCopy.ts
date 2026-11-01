@@ -1,12 +1,9 @@
-// fallow-ignore-file unused-file unused-export
 /**
  * Human-readable copy for custom-agent issues and mutations.
  *
  * Every entry is keyed by `CustomAgentIssueReason`, so adding a reason to the
  * shared vocabulary is a compile error here rather than a silent blank row.
  * Limits are interpolated from `CUSTOM_AGENT_LIMITS`; never hard-code them.
- *
- * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import {

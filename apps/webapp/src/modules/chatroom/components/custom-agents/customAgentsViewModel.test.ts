@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
   MACHINE_AGENTS_ROOT,
   buildCustomAgentsViewModel,
-  workspaceAgentsRoot,
   type TeamRosterResult,
 } from './customAgentsViewModel';
 
@@ -57,10 +56,14 @@ function result(overrides: Partial<TeamRosterResult> = {}): TeamRosterResult {
   };
 }
 
-describe('workspaceAgentsRoot', () => {
+describe('workspace root path', () => {
   it('appends the agents directory and trims trailing slashes', () => {
-    expect(workspaceAgentsRoot('/repo')).toBe('/repo/.chatroom/agents');
-    expect(workspaceAgentsRoot('/repo///')).toBe('/repo/.chatroom/agents');
+    expect(buildCustomAgentsViewModel(result(), '/repo').sources[0].rootPath).toBe(
+      '/repo/.chatroom/agents'
+    );
+    expect(buildCustomAgentsViewModel(result(), '/repo///').sources[0].rootPath).toBe(
+      '/repo/.chatroom/agents'
+    );
   });
 });
 

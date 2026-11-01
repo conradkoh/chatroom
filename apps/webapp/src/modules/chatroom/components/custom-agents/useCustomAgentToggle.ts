@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 /**
  * Per-agent disable intent for the Custom Agents tab.
  *
@@ -12,8 +11,6 @@
  *   roster to come back with the desired value;
  * - `failed` when the mutation rejects or the 10 s timeout fires first;
  * - `idle` once the roster confirms either state, or when the agent disappears.
- *
- * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -27,7 +24,7 @@ import {
 } from './customAgentCopy';
 import type { CustomAgentRowModel } from './customAgentsViewModel';
 
-export const CUSTOM_AGENT_TOGGLE_TIMEOUT_MS = 10_000;
+const CUSTOM_AGENT_TOGGLE_TIMEOUT_MS = 10_000;
 
 export type CustomAgentToggleState =
   | { kind: 'idle' }

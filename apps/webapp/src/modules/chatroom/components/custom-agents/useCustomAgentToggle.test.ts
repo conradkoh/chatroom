@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE } from './customAgentCopy';
 import type { CustomAgentRowModel } from './customAgentsViewModel';
-import { CUSTOM_AGENT_TOGGLE_TIMEOUT_MS, useCustomAgentToggle } from './useCustomAgentToggle';
+import { useCustomAgentToggle } from './useCustomAgentToggle';
+
+/** The hook's confirmation window; duplicated here because it is module-private. */
+const CUSTOM_AGENT_TOGGLE_TIMEOUT_MS = 10_000;
 
 const mockSetDisabled = vi.fn();
 

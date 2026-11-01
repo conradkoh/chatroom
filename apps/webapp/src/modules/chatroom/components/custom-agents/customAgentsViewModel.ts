@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 /**
  * Pure view model for the Custom Agents settings tab.
  *
@@ -9,8 +8,6 @@
  *
  * No React and no state: the caller re-derives the model whenever the roster
  * changes, and `changeSignature` tells it whether anything visible moved.
- *
- * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import type { api } from '@workspace/backend/convex/_generated/api';
@@ -53,7 +50,7 @@ export interface CustomAgentsViewModel {
 export const MACHINE_AGENTS_ROOT = '~/.chatroom/agents';
 
 /** The workspace agents directory, matching the daemon's loader root. */
-export function workspaceAgentsRoot(workingDir: string): string {
+function workspaceAgentsRoot(workingDir: string): string {
   return `${workingDir.replace(/\/+$/, '')}/.chatroom/agents`;
 }
 

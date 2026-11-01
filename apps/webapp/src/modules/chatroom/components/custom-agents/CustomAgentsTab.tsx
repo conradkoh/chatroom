@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 'use client';
 
 /**
@@ -11,13 +10,10 @@
  *
  * Toggling is intentionally not optimistic: the row shows the roster's value, and
  * only a fresh roster can change it.
- *
- * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { supportsCustomAgents } from '@workspace/shared/domain/custom-agent';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { AlertTriangle, Info, RotateCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -25,6 +21,7 @@ import type { ReactNode } from 'react';
 
 import { CustomAgentRow } from './CustomAgentRow';
 import { CustomAgentsEmptyState } from './CustomAgentsEmptyState';
+import { resolveCustomAgentsGate, type CustomAgentsGate } from './customAgentsGate';
 import { CustomAgentSourceSection } from './CustomAgentSourceSection';
 import { CustomAgentsRescanButton } from './CustomAgentsRescanButton';
 import {
@@ -50,37 +47,6 @@ import { getDaemonStartCommand } from '@/lib/environment';
 export interface CustomAgentsTabProps {
   chatroomId: string;
   onOpenTab: (tab: SettingsTab) => void;
-}
-
-export type CustomAgentsGate = 'loading' | 'unsupported' | 'no-workspace' | 'empty' | 'loaded';
-
-/**
- * Picks the one state to render. Order is deliberate: a missing roster wins over
- * team/workspace complaints, so the first paint never flashes a wrong gate.
- */
-export function resolveCustomAgentsGate(input: {
-  isLoading: boolean;
-  roster: TeamRosterResult | undefined;
-  teamId: string | undefined;
-  hasWorkspace: boolean;
-  rowCount: number;
-}): CustomAgentsGate {
-  if (isPendingInput(input.isLoading, input.roster)) return 'loading';
-  if (!teamSupportsCustomAgents(input.teamId)) return 'unsupported';
-  if (!input.hasWorkspace) return 'no-workspace';
-  return emptyOrLoaded(input.rowCount);
-}
-
-function isPendingInput(isLoading: boolean, roster: TeamRosterResult | undefined): boolean {
-  return isLoading || roster === undefined;
-}
-
-function teamSupportsCustomAgents(teamId: string | undefined): boolean {
-  return supportsCustomAgents(teamId ?? '');
-}
-
-function emptyOrLoaded(rowCount: number): CustomAgentsGate {
-  return rowCount === 0 ? 'empty' : 'loaded';
 }
 
 export function CustomAgentsTab({ chatroomId, onOpenTab }: CustomAgentsTabProps) {

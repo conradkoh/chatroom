@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 'use client';
 
 /**
@@ -7,8 +6,6 @@
  * Presentational only. The switch reflects the roster (`row.disabled`) and, while
  * a change is pending, the requested position; it never shows an optimistic
  * result. `readOnly` — not `disabled` — keeps keyboard focus while pending.
- *
- * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import { AlertTriangle, Loader2 } from 'lucide-react';

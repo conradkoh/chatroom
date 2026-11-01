@@ -17,6 +17,7 @@ import {
   Trash2,
   Database,
   FileText,
+  UserCog,
 } from 'lucide-react';
 import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -27,6 +28,7 @@ import { WorkspaceInlineAgentListPanel } from './AgentPanel/WorkspaceInlineAgent
 import { useWorkspaceAgentDirectory } from '../hooks/useWorkspaceAgentQueries';
 import type { SettingsTab } from './CommandPalette/types';
 import { CopyButton } from './CopyButton';
+import { CustomAgentsTab } from './custom-agents/CustomAgentsTab';
 import { IntegrationsTab } from './IntegrationsTab';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
@@ -77,6 +79,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'team', label: 'Team', icon: <Users size={16} /> },
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
   { id: 'agents', label: 'Agents', icon: <Monitor size={16} /> },
+  { id: 'custom-agents', label: 'Custom Agents', icon: <UserCog size={16} /> },
   { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
   { id: 'skills', label: 'Skills', icon: <FileText size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
@@ -1049,6 +1052,9 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           )}
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
           {activeTab === 'agents' && <AgentsContent chatroomId={chatroomId} />}
+          {activeTab === 'custom-agents' && (
+            <CustomAgentsTab chatroomId={chatroomId} onOpenTab={setActiveTab} />
+          )}
           {activeTab === 'workspaces' && <WorkspacesContent />}
           {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}

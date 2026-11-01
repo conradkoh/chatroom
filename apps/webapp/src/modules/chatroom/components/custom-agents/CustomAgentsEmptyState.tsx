@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 'use client';
 
 /**
@@ -7,8 +6,6 @@
  *
  * Also exports `CustomAgentsSnippet`, which the source section reuses for the
  * gitignored issue.
- *
- * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import { CopyButton } from '../CopyButton';

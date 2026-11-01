@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 'use client';
 
 /**
@@ -6,8 +5,6 @@
  *
  * Presentational. Copy comes from `customAgentCopy.ts`; the push time is
  * relative so it stays fresh without new queries.
- *
- * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import { AlertTriangle, Check, Info } from 'lucide-react';
