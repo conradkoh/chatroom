@@ -276,12 +276,25 @@ async function loadAndPush(state: ServiceState, runtime: SourceRuntime): Promise
   const disabled = await state.deps.state.read();
   const loaded = await state.deps.load(runtime.input);
   const args = buildPushArgs(state.deps, runtime.input, loaded, disabled);
-  const key = dedupKey(args);
-  if (key === runtime.lastPushedKey) return;
+  if (!shouldPush(state, runtime, args)) return;
 
   const result = await state.deps.push(args);
-  runtime.lastPushedKey = key;
+  runtime.lastPushedKey = dedupKey(args);
   logRejectedOnce(state, runtime, result.rejected);
+}
+
+/**
+ * Whether this snapshot may be pushed: an unchanged snapshot is deduped, and a
+ * source retired while its load was in flight must not push, or its stale
+ * snapshot could land after a newer one.
+ */
+function shouldPush(
+  state: ServiceState,
+  runtime: SourceRuntime,
+  args: SyncDefinitionsArgs
+): boolean {
+  if (runtime.retired || state.stopped) return false;
+  return dedupKey(args) !== runtime.lastPushedKey;
 }
 
 function handleFailure(state: ServiceState, runtime: SourceRuntime, error: unknown): void {

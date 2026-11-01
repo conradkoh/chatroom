@@ -96,6 +96,7 @@ interface Harness {
   emit: (dirs: readonly string[]) => void;
   setAgents: (key: string, agents: Agent[]) => void;
   setPush: (impl: (args: SyncArgs, call: number) => Promise<PushResult>) => void;
+  setLoad: (impl: (input: LoadCustomAgentSourceInput) => Promise<LoadedCustomAgentSource>) => void;
   statePath?: string;
 }
 
@@ -120,6 +121,8 @@ function createHarness(
     applied: true,
     rejected: [],
   });
+  let loadImpl: ((input: LoadCustomAgentSourceInput) => Promise<LoadedCustomAgentSource>) | null =
+    null;
 
   const deps: CustomAgentsServiceDeps = {
     membership: {
@@ -135,6 +138,7 @@ function createHarness(
     homeDir: '/home/test',
     load: async (input) => {
       loads.push(input);
+      if (loadImpl !== null) return await loadImpl(input);
       return { scope: input.scope, agents: agents.get(sourceKey(input)) ?? [], issues: [] };
     },
     push: async (args) => {
@@ -161,6 +165,9 @@ function createHarness(
     setAgents: (key, next) => agents.set(key, next),
     setPush: (impl) => {
       pushImpl = impl;
+    },
+    setLoad: (impl) => {
+      loadImpl = impl;
     },
   };
 }
@@ -212,6 +219,35 @@ describe('sources and membership', () => {
 
     expect(harness.pushes.filter((args) => args.workingDir === '/ws/a')).toHaveLength(1);
     expect(harness.timers.outstanding()).toEqual([]);
+  });
+
+  it('does not push a removed workspace whose load is already in flight', async () => {
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const harness = createHarness({ agents: { machine: [], '/ws/a': [agent('beta')] } });
+    harness.setLoad(async (input) => {
+      if (input.workspaceRoot === '/ws/a') await gate;
+      const loaded = input.workspaceRoot === '/ws/a' ? [agent('beta')] : [];
+      return { scope: input.scope, agents: loaded, issues: [] };
+    });
+
+    harness.service.start();
+    harness.emit(['/ws/a']);
+    await vi.advanceTimersByTimeAsync(600);
+    const workspaceLoads = () => harness.loads.filter((input) => input.workspaceRoot === '/ws/a');
+    const workspacePushes = () => harness.pushes.filter((args) => args.workingDir === '/ws/a');
+    expect(workspaceLoads()).toHaveLength(1);
+    expect(workspacePushes()).toHaveLength(0);
+
+    // The workspace is removed while its load is still gated: nothing may push.
+    harness.emit([]);
+    release();
+    await flush();
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(workspacePushes()).toHaveLength(0);
   });
 
   it('does not push a removed workspace whose push is already in flight', async () => {
