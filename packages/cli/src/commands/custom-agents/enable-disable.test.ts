@@ -197,7 +197,7 @@ describe('setCustomAgentDisabled', () => {
 
     expect(fake.mutations).toEqual([{ name: 'alpha', disabled: false }]);
     expect(harness.lines).toEqual([
-      'enabled, but it is over the custom-agent limit of 16 and is not used until another agent is disabled',
+      'enabled, but it is over the custom-agent limit of 16 and is not used until another one is turned off',
     ]);
     expect(harness.exitCodes).toEqual([]);
     expect(fake.queries()).toBe(1);

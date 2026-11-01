@@ -68,7 +68,7 @@ function reportOutcome(outcome: PollOutcome, deps: ToggleCustomAgentDeps): void 
     // The change is applied; the agent simply cannot join until a slot frees.
     deps.stdout(
       `enabled, but it is over the custom-agent limit of ${CUSTOM_AGENT_LIMITS.agentsPerChatroom} ` +
-        'and is not used until another agent is disabled'
+        'and is not used until another one is turned off'
     );
     return;
   }
