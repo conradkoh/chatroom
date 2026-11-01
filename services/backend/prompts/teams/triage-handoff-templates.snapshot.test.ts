@@ -43,9 +43,9 @@ describe('triage handoff template snapshots', () => {
 
       for (const heading of reportHeadings) expect(template).toContain(heading);
       expect(template).toContain('concrete repository paths and symbols');
-      expect(template).toContain('confirmed or a hypothesis');
-      expect(template).toContain('exact command');
-      expect(template).toContain('exact blocker');
+      expect(template).toContain('confirmed or hypothesis');
+      expect(template).toContain("one command that drives the user's exact symptom");
+      expect(template).toContain('no reproducing command could be built');
       expect(template).toContain('likely files');
       expect(template).toContain('evidence, impact, and follow-up concern');
       expect(template).toContain('do not edit implementation files');
