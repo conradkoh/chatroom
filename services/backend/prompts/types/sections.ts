@@ -78,6 +78,10 @@ export type SectionId =
   | 'team-context'
   // Role Workflow
   | 'role-guidance'
+  // Custom agents (user-authored roles)
+  | 'custom-agent-instructions'
+  | 'custom-agent-return-handoff'
+  | 'custom-agent-roster'
   // Handoff
   | 'handoff-options'
   | 'handoff-restriction'
