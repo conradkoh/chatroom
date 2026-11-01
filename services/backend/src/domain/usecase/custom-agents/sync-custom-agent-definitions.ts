@@ -415,6 +415,41 @@ async function reconcileAgents(
   await applyAcceptedAgents(ctx, key, sourceId, accepted, existingByName, updatedAt, forceRewrite);
 }
 
+/**
+ * Reconciles machine-local disable flags when the source snapshot itself is
+ * unchanged.
+ *
+ * The pushed source hash covers authored content, not the disable flags, so a
+ * toggle arrives with the same source hash. Only rows whose `disabled` differs
+ * are patched: prompts and templates keep their ids and are never rewritten on
+ * this path. Returns true when at least one row changed.
+ */
+async function reconcileDisabledFlags(
+  ctx: MutationCtx,
+  sourceId: Id<'chatroom_customAgentSources'>,
+  accepted: readonly CustomAgentDefinitionPayload[],
+  updatedAt: number
+): Promise<boolean> {
+  const rows = await ctx.db
+    .query('chatroom_customAgents')
+    .withIndex('by_source', (q) => q.eq('sourceId', sourceId))
+    .collect();
+  const rowByName = new Map(rows.map((row) => [row.name, row]));
+  let applied = false;
+
+  for (const definition of accepted) {
+    const row = rowByName.get(definition.name);
+    if (row === undefined || row.disabled === definition.disabled) continue;
+    await ctx.db.patch('chatroom_customAgents', row._id, {
+      disabled: definition.disabled,
+      updatedAt,
+    });
+    applied = true;
+  }
+
+  return applied;
+}
+
 /** Narrows the push payload to the source index key. */
 function toSourceKey(input: SyncCustomAgentDefinitionsInput): SourceKey {
   return {
@@ -486,8 +521,17 @@ export async function syncCustomAgentDefinitions(
   const canonical = canonicalizeIssues([...input.issues, ...validated.issues]);
   const key = toSourceKey(input);
   const existingSource = await findSource(ctx, key);
-  if (isUnchangedSnapshot(existingSource, input.contentHash, canonical.json)) {
-    return { applied: false, rejected: validated.rejected };
+  if (
+    existingSource !== null &&
+    isUnchangedSnapshot(existingSource, input.contentHash, canonical.json)
+  ) {
+    const applied = await reconcileDisabledFlags(
+      ctx,
+      existingSource._id,
+      validated.accepted,
+      Date.now()
+    );
+    return { applied, rejected: validated.rejected };
   }
 
   await writeSnapshot(ctx, key, existingSource, {

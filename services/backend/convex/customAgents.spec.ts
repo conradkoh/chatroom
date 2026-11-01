@@ -545,6 +545,66 @@ describe('chatroom team resolution with custom agents', () => {
     expect(structure!.roles.map(({ role }) => role)).not.toContain('alpha');
   });
 
+  test('applies a disable toggle pushed with an unchanged source hash', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'disable-unchanged-source'
+    );
+    const agent = makeAgent('alpha', 'a1');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, agent);
+
+    const source = await readSource(machineId, 'workspace', workingDir);
+    const [before] = await readAgents(source!._id);
+    const [contentBefore] = await readContents(before!._id);
+    expect(before!.disabled).toBe(false);
+
+    advanceClock(1_000);
+    const disabled = await syncWorkspaceAgent(sessionId, machineId, workingDir, {
+      ...agent,
+      disabled: true,
+    });
+    expect(disabled).toEqual({ applied: true, rejected: [] });
+
+    const [afterDisable] = await readAgents(source!._id);
+    expect(afterDisable!._id).toBe(before!._id);
+    expect(afterDisable!.disabled).toBe(true);
+    expect(afterDisable!.updatedAt).toBe(FIXED_NOW + 1_000);
+    expect(afterDisable!.contentHash).toBe(before!.contentHash);
+    const [contentAfterDisable] = await readContents(before!._id);
+    expect(contentAfterDisable!._id).toBe(contentBefore!._id);
+
+    const disabledStructure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(disabledStructure!.roles.map(({ role }) => role)).not.toContain('alpha');
+
+    advanceClock(1_000);
+    const reenabled = await syncWorkspaceAgent(sessionId, machineId, workingDir, agent);
+    expect(reenabled).toEqual({ applied: true, rejected: [] });
+
+    const [afterEnable] = await readAgents(source!._id);
+    expect(afterEnable!._id).toBe(before!._id);
+    expect(afterEnable!.disabled).toBe(false);
+    expect(afterEnable!.updatedAt).toBe(FIXED_NOW + 2_000);
+    const [contentAfterEnable] = await readContents(before!._id);
+    expect(contentAfterEnable!._id).toBe(contentBefore!._id);
+
+    const enabledStructure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(enabledStructure!.roles.map(({ role }) => role)).toContain('alpha');
+
+    // A push that changes nothing still writes nothing.
+    advanceClock(1_000);
+    expect(await syncWorkspaceAgent(sessionId, machineId, workingDir, agent)).toEqual({
+      applied: false,
+      rejected: [],
+    });
+    const [afterNoop] = await readAgents(source!._id);
+    expect(afterNoop!.updatedAt).toBe(FIXED_NOW + 2_000);
+  });
+
   test('rewrites agents when the stored rules version is stale', async () => {
     const { sessionId, machineId, workingDir } = await setup('rules-version');
     const agent = makeAgent('alpha', 'a1');
