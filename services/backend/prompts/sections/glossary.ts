@@ -6,7 +6,9 @@
  * so agents know they can run `chatroom skill activate <term>` to get more detail.
  */
 
-import { SKILLS_REGISTRY } from '../../src/domain/usecase/skills/registry';
+import { supportsCustomAgents } from '@workspace/shared/domain/custom-agent';
+
+import { SKILLS_REGISTRY, type SkillModule } from '../../src/domain/usecase/skills/registry';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
@@ -17,6 +19,8 @@ export interface GlossarySectionParams {
   role?: string | undefined;
   nativeIntegration?: boolean | undefined;
   compactSkills?: boolean | undefined;
+  /** Team id; custom-agent skills are listed only for teams that support them. */
+  teamId?: string | undefined;
 }
 
 export interface GlossaryTerm {
@@ -115,7 +119,19 @@ function formatGlossaryEntry(entry: GlossaryTerm): string[] {
   return [`- \`${entry.term}\`${skillNote}`, `    - ${entry.definition}`, ''];
 }
 
-function buildSkillsSection(cliEnvPrefix: string): string[] {
+/**
+ * The skills a team may list. Custom agents exist only on duo teams, so the
+ * `custom-agents` skill stays hidden everywhere else. An absent team id keeps
+ * the historical full list, because the caller cannot prove the team is not duo.
+ */
+function listSkillsForTeam(teamId: string | undefined): readonly SkillModule[] {
+  if (teamId === undefined) return SKILLS_REGISTRY;
+  return SKILLS_REGISTRY.filter(
+    (skill) => skill.skillId !== 'custom-agents' || supportsCustomAgents(teamId)
+  );
+}
+
+function buildSkillsSection(cliEnvPrefix: string, teamId: string | undefined): string[] {
   const lines = ['# Skills', ''];
   lines.push(
     `Run \`${cliEnvPrefix}chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.`
@@ -124,7 +140,7 @@ function buildSkillsSection(cliEnvPrefix: string): string[] {
   lines.push('## When to Activate Skills');
   lines.push('');
   lines.push('**Proactively activate skills** when your task matches their purpose:');
-  for (const skill of SKILLS_REGISTRY) {
+  for (const skill of listSkillsForTeam(teamId)) {
     lines.push(`- **${skill.skillId}**: ${skill.description}`);
   }
   lines.push('');
@@ -154,7 +170,7 @@ export function getGlossarySection(params: GlossarySectionParams): PromptSection
       `Run \`${cliEnvPrefix}chatroom skill list --chatroom-id=<id> --role=<role>\` to list available skills. Activate skills proactively when your task matches their purpose.`
     );
   } else {
-    lines.push(...buildSkillsSection(cliEnvPrefix));
+    lines.push(...buildSkillsSection(cliEnvPrefix, params.teamId));
   }
 
   return createSection('glossary', 'knowledge', lines.join('\n'));

@@ -146,6 +146,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
       chatroomId: ctx.chatroomId,
       role: ctx.role,
       activatedSkills: ctx.activatedSkills,
+      teamId: ctx.teamId,
     })
   );
 
@@ -212,6 +213,7 @@ function buildInitPromptSections(
       chatroomId,
       role,
       activatedSkills: input.activatedSkills,
+      teamId: input.teamId,
     }),
     getSessionVsChatroomTaskSection(),
     getGettingStartedSection(selectorCtx),

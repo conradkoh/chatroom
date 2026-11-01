@@ -29,7 +29,7 @@ export function composeNativeSystemPrompt(input: InitPromptInput): string {
     getRoleDescriptionSection(selectorCtx),
     ...customSections.afterRoleDescription,
     ...getGeneralKnowledgeSections(
-      { convexUrl, chatroomId, role, nativeIntegration: true, compactSkills: true },
+      { convexUrl, chatroomId, role, nativeIntegration: true, compactSkills: true, teamId },
       { includeHistory: false }
     ),
     getRoleGuidanceSection(selectorCtx),
