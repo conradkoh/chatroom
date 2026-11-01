@@ -78,7 +78,7 @@ Two constraints apply to every authored body:
 - **Description:** one line of at most 200 characters. Control characters and newlines become spaces, \`<\`, \`>\`, and backticks are stripped, and whitespace is collapsed. An empty description is rejected with \`invalid-description\`.
 - **System prompt:** at most 24 KiB (24,576 UTF-8 bytes).
 - **Handoff templates:** at most 4 KiB (4,096 UTF-8 bytes) each.
-- **Agent counts:** at most 12 agents per source (workspace or machine) and at most 16 enabled custom agents per chatroom. Agents beyond the per-chatroom cap are not enabled and are reported with \`over-limit\`; a source that pushes more than 12 is rejected with \`INVALID_SCOPE\`.
+- **Agent counts:** at most 12 agents per source (workspace or machine) and at most 16 enabled custom agents per chatroom. Agents beyond the per-chatroom cap are not enabled and are reported with \`over-limit\`. Agents past 12 in one source are not loaded and are reported as \`root-truncated\` with detail \`agent cap 12\`; \`INVALID_SCOPE\` applies only to a raw push that bypasses the loader.
 
 Caps are enforced, not advisory: an oversized definition is rejected with \`too-large\`, and a per-chatroom overflow is reported as \`over-limit\` rather than silently dropped.
 

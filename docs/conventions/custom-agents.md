@@ -100,7 +100,7 @@ When a file is absent, a generated default is rendered in its place. Authored te
 | `agentsPerChatroom`       | 16                          | Enabled custom agents in one chatroom                              |
 | `issuesPerSource`         | 50                          | Issues stored for one source snapshot, including server rejections |
 
-A source that pushes more than `agentsPerSource` agents is rejected with `INVALID_SCOPE`. Only agents beyond `agentsPerChatroom` are reported as `over-limit`.
+Agents past `agentsPerSource` (12) in one source are not loaded and are reported as `root-truncated` with detail `agent cap 12`. Agents beyond `agentsPerChatroom` are not enabled and are reported as `over-limit`. `INVALID_SCOPE` applies only to a raw push that bypasses the loader and sends more than `agentsPerSource` agents.
 
 ## Names, descriptions, and reserved names
 
@@ -130,23 +130,23 @@ Both are advisory flags, not rejections: the agent still loads and joins the tea
 
 `CUSTOM_AGENT_ISSUE_REASONS` is the complete vocabulary reported to clients:
 
-| Reason                | Meaning                                                             |
-| --------------------- | ------------------------------------------------------------------- |
-| `missing-frontmatter` | `AGENT.md` has no YAML frontmatter block.                           |
-| `invalid-frontmatter` | The frontmatter cannot be parsed as a key/value mapping.            |
-| `invalid-name`        | The name fails the lowercase kebab-case rule or the length cap.     |
-| `name-mismatch`       | The frontmatter name differs from the directory name.               |
-| `reserved-name`       | The name is a builtin role, `user`, or a retired role.              |
-| `invalid-description` | The description is empty after sanitization.                        |
-| `forbidden-field`     | A forbidden model or harness key is present.                        |
-| `unknown-field`       | A frontmatter key other than `name` or `description` is present.    |
-| `too-large`           | A body exceeds its UTF-8 byte cap.                                  |
-| `reserved-delimiter`  | A body line equals `CHATROOM_HANDOFF_END` or `CHATROOM_NOTIFY_END`. |
-| `unreadable`          | The file or directory cannot be read.                               |
-| `root-truncated`      | A source root has more entries than it can scan.                    |
-| `gitignored`          | A workspace agent lives under a `.chatroom/` that git ignores.      |
-| `shadowed`            | A definition lost a name collision and was dropped.                 |
-| `over-limit`          | A custom agent exceeded the per-chatroom enabled cap.               |
+| Reason                | Meaning                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `missing-frontmatter` | `AGENT.md` has no YAML frontmatter block.                                                                       |
+| `invalid-frontmatter` | The frontmatter cannot be parsed as a key/value mapping.                                                        |
+| `invalid-name`        | The name fails the lowercase kebab-case rule or the length cap.                                                 |
+| `name-mismatch`       | The frontmatter name differs from the directory name.                                                           |
+| `reserved-name`       | The name is a builtin role, `user`, or a retired role.                                                          |
+| `invalid-description` | The description is empty after sanitization.                                                                    |
+| `forbidden-field`     | A forbidden model or harness key is present.                                                                    |
+| `unknown-field`       | A frontmatter key other than `name` or `description` is present.                                                |
+| `too-large`           | A body exceeds its UTF-8 byte cap.                                                                              |
+| `reserved-delimiter`  | A body line equals `CHATROOM_HANDOFF_END` or `CHATROOM_NOTIFY_END`.                                             |
+| `unreadable`          | The file or directory cannot be read.                                                                           |
+| `root-truncated`      | A root has more entries than the loader scans, or a source defines more than 12 agents (detail `agent cap 12`). |
+| `gitignored`          | A workspace agent lives under a `.chatroom/` that git ignores.                                                  |
+| `shadowed`            | A definition lost a name collision and was dropped.                                                             |
+| `over-limit`          | A custom agent exceeded the per-chatroom enabled cap.                                                           |
 
 Prompt composition neutralises every authored string before rendering it: the system prompt, both handoff templates, and the description all pass through `neutralizeChatroomBlockTags`, so a reserved opening delimiter such as `<handoffs>`, `<task>`, `<team-roster>`, or `<custom-agent-instructions>` is escaped. Authored text therefore cannot impersonate protocol markup. Generated defaults are not neutralised because they are already free of reserved tags.
 
