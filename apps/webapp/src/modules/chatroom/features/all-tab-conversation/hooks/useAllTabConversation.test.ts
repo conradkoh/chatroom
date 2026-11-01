@@ -192,6 +192,124 @@ describe('useAllTabConversation', () => {
     expect(result.current.messages.map((m) => m._id)).toEqual(['msg-3']);
   });
 
+  it('reuses unchanged event objects when one message changes in place', () => {
+    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const before = result.current.events;
+    expect(before).toHaveLength(2);
+
+    // A Convex update re-creates every message object; only msg-2 changed.
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [
+        { ...baseResults[0] },
+        {
+          _id: 'msg-2',
+          type: 'notice',
+          senderRole: 'builder',
+          content: 'reply',
+          _creationTime: 101,
+        },
+      ],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    rerender();
+
+    const after = result.current.events;
+    expect(after).toHaveLength(2);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).not.toBe(before[1]);
+    expect(after[1].message.type).toBe('notice');
+  });
+
+  it('reuses unchanged event objects when a message is appended', () => {
+    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const before = result.current.events;
+
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [
+        ...baseResults.map((message) => ({ ...message })),
+        {
+          _id: 'msg-3',
+          type: 'message',
+          senderRole: 'reviewer',
+          content: 'third',
+          _creationTime: 102,
+        },
+      ],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    rerender();
+
+    const after = result.current.events;
+    expect(after).toHaveLength(3);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(after[2].id).toBe('msg-3');
+  });
+
+  it('reuses message identity when rebuilt nested attachment arrays are equal', () => {
+    const withAttachments = {
+      ...baseResults[0],
+      attachedTasks: [{ _id: 'task-1', content: 'do it' }],
+    };
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [withAttachments],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const before = result.current.events;
+
+    // Convex re-runs the query and rebuilds the nested collection.
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [
+        {
+          ...withAttachments,
+          attachedTasks: [{ _id: 'task-1', content: 'do it' }],
+        },
+      ],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    rerender();
+
+    expect(result.current.events[0]).toBe(before[0]);
+    expect(result.current.messages[0]).toBe(before[0].message);
+  });
+
+  it('keeps loadMore identity stable across rerenders', () => {
+    const firstLoadMore = vi.fn();
+    mockUsePaginatedQuery.mockReturnValue({
+      results: baseResults,
+      status: 'CanLoadMore',
+      loadMore: firstLoadMore,
+    });
+
+    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const initialLoadMore = result.current.loadMore;
+
+    // usePaginatedQuery allocates a new loadMore on every render.
+    const nextLoadMore = vi.fn();
+    mockUsePaginatedQuery.mockReturnValue({
+      results: baseResults,
+      status: 'CanLoadMore',
+      loadMore: nextLoadMore,
+    });
+    rerender();
+
+    expect(result.current.loadMore).toBe(initialLoadMore);
+
+    act(() => {
+      result.current.loadMore();
+    });
+    expect(nextLoadMore).toHaveBeenCalledWith(50);
+  });
+
   it('skips the tail subscription until pagination is exhausted', () => {
     mockUsePaginatedQuery.mockReturnValue({
       results: baseResults,
