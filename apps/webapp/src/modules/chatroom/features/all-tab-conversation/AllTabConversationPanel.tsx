@@ -7,7 +7,6 @@ import { AllTabMessageList } from './AllTabMessageList';
 import { useAllTabConversation } from './hooks/useAllTabConversation';
 import { QueuedMessagesIndicator } from '../../components/QueuedMessagesIndicator';
 import { ComposerPreflightBar } from '../../components/timeline/ComposerPreflightBar';
-import type { MachineNameEntry } from '../../components/timeline/timelineRowStyles';
 import { useChatroomListing } from '../../context/ChatroomListingContext';
 import { useHandoffNotification } from '../../hooks/useHandoffNotification';
 
@@ -19,12 +18,10 @@ export type AllTabNavigationActions = {
 
 export function AllTabConversationPanel({
   chatroomId,
-  machines,
   onRegisterAllTabNavigation,
   onRequestComposerFocus,
 }: {
   chatroomId: string;
-  machines?: Map<string, MachineNameEntry>;
   onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
   onRequestComposerFocus?: () => void;
 }) {
@@ -76,7 +73,6 @@ export function AllTabConversationPanel({
         <AllTabMessageList
           events={events}
           anchorId={anchorId}
-          machines={machines}
           canLoadMore={canLoadMore}
           isLoadingMore={isLoadingMore}
           onLoadMore={loadMore}

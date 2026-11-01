@@ -2,7 +2,6 @@
 
 import type React from 'react';
 
-import type { MachineNameEntry } from './timelineRowStyles';
 import {
   AllTabConversationPanel,
   type AllTabNavigationActions,
@@ -11,7 +10,6 @@ import { ConversationModeProvider } from '../../hooks/useConversationMode';
 
 export interface ChatroomMessagesPanelProps {
   chatroomId: string;
-  machines?: Map<string, MachineNameEntry>;
   onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
   onRequestComposerFocus?: () => void;
   /** Optional footer (MessageInput) rendered below feed */
@@ -20,7 +18,6 @@ export interface ChatroomMessagesPanelProps {
 
 export function ChatroomMessagesPanel({
   chatroomId,
-  machines,
   onRegisterAllTabNavigation,
   onRequestComposerFocus,
   footer,
@@ -30,7 +27,6 @@ export function ChatroomMessagesPanel({
       <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
         <AllTabConversationPanel
           chatroomId={chatroomId}
-          machines={machines}
           onRegisterAllTabNavigation={onRegisterAllTabNavigation}
           onRequestComposerFocus={onRequestComposerFocus}
         />

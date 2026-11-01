@@ -1119,15 +1119,6 @@ function ChatroomDashboardContent({
     return map;
   }, [agentPanelData.agents]);
 
-  // Machine name map for event stream display
-  const machineNameMap = useMemo(() => {
-    const map = new Map<string, { hostname: string; alias?: string }>();
-    for (const machine of agentPanelData.machines) {
-      map.set(machine.machineId, { hostname: machine.hostname, alias: machine.alias });
-    }
-    return map;
-  }, [agentPanelData.machines]);
-
   // Current team comes exclusively from the active team assignment.
   const teamRoles = agentPanelData.team.teamRoles;
   const teamName = agentPanelData.team.teamName;
@@ -1931,7 +1922,6 @@ function ChatroomDashboardContent({
                             <RightSplitPanel
                               chatroomId={chatroomId as Id<'chatroom_rooms'>}
                               messagesPanelProps={{
-                                machines: machineNameMap,
                                 onRegisterSendFormFocus: handleRegisterSendFormFocus,
                                 onRegisterAllTabNavigation: handleRegisterAllTabNavigation,
                                 onRequestComposerFocus: handleRequestComposerFocus,
@@ -1950,7 +1940,6 @@ function ChatroomDashboardContent({
                         /* Message Feed — shown in messages view */
                         <ChatroomMessagesPanel
                           chatroomId={chatroomId}
-                          machines={machineNameMap}
                           onRegisterAllTabNavigation={handleRegisterAllTabNavigation}
                           onRequestComposerFocus={handleRequestComposerFocus}
                           footer={

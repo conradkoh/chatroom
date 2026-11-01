@@ -20,7 +20,6 @@ import { ChatroomMessagesPanel } from '../components/timeline/ChatroomMessagesPa
 
 export interface MessagesPanelProps {
   chatroomId: string;
-  machines?: Map<string, { hostname: string; alias?: string }>;
   // SendForm props
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
   onRegisterAllTabNavigation?: (actions: { goToLatestAnchor: () => void }) => void;
@@ -40,7 +39,6 @@ export interface MessagesPanelProps {
 
 export function MessagesPanel({
   chatroomId,
-  machines,
   onRegisterSendFormFocus,
   onRegisterAllTabNavigation,
   onRequestComposerFocus,
@@ -56,7 +54,6 @@ export function MessagesPanel({
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <ChatroomMessagesPanel
         chatroomId={chatroomId}
-        machines={machines}
         onRegisterAllTabNavigation={onRegisterAllTabNavigation}
         onRequestComposerFocus={onRequestComposerFocus}
         footer={

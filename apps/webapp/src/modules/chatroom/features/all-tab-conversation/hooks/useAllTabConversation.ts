@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { usePaginatedQuery, type PaginatedQueryReference } from 'convex/react';
 import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { shallowEqualRecord, structurallyEqual } from './stableIdentity';
 import { toMessage } from '../../../hooks/chatroomMessageStore';
@@ -101,6 +101,10 @@ export function useAllTabConversation(chatroomId: string) {
   // Reuse the previous `Message` object whenever the served document is equal.
   // Convex rebuilds the whole document tree on each update, so without this every
   // row below receives a new object and `memo` never bails out (O(N) per update).
+  //
+  // This writes a ref during render. That is safe because the write is idempotent
+  // for a given `mergedMessages` (same input → same cache) and a render React
+  // discards only costs one extra stabilization pass on the next render.
   const stableMessagesRef = useRef<Map<string, Message>>(new Map());
   const messages = useMemo(() => {
     const previousById = stableMessagesRef.current;
@@ -146,6 +150,10 @@ export function useAllTabConversation(chatroomId: string) {
 
   // `handoffDurationMs` is derived from other messages, so an event is keyed on
   // both its message (now identity-stable) and the freshly computed duration.
+  //
+  // Like `stableMessagesRef`, this ref write happens during render. It is safe
+  // because the write is idempotent per `messages`/`messagesById` pair, and a
+  // discarded render only costs one extra pass on the next render.
   const stableEventsRef = useRef<Map<string, TimelineEvent>>(new Map());
   const events: TimelineEvent[] = useMemo(() => {
     const previousById = stableEventsRef.current;
@@ -163,8 +171,10 @@ export function useAllTabConversation(chatroomId: string) {
 
   // `usePaginatedQuery` allocates a fresh `loadMore` on every render, so keep the
   // latest one in a ref to expose a callback whose identity never changes.
+  // `useLayoutEffect` matches the `eventsRef` sync in `AllTabMessageList`, so both
+  // refs are current before the browser can paint or scroll.
   const paginatedLoadMoreRef = useRef(paginated.loadMore);
-  useEffect(() => {
+  useLayoutEffect(() => {
     paginatedLoadMoreRef.current = paginated.loadMore;
   }, [paginated.loadMore]);
   const loadMore = useCallback(() => paginatedLoadMoreRef.current(PAGE_SIZE), []);

@@ -11,10 +11,7 @@ import {
   TIMELINE_SCROLL_CONTAINER,
   TIMELINE_SCROLL_CONTAINER_STYLE,
 } from '../../components/timeline/timelineRowStyles';
-import type {
-  MachineNameEntry,
-  TimelineMessageHeaderNavigation,
-} from '../../components/timeline/timelineRowStyles';
+import type { TimelineMessageHeaderNavigation } from '../../components/timeline/timelineRowStyles';
 import {
   JUMP_TO_NEW_MESSAGES_GAP_PX,
   JUMP_TO_NEW_MESSAGES_Z_INDEX,
@@ -48,14 +45,12 @@ const AllTabRow = memo(function AllTabRow({
   index,
   isFirst,
   isLast,
-  machines,
   onJump,
 }: {
   event: TimelineEvent;
   index: number;
   isFirst: boolean;
   isLast: boolean;
-  machines?: Map<string, MachineNameEntry>;
   onJump: (index: number, target: JumpTarget) => void;
 }) {
   const headerNavigation = useMemo<TimelineMessageHeaderNavigation>(
@@ -78,26 +73,19 @@ const AllTabRow = memo(function AllTabRow({
       data-message-id={event.id}
       style={{ position: 'relative', zIndex: getTimelineVirtualRowZIndex(index) }}
     >
-      <TimelineEventRow
-        event={event}
-        chatroomId=""
-        machines={machines}
-        headerNavigation={headerNavigation}
-      />
+      <TimelineEventRow event={event} chatroomId="" headerNavigation={headerNavigation} />
     </div>
   );
 });
 
 export function AllTabMessageList({
   events,
-  machines,
   anchorId,
   canLoadMore,
   isLoadingMore,
   onLoadMore,
 }: {
   events: TimelineEvent[];
-  machines?: Map<string, MachineNameEntry>;
   anchorId: string | null;
   canLoadMore?: boolean;
   isLoadingMore?: boolean;
@@ -213,7 +201,6 @@ export function AllTabMessageList({
             index={index}
             isFirst={index === 0}
             isLast={index === events.length - 1}
-            machines={machines}
             onJump={onJump}
           />
         ))}
