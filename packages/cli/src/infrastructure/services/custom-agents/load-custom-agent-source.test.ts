@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import type { PathLike } from 'node:fs';
+import { lstat as realLstat, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -246,6 +247,60 @@ describe('loadCustomAgentSource', () => {
     const red = result.issues.find(({ path }) => path.includes('red'));
     expect(red?.path).toBe('[31mred/AGENT.md');
     expect(JSON.stringify(result)).not.toMatch(new RegExp('[\\u0000-\\u001F\\u007F-\\u009F]'));
+  });
+
+  it('stops examining entries at the hard cap and reports truncation', async () => {
+    const agentsRoot = join(workspaceRoot, '.chatroom', 'agents');
+    await mkdir(agentsRoot, { recursive: true });
+    await writeAgent(workspaceRoot, 'alpha');
+    for (let index = 0; index < 600; index++) {
+      await writeFile(join(agentsRoot, `stray-${String(index).padStart(3, '0')}.txt`), 'x');
+    }
+
+    // Count the lstat calls through a fresh module instance, because the loader
+    // binds `lstat` at import time.
+    const counter = { calls: 0 };
+    vi.resetModules();
+    vi.doMock('node:fs/promises', async () => {
+      const actual = (await vi.importActual('node:fs/promises')) as Record<string, unknown>;
+      return {
+        ...actual,
+        lstat: (path: PathLike) => {
+          // Count only root-entry probes: `safe-read` also stats AGENT.md.
+          if (String(path).includes('stray-')) counter.calls += 1;
+          return realLstat(path);
+        },
+      };
+    });
+    const { loadCustomAgentSource: freshLoad } = await import('./load-custom-agent-source.js');
+    const result = await freshLoad({ scope: 'workspace', workspaceRoot });
+    vi.doUnmock('node:fs/promises');
+    vi.resetModules();
+
+    expect(result.issues).toContainEqual({
+      path: '.chatroom/agents',
+      reason: 'root-truncated',
+      detail: 'entries',
+    });
+    // 600 stray files exist; the scan must stop at the examination cap instead of
+    // probing every one of them.
+    expect(counter.calls).toBeLessThan(600);
+    expect(counter.calls).toBeLessThanOrEqual(512);
+  });
+
+  it('does not report truncation when the leftover entries are not directories', async () => {
+    const agentsRoot = join(workspaceRoot, '.chatroom', 'agents');
+    await mkdir(agentsRoot, { recursive: true });
+    for (let index = 0; index < 64; index++) {
+      await mkdir(join(agentsRoot, `agent-${String(index).padStart(2, '0')}`), { recursive: true });
+    }
+    for (const name of ['zzz-.DS_Store', '.DS_Store', 'zzz-README.md', 'zzz-notes.txt']) {
+      await writeFile(join(agentsRoot, name), 'x');
+    }
+
+    const result = await loadCustomAgentSource({ scope: 'workspace', workspaceRoot });
+
+    expect(result.issues.some((issue) => issue.detail === 'entries')).toBe(false);
   });
 
   it('keeps the first 12 agents by name and reports the overflow', async () => {

@@ -62,8 +62,15 @@ export interface LoadedCustomAgentSource {
   issues: CustomAgentIssue[];
 }
 
-/** Root entries are scanned up to this many; the rest are reported and ignored. */
+/** Agent directories (and symlinks) scanned per root; the rest are reported and ignored. */
 const LOADER_MAX_ROOT_ENTRIES = 64;
+/**
+ * Hard cap on root entries examined per scan, including dotfiles and plain
+ * files. Without it a root holding tens of thousands of stray files costs one
+ * `lstat` each on every watch event and every poll. Eight times the directory
+ * budget leaves room for ordinary editor noise.
+ */
+const LOADER_MAX_EXAMINED_ENTRIES = 512;
 
 const AGENTS_SEGMENTS = ['.chatroom', 'agents'] as const;
 const SOURCE_ROOT_PATH = '.chatroom/agents';
@@ -242,25 +249,47 @@ async function scanRoot(rootPath: string): Promise<SourceScan> {
 
 async function scanEntries(rootPath: string): Promise<SourceScan> {
   const names = (await readdir(rootPath)).sort();
-  const entries: EntryResult[] = [];
-  let index = 0;
-  // Only agent directories use the scan budget: a stray `README.md` or a
-  // `.DS_Store` is not an agent and must not push a directory out of the scan.
-  while (entries.length < LOADER_MAX_ROOT_ENTRIES && index < names.length) {
-    const entry = await loadRootEntry(rootPath, names[index] as string);
-    if (entry !== null) entries.push(entry);
-    index += 1;
-  }
-  return mergeEntries(entries, isTruncated(entries, index, names));
+  const scan = await collectRootEntries(rootPath, names);
+  return mergeEntries(scan.entries, scan.truncated);
 }
 
-/** True when the scan filled its budget while entries remained unexamined. */
-function isTruncated(
-  entries: readonly EntryResult[],
-  index: number,
+interface RootEntryScan {
+  entries: EntryResult[];
+  truncated: boolean;
+}
+
+/** Walks the entries in order until the directory or the examination budget fills. */
+async function collectRootEntries(
+  rootPath: string,
   names: readonly string[]
-): boolean {
-  return entries.length === LOADER_MAX_ROOT_ENTRIES && index < names.length;
+): Promise<RootEntryScan> {
+  const entries: EntryResult[] = [];
+  let examined = 0;
+  // Only agent directories use the directory budget: a stray `README.md` or a
+  // `.DS_Store` is not an agent and must not push a directory out of the scan.
+  // Every entry still uses the examination budget, because deciding whether one
+  // is an agent costs an `lstat`.
+  for (const name of names) {
+    if (examined >= LOADER_MAX_EXAMINED_ENTRIES) return { entries, truncated: true };
+    examined += 1;
+    if ((await takeRootEntry(rootPath, name, entries)) === 'full') {
+      return { entries, truncated: true };
+    }
+  }
+  return { entries, truncated: false };
+}
+
+/** Adds one entry when it is an agent, and says whether the directory budget is full. */
+async function takeRootEntry(
+  rootPath: string,
+  name: string,
+  entries: EntryResult[]
+): Promise<'added' | 'skipped' | 'full'> {
+  const classified = await classifyRootEntry(rootPath, name);
+  if (classified === null) return 'skipped';
+  if (entries.length >= LOADER_MAX_ROOT_ENTRIES) return 'full';
+  entries.push(classified);
+  return 'added';
 }
 
 function mergeEntries(entries: readonly EntryResult[], truncated: boolean): SourceScan {
@@ -277,16 +306,19 @@ function mergeEntries(entries: readonly EntryResult[], truncated: boolean): Sour
  * they are editor or git noise, not a user mistake worth an issue. A symlink is
  * still reported, because the loader refuses to follow one.
  */
-async function loadRootEntry(rootPath: string, entryName: string): Promise<EntryResult | null> {
+async function classifyRootEntry(rootPath: string, entryName: string): Promise<EntryResult | null> {
   if (entryName.startsWith('.')) return null;
   try {
-    return await loadExistingEntry(rootPath, entryName);
+    return await classifyExistingEntry(rootPath, entryName);
   } catch (err) {
     return entryIssue(entryName, errorCode(err));
   }
 }
 
-async function loadExistingEntry(rootPath: string, entryName: string): Promise<EntryResult | null> {
+async function classifyExistingEntry(
+  rootPath: string,
+  entryName: string
+): Promise<EntryResult | null> {
   const stats = await lstat(join(rootPath, entryName));
   if (stats.isSymbolicLink()) return entryIssue(entryName, 'symlink');
   if (!stats.isDirectory()) return null;
