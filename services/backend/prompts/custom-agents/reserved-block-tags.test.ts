@@ -30,6 +30,8 @@ const PROMPT_BLOCK_TAGS = [
   'user-selected-content',
   'context',
   'user-message',
+  // attachments/attachments-guide-content.ts
+  'staleness-warning',
   // utils/handoff-report-template-body.ts
   'handoff-proofs',
   'handoff-direction',

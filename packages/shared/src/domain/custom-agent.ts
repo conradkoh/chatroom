@@ -127,10 +127,15 @@ export interface MergedTeam {
  *
  * Derived from the prompt renderers: task delivery (`verifier-gate`,
  * `intake-note`, `enhance-mode`), the attachments guide (`attachment`,
- * `context`, `user-message`), the handoff report body (`handoff-proofs`,
- * `handoff-direction`, `handoff-action`, `handoff-overview`), and the custom
- * agent sections. `services/backend/prompts/custom-agents/reserved-block-tags.test.ts`
- * fails if a renderer emits a block that is not listed here.
+ * `context`, `user-message`, `staleness-warning`), the handoff report body
+ * (`handoff-proofs`, `handoff-direction`, `handoff-action`, `handoff-overview`),
+ * and the custom agent sections.
+ *
+ * The guard in `services/backend/prompts/custom-agents/reserved-block-tags.test.ts`
+ * scans an explicit `RENDERER_FILES` list and compares it against a
+ * hand-maintained `PROMPT_BLOCK_TAGS` list; it does not discover prompt sources.
+ * A new source that emits block markup must be added to one of those lists, and
+ * its tags added here, or the guard silently misses it.
  *
  * This list is not an input to `CUSTOM_AGENT_RULES_VERSION`: it changes how
  * authored text is escaped at render time, not how a stored payload is
@@ -161,6 +166,7 @@ const RESERVED_BLOCK_TAGS = [
   'user-selected-content',
   'context',
   'user-message',
+  'staleness-warning',
   'handoff-proofs',
   'handoff-direction',
   'handoff-action',
