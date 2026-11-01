@@ -23,7 +23,7 @@ Shipped on `feat/custom-agents`:
 - The Custom Agents settings tab (`apps/webapp/src/modules/chatroom/components/custom-agents/CustomAgentsTab.tsx`), which shows what the machine loaded, reports every issue, and toggles agents or requests a rescan.
 - The custom-agent commands (`packages/cli/src/commands/custom-agents/`): `validate`, which is offline and prints what the loader sees, and the authenticated `list`, `enable`, `disable`, and `refresh`, which call the same `getTeamRoster`, `setDisabled`, and `requestRefresh` functions the settings tab uses. `enable` and `disable` print `confirmed` once the pushed roster shows the new value, or time out after 10 s.
 
-Edits inside a watched root reach the UI near-instantly: the watcher fires, the daemon debounces briefly, and it pushes. A root that does not exist yet has nothing to watch, and no directory is created on the user's behalf; the daemon re-runs the watcher attach on every 60 s poll tick, so the first `.chatroom/agents` you create is noticed within about a minute, and edits after that are watched normally. Rescan (`refresh`, or the tab's Rescan button) forces an immediate load and push regardless of the watchers.
+Edits inside a watched root reach the UI near-instantly: the watcher fires, the daemon debounces briefly, and it pushes. A root that does not exist yet has nothing to watch, and no directory is created on the user's behalf; the daemon re-runs the watcher attach on every 60 s poll tick, so the first `.chatroom/agents` you create is noticed within about a minute, and edits after that are watched normally. Rescan (`refresh`, or the tab's Rescan button) forces an immediate load and push regardless of the watchers, including when the snapshot is unchanged: the daemon drops its dedup key for a command refresh, and the server no-ops an identical payload.
 
 Not shipped:
 
@@ -205,6 +205,14 @@ Convex never reads the filesystem. Definitions reach Convex only through the dae
 - Custom roles merge at read time through `resolveChatroomTeam`, which composes the builtin structure with enabled custom identities.
 - Retired-role fallback is preserved: retired names are never selectable agents and reserved custom names are rejected.
 - The backend never reads the filesystem; all file content arrives through a pushed definition snapshot.
+
+## Known follow-ups
+
+Accepted for this release, not blockers:
+
+- **Resolver cost on prompt paths.** `withActiveTeamStructure` runs the custom-agent resolver on about 20 call sites, so each one reads the primary workspace and the agent rows even when the chatroom has no custom agents. The reads are indexed and bounded by the per-source cap; a fast path for chatrooms with no custom agents is a follow-up.
+- **Entry-point delivery size.** A task delivered to the entry point embeds the roster plus one inbound template per enabled delegate, up to roughly 64 KiB at the 16-agent maximum. It is paid per delivery, not per poll; trimming the payload is a follow-up.
+- **`getTeamRoster` re-reads agent rows.** The query resolves the team, which already loads the agent rows, and then `readAgentNames` reads them again to attribute issues to their source. One read could serve both; kept separate for clarity.
 
 ## Source of truth
 
