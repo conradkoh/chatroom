@@ -24,7 +24,10 @@ import { ConvexError } from 'convex/values';
 
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
+import {
+  normalizeWorkingDir,
+  requireRegisteredWorkspaceForMachine,
+} from '../../../../convex/workspacePathSecurity';
 
 export interface SyncCustomAgentDefinitionsInput {
   machineId: string;
@@ -91,6 +94,25 @@ function normalizeScopeWorkingDir(
 ): SyncCustomAgentDefinitionsInput {
   if (input.workingDir === undefined) return input;
   return { ...input, workingDir: normalizeWorkingDir(input.workingDir) };
+}
+
+/**
+ * A workspace-scoped push may only address a workspace row this machine has
+ * registered and not removed, so a stray daemon cannot seed roles into an
+ * arbitrary directory. Machine scope is machine-wide by definition and needs no
+ * registration. The existing `INVALID_SCOPE` code carries the rejection; the
+ * wire contract is unchanged.
+ */
+async function assertRegisteredWorkspace(
+  ctx: MutationCtx,
+  input: SyncCustomAgentDefinitionsInput
+): Promise<void> {
+  if (input.scope !== 'workspace' || input.workingDir === undefined) return;
+  try {
+    await requireRegisteredWorkspaceForMachine(ctx, input.machineId, input.workingDir);
+  } catch {
+    throw invalidScope('Workspace not registered for this machine');
+  }
 }
 
 /** Positional form makes the serialization independent of object key order. */
@@ -556,6 +578,37 @@ function isUnchangedSnapshot(
 }
 
 /**
+ * True when a push would create a brand-new source with nothing to store.
+ * Storing it would leave a source row the resolver reports with zero agents.
+ */
+function isEmptyFirstPush(
+  existing: Doc<'chatroom_customAgentSources'> | null,
+  accepted: readonly CustomAgentDefinitionPayload[],
+  issues: readonly CustomAgentIssue[]
+): boolean {
+  return existing === null && accepted.length === 0 && issues.length === 0;
+}
+
+/**
+ * Applies a push whose snapshot is unchanged: only disable flags can differ,
+ * because a toggle arrives with the same content snapshot. Returns null when the
+ * snapshot changed and the caller must write it.
+ */
+async function applyUnchangedPush(
+  ctx: MutationCtx,
+  existing: Doc<'chatroom_customAgentSources'> | null,
+  storedAgents: readonly Doc<'chatroom_customAgents'>[],
+  validated: { accepted: CustomAgentDefinitionPayload[]; rejected: RejectedCustomAgent[] },
+  issuesJson: string
+): Promise<SyncCustomAgentDefinitionsResult | null> {
+  if (existing === null) return null;
+  if (!isUnchangedSnapshot(existing, storedAgents, validated.accepted, issuesJson)) return null;
+  // The agent reconcile is skipped here, so disable flags need their own pass.
+  const applied = await reconcileDisabledFlags(ctx, storedAgents, validated.accepted, Date.now());
+  return { applied, rejected: validated.rejected };
+}
+
+/**
  * Writes the source snapshot and reconciles the accepted definitions.
  *
  * Disable-only differences are patched in place by `applyAcceptedAgent`, so this
@@ -591,23 +644,32 @@ export async function syncCustomAgentDefinitions(
   assertScopeMatchesWorkingDir(input);
   const normalized = normalizeScopeWorkingDir(input);
   assertWithinLimits(normalized);
+  await assertRegisteredWorkspace(ctx, normalized);
 
   const validated = partitionAgents(normalized.agents);
   const canonical = canonicalizeIssues(mergePushedIssues(normalized.issues, validated.issues));
   const key = toSourceKey(normalized);
   const existingSource = await findSource(ctx, key);
+
+  // A first push that carries nothing to store must not create an empty source
+  // row: the resolver would then report a source with no agents. An empty push
+  // over an existing source still goes through `writeSnapshot` so its agents are
+  // deleted.
+  if (isEmptyFirstPush(existingSource, validated.accepted, canonical.issues)) {
+    return { applied: false, rejected: validated.rejected };
+  }
+
   const storedAgents =
     existingSource === null ? [] : await readAgentsBySource(ctx, existingSource._id);
 
-  if (
-    existingSource !== null &&
-    isUnchangedSnapshot(existingSource, storedAgents, validated.accepted, canonical.json)
-  ) {
-    // The agent reconcile is skipped here, so disable flags need their own pass:
-    // a toggle arrives with an otherwise unchanged snapshot.
-    const applied = await reconcileDisabledFlags(ctx, storedAgents, validated.accepted, Date.now());
-    return { applied, rejected: validated.rejected };
-  }
+  const unchanged = await applyUnchangedPush(
+    ctx,
+    existingSource,
+    storedAgents,
+    validated,
+    canonical.json
+  );
+  if (unchanged !== null) return unchanged;
 
   await writeSnapshot(ctx, key, existingSource, storedAgents, {
     contentHash: normalized.contentHash,

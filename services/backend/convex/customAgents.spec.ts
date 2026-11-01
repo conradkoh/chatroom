@@ -63,7 +63,8 @@ function makeAgent(
   };
 }
 
-async function setup(suffix: string) {
+/** Registers a machine and nothing else. Machine-scope pushes need no workspace. */
+async function setupMachine(suffix: string, workingDir = '/test/workspace') {
   const sessionId = `custom-agents-${suffix}` as SessionId;
   const machineId = `custom-agents-machine-${suffix}`;
   const login = await t.mutation(api.auth.loginAnon, { sessionId });
@@ -75,7 +76,15 @@ async function setup(suffix: string) {
     os: 'darwin',
     availableHarnesses: ['opencode'],
   });
-  return { sessionId, machineId, workingDir: '/test/workspace' };
+  return { sessionId, machineId, workingDir };
+}
+
+/**
+ * Machine plus a duo chatroom on `workingDir`. Registering the chatroom also
+ * registers its workspace row, which is what authorizes a workspace-scope push.
+ */
+async function setup(suffix: string) {
+  return await setupChatroom(suffix);
 }
 
 async function readSource(machineId: string, scope: 'workspace' | 'machine', workingDir?: string) {
@@ -114,6 +123,27 @@ async function readHandoffTemplates(customAgentId: Id<'chatroom_customAgents'>) 
       .withIndex('by_customAgent_direction', (q) => q.eq('customAgentId', customAgentId))
       .collect()
   );
+}
+
+async function readWorkspace(machineId: string, workingDir: string) {
+  return await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine_workingDir', (q) =>
+        q.eq('machineId', machineId).eq('workingDir', workingDir)
+      )
+      .first()
+  );
+}
+
+/** Row counts across all four custom-agent tables, for "wrote nothing" assertions. */
+async function countCustomAgentRows() {
+  return await t.run(async (ctx) => ({
+    sources: (await ctx.db.query('chatroom_customAgentSources').collect()).length,
+    agents: (await ctx.db.query('chatroom_customAgents').collect()).length,
+    contents: (await ctx.db.query('chatroom_customAgentContents').collect()).length,
+    templates: (await ctx.db.query('chatroom_customAgentHandoffTemplates').collect()).length,
+  }));
 }
 
 describe('customAgents.syncDefinitions', () => {
@@ -516,6 +546,147 @@ describe('customAgents.syncDefinitions', () => {
       })
     ).rejects.toThrow(/INVALID_SCOPE/);
   });
+
+  test('rejects a workspace-scope push for an unregistered working dir', async () => {
+    const { sessionId, machineId } = await setup('unregistered-workspace');
+    const workingDir = '/test/not-registered';
+    const before = await countCustomAgentRows();
+
+    await expect(
+      t.mutation(api.customAgents.syncDefinitions, {
+        sessionId,
+        machineId,
+        scope: 'workspace',
+        workingDir,
+        contentHash: 'hash-1',
+        agents: [makeAgent('alpha', 'a1')],
+        issues: [],
+      })
+    ).rejects.toMatchObject({ data: { code: 'INVALID_SCOPE' } });
+
+    expect(await readSource(machineId, 'workspace', workingDir)).toBeNull();
+    expect(await countCustomAgentRows()).toEqual(before);
+  });
+
+  test('rejects a workspace-scope push for a removed workspace', async () => {
+    const { sessionId, machineId, workingDir } = await setup('removed-workspace');
+    const workspace = await readWorkspace(machineId, workingDir);
+    if (workspace === null) throw new Error('workspace fixture is missing');
+    await t.run(async (ctx) =>
+      ctx.db.patch('chatroom_workspaces', workspace._id, { removedAt: FIXED_NOW })
+    );
+
+    await expect(
+      t.mutation(api.customAgents.syncDefinitions, {
+        sessionId,
+        machineId,
+        scope: 'workspace',
+        workingDir,
+        contentHash: 'hash-1',
+        agents: [makeAgent('alpha', 'a1')],
+        issues: [],
+      })
+    ).rejects.toMatchObject({ data: { code: 'INVALID_SCOPE' } });
+
+    expect(await readSource(machineId, 'workspace', workingDir)).toBeNull();
+  });
+
+  test('accepts a machine-scope push when no workspace row exists', async () => {
+    const { sessionId, machineId } = await setupMachine('machine-scope-no-workspace');
+    const workspaces = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_workspaces')
+        .withIndex('by_machine', (q) => q.eq('machineId', machineId))
+        .collect()
+    );
+    expect(workspaces).toEqual([]);
+
+    const result = await syncMachineAgent(sessionId, machineId, makeAgent('alpha', 'a1'));
+    expect(result).toEqual({ applied: true, rejected: [] });
+
+    const source = await readSource(machineId, 'machine');
+    if (source === null) throw new Error('machine source is missing');
+    expect(source.agentCount).toBe(1);
+  });
+
+  test('writes no source row for an empty first push', async () => {
+    const { sessionId, machineId, workingDir } = await setup('empty-first-push');
+
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'empty',
+      agents: [],
+      issues: [],
+    });
+
+    expect(result).toEqual({ applied: false, rejected: [] });
+    const sources = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_customAgentSources')
+        .withIndex('by_machine_scope_workingDir', (q) =>
+          q.eq('machineId', machineId).eq('scope', 'workspace')
+        )
+        .collect()
+    );
+    expect(sources).toEqual([]);
+    expect(await readSource(machineId, 'workspace', workingDir)).toBeNull();
+  });
+
+  test('deletes agents but keeps the source row when an existing source goes empty', async () => {
+    const { sessionId, machineId, workingDir } = await setup('empty-existing-source');
+    await syncWorkspaceAgent(
+      sessionId,
+      machineId,
+      workingDir,
+      makeAgent('alpha', 'a1', { inboundHandoffTemplate: 'Hand this to alpha.' })
+    );
+    const source = await readSource(machineId, 'workspace', workingDir);
+    if (source === null) throw new Error('source fixture is missing');
+    const [agent] = await readAgents(source._id);
+    if (agent === undefined) throw new Error('agent fixture is missing');
+
+    advanceClock(1_000);
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'empty',
+      agents: [],
+      issues: [],
+    });
+
+    expect(result).toEqual({ applied: true, rejected: [] });
+    const after = await readSource(machineId, 'workspace', workingDir);
+    if (after === null) throw new Error('source row was deleted by an empty push');
+    expect(after._id).toBe(source._id);
+    expect(after.agentCount).toBe(0);
+    expect(after.updatedAt).toBe(FIXED_NOW + 1_000);
+    expect(await readAgents(source._id)).toEqual([]);
+    expect(await readContents(agent._id)).toEqual([]);
+    expect(await readHandoffTemplates(agent._id)).toEqual([]);
+  });
+
+  test('authorizes a workspace push whose workingDir only differs by a trailing slash', async () => {
+    const { sessionId, machineId, workingDir } = await setup('workspace-trailing-slash');
+
+    // The guard normalizes the pushed path, so `/repo/` addresses the workspace
+    // registered as `/repo`.
+    const result = await syncWorkspaceAgent(
+      sessionId,
+      machineId,
+      `${workingDir}/`,
+      makeAgent('alpha', 'a1')
+    );
+
+    expect(result).toEqual({ applied: true, rejected: [] });
+    const source = await readSource(machineId, 'workspace', workingDir);
+    if (source === null) throw new Error('source row is missing');
+    expect((await readAgents(source._id)).map(({ name }) => name)).toEqual(['alpha']);
+  });
 });
 
 async function setupChatroom(
@@ -523,14 +694,14 @@ async function setupChatroom(
   teamStructureId = 'duo',
   workingDir = '/test/workspace'
 ) {
-  const base = await setup(suffix);
+  const base = await setupMachine(suffix, workingDir);
   const { chatroomId } = await t.mutation(api.chatrooms.createWithWorkspace, {
     sessionId: base.sessionId,
     teamStructureId,
     machineId: base.machineId,
     workingDir,
   });
-  return { ...base, workingDir, chatroomId };
+  return { ...base, chatroomId };
 }
 
 async function syncWorkspaceAgent(
