@@ -22,6 +22,8 @@ import { dirname } from 'node:path';
 
 import { validateCustomAgentName } from '@workspace/shared/domain/custom-agent';
 
+import { errorCode } from '../../../infrastructure/services/custom-agents/safe-read.js';
+
 const STATE_VERSION = 1;
 /** Hard cap on stored names. Far above the per-source agent limit. */
 const MAX_DISABLED_ENTRIES = 256;
@@ -61,11 +63,6 @@ async function readState(filePath: string): Promise<ReadonlySet<string>> {
 
 function isMissingFile(error: unknown): boolean {
   return errorCode(error) === 'ENOENT';
-}
-
-function errorCode(error: unknown): string {
-  const code = (error as NodeJS.ErrnoException | null | undefined)?.code;
-  return typeof code === 'string' ? code : 'io';
 }
 
 /** Returns null when the payload cannot be trusted; the caller falls back to empty. */
