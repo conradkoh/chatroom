@@ -8,7 +8,9 @@
  *
  * Read budget per resolution (keep exact):
  *   1. chatroom_activeTeamStructures.by_chatroom        (1 row; null ends here)
- *   2. primary workspace                                 (all chatroom workspaces)
+ *   2. chatroom_workspaces.by_chatroom                  (all chatroom workspaces)
+ *      plus chatroom_primaryWorkspaces.by_chatroom      (1 row, when any active
+ *      workspace exists), via `getPrimaryWorkspaceForChatroom`
  *   3. custom agents, workspace scope                    (take 12)
  *   4. custom agents, machine scope                      (take 12)
  *
