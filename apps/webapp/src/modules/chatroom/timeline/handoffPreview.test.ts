@@ -79,6 +79,25 @@ describe('getHandoffPreviewText', () => {
     expect(getHandoffPreviewText(content)).toBe('Intro line After code');
   });
 
+  it('keeps a tilde block open across a backtick fence line', () => {
+    const content = [
+      '~~~md',
+      'inside fence prose',
+      '```',
+      'still inside the tilde block',
+      '~~~',
+      'outside prose',
+    ].join('\n');
+
+    expect(getHandoffPreviewText(content)).toBe('outside prose');
+  });
+
+  it('does not close a block on a shorter run of the same character', () => {
+    const content = ['~~~', 'code', '~~', 'still code', '~~~', 'after'].join('\n');
+
+    expect(getHandoffPreviewText(content)).toBe('after');
+  });
+
   it('keeps only the first two non-empty lines', () => {
     expect(getHandoffPreviewText('One\nTwo\nThree')).toBe('One Two');
     expect(getHandoffPreviewText('One\n\n\nTwo\nThree')).toBe('One Two');

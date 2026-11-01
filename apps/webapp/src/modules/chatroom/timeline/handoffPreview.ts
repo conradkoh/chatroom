@@ -28,7 +28,11 @@ const BOLD_STAR_PATTERN = /\*\*(?=\S)(.+?)(?<=\S)\*\*/g;
  */
 const BOLD_UNDERSCORE_PATTERN = /(?<!\w)__(?=\S)(.+?)(?<=\S)__(?!\w)/g;
 const EMPHASIS_PATTERN = /(?<![\w*_])([*_])(?!\1)(?=\S)(.+?)(?<=\S)\1(?![\w*_])/g;
-const FENCE_LINE_PATTERN = /^(?:`{3,}|~{3,})/;
+/** A fence line starts with a run of three or more backticks or tildes. */
+const FENCE_RUN_PATTERN = /^(`{3,}|~{3,})/;
+
+/** Opening marker of a fenced block: which character opened it and how long the run was. */
+type FenceMarker = { char: string; length: number };
 
 function stripMarkdownSyntax(line: string): string {
   return line
@@ -51,27 +55,54 @@ function truncate(text: string): string {
   return `${text.slice(0, PREVIEW_MAX_CHARS - 1).trimEnd()}…`;
 }
 
+function getFenceMarker(line: string): FenceMarker | null {
+  const match = line.trim().match(FENCE_RUN_PATTERN);
+  return match ? { char: match[1][0], length: match[1].length } : null;
+}
+
 /**
- * Drops fenced code block lines, tracking the fence state in one pass. Returns
- * the surviving lines plus whether any fence was seen, so an all-code handoff can
- * still show a placeholder instead of a blank preview.
+ * A block closes only on a bare run of the same character that is at least as
+ * long as the opener. A ```` ``` ```` line inside a `~~~` block is content, and a
+ * shorter run is content too.
+ */
+function isClosingFence(line: string, opener: FenceMarker): boolean {
+  const marker = getFenceMarker(line);
+  return (
+    marker !== null &&
+    marker.char === opener.char &&
+    marker.length >= opener.length &&
+    line.trim().length === marker.length
+  );
+}
+
+/** Index just past the fenced block that starts at `start` (or end of input). */
+function skipFenceBlock(lines: string[], start: number): number {
+  const opener = getFenceMarker(lines[start]) as FenceMarker;
+  const closeIndex = lines.findIndex(
+    (line, index) => index > start && isClosingFence(line, opener)
+  );
+  return closeIndex === -1 ? lines.length : closeIndex + 1;
+}
+
+/**
+ * Drops fenced code block lines. A dropped line means a fence was skipped, which
+ * lets an all-code handoff show a placeholder instead of a blank preview.
  */
 function stripFencedLines(content: string): { lines: string[]; skippedFence: boolean } {
+  const source = unwrapMarkdownPresentationFence(content).split(/\r?\n/);
   const lines: string[] = [];
-  let inFence = false;
-  let skippedFence = false;
+  let index = 0;
 
-  for (const line of unwrapMarkdownPresentationFence(content).split(/\r?\n/)) {
-    const isFenceLine = FENCE_LINE_PATTERN.test(line.trim());
-    if (isFenceLine) {
-      inFence = !inFence;
-      skippedFence = true;
-    } else if (!inFence) {
-      lines.push(line);
+  while (index < source.length) {
+    if (getFenceMarker(source[index])) {
+      index = skipFenceBlock(source, index);
+      continue;
     }
+    lines.push(source[index]);
+    index += 1;
   }
 
-  return { lines, skippedFence };
+  return { lines, skippedFence: lines.length !== source.length };
 }
 
 /**
