@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { watch as chokidarWatch } from 'chokidar';
 import type { FunctionArgs } from 'convex/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,17 +24,21 @@ function createFakeConvex() {
 }
 
 function createFakeMembership() {
-  let handler: ((dirs: readonly string[]) => void) | null = null;
+  // The factory and the inner service each subscribe, so every handler must see
+  // the snapshot.
+  const handlers: ((dirs: readonly string[]) => void)[] = [];
   return {
     source: {
       subscribe: (fn: (dirs: readonly string[]) => void) => {
-        handler = fn;
+        handlers.push(fn);
         return () => {
-          handler = null;
+          handlers.splice(handlers.indexOf(fn), 1);
         };
       },
     },
-    emit: (dirs: readonly string[]) => handler?.(dirs),
+    emit: (dirs: readonly string[]) => {
+      for (const handler of [...handlers]) handler(dirs);
+    },
   };
 }
 
@@ -44,6 +49,16 @@ async function writeAgent(root: string, name: string): Promise<void> {
     join(dir, 'AGENT.md'),
     `---\nname: ${name}\ndescription: ${name} role.\n---\nYou are ${name}.\n`
   );
+}
+
+/** Records the roots handed to chokidar without opening a real watcher. */
+function createFakeWatch() {
+  const roots: string[] = [];
+  const watch = ((path: string) => {
+    roots.push(path);
+    return { on: () => undefined, close: async () => undefined };
+  }) as unknown as typeof chokidarWatch;
+  return { roots, watch };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -139,6 +154,39 @@ describe('buildCustomAgentsService', () => {
     ]);
 
     built.stopPoll();
+    await built.service.stopAll();
+  });
+
+  it('attaches a watcher when a root appears after the initial sync', async () => {
+    // A root that does not exist yet is skipped at start; the poll tick re-runs
+    // the sync so the user who creates `.chatroom/agents` is still watched.
+    vi.useFakeTimers();
+    const convex = createFakeConvex();
+    const membership = createFakeMembership();
+    const fakeWatch = createFakeWatch();
+    const workspace = join(dir, 'late-workspace');
+    const agentsRoot = join(workspace, '.chatroom', 'agents');
+    const built = buildCustomAgentsService({
+      membership: membership.source,
+      machineId: 'machine-1',
+      sessionId: 'session-1',
+      convex: convex.client,
+      log: () => undefined,
+      homeDir,
+      watch: fakeWatch.watch,
+    });
+
+    built.service.start();
+    membership.emit([workspace]);
+    expect(fakeWatch.roots).not.toContain(agentsRoot);
+
+    await mkdir(agentsRoot, { recursive: true });
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(fakeWatch.roots).toContain(agentsRoot);
+
+    built.stopPoll();
+    vi.useRealTimers();
     await built.service.stopAll();
   });
 

@@ -72,7 +72,13 @@ export function buildCustomAgentsService(input: BuildCustomAgentsServiceInput): 
     setDisabled: (name, disabled) => inner.setDisabled(name, disabled),
   };
 
-  const poll = setInterval(() => service.refresh('poll'), POLL_INTERVAL_MS);
+  // The poll is also the backstop for a root that did not exist when the last
+  // membership snapshot arrived: `syncWatchers` skips missing roots, so re-running
+  // it here attaches the watcher as soon as `.chatroom/agents` is created.
+  const poll = setInterval(() => {
+    syncWatchers();
+    service.refresh('poll');
+  }, POLL_INTERVAL_MS);
   poll.unref?.();
   const unsubscribe = input.membership.subscribe((dirs) => {
     workingDirs = dirs;
