@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TimelineTeamMessage } from './TimelineTeamMessage';
 import type * as AttachmentsModule from '../../attachments';
 import type { Message } from '../../types/message';
+import type * as NormalizeModule from '../../utils/normalizeChatroomMarkdownContent';
+import { normalizeChatroomMarkdownContent } from '../../utils/normalizeChatroomMarkdownContent';
+import type * as EnvelopeModule from '../../utils/parseHandoffEnvelope';
+import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
+import type * as ReportModule from '../../utils/parseHandoffReport';
+import { hasHandoffReport } from '../../utils/parseHandoffReport';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -27,6 +33,26 @@ vi.mock('./TimelineMarkdownBody', () => ({
     return <div data-testid="timeline-markdown-body">{content}</div>;
   },
 }));
+
+// Pass-through spies: the real parsing helpers run, but the collapse tests can
+// prove that a collapsed row never reaches them.
+vi.mock('../../utils/normalizeChatroomMarkdownContent', async (importOriginal) => {
+  const actual = await importOriginal<typeof NormalizeModule>();
+  return {
+    ...actual,
+    normalizeChatroomMarkdownContent: vi.fn(actual.normalizeChatroomMarkdownContent),
+  };
+});
+
+vi.mock('../../utils/parseHandoffEnvelope', async (importOriginal) => {
+  const actual = await importOriginal<typeof EnvelopeModule>();
+  return { ...actual, hasHandoffEnvelope: vi.fn(actual.hasHandoffEnvelope) };
+});
+
+vi.mock('../../utils/parseHandoffReport', async (importOriginal) => {
+  const actual = await importOriginal<typeof ReportModule>();
+  return { ...actual, hasHandoffReport: vi.fn(actual.hasHandoffReport) };
+});
 
 vi.mock('../../attachments', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof AttachmentsModule;
@@ -72,6 +98,9 @@ Element.prototype.scrollIntoView = scrollIntoViewMock;
 
 beforeEach(() => {
   markdownBodyMock.mockClear();
+  vi.mocked(normalizeChatroomMarkdownContent).mockClear();
+  vi.mocked(hasHandoffEnvelope).mockClear();
+  vi.mocked(hasHandoffReport).mockClear();
   scrollIntoViewMock.mockClear();
 });
 
@@ -389,6 +418,20 @@ Edge case X
       expect(markdownBodyMock).not.toHaveBeenCalled();
       expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
       expect(screen.getByTestId('timeline-message-header')).toBeInTheDocument();
+    });
+
+    it('skips handoff parsing while collapsed and runs it on expand', () => {
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+
+      expect(normalizeChatroomMarkdownContent).not.toHaveBeenCalled();
+      expect(hasHandoffEnvelope).not.toHaveBeenCalled();
+      expect(hasHandoffReport).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show full handoff' }));
+
+      expect(normalizeChatroomMarkdownContent).toHaveBeenCalled();
+      expect(hasHandoffEnvelope).toHaveBeenCalled();
+      expect(hasHandoffReport).toHaveBeenCalled();
     });
 
     it('previews presentation-fenced handoff content instead of rendering nothing', () => {
