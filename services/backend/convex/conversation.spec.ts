@@ -85,7 +85,7 @@ async function getMessageCreationTime(id: Id<'chatroom_messages'>): Promise<numb
 
 describe('getConversationAnchorNavigation', () => {
   test('returns all null when no messages exist', async () => {
-    const { sessionId } = await createTestSession('alltab-nav-empty');
+    const { sessionId } = await createTestSession('conversation-nav-empty');
     const chatroomId = await createChatroom(sessionId);
 
     const result = await t.query(api.conversation.getConversationAnchorNavigation, {
@@ -99,7 +99,7 @@ describe('getConversationAnchorNavigation', () => {
   });
 
   test('defaults to latest user message when no anchorMessageId; prev/next correct for 3 user messages', async () => {
-    const { sessionId } = await createTestSession('alltab-nav-3');
+    const { sessionId } = await createTestSession('conversation-nav-3');
     const chatroomId = await createChatroom(sessionId);
 
     await insertTimelineMessage(chatroomId, 'user', 'oldest msg');
@@ -120,7 +120,7 @@ describe('getConversationAnchorNavigation', () => {
   });
 
   test('respects explicit anchorMessageId and resolves adjacent anchors', async () => {
-    const { sessionId } = await createTestSession('alltab-nav-explicit');
+    const { sessionId } = await createTestSession('conversation-nav-explicit');
     const chatroomId = await createChatroom(sessionId);
 
     const m1 = await insertTimelineMessage(chatroomId, 'user', 'first');
@@ -142,7 +142,7 @@ describe('getConversationAnchorNavigation', () => {
   });
 
   test('throws when anchorMessageId is not a user message', async () => {
-    const { sessionId } = await createTestSession('alltab-nav-notuser');
+    const { sessionId } = await createTestSession('conversation-nav-notuser');
     const chatroomId = await createChatroom(sessionId);
     const builderMsg = await insertTimelineMessage(chatroomId, 'builder', 'builder msg');
 
@@ -156,7 +156,7 @@ describe('getConversationAnchorNavigation', () => {
   });
 
   test('falls back to the latest user message when the explicit anchor was deleted', async () => {
-    const { sessionId } = await createTestSession('alltab-nav-deleted-anchor');
+    const { sessionId } = await createTestSession('conversation-nav-deleted-anchor');
     const chatroomId = await createChatroom(sessionId);
     const deletedAnchor = await insertTimelineMessage(chatroomId, 'user', 'deleted anchor');
     const latestAnchor = await insertTimelineMessage(chatroomId, 'user', 'latest anchor');
@@ -176,7 +176,7 @@ describe('getConversationAnchorNavigation', () => {
 
 describe('listConversationSlicePaginated', () => {
   test('returns an empty completed page when the requested anchor was deleted', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-deleted-anchor');
+    const { sessionId } = await createTestSession('conversation-slice-deleted-anchor');
     const chatroomId = await createChatroom(sessionId);
     const deletedAnchor = await insertTimelineMessage(chatroomId, 'user', 'deleted anchor');
 
@@ -196,7 +196,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('defaults sliceUpperBoundExclusive to null when field is omitted', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-omit-bound');
+    const { sessionId } = await createTestSession('conversation-slice-omit-bound');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'reply');
@@ -217,7 +217,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('returns anchor + replies, excludes next user message', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-basic');
+    const { sessionId } = await createTestSession('conversation-slice-basic');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'reply1');
@@ -246,7 +246,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('user message ends previous slice', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-followup');
+    const { sessionId } = await createTestSession('conversation-slice-followup');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'work');
@@ -272,7 +272,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('next user message provides correct sliceUpperBoundExclusive', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-bound-fu');
+    const { sessionId } = await createTestSession('conversation-slice-bound-fu');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'work');
@@ -299,7 +299,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('bounded slice via explicit sliceUpperBoundExclusive arg', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-explicit');
+    const { sessionId } = await createTestSession('conversation-slice-explicit');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'reply1');
@@ -327,7 +327,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('bounded slice excludes messages after page end', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-postbound');
+    const { sessionId } = await createTestSession('conversation-slice-postbound');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'in-slice reply');
@@ -357,7 +357,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('excludes join and progress messages', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-exclude');
+    const { sessionId } = await createTestSession('conversation-slice-exclude');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'reply', { type: 'message' });
@@ -380,7 +380,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('paginates with stable cursor when sliceUpperBoundExclusive is null', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-null-cursor');
+    const { sessionId } = await createTestSession('conversation-slice-null-cursor');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     for (let i = 0; i < 35; i++) {
@@ -418,7 +418,7 @@ describe('listConversationSlicePaginated', () => {
   });
 
   test('paginates with stable cursor when bound comes from navigation', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-bound-cursor');
+    const { sessionId } = await createTestSession('conversation-slice-bound-cursor');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     for (let i = 0; i < 25; i++) {
@@ -458,7 +458,7 @@ describe('listConversationSlicePaginated', () => {
 
 describe('listConversationSlicePaginated — notice isolation', () => {
   test("a notice stays inside the anchor's slice and does not end it", async () => {
-    const { sessionId } = await createTestSession('alltab-slice-notice');
+    const { sessionId } = await createTestSession('conversation-slice-notice');
     const chatroomId = await createChatroom(sessionId);
 
     const u1 = await insertTimelineMessage(chatroomId, 'user', 'U1 anchor');
@@ -509,7 +509,7 @@ describe('listConversationSlicePaginated — notice isolation', () => {
   });
 
   test('a notice sent after the next user message belongs to that slice', async () => {
-    const { sessionId } = await createTestSession('alltab-slice-notice-after');
+    const { sessionId } = await createTestSession('conversation-slice-notice-after');
     const chatroomId = await createChatroom(sessionId);
 
     const u1 = await insertTimelineMessage(chatroomId, 'user', 'U1 anchor');
@@ -541,7 +541,7 @@ describe('listConversationSlicePaginated — notice isolation', () => {
 
 describe('subscribeConversationSliceTail', () => {
   test('returns new messages after cursor within upper bound', async () => {
-    const { sessionId } = await createTestSession('alltab-tail-new');
+    const { sessionId } = await createTestSession('conversation-tail-new');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'reply1');
@@ -564,7 +564,7 @@ describe('subscribeConversationSliceTail', () => {
   });
 
   test('returns null when no new messages after cursor', async () => {
-    const { sessionId } = await createTestSession('alltab-tail-empty');
+    const { sessionId } = await createTestSession('conversation-tail-empty');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
 
@@ -584,7 +584,7 @@ describe('subscribeConversationSliceTail', () => {
   });
 
   test('excludes messages at or above upperBoundExclusive', async () => {
-    const { sessionId } = await createTestSession('alltab-tail-upper');
+    const { sessionId } = await createTestSession('conversation-tail-upper');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'reply1');

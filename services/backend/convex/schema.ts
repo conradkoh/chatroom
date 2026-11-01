@@ -513,7 +513,7 @@ export default defineSchema({
      */
     enhancerJobId: v.optional(v.string()),
 
-    /** @deprecated Written only by the retired enhancer path; no code reads or writes it. Retained so existing documents still validate. */
+    /** @deprecated Formerly set by the retired enhancer path; nothing reads or writes it now. Retained so existing documents still validate. */
     visibleInAllTabOnly: v.optional(v.boolean()),
 
     // Attached backlog tasks for context
