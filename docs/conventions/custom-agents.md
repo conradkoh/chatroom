@@ -21,7 +21,7 @@ Shipped on `feat/custom-agents`:
 Not shipped yet:
 
 - Daemon file loading and discovery of `.chatroom/agents` or `~/.chatroom/agents`.
-- Frontmatter validation. `missing-frontmatter`, `invalid-frontmatter`, `name-mismatch`, `forbidden-field`, `unknown-field`, `gitignored`, `unreadable`, and `root-truncated` are in the issue vocabulary but are produced only by the loader; the server does not read frontmatter today.
+- Loader-produced issues. `missing-frontmatter`, `invalid-frontmatter`, `name-mismatch`, `forbidden-field`, `unknown-field`, `gitignored`, `unreadable`, and `root-truncated` are in the issue vocabulary but are produced only by the loader; the server does not read frontmatter today.
 - Prompt composition for custom roles, including their handoff templates and system prompts.
 - Generated default handoff templates. Prompt composition is not shipped, so no default is rendered for a custom role.
 - Registered-workspace check on sync. Workspace sources are not checked against the machine's registered workspaces, so an unregistered directory can store rows that never resolve. The check (`requireRegisteredWorkspaceForMachine`) lands with the first push path.
