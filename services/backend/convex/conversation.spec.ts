@@ -28,7 +28,6 @@ async function insertTimelineMessage(
   extra?: {
     type?: 'message' | 'handoff' | 'join' | 'progress' | undefined;
     targetRole?: string | undefined;
-    visibleInAllTabOnly?: boolean | undefined;
   }
 ): Promise<Id<'chatroom_messages'>> {
   return await t.run(async (ctx) => {
@@ -38,7 +37,6 @@ async function insertTimelineMessage(
       content,
       type: extra?.type ?? 'message',
       ...(extra?.targetRole ? { targetRole: extra.targetRole } : {}),
-      ...(extra?.visibleInAllTabOnly ? { visibleInAllTabOnly: true } : {}),
     })) as Id<'chatroom_messages'>;
   });
 }
