@@ -10,7 +10,7 @@
  * No React and no state: the caller re-derives the model whenever the roster
  * changes, and `changeSignature` tells it whether anything visible moved.
  *
- * Temporary: S6b wires this into the tab and removes this marker.
+ * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import type { api } from '@workspace/backend/convex/_generated/api';

@@ -6,7 +6,7 @@
  * shared vocabulary is a compile error here rather than a silent blank row.
  * Limits are interpolated from `CUSTOM_AGENT_LIMITS`; never hard-code them.
  *
- * Temporary: S6b wires this into the tab and removes this marker.
+ * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import {

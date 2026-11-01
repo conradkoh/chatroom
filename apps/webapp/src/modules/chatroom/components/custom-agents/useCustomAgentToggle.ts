@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file
+// fallow-ignore-file unused-file unused-export
 /**
  * Per-agent disable intent for the Custom Agents tab.
  *
@@ -13,7 +13,7 @@
  * - `failed` when the mutation rejects or the 10 s timeout fires first;
  * - `idle` once the roster confirms either state, or when the agent disappears.
  *
- * Temporary: S6b wires this into the tab and removes this marker.
+ * Temporary: S6c mounts this tab and removes this marker.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
