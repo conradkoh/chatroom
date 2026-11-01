@@ -14,13 +14,13 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom generate-3d --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator; for a 3D model also fill \`## Output paths\`, whose \`--package-dir\` stays on the \`generate-3d\` entry. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default, except \`## Lighting contract\`, which is required for a brief with any 3D asset and may be \`Not applicable.\` only when the brief has only 2D or audio assets. Pass goals and constraints as an open problem: do not author prompts, material treatment, style, or lighting art direction; the designer proposes the palette, lighting anchor, and prompts. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. The \`## Allowed tools\` value is fixed: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom generate-3d --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`. Do not name any other generator; for a 3D model also fill \`## Output paths\`, whose \`--package-dir\` stays on the \`generate-3d\` entry. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers. For a verification-only lighting brief, name the existing generated asset paths and the asset-in-rig render under \`## Existing assets\`; the designer applies only the lighting checklist item and does not generate, slice, or package.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
 
 ## Target
-<engine and version; genre and camera; platform tier (mobile, PC, console, VR); render pipeline if known>
+<engine and version; genre and camera; platform tier (mobile, PC, console, VR); render pipeline (renderer, tone mapping) if known; lighting goes in the Lighting contract>
 
 ## Assets requested
 <numbered list with stable IDs \`A01\`, \`A02\`…; each item: asset name, category (3D model, PBR textures, 2D sprite/UI, audio, other), purpose, quantity or variants>
@@ -30,6 +30,9 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 
 ## Style reference
 <repository paths, URLs, or a written style sheet; or \`Not specified.\`>
+
+## Lighting contract
+<required for a brief with any 3D asset; \`Not specified.\` is not allowed, and \`Not applicable.\` is only for a brief with only 2D or audio assets. State the goal ("consistent with the game's rig and palette") plus the rig facts the repo defines: lighting model (image-based / directional / unlit / toon); environment map present or absent; metalness policy; exposure and tone mapping; colour space; shadow setup; the repository paths that define the rig; and a **rig reference render** path (required for a 3D asset; the designer cannot produce it): "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`." The **asset-in-rig render** is "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`." If you do not know a fact write \`Unknown: designer to read <path>\`. Do not write prompts, material treatment, or art direction; the designer owns those.>
 
 ## Perspective
 <one camera perspective shared by every asset in the set, for example \`orthographic front view\`, \`orthographic isometric\`, \`dimetric 2:1\`, or \`side view\`; optionally \`reference: <repository path>\` of an existing asset to match (requires \`## Model\` = \`fal-ai/flux-2/flash/edit\`); a reference makes every asset an individual edit, with no sheets; \`Not Applicable.\` for 3D models and audio; or \`Not specified.\`>
@@ -50,7 +53,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <who integrates these assets from the spec: \`builder\` (application logic outside the allowed edit paths) or \`user\`; asset files themselves are generated only by \`game-asset-designer\`>
 
 ## Existing assets
-<repository paths the designer must reuse or must not overwrite; or \`Not specified.\`>
+<repository paths the designer must reuse or must not overwrite; for a verification-only lighting brief, the existing generated asset paths and the asset-in-rig render path; or \`Not specified.\`>
 
 ## Free asset candidates
 <one entry per third-party pack to evaluate before generating: pack name, source URL, expected licence (for example CC0), formats, and the asset IDs it could cover; or \`None.\`. The designer checks each pack's own licence file and file sizes and gives each candidate a \`use\`, \`adapt\`, or \`reject\` decision. It fetches only the URLs named here, inspects the pack as static files, and never runs its code.>
@@ -123,6 +126,7 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 - [ ] Every asset ID has a file or \`Specified only.\`
 - [ ] Every sliced asset was isolated with \`remove-image-background\` and \`inspected\`.
 - [ ] Manifests are listed in the asset manifest.
+- [ ] Lighting verified under the brief's Lighting contract with an **asset-in-rig render**: "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`." The **rig reference render** is "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`."; otherwise the Summary starts \`Delivered, lighting not verified:\`.
 - [ ] Every candidate in the brief has a decision with its licence and file sizes labelled \`inspected\`.
 
 ## Target and assumptions
@@ -139,6 +143,9 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 
 ## Style consistency
 <how the set matches the style reference; deviations; what was compared and how>
+
+## Lighting verification
+<per 3D asset: the lighting contract you applied; the shared palette/lighting anchor you used; the preview inspection marked \`not checked\` with the reason "no allowed capture tool" (no allowed tool captures Directional or Unlit views; Studio is image-based lighting and is never evidence); an **asset-in-rig render**: "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`."; the **rig reference render** path: "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`."; result \`pass\`, \`fail\`, or \`not checked\` with its evidence label. In a verification-only brief (existing asset paths and an asset-in-rig render named), apply only this lighting item to those files; do not regenerate, slice, or package. If any asset is \`not checked\`, the Summary must start \`Delivered, lighting not verified:\`. Write \`n/a\` for 2D-only or audio-only requests and for \`spec only\` deliverables (no asset is rendered).>
 
 ## Naming map
 | cell stem | seen | assigned name | path | inspection note |
