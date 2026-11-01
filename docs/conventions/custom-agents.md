@@ -14,22 +14,25 @@ Custom agents are user-authored roles defined in files. They sit beside the buil
 
 Shipped on `feat/custom-agents`:
 
-- Shared domain rules: naming, limits, sanitization, issue reasons, and the pure team merge in `packages/shared/src/domain/custom-agent.ts`. The forbidden-key list is defined but not enforced until the loader ships.
+- Shared domain rules: naming, limits, sanitization, issue reasons, and the pure team merge in `packages/shared/src/domain/custom-agent.ts`.
 - Convex storage and the sync write path in `services/backend/src/domain/usecase/custom-agents/sync-custom-agent-definitions.ts`, exposed by `services/backend/convex/customAgents.ts`.
-- The single read-time resolver in `services/backend/src/domain/usecase/team/resolve-chatroom-team.ts`.
+- The machine commands `setDisabled` and `requestRefresh`, which enqueue `daemon.customAgentsSetDisabled` and `daemon.customAgentsRefresh` (`services/backend/convex/customAgents.ts`).
+- The single read-time resolver in `services/backend/src/domain/usecase/team/resolve-chatroom-team.ts`. It reads the chatroom's **primary workspace** only (`getPrimaryWorkspaceForChatroom`); machine-scope agents reach the team through that same workspace.
+- The daemon loader and push service in `packages/cli/src/infrastructure/services/custom-agents/` and `packages/cli/src/daemon/services/custom-agents-service/`. The daemon is the only writer and pushes on daemon start, on every file change under either root (chokidar watchers), on a 60 s fallback poll, and when a rescan is requested.
+- Prompt composition in `services/backend/prompts/custom-agents/`: a custom role renders its own instructions and return handoff template, and the entry point renders a roster plus one inbound template per enabled delegate.
+- The Custom Agents settings tab (`apps/webapp/src/modules/chatroom/components/custom-agents/CustomAgentsTab.tsx`), which shows what the machine loaded, reports every issue, and toggles agents or requests a rescan.
+- `chatroom custom-agents validate` (`packages/cli/src/commands/custom-agents/`), an offline command that loads the sources and prints the agents and issues.
 
-Not shipped yet:
+A change reaches the UI near-instantly on a running daemon, because the watchers push within the debounce window. When a root does not exist yet, the loader cannot watch it; creating `.chatroom/agents` is picked up by the 60 s fallback poll, so the worst case is about a minute. Rescan forces it immediately.
 
-- Daemon file loading and discovery of `.chatroom/agents` or `~/.chatroom/agents`.
-- Loader-produced issues. `missing-frontmatter`, `invalid-frontmatter`, `name-mismatch`, `forbidden-field`, `unknown-field`, `gitignored`, `unreadable`, and `root-truncated` are in the issue vocabulary but are produced only by the loader; the server does not read frontmatter today.
-- Prompt composition for custom roles, including their handoff templates and system prompts.
-- Generated default handoff templates. Prompt composition is not shipped, so no default is rendered for a custom role.
-- Registered-workspace check on sync. Workspace sources are not checked against the machine's registered workspaces, so an unregistered directory can store rows that never resolve. The check (`requireRegisteredWorkspaceForMachine`) lands with the first push path.
-- CLI sync commands and any `chatroom` command for custom agents.
-- Webapp management surfaces.
-- A user-facing flow for disabling custom agents. The sync and resolver mechanism exists (see [Disable and sync](#disable-and-sync)), but no supported client surface drives it yet.
+Not shipped:
 
-Treat the layout and parser rules below as approved design and stable conventions, not as behavior you can exercise end to end today.
+- The CLI `list`, `enable`, `disable`, and `refresh` commands. `validate` is the only custom-agent command.
+- `chatroom handoff view-template` and `list-templates` for custom roles: the handoff catalogs cover builtin roles only.
+- Editing `AGENT.md` from the webapp. The tab shows what the machine loaded; authoring happens in the editor.
+- Model or harness selection for custom agents.
+- Non-primary workspaces: only the chatroom's primary workspace contributes agents, so a second registered workspace's agents do not merge.
+- Orphan cleanup of rows for removed workspaces.
 
 ## Where agents live
 
@@ -116,11 +119,13 @@ Name collisions are reported as `shadowed`, and nothing throws. The workspace de
 
 ## Forbidden fields
 
-Model and harness selection stays in Convex configuration and is never written to a role file. Once the loader ships, these frontmatter keys are rejected with `forbidden-field`:
+Model and harness selection stays in Convex configuration and is never written to a role file. These frontmatter keys are reported with `forbidden-field`:
 
 `model`, `models`, `harness`, `harnesses`, `agentHarness`, `agent-harness`, `agent_harness`, `provider`
 
-Once the loader ships, any other key besides `name` and `description` is reported as `unknown-field`.
+Any other key besides `name` and `description` is reported as `unknown-field`.
+
+Both are advisory flags, not rejections: the agent still loads and joins the team, and the key is never honoured. The loader ignores the value; only `name` and `description` are read.
 
 ## Issue reasons
 
@@ -144,7 +149,7 @@ Once the loader ships, any other key besides `name` and `description` is reporte
 | `shadowed`            | A definition lost a name collision and was dropped.                 |
 | `over-limit`          | A custom agent exceeded the per-chatroom enabled cap.               |
 
-Reserved block tags in authored text are not neutralized in rendered prompts yet, because prompt composition for custom roles is not shipped. Prompt composition must call `neutralizeChatroomBlockTags` before rendering a stored system prompt or template body. Do not rely on `<handoffs>`, `<task>`, `<team-roster>`, or any other reserved tag to affect prompt structure.
+Prompt composition neutralises every authored string before rendering it: the system prompt, both handoff templates, and the description all pass through `neutralizeChatroomBlockTags`, so a reserved opening delimiter such as `<handoffs>`, `<task>`, `<team-roster>`, or `<custom-agent-instructions>` is escaped. Authored text therefore cannot impersonate protocol markup. Generated defaults are not neutralised because they are already free of reserved tags.
 
 ## Lifecycle
 
@@ -158,22 +163,42 @@ Disable state and definition snapshots both arrive through a single write path, 
 - **Disabled agents are removed before the 16-agent cap.** They never consume a per-chatroom slot, so disabling one agent cannot push another into `over-limit`.
 - **The roster still shows disabled agents.** `getTeamRoster` lists every resolved role, including disabled custom agents with `disabled: true`, so a disabled role is visible rather than silently missing.
 - **In-flight roles stay ephemeral.** A role already projected as ephemeral keeps the ephemeral lifecycle after its definition is removed or disabled, so release and handoff paths still run for work that is already assigned.
+- **Disable is stored on the machine.** The daemon keeps `~/.chatroom/daemon/<machineId>/custom-agents-disabled.json`, applies it by re-pushing, and the next push carries the flag. Disabling is reversible: enabling re-pushes with `disabled: false`.
+- **Only the machine owner can toggle or rescan.** `setDisabled` and `requestRefresh` enqueue a command, and a caller who does not own the machine gets `NOT_AUTHORIZED_MACHINE`.
+- **A working agent keeps working.** Disabling hides the role from the team for new work; an agent already on a task finishes that task and hands off normally.
 - **Only `duo` is supported.** `supportsCustomAgents` accepts `duo` alone, so `solo` and legacy structures never merge custom agents or treat custom names as ephemeral, regardless of what is synced.
 
-A push replaces the snapshot for one source (`machineId` plus `scope` plus `workingDir`). The pushed source hash is advisory: the stored rules version, the canonical issues, and the server-recomputed per-agent hashes decide whether anything changed. An unchanged snapshot writes nothing except a disable-flag pass that patches only rows whose flag differs; any other change upserts the source row and reconciles the agents. A stored rules version that no longer matches forces a full rewrite. Disable flags are excluded from the content key, so a toggle patches the row in place and prompt and template bodies keep their ids. The server recomputes each definition hash instead of trusting the pushed value. None of this makes the daemon loader or prompt composition shipped: without the loader, nothing pushes a snapshot, and without prompt composition, a synced definition is not rendered into any prompt.
+A push replaces the snapshot for one source (`machineId` plus `scope` plus `workingDir`). The pushed source hash is advisory: the stored rules version, the canonical issues, and the server-recomputed per-agent hashes decide whether anything changed. An unchanged snapshot writes nothing except a disable-flag pass that patches only rows whose flag differs; any other change upserts the source row and reconciles the agents. A stored rules version that no longer matches forces a full rewrite. Disable flags are excluded from the content key, so a toggle patches the row in place and prompt and template bodies keep their ids. The server recomputes each definition hash instead of trusting the pushed value, and an unchanged snapshot writes nothing.
+
+## Trust model
+
+A workspace agent arrives with the repository, so it is exactly as trusted as any other file in a cloned repo, and this page treats it like `AGENTS.md`:
+
+- Descriptions are sanitised to one display line; bodies are neutralised before rendering, so authored markup cannot impersonate protocol blocks.
+- A workspace agent is **enabled by default** when it loads. Nothing asks the user to approve it.
+- The planner (the team entry point) may delegate work to a repo-supplied agent, because it appears in the roster exactly like an authored-by-you agent.
+
+Treat cloning a repository as trusting the agents it ships, the same way you trust its `AGENTS.md`. Disable an agent from the Custom Agents tab if you do not want it used on this machine.
 
 ## Git and .gitignore
 
 Commit workspace agents; never commit machine agents.
 
-If `.chatroom/` is ignored by the repository, a workspace agent is reported with the `gitignored` issue once the loader ships and cannot be committed. Replace a bare `.chatroom` ignore rule with:
+`gitignored` is advisory. It is reported only for workspace scope, only when `<workspace>/.git` exists, and only when git would ignore `.chatroom/agents/<name>/AGENT.md`. The agent still loads and resolves; the issue is a warning that teammates will not receive it. `chatroom` writes this rule into a project's `.gitignore` (`packages/cli/src/tools/output.ts`):
 
 ```gitignore
 .chatroom/*
 !.chatroom/agents/
 ```
 
-Convex never reads the filesystem. Definitions reach Convex through the daemon or CLI sync path in a later slice.
+If a repository ignores `.chatroom/` wholesale, replace the bare `.chatroom` rule with:
+
+```gitignore
+.chatroom/*
+!.chatroom/agents/
+```
+
+Convex never reads the filesystem. Definitions reach Convex only through the daemon's push; there is no CLI sync command.
 
 ## Invariants
 
@@ -188,6 +213,10 @@ Convex never reads the filesystem. Definitions reach Convex through the daemon o
 - [agent-role.ts](../../packages/shared/src/domain/agent-role.ts): builtin and retired role identity.
 - [resolve-chatroom-team.ts](../../services/backend/src/domain/usecase/team/resolve-chatroom-team.ts): the read-time merge point.
 - [sync-custom-agent-definitions.ts](../../services/backend/src/domain/usecase/custom-agents/sync-custom-agent-definitions.ts): payload validation and storage reconciliation.
+- [prompts/custom-agents](../../services/backend/prompts/custom-agents/): the instruction, return-handoff, and roster renderers, plus the generated defaults.
+- [load-custom-agent-source.ts](../../packages/cli/src/infrastructure/services/custom-agents/load-custom-agent-source.ts): the daemon loader (frontmatter, containment, caps, `gitignored`).
+- [custom-agents-service.ts](../../packages/cli/src/daemon/services/custom-agents-service/custom-agents-service.ts): the daemon push scheduler, retries, and disable-state application.
+- [CustomAgentsTab.tsx](../../apps/webapp/src/modules/chatroom/components/custom-agents/CustomAgentsTab.tsx): the webapp tab.
 - [custom-agents skill](../../services/backend/src/domain/usecase/skills/modules/custom-agents/index.ts): the agent-facing authoring skill.
 
 ## Verify
@@ -198,8 +227,24 @@ pnpm --dir packages/shared exec vitest run \
   src/domain/agent-role.test.ts \
   src/domain/team-presets.test.ts
 
+pnpm --dir packages/cli exec vitest run \
+  src/infrastructure/services/custom-agents \
+  src/daemon/services/custom-agents-service \
+  src/commands/custom-agents
+
 pnpm --dir services/backend exec vitest run \
   convex/customAgents.spec.ts \
+  convex/customAgents.commands.spec.ts \
+  convex/customAgents.prompt-wiring.spec.ts \
+  convex/customAgents.daemon-replay.spec.ts \
+  convex/skills.spec.ts \
+  prompts/custom-agents \
   src/domain/entities/team-presets.spec.ts \
   src/domain/usecase/agent/start-agent-from-current-config.spec.ts
+
+pnpm --dir apps/webapp exec vitest run \
+  src/modules/chatroom/components/custom-agents \
+  src/modules/chatroom/components/AgentSettingsModal.custom-agents-tab.test.tsx
 ```
+
+The downstream Playwright spec `apps/webapp/tests/e2e/specs/downstream/custom-agents-settings.spec.ts` covers the full loop (toggle, daemon command, push, roster) and needs a running Convex deployment.
