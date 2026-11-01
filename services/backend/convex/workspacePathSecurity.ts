@@ -112,13 +112,16 @@ async function hasActiveWorkspaceRegistration(
   workingDir: string
 ): Promise<boolean> {
   for (const candidate of candidateWorkingDirs(workingDir)) {
-    const rows = await ctx.db
+    // Stop at the first active row. `collect()` would read every row for the
+    // directory, including the removed ones that a chatroom left behind.
+    const active = await ctx.db
       .query('chatroom_workspaces')
       .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', machineId).eq('workingDir', candidate)
       )
-      .collect();
-    if (rows.some((row) => row.removedAt === undefined)) return true;
+      .filter((q) => q.eq(q.field('removedAt'), undefined))
+      .first();
+    if (active !== null) return true;
   }
   return false;
 }
