@@ -75,7 +75,8 @@ const OVER_LIMIT_FAILURE: CustomAgentToggleState = {
 /**
  * The state an agent the user never toggled settles on when the cap cuts it. The
  * copy is the displaced wording: this enable was not its request, but the agent
- * still joins by itself once a slot frees.
+ * still joins by itself once a slot frees. A single frozen value lets
+ * `resolveMissingRow` keep it by identity across every later roster push.
  */
 const DISPLACED_FAILURE: CustomAgentToggleState = {
   kind: 'failed',
@@ -236,17 +237,29 @@ function resolveState(
 /**
  * `mergeTeamStructureWithCustomAgents` removes an enabled agent past the
  * per-chatroom cap from the roster, so enabling one is the only way a tracked
- * name loses its row. Keep the failure while the source still reports
- * `over-limit`; drop it once the issue clears or the user aimed for off.
+ * name loses its row. Two names can land here:
+ *
+ * - an agent this user toggled on — it settles on the enable failure while the
+ *   source still reports `over-limit`, and drops once the issue clears or the
+ *   user aimed for off;
+ * - an already-enabled agent the enable displaced — `reconcile` seeded it with
+ *   the frozen displaced failure, which must survive every later roster push.
+ *   It was never toggled, so claiming it was turned on would be wrong.
  */
 function resolveMissingRow(
   state: CustomAgentToggleState,
   overLimit: boolean
 ): { state: CustomAgentToggleState | null; reset: boolean } {
-  if (!overLimit || state.kind === 'idle' || state.desiredDisabled) {
-    return { state: null, reset: true };
-  }
+  if (!overLimit || !isEnableIntent(state)) return { state: null, reset: true };
+  // The displaced failure was set by reconcile for a name the user never toggled.
+  // It stays as it is; only a pending or failed enable becomes the over-limit copy.
+  if (state === DISPLACED_FAILURE) return { state, reset: false };
   // A reset name clears the pending timer and commits; an entry that is already
   // the frozen failure is left untouched, so repeated reconciles are no-ops.
   return { state: OVER_LIMIT_FAILURE, reset: state !== OVER_LIMIT_FAILURE };
+}
+
+/** True while the tracked state still aims to turn the agent on. */
+function isEnableIntent(state: CustomAgentToggleState): boolean {
+  return state.kind !== 'idle' && !state.desiredDisabled;
 }

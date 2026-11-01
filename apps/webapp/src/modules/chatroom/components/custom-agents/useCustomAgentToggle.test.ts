@@ -250,6 +250,31 @@ describe('useCustomAgentToggle over-limit enables', () => {
     expect(result.current.stateFor('agent-17')).toEqual({ kind: 'idle' });
   });
 
+  it('keeps the displaced copy across roster updates with fresh identities', () => {
+    // Every roster push rebuilds `rows` and `overLimitNames` from Convex. The
+    // displaced agent was never toggled, so no newer roster may turn its copy
+    // into the enable failure ("Turned on, but…").
+    const initial = rosterFor(ENABLE_AGENT_17, []);
+    const { result, rerender } = renderToggle(initial.rows);
+
+    const firstCap = rosterFor(ENABLE_AGENT_17, []);
+    rerender({ rows: firstCap.rows, overLimit: firstCap.overLimit });
+    expect(result.current.stateFor('agent-9')).toMatchObject({ kind: 'failed' });
+
+    for (let update = 0; update < 3; update += 1) {
+      const fresh = rosterFor(ENABLE_AGENT_17, []);
+      rerender({ rows: fresh.rows, overLimit: fresh.overLimit });
+
+      const state = result.current.stateFor('agent-9');
+      expect(state).toEqual({
+        kind: 'failed',
+        desiredDisabled: false,
+        message: CUSTOM_AGENT_DISPLACED_MESSAGE,
+      });
+      expect(state.kind === 'failed' ? state.message : '').not.toContain('Turned on');
+    }
+  });
+
   it('keeps the toggled copy when the cap cuts the toggled agent itself', () => {
     // `zeta` sorts after every `agent-*` name, so this enable is the one cut.
     const names = [...AT_CAP, 'zeta'];
