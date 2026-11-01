@@ -2,7 +2,7 @@ import { fireEvent, render, within } from '@testing-library/react';
 import type React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AllTabMessageList } from './AllTabMessageList';
+import { ConversationMessageList } from './ConversationMessageList';
 import { AttachmentsProvider } from '../../attachments';
 import type * as TimelineEventRowModule from '../../components/timeline/TimelineEventRow';
 import { getTimelineVirtualRowZIndex } from '../../components/timeline/timelineRowStyles';
@@ -125,7 +125,7 @@ function headerNav(messageId: string, control: HeaderNavControl): HTMLButtonElem
 
 describe('scroll pinning and jump chip', () => {
   it('shows jump chip when scrolled away from bottom', () => {
-    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
@@ -136,7 +136,7 @@ describe('scroll pinning and jump chip', () => {
 
   it('positions jump chip above contained timeline rows with long feed', () => {
     const events = Array.from({ length: 40 }, (_, index) => makeEvent(`msg-${index}`));
-    renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    renderList(<ConversationMessageList events={events} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     expect(list).toHaveClass('relative', 'z-0');
@@ -152,7 +152,7 @@ describe('scroll pinning and jump chip', () => {
   });
 
   it('hides jump chip when at bottom (pinned)', () => {
-    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     scrollToBottom(list);
@@ -161,7 +161,7 @@ describe('scroll pinning and jump chip', () => {
   });
 
   it('clicking jump chip scrolls to bottom and hides chip', () => {
-    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
@@ -190,33 +190,35 @@ describe('scroll pinning and jump chip', () => {
 
   it('dispatches scroll on anchorId change to unpin', () => {
     const events = [makeEvent('msg-1')];
-    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 800 });
 
-    rerender(<AllTabMessageList events={events} anchorId="a2" />);
+    rerender(<ConversationMessageList events={events} anchorId="a2" />);
 
     expect(list.scrollTop).toBe(0);
     expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).not.toBeNull();
   });
 });
 
-describe('AllTabMessageList', () => {
+describe('ConversationMessageList', () => {
   it('scrolls to top when anchorId changes', () => {
     const events = [makeEvent('msg-1')];
-    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="anchor-1" />);
+    const { rerender } = renderList(
+      <ConversationMessageList events={events} anchorId="anchor-1" />
+    );
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     list.scrollTop = 500;
 
-    rerender(<AllTabMessageList events={events} anchorId="anchor-2" />);
+    rerender(<ConversationMessageList events={events} anchorId="anchor-2" />);
 
     expect(list.scrollTop).toBe(0);
   });
 
   it('uses timeline scroll container with scrollbar width variable', () => {
-    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     expect(list.className).toContain('min-h-0');
     expect(list.style.getPropertyValue('--timeline-scrollbar-width')).toBe('8px');
@@ -225,7 +227,7 @@ describe('AllTabMessageList', () => {
   it('calls onLoadMore when scrolled near the bottom and canLoadMore is true', () => {
     const onLoadMore = vi.fn();
     renderList(
-      <AllTabMessageList
+      <ConversationMessageList
         events={[makeEvent('msg-1'), makeEvent('msg-2')]}
         anchorId="a1"
         canLoadMore
@@ -244,7 +246,7 @@ describe('AllTabMessageList', () => {
   it('does not call onLoadMore when canLoadMore is false', () => {
     const onLoadMore = vi.fn();
     renderList(
-      <AllTabMessageList
+      <ConversationMessageList
         events={[makeEvent('msg-1')]}
         anchorId="a1"
         canLoadMore={false}
@@ -262,7 +264,7 @@ describe('AllTabMessageList', () => {
   it('does not call onLoadMore while already loading more', () => {
     const onLoadMore = vi.fn();
     renderList(
-      <AllTabMessageList
+      <ConversationMessageList
         events={[makeEvent('msg-1')]}
         anchorId="a1"
         canLoadMore
@@ -279,7 +281,7 @@ describe('AllTabMessageList', () => {
 
   it('applies ascending z-index to row wrappers for sticky header stacking', () => {
     const events = [makeEvent('msg-1'), makeEvent('msg-2'), makeEvent('msg-3')];
-    renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    renderList(<ConversationMessageList events={events} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     const rowWrappers = Array.from(list.querySelectorAll('div[style]'));
@@ -292,7 +294,7 @@ describe('AllTabMessageList', () => {
 
   it('renders the loading-more indicator when isLoadingMore is true', () => {
     renderList(
-      <AllTabMessageList
+      <ConversationMessageList
         events={[makeEvent('msg-1')]}
         anchorId="a1"
         isLoadingMore
@@ -305,7 +307,7 @@ describe('AllTabMessageList', () => {
 
   it('does not render the loading-more indicator when not loading more', () => {
     renderList(
-      <AllTabMessageList
+      <ConversationMessageList
         events={[makeEvent('msg-1')]}
         anchorId="a1"
         isLoadingMore={false}
@@ -320,7 +322,7 @@ describe('AllTabMessageList', () => {
 describe('sticky header message navigation', () => {
   function renderTwoEvents() {
     renderList(
-      <AllTabMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />
+      <ConversationMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />
     );
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
 
@@ -369,7 +371,7 @@ describe('sticky header message navigation', () => {
   }
 
   it('does not render per-row chevron jump buttons', () => {
-    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
     expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).toBeNull();
   });
 
@@ -482,7 +484,7 @@ describe('handoff collapse behavior', () => {
 
   function renderTimeline() {
     const events = MESSAGES.map((message) => mapMessageToTimelineEvent(message));
-    return renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    return renderList(<ConversationMessageList events={events} anchorId="a1" />);
   }
 
   function row(messageId: string): HTMLElement {
@@ -545,21 +547,24 @@ describe('row re-render behavior', () => {
 
   it('does not invoke TimelineEventRow when the events array identity changes only', () => {
     const events = [makeEvent('msg-1'), makeEvent('msg-2')];
-    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
     rowRenderCounts.clear();
 
-    rerender(<AllTabMessageList events={[...events]} anchorId="a1" />);
+    rerender(<ConversationMessageList events={[...events]} anchorId="a1" />);
 
     expect([...rowRenderCounts.keys()]).toEqual([]);
   });
 
   it('invokes TimelineEventRow only for the row whose event object changed', () => {
     const events = [makeEvent('msg-1'), makeEvent('msg-2')];
-    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
     rowRenderCounts.clear();
 
     rerender(
-      <AllTabMessageList events={[events[0], { ...events[1], creationTime: 200 }]} anchorId="a1" />
+      <ConversationMessageList
+        events={[events[0], { ...events[1], creationTime: 200 }]}
+        anchorId="a1"
+      />
     );
 
     expect([...rowRenderCounts.keys()]).toEqual(['msg-2']);
@@ -567,11 +572,11 @@ describe('row re-render behavior', () => {
 
   it('re-renders only the previous last row and the appended row on append', () => {
     const events = [makeEvent('a'), makeEvent('b'), makeEvent('c')];
-    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
     rowRenderCounts.clear();
     markdownRenderMock.mockClear();
 
-    rerender(<AllTabMessageList events={[...events, makeEvent('d')]} anchorId="a1" />);
+    rerender(<ConversationMessageList events={[...events, makeEvent('d')]} anchorId="a1" />);
 
     // `c` re-renders only because its `isLast` flipped; `a`/`b` keep every prop.
     expect([...rowRenderCounts.keys()]).toEqual(['c', 'd']);

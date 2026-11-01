@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useAllTabConversation } from './useAllTabConversation';
+import { useConversation } from './useConversation';
 
 const mockUsePaginatedQuery = vi.fn();
 const mockUseSessionQuery = vi.fn();
@@ -59,7 +59,7 @@ function mockSessionQueryForNav(nav: unknown) {
   });
 }
 
-describe('useAllTabConversation', () => {
+describe('useConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseSessionId.mockReturnValue(['session-1']);
@@ -72,7 +72,7 @@ describe('useAllTabConversation', () => {
   });
 
   it('loads navigation and paginated slice on mount', () => {
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(mockUseSessionQuery).toHaveBeenCalledWith('getAllTabAnchorNavigation', {
       chatroomId: 'room-1',
@@ -106,7 +106,7 @@ describe('useAllTabConversation', () => {
       loadMore: vi.fn(),
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.events).toHaveLength(0);
@@ -123,7 +123,7 @@ describe('useAllTabConversation', () => {
       status: 'Exhausted',
       loadMore: vi.fn(),
     });
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(mockUseSessionQuery).toHaveBeenCalledWith('getAllTabAnchorNavigation', 'skip');
     expect(result.current.events).toHaveLength(0);
@@ -138,7 +138,7 @@ describe('useAllTabConversation', () => {
       sliceUpperBoundExclusive: 200,
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.hasPrev).toBe(true);
     expect(result.current.hasNext).toBe(true);
@@ -165,7 +165,7 @@ describe('useAllTabConversation', () => {
   });
 
   it('derives messages directly from paginated results (no reducer dispatch)', () => {
-    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.events).toHaveLength(2);
     expect(result.current.messages).toHaveLength(2);
@@ -193,7 +193,7 @@ describe('useAllTabConversation', () => {
   });
 
   it('reuses unchanged event objects when one message changes in place', () => {
-    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
     const before = result.current.events;
     expect(before).toHaveLength(2);
 
@@ -223,7 +223,7 @@ describe('useAllTabConversation', () => {
   });
 
   it('reuses unchanged event objects when a message is appended', () => {
-    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
     const before = result.current.events;
 
     mockUsePaginatedQuery.mockReturnValue({
@@ -261,7 +261,7 @@ describe('useAllTabConversation', () => {
       loadMore: vi.fn(),
     });
 
-    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
     const before = result.current.events;
 
     // Convex re-runs the query and rebuilds the nested collection.
@@ -290,7 +290,7 @@ describe('useAllTabConversation', () => {
       loadMore: firstLoadMore,
     });
 
-    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
     const initialLoadMore = result.current.loadMore;
 
     // usePaginatedQuery allocates a new loadMore on every render.
@@ -317,7 +317,7 @@ describe('useAllTabConversation', () => {
       loadMore: vi.fn(),
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(mockUseSessionQuery).toHaveBeenCalledWith('subscribeAllTabSliceTail', 'skip');
     expect(result.current.messages).toHaveLength(2);
@@ -325,7 +325,7 @@ describe('useAllTabConversation', () => {
   });
 
   it('subscribes to the tail when pagination is exhausted', () => {
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     const tailCall = mockUseSessionQuery.mock.calls.find(
       (call) => call[0] === 'subscribeAllTabSliceTail'
@@ -360,7 +360,7 @@ describe('useAllTabConversation', () => {
       return navResult;
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.messages).toHaveLength(3);
     expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2', 'msg-live']);
@@ -375,7 +375,7 @@ describe('useAllTabConversation', () => {
       loadMore,
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.canLoadMore).toBe(true);
     expect(result.current.isLoadingMore).toBe(false);
@@ -395,7 +395,7 @@ describe('useAllTabConversation', () => {
       sliceUpperBoundExclusive: 200,
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     act(() => {
       result.current.goToPrev();
@@ -412,7 +412,7 @@ describe('useAllTabConversation', () => {
       sliceUpperBoundExclusive: 200,
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     act(() => {
       result.current.goToPrev();
@@ -472,7 +472,7 @@ describe('useAllTabConversation', () => {
       loadMore: vi.fn(),
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.events.map((event) => event.kind)).toEqual([
       'user_message',

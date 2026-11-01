@@ -3,9 +3,9 @@
 import type React from 'react';
 
 import {
-  AllTabConversationPanel,
+  ConversationPanel,
   type AllTabNavigationActions,
-} from '../../features/all-tab-conversation/AllTabConversationPanel';
+} from '../../features/conversation/ConversationPanel';
 import { ConversationModeProvider } from '../../hooks/useConversationMode';
 
 export interface ChatroomMessagesPanelProps {
@@ -25,7 +25,7 @@ export function ChatroomMessagesPanel({
   return (
     <ConversationModeProvider chatroomId={chatroomId}>
       <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
-        <AllTabConversationPanel
+        <ConversationPanel
           chatroomId={chatroomId}
           onRegisterAllTabNavigation={onRegisterAllTabNavigation}
           onRequestComposerFocus={onRequestComposerFocus}

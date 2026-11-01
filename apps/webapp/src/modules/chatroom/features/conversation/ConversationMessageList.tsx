@@ -40,7 +40,7 @@ function scrollRowToTop(container: HTMLElement, row: HTMLElement): void {
  * the whole feed. Building it here (memoized on index/bounds/onJump) keeps row
  * props stable across updates that change other rows only.
  */
-const AllTabRow = memo(function AllTabRow({
+const ConversationRow = memo(function ConversationRow({
   event,
   index,
   isFirst,
@@ -78,7 +78,7 @@ const AllTabRow = memo(function AllTabRow({
   );
 });
 
-export function AllTabMessageList({
+export function ConversationMessageList({
   events,
   anchorId,
   canLoadMore,
@@ -195,7 +195,7 @@ export function AllTabMessageList({
         data-testid="all-tab-message-list"
       >
         {events.map((event, index) => (
-          <AllTabRow
+          <ConversationRow
             key={event.id}
             event={event}
             index={index}

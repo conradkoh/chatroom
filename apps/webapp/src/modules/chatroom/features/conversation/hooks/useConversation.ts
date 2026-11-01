@@ -31,7 +31,7 @@ function mergeMessagesById(base: Message[], extra: Message[]): Message[] {
 }
 
 // fallow-ignore-next-line complexity
-export function useAllTabConversation(chatroomId: string) {
+export function useConversation(chatroomId: string) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const [sessionId] = useSessionId();
   const [selectedAnchorId, setSelectedAnchorId] = useState<Id<'chatroom_messages'> | null>(null);
@@ -171,7 +171,7 @@ export function useAllTabConversation(chatroomId: string) {
 
   // `usePaginatedQuery` allocates a fresh `loadMore` on every render, so keep the
   // latest one in a ref to expose a callback whose identity never changes.
-  // `useLayoutEffect` matches the `eventsRef` sync in `AllTabMessageList`, so both
+  // `useLayoutEffect` matches the `eventsRef` sync in `ConversationMessageList`, so both
   // refs are current before the browser can paint or scroll.
   const paginatedLoadMoreRef = useRef(paginated.loadMore);
   useLayoutEffect(() => {

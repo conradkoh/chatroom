@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo } from 'react';
 
-import { AllTabAnchorNavigator } from './AllTabAnchorNavigator';
-import { AllTabMessageList } from './AllTabMessageList';
-import { useAllTabConversation } from './hooks/useAllTabConversation';
+import { ConversationAnchorNavigator } from './ConversationAnchorNavigator';
+import { ConversationMessageList } from './ConversationMessageList';
+import { useConversation } from './hooks/useConversation';
 import { QueuedMessagesIndicator } from '../../components/QueuedMessagesIndicator';
 import { ComposerPreflightBar } from '../../components/timeline/ComposerPreflightBar';
 import { useChatroomListing } from '../../context/ChatroomListingContext';
@@ -16,7 +16,7 @@ export type AllTabNavigationActions = {
   goToLatestAnchor: () => void;
 };
 
-export function AllTabConversationPanel({
+export function ConversationPanel({
   chatroomId,
   onRegisterAllTabNavigation,
   onRequestComposerFocus,
@@ -39,7 +39,7 @@ export function AllTabConversationPanel({
     anchorId,
     goToLatestAnchor,
     isOnLatestAnchor,
-  } = useAllTabConversation(chatroomId);
+  } = useConversation(chatroomId);
 
   useEffect(() => {
     onRegisterAllTabNavigation?.({ goToLatestAnchor });
@@ -55,7 +55,7 @@ export function AllTabConversationPanel({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
-      <AllTabAnchorNavigator
+      <ConversationAnchorNavigator
         hasPrev={hasPrev}
         hasNext={hasNext}
         isOnLatestAnchor={isOnLatestAnchor}
@@ -70,7 +70,7 @@ export function AllTabConversationPanel({
           <ChatroomLoader />
         </div>
       ) : (
-        <AllTabMessageList
+        <ConversationMessageList
           events={events}
           anchorId={anchorId}
           canLoadMore={canLoadMore}

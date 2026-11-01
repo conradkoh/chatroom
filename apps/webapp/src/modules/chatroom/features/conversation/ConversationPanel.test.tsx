@@ -2,16 +2,16 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AllTabConversationPanel } from './AllTabConversationPanel';
+import { ConversationPanel } from './ConversationPanel';
 
-const mockUseAllTabConversation = vi.fn();
+const mockUseConversation = vi.fn();
 const mockUseHandoffNotification = vi.fn();
 const { mockComposerPreflightBar } = vi.hoisted(() => ({
   mockComposerPreflightBar: vi.fn(),
 }));
 
-vi.mock('./hooks/useAllTabConversation', () => ({
-  useAllTabConversation: (...args: unknown[]) => mockUseAllTabConversation(...args),
+vi.mock('./hooks/useConversation', () => ({
+  useConversation: (...args: unknown[]) => mockUseConversation(...args),
 }));
 
 vi.mock('../../hooks/useHandoffNotification', () => ({
@@ -42,10 +42,10 @@ vi.mock('../../components/timeline/TimelineEventRow', () => ({
   ),
 }));
 
-describe('AllTabConversationPanel', () => {
+describe('ConversationPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseAllTabConversation.mockReturnValue({
+    mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
       nav: null,
@@ -64,7 +64,7 @@ describe('AllTabConversationPanel', () => {
   });
 
   it('renders anchor navigator during loading state', () => {
-    mockUseAllTabConversation.mockReturnValue({
+    mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
       nav: null,
@@ -77,7 +77,7 @@ describe('AllTabConversationPanel', () => {
       goToLatestAnchor: vi.fn(),
     });
 
-    render(<AllTabConversationPanel chatroomId="room-1" />);
+    render(<ConversationPanel chatroomId="room-1" />);
     expect(screen.getByTestId('all-tab-anchor-navigator')).toBeDefined();
     expect(screen.getByRole('status')).toBeDefined();
     expect(screen.getByLabelText('Previous user message')).toBeDefined();
@@ -86,7 +86,7 @@ describe('AllTabConversationPanel', () => {
   });
 
   it('renders anchor navigator with jump to latest when on latest anchor', () => {
-    render(<AllTabConversationPanel chatroomId="room-1" />);
+    render(<ConversationPanel chatroomId="room-1" />);
 
     expect(screen.getByTestId('all-tab-anchor-navigator')).toBeDefined();
     const jumpButton = screen.getByRole('button', { name: 'Jump to latest' });
@@ -94,7 +94,7 @@ describe('AllTabConversationPanel', () => {
   });
 
   it('renders message list and navigator with anchor preview', () => {
-    mockUseAllTabConversation.mockReturnValue({
+    mockUseConversation.mockReturnValue({
       events: [
         {
           id: 'msg-1',
@@ -116,14 +116,14 @@ describe('AllTabConversationPanel', () => {
       isOnLatestAnchor: true,
     });
 
-    render(<AllTabConversationPanel chatroomId="room-1" />);
+    render(<ConversationPanel chatroomId="room-1" />);
 
     expect(screen.getByTestId('all-tab-anchor-navigator')).toBeDefined();
     expect(screen.getByTestId('event-row-msg-1')).toBeDefined();
   });
 
   it('disables arrow buttons at bounds', () => {
-    render(<AllTabConversationPanel chatroomId="room-1" />);
+    render(<ConversationPanel chatroomId="room-1" />);
 
     const prevButton = screen.getByLabelText('Previous user message');
     const nextButton = screen.getByLabelText('Next user message');
@@ -132,7 +132,7 @@ describe('AllTabConversationPanel', () => {
   });
 
   it('enables arrow buttons when anchors exist', () => {
-    mockUseAllTabConversation.mockReturnValue({
+    mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
       nav: {
@@ -147,7 +147,7 @@ describe('AllTabConversationPanel', () => {
       isOnLatestAnchor: false,
     });
 
-    render(<AllTabConversationPanel chatroomId="room-1" />);
+    render(<ConversationPanel chatroomId="room-1" />);
 
     const prevButton = screen.getByLabelText('Previous user message');
     const nextButton = screen.getByLabelText('Next user message');
@@ -158,7 +158,7 @@ describe('AllTabConversationPanel', () => {
   it('registers all-tab navigation actions on mount', () => {
     const goToLatestAnchor = vi.fn();
     const onRegisterAllTabNavigation = vi.fn();
-    mockUseAllTabConversation.mockReturnValue({
+    mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
       nav: null,
@@ -172,7 +172,7 @@ describe('AllTabConversationPanel', () => {
     });
 
     render(
-      <AllTabConversationPanel
+      <ConversationPanel
         chatroomId="room-1"
         onRegisterAllTabNavigation={onRegisterAllTabNavigation}
       />
@@ -182,7 +182,7 @@ describe('AllTabConversationPanel', () => {
   });
 
   it('passes the matching chatroom to useHandoffNotification', () => {
-    render(<AllTabConversationPanel chatroomId="room-1" />);
+    render(<ConversationPanel chatroomId="room-1" />);
 
     expect(mockUseHandoffNotification).toHaveBeenCalledWith(
       expect.anything(),
@@ -194,10 +194,7 @@ describe('AllTabConversationPanel', () => {
   it('forwards onRequestComposerFocus to ComposerPreflightBar', () => {
     const onRequestComposerFocus = vi.fn();
     render(
-      <AllTabConversationPanel
-        chatroomId="room-1"
-        onRequestComposerFocus={onRequestComposerFocus}
-      />
+      <ConversationPanel chatroomId="room-1" onRequestComposerFocus={onRequestComposerFocus} />
     );
 
     expect(mockComposerPreflightBar).toHaveBeenCalledWith(
