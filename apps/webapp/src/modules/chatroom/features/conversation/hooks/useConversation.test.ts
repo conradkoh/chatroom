@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useAllTabConversation } from './useAllTabConversation';
+import { useConversation } from './useConversation';
 
 const mockUsePaginatedQuery = vi.fn();
 const mockUseSessionQuery = vi.fn();
@@ -29,10 +29,10 @@ vi.mock('../../../timeline/mapMessageToTimelineEvent', async () => {
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    allTabConversation: {
-      getAllTabAnchorNavigation: 'getAllTabAnchorNavigation',
-      listAllTabSlicePaginated: 'listAllTabSlicePaginated',
-      subscribeAllTabSliceTail: 'subscribeAllTabSliceTail',
+    conversation: {
+      getConversationAnchorNavigation: 'getConversationAnchorNavigation',
+      listConversationSlicePaginated: 'listConversationSlicePaginated',
+      subscribeConversationSliceTail: 'subscribeConversationSliceTail',
     },
   },
 }));
@@ -51,7 +51,7 @@ const navResult = {
 
 function mockSessionQueryForNav(nav: unknown) {
   mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
-    if (queryRef === 'subscribeAllTabSliceTail') {
+    if (queryRef === 'subscribeConversationSliceTail') {
       if (args === 'skip') return undefined;
       return null;
     }
@@ -59,7 +59,7 @@ function mockSessionQueryForNav(nav: unknown) {
   });
 }
 
-describe('useAllTabConversation', () => {
+describe('useConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseSessionId.mockReturnValue(['session-1']);
@@ -72,13 +72,13 @@ describe('useAllTabConversation', () => {
   });
 
   it('loads navigation and paginated slice on mount', () => {
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('getAllTabAnchorNavigation', {
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('getConversationAnchorNavigation', {
       chatroomId: 'room-1',
     });
     expect(mockUsePaginatedQuery).toHaveBeenCalledWith(
-      'listAllTabSlicePaginated',
+      'listConversationSlicePaginated',
       {
         chatroomId: 'room-1',
         sessionId: 'session-1',
@@ -106,11 +106,11 @@ describe('useAllTabConversation', () => {
       loadMore: vi.fn(),
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.events).toHaveLength(0);
-    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listAllTabSlicePaginated', 'skip', {
+    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listConversationSlicePaginated', 'skip', {
       initialNumItems: 50,
     });
   });
@@ -123,9 +123,9 @@ describe('useAllTabConversation', () => {
       status: 'Exhausted',
       loadMore: vi.fn(),
     });
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('getAllTabAnchorNavigation', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('getConversationAnchorNavigation', 'skip');
     expect(result.current.events).toHaveLength(0);
     expect(result.current.nav).toBeUndefined();
   });
@@ -138,7 +138,7 @@ describe('useAllTabConversation', () => {
       sliceUpperBoundExclusive: 200,
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.hasPrev).toBe(true);
     expect(result.current.hasNext).toBe(true);
@@ -153,7 +153,7 @@ describe('useAllTabConversation', () => {
     expect(result.current.isOnLatestAnchor).toBe(false);
     expect(result.current.nav?.sliceUpperBoundExclusive).toBe(200);
     expect(mockUsePaginatedQuery).toHaveBeenLastCalledWith(
-      'listAllTabSlicePaginated',
+      'listConversationSlicePaginated',
       {
         chatroomId: 'room-1',
         sessionId: 'session-1',
@@ -165,7 +165,7 @@ describe('useAllTabConversation', () => {
   });
 
   it('derives messages directly from paginated results (no reducer dispatch)', () => {
-    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.events).toHaveLength(2);
     expect(result.current.messages).toHaveLength(2);
@@ -192,6 +192,124 @@ describe('useAllTabConversation', () => {
     expect(result.current.messages.map((m) => m._id)).toEqual(['msg-3']);
   });
 
+  it('reuses unchanged event objects when one message changes in place', () => {
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
+    const before = result.current.events;
+    expect(before).toHaveLength(2);
+
+    // A Convex update re-creates every message object; only msg-2 changed.
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [
+        { ...baseResults[0] },
+        {
+          _id: 'msg-2',
+          type: 'notice',
+          senderRole: 'builder',
+          content: 'reply',
+          _creationTime: 101,
+        },
+      ],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    rerender();
+
+    const after = result.current.events;
+    expect(after).toHaveLength(2);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).not.toBe(before[1]);
+    expect(after[1].message.type).toBe('notice');
+  });
+
+  it('reuses unchanged event objects when a message is appended', () => {
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
+    const before = result.current.events;
+
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [
+        ...baseResults.map((message) => ({ ...message })),
+        {
+          _id: 'msg-3',
+          type: 'message',
+          senderRole: 'reviewer',
+          content: 'third',
+          _creationTime: 102,
+        },
+      ],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    rerender();
+
+    const after = result.current.events;
+    expect(after).toHaveLength(3);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(after[2].id).toBe('msg-3');
+  });
+
+  it('reuses message identity when rebuilt nested attachment arrays are equal', () => {
+    const withAttachments = {
+      ...baseResults[0],
+      attachedTasks: [{ _id: 'task-1', content: 'do it' }],
+    };
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [withAttachments],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
+    const before = result.current.events;
+
+    // Convex re-runs the query and rebuilds the nested collection.
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [
+        {
+          ...withAttachments,
+          attachedTasks: [{ _id: 'task-1', content: 'do it' }],
+        },
+      ],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    rerender();
+
+    expect(result.current.events[0]).toBe(before[0]);
+    expect(result.current.messages[0]).toBe(before[0].message);
+  });
+
+  it('keeps loadMore identity stable across rerenders', () => {
+    const firstLoadMore = vi.fn();
+    mockUsePaginatedQuery.mockReturnValue({
+      results: baseResults,
+      status: 'CanLoadMore',
+      loadMore: firstLoadMore,
+    });
+
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
+    const initialLoadMore = result.current.loadMore;
+
+    // usePaginatedQuery allocates a new loadMore on every render.
+    const nextLoadMore = vi.fn();
+    mockUsePaginatedQuery.mockReturnValue({
+      results: baseResults,
+      status: 'CanLoadMore',
+      loadMore: nextLoadMore,
+    });
+    rerender();
+
+    expect(result.current.loadMore).toBe(initialLoadMore);
+
+    act(() => {
+      result.current.loadMore();
+    });
+    expect(nextLoadMore).toHaveBeenCalledWith(50);
+  });
+
   it('skips the tail subscription until pagination is exhausted', () => {
     mockUsePaginatedQuery.mockReturnValue({
       results: baseResults,
@@ -199,18 +317,18 @@ describe('useAllTabConversation', () => {
       loadMore: vi.fn(),
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('subscribeAllTabSliceTail', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('subscribeConversationSliceTail', 'skip');
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2']);
   });
 
   it('subscribes to the tail when pagination is exhausted', () => {
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     const tailCall = mockUseSessionQuery.mock.calls.find(
-      (call) => call[0] === 'subscribeAllTabSliceTail'
+      (call) => call[0] === 'subscribeConversationSliceTail'
     );
     expect(tailCall).toBeDefined();
     expect(tailCall![1]).toEqual({
@@ -235,14 +353,14 @@ describe('useAllTabConversation', () => {
       },
     ];
     mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
-      if (queryRef === 'subscribeAllTabSliceTail') {
+      if (queryRef === 'subscribeConversationSliceTail') {
         if (args === 'skip') return 'skip';
         return tailMessages;
       }
       return navResult;
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.messages).toHaveLength(3);
     expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2', 'msg-live']);
@@ -257,7 +375,7 @@ describe('useAllTabConversation', () => {
       loadMore,
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.canLoadMore).toBe(true);
     expect(result.current.isLoadingMore).toBe(false);
@@ -277,7 +395,7 @@ describe('useAllTabConversation', () => {
       sliceUpperBoundExclusive: 200,
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     act(() => {
       result.current.goToPrev();
@@ -294,7 +412,7 @@ describe('useAllTabConversation', () => {
       sliceUpperBoundExclusive: 200,
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     act(() => {
       result.current.goToPrev();
@@ -302,7 +420,7 @@ describe('useAllTabConversation', () => {
 
     const callsWithAnchor = mockUseSessionQuery.mock.calls.filter(
       (call) =>
-        call[0] === 'getAllTabAnchorNavigation' &&
+        call[0] === 'getConversationAnchorNavigation' &&
         call[1] !== 'skip' &&
         typeof call[1] === 'object' &&
         'anchorMessageId' in call[1]
@@ -314,7 +432,7 @@ describe('useAllTabConversation', () => {
     });
 
     const latestNavCall = mockUseSessionQuery.mock.calls
-      .filter((call) => call[0] === 'getAllTabAnchorNavigation')
+      .filter((call) => call[0] === 'getConversationAnchorNavigation')
       .map((call) => call[1])
       .filter((args) => args !== 'skip')
       .at(-1);
@@ -354,7 +472,7 @@ describe('useAllTabConversation', () => {
       loadMore: vi.fn(),
     });
 
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+    const { result } = renderHook(() => useConversation('room-1'));
 
     expect(result.current.events.map((event) => event.kind)).toEqual([
       'user_message',

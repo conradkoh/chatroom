@@ -488,7 +488,6 @@ export async function runHandoffHandler(
     content: string;
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
-    visibleInAllTabOnly?: boolean | undefined;
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -689,7 +688,6 @@ export async function runHandoffHandler(
     type: 'handoff',
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
-    ...(args.visibleInAllTabOnly && { visibleInAllTabOnly: true }),
     ...(taskOriginMessageId && { taskOriginMessageId }),
     ...(terminalHandoffKey ? { terminalHandoffKey } : {}),
   });
@@ -700,8 +698,8 @@ export async function runHandoffHandler(
   });
 
   // Promote queued user messages only on handoff-to-user, after the handoff
-  // message is inserted so All-tab slice ordering stays correct (handoff must
-  // precede the promoted user anchor chronologically).
+  // message is inserted so conversation slice ordering stays correct (handoff
+  // must precede the promoted user anchor chronologically).
   if (isHandoffToUser) {
     const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
     if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;

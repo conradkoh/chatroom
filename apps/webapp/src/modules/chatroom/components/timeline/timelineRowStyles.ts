@@ -39,14 +39,11 @@ export const TIMELINE_SCROLL_CONTAINER =
   '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-chatroom-border ' +
   '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-chatroom-bg-primary';
 
-/** Extra scroll classes only needed by the virtualized main feed. */
-export const TIMELINE_FEED_SCROLL_EXTRAS = 'overflow-x-auto [overflow-anchor:none]';
-
 export const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
 
 /**
- * Sticky-header message navigation (All tab): jump to first, previous,
+ * Sticky-header message navigation (conversation feed): jump to first, previous,
  * current, next, or last message row. `has*` flags drive disabled state.
  */
 export type TimelineMessageHeaderNavigation = {
@@ -70,16 +67,4 @@ export function getSenderClasses(role: string): string {
   }
   if (role === 'system') return `${base} text-chatroom-status-warning`;
   return `${base} text-chatroom-status-info`;
-}
-
-export type MachineNameEntry = { hostname: string; alias?: string };
-
-export function formatMachineLabel(
-  machines: Map<string, MachineNameEntry> | undefined,
-  machineId: string | undefined
-): string | null {
-  if (!machines || !machineId) return null;
-  const entry = machines.get(machineId);
-  if (!entry) return null;
-  return entry.alias ?? entry.hostname;
 }

@@ -9,7 +9,6 @@
  * interface so they can be threaded cleanly through RightSplitPanel.
  */
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type React from 'react';
 
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
@@ -20,10 +19,9 @@ import { ChatroomMessagesPanel } from '../components/timeline/ChatroomMessagesPa
 
 export interface MessagesPanelProps {
   chatroomId: string;
-  machines?: Map<string, { hostname: string; alias?: string }>;
   // SendForm props
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
-  onRegisterAllTabNavigation?: (actions: { goToLatestAnchor: () => void }) => void;
+  onRegisterConversationNavigation?: (actions: { goToLatestAnchor: () => void }) => void;
   onRequestComposerFocus?: () => void;
   onMessageSent?: () => void;
   autocompleteFiles?: FileEntry[];
@@ -32,17 +30,14 @@ export interface MessagesPanelProps {
   machineId?: string | null;
   workingDir?: string | null;
   onUploadComplete?: () => void;
-
-  workspaceId?: Id<'chatroom_workspaces'> | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MessagesPanel({
   chatroomId,
-  machines,
   onRegisterSendFormFocus,
-  onRegisterAllTabNavigation,
+  onRegisterConversationNavigation,
   onRequestComposerFocus,
   onMessageSent,
   autocompleteFiles,
@@ -56,8 +51,7 @@ export function MessagesPanel({
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <ChatroomMessagesPanel
         chatroomId={chatroomId}
-        machines={machines}
-        onRegisterAllTabNavigation={onRegisterAllTabNavigation}
+        onRegisterConversationNavigation={onRegisterConversationNavigation}
         onRequestComposerFocus={onRequestComposerFocus}
         footer={
           <div className="shrink-0 border-t-2 border-chatroom-border-strong">

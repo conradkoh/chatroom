@@ -513,7 +513,7 @@ export default defineSchema({
      */
     enhancerJobId: v.optional(v.string()),
 
-    // When true, message appears only in the ALL timeline tab (not role-filtered views)
+    /** @deprecated Formerly set by the retired enhancer path; nothing reads or writes it now. Retained so existing documents still validate. */
     visibleInAllTabOnly: v.optional(v.boolean()),
 
     // Attached backlog tasks for context

@@ -14,7 +14,20 @@ const navButtonClass = cn(
 
 const navLabelClass = 'text-[10px] font-bold uppercase tracking-wide leading-none';
 
-export function AllTabAnchorNavigator({
+const jumpButtonBaseClass =
+  'flex-1 min-w-0 rounded-none h-7 md:h-9 px-2 text-[10px] md:text-xs font-bold uppercase tracking-wide leading-none';
+
+/** Enabled only when the view is not already on the latest anchor. */
+function getJumpButtonClass(isOnLatestAnchor: boolean): string {
+  return cn(
+    jumpButtonBaseClass,
+    isOnLatestAnchor
+      ? 'bg-chatroom-bg-tertiary text-chatroom-text-muted cursor-not-allowed opacity-50 dark:bg-chatroom-bg-secondary'
+      : 'bg-chatroom-accent text-chatroom-text-on-accent hover:bg-chatroom-accent/90'
+  );
+}
+
+export function ConversationAnchorNavigator({
   hasPrev,
   hasNext,
   isOnLatestAnchor,
@@ -34,7 +47,7 @@ export function AllTabAnchorNavigator({
   return (
     <div
       className="shrink-0 flex items-center gap-2 px-3 py-1 md:py-2 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface"
-      data-testid="all-tab-anchor-navigator"
+      data-testid="conversation-anchor-navigator"
     >
       <button
         type="button"
@@ -48,12 +61,7 @@ export function AllTabAnchorNavigator({
       </button>
       <button
         type="button"
-        className={cn(
-          'flex-1 min-w-0 rounded-none h-7 md:h-9 px-2 text-[10px] md:text-xs font-bold uppercase tracking-wide leading-none',
-          isOnLatestAnchor
-            ? 'bg-chatroom-bg-tertiary text-chatroom-text-muted cursor-not-allowed opacity-50 dark:bg-chatroom-bg-secondary'
-            : 'bg-chatroom-accent text-chatroom-text-on-accent hover:bg-chatroom-accent/90'
-        )}
+        className={getJumpButtonClass(isOnLatestAnchor)}
         onClick={onJumpToLatest}
         disabled={isLoading || isOnLatestAnchor}
         aria-label="Jump to latest"

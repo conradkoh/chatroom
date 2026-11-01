@@ -2,30 +2,27 @@
 
 import { useEffect, useMemo } from 'react';
 
-import { AllTabAnchorNavigator } from './AllTabAnchorNavigator';
-import { AllTabMessageList } from './AllTabMessageList';
-import { useAllTabConversation } from './hooks/useAllTabConversation';
+import { ConversationAnchorNavigator } from './ConversationAnchorNavigator';
+import { ConversationMessageList } from './ConversationMessageList';
+import { useConversation } from './hooks/useConversation';
 import { QueuedMessagesIndicator } from '../../components/QueuedMessagesIndicator';
 import { ComposerPreflightBar } from '../../components/timeline/ComposerPreflightBar';
-import type { MachineNameEntry } from '../../components/timeline/timelineRowStyles';
 import { useChatroomListing } from '../../context/ChatroomListingContext';
 import { useHandoffNotification } from '../../hooks/useHandoffNotification';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
-export type AllTabNavigationActions = {
+export type ConversationNavigationActions = {
   goToLatestAnchor: () => void;
 };
 
-export function AllTabConversationPanel({
+export function ConversationPanel({
   chatroomId,
-  machines,
-  onRegisterAllTabNavigation,
+  onRegisterConversationNavigation,
   onRequestComposerFocus,
 }: {
   chatroomId: string;
-  machines?: Map<string, MachineNameEntry>;
-  onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
+  onRegisterConversationNavigation?: (actions: ConversationNavigationActions) => void;
   onRequestComposerFocus?: () => void;
 }) {
   const {
@@ -42,11 +39,11 @@ export function AllTabConversationPanel({
     anchorId,
     goToLatestAnchor,
     isOnLatestAnchor,
-  } = useAllTabConversation(chatroomId);
+  } = useConversation(chatroomId);
 
   useEffect(() => {
-    onRegisterAllTabNavigation?.({ goToLatestAnchor });
-  }, [onRegisterAllTabNavigation, goToLatestAnchor]);
+    onRegisterConversationNavigation?.({ goToLatestAnchor });
+  }, [onRegisterConversationNavigation, goToLatestAnchor]);
 
   const { chatrooms } = useChatroomListing();
   const notifyChatroom = useMemo(
@@ -54,15 +51,11 @@ export function AllTabConversationPanel({
     [chatrooms, chatroomId]
   );
 
-  useHandoffNotification(
-    useMemo(() => messages.map((m) => m), [messages]),
-    chatroomId,
-    notifyChatroom
-  );
+  useHandoffNotification(messages, chatroomId, notifyChatroom);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
-      <AllTabAnchorNavigator
+      <ConversationAnchorNavigator
         hasPrev={hasPrev}
         hasNext={hasNext}
         isOnLatestAnchor={isOnLatestAnchor}
@@ -77,10 +70,9 @@ export function AllTabConversationPanel({
           <ChatroomLoader />
         </div>
       ) : (
-        <AllTabMessageList
+        <ConversationMessageList
           events={events}
           anchorId={anchorId}
-          machines={machines}
           canLoadMore={canLoadMore}
           isLoadingMore={isLoadingMore}
           onLoadMore={loadMore}

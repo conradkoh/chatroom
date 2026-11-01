@@ -71,7 +71,7 @@ function UserMessageHeaderDefault({
 interface TimelineUserMessageProps {
   message: Message;
   chatroomId: string;
-  /** When set, sticky header shows centered prev/current/next jump controls (All tab). */
+  /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
   headerNavigation?: TimelineMessageHeaderNavigation;
 }
 

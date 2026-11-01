@@ -191,7 +191,6 @@
     "apps/webapp/src/modules/chatroom/components/shared/industrialDialogStyles.ts:chatroomPortaledMenuSurfaceClassName",
     "apps/webapp/src/modules/chatroom/components/shared/industrialDialogStyles.ts:chatroomIndustrialConfirmationOverlayClassName",
     "apps/webapp/src/modules/chatroom/components/shared/industrialDialogStyles.ts:chatroomIndustrialConfirmationModalContentClassName",
-    "apps/webapp/src/modules/chatroom/components/timeline/timelineRowStyles.ts:TIMELINE_FEED_SCROLL_EXTRAS",
     "apps/webapp/src/modules/chatroom/components/timeline/timelineVirtualizerConfig.ts:TIMELINE_ESTIMATE_SIZE",
     "apps/webapp/src/modules/chatroom/components/timeline/timelineVirtualizerConfig.ts:TIMELINE_OVERSCAN",
     "apps/webapp/src/modules/chatroom/components/timeline/timelineVirtualizerConfig.ts:TIMELINE_LOAD_OLDER_SENTINEL_INDEX",
