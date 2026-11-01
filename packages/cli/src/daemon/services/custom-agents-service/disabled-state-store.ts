@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file
+// fallow-ignore-file unused-file unused-export
 /**
  * Machine-local custom-agent disable state.
  *
