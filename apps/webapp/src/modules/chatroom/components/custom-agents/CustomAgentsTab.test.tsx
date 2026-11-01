@@ -1,11 +1,18 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
-import { CUSTOM_AGENT_ISSUE_REASONS } from '@workspace/shared/domain/custom-agent';
+import {
+  CUSTOM_AGENT_ISSUE_REASONS,
+  CUSTOM_AGENT_LIMITS,
+} from '@workspace/shared/domain/custom-agent';
 import { ConvexError } from 'convex/values';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CUSTOM_AGENT_ISSUE_COPY, formatCustomAgentIssueDetail } from './customAgentCopy';
+import {
+  CUSTOM_AGENT_ISSUE_COPY,
+  CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
+  formatCustomAgentIssueDetail,
+} from './customAgentCopy';
 import { resolveCustomAgentsGate } from './customAgentsGate';
 import { CustomAgentsTab } from './CustomAgentsTab';
 import type { TeamRosterResult } from './customAgentsViewModel';
@@ -420,6 +427,32 @@ describe('CustomAgentsTab toggle behaviour', () => {
       screen.getByText('Only the owner of this machine can change its custom agents.')
     ).toBeInTheDocument();
     expect(screen.queryByText('Turning off…')).not.toBeInTheDocument();
+  });
+
+  it('reports an over-limit enable on the source issue after the cap drops the row', () => {
+    const capped = Array.from({ length: CUSTOM_AGENT_LIMITS.agentsPerChatroom }, (_, index) =>
+      custom(`agent-${index + 1}`)
+    );
+    mocks.roster = roster({
+      roster: [builtin('planner'), ...capped, custom('agent-17', { disabled: true })],
+    });
+    const { rerender } = renderTab();
+
+    fireEvent.click(screen.getByTestId('custom-agent-switch-agent-17'));
+
+    mocks.roster = roster({
+      roster: [builtin('planner'), ...capped],
+      sources: [
+        source('workspace', { issues: [{ path: 'agent-17', reason: 'over-limit' }] }),
+        source('machine'),
+      ],
+    });
+    rerender((<CustomAgentsTab chatroomId="chatroom-1" onOpenTab={vi.fn()} />) as ReactNode);
+
+    expect(screen.queryByTestId('custom-agent-row-agent-17')).not.toBeInTheDocument();
+    expect(screen.getByTestId('custom-agent-over-limit-failure')).toHaveTextContent(
+      CUSTOM_AGENT_OVER_LIMIT_MESSAGE
+    );
   });
 });
 

@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CUSTOM_AGENT_ISSUE_COPY,
+  CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
   CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
   customAgentMutationErrorMessage,
   formatCustomAgentIssueDetail,
@@ -125,5 +126,11 @@ describe('customAgentMutationErrorMessage', () => {
 
   it('exposes the timeout copy', () => {
     expect(CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE).toContain('The machine did not respond');
+  });
+
+  it('states the per-chatroom cap in the over-limit message', () => {
+    expect(CUSTOM_AGENT_OVER_LIMIT_MESSAGE).toContain(
+      `${CUSTOM_AGENT_LIMITS.agentsPerChatroom} custom agents`
+    );
   });
 });

@@ -26,7 +26,9 @@ import { CustomAgentSourceSection } from './CustomAgentSourceSection';
 import { CustomAgentsRescanButton } from './CustomAgentsRescanButton';
 import {
   buildCustomAgentsViewModel,
+  overLimitNames,
   type CustomAgentRowModel,
+  type CustomAgentSourceModel,
   type CustomAgentsViewModel,
   type TeamRosterResult,
 } from './customAgentsViewModel';
@@ -48,6 +50,9 @@ export interface CustomAgentsTabProps {
   chatroomId: string;
   onOpenTab: (tab: SettingsTab) => void;
 }
+
+/** Stable empty set, so a missing model keeps the hook's reconcile dependencies identical. */
+const NO_NAMES: ReadonlySet<string> = new Set();
 
 export function CustomAgentsTab({ chatroomId, onOpenTab }: CustomAgentsTabProps) {
   const [attempt, setAttempt] = useState(0);
@@ -71,7 +76,12 @@ function CustomAgentsContent({ chatroomId, onOpenTab }: CustomAgentsTabProps) {
   const daemon = useDaemonConnected(machineIdOf(activeWorkspace));
 
   const model = useMemo(() => buildModel(roster, activeWorkspace), [roster, activeWorkspace]);
-  const toggle = useCustomAgentToggle({ chatroomId, rows: rowsOf(model) });
+  const overLimit = useMemo(() => overLimitNamesOf(model), [model]);
+  const toggle = useCustomAgentToggle({
+    chatroomId,
+    rows: rowsOf(model),
+    overLimitNames: overLimit,
+  });
   const view = deriveView({ team, workspaceLoading, roster, activeWorkspace, daemon, model });
 
   return (
@@ -189,6 +199,10 @@ function machineIdOf(workspace: Workspace | null): string | null {
 
 function rowsOf(model: CustomAgentsViewModel | null): CustomAgentRowModel[] {
   return model === null ? [] : model.rows;
+}
+
+function overLimitNamesOf(model: CustomAgentsViewModel | null): ReadonlySet<string> {
+  return model === null ? NO_NAMES : overLimitNames(model.sources);
 }
 
 function buildModel(
@@ -310,7 +324,7 @@ function CustomAgentsRosterView({
           hasIssues={model.issueCount > 0}
         />
       )}
-      {hasPushedSource(model) && <CustomAgentsSources model={model} />}
+      {hasPushedSource(model) && <CustomAgentsSources model={model} toggle={toggle} />}
     </div>
   );
 }
@@ -358,16 +372,41 @@ function CustomAgentsRows({
   );
 }
 
-function CustomAgentsSources({ model }: { model: CustomAgentsViewModel }): ReactNode {
+function CustomAgentsSources({
+  model,
+  toggle,
+}: {
+  model: CustomAgentsViewModel;
+  toggle: ReturnType<typeof useCustomAgentToggle>;
+}): ReactNode {
+  const failedOverLimit = failedOverLimitNames(toggle, model.sources);
+
   return (
     <div className="space-y-2">
       <h4 className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
         Sources
       </h4>
       {model.sources.map((source) => (
-        <CustomAgentSourceSection key={source.scope} source={source} />
+        <CustomAgentSourceSection
+          key={source.scope}
+          source={source}
+          overLimitFailures={failedOverLimit}
+        />
       ))}
     </div>
+  );
+}
+
+/**
+ * Names whose over-limit enable is still failed. The cap removes those agents
+ * from the roster, so the message rides on the source issue that names them.
+ */
+function failedOverLimitNames(
+  toggle: ReturnType<typeof useCustomAgentToggle>,
+  sources: readonly CustomAgentSourceModel[]
+): ReadonlySet<string> {
+  return new Set(
+    [...overLimitNames(sources)].filter((name) => toggle.stateFor(name).kind === 'failed')
   );
 }
 

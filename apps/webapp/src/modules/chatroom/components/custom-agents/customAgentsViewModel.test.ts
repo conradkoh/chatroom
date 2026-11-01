@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MACHINE_AGENTS_ROOT,
   buildCustomAgentsViewModel,
+  overLimitNames,
   type TeamRosterResult,
 } from './customAgentsViewModel';
 
@@ -166,6 +167,27 @@ describe('buildCustomAgentsViewModel sources', () => {
     expect(model.enabledCount).toBe(1);
     expect(model.disabledCount).toBe(1);
     expect(model.issueCount).toBe(3);
+  });
+});
+
+describe('overLimitNames', () => {
+  it('collects paths from every source, ignoring other reasons', () => {
+    const model = buildCustomAgentsViewModel(
+      result({
+        sources: [
+          source('workspace', {
+            issues: [
+              { path: 'alpha', reason: 'over-limit' },
+              { path: 'beta', reason: 'gitignored' },
+            ],
+          }),
+          source('machine', { issues: [{ path: 'gamma', reason: 'over-limit' }] }),
+        ],
+      }),
+      '/ws'
+    );
+
+    expect([...overLimitNames(model.sources)].sort()).toEqual(['alpha', 'gamma']);
   });
 });
 

@@ -9,8 +9,10 @@
  * Lifecycle of one toggle:
  * - `pending` while waiting for the machine command to be accepted and the
  *   roster to come back with the desired value;
- * - `failed` when the mutation rejects or the 10 s timeout fires first;
- * - `idle` once the roster confirms either state, or when the agent disappears.
+ * - `failed` when the mutation rejects or the 10 s timeout fires first, and when
+ *   the per-chatroom cap dropped the enabled agent from the roster entirely;
+ * - `idle` once the roster confirms either state, or when the agent disappears
+ *   for any reason other than the cap.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -19,6 +21,7 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
+  CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
   CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
   customAgentMutationErrorMessage,
 } from './customAgentCopy';
@@ -36,6 +39,8 @@ type ToggleStates = Record<string, CustomAgentToggleState>;
 export interface UseCustomAgentToggleArgs {
   chatroomId: string;
   rows: readonly CustomAgentRowModel[];
+  /** Names the source issues mark `over-limit`; an enable for one of these stays failed while it persists. */
+  overLimitNames?: ReadonlySet<string>;
 }
 
 export interface UseCustomAgentToggleResult {
@@ -45,9 +50,23 @@ export interface UseCustomAgentToggleResult {
 
 const IDLE: CustomAgentToggleState = { kind: 'idle' };
 
+const NO_OVER_LIMIT: ReadonlySet<string> = new Set();
+
+/**
+ * The state an over-limit enable settles on. A single frozen value keeps
+ * `resolveState` identity-stable, so a reconcile with nothing new to report does
+ * not commit a fresh map.
+ */
+const OVER_LIMIT_FAILURE: CustomAgentToggleState = {
+  kind: 'failed',
+  desiredDisabled: false,
+  message: CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
+};
+
 export function useCustomAgentToggle({
   chatroomId,
   rows,
+  overLimitNames = NO_OVER_LIMIT,
 }: UseCustomAgentToggleArgs): UseCustomAgentToggleResult {
   const setDisabled = useSessionMutation(api.customAgents.setDisabled);
   const [states, setStates] = useState<ToggleStates>({});
@@ -118,16 +137,17 @@ export function useCustomAgentToggle({
     [chatroomId, failPending, setDisabled, setState, startTimer]
   );
 
-  // Reconcile against the roster: confirmations clear intent, removals drop it.
+  // Reconcile against the roster: confirmations clear intent, removals drop it,
+  // and an enable the cap rejected settles on the visible over-limit failure.
   // The roster is server truth; this local map only records intent until it agrees,
   // so it is neither derived render state nor an event-handler side effect.
   /* eslint-disable react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-derived-state */
   useEffect(() => {
-    const { states: next, reset } = reconcile(statesRef.current, rows);
+    const { states: next, reset } = reconcile(statesRef.current, rows, overLimitNames);
     if (reset.length === 0) return;
     for (const name of reset) clearTimer(name);
     commit(next);
-  }, [rows, clearTimer, commit]);
+  }, [rows, overLimitNames, clearTimer, commit]);
   /* eslint-enable react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-derived-state */
 
   useEffect(() => {
@@ -146,14 +166,15 @@ export function useCustomAgentToggle({
 /** Applies roster truth to every tracked name. Returns the next map and the reset names. */
 function reconcile(
   states: ToggleStates,
-  rows: readonly CustomAgentRowModel[]
+  rows: readonly CustomAgentRowModel[],
+  overLimitNames: ReadonlySet<string>
 ): { states: ToggleStates; reset: string[] } {
   const byName = new Map(rows.map((row) => [row.name, row]));
   const next: ToggleStates = {};
   const reset: string[] = [];
 
   for (const [name, state] of Object.entries(states)) {
-    const resolution = resolveState(state, byName.get(name));
+    const resolution = resolveState(state, byName.get(name), overLimitNames.has(name));
     if (resolution.reset) reset.push(name);
     if (resolution.state !== null) next[name] = resolution.state;
   }
@@ -162,10 +183,29 @@ function reconcile(
 
 function resolveState(
   state: CustomAgentToggleState,
-  row: CustomAgentRowModel | undefined
+  row: CustomAgentRowModel | undefined,
+  overLimit: boolean
 ): { state: CustomAgentToggleState | null; reset: boolean } {
-  if (row === undefined) return { state: null, reset: true };
+  if (row === undefined) return resolveMissingRow(state, overLimit);
   if (state.kind === 'idle') return { state, reset: false };
   if (row.disabled === state.desiredDisabled) return { state: IDLE, reset: true };
   return { state, reset: false };
+}
+
+/**
+ * `mergeTeamStructureWithCustomAgents` removes an enabled agent past the
+ * per-chatroom cap from the roster, so enabling one is the only way a tracked
+ * name loses its row. Keep the failure while the source still reports
+ * `over-limit`; drop it once the issue clears or the user aimed for off.
+ */
+function resolveMissingRow(
+  state: CustomAgentToggleState,
+  overLimit: boolean
+): { state: CustomAgentToggleState | null; reset: boolean } {
+  if (!overLimit || state.kind === 'idle' || state.desiredDisabled) {
+    return { state: null, reset: true };
+  }
+  // A reset name clears the pending timer and commits; an entry that is already
+  // the frozen failure is left untouched, so repeated reconciles are no-ops.
+  return { state: OVER_LIMIT_FAILURE, reset: state !== OVER_LIMIT_FAILURE };
 }

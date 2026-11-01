@@ -107,6 +107,12 @@ export const CUSTOM_AGENT_ISSUE_COPY: Record<CustomAgentIssueReason, CustomAgent
 export const CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE =
   'The machine did not respond. Is the daemon running? The change still applies if the daemon reconnects within a few minutes.';
 
+/**
+ * Shown on a toggle whose enable the per-chatroom cap rejected. The roster drops
+ * such an agent entirely, so this copy is the only feedback the user gets.
+ */
+export const CUSTOM_AGENT_OVER_LIMIT_MESSAGE = `This agent was not turned on: the chatroom can run ${CUSTOM_AGENT_LIMITS.agentsPerChatroom} custom agents at once. Turn off another one to make room.`;
+
 export const CUSTOM_AGENTS_GITIGNORE_SNIPPET = '.chatroom/*\n!.chatroom/agents/';
 
 export const CUSTOM_AGENT_EXAMPLE_FILE =

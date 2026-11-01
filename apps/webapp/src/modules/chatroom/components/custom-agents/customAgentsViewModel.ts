@@ -104,6 +104,16 @@ function shadowedMachineNames(sources: readonly CustomAgentSourceView[]): Readon
   return new Set(issues.filter((issue) => issue.reason === 'shadowed').map((issue) => issue.path));
 }
 
+/** Names the source issues mark `over-limit`; the roster omits these agents entirely. */
+export function overLimitNames(sources: readonly CustomAgentSourceModel[]): ReadonlySet<string> {
+  return new Set(
+    sources
+      .flatMap((source) => source.issues)
+      .filter((issue) => issue.reason === 'over-limit')
+      .map((issue) => issue.path)
+  );
+}
+
 function buildSources(
   sources: readonly CustomAgentSourceView[],
   workingDir: string

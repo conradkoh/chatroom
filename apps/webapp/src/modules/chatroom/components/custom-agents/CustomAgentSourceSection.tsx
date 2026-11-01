@@ -12,6 +12,7 @@ import type { ReactNode } from 'react';
 
 import {
   CUSTOM_AGENT_ISSUE_COPY,
+  CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
   CUSTOM_AGENTS_GITIGNORE_SNIPPET,
   formatCustomAgentIssueDetail,
 } from './customAgentCopy';
@@ -21,9 +22,17 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 
 export interface CustomAgentSourceSectionProps {
   source: CustomAgentSourceModel;
+  /**
+   * Names whose over-limit enable failed. Such an agent has no roster row, so the
+   * rejection is reported on the issue that already names it.
+   */
+  overLimitFailures?: ReadonlySet<string>;
 }
 
-export function CustomAgentSourceSection({ source }: CustomAgentSourceSectionProps) {
+export function CustomAgentSourceSection({
+  source,
+  overLimitFailures,
+}: CustomAgentSourceSectionProps) {
   return (
     <section
       data-testid={`custom-agent-source-${source.scope}`}
@@ -31,7 +40,7 @@ export function CustomAgentSourceSection({ source }: CustomAgentSourceSectionPro
     >
       <SourceHeader source={source} />
       <SourceStatus source={source} />
-      <SourceIssues issues={source.issues} />
+      <SourceIssues issues={source.issues} overLimitFailures={overLimitFailures} />
     </section>
   );
 }
@@ -82,18 +91,34 @@ function SourceStatus({ source }: { source: CustomAgentSourceModel }): ReactNode
   );
 }
 
-function SourceIssues({ issues }: { issues: CustomAgentSourceModel['issues'] }): ReactNode {
+function SourceIssues({
+  issues,
+  overLimitFailures,
+}: {
+  issues: CustomAgentSourceModel['issues'];
+  overLimitFailures: ReadonlySet<string> | undefined;
+}): ReactNode {
   if (issues.length === 0) return null;
   return (
     <ul className="divide-y divide-chatroom-border">
       {issues.map((issue, index) => (
-        <IssueRow key={`${issue.reason}:${issue.path}:${index}`} issue={issue} />
+        <IssueRow
+          key={`${issue.reason}:${issue.path}:${index}`}
+          issue={issue}
+          overLimitFailed={overLimitFailures?.has(issue.path) ?? false}
+        />
       ))}
     </ul>
   );
 }
 
-function IssueRow({ issue }: { issue: CustomAgentSourceModel['issues'][number] }): ReactNode {
+function IssueRow({
+  issue,
+  overLimitFailed,
+}: {
+  issue: CustomAgentSourceModel['issues'][number];
+  overLimitFailed: boolean;
+}): ReactNode {
   const copy = CUSTOM_AGENT_ISSUE_COPY[issue.reason];
   const detail = formatCustomAgentIssueDetail(issue);
 
@@ -117,8 +142,29 @@ function IssueRow({ issue }: { issue: CustomAgentSourceModel['issues'][number] }
             text={CUSTOM_AGENTS_GITIGNORE_SNIPPET}
           />
         )}
+        <OverLimitFailure issue={issue} failed={overLimitFailed} />
       </div>
     </li>
+  );
+}
+
+/** The user's enable landed on a capped agent; the row is gone, so report it here. */
+function OverLimitFailure({
+  issue,
+  failed,
+}: {
+  issue: CustomAgentSourceModel['issues'][number];
+  failed: boolean;
+}): ReactNode {
+  if (issue.reason !== 'over-limit' || !failed) return null;
+  return (
+    <p
+      role="alert"
+      data-testid="custom-agent-over-limit-failure"
+      className="text-[10px] font-bold text-chatroom-status-error"
+    >
+      {CUSTOM_AGENT_OVER_LIMIT_MESSAGE}
+    </p>
   );
 }
 
