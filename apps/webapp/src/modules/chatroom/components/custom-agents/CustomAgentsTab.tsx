@@ -375,8 +375,8 @@ function CustomAgentsMachineWideNote({ hostname }: { hostname: string }): ReactN
   return (
     <p className="flex items-start gap-2 p-3 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-chatroom-text-secondary">
       <Info size={12} className="mt-0.5 shrink-0 text-chatroom-text-muted" aria-hidden />
-      Turning an agent off applies to every chatroom that uses it on {hostname}. An agent that is
-      already working keeps working on its current task.
+      Turning an agent off applies to every agent with that name on {hostname}, in every chatroom
+      and in both scopes. An agent that is already working keeps working on its current task.
     </p>
   );
 }

@@ -314,7 +314,9 @@ describe('CustomAgentsTab loaded state', () => {
     renderTab();
 
     expect(
-      screen.getByText(/Turning an agent off applies to every chatroom that uses it on dev-host/)
+      screen.getByText(
+        /Turning an agent off applies to every agent with that name on dev-host, in every chatroom/
+      )
     ).toBeInTheDocument();
   });
 
