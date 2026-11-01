@@ -248,6 +248,17 @@ async function hasCustomAgentDefinition(
 }
 
 /**
+ * The stored canonical form of a custom-agent role name.
+ *
+ * Stored names are lowercase kebab-case (`validateCustomAgentName` only accepts
+ * that form), so every lookup normalises the caller's input the same way instead
+ * of relying on each call site to pass the exact casing.
+ */
+export function canonicalCustomAgentRoleName(role: string): string {
+  return role.trim().toLowerCase();
+}
+
+/**
  * The stored definition for one role in a workspace, or null.
  *
  * Workspace rows shadow machine rows of the same name, mirroring the merge
@@ -259,9 +270,10 @@ export async function findCustomAgentForRole(
   workspace: Doc<'chatroom_workspaces'>,
   role: string
 ): Promise<CustomAgentRow | null> {
+  const name = canonicalCustomAgentRoleName(role);
   const [workspaceRow, machineRow] = await Promise.all([
-    findCustomAgentByName(ctx, workspace.machineId, 'workspace', workspace.workingDir, role),
-    findCustomAgentByName(ctx, workspace.machineId, 'machine', undefined, role),
+    findCustomAgentByName(ctx, workspace.machineId, 'workspace', workspace.workingDir, name),
+    findCustomAgentByName(ctx, workspace.machineId, 'machine', undefined, name),
   ]);
   return workspaceRow ?? machineRow;
 }

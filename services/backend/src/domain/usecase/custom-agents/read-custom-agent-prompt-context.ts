@@ -21,6 +21,8 @@
  *     lookup in `findCustomAgentForRole`; still at most 2 content/template rows.
  */
 
+import { validateCustomAgentName } from '@workspace/shared/domain/custom-agent';
+
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { ResolvedChatroom } from '../../../../convex/lib/chatroomTeam';
@@ -29,7 +31,11 @@ import type {
   CustomDelegate,
   CustomRoleInstructions,
 } from '../../../../prompts/custom-agents/types';
-import { findCustomAgentForRole, type ResolvedCustomAgent } from '../team/resolve-chatroom-team';
+import {
+  canonicalCustomAgentRoleName,
+  findCustomAgentForRole,
+  type ResolvedCustomAgent,
+} from '../team/resolve-chatroom-team';
 import { getPrimaryWorkspaceForChatroom } from '../workspace/get-primary-workspace-for-chatroom';
 
 export interface ReadCustomAgentPromptContextInput {
@@ -54,26 +60,48 @@ export async function readCustomAgentPromptContext(
   ctx: QueryCtx,
   input: ReadCustomAgentPromptContextInput
 ): Promise<CustomAgentPromptContext | undefined> {
-  const agents = input.chatroom.customAgents ?? [];
+  const role = canonicalCustomAgentRoleName(input.role);
+  const known = await readKnownRoleContext(
+    ctx,
+    input.chatroom,
+    input.chatroom.customAgents ?? [],
+    role
+  );
+  if (known !== undefined) return known;
+  // A builtin, reserved, or malformed name can never be a custom role, so it
+  // returns before the stored-row fallback: no workspace read and no name
+  // lookup for a builtin prompt.
+  if (validateCustomAgentName(role) !== null) return undefined;
+  return await buildStoredSelfContext(ctx, input, role);
+}
 
-  const enabled = findEnabledAgent(agents, input.role);
+/**
+ * Context for a role the chatroom already resolved: an enabled custom agent, or
+ * the entry point (a builtin name that still needs its delegate roster).
+ */
+async function readKnownRoleContext(
+  ctx: QueryCtx,
+  chatroom: ResolvedChatroom,
+  agents: readonly ResolvedCustomAgent[],
+  role: string
+): Promise<CustomAgentPromptContext | undefined> {
+  const enabled = findEnabledAgent(agents, role);
   if (enabled !== undefined) {
-    return await buildSelfContext(ctx, input.chatroom, toSelfSource(enabled));
+    return await buildSelfContext(ctx, chatroom, toSelfSource(enabled));
   }
-  if (isEntryPoint(input.chatroom, input.role)) {
-    return await buildEntryPointContext(ctx, input.chatroom, agents);
-  }
-  return await buildStoredSelfContext(ctx, input);
+  if (!isEntryPoint(chatroom, role)) return undefined;
+  return await buildEntryPointContext(ctx, chatroom, agents);
 }
 
 async function buildStoredSelfContext(
   ctx: QueryCtx,
-  input: ReadCustomAgentPromptContextInput
+  input: ReadCustomAgentPromptContextInput,
+  role: string
 ): Promise<CustomAgentPromptContext | undefined> {
   const workspace = await getPrimaryWorkspaceForChatroom(ctx, input.chatroom._id);
   if (workspace === null) return undefined;
 
-  const row = await findCustomAgentForRole(ctx, workspace, input.role);
+  const row = await findCustomAgentForRole(ctx, workspace, role);
   if (row === null) return undefined;
   return await buildSelfContext(ctx, input.chatroom, toSelfSourceFromRow(row));
 }
@@ -117,12 +145,12 @@ async function toDelegate(ctx: QueryCtx, agent: ResolvedCustomAgent): Promise<Cu
   return { name: agent.name, description: agent.description, inboundHandoffTemplate };
 }
 
+/** The enabled agent for a canonical role name, matched exactly. */
 function findEnabledAgent(
   agents: readonly ResolvedCustomAgent[],
   role: string
 ): ResolvedCustomAgent | undefined {
-  const normalized = role.toLowerCase();
-  return agents.find((agent) => agent.name.toLowerCase() === normalized);
+  return agents.find((agent) => agent.name === role);
 }
 
 function isEntryPoint(chatroom: ResolvedChatroom, role: string): boolean {

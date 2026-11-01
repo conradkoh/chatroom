@@ -153,6 +153,27 @@ async function readContext(
 }
 
 describe('readCustomAgentPromptContext', () => {
+  test('does not read the workspace for a builtin role even when customs exist', async () => {
+    // Before the builtin guard, `builder` fell through to the stored-row fallback,
+    // which read the primary workspace and did two name lookups.
+    const fixture = await setup('builtin-with-customs');
+    await syncWorkspaceAgents(fixture, [makeAgent('alpha')]);
+
+    const { context, reads } = await readContext(fixture.chatroomId, 'builder');
+
+    expect(context).toBeUndefined();
+    expect(reads).toEqual(NO_READS);
+  });
+
+  test('normalises a mixed-case role for the stored-row fallback', async () => {
+    const fixture = await setup('canonical-fallback');
+    await syncWorkspaceAgents(fixture, [makeAgent('alpha', { disabled: true })]);
+
+    const { context } = await readContext(fixture.chatroomId, '  AlPhA  ');
+
+    expect(context?.self?.name).toBe('alpha');
+  });
+
   test('returns undefined for a builtin role when the chatroom has no custom agents', async () => {
     const fixture = await setup('builtin');
     const { context, reads } = await readContext(fixture.chatroomId, 'builder');

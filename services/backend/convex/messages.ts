@@ -535,7 +535,9 @@ export async function runHandoffHandler(
     (await isEphemeralRoleInChatroom(ctx, args.chatroomId, normalizedSenderRole)) &&
     (await findActiveAssignedTaskForRole(ctx, {
       chatroomId: args.chatroomId,
-      role: args.senderRole,
+      // The same canonical role the ephemeral check used, so a mixed-case sender
+      // cannot pass one lookup and miss the other.
+      role: normalizedSenderRole,
     })) !== null;
   if (!senderInTeam && !senderHasActiveTask) {
     return {
