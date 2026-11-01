@@ -22,12 +22,16 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireSession } from './auth/session';
 import { customAgentIssueValidator, customAgentScopeValidator } from './schema';
+import { BACKEND_ERROR_CODES } from '../config/errorCodes';
 import { checkAccess } from '../modules/auth/accessCheck';
 import { syncCustomAgentDefinitions } from '../src/domain/usecase/custom-agents/sync-custom-agent-definitions';
+import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import {
+  findCustomAgentForRole,
   resolveChatroomTeam,
   type ResolvedChatroomTeam,
 } from '../src/domain/usecase/team/resolve-chatroom-team';
+import { getPrimaryWorkspaceForChatroom } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 
 const customAgentDefinitionValidator = v.object({
   name: v.string(),
@@ -213,5 +217,108 @@ export const getTeamRoster = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     return buildTeamSettings(ctx, args.chatroomId);
+  },
+});
+
+// ─── Commands (disable / refresh) ────────────────────────────────────────────
+
+/**
+ * Disable state is machine-local and the daemon is the only writer of
+ * custom-agent rows. These mutations therefore never patch a row: they enqueue
+ * one machine command and let the daemon's next push carry the change.
+ */
+
+/** Where a command request fails when the chatroom cannot name a machine. */
+type MissingWorkspaceCode = 'CUSTOM_AGENT_NOT_FOUND' | 'CUSTOM_AGENT_NO_WORKSPACE';
+
+/** The chatroom's primary workspace, or the caller's error when it has none. */
+async function resolveCommandWorkspace(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  missingCode: MissingWorkspaceCode
+): Promise<Doc<'chatroom_workspaces'>> {
+  const workspace = await getPrimaryWorkspaceForChatroom(ctx, chatroomId);
+  if (workspace !== null) return workspace;
+  throw new ConvexError({
+    code: missingCode,
+    message: 'Chatroom has no active workspace',
+  });
+}
+
+/** Machine ownership, matching the check `machines.requestGitRefresh` performs. */
+async function assertMachineOwner(
+  ctx: MutationCtx,
+  sessionId: string,
+  machineId: string
+): Promise<void> {
+  const auth = await requireSession(ctx, sessionId);
+  const ownerCheck = await checkAccess(ctx, {
+    accessor: { type: 'user', id: auth.userId },
+    resource: { type: 'machine', id: machineId },
+    permission: 'owner',
+  });
+  if (ownerCheck.ok) return;
+  throw new ConvexError({
+    code: BACKEND_ERROR_CODES.NOT_AUTHORIZED_MACHINE,
+    message: 'Not authorized for this machine',
+  });
+}
+
+/**
+ * Ask the machine behind this chatroom's workspace to change one agent's
+ * disable flag.
+ *
+ * The value is absolute, never a toggle, so an identical repeat is harmless and
+ * no dedupe is needed. The stored row is untouched: the daemon owns it.
+ */
+export const setDisabled = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    name: v.string(),
+    disabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workspace = await resolveCommandWorkspace(ctx, args.chatroomId, 'CUSTOM_AGENT_NOT_FOUND');
+    const agent = await findCustomAgentForRole(ctx, workspace, args.name);
+    if (agent === null) {
+      throw new ConvexError({
+        code: BACKEND_ERROR_CODES.CUSTOM_AGENT_NOT_FOUND,
+        message: `Custom agent "${args.name}" was not found`,
+      });
+    }
+    await assertMachineOwner(ctx, args.sessionId, workspace.machineId);
+    await enqueueMachineCommand(ctx, {
+      machineId: workspace.machineId,
+      command: {
+        type: 'daemon.customAgentsSetDisabled',
+        name: agent.name,
+        disabled: args.disabled,
+      },
+    });
+    return { queued: true };
+  },
+});
+
+/** Ask the machine behind this chatroom's workspace to rescan and push. */
+export const requestRefresh = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const workspace = await resolveCommandWorkspace(
+      ctx,
+      args.chatroomId,
+      'CUSTOM_AGENT_NO_WORKSPACE'
+    );
+    await assertMachineOwner(ctx, args.sessionId, workspace.machineId);
+    await enqueueMachineCommand(ctx, {
+      machineId: workspace.machineId,
+      command: { type: 'daemon.customAgentsRefresh' },
+    });
+    return { queued: true };
   },
 });
