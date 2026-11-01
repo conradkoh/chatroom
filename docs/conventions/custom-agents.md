@@ -116,11 +116,11 @@ Name collisions are reported as `shadowed`, and nothing throws. The workspace de
 
 ## Forbidden fields
 
-Model and harness selection stays in Convex configuration and is never written to a role file. These frontmatter keys are rejected with `forbidden-field`:
+Model and harness selection stays in Convex configuration and is never written to a role file. Once the loader ships, these frontmatter keys are rejected with `forbidden-field`:
 
 `model`, `models`, `harness`, `harnesses`, `agentHarness`, `agent-harness`, `agent_harness`, `provider`
 
-Any other key besides `name` and `description` is reported as `unknown-field`.
+Once the loader ships, any other key besides `name` and `description` is reported as `unknown-field`.
 
 ## Issue reasons
 
