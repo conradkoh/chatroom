@@ -26,6 +26,8 @@ const test = authenticatedTest.extend({
 const WORKING_DIR = '/tmp/e2e-custom-agents';
 const AGENT_NAME = 'e2e-reviewer';
 const CLAIM_TIMEOUT_MS = 20_000;
+/** How long to wait for the setup modal before deciding it is not shown. */
+const SETUP_MODAL_WAIT_MS = 3_000;
 
 async function readSessionId(page: Page): Promise<SessionId> {
   const rawSessionId = await page.evaluate(() => localStorage.getItem('sessionId'));
@@ -112,16 +114,27 @@ async function seedChatroom(
   return { chatroomId, workspaceId };
 }
 
-async function dismissSetupWorkspace(page: Page): Promise<void> {
+/**
+ * Closes the setup modal when it opens. It is not always shown: setup mode ends
+ * once every role has joined, and when a workspace is already registered the
+ * modal opens on the "Agent Team" step rather than "Setup Workspace", so the
+ * heading is not a reliable anchor either.
+ */
+async function dismissSetupModal(page: Page): Promise<void> {
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: 'Setup Workspace' })).toBeVisible();
+  const appeared = await dialog
+    .waitFor({ state: 'visible', timeout: SETUP_MODAL_WAIT_MS })
+    .then(() => true)
+    .catch(() => false);
+  if (!appeared) return;
+
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toHaveCount(0);
 }
 
 async function openCustomAgentsTab(page: Page, chatroomId: string): Promise<void> {
   await page.goto(`/app/chatroom?id=${chatroomId}`);
-  await dismissSetupWorkspace(page);
+  await dismissSetupModal(page);
   await page.getByRole('button', { name: /Open menu$/ }).click();
   await page.getByRole('menuitem', { name: 'Settings' }).click();
   await page.getByRole('button', { name: 'Custom Agents' }).first().click();
@@ -193,7 +206,7 @@ test.describe('Custom agents settings tab', { tag: [TAG_DOWNSTREAM] }, () => {
 
     await applyDisableCommand(client, { sessionId, machineId });
 
-    await expect(row.getByText('Off')).toBeVisible({ timeout: 15_000 });
+    await expect(row.getByText('Off', { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(row.getByText('Turning off…')).toHaveCount(0);
   });
 });
