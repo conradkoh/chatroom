@@ -11,6 +11,7 @@ import { AlertTriangle, Check, Info } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import {
+  CUSTOM_AGENT_DISPLACED_MESSAGE,
   CUSTOM_AGENT_ISSUE_COPY,
   CUSTOM_AGENTS_GITIGNORE_SNIPPET,
   formatCustomAgentIssueDetail,
@@ -156,9 +157,12 @@ function OverLimitFailure({
   message: string | undefined;
 }): ReactNode {
   if (issue.reason !== 'over-limit' || message === undefined) return null;
+  // The displaced copy is shown at rest for an agent the user never toggled, so it
+  // must not announce itself. Only the enable failure is a reaction to a toggle.
+  const atRest = message === CUSTOM_AGENT_DISPLACED_MESSAGE;
   return (
     <p
-      role="alert"
+      role={atRest ? undefined : 'alert'}
       data-testid="custom-agent-over-limit-failure"
       className="text-[10px] font-bold text-chatroom-status-error"
     >

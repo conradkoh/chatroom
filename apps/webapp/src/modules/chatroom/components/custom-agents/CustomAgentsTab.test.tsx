@@ -456,6 +456,25 @@ describe('CustomAgentsTab toggle behaviour', () => {
     expect(screen.queryByText('Turning off…')).not.toBeInTheDocument();
   });
 
+  it('does not announce the displaced copy it shows at rest', () => {
+    // The tab opens already over the cap: no toggle happened, so the copy is
+    // static information and must not be announced as an alert.
+    const names = [
+      ...Array.from(
+        { length: CUSTOM_AGENT_LIMITS.agentsPerChatroom },
+        (_, index) => `agent-${index + 1}`
+      ),
+      'agent-17',
+    ];
+    mocks.roster = mergedRoster(names, []);
+
+    renderTab();
+
+    const failure = screen.getByTestId('custom-agent-over-limit-failure');
+    expect(failure).not.toHaveAttribute('role');
+    expect(failure).toHaveTextContent(CUSTOM_AGENT_DISPLACED_MESSAGE);
+  });
+
   it('reports the displaced agent on its source issue after a capped enable', () => {
     // `agent-17` sorts before `agent-2` through `agent-9`, so the real merge keeps
     // it on and cuts `agent-9` instead. Hand-built rosters hid that swap.
@@ -476,9 +495,9 @@ describe('CustomAgentsTab toggle behaviour', () => {
 
     expect(screen.queryByTestId('custom-agent-row-agent-9')).not.toBeInTheDocument();
     expect(screen.getByTestId('custom-agent-row-agent-17')).toBeInTheDocument();
-    const alert = screen.getByTestId('custom-agent-over-limit-failure');
-    expect(alert).toHaveAttribute('role', 'alert');
-    expect(alert).toHaveTextContent(CUSTOM_AGENT_DISPLACED_MESSAGE);
+    const failure = screen.getByTestId('custom-agent-over-limit-failure');
+    expect(failure).not.toHaveAttribute('role');
+    expect(failure).toHaveTextContent(CUSTOM_AGENT_DISPLACED_MESSAGE);
   });
 
   it('shows the corrected copy when the cap cuts the toggled agent itself', () => {
