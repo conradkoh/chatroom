@@ -75,7 +75,18 @@ export const machineCommandPayloadValidator = v.union(
     requestId: v.id('chatroom_gitCloneRequests'),
     repoUrl: v.string(),
     targetPath: v.string(),
-  })
+  }),
+  /**
+   * Ask the daemon to change one custom agent's machine-local disable flag.
+   * The value is absolute, never a toggle, so a repeated command is safe.
+   */
+  v.object({
+    type: v.literal('daemon.customAgentsSetDisabled'),
+    name: v.string(),
+    disabled: v.boolean(),
+  }),
+  /** Ask the daemon to rescan its custom-agent roots and push a fresh snapshot. */
+  v.object({ type: v.literal('daemon.customAgentsRefresh') })
 );
 export type MachineCommandPayload = typeof machineCommandPayloadValidator.type;
 export type MachineCommandType = MachineCommandPayload['type'];
@@ -90,4 +101,6 @@ export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
   'daemon.pickFolder': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   // Delivery window (5 min) for the command. Clone runtime is not bounded by this TTL.
   'daemon.gitClone': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
+  'daemon.customAgentsSetDisabled': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
+  'daemon.customAgentsRefresh': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
 };
