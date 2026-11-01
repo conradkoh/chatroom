@@ -11,8 +11,9 @@
  *   roster to come back with the desired value;
  * - `failed` when the mutation rejects or the 10 s timeout fires first, and when
  *   the per-chatroom cap dropped the enabled agent from the roster entirely;
- * - `idle` once the roster confirms either state, or when the agent disappears
- *   for any reason other than the cap.
+ * - `idle` once the roster confirms either state, when the agent disappears
+ *   for any reason other than the cap, or when a cap copy's row returns to the
+ *   roster (whatever its `disabled` flag says).
  *
  * Every `over-limit` name carries a failure, including agents the user never
  * toggled: enabling one agent can push a different, already-enabled agent past
