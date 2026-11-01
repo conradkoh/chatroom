@@ -922,4 +922,19 @@ describe('custom agent lifecycle after removal', () => {
     expect(await isEphemeral('ghost')).toBe(false);
     expect(await isEphemeral('user')).toBe(false);
   });
+
+  test('rejects a builtin sender left over after a solo team switch', async () => {
+    const { sessionId, chatroomId } = await setupChatroom('lifecycle-solo-sender', 'solo');
+    await seedActiveTask(chatroomId, 'builder');
+
+    const handoff = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'late message from a builtin role',
+      targetRole: 'planner',
+    });
+    expect(handoff.success).toBe(false);
+    expect(handoff.error?.code).toBe('INVALID_ROLE');
+  });
 });

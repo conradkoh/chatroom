@@ -1,4 +1,5 @@
 // fallow-ignore-file complexity code-duplication
+import { validateCustomAgentName } from '@workspace/shared/domain/custom-agent';
 import {
   advanceTaskEnvelopeWorkflow,
   normalizeTaskEnvelope,
@@ -517,12 +518,16 @@ export async function runHandoffHandler(
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const normalizedTargetRole = args.targetRole.toLowerCase();
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-  // A custom agent may still be executing when its definition file is removed,
-  // which drops it from the merged team. Let that sender hand back while it
-  // still owns an active task in this chatroom.
+  // A custom agent may still be executing when its definition file is removed
+  // or disabled, which drops it from the merged team. Let that sender hand back
+  // while it still owns an active task in this chatroom.
   const senderInTeam = normalizedTeamRoles.includes(normalizedSenderRole);
+  // Only a custom agent removed or disabled mid-task may hand back from outside
+  // the team. Builtin roles left over after a team switch are still rejected.
+  const senderIsCustomAgentName = validateCustomAgentName(normalizedSenderRole) === null;
   const senderHasActiveTask =
     !senderInTeam &&
+    senderIsCustomAgentName &&
     (await findActiveAssignedTaskForRole(ctx, {
       chatroomId: args.chatroomId,
       role: args.senderRole,
