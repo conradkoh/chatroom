@@ -79,9 +79,9 @@ describe('listCustomAgents', () => {
     expect(harness.queries).toEqual([{ sessionId: 'session-1', chatroomId: 'chatroom-1' }]);
     // Builtin roles are not custom agents, so they are not listed.
     expect(harness.lines).not.toContainEqual(expect.stringContaining('planner'));
-    expect(harness.lines).toContain('NAME   SCOPE      DISABLED  ISSUES');
-    expect(harness.lines).toContain('alpha  workspace  off       0');
-    expect(harness.lines).toContain('beta   machine    on        1');
+    expect(harness.lines).toContain('NAME   SCOPE      ENABLED  ISSUES');
+    expect(harness.lines).toContain('alpha  workspace  yes      0');
+    expect(harness.lines).toContain('beta   machine    no       1');
   });
 
   it('prints the sources with their status and agent counts', async () => {
@@ -92,6 +92,39 @@ describe('listCustomAgents', () => {
     expect(harness.lines).toContain('SCOPE      LOCATION  STATUS       AGENTS');
     expect(harness.lines).toContain('workspace  /repo     ok           1 agents');
     expect(harness.lines).toContain('machine    machine   with issues  1 agents');
+  });
+
+  it('counts only the issues whose path names the agent', async () => {
+    const harness = createDeps({
+      roster: [
+        {
+          role: 'alpha',
+          lifecycle: 'custom',
+          source: 'custom',
+          summary: 'Alpha role.',
+          disabled: false,
+          disableable: true,
+          scope: 'workspace',
+        },
+      ],
+      sources: [
+        {
+          scope: 'workspace',
+          workingDir: '/repo',
+          machineId: 'machine-1',
+          agentCount: 2,
+          issues: [
+            { path: 'beta/AGENT.md', reason: 'missing-frontmatter' },
+            { path: 'alpha/AGENT.md', reason: 'gitignored' },
+          ],
+          updatedAt: 1,
+        },
+      ],
+    });
+
+    await listCustomAgents('chatroom-1', harness.deps);
+
+    expect(harness.lines).toContain('alpha  workspace  yes      1');
   });
 
   it('prints every issue with its path, reason, and detail', async () => {

@@ -79,18 +79,21 @@ function renderAgents(
   const rows = agents.map((agent) => [
     sanitizeForTerminal(agent.role),
     agent.scope ?? 'unknown',
-    agent.disabled ? 'on' : 'off',
-    String(issueCountFor(agent.scope, sources)),
+    // The webapp shows a switch that is on when the agent is usable, so the
+    // column follows the switch rather than repeating the stored flag.
+    agent.disabled ? 'no' : 'yes',
+    String(issueCountFor(agent.role, sources)),
   ]);
-  return formatTable(['NAME', 'SCOPE', 'DISABLED', 'ISSUES'], rows);
+  return formatTable(['NAME', 'SCOPE', 'ENABLED', 'ISSUES'], rows);
 }
 
-/** A source's issues are the agent's issues: one source owns one scope. */
-function issueCountFor(
-  scope: CustomAgentScope | undefined,
-  sources: readonly RosterSource[]
-): number {
-  return sources.find((source) => source.scope === scope)?.issues.length ?? 0;
+/** Issues whose path names this agent: its own file, or a directory-level issue. */
+function issueCountFor(role: string, sources: readonly RosterSource[]): number {
+  return sources.reduce((total, source) => total + countAgentIssues(source.issues, role), 0);
+}
+
+function countAgentIssues(issues: readonly CustomAgentIssue[], role: string): number {
+  return issues.filter((issue) => issue.path === role || issue.path.startsWith(`${role}/`)).length;
 }
 
 function renderSources(sources: readonly RosterSource[]): string[] {
