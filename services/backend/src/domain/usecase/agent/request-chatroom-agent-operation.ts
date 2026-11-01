@@ -42,7 +42,7 @@ export async function requestChatroomAgentOperation(
   }
 
   const room = await ctx.db.get('chatroom_rooms', input.chatroomId);
-  const team = await resolveChatroomTeamStructure(ctx, input.chatroomId);
+  const team = await resolveChatroomTeamStructure(ctx, input.chatroomId, { legacyRoom: room });
   if (!room || !team) {
     return { operation: input.operation, requested: [], skipped: [], failed: [], commandIds: [] };
   }

@@ -192,7 +192,9 @@ export const startNonRunningAgentsForChatroom = internalMutation({
     const empty: StartAgentsResult = { started: [], skipped: [], failed: [] };
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom?.ownerId) return empty;
-    const structure = await resolveChatroomTeamStructure(ctx, args.chatroomId);
+    const structure = await resolveChatroomTeamStructure(ctx, args.chatroomId, {
+      legacyRoom: chatroom,
+    });
     if (!structure) return empty;
     const workspace = await getPrimaryWorkspaceForChatroom(ctx, args.chatroomId, {
       fallbackToNewest: false,

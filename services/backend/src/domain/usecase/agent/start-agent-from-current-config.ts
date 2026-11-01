@@ -95,7 +95,9 @@ async function resolveStartWorkspace(
 
 /**
  * Resolves the workspace for a role that the chatroom resolver says is a member
- * of the active team, so enabled custom agents are startable here too.
+ * of the active team, so enabled custom agents are startable here too. The room
+ * is passed as `legacyRoom` so a non-preset structure id keeps the persisted
+ * roles master used.
  */
 async function resolveStartContext(
   ctx: MutationCtx,
@@ -105,7 +107,8 @@ async function resolveStartContext(
   },
   role: string
 ): Promise<StepResult<Workspace>> {
-  const team = await resolveChatroomTeamStructure(ctx, input.chatroomId);
+  const room = await ctx.db.get('chatroom_rooms', input.chatroomId);
+  const team = await resolveChatroomTeamStructure(ctx, input.chatroomId, { legacyRoom: room });
   if (!team) return skip(role, 'No active team structure');
   if (!isRoleInTeam(team, role)) return skip(role, 'Role is not part of the active team');
   return resolveStartWorkspace(ctx, input, role);

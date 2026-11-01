@@ -168,4 +168,27 @@ describe('startAgentFromCurrentWorkspaceConfig', () => {
       machineId: setup.machineId,
     });
   });
+
+  test('resolves membership from persisted roles for a legacy team structure id', async () => {
+    const setup = await setupChatroom('legacy-squad');
+    await t.run(async (ctx) => {
+      const active = await ctx.db
+        .query('chatroom_activeTeamStructures')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', setup.chatroomId))
+        .first();
+      await ctx.db.patch('chatroom_activeTeamStructures', active!._id, {
+        teamStructureId: 'legacy-squad',
+      });
+      await ctx.db.patch('chatroom_rooms', setup.chatroomId, {
+        teamRoles: ['planner', 'builder'],
+      });
+    });
+    await saveLaunchConfig(setup, 'builder');
+
+    await expect(startFromCurrentConfig(setup, 'builder')).resolves.toEqual({
+      status: 'started',
+      role: 'builder',
+      machineId: setup.machineId,
+    });
+  });
 });
