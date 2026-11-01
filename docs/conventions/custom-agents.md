@@ -23,7 +23,7 @@ Shipped on `feat/custom-agents`:
 - The Custom Agents settings tab (`apps/webapp/src/modules/chatroom/components/custom-agents/CustomAgentsTab.tsx`), which shows what the machine loaded, reports every issue, and toggles agents or requests a rescan.
 - The custom-agent commands (`packages/cli/src/commands/custom-agents/`): `validate`, which is offline and prints what the loader sees, and the authenticated `list`, `enable`, `disable`, and `refresh`, which call the same `getTeamRoster`, `setDisabled`, and `requestRefresh` functions the settings tab uses. `enable` and `disable` print `confirmed` once the pushed roster shows the new value, or time out after 10 s.
 
-A change reaches the UI near-instantly on a running daemon, because the watchers push within the debounce window. When a root does not exist yet, the loader cannot watch it; creating `.chatroom/agents` is picked up by the 60 s fallback poll, so the worst case is about a minute. Rescan forces it immediately.
+Edits inside a watched root reach the UI near-instantly: the watcher fires, the daemon debounces briefly, and it pushes. A root that does not exist yet has nothing to watch, and no directory is created on the user's behalf; the daemon re-runs the watcher attach on every 60 s poll tick, so the first `.chatroom/agents` you create is noticed within about a minute, and edits after that are watched normally. Rescan (`refresh`, or the tab's Rescan button) forces an immediate load and push regardless of the watchers.
 
 Not shipped:
 
@@ -158,7 +158,7 @@ Custom agents are always ephemeral and optional. There is no frontmatter overrid
 
 Disable state and definition snapshots both arrive through a single write path, `syncDefinitions`. Definitions reach it from the daemon; disable state is stamped from the daemon's machine-local state and projected onto a chatroom by `resolveChatroomTeam`.
 
-- **Disable is machine-local and keyed by name.** The flag lives on the synced definition, so it follows that machine's row for the role rather than a chatroom setting. Every chatroom resolving the same definition sees the same disabled state.
+- **Disable is machine-local and keyed by name.** Turning off `reviewer-x` also disables any other agent called `reviewer-x` on that machine, including a machine-scope definition, and applies in every chatroom that resolves the name. The flag lives on the synced definition, so it follows that machine's row for the role rather than a chatroom setting.
 - **Disabled agents are removed before the 16-agent cap.** They never consume a per-chatroom slot, so disabling one agent cannot push another into `over-limit`.
 - **The roster still shows disabled agents.** `getTeamRoster` lists every resolved role, including disabled custom agents with `disabled: true`, so a disabled role is visible rather than silently missing.
 - **In-flight roles stay ephemeral.** A role already projected as ephemeral keeps the ephemeral lifecycle after its definition is removed or disabled, so release and handoff paths still run for work that is already assigned.
