@@ -15,6 +15,7 @@
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
 import type { PrimaryDeliveryAttachments } from '../../../src/domain/entities/message-attachments.js';
+import type { CustomAgentPromptContext } from '../../custom-agents/types.js';
 import { generateNativeTaskDeliveryOutput } from '../../native/task-delivery';
 import {
   appendCliTaskDeliveryFooter,
@@ -58,6 +59,11 @@ export interface FullCliOutputParams {
   standingInstructions?: string | null | undefined;
   /** Explicit conversation mode snapshot for Chat-mode direct-answer behavior. */
   conversationMode?: ConversationMode | undefined;
+  /**
+   * Custom-agent context for the delivered role, or `undefined` for a builtin
+   * role. Absent/undefined keeps the delivery output byte-identical.
+   */
+  customAgents?: CustomAgentPromptContext | undefined;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -75,6 +81,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     sourceAttachments,
     standingInstructions,
     conversationMode,
+    customAgents,
   } = params;
 
   return generateNativeTaskDeliveryOutput({
@@ -89,6 +96,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     sourceAttachments,
     standingInstructions,
     conversationMode,
+    customAgents,
   });
 }
 
@@ -105,6 +113,7 @@ function appendCliSharedHandoffSections(
     | 'availableHandoffTargets'
     | 'isEntryPoint'
     | 'conversationMode'
+    | 'customAgents'
   >
 ): void {
   const { message, ...rest } = params;
@@ -134,6 +143,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     sourceAttachments,
     standingInstructions,
     conversationMode,
+    customAgents,
   } = params;
 
   if (nativeIntegration) {
@@ -162,6 +172,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     availableHandoffTargets,
     isEntryPoint,
     conversationMode,
+    customAgents,
   });
   appendCliTaskDeliveryFooter(lines, { chatroomId, role, cliEnvPrefix });
 
