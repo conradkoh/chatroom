@@ -21,13 +21,12 @@ Shipped on `feat/custom-agents`:
 - The daemon loader and push service in `packages/cli/src/infrastructure/services/custom-agents/` and `packages/cli/src/daemon/services/custom-agents-service/`. The daemon is the only writer and pushes on daemon start, on every file change under either root (chokidar watchers), on a 60 s fallback poll, and when a rescan is requested.
 - Prompt composition in `services/backend/prompts/custom-agents/`: a custom role renders its own instructions and return handoff template, and the entry point renders a roster plus one inbound template per enabled delegate.
 - The Custom Agents settings tab (`apps/webapp/src/modules/chatroom/components/custom-agents/CustomAgentsTab.tsx`), which shows what the machine loaded, reports every issue, and toggles agents or requests a rescan.
-- `chatroom custom-agents validate` (`packages/cli/src/commands/custom-agents/`), an offline command that loads the sources and prints the agents and issues.
+- The custom-agent commands (`packages/cli/src/commands/custom-agents/`): `validate`, which is offline and prints what the loader sees, and the authenticated `list`, `enable`, `disable`, and `refresh`, which call the same `getTeamRoster`, `setDisabled`, and `requestRefresh` functions the settings tab uses. `enable` and `disable` print `confirmed` once the pushed roster shows the new value, or time out after 10 s.
 
 A change reaches the UI near-instantly on a running daemon, because the watchers push within the debounce window. When a root does not exist yet, the loader cannot watch it; creating `.chatroom/agents` is picked up by the 60 s fallback poll, so the worst case is about a minute. Rescan forces it immediately.
 
 Not shipped:
 
-- The CLI `list`, `enable`, `disable`, and `refresh` commands. `validate` is the only custom-agent command.
 - `chatroom handoff view-template` and `list-templates` for custom roles: the handoff catalogs cover builtin roles only.
 - Editing `AGENT.md` from the webapp. The tab shows what the machine loaded; authoring happens in the editor.
 - Model or harness selection for custom agents.
