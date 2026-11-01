@@ -66,14 +66,27 @@ const RENDERER_FILES = [
 /** Tags the renderers only mention as fill-in placeholders, never as markup. */
 const PLACEHOLDER_TAGS = ['requirement', 'reason'] as const;
 
-/** Every `<tag>` literal a renderer source mentions. */
+/**
+ * Every tag name a source mentions, with or without attributes. Matching only
+ * `<tag>` would let an attributed block such as `<foo type="x">` slip past the
+ * guard; the optional group therefore requires an `=` before `>`, which is what
+ * separates markup from the prose placeholders the templates use
+ * (`<current state after this work>`, `<additional files as needed>`).
+ */
+function tagsIn(source: string): string[] {
+  const found = new Set<string>();
+  for (const match of source.matchAll(/<\/?([a-z][a-z0-9-]*)(?:\s[^<>]*=[^<>]*)?\/?>/g)) {
+    found.add(match[1]!);
+  }
+  return [...found].sort();
+}
+
+/** Every tag a renderer source mentions. */
 function tagsInRendererSource(): string[] {
   const found = new Set<string>();
   for (const file of RENDERER_FILES) {
     const source = readFileSync(join(__dirname, '..', file), 'utf8');
-    for (const match of source.matchAll(/<\/?([a-z][a-z0-9-]*)>/g)) {
-      found.add(match[1]!);
-    }
+    for (const tag of tagsIn(source)) found.add(tag);
   }
   return [...found].sort();
 }
@@ -88,6 +101,12 @@ describe('reserved block tags', () => {
     for (const tag of emitted) {
       expect(neutralizeChatroomBlockTags(`<${tag}>x</${tag}>`)).toContain(`&lt;${tag}>`);
     }
+  });
+
+  it('catches a tag that carries attributes', () => {
+    // Matching only `<tag>` would let `<foo type="x">` through the guard.
+    expect(tagsIn('<foo type="x">value</foo>')).toEqual(['foo']);
+    expect(tagsIn('<bar/>')).toEqual(['bar']);
   });
 
   it.each(PROMPT_BLOCK_TAGS)('neutralises <%s>', (tag) => {
