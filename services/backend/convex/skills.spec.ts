@@ -130,6 +130,13 @@ describe('skills.activate', () => {
     expect(result.skill.prompt).toContain('inbound-handoff.md');
     expect(result.skill.prompt).toContain('return-handoff.md');
     expect(result.skill.prompt).toContain('reserved-name');
+    // The skill describes shipped behaviour: the validate command, the advisory
+    // frontmatter fields, and the machine-local disable flow.
+    expect(result.skill.prompt).toContain('chatroom custom-agents validate');
+    expect(result.skill.prompt).toContain('unknown-field');
+    expect(result.skill.prompt).toContain('forbidden-field');
+    expect(result.skill.prompt).toContain('Disable is machine-local');
+    expect(result.skill.prompt).not.toContain('not shipped yet');
   });
 
   test('throws ConvexError for an unknown skill', async () => {

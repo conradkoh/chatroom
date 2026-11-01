@@ -6,11 +6,15 @@ export const customAgentsSkill: SkillModule = {
   description:
     'Use when creating, editing, or reviewing custom agents: file layout, frontmatter, handoff templates, limits, and the conventions they must follow.',
 
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "custom-agents" skill.
+  getPrompt: (cliEnvPrefix: string) => `You have been activated with the "custom-agents" skill.
 
 # Custom Agents
 
-Custom agents are user-authored roles defined in files. In this build, definitions are synced from the daemon only when the daemon file loader is available; the loader is not shipped yet, so authored files do not reach Convex on their own. Custom agents are supported only on duo teams, and the team composition lists them only once they are enabled.
+Custom agents are user-authored roles defined in files. The daemon loads \`.chatroom/agents\` and \`~/.chatroom/agents\`, validates every file, and pushes the snapshot to Convex; the chatroom team then lists each agent as an optional role. Custom agents work only on duo teams.
+
+The daemon pushes on start, on every file change under either root, on a 60 s fallback poll, and when someone presses Rescan in the webapp. A file you create appears in the chatroom within about a minute at worst, and almost immediately once the agent folder already exists.
+
+Run \`${cliEnvPrefix}chatroom custom-agents validate\` from the workspace to see exactly what the loader found and every issue it reported. Add \`--machine\` for the machine scope only, or \`--workspace <dir>\` for another directory. The command is offline: no auth and no backend call.
 
 ## Layout
 
@@ -23,14 +27,14 @@ One directory per agent, in one of two scopes:
 
 Each agent directory may also contain:
 
-- \`inbound-handoff.md\` — the template the team entry point uses to delegate to this agent (max 4 KiB).
-- \`return-handoff.md\` — the template this agent uses to return to the entry point (max 4 KiB).
+- \`inbound-handoff.md\` — the template the team entry point uses to delegate to this agent.
+- \`return-handoff.md\` — the template this agent uses to return to the entry point.
 
-Both handoff files are optional. When either file is absent, a generated default is planned but not rendered yet: prompt composition for custom roles is not shipped.
+Both handoff files are optional. When either file is absent, prompt composition renders a generated default, so a teammate always gets a usable structure.
 
 Workspace agents are committed with the repo, so teammates share them. Machine agents stay on one machine and are never committed.
 
-If \`.chatroom/\` is ignored by the repository, a workspace agent is reported with the \`gitignored\` issue once the loader ships and cannot be committed. Replace a bare \`.chatroom\` ignore rule with:
+\`gitignored\` is advisory: it is reported only for workspace scope, only when the repository has a \`.git\`, and only when git would ignore \`.chatroom/agents/<name>/AGENT.md\`. The agent still loads; the issue means teammates will not receive it. The rule \`chatroom\` writes into a project's \`.gitignore\` is:
 
 \`\`\`text
 .chatroom/*
@@ -50,23 +54,23 @@ description: Reviews release notes for accuracy and completeness before publishi
 You are the release reviewer. Your job is to ...
 \`\`\`
 
-- \`name\` is required and must match the directory name exactly. Once the loader ships, a mismatch is reported as \`name-mismatch\`.
+- \`name\` is required and must match the directory name exactly. A mismatch is reported as \`name-mismatch\` and the agent is not loaded.
 - \`description\` is required and is the one-line summary other agents see in the team roster.
 - The body is the system prompt. Write it in the second person and state the role's purpose, responsibilities, handoff points, and what it must return.
 
 ## Handoff templates
 
-Handoff templates are markdown with \`## \` sections. Each file contains the message body only; do not include the \`---MESSAGE---\` line or the \`CHATROOM_HANDOFF_END\` and \`CHATROOM_NOTIFY_END\` closing lines. The server rejects only the two closing lines today.
+Handoff templates are markdown with \`## \` sections. Each file contains the message body only; do not include the \`---MESSAGE---\` line or the \`CHATROOM_HANDOFF_END\` and \`CHATROOM_NOTIFY_END\` closing lines.
 
 - \`inbound-handoff.md\` is what the entry point sends when delegating work to this agent.
 - \`return-handoff.md\` is what this agent sends when returning work to the entry point.
 
-Cover the task summary, the context the recipient needs, and the expected result. Keep each template at or below 4 KiB (4,096 UTF-8 bytes). When the default template is adequate, omit the file rather than copying the default; the default is planned, not rendered yet.
+Cover the task summary, the context the recipient needs, and the expected result. Keep each template at or below 4 KiB (4,096 UTF-8 bytes). When the generated default is adequate, omit the file rather than copying it.
 
 Two constraints apply to every authored body:
 
 - A body line equal to \`CHATROOM_HANDOFF_END\` or \`CHATROOM_NOTIFY_END\` is rejected with the \`reserved-delimiter\` issue, because it would truncate the handoff payload.
-- Prompt composition for authored system prompts and handoff templates is not shipped yet, so authored protocol tags are not neutralized in rendered prompts. Do not rely on \`<handoffs>\`, \`<task>\`, \`<team-roster>\`, or any other reserved block tag to affect prompt structure.
+- Authored system prompts, handoff templates, and descriptions are neutralised before rendering: a reserved opening delimiter such as \`<handoffs>\`, \`<task>\`, \`<team-roster>\`, or \`<custom-agent-instructions>\` is escaped, so authored text cannot impersonate protocol markup. Write normal markdown and do not rely on reserved tags for structure.
 
 ## Name, description, and size rules
 
@@ -76,7 +80,7 @@ Two constraints apply to every authored body:
 - **Handoff templates:** at most 4 KiB (4,096 UTF-8 bytes) each.
 - **Agent counts:** at most 12 agents per source (workspace or machine) and at most 16 enabled custom agents per chatroom. Agents beyond the per-chatroom cap are not enabled and are reported with \`over-limit\`; a source that pushes more than 12 is rejected with \`INVALID_SCOPE\`.
 
-Caps are enforced, not advisory: an oversized definition is rejected with \`too-large\`, and a per-chatroom overflow is reported as \`over-limit\` rather than silently dropped. The frontmatter rules below take effect when the loader ships.
+Caps are enforced, not advisory: an oversized definition is rejected with \`too-large\`, and a per-chatroom overflow is reported as \`over-limit\` rather than silently dropped.
 
 ## Forbidden fields and reserved names
 
@@ -84,7 +88,7 @@ These frontmatter keys are forbidden because model and harness selection belongs
 
 \`model\`, \`models\`, \`harness\`, \`harnesses\`, \`agentHarness\`, \`agent-harness\`, \`agent_harness\`, \`provider\`
 
-Once the loader ships, a definition using one of them is rejected with \`forbidden-field\`. The server does not check frontmatter today.
+A definition using one of them is reported with \`forbidden-field\`. Any other key besides \`name\` and \`description\` is reported with \`unknown-field\`. Both are advisory: the agent still loads, and the key is never honoured — the loader reads only \`name\` and \`description\`. Remove the field to clear the issue.
 
 Reserved names fail with \`reserved-name\`:
 
@@ -96,15 +100,22 @@ Name collisions are never silent. A workspace agent wins a clash with a machine 
 
 Custom agents are always ephemeral and optional. There is no frontmatter override for lifecycle. A permanent custom role would block the setup wizard, so lifecycle stays out of authored files.
 
+## Enable, disable, and rescan
+
+Disable is machine-local and keyed by the agent name, and it applies to every chatroom on that machine that uses the agent. Use the Custom Agents section in the chatroom settings to turn an agent off or on, or to press Rescan. Only the owner of the machine can do either. The change is persisted by the machine and applied through the next push, so it may take a moment to appear.
+
+Disabling is reversible. An agent that is already working keeps working on its current task and hands off normally.
+
 ## Authoring checklist
 
 1. Create one directory named for the role: \`.chatroom/agents/<name>/\` or \`~/.chatroom/agents/<name>/\`.
 2. Make the frontmatter \`name\` identical to the directory name, in lowercase kebab-case within 48 characters.
 3. Write a single-line \`description\` within 200 characters; this is the roster summary other agents read.
 4. Put the system prompt in the body: purpose, responsibilities, when to hand off and to whom, and what to return.
-5. Add \`inbound-handoff.md\` and \`return-handoff.md\` only when the generated defaults are insufficient; keep each at or below 4 KiB (defaults are planned, not rendered yet).
+5. Add \`inbound-handoff.md\` and \`return-handoff.md\` only when the generated defaults are insufficient; keep each at or below 4 KiB.
 6. Keep the system prompt at or below 24 KiB and avoid reserved delimiters and protocol tags in authored text.
 7. Do not add model or harness fields; choose those in the chatroom instead.
 8. For workspace agents, make sure \`.chatroom/\` is not ignored wholesale so the definition can be committed.
+9. Run \`${cliEnvPrefix}chatroom custom-agents validate\` and fix every issue it reports.
 `,
 };
