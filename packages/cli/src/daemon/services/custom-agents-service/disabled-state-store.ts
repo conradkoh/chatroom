@@ -12,6 +12,9 @@
  * - Writing validates the 256-entry cap, creates the parent directory, and is
  *   atomic (temp file in the same directory, then rename). The service's serial
  *   queue guarantees two writes never interleave.
+ * - A write that would exceed the cap first drops names the machine's current
+ *   sources no longer define, so deleting agents cannot permanently wedge the
+ *   store. If pruning cannot help it fails with a message naming the file.
  */
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
@@ -25,7 +28,12 @@ const MAX_DISABLED_ENTRIES = 256;
 
 export interface DisabledStateStore {
   read(): Promise<ReadonlySet<string>>;
-  write(names: ReadonlySet<string>): Promise<void>;
+  /**
+   * Persists `names`. `knownNames` is every agent name the machine's current
+   * sources define; names outside it are stale and are dropped when the cap is
+   * about to be exceeded.
+   */
+  write(names: ReadonlySet<string>, knownNames: ReadonlySet<string>): Promise<void>;
 }
 
 function log(message: string): void {
@@ -36,7 +44,7 @@ function log(message: string): void {
 export function createFileDisabledStateStore(filePath: string): DisabledStateStore {
   return {
     read: () => readState(filePath),
-    write: (names) => writeState(filePath, names),
+    write: (names, knownNames) => writeState(filePath, names, knownNames),
   };
 }
 
@@ -91,13 +99,33 @@ function toNameSet(names: readonly unknown[]): ReadonlySet<string> {
   return new Set(valid);
 }
 
-async function writeState(filePath: string, names: ReadonlySet<string>): Promise<void> {
-  if (names.size > MAX_DISABLED_ENTRIES) {
+/**
+ * Drops names the machine's current sources no longer define. An empty
+ * `knownNames` means nothing has loaded yet, and pruning then would erase every
+ * flag, so the names are kept and the cap check decides.
+ */
+function pruneToKnownSources(
+  names: ReadonlySet<string>,
+  knownNames: ReadonlySet<string>
+): ReadonlySet<string> {
+  if (knownNames.size === 0) return names;
+  return new Set([...names].filter((name) => knownNames.has(name)));
+}
+
+async function writeState(
+  filePath: string,
+  names: ReadonlySet<string>,
+  knownNames: ReadonlySet<string>
+): Promise<void> {
+  const persisted =
+    names.size > MAX_DISABLED_ENTRIES ? pruneToKnownSources(names, knownNames) : names;
+  if (persisted.size > MAX_DISABLED_ENTRIES) {
     throw new Error(
-      `Refusing to persist ${names.size} disabled custom agents (max ${MAX_DISABLED_ENTRIES})`
+      `Refusing to persist ${persisted.size} disabled custom agents (max ${MAX_DISABLED_ENTRIES}) ` +
+        `even after pruning names no source defines; delete stale entries from ${filePath}`
     );
   }
-  const sorted = [...names].sort();
+  const sorted = [...persisted].sort();
   const payload = `${JSON.stringify({ version: STATE_VERSION, disabled: sorted }, null, 2)}\n`;
   const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
 

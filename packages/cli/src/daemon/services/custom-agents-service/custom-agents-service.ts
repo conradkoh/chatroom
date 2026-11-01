@@ -102,6 +102,8 @@ interface SourceRuntime {
   lastRejectedKey: string | null;
   /** True after `INVALID_SCOPE`; cleared by the next membership snapshot. */
   scopeRejected: boolean;
+  /** Names the last successful load found, used to prune stale disable flags. */
+  agentNames: ReadonlySet<string>;
   retired: boolean;
 }
 
@@ -217,6 +219,7 @@ function createRuntime(spec: SourceSpec): SourceRuntime {
     lastPushedKey: null,
     lastRejectedKey: null,
     scopeRejected: false,
+    agentNames: new Set(),
     retired: false,
   };
 }
@@ -275,6 +278,7 @@ async function loadAndPush(state: ServiceState, runtime: SourceRuntime): Promise
   if (runtime.scopeRejected) return;
   const disabled = await state.deps.state.read();
   const loaded = await state.deps.load(runtime.input);
+  runtime.agentNames = new Set(loaded.agents.map((entry) => entry.name));
   const args = buildPushArgs(state.deps, runtime.input, loaded, disabled);
   if (!shouldPush(state, runtime, args)) return;
 
@@ -377,7 +381,16 @@ async function persistDisabled(
   const next = new Set(current);
   if (disabled) next.add(name);
   else next.delete(name);
-  await state.deps.state.write(next);
+  await state.deps.state.write(next, knownAgentNames(state));
+}
+
+/** Every name the machine's current sources define, across all source scopes. */
+function knownAgentNames(state: ServiceState): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const runtime of state.sources.values()) {
+    for (const name of runtime.agentNames) names.add(name);
+  }
+  return names;
 }
 
 // ─── Push payload ────────────────────────────────────────────────────────────

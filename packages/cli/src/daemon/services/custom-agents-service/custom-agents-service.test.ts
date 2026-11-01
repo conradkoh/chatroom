@@ -509,6 +509,25 @@ describe('real state file', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('prunes stale disabled names so a new disable still persists', async () => {
+    const statePath = join(dir, 'custom-agents-disabled.json');
+    const store = createFileDisabledStateStore(statePath);
+    const stale = Array.from({ length: 256 }, (_, index) => `stale-${index}`);
+    await store.write(new Set(stale), new Set(stale));
+    const harness = createHarness({
+      agents: { machine: [agent('alpha')] },
+      state: store,
+    });
+
+    harness.service.start();
+    await vi.waitFor(() => expect(harness.pushes).toHaveLength(1), { timeout: 3_000 });
+    // The name is not defined by any source, so the write drops it instead of
+    // refusing at the 256-entry cap.
+    await harness.service.setDisabled('alpha', true);
+
+    expect([...(await store.read())].sort()).toEqual(['alpha']);
+  });
+
   it('survives a corrupt disabled-state file', async () => {
     const statePath = join(dir, 'custom-agents-disabled.json');
     await writeFile(statePath, '{not json', 'utf8');

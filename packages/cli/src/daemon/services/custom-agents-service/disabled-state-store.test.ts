@@ -30,7 +30,7 @@ describe('createFileDisabledStateStore', () => {
   it('round-trips names', async () => {
     const store = createFileDisabledStateStore(filePath);
 
-    await store.write(new Set(['alpha', 'beta']));
+    await store.write(new Set(['alpha', 'beta']), new Set(['alpha', 'beta']));
 
     expect([...(await store.read())].sort()).toEqual(['alpha', 'beta']);
     await expect(readFile(filePath, 'utf8')).resolves.toContain('"version": 1');
@@ -40,7 +40,7 @@ describe('createFileDisabledStateStore', () => {
     const nested = join(dir, 'state', 'nested', 'custom-agents-disabled.json');
     const store = createFileDisabledStateStore(nested);
 
-    await store.write(new Set(['alpha']));
+    await store.write(new Set(['alpha']), new Set(['alpha']));
 
     await expect(store.read()).resolves.toEqual(new Set(['alpha']));
   });
@@ -48,7 +48,7 @@ describe('createFileDisabledStateStore', () => {
   it('writes the names in sorted order', async () => {
     const store = createFileDisabledStateStore(filePath);
 
-    await store.write(new Set(['zeta', 'alpha']));
+    await store.write(new Set(['zeta', 'alpha']), new Set(['zeta', 'alpha']));
 
     const raw = await readFile(filePath, 'utf8');
     expect(raw.indexOf('alpha')).toBeLessThan(raw.indexOf('zeta'));
@@ -88,7 +88,7 @@ describe('createFileDisabledStateStore', () => {
     const store = createFileDisabledStateStore(filePath);
     const names = new Set(Array.from({ length: 257 }, (_, index) => `agent-${index}`));
 
-    await expect(store.write(names)).rejects.toThrow(/max 256/);
+    await expect(store.write(names, names)).rejects.toThrow(/max 256/);
     await expect(readFile(filePath, 'utf8')).rejects.toThrow();
   });
 
@@ -96,15 +96,41 @@ describe('createFileDisabledStateStore', () => {
     const store = createFileDisabledStateStore(filePath);
     const names = new Set(Array.from({ length: 256 }, (_, index) => `agent-${index}`));
 
-    await store.write(names);
+    await store.write(names, names);
 
     expect((await store.read()).size).toBe(256);
+  });
+
+  it('prunes names no current source defines before refusing an overflow', async () => {
+    const store = createFileDisabledStateStore(filePath);
+    const stale = Array.from({ length: 256 }, (_, index) => `agent-${index}`);
+    await store.write(new Set(stale), new Set(stale));
+
+    await store.write(new Set([...stale, 'alpha']), new Set(['alpha']));
+
+    expect([...(await store.read())].sort()).toEqual(['alpha']);
+  });
+
+  it('keeps every name when it cannot tell which ones are stale', async () => {
+    // No source has loaded yet: pruning against an empty known set would erase
+    // every flag, so the cap error is the honest outcome.
+    const store = createFileDisabledStateStore(filePath);
+    const names = new Set(Array.from({ length: 257 }, (_, index) => `agent-${index}`));
+
+    await expect(store.write(names, new Set())).rejects.toThrow(/max 256/);
+  });
+
+  it('reports a clear error when the overflow is entirely current names', async () => {
+    const store = createFileDisabledStateStore(filePath);
+    const names = new Set(Array.from({ length: 257 }, (_, index) => `agent-${index}`));
+
+    await expect(store.write(names, names)).rejects.toThrow(/pruning names no source defines/);
   });
 
   it('writes atomically, leaving no temp file behind', async () => {
     const store = createFileDisabledStateStore(filePath);
 
-    await store.write(new Set(['alpha']));
+    await store.write(new Set(['alpha']), new Set(['alpha']));
 
     const entries = await readdir(dir);
     expect(entries).toEqual(['custom-agents-disabled.json']);
