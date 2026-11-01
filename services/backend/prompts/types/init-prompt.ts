@@ -1,4 +1,5 @@
 import type { AgentHarness } from '../../src/domain/entities/agent';
+import type { CustomAgentPromptContext } from '../custom-agents/types';
 
 export interface ActivatedSkillSnapshot {
   skillId: string;
@@ -20,6 +21,11 @@ export interface InitPromptInput {
   /** Remote agent harness — determines native vs CLI init prompt sections */
   agentHarness?: AgentHarness | undefined;
   activatedSkills?: ActivatedSkillSnapshot[] | undefined;
+  /**
+   * Custom-agent context for this role, or `undefined` for a builtin role.
+   * Absent/undefined keeps the builtin init prompt byte-identical.
+   */
+  customAgents?: CustomAgentPromptContext | undefined;
 }
 
 export interface ComposedInitPrompt {

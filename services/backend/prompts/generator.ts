@@ -24,6 +24,8 @@
 
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
+import { buildCustomAgentSections } from './custom-agents/render-custom-agent-sections';
+import type { CustomAgentPromptContext } from './custom-agents/types';
 import {
   getHandoffTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
@@ -106,6 +108,11 @@ export interface RolePromptContext {
   availableHandoffRoles: string[];
   convexUrl: string; // Required Convex URL for env var prefix generation
   activatedSkills?: ActivatedSkillSnapshot[] | undefined;
+  /**
+   * Custom-agent context for this role, or `undefined` for a builtin role.
+   * Absent/undefined keeps the builtin prompt byte-identical.
+   */
+  customAgents?: CustomAgentPromptContext | undefined;
 }
 
 /**
@@ -127,10 +134,12 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   });
 
   const sections: PromptSection[] = [];
+  const customSections = buildCustomAgentSections(ctx.customAgents);
 
   // Role identity
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
+  sections.push(...customSections.afterRoleDescription);
   sections.push(
     ...getGeneralKnowledgeSections({
       convexUrl: ctx.convexUrl ?? '',
@@ -142,6 +151,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
 
   // Role-specific guidance (team-aware)
   sections.push(getRoleGuidanceSection(selectorCtx));
+  sections.push(...customSections.afterRoleGuidance);
 
   // Available handoff options
   sections.push(
@@ -190,11 +200,13 @@ function buildInitPromptSections(
   const { chatroomId, role, teamRoles, convexUrl } = input;
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
   const handoffTargets = [...new Set([...otherRoles, 'user'])];
+  const customSections = buildCustomAgentSections(input.customAgents);
 
   const sections: PromptSection[] = [
     getTeamHeaderSection(input.teamName),
     getRoleTitleSection(selectorCtx),
     getRoleDescriptionSection(selectorCtx),
+    ...customSections.afterRoleDescription,
     ...getGeneralKnowledgeSections({
       convexUrl: convexUrl ?? '',
       chatroomId,
@@ -205,6 +217,7 @@ function buildInitPromptSections(
     getGettingStartedSection(selectorCtx),
     getClassificationGuideSection(selectorCtx),
     getRoleGuidanceSection(selectorCtx),
+    ...customSections.afterRoleGuidance,
     getHandoffOptionsSection({ availableHandoffRoles: handoffTargets }),
     getCommandsReferenceSection({ chatroomId, role, convexUrl }),
     getNextStepSection({ chatroomId, role, convexUrl }),

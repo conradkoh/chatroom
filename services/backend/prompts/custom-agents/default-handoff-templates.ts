@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 /**
  * Generated handoff templates for custom agents.
  *
@@ -12,9 +11,6 @@
  * - Never contains a reserved handoff delimiter line, and never contains a
  *   reserved chatroom block tag, so the defaults can be rendered without
  *   neutralisation.
- *
- * Temporary: S4a ships these defaults ahead of the prompt wiring, so the
- * dead-code suppression above is needed until S4b consumes them.
  */
 
 export function defaultInboundHandoffTemplate(agentName: string): string {

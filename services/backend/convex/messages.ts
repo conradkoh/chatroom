@@ -32,6 +32,7 @@ import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueu
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import { readCustomAgentPromptContext } from '../src/domain/usecase/custom-agents/read-custom-agent-prompt-context';
 import {
   insertChatroomMessage,
   isMessageReadModelComplete,
@@ -1411,6 +1412,12 @@ export const getRolePrompt = query({
 
     // Generate the role-specific prompt
     const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
+    // Custom-role context (undefined for builtins): the only reader of the
+    // custom-agent content and template tables on this path.
+    const customAgents = await readCustomAgentPromptContext(ctx, {
+      chatroom,
+      role: args.role,
+    });
     const prompt = generateRolePrompt({
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1421,6 +1428,7 @@ export const getRolePrompt = query({
       availableHandoffRoles,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
       activatedSkills,
+      customAgents,
     });
 
     return {
@@ -1453,6 +1461,10 @@ export const getInitPrompt = query({
     });
 
     const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
+    const customAgents = await readCustomAgentPromptContext(ctx, {
+      chatroom,
+      role: args.role,
+    });
     const promptInput = {
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1464,6 +1476,7 @@ export const getInitPrompt = query({
       agentType: (existingAgentRequest?.agentType ?? 'unset') as 'remote' | 'custom' | 'unset',
       agentHarness: existingAgentRequest?.agentHarness,
       activatedSkills,
+      customAgents,
     };
 
     // Compose init prompt (system prompt + init message + combined)

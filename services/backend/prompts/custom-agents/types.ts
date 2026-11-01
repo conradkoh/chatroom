@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-type
 /**
  * Custom-agent prompt context.
  *
@@ -10,9 +9,6 @@
  * renderer substitutes a generated default. `undefined` context means "this is
  * a builtin role with no custom agent behind it", which is what keeps builtin
  * prompts byte-identical.
- *
- * Temporary: S4a ships these building blocks ahead of the prompt wiring, so the
- * dead-code suppression above is needed until S4b consumes them.
  */
 
 export interface CustomRoleInstructions {
