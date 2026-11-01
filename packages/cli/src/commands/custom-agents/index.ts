@@ -1,10 +1,10 @@
 /**
- * `chatroom custom-agents validate` — offline inspection of on-disk agents.
+ * `chatroom custom-agents` — disk inspection and roster commands.
  *
- * Loads one or both source roots (workspace and machine) and prints every
- * loaded agent and every issue, then sets a non-zero exit code when anything
- * was reported. The command never authenticates and never talks to the backend:
- * it answers "what would the daemon see on this machine?" from disk alone.
+ * `validate` is offline: it loads one or both source roots and prints what the
+ * daemon would see, without authenticating. `list`, `enable`, `disable`, and
+ * `refresh` are authenticated and call the same backend functions the webapp's
+ * Custom Agents tab uses, so the CLI adds no backend contract of its own.
  */
 
 import { homedir } from 'node:os';
@@ -12,6 +12,11 @@ import { homedir } from 'node:os';
 import type { CustomAgentIssue } from '@workspace/shared/domain/custom-agent';
 
 import type { CustomAgentsDeps, ValidateCustomAgentsInput } from './deps.js';
+import { setCustomAgentDisabled } from './enable-disable.js';
+import { listCustomAgents } from './list.js';
+import { refreshCustomAgents } from './refresh.js';
+import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
+import type { BackendOps } from '../../infrastructure/deps/index.js';
 import {
   loadCustomAgentSource,
   type LoadCustomAgentSourceInput,
@@ -131,4 +136,70 @@ function describeSource(target: LoadCustomAgentSourceInput): string {
 function formatIssue(issue: CustomAgentIssue): string {
   const head = `${issue.reason}  ${issue.path}`;
   return issue.detail === undefined ? head : `${head}  ${issue.detail}`;
+}
+
+// ─── Authenticated roster commands ───────────────────────────────────────────
+
+/** Real delays for the confirmation poll; tests inject their own. */
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * The stored session plus the backend it authorizes, or null after printing the
+ * login hint. Every roster command needs both, and the client is a singleton, so
+ * one call covers either command.
+ */
+async function loadRosterContext(): Promise<{ sessionId: string; backend: BackendOps } | null> {
+  const deps = await createConvexCommandDeps();
+  const sessionId = await deps.session.getSessionId();
+  if (sessionId !== null) return { sessionId, backend: deps.backend };
+  console.error('Not authenticated. Run `chatroom auth login` first.');
+  process.exitCode = 1;
+  return null;
+}
+
+/** `chatroom custom-agents list`. */
+export async function listCustomAgentsCommand(chatroomId: string): Promise<void> {
+  const context = await loadRosterContext();
+  if (context === null) return;
+  await listCustomAgents(chatroomId, {
+    client: context.backend,
+    sessionId: context.sessionId,
+    stdout: (line) => console.log(line),
+  });
+}
+
+/** `chatroom custom-agents enable|disable`. */
+export async function setCustomAgentDisabledCommand(
+  chatroomId: string,
+  name: string,
+  disabled: boolean
+): Promise<void> {
+  const context = await loadRosterContext();
+  if (context === null) return;
+  await setCustomAgentDisabled(chatroomId, name, disabled, {
+    client: context.backend,
+    sessionId: context.sessionId,
+    stdout: (line) => console.log(line),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+    now: Date.now,
+    sleep: defaultSleep,
+  });
+}
+
+/** `chatroom custom-agents refresh`. */
+export async function refreshCustomAgentsCommand(chatroomId: string): Promise<void> {
+  const context = await loadRosterContext();
+  if (context === null) return;
+  await refreshCustomAgents(chatroomId, {
+    client: context.backend,
+    sessionId: context.sessionId,
+    stdout: (line) => console.log(line),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+  });
 }
