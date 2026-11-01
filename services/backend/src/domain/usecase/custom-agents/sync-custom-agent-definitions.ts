@@ -446,6 +446,16 @@ async function applyAcceptedAgents(
   }
 }
 
+async function readAgentsBySource(
+  ctx: MutationCtx,
+  sourceId: Id<'chatroom_customAgentSources'>
+): Promise<Doc<'chatroom_customAgents'>[]> {
+  return await ctx.db
+    .query('chatroom_customAgents')
+    .withIndex('by_source', (q) => q.eq('sourceId', sourceId))
+    .collect();
+}
+
 /**
  * Reconciles stored agent rows with the accepted definitions.
  *
@@ -460,10 +470,7 @@ async function reconcileAgents(
   updatedAt: number,
   forceRewrite: boolean
 ): Promise<void> {
-  const existing = await ctx.db
-    .query('chatroom_customAgents')
-    .withIndex('by_source', (q) => q.eq('sourceId', sourceId))
-    .collect();
+  const existing = await readAgentsBySource(ctx, sourceId);
   const existingByName = new Map(existing.map((agent) => [agent.name, agent]));
   const acceptedNames = new Set(accepted.map((agent) => agent.name));
 
@@ -486,10 +493,7 @@ async function reconcileDisabledFlags(
   accepted: readonly CustomAgentDefinitionPayload[],
   updatedAt: number
 ): Promise<boolean> {
-  const rows = await ctx.db
-    .query('chatroom_customAgents')
-    .withIndex('by_source', (q) => q.eq('sourceId', sourceId))
-    .collect();
+  const rows = await readAgentsBySource(ctx, sourceId);
   const rowByName = new Map(rows.map((row) => [row.name, row]));
   let applied = false;
 
@@ -515,33 +519,47 @@ function toSourceKey(input: SyncCustomAgentDefinitionsInput): SourceKey {
   };
 }
 
-function isUnchangedSnapshot(
-  existing: Doc<'chatroom_customAgentSources'> | null,
-  contentHash: string,
-  issuesJson: string
-): boolean {
-  if (existing === null) return false;
-  if (existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION) return false;
-  if (existing.contentHash !== contentHash) return false;
-  return canonicalizeIssues(existing.issues).json === issuesJson;
+/**
+ * Server-derived key for the authored content of one source snapshot.
+ *
+ * Each entry uses the server-recomputed per-agent hash, never the pushed source
+ * hash, so a stale client hash cannot mask a content change. Sorting by the
+ * serialized entry makes the key independent of push order.
+ */
+function contentSnapshotKey(
+  agents: readonly Pick<CustomAgentDefinitionPayload, 'name' | 'contentHash'>[]
+): string {
+  return agents
+    .map(({ name, contentHash }) => JSON.stringify([name, contentHash]))
+    .sort()
+    .join('\n');
 }
 
 /**
- * An identical content hash means only the reported issues changed — unless the
- * stored snapshot predates the current validation rules, in which case the
- * agents must be revalidated and rewritten.
+ * Change detection for one source, derived entirely on the server.
+ *
+ * The pushed source hash is advisory: only the stored rules version, the stored
+ * canonical issues, and the server-recomputed per-agent hashes decide whether
+ * the agents must be reconciled. Disable flags are excluded so a toggle patches
+ * the identity row in place instead of rewriting prompt and template bodies.
  */
-function needsAgentReconcile(
-  existing: Doc<'chatroom_customAgentSources'> | null,
-  contentHash: string
+function isUnchangedSnapshot(
+  existing: Doc<'chatroom_customAgentSources'>,
+  storedAgents: readonly Doc<'chatroom_customAgents'>[],
+  accepted: readonly CustomAgentDefinitionPayload[],
+  issuesJson: string
 ): boolean {
-  return (
-    existing === null ||
-    existing.contentHash !== contentHash ||
-    existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION
-  );
+  if (existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION) return false;
+  if (canonicalizeIssues(existing.issues).json !== issuesJson) return false;
+  return contentSnapshotKey(storedAgents) === contentSnapshotKey(accepted);
 }
 
+/**
+ * Writes the source snapshot and reconciles the accepted definitions.
+ *
+ * Disable-only differences are patched in place by `applyAcceptedAgent`, so this
+ * path never rewrites prompt or template bodies for a toggle.
+ */
 async function writeSnapshot(
   ctx: MutationCtx,
   key: SourceKey,
@@ -560,10 +578,8 @@ async function writeSnapshot(
     issues: input.issues,
     updatedAt: now,
   });
-  if (needsAgentReconcile(existing, input.contentHash)) {
-    const forceRewrite = existing !== null && existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION;
-    await reconcileAgents(ctx, key, sourceId, input.accepted, now, forceRewrite);
-  }
+  const forceRewrite = existing !== null && existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION;
+  await reconcileAgents(ctx, key, sourceId, input.accepted, now, forceRewrite);
 }
 
 export async function syncCustomAgentDefinitions(
@@ -578,10 +594,15 @@ export async function syncCustomAgentDefinitions(
   const canonical = canonicalizeIssues(mergePushedIssues(normalized.issues, validated.issues));
   const key = toSourceKey(normalized);
   const existingSource = await findSource(ctx, key);
+  const storedAgents =
+    existingSource === null ? [] : await readAgentsBySource(ctx, existingSource._id);
+
   if (
     existingSource !== null &&
-    isUnchangedSnapshot(existingSource, normalized.contentHash, canonical.json)
+    isUnchangedSnapshot(existingSource, storedAgents, validated.accepted, canonical.json)
   ) {
+    // The agent reconcile is skipped here, so disable flags need their own pass:
+    // a toggle arrives with an otherwise unchanged snapshot.
     const applied = await reconcileDisabledFlags(
       ctx,
       existingSource._id,

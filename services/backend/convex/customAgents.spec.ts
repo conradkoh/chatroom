@@ -386,6 +386,64 @@ describe('customAgents.syncDefinitions', () => {
     expect(contentAfter!.systemPrompt).toBe('You are alpha, revised.');
   });
 
+  test('updates stored content when the pushed source hash is unchanged', async () => {
+    const { sessionId, machineId, workingDir } = await setup('unchanged-source-hash');
+    const original = makeAgent('alpha', 'a1');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, original);
+
+    const source = await readSource(machineId, 'workspace', workingDir);
+    const [before] = await readAgents(source!._id);
+    const [contentBefore] = await readContents(before!._id);
+
+    advanceClock(1_000);
+    const revised = makeAgent('alpha', 'a1', {
+      description: 'Alpha revised.',
+      systemPrompt: 'You are alpha, revised.',
+    });
+    const result = await syncWorkspaceAgent(sessionId, machineId, workingDir, revised, 'a1');
+    expect(result).toEqual({ applied: true, rejected: [] });
+
+    const [after] = await readAgents(source!._id);
+    expect(after!.description).toBe('Alpha revised.');
+    expect(after!.contentHash).toBe(computeCustomAgentContentHash(revised));
+    expect(after!.updatedAt).toBe(FIXED_NOW + 1_000);
+    const [contentAfter] = await readContents(before!._id);
+    expect(contentAfter!._id).not.toBe(contentBefore!._id);
+    expect(contentAfter!.systemPrompt).toBe('You are alpha, revised.');
+  });
+
+  test('persists a disable toggle pushed with an unrelated issue change', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'disable-with-issue-change'
+    );
+    const agent = makeAgent('alpha', 'a1');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, agent);
+    const source = await readSource(machineId, 'workspace', workingDir);
+    const [before] = await readAgents(source!._id);
+    expect(before!.disabled).toBe(false);
+
+    advanceClock(1_000);
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'a1',
+      agents: [{ ...agent, disabled: true }],
+      issues: [{ path: 'notes.md', reason: 'unreadable' }],
+    });
+    expect(result).toEqual({ applied: true, rejected: [] });
+
+    const [after] = await readAgents(source!._id);
+    expect(after!._id).toBe(before!._id);
+    expect(after!.disabled).toBe(true);
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).not.toContain('alpha');
+  });
+
   test('caps stored issues at the per-source limit after merging rejections', async () => {
     const { sessionId, machineId, workingDir } = await setup('issue-cap-merge');
     const issues = Array.from({ length: CUSTOM_AGENT_LIMITS.issuesPerSource }, (_, index) => ({
