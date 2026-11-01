@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TimelineTeamMessage } from './TimelineTeamMessage';
@@ -360,5 +360,70 @@ Edge case X
     const header = screen.getByTestId('timeline-message-header');
     expect(header.className).not.toContain('grid-cols-[1fr_auto_1fr]');
     expect(screen.queryByTestId('timeline-message-header-nav')).not.toBeInTheDocument();
+  });
+
+  describe('collapsible agent-to-agent rows', () => {
+    const COLLAPSIBLE_HANDOFF: Message = {
+      ...BASE_MESSAGE,
+      senderRole: 'builder',
+      targetRole: 'planner',
+      content: 'Preview sentence one.\nPreview sentence two.\n\nDeferred body sentence.',
+    };
+
+    it('starts collapsed with a plain-text preview and no markdown body', () => {
+      markdownBodyMock.mockClear();
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+
+      expect(screen.getByTestId('timeline-handoff-preview')).toHaveTextContent(
+        'Preview sentence one. Preview sentence two.'
+      );
+      expect(screen.queryByText(/Deferred body sentence/)).not.toBeInTheDocument();
+      expect(document.querySelector('.prose')).toBeNull();
+      expect(markdownBodyMock).not.toHaveBeenCalled();
+      expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
+      expect(screen.getByTestId('timeline-message-header')).toBeInTheDocument();
+    });
+
+    it('previews presentation-fenced handoff content instead of rendering nothing', () => {
+      const fencedHandoff: Message = {
+        ...COLLAPSIBLE_HANDOFF,
+        content: '```markdown\n## Summary\nFixed the thing.\n```',
+      };
+      render(<TimelineTeamMessage message={fencedHandoff} chatroomId="room-1" collapsible />);
+
+      expect(screen.getByTestId('timeline-handoff-preview')).toHaveTextContent(
+        'Summary Fixed the thing.'
+      );
+    });
+
+    it('mounts the full body on expand and unmounts it on collapse', () => {
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+
+      fireEvent.click(screen.getByText('Show full handoff'));
+
+      expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
+        'Deferred body sentence.'
+      );
+      expect(screen.queryByTestId('timeline-handoff-preview')).not.toBeInTheDocument();
+      expect(screen.getByTestId('timeline-team-message')).toHaveAttribute(
+        'data-message-type',
+        'handoff'
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
+
+      expect(screen.queryByTestId('timeline-markdown-body')).not.toBeInTheDocument();
+      expect(screen.getByText('Show full handoff')).toBeInTheDocument();
+    });
+
+    it('renders the full body with no toggle when not collapsible', () => {
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" />);
+
+      expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
+        'Deferred body sentence.'
+      );
+      expect(screen.queryByText('Show full handoff')).not.toBeInTheDocument();
+      expect(screen.queryByText('Collapse')).not.toBeInTheDocument();
+    });
   });
 });
