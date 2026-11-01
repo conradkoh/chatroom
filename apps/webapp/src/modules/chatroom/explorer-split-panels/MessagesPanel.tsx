@@ -9,7 +9,6 @@
  * interface so they can be threaded cleanly through RightSplitPanel.
  */
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type React from 'react';
 
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
@@ -31,8 +30,6 @@ export interface MessagesPanelProps {
   machineId?: string | null;
   workingDir?: string | null;
   onUploadComplete?: () => void;
-
-  workspaceId?: Id<'chatroom_workspaces'> | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
