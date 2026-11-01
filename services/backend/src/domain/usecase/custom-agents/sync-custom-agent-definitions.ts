@@ -460,17 +460,18 @@ async function readAgentsBySource(
  * Reconciles stored agent rows with the accepted definitions.
  *
  * Unchanged per-agent hashes leave their identity and content rows untouched, so
- * `updatedAt` only moves for rows that actually changed.
+ * `updatedAt` only moves for rows that actually changed. `existing` is the
+ * caller's already-read snapshot so this pass does not repeat the query.
  */
 async function reconcileAgents(
   ctx: MutationCtx,
   key: SourceKey,
   sourceId: Id<'chatroom_customAgentSources'>,
+  existing: readonly Doc<'chatroom_customAgents'>[],
   accepted: readonly CustomAgentDefinitionPayload[],
   updatedAt: number,
   forceRewrite: boolean
 ): Promise<void> {
-  const existing = await readAgentsBySource(ctx, sourceId);
   const existingByName = new Map(existing.map((agent) => [agent.name, agent]));
   const acceptedNames = new Set(accepted.map((agent) => agent.name));
 
@@ -485,15 +486,15 @@ async function reconcileAgents(
  * The pushed source hash covers authored content, not the disable flags, so a
  * toggle arrives with the same source hash. Only rows whose `disabled` differs
  * are patched: prompts and templates keep their ids and are never rewritten on
- * this path. Returns true when at least one row changed.
+ * this path. `rows` is the caller's already-read snapshot. Returns true when at
+ * least one row changed.
  */
 async function reconcileDisabledFlags(
   ctx: MutationCtx,
-  sourceId: Id<'chatroom_customAgentSources'>,
+  rows: readonly Doc<'chatroom_customAgents'>[],
   accepted: readonly CustomAgentDefinitionPayload[],
   updatedAt: number
 ): Promise<boolean> {
-  const rows = await readAgentsBySource(ctx, sourceId);
   const rowByName = new Map(rows.map((row) => [row.name, row]));
   let applied = false;
 
@@ -564,6 +565,7 @@ async function writeSnapshot(
   ctx: MutationCtx,
   key: SourceKey,
   existing: Doc<'chatroom_customAgentSources'> | null,
+  storedAgents: readonly Doc<'chatroom_customAgents'>[],
   input: {
     contentHash: string;
     accepted: CustomAgentDefinitionPayload[];
@@ -579,7 +581,7 @@ async function writeSnapshot(
     updatedAt: now,
   });
   const forceRewrite = existing !== null && existing.rulesVersion !== CUSTOM_AGENT_RULES_VERSION;
-  await reconcileAgents(ctx, key, sourceId, input.accepted, now, forceRewrite);
+  await reconcileAgents(ctx, key, sourceId, storedAgents, input.accepted, now, forceRewrite);
 }
 
 export async function syncCustomAgentDefinitions(
@@ -603,16 +605,11 @@ export async function syncCustomAgentDefinitions(
   ) {
     // The agent reconcile is skipped here, so disable flags need their own pass:
     // a toggle arrives with an otherwise unchanged snapshot.
-    const applied = await reconcileDisabledFlags(
-      ctx,
-      existingSource._id,
-      validated.accepted,
-      Date.now()
-    );
+    const applied = await reconcileDisabledFlags(ctx, storedAgents, validated.accepted, Date.now());
     return { applied, rejected: validated.rejected };
   }
 
-  await writeSnapshot(ctx, key, existingSource, {
+  await writeSnapshot(ctx, key, existingSource, storedAgents, {
     contentHash: normalized.contentHash,
     accepted: validated.accepted,
     issues: canonical.issues,
