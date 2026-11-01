@@ -988,6 +988,9 @@ describe('chatroom team resolution with custom agents', () => {
     const { sessionId, machineId, workingDir, chatroomId } =
       await setupChatroom('in-flight-custom');
     await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+    // A running custom role has an ephemeral status projection; the projection is
+    // what keeps the lifecycle sticky after the definition is removed.
+    await projectWorking(chatroomId, 'alpha');
     const activeTaskId = await seedActiveTask(chatroomId, 'alpha');
 
     // Replace the pushed set with no agents, which removes the definition row.
@@ -1213,6 +1216,21 @@ describe('custom agent lifecycle scoping', () => {
     expect(await isEphemeral('a_b')).toBe(false);
     // A builtin lifecycle decision is authoritative regardless of its projection.
     expect(await isEphemeral('architect')).toBe(true);
+  });
+
+  test('rejects a legacy persisted role that is not an ephemeral custom agent', async () => {
+    const { sessionId, chatroomId } = await setupChatroom('legacy-persisted-sender');
+    await seedActiveTask(chatroomId, 'designer');
+
+    const handoff = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'designer',
+      content: 'late message from a legacy role',
+      targetRole: 'planner',
+    });
+    expect(handoff.success).toBe(false);
+    expect(handoff.error?.code).toBe('INVALID_ROLE');
   });
 });
 

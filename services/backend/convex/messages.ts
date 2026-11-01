@@ -51,6 +51,7 @@ import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-a
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
 import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
+import { isEphemeralRoleInChatroom } from '../src/domain/usecase/team/resolve-chatroom-team';
 
 const config = getConfig();
 
@@ -522,12 +523,15 @@ export async function runHandoffHandler(
   // or disabled, which drops it from the merged team. Let that sender hand back
   // while it still owns an active task in this chatroom.
   const senderInTeam = normalizedTeamRoles.includes(normalizedSenderRole);
-  // Only a custom agent removed or disabled mid-task may hand back from outside
-  // the team. Builtin roles left over after a team switch are still rejected.
+  // Only an ephemeral custom agent removed or disabled mid-task may hand back
+  // from outside the team. Builtin roles left over after a team switch are still
+  // rejected, and so is a legacy persisted custom-looking role that has no
+  // definition and no ephemeral projection.
   const senderIsCustomAgentName = validateCustomAgentName(normalizedSenderRole) === null;
   const senderHasActiveTask =
     !senderInTeam &&
     senderIsCustomAgentName &&
+    (await isEphemeralRoleInChatroom(ctx, args.chatroomId, normalizedSenderRole)) &&
     (await findActiveAssignedTaskForRole(ctx, {
       chatroomId: args.chatroomId,
       role: args.senderRole,
