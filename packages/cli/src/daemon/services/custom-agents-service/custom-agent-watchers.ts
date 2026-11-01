@@ -16,6 +16,9 @@
  *   so no event from a removed workspace can reach the service.
  * - No debounce here: `awaitWriteFinish` absorbs partial writes and the service's
  *   own trailing debounce absorbs bursts.
+ * - Symlinks are not followed (`followSymlinks: false`; chokidar's default is
+ *   true). The loader refuses symlinked entries, so following one would crawl a
+ *   target the daemon never reads and emit events for every file in it.
  */
 
 import type { FSWatcher, watch as chokidarWatch } from 'chokidar';
@@ -23,6 +26,7 @@ import type { FSWatcher, watch as chokidarWatch } from 'chokidar';
 /** Depth covers `<root>/<agent>/AGENT.md` and the two optional template files. */
 const WATCH_OPTIONS = {
   depth: 2,
+  followSymlinks: false,
   ignoreInitial: true,
   ignorePermissionErrors: true,
   awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },

@@ -65,6 +65,7 @@ describe('createCustomAgentWatchers', () => {
         path: '/ws/a/.chatroom/agents',
         options: {
           depth: 2,
+          followSymlinks: false,
           ignoreInitial: true,
           ignorePermissionErrors: true,
           awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
