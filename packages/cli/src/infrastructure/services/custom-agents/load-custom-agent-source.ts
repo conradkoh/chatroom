@@ -234,15 +234,33 @@ function classifyRootError(err: unknown): RootResolution {
 
 async function scanRoot(rootPath: string): Promise<SourceScan> {
   try {
-    const names = (await readdir(rootPath)).sort();
-    const truncated = names.length > LOADER_MAX_ROOT_ENTRIES;
-    const entries = await Promise.all(
-      names.slice(0, LOADER_MAX_ROOT_ENTRIES).map((name) => loadRootEntry(rootPath, name))
-    );
-    return mergeEntries(entries, truncated);
+    return await scanEntries(rootPath);
   } catch (err) {
     return { agents: [], issues: [issue(SOURCE_ROOT_PATH, 'unreadable', errorCode(err))] };
   }
+}
+
+async function scanEntries(rootPath: string): Promise<SourceScan> {
+  const names = (await readdir(rootPath)).sort();
+  const entries: EntryResult[] = [];
+  let index = 0;
+  // Only agent directories use the scan budget: a stray `README.md` or a
+  // `.DS_Store` is not an agent and must not push a directory out of the scan.
+  while (entries.length < LOADER_MAX_ROOT_ENTRIES && index < names.length) {
+    const entry = await loadRootEntry(rootPath, names[index] as string);
+    if (entry !== null) entries.push(entry);
+    index += 1;
+  }
+  return mergeEntries(entries, isTruncated(entries, index, names));
+}
+
+/** True when the scan filled its budget while entries remained unexamined. */
+function isTruncated(
+  entries: readonly EntryResult[],
+  index: number,
+  names: readonly string[]
+): boolean {
+  return entries.length === LOADER_MAX_ROOT_ENTRIES && index < names.length;
 }
 
 function mergeEntries(entries: readonly EntryResult[], truncated: boolean): SourceScan {
@@ -253,15 +271,26 @@ function mergeEntries(entries: readonly EntryResult[], truncated: boolean): Sour
     : { agents, issues };
 }
 
-async function loadRootEntry(rootPath: string, entryName: string): Promise<EntryResult> {
+/**
+ * One root entry, or null when it is not an agent directory at all. Dotfiles
+ * (`.DS_Store`, `.gitkeep`) and plain files (`README.md`) are skipped silently:
+ * they are editor or git noise, not a user mistake worth an issue. A symlink is
+ * still reported, because the loader refuses to follow one.
+ */
+async function loadRootEntry(rootPath: string, entryName: string): Promise<EntryResult | null> {
+  if (entryName.startsWith('.')) return null;
   try {
-    const stats = await lstat(join(rootPath, entryName));
-    if (stats.isSymbolicLink()) return entryIssue(entryName, 'symlink');
-    if (!stats.isDirectory()) return entryIssue(entryName, 'not-directory');
-    return await loadAgentDirectory(rootPath, entryName);
+    return await loadExistingEntry(rootPath, entryName);
   } catch (err) {
     return entryIssue(entryName, errorCode(err));
   }
+}
+
+async function loadExistingEntry(rootPath: string, entryName: string): Promise<EntryResult | null> {
+  const stats = await lstat(join(rootPath, entryName));
+  if (stats.isSymbolicLink()) return entryIssue(entryName, 'symlink');
+  if (!stats.isDirectory()) return null;
+  return await loadAgentDirectory(rootPath, entryName);
 }
 
 function entryIssue(entryName: string, detail: string): EntryResult {

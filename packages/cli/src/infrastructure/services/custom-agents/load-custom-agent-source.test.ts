@@ -211,6 +211,43 @@ describe('loadCustomAgentSource', () => {
     expect(result.issues.length).toBeLessThanOrEqual(CUSTOM_AGENT_LIMITS.issuesPerSource);
   });
 
+  it('ignores dotfiles and stray files without an issue or a scan-budget slot', async () => {
+    await writeAgent(workspaceRoot, 'alpha');
+    const agentsRoot = join(workspaceRoot, '.chatroom', 'agents');
+    await writeFile(join(agentsRoot, '.DS_Store'), 'junk');
+    await writeFile(join(agentsRoot, 'README.md'), '# agents');
+    // Fill the 64-entry budget with directories. The two ignored files must not
+    // push the last directory out of the scan.
+    for (let index = 0; index < 63; index++) {
+      await mkdir(join(agentsRoot, `agent-${String(index).padStart(2, '0')}`), {
+        recursive: true,
+      });
+    }
+
+    const result = await loadCustomAgentSource({ scope: 'workspace', workspaceRoot });
+
+    const paths = result.issues.map(({ path }) => path);
+    expect(paths).not.toContain('.DS_Store');
+    expect(paths).not.toContain('README.md');
+    expect(
+      result.issues.some(
+        ({ reason }) => reason === 'root-truncated' && paths.includes('.chatroom/agents')
+      )
+    ).toBe(false);
+    expect(result.issues.some((issue) => issue.detail === 'entries')).toBe(false);
+  });
+
+  it('strips control characters from issue paths', async () => {
+    const agentsRoot = join(workspaceRoot, '.chatroom', 'agents');
+    await mkdir(join(agentsRoot, '\u001b[31mred'), { recursive: true });
+
+    const result = await loadCustomAgentSource({ scope: 'workspace', workspaceRoot });
+
+    const red = result.issues.find(({ path }) => path.includes('red'));
+    expect(red?.path).toBe('[31mred/AGENT.md');
+    expect(JSON.stringify(result)).not.toMatch(new RegExp('[\\u0000-\\u001F\\u007F-\\u009F]'));
+  });
+
   it('keeps the first 12 agents by name and reports the overflow', async () => {
     for (let index = 0; index < 13; index++) {
       await writeAgent(workspaceRoot, `agent-${String(index).padStart(2, '0')}`);
