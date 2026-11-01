@@ -229,7 +229,14 @@ function createRuntime(spec: SourceSpec): SourceRuntime {
 function refreshAll(state: ServiceState, reason: CustomAgentsRefreshReason): void {
   if (state.stopped) return;
   state.deps.log(`[custom-agents] refresh (reason: ${reason})`);
-  for (const runtime of state.sources.values()) scheduleRefresh(state, runtime);
+  for (const runtime of state.sources.values()) {
+    // A command refresh must reach the backend even when the snapshot is
+    // unchanged: the server may have changed its rules version, and it no-ops an
+    // identical push, so forcing one is cheap. Watcher and poll refreshes keep
+    // the dedup key.
+    if (reason === 'command') runtime.lastPushedKey = null;
+    scheduleRefresh(state, runtime);
+  }
 }
 
 /** (Re)arms the trailing debounce and, once per window, the maximum-wait timer. */

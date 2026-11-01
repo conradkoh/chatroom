@@ -497,6 +497,26 @@ describe('shutdown', () => {
   });
 });
 
+describe('command refresh', () => {
+  it('pushes again for a command refresh but not for a watcher refresh', async () => {
+    const harness = createHarness();
+    harness.service.start();
+    await vi.advanceTimersByTimeAsync(600);
+    expect(harness.pushes).toHaveLength(1);
+
+    // The snapshot did not change, so a watcher event is deduped.
+    harness.service.refresh('watch');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(harness.pushes).toHaveLength(1);
+
+    // An explicit command must reach the backend even when nothing changed: the
+    // server may have changed its rules version, and it no-ops an identical push.
+    harness.service.refresh('command');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(harness.pushes).toHaveLength(2);
+  });
+});
+
 describe('real state file', () => {
   let dir: string;
 
