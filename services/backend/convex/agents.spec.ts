@@ -3,7 +3,8 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { t } from '../test.setup';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
+import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
 const canonicalTeamFacts = [
   {
@@ -140,4 +141,66 @@ describe('canonical agent reads', () => {
       ).toBe(false);
     }
   );
+});
+
+/**
+ * The message-triggered wake path is one of the start paths that passes the
+ * room row as `legacyRoom`, so a non-preset structure id keeps the roles
+ * persisted on the room instead of resolving to an empty roster.
+ */
+describe('startNonRunningAgentsForChatroom', () => {
+  test('wakes a non-running builder for a legacy team structure id from persisted roles', async () => {
+    const sessionId = 'legacy-wake-agent-roles' as SessionId;
+    const machineId = 'legacy-wake-agent-roles-machine';
+    const workingDir = '/test/legacy-wake';
+    const login = await t.mutation(api.auth.loginAnon, { sessionId });
+    expect(login.success).toBe(true);
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+    });
+    const { chatroomId, workspaceId } = await t.mutation(api.chatrooms.createWithWorkspace, {
+      sessionId,
+      teamStructureId: 'duo',
+      machineId,
+      workingDir,
+    });
+
+    await t.run(async (ctx) => {
+      const active = await ctx.db
+        .query('chatroom_activeTeamStructures')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+      await ctx.db.patch('chatroom_activeTeamStructures', active!._id, {
+        teamStructureId: 'legacy-squad',
+      });
+      await ctx.db.patch('chatroom_rooms', chatroomId, {
+        teamRoles: ['planner', 'builder'],
+      });
+    });
+
+    // Save the launch configuration after the legacy patch so the machine
+    // binding is recorded against the structure id the wake path resolves.
+    await t.mutation(api.agents.requestStart, {
+      sessionId,
+      machineId,
+      chatroomId,
+      workspaceId,
+      role: 'builder',
+      agentHarness: 'opencode',
+      model: TEST_MODEL_OPENCODE,
+      workingDir,
+    });
+
+    const result = await t.mutation(internal.agents.startNonRunningAgentsForChatroom, {
+      chatroomId,
+    });
+
+    expect(result.started).toContain('builder');
+    expect(result.skipped.map(({ role }) => role)).not.toContain('builder');
+    expect(result.failed).toEqual([]);
+  });
 });
