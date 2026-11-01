@@ -568,6 +568,77 @@ describe('customAgents.syncDefinitions', () => {
     expect(await countCustomAgentRows()).toEqual(before);
   });
 
+  test('accepts a push when one row for the workspace is active and another is removed', async () => {
+    // One row per (machine, workingDir, chatroom): a removed row from one chatroom
+    // must not shadow an active row from another.
+    const fixture = await setup('removed-plus-active');
+    const second = await setupChatroom(
+      'removed-plus-active-second',
+      'duo',
+      '/test/removed-plus-active'
+    );
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query('chatroom_workspaces')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', fixture.machineId).eq('workingDir', fixture.workingDir)
+        )
+        .collect();
+      expect(rows.length).toBeGreaterThan(0);
+      await ctx.db.patch('chatroom_workspaces', rows[0]!._id, { removedAt: FIXED_NOW });
+      // The second chatroom registers the same directory for the same machine.
+      await ctx.db.insert('chatroom_workspaces', {
+        chatroomId: second.chatroomId,
+        machineId: fixture.machineId,
+        workingDir: fixture.workingDir,
+        hostname: 'test-host',
+        registeredBy: 'test',
+        registeredAt: FIXED_NOW,
+        fileTreeSyncEnabled: false,
+      });
+    });
+
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId: fixture.sessionId,
+      machineId: fixture.machineId,
+      scope: 'workspace',
+      workingDir: fixture.workingDir,
+      contentHash: 'hash-1',
+      agents: [makeAgent('alpha', 'a1')],
+      issues: [],
+    });
+
+    expect(result).toEqual({ applied: true, rejected: [] });
+    expect(await readSource(fixture.machineId, 'workspace', fixture.workingDir)).not.toBeNull();
+  });
+
+  test('rejects a workspace-scope push when every row for the workspace is removed', async () => {
+    const fixture = await setup('all-rows-removed');
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query('chatroom_workspaces')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', fixture.machineId).eq('workingDir', fixture.workingDir)
+        )
+        .collect();
+      for (const row of rows) {
+        await ctx.db.patch('chatroom_workspaces', row._id, { removedAt: FIXED_NOW });
+      }
+    });
+
+    await expect(
+      t.mutation(api.customAgents.syncDefinitions, {
+        sessionId: fixture.sessionId,
+        machineId: fixture.machineId,
+        scope: 'workspace',
+        workingDir: fixture.workingDir,
+        contentHash: 'hash-1',
+        agents: [makeAgent('alpha', 'a1')],
+        issues: [],
+      })
+    ).rejects.toMatchObject({ data: { code: 'INVALID_SCOPE' } });
+  });
+
   test('rejects a workspace-scope push for a removed workspace', async () => {
     const { sessionId, machineId, workingDir } = await setup('removed-workspace');
     const workspace = await readWorkspace(machineId, workingDir);
