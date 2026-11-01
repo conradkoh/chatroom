@@ -1,4 +1,8 @@
-import { CUSTOM_AGENT_RULES_VERSION } from '@workspace/shared/domain/custom-agent';
+import {
+  CUSTOM_AGENT_ISSUE_TEXT_LIMIT,
+  CUSTOM_AGENT_RULES_VERSION,
+  computeCustomAgentContentHash,
+} from '@workspace/shared/domain/custom-agent';
 import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -321,6 +325,66 @@ describe('customAgents.syncDefinitions', () => {
     ).rejects.toThrow(/absolute path/);
   });
 
+  test('truncates oversized issue path and detail text before storing it', async () => {
+    const { sessionId, machineId, workingDir } = await setup('issue-text-bound');
+    const longName = 'a'.repeat(CUSTOM_AGENT_ISSUE_TEXT_LIMIT + 44);
+    const longDetail = 'd'.repeat(CUSTOM_AGENT_ISSUE_TEXT_LIMIT + 44);
+
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'hash-1',
+      agents: [makeAgent(longName, 'bad')],
+      issues: [{ path: 'notes.md', reason: 'unreadable', detail: longDetail }],
+    });
+    expect(result).toEqual({
+      applied: true,
+      rejected: [
+        { name: longName.slice(0, CUSTOM_AGENT_ISSUE_TEXT_LIMIT), reason: 'invalid-name' },
+      ],
+    });
+
+    const source = await readSource(machineId, 'workspace', workingDir);
+    const storedName = source!.issues.find(({ reason }) => reason === 'invalid-name')!;
+    expect(storedName.path).toBe(longName.slice(0, CUSTOM_AGENT_ISSUE_TEXT_LIMIT));
+    expect(storedName.path).toHaveLength(CUSTOM_AGENT_ISSUE_TEXT_LIMIT);
+    const storedDetail = source!.issues.find(({ path }) => path === 'notes.md')!;
+    expect(storedDetail.detail).toBe(longDetail.slice(0, CUSTOM_AGENT_ISSUE_TEXT_LIMIT));
+    expect(storedDetail.detail).toHaveLength(CUSTOM_AGENT_ISSUE_TEXT_LIMIT);
+  });
+
+  test('recomputes a stale client agent hash from the pushed content', async () => {
+    const { sessionId, machineId, workingDir } = await setup('stale-agent-hash');
+    const original = makeAgent('alpha', 'a1', { systemPrompt: 'You are alpha.' });
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, original);
+
+    const source = await readSource(machineId, 'workspace', workingDir);
+    const [before] = await readAgents(source!._id);
+    const [contentBefore] = await readContents(before!._id);
+
+    const revised = makeAgent('alpha', 'a1', { systemPrompt: 'You are alpha, revised.' });
+    advanceClock(1_000);
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'hash-2',
+      agents: [revised],
+      issues: [],
+    });
+
+    const [after] = await readAgents(source!._id);
+    expect(after!.contentHash).toBe(computeCustomAgentContentHash(revised));
+    expect(after!.contentHash).not.toBe('a1');
+    expect(after!.updatedAt).toBe(FIXED_NOW + 1_000);
+    const [contentAfter] = await readContents(before!._id);
+    expect(contentAfter!._id).not.toBe(contentBefore!._id);
+    expect(contentAfter!.systemPrompt).toBe('You are alpha, revised.');
+  });
+
   test('rejects more than the per-source agent limit', async () => {
     const { sessionId, machineId, workingDir } = await setup('agent-limit');
     const agents = Array.from({ length: 13 }, (_, index) => {
@@ -515,7 +579,9 @@ describe('chatroom team resolution with custom agents', () => {
     const stored = await readAgents(source!._id);
     expect(stored).toHaveLength(1);
     expect(stored[0]!.description).toBe('First alpha.');
-    expect(stored[0]!.contentHash).toBe('a1');
+    expect(stored[0]!.contentHash).toBe(
+      computeCustomAgentContentHash(makeAgent('alpha', 'a1', { description: 'First alpha.' }))
+    );
   });
 
   test('applies a machine-scope disable to every chatroom on that machine', async () => {
@@ -576,7 +642,7 @@ describe('chatroom team resolution with custom agents', () => {
     expect(after._id).toBe(before!._id);
     expect(after.disabled).toBe(true);
     expect(after.updatedAt).toBe(FIXED_NOW + 1_000);
-    expect(after.contentHash).toBe('a1');
+    expect(after.contentHash).toBe(before!.contentHash);
     const [contentAfter] = await readContents(before!._id);
     expect(contentAfter!._id).toBe(contentBefore!._id);
 

@@ -26,6 +26,13 @@ export const CUSTOM_AGENT_LIMITS = {
   issuesPerSource: 50,
 } as const;
 
+/**
+ * Max characters stored for an issue `path` or `detail`. A rejected name or a
+ * filesystem error message is otherwise unbounded and would bloat every source
+ * snapshot that records it.
+ */
+export const CUSTOM_AGENT_ISSUE_TEXT_LIMIT = 256;
+
 export const CUSTOM_AGENT_SCOPES = ['workspace', 'machine'] as const;
 export type CustomAgentScope = (typeof CUSTOM_AGENT_SCOPES)[number];
 
@@ -145,6 +152,27 @@ function fnv1a32Hex(text: string): string {
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Per-agent content hash over the stored definition fields, positionally
+ * serialized so key order is irrelevant. Excludes `disabled`, so a
+ * machine-local toggle never looks like a content change. The server recomputes
+ * this value instead of trusting the pushed one, so a stale or hostile client
+ * hash cannot suppress a content update.
+ */
+export function computeCustomAgentContentHash(
+  definition: Omit<CustomAgentDefinitionPayload, 'contentHash' | 'disabled'>
+): string {
+  return fnv1a32Hex(
+    JSON.stringify([
+      definition.name,
+      definition.description,
+      definition.systemPrompt,
+      definition.inboundHandoffTemplate ?? null,
+      definition.returnHandoffTemplate ?? null,
+    ])
+  );
 }
 
 /**

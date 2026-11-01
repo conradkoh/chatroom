@@ -7,6 +7,7 @@ import {
   CUSTOM_AGENT_RULES_VERSION,
   type CustomAgentDefinitionPayload,
   type CustomAgentIdentity,
+  computeCustomAgentContentHash,
   isDisableableTeamRole,
   mergeTeamStructureWithCustomAgents,
   neutralizeChatroomBlockTags,
@@ -509,6 +510,38 @@ describe('supportsCustomAgents', () => {
     expect(supportsCustomAgents(' DUO ')).toBe(true);
     expect(supportsCustomAgents('solo')).toBe(false);
     expect(supportsCustomAgents('unknown')).toBe(false);
+  });
+});
+
+describe('computeCustomAgentContentHash', () => {
+  test('is deterministic and ignores key order', () => {
+    const left = computeCustomAgentContentHash({
+      name: 'alpha',
+      description: 'Alpha role.',
+      systemPrompt: 'You are alpha.',
+      inboundHandoffTemplate: 'inbound',
+    });
+    const right = computeCustomAgentContentHash({
+      inboundHandoffTemplate: 'inbound',
+      systemPrompt: 'You are alpha.',
+      description: 'Alpha role.',
+      name: 'alpha',
+    });
+    expect(left).toBe(right);
+    expect(left).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  test('covers every stored field except disabled', () => {
+    const base = {
+      name: 'alpha',
+      description: 'Alpha role.',
+      systemPrompt: 'You are alpha.',
+    };
+    const hash = computeCustomAgentContentHash(base);
+    expect(computeCustomAgentContentHash({ ...base, name: 'beta' })).not.toBe(hash);
+    expect(computeCustomAgentContentHash({ ...base, description: 'Other.' })).not.toBe(hash);
+    expect(computeCustomAgentContentHash({ ...base, systemPrompt: 'Be alpha.' })).not.toBe(hash);
+    expect(computeCustomAgentContentHash({ ...base, returnHandoffTemplate: 'ret' })).not.toBe(hash);
   });
 });
 

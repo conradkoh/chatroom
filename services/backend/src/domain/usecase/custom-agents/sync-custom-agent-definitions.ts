@@ -9,8 +9,10 @@
  */
 
 import {
+  CUSTOM_AGENT_ISSUE_TEXT_LIMIT,
   CUSTOM_AGENT_LIMITS,
   CUSTOM_AGENT_RULES_VERSION,
+  computeCustomAgentContentHash,
   sanitizeCustomAgentSummary,
   validateCustomAgentPayload,
   type CustomAgentDefinitionPayload,
@@ -101,17 +103,32 @@ function compareIssueKeys(left: string, right: string): number {
   return left < right ? -1 : 1;
 }
 
+/** Clips one issue field to the stored text limit. Idempotent. */
+function boundIssueText(text: string): string {
+  return text.slice(0, CUSTOM_AGENT_ISSUE_TEXT_LIMIT);
+}
+
+function boundIssue(issue: CustomAgentIssue): CustomAgentIssue {
+  return {
+    path: boundIssueText(issue.path),
+    reason: issue.reason,
+    ...(issue.detail !== undefined ? { detail: boundIssueText(issue.detail) } : {}),
+  };
+}
+
 /**
  * Canonical issue order and serialization. Two pushes reporting the same issues
- * in a different filesystem order must still compare equal.
+ * in a different filesystem order must still compare equal. Every issue is
+ * bounded before it is sorted or hashed, so the stored value and the comparison
+ * hash always agree.
  */
 function canonicalizeIssues(issues: readonly CustomAgentIssue[]): {
   issues: CustomAgentIssue[];
   json: string;
 } {
-  const sorted = [...issues].sort((left, right) =>
-    compareIssueKeys(issueKey(left), issueKey(right))
-  );
+  const sorted = issues
+    .map(boundIssue)
+    .sort((left, right) => compareIssueKeys(issueKey(left), issueKey(right)));
   return {
     issues: sorted,
     json: JSON.stringify(sorted.map((issue) => [issue.path, issue.reason, issue.detail ?? null])),
@@ -122,23 +139,30 @@ type ValidationResult =
   | { accepted: true; definition: CustomAgentDefinitionPayload }
   | { accepted: false; rejected: RejectedCustomAgent; issue: CustomAgentIssue };
 
-/** Validates one definition and sanitizes the display summary of accepted agents. */
+/**
+ * Validates one definition, sanitizes the display summary of accepted agents,
+ * and recomputes the per-agent hash from the stored fields. The pushed hash is
+ * advisory: a stale one must never suppress a content update.
+ */
 function validateAgent(agent: CustomAgentDefinitionPayload): ValidationResult {
   const validation = validateCustomAgentPayload(agent);
   if (!validation.ok) {
+    const name = boundIssueText(agent.name);
     return {
       accepted: false,
-      rejected: { name: agent.name, reason: validation.reason },
-      issue: {
-        path: agent.name,
+      rejected: { name, reason: validation.reason },
+      issue: boundIssue({
+        path: name,
         reason: validation.reason,
         ...(validation.detail !== undefined ? { detail: validation.detail } : {}),
-      },
+      }),
     };
   }
+  const description = sanitizeCustomAgentSummary(agent.description);
+  const content = { ...agent, description };
   return {
     accepted: true,
-    definition: { ...agent, description: sanitizeCustomAgentSummary(agent.description) },
+    definition: { ...content, contentHash: computeCustomAgentContentHash(content) },
   };
 }
 
