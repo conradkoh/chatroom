@@ -295,6 +295,73 @@ describe('useCustomAgentToggle over-limit enables', () => {
     });
   });
 
+  it('clears a stale displaced copy once the displaced agent returns to the roster', () => {
+    // The cap cut `agent-9`, then someone turned it off outside the tab. A present
+    // row means the cap no longer cuts it, so the displaced copy is stale.
+    mockSetDisabled.mockReturnValue(new Promise(() => undefined));
+    const { result, rerender } = renderToggle(BEFORE.rows);
+    act(() => result.current.requestToggle('agent-17', false));
+    rerender({ rows: AFTER.rows, overLimit: AFTER.overLimit });
+    expect(result.current.stateFor('agent-9')).toEqual({
+      kind: 'failed',
+      desiredDisabled: false,
+      message: CUSTOM_AGENT_DISPLACED_MESSAGE,
+    });
+
+    const returned = rosterFor(ENABLE_AGENT_17, ['agent-9']);
+    expect(returned.rows.map((row) => row.name)).toContain('agent-9');
+    expect(returned.overLimit.size).toBe(0);
+    rerender({ rows: returned.rows, overLimit: returned.overLimit });
+
+    expect(result.current.stateFor('agent-9')).toEqual({ kind: 'idle' });
+  });
+
+  it('clears a stale over-limit copy once the toggled agent returns to the roster', () => {
+    // The cap cut `zeta`'s enable, then someone turned `zeta` off outside the tab:
+    // the row is back, so the enable failure no longer applies.
+    const names = [...AT_CAP, 'zeta'];
+    const before = rosterFor(names, ['zeta']);
+    const capped = rosterFor(names, []);
+    expect(capped.overLimit).toEqual(new Set(['zeta']));
+
+    mockSetDisabled.mockReturnValue(new Promise(() => undefined));
+    const { result, rerender } = renderToggle(before.rows);
+    act(() => result.current.requestToggle('zeta', false));
+    rerender({ rows: capped.rows, overLimit: capped.overLimit });
+    expect(result.current.stateFor('zeta')).toEqual({
+      kind: 'failed',
+      desiredDisabled: false,
+      message: CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
+    });
+
+    const returned = rosterFor(names, ['zeta']);
+    expect(returned.rows.map((row) => row.name)).toContain('zeta');
+    rerender({ rows: returned.rows, overLimit: returned.overLimit });
+
+    expect(result.current.stateFor('zeta')).toEqual({ kind: 'idle' });
+  });
+
+  it('keeps a timeout failure on a present row until the roster confirms it', () => {
+    // Clearing stale over-limit copies must not generalise: a present row that still
+    // disagrees with the intent keeps its failure, whatever its message.
+    mockSetDisabled.mockReturnValue(new Promise(() => undefined));
+    const { result, rerender } = renderToggle([row('alpha')]);
+    act(() => result.current.requestToggle('alpha', true));
+    act(() => vi.advanceTimersByTime(CUSTOM_AGENT_TOGGLE_TIMEOUT_MS));
+    expect(result.current.stateFor('alpha')).toMatchObject({
+      kind: 'failed',
+      message: CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
+    });
+
+    rerender({ rows: [row('alpha')] });
+
+    expect(result.current.stateFor('alpha')).toEqual({
+      kind: 'failed',
+      desiredDisabled: true,
+      message: CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
+    });
+  });
+
   it('keeps a capped enable visible when its row leaves the roster', () => {
     // The reviewer scenario: sixteen agents on, a seventeenth off. Turning it on
     // makes seventeen enabled, so the cap drops the last name — this one — from

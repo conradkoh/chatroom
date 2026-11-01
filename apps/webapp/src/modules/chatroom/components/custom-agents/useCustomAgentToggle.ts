@@ -230,8 +230,26 @@ function resolveState(
 ): { state: CustomAgentToggleState | null; reset: boolean } {
   if (row === undefined) return resolveMissingRow(state, overLimit);
   if (state.kind === 'idle') return { state, reset: false };
-  if (row.disabled === state.desiredDisabled) return { state: IDLE, reset: true };
+  if (isSettledByRow(state, row)) return { state: IDLE, reset: true };
   return { state, reset: false };
+}
+
+/**
+ * A present row settles the intent: it either confirms it, or disproves a stored
+ * over-limit copy. The cap no longer cuts this agent, so that copy is stale
+ * whatever the row's disabled flag now says. Other failures stay until the row
+ * confirms them: only the two frozen cap copies clear here.
+ */
+function isSettledByRow(
+  state: Exclude<CustomAgentToggleState, { kind: 'idle' }>,
+  row: CustomAgentRowModel
+): boolean {
+  return isCapCopy(state) || row.disabled === state.desiredDisabled;
+}
+
+/** True for the two frozen copies the cap produced while the agent had no row. */
+function isCapCopy(state: CustomAgentToggleState): boolean {
+  return state === DISPLACED_FAILURE || state === OVER_LIMIT_FAILURE;
 }
 
 /**
