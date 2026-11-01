@@ -416,11 +416,17 @@ describe('customAgents.syncDefinitions', () => {
     const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
       'disable-with-issue-change'
     );
-    const agent = makeAgent('alpha', 'a1');
+    const agent = makeAgent('alpha', 'a1', {
+      inboundHandoffTemplate: 'inbound alpha',
+      returnHandoffTemplate: 'return alpha',
+    });
     await syncWorkspaceAgent(sessionId, machineId, workingDir, agent);
     const source = await readSource(machineId, 'workspace', workingDir);
     const [before] = await readAgents(source!._id);
     expect(before!.disabled).toBe(false);
+    const [contentBefore] = await readContents(before!._id);
+    const templateIdsBefore = (await readHandoffTemplates(before!._id)).map(({ _id }) => _id);
+    expect(templateIdsBefore).toHaveLength(2);
 
     advanceClock(1_000);
     const result = await t.mutation(api.customAgents.syncDefinitions, {
@@ -437,6 +443,10 @@ describe('customAgents.syncDefinitions', () => {
     const [after] = await readAgents(source!._id);
     expect(after!._id).toBe(before!._id);
     expect(after!.disabled).toBe(true);
+    const [contentAfter] = await readContents(before!._id);
+    expect(contentAfter!._id).toBe(contentBefore!._id);
+    const templateIdsAfter = (await readHandoffTemplates(before!._id)).map(({ _id }) => _id);
+    expect(templateIdsAfter).toEqual(templateIdsBefore);
     const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
       sessionId,
       chatroomId,
