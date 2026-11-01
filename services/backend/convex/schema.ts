@@ -2333,7 +2333,11 @@ export default defineSchema({
     name: v.string(),
     description: v.string(),
     contentHash: v.string(),
-    /** Projection of ~/.chatroom/custom-agents.local.json; written only by the daemon sync. */
+    /**
+     * Machine-local disable flag projected from the daemon push. Stored per row,
+     * so the same definition can be disabled on one machine and enabled on
+     * another.
+     */
     disabled: v.boolean(),
     hasInboundHandoffTemplate: v.boolean(),
     hasReturnHandoffTemplate: v.boolean(),

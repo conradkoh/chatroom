@@ -3,8 +3,8 @@
  *
  * File-authored definitions reach Convex through `syncDefinitions`, which the
  * daemon calls as the machine owner. Disable state arrives only through
- * `syncDefinitions`: the daemon stamps it from the machine-local flag file, and
- * the resolver projects it onto the chatroom. Resolution and settings reads
+ * `syncDefinitions`: the daemon stamps it from its machine-local disable state,
+ * and the resolver projects it onto the chatroom. Resolution and settings reads
  * live beside this module in the custom-agent use cases.
  */
 
