@@ -170,7 +170,12 @@ function isOverLimit(
   );
 }
 
+/**
+ * True only when this issue names the agent. `over-limit` issues carry no
+ * detail, and free prose in `detail` is never a match key: an issue for
+ * `reviewer` must not make `rev` look over the cap.
+ */
 function namesAgent(issue: CustomAgentIssue, name: string): boolean {
   if (issue.reason !== 'over-limit') return false;
-  return issue.path === name || (issue.detail?.includes(name) ?? false);
+  return issue.path === name;
 }

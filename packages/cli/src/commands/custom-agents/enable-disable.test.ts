@@ -157,6 +157,26 @@ describe('setCustomAgentDisabled', () => {
     expect(fake.queries()).toBe(1);
   });
 
+  it('does not treat a detail that merely mentions the agent as over-limit', async () => {
+    // Only an issue whose `path` is the agent names it. An over-limit issue for
+    // `reviewer` must not make enabling `rev` report over-limit: the detail text
+    // is free prose and is not a match key.
+    const fake = createClient({
+      rosterValues: [false],
+      omitRosterRow: true,
+      issues: [{ path: 'reviewer', reason: 'over-limit', detail: 'agent rev over the cap' }],
+    });
+    const harness = createDeps(fake.client);
+
+    await setCustomAgentDisabled('chatroom-1', 'rev', false, harness.deps);
+
+    expect(fake.mutations).toEqual([{ name: 'rev', disabled: false }]);
+    expect(harness.lines).toEqual([
+      'timed out waiting for the daemon; the change is still pending',
+    ]);
+    expect(harness.exitCodes).toEqual([1]);
+  });
+
   it('surfaces the backend error for a builtin role name', async () => {
     // `planner` is a reserved name, not a malformed one: the CLI must ask the
     // backend and print its message rather than keep a builtin list.
