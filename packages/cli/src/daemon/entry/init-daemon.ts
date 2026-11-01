@@ -411,7 +411,17 @@ function createWorkspaceSync(args: {
 }): {
   workspaceService: WorkspaceService;
   workspaceStateOutbox: WorkspaceStateOutboxRegistry;
-  /** Shared with the custom-agent service so there is exactly one membership source. */
+  /**
+   * One shared feed object, but three live Convex subscriptions: every
+   * `subscribe` opens its own `onUpdate`. They are
+   * - the workspace service, which syncs presences for registered directories;
+   * - the inner custom-agent service, which creates or retires one source per
+   *   directory;
+   * - the custom-agent build wrapper, which syncs watcher roots and un-parks a
+   *   source rejected with `INVALID_SCOPE`.
+   * Sharing the object keeps the subscription arguments and parsing in one place;
+   * it does not deduplicate the Convex calls.
+   */
   membership: WorkspaceMembershipSource;
 } {
   const { wsClient, sessionId, machineId, backend, agentProcessManager } = args;
