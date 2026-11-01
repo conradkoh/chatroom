@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowRight, ArrowRightLeft, Info } from 'lucide-react';
-import { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useId, useMemo, useState } from 'react';
 
 import { TimelineMessageFooter } from './TimelineMessageFooter';
 import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
@@ -161,22 +161,17 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
 }: TimelineTeamMessageProps) {
   const [expanded, setExpanded] = useState(false);
   const isCollapsed = collapsible && !expanded;
-  const rowRef = useRef<HTMLDivElement | null>(null);
   const bodyId = useId();
   // Keep the original content for generic copy/download behavior; the visual
   // render path additionally unwraps the handoff presentation fence.
   const originalContent = message.content;
 
-  const handleCollapse = useCallback(() => {
-    setExpanded(false);
-    // Collapsing shrinks the row; keep its header in view. Optional call keeps
-    // this safe in DOM environments without scrollIntoView (jsdom).
-    rowRef.current?.scrollIntoView?.({ block: 'nearest' });
-  }, []);
+  // Collapsing only flips state: scrolling here would run before React commits
+  // the shorter row and could jump every ancestor scroll container.
+  const handleCollapse = useCallback(() => setExpanded(false), []);
 
   return (
     <div
-      ref={rowRef}
       className={`${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
       data-testid="timeline-team-message"
       data-message-type={message.type}

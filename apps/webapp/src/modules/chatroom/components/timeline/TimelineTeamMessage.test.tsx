@@ -503,7 +503,19 @@ Edge case X
       expect(collapsedToggle).toBe(toggle);
       expect(collapsedToggle).toHaveAttribute('aria-expanded', 'false');
       expect(document.activeElement).toBe(collapsedToggle);
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'nearest' });
+      expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    });
+
+    it('does not scroll the feed when collapsing', () => {
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+
+      fireEvent.click(screen.getByTestId('timeline-handoff-toggle'));
+      scrollIntoViewMock.mockClear();
+
+      fireEvent.click(screen.getByTestId('timeline-handoff-toggle'));
+
+      expect(screen.getByTestId('timeline-handoff-preview')).toBeInTheDocument();
+      expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });
 
     it('renders the full body with no toggle when not collapsible', () => {
