@@ -31,6 +31,13 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   });
 }
 
+async function createTeamChatroom(
+  sessionId: SessionId,
+  teamStructureId: 'duo' | 'solo'
+): Promise<Id<'chatroom_rooms'>> {
+  return await t.mutation(api.chatrooms.create, { sessionId, teamStructureId });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -320,6 +327,55 @@ describe('skills.get', () => {
     expect(skill?.prompt).toContain('pending_user_review');
     // Stale item concept
     expect(skill?.prompt).toContain('Stale item');
+  });
+});
+
+describe('skills — team gating', () => {
+  test('a solo chatroom cannot list, get, or activate the duo-only custom-agents skill', async () => {
+    const { sessionId } = await createTestSession('skills-team-gate-solo');
+    const chatroomId = await createTeamChatroom(sessionId, 'solo');
+
+    const skills = await t.query(api.skills.list, { sessionId, chatroomId });
+    expect(skills.some((s) => s.skillId === 'custom-agents')).toBe(false);
+
+    const skill = await t.query(api.skills.get, {
+      sessionId,
+      chatroomId,
+      skillId: 'custom-agents',
+    });
+    expect(skill).toBeNull();
+
+    await expect(
+      t.mutation(api.skills.activate, {
+        sessionId,
+        chatroomId,
+        skillId: 'custom-agents',
+        role: 'solo',
+      })
+    ).rejects.toMatchObject({ data: expect.stringContaining('not found or is disabled') });
+  });
+
+  test('a duo chatroom can still list, get, and activate the custom-agents skill', async () => {
+    const { sessionId } = await createTestSession('skills-team-gate-duo');
+    const chatroomId = await createTeamChatroom(sessionId, 'duo');
+
+    const skills = await t.query(api.skills.list, { sessionId, chatroomId });
+    expect(skills.some((s) => s.skillId === 'custom-agents')).toBe(true);
+
+    const skill = await t.query(api.skills.get, {
+      sessionId,
+      chatroomId,
+      skillId: 'custom-agents',
+    });
+    expect(skill?.skillId).toBe('custom-agents');
+
+    const activated = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'custom-agents',
+      role: 'builder',
+    });
+    expect(activated.skill.skillId).toBe('custom-agents');
   });
 });
 
