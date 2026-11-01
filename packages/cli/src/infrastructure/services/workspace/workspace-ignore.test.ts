@@ -9,6 +9,7 @@ import {
   isPathIgnoredByRuleSets,
   isWorkspacePathIgnored,
   loadAllWorkspaceIgnoreRuleSets,
+  loadGitIgnoreMatcher,
   loadWorkspaceIgnore,
   readExcludesFileFromGitconfig,
   resolveGitExtraExcludeFilePaths,
@@ -122,5 +123,55 @@ describe('workspace-ignore', () => {
     expect(ruleSets.length).toBeGreaterThan(0);
     expect(isPathIgnoredByRuleSets(ruleSets, 'vendor/nested/pkg.js')).toBe(true);
     expect(isPathIgnoredByRuleSets(ruleSets, 'src/index.ts')).toBe(false);
+  });
+});
+
+describe('loadGitIgnoreMatcher', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    const configDir = await mkdtemp(join(tmpdir(), 'gitconfig-empty-'));
+    const configPath = join(configDir, 'gitconfig');
+    await writeFile(configPath, '[core]\n');
+    vi.stubEnv('GIT_CONFIG_GLOBAL', configPath);
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
+    tmpDir = '';
+  });
+
+  it('honours a root .gitignore entry for an agent file', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'git-ignore-matcher-root-'));
+    await mkdir(join(tmpDir, '.chatroom', 'agents', 'x'), { recursive: true });
+    const agentPath = '.chatroom/agents/x/AGENT.md';
+    await writeFile(join(tmpDir, '.gitignore'), `${agentPath}\n`);
+
+    const matcher = await loadGitIgnoreMatcher(tmpDir);
+
+    expect(matcher.ignores(agentPath)).toBe(true);
+    expect(matcher.ignores('.chatroom/agents/y/AGENT.md')).toBe(false);
+  });
+
+  it('honours a .git/info/exclude entry', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'git-ignore-matcher-exclude-'));
+    await mkdir(join(tmpDir, '.git', 'info'), { recursive: true });
+    const agentPath = '.chatroom/agents/x/AGENT.md';
+    await writeFile(join(tmpDir, '.git', 'info', 'exclude'), `${agentPath}\n`);
+
+    const matcher = await loadGitIgnoreMatcher(tmpDir);
+
+    expect(matcher.ignores(agentPath)).toBe(true);
+  });
+
+  it('does not consult .cursorignore', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'git-ignore-matcher-cursor-'));
+    await mkdir(join(tmpDir, '.cursor'), { recursive: true });
+    await writeFile(join(tmpDir, '.cursorignore'), '.cursor/\n');
+
+    const matcher = await loadGitIgnoreMatcher(tmpDir);
+
+    expect(matcher.ignores('.cursor/rules.md')).toBe(false);
   });
 });

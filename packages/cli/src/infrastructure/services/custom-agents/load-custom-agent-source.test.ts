@@ -6,7 +6,7 @@ import {
   computeCustomAgentContentHash,
   CUSTOM_AGENT_LIMITS,
 } from '@workspace/shared/domain/custom-agent';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadCustomAgentSource } from './load-custom-agent-source.js';
 
@@ -58,9 +58,14 @@ describe('loadCustomAgentSource', () => {
     tmp = await mkdtemp(join(tmpdir(), 'custom-agents-loader-'));
     workspaceRoot = join(tmp, 'workspace');
     await mkdir(workspaceRoot, { recursive: true });
+    // Isolate the git visibility check from the real global ignore configuration.
+    vi.stubEnv('GIT_CONFIG_GLOBAL', join(tmp, 'gitconfig'));
+    vi.stubEnv('XDG_CONFIG_HOME', join(tmp, 'xdg'));
+    await writeFile(join(tmp, 'gitconfig'), '[core]\n');
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await rm(tmp, { recursive: true, force: true });
   });
 
@@ -334,5 +339,68 @@ describe('loadCustomAgentSource', () => {
       // Only errno codes and file names are allowed; never a prose Error message.
       expect(issue.detail ?? '').not.toMatch(/Error|: /);
     }
+  });
+
+  describe('gitignored advisory', () => {
+    /** A `.git` directory is enough; the loader never runs git. */
+    async function markAsGitRepo(root: string): Promise<void> {
+      await mkdir(join(root, '.git'), { recursive: true });
+    }
+
+    it('reports one gitignored issue and still returns the agent when git ignores it', async () => {
+      await markAsGitRepo(workspaceRoot);
+      await writeAgent(workspaceRoot, 'x');
+      await writeFile(join(workspaceRoot, '.gitignore'), '.chatroom\n');
+
+      const result = await loadCustomAgentSource({ scope: 'workspace', workspaceRoot });
+
+      expect(result.issues).toEqual([{ path: '.chatroom/agents', reason: 'gitignored' }]);
+      expect(result.agents.map(({ name }) => name)).toEqual(['x']);
+    });
+
+    it('reports one issue for the source even when several agents are ignored', async () => {
+      await markAsGitRepo(workspaceRoot);
+      await writeAgent(workspaceRoot, 'alpha');
+      await writeAgent(workspaceRoot, 'beta');
+      await writeFile(join(workspaceRoot, '.gitignore'), '.chatroom/agents/alpha/AGENT.md\n');
+
+      const result = await loadCustomAgentSource({ scope: 'workspace', workspaceRoot });
+
+      expect(result.issues).toEqual([{ path: '.chatroom/agents', reason: 'gitignored' }]);
+      expect(result.agents.map(({ name }) => name)).toEqual(['alpha', 'beta']);
+    });
+
+    it('reports nothing when the generated gitignore keeps agents committable', async () => {
+      await markAsGitRepo(workspaceRoot);
+      await writeAgent(workspaceRoot, 'x');
+      await writeFile(join(workspaceRoot, '.gitignore'), '.chatroom/*\n!.chatroom/agents/\n');
+
+      const result = await loadCustomAgentSource({ scope: 'workspace', workspaceRoot });
+
+      expect(result.issues).toEqual([]);
+      expect(result.agents.map(({ name }) => name)).toEqual(['x']);
+    });
+
+    it('reports nothing outside a git repository', async () => {
+      await writeAgent(workspaceRoot, 'x');
+      await writeFile(join(workspaceRoot, '.gitignore'), '.chatroom\n');
+
+      const result = await loadCustomAgentSource({ scope: 'workspace', workspaceRoot });
+
+      expect(result.issues).toEqual([]);
+    });
+
+    it('never reports a gitignored issue for the machine scope', async () => {
+      const home = join(tmp, 'home');
+      await mkdir(home, { recursive: true });
+      await markAsGitRepo(home);
+      await writeAgent(home, 'x');
+      await writeFile(join(home, '.gitignore'), '.chatroom\n');
+
+      const result = await loadCustomAgentSource({ scope: 'machine', homeDir: home });
+
+      expect(result.issues).toEqual([]);
+      expect(result.agents.map(({ name }) => name)).toEqual(['x']);
+    });
   });
 });

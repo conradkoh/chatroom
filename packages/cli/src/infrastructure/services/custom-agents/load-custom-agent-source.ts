@@ -38,9 +38,11 @@ import {
   type CustomAgentIssueReason,
   type CustomAgentScope,
 } from '@workspace/shared/domain/custom-agent';
+import type { Ignore } from 'ignore';
 
 import { parseAgentFile, type FrontmatterFlaggedKey } from './parse-agent-frontmatter.js';
 import { errorCode, safeReadTextFile, type SafeReadFailure } from './safe-read.js';
+import { loadGitIgnoreMatcher } from '../workspace/workspace-ignore.js';
 import { isPathInsideRoot } from '../workspace/workspace-path-security.js';
 
 /** One loaded definition. `disabled` is machine-local state, stamped by the daemon. */
@@ -104,7 +106,7 @@ export async function loadCustomAgentSource(
   if (root.rootPath === null) return emptySource(input.scope, []);
 
   const scan = await scanRoot(root.rootPath);
-  return buildSource(input.scope, scan);
+  return await withGitIgnoredIssue(input, buildSource(input.scope, scan));
 }
 
 function emptySource(
@@ -121,6 +123,71 @@ function buildSource(scope: CustomAgentScope, scan: SourceScan): LoadedCustomAge
     agents: capped.agents,
     issues: sortIssues([...scan.issues, ...capped.issues]),
   };
+}
+
+// ─── Git visibility ──────────────────────────────────────────────────────────
+
+/**
+ * Advisory check: a workspace agent that git ignores can never be committed, so
+ * its definition would exist only on this machine. The agents still load; the
+ * source carries one `gitignored` issue so the user can fix `.gitignore`.
+ *
+ * Only workspace scope has a repository to check, and only when
+ * `<workspaceRoot>/.git` exists (a directory, or the file a worktree uses).
+ */
+async function withGitIgnoredIssue(
+  input: LoadCustomAgentSourceInput,
+  source: LoadedCustomAgentSource
+): Promise<LoadedCustomAgentSource> {
+  try {
+    const gitRoot = await resolveGitRoot(input, source);
+    if (gitRoot === null) return source;
+    return await addGitIgnoredIssue(gitRoot, source);
+  } catch {
+    // Visibility is advisory; a matcher failure must never fail the load.
+    return source;
+  }
+}
+
+async function resolveGitRoot(
+  input: LoadCustomAgentSourceInput,
+  source: LoadedCustomAgentSource
+): Promise<string | null> {
+  if (source.scope !== 'workspace') return null;
+  const root = input.workspaceRoot;
+  if (root === undefined) return null;
+  return (await pathExists(join(root, '.git'))) ? root : null;
+}
+
+async function addGitIgnoredIssue(
+  gitRoot: string,
+  source: LoadedCustomAgentSource
+): Promise<LoadedCustomAgentSource> {
+  if (source.agents.length === 0) return source;
+  const matcher = await loadGitIgnoreMatcher(gitRoot);
+  if (!hasIgnoredAgent(matcher, source.agents)) return source;
+  return {
+    ...source,
+    issues: sortIssues([...source.issues, issue(SOURCE_ROOT_PATH, 'gitignored')]),
+  };
+}
+
+function hasIgnoredAgent(matcher: Ignore, agents: readonly LoadedCustomAgent[]): boolean {
+  return agents.some((agent) => matcher.ignores(agentIgnorePath(agent.name)));
+}
+
+/** The path a user would commit, relative to the repository root. */
+function agentIgnorePath(name: string): string {
+  return `${SOURCE_ROOT_PATH}/${name}/${AGENT_FILE}`;
+}
+
+async function pathExists(absPath: string): Promise<boolean> {
+  try {
+    await lstat(absPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Root resolution ─────────────────────────────────────────────────────────
