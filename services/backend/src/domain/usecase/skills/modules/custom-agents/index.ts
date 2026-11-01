@@ -102,7 +102,18 @@ Custom agents are always ephemeral and optional. There is no frontmatter overrid
 
 ## Enable, disable, and rescan
 
-Disable is machine-local and keyed by the agent name, and it applies to every chatroom on that machine that uses the agent. Use the Custom Agents section in the chatroom settings to turn an agent off or on, or to press Rescan. Only the owner of the machine can do either. The change is persisted by the machine and applied through the next push, so it may take a moment to appear.
+Disable is machine-local and keyed by the agent name: turning off \`reviewer-x\` also disables any other agent called \`reviewer-x\` on that machine, in every chatroom that resolves the name. Only the owner of the machine can do it.
+
+From a terminal:
+
+\`\`\`text
+\`${cliEnvPrefix}chatroom custom-agents list --chatroom-id=<id>\`
+\`${cliEnvPrefix}chatroom custom-agents disable --chatroom-id=<id> --name=<name>\`
+\`${cliEnvPrefix}chatroom custom-agents enable --chatroom-id=<id> --name=<name>\`
+\`${cliEnvPrefix}chatroom custom-agents refresh --chatroom-id=<id>\`
+\`\`\`
+
+The same actions live in the Custom Agents section of the chatroom settings: the switch on each row, and Rescan. \`disable\` and \`enable\` print \`confirmed\` once the pushed roster shows the new value, or say the change is still pending after ten seconds. The change is persisted by the machine and applied through the next push.
 
 Disabling is reversible. An agent that is already working keeps working on its current task and hands off normally.
 

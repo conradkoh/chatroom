@@ -133,6 +133,10 @@ describe('skills.activate', () => {
     // The skill describes shipped behaviour: the validate command, the advisory
     // frontmatter fields, and the machine-local disable flow.
     expect(result.skill.prompt).toContain('chatroom custom-agents validate');
+    expect(result.skill.prompt).toContain('chatroom custom-agents list');
+    expect(result.skill.prompt).toContain('chatroom custom-agents disable');
+    expect(result.skill.prompt).toContain('chatroom custom-agents enable');
+    expect(result.skill.prompt).toContain('chatroom custom-agents refresh');
     expect(result.skill.prompt).toContain('unknown-field');
     expect(result.skill.prompt).toContain('forbidden-field');
     expect(result.skill.prompt).toContain('Disable is machine-local');
