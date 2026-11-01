@@ -60,19 +60,7 @@ export const syncDefinitions = mutation({
     issues: v.array(customAgentIssueValidator),
   },
   handler: async (ctx, args) => {
-    const auth = await requireSession(ctx, args.sessionId);
-    const ownerCheck = await checkAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'machine', id: args.machineId },
-      permission: 'owner',
-    });
-    if (!ownerCheck.ok) {
-      throw new ConvexError({
-        code: 'NOT_AUTHORIZED_MACHINE',
-        message: 'Not authorized for this machine',
-      });
-    }
-
+    await assertMachineOwner(ctx, args.sessionId, args.machineId);
     return syncCustomAgentDefinitions(ctx, args);
   },
 });
