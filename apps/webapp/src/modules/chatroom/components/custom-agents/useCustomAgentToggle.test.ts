@@ -317,6 +317,7 @@ describe('useCustomAgentToggle over-limit enables', () => {
 
     const returned = rosterFor(ENABLE_AGENT_17, ['agent-9']);
     expect(returned.rows.map((row) => row.name)).toContain('agent-9');
+    expect(returned.rows.find((row) => row.name === 'agent-9')?.disabled).toBe(true);
     expect(returned.overLimit.size).toBe(0);
     rerender({ rows: returned.rows, overLimit: returned.overLimit });
 
@@ -343,6 +344,7 @@ describe('useCustomAgentToggle over-limit enables', () => {
 
     const returned = rosterFor(names, ['zeta']);
     expect(returned.rows.map((row) => row.name)).toContain('zeta');
+    expect(returned.rows.find((row) => row.name === 'zeta')?.disabled).toBe(true);
     rerender({ rows: returned.rows, overLimit: returned.overLimit });
 
     expect(result.current.stateFor('zeta')).toEqual({ kind: 'idle' });
