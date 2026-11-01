@@ -26,11 +26,11 @@ Each agent directory may also contain:
 - \`inbound-handoff.md\` — the template the team entry point uses to delegate to this agent (max 4 KiB).
 - \`return-handoff.md\` — the template this agent uses to return to the entry point (max 4 KiB).
 
-Both handoff files are optional. When either file is absent, a generated default is used.
+Both handoff files are optional. When either file is absent, a generated default is planned but not rendered yet: prompt composition for custom roles is not shipped.
 
 Workspace agents are committed with the repo, so teammates share them. Machine agents stay on one machine and are never committed.
 
-If \`.chatroom/\` is ignored by the repository, a workspace agent is reported with the \`gitignored\` issue and cannot be committed. Replace a bare \`.chatroom\` ignore rule with:
+If \`.chatroom/\` is ignored by the repository, a workspace agent is reported with the \`gitignored\` issue once the loader ships and cannot be committed. Replace a bare \`.chatroom\` ignore rule with:
 
 \`\`\`text
 .chatroom/*
@@ -50,18 +50,18 @@ description: Reviews release notes for accuracy and completeness before publishi
 You are the release reviewer. Your job is to ...
 \`\`\`
 
-- \`name\` is required and must match the directory name exactly. A mismatch is reported as the \`name-mismatch\` issue.
+- \`name\` is required and must match the directory name exactly. Once the loader ships, a mismatch is reported as \`name-mismatch\`.
 - \`description\` is required and is the one-line summary other agents see in the team roster.
 - The body is the system prompt. Write it in the second person and state the role's purpose, responsibilities, handoff points, and what it must return.
 
 ## Handoff templates
 
-Handoff templates are markdown with \`## \` sections. Each file contains the message body only; do not include delimiter lines such as \`---MESSAGE---\`.
+Handoff templates are markdown with \`## \` sections. Each file contains the message body only; do not include the \`---MESSAGE---\` line or the \`CHATROOM_HANDOFF_END\` and \`CHATROOM_NOTIFY_END\` closing lines. The server rejects only the two closing lines today.
 
 - \`inbound-handoff.md\` is what the entry point sends when delegating work to this agent.
 - \`return-handoff.md\` is what this agent sends when returning work to the entry point.
 
-Cover the task summary, the context the recipient needs, and the expected result. Keep each template at or below 4 KiB (4,096 UTF-8 bytes). When the default template is adequate, omit the file rather than copying the default.
+Cover the task summary, the context the recipient needs, and the expected result. Keep each template at or below 4 KiB (4,096 UTF-8 bytes). When the default template is adequate, omit the file rather than copying the default; the default is planned, not rendered yet.
 
 Two constraints apply to every authored body:
 
@@ -74,9 +74,9 @@ Two constraints apply to every authored body:
 - **Description:** one line of at most 200 characters. Control characters and newlines become spaces, \`<\`, \`>\`, and backticks are stripped, and whitespace is collapsed. An empty description is rejected with \`invalid-description\`.
 - **System prompt:** at most 24 KiB (24,576 UTF-8 bytes).
 - **Handoff templates:** at most 4 KiB (4,096 UTF-8 bytes) each.
-- **Agent counts:** at most 12 agents per source (workspace or machine) and at most 16 enabled custom agents per chatroom. Agents beyond the per-chatroom cap are not enabled and are reported with \`over-limit\`; a source that pushes more than 12 is rejected.
+- **Agent counts:** at most 12 agents per source (workspace or machine) and at most 16 enabled custom agents per chatroom. Agents beyond the per-chatroom cap are not enabled and are reported with \`over-limit\`; a source that pushes more than 12 is rejected with \`INVALID_SCOPE\`.
 
-Caps are enforced, not advisory: an oversized definition is rejected with \`too-large\`, and a per-chatroom overflow is reported as \`over-limit\` rather than silently dropped.
+Caps are enforced, not advisory: an oversized definition is rejected with \`too-large\`, and a per-chatroom overflow is reported as \`over-limit\` rather than silently dropped. The frontmatter rules below take effect when the loader ships.
 
 ## Forbidden fields and reserved names
 
@@ -84,7 +84,7 @@ These frontmatter keys are forbidden because model and harness selection belongs
 
 \`model\`, \`models\`, \`harness\`, \`harnesses\`, \`agentHarness\`, \`agent-harness\`, \`agent_harness\`, \`provider\`
 
-A definition using one of them is rejected with the \`forbidden-field\` issue.
+Once the loader ships, a definition using one of them is rejected with \`forbidden-field\`. The server does not check frontmatter today.
 
 Reserved names fail with \`reserved-name\`:
 
@@ -102,7 +102,7 @@ Custom agents are always ephemeral and optional. There is no frontmatter overrid
 2. Make the frontmatter \`name\` identical to the directory name, in lowercase kebab-case within 48 characters.
 3. Write a single-line \`description\` within 200 characters; this is the roster summary other agents read.
 4. Put the system prompt in the body: purpose, responsibilities, when to hand off and to whom, and what to return.
-5. Add \`inbound-handoff.md\` and \`return-handoff.md\` only when the generated defaults are insufficient; keep each at or below 4 KiB.
+5. Add \`inbound-handoff.md\` and \`return-handoff.md\` only when the generated defaults are insufficient; keep each at or below 4 KiB (defaults are planned, not rendered yet).
 6. Keep the system prompt at or below 24 KiB and avoid reserved delimiters and protocol tags in authored text.
 7. Do not add model or harness fields; choose those in the chatroom instead.
 8. For workspace agents, make sure \`.chatroom/\` is not ignored wholesale so the definition can be committed.
