@@ -285,12 +285,13 @@ async function loadAndPush(state: ServiceState, runtime: SourceRuntime): Promise
   if (runtime.scopeRejected) return;
   const disabled = await state.deps.state.read();
   const loaded = await state.deps.load(runtime.input);
-  runtime.agentNames = new Set(loaded.agents.map((entry) => entry.name));
+  runtime.agentNames = loadedAgentNames(loaded);
   const args = buildPushArgs(state.deps, runtime.input, loaded, disabled);
   if (!shouldPush(state, runtime, args)) return;
 
   const result = await state.deps.push(args);
   runtime.lastPushedKey = dedupKey(args);
+  runtime.agentNames = withRejectedNames(runtime.agentNames, result.rejected);
   logRejectedOnce(state, runtime, result.rejected);
 }
 
@@ -389,6 +390,33 @@ async function persistDisabled(
   if (disabled) next.add(name);
   else next.delete(name);
   await state.deps.state.write(next, knownAgentNames(state));
+}
+
+/**
+ * Every agent name a load saw, not only the accepted ones: a name dropped by the
+ * per-source cap or reported with an issue is still configured on this machine,
+ * and its disable flag must survive pruning.
+ */
+function loadedAgentNames(loaded: LoadedCustomAgentSource): ReadonlySet<string> {
+  const names = new Set(loaded.agents.map((agent) => agent.name));
+  for (const issue of loaded.issues) addIssueAgentName(names, issue.path);
+  return names;
+}
+
+/** Issue paths are `<name>` or `<name>/<file>`; root paths start with `.chatroom`. */
+function addIssueAgentName(names: Set<string>, path: string): void {
+  const head = path.split('/')[0];
+  if (head === undefined || head === '' || head === '.chatroom') return;
+  names.add(head);
+}
+
+/** The server can reject a definition the loader accepted; keep its name too. */
+function withRejectedNames(
+  names: ReadonlySet<string>,
+  rejected: readonly RejectedAgent[]
+): ReadonlySet<string> {
+  if (rejected.length === 0) return names;
+  return new Set([...names, ...rejected.map((entry) => entry.name)]);
 }
 
 /** Every name the machine's current sources define, across all source scopes. */

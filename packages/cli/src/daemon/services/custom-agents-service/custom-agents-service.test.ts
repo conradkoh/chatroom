@@ -529,6 +529,37 @@ describe('real state file', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('keeps a known name the loader dropped or the server rejected when pruning', async () => {
+    const statePath = join(dir, 'custom-agents-disabled.json');
+    const store = createFileDisabledStateStore(statePath);
+    // 254 stale names plus the two flagged names fill the cap; disabling `alpha`
+    // then forces the pruning path.
+    const stale = Array.from({ length: 254 }, (_, index) => `stale-${index}`);
+    const seeded = [...stale, 'beta', 'gamma'];
+    await store.write(new Set(seeded), new Set(seeded));
+    const harness = createHarness({
+      agents: { machine: [agent('alpha')] },
+      state: store,
+    });
+    // `beta` was dropped by the per-source cap; `gamma` was rejected by the
+    // server. Both are still configured on this machine and keep their flags.
+    harness.setLoad(async (input) => ({
+      scope: input.scope,
+      agents: [agent('alpha')],
+      issues: [{ path: 'beta', reason: 'over-limit' }],
+    }));
+    harness.setPush(async () => ({
+      applied: true,
+      rejected: [{ name: 'gamma', reason: 'invalid-name' }],
+    }));
+
+    harness.service.start();
+    await vi.waitFor(() => expect(harness.pushes.length).toBeGreaterThan(0), { timeout: 3_000 });
+    await harness.service.setDisabled('alpha', true);
+
+    expect([...(await store.read())].sort()).toEqual(['alpha', 'beta', 'gamma']);
+  });
+
   it('prunes stale disabled names so a new disable still persists', async () => {
     const statePath = join(dir, 'custom-agents-disabled.json');
     const store = createFileDisabledStateStore(statePath);
