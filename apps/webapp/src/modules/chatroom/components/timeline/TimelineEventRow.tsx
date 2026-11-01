@@ -6,6 +6,7 @@ import { TimelineContextMessage } from './TimelineContextMessage';
 import type { MachineNameEntry, TimelineMessageHeaderNavigation } from './timelineRowStyles';
 import { TimelineTeamMessage, type TimelineTeamMessageProps } from './TimelineTeamMessage';
 import { TimelineUserMessage } from './TimelineUserMessage';
+import { isEagerTimelineEvent } from '../../timeline/isEagerTimelineEvent';
 import type { TimelineEvent } from '../../timeline/types';
 
 export interface TimelineEventRowProps {
@@ -45,6 +46,7 @@ export const TimelineEventRow = memo(function TimelineEventRow({
           machines={machines}
           machineId={machineId}
           headerNavigation={headerNavigation}
+          collapsible={!isEagerTimelineEvent(event)}
         />
       );
     default: {

@@ -157,4 +157,35 @@ describe('TimelineEventRow', () => {
     renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     expect(screen.queryByTestId('timeline-message-header-nav')).toBeNull();
   });
+
+  it('routes agent-to-agent handoffs through the collapsed preview', () => {
+    const event = mapMessageToTimelineEvent(
+      makeMessage({
+        type: 'handoff',
+        senderRole: 'builder',
+        targetRole: 'planner',
+        content: 'Preview line.\n\nDeferred body line.',
+      })
+    );
+    renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
+
+    expect(screen.getByTestId('timeline-handoff-preview')).toHaveTextContent('Preview line.');
+    expect(screen.queryByText('Deferred body line.')).not.toBeInTheDocument();
+    expect(document.querySelector('.prose')).toBeNull();
+  });
+
+  it('keeps agent-to-user handoffs expanded', () => {
+    const event = mapMessageToTimelineEvent(
+      makeMessage({
+        type: 'handoff',
+        senderRole: 'builder',
+        targetRole: 'user',
+        content: 'Delivered body.',
+      })
+    );
+    renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
+
+    expect(screen.getByText('Delivered body.')).toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-handoff-preview')).not.toBeInTheDocument();
+  });
 });

@@ -7,6 +7,8 @@ import { AttachmentsProvider } from '../../attachments';
 import type * as TimelineEventRowModule from '../../components/timeline/TimelineEventRow';
 import { getTimelineVirtualRowZIndex } from '../../components/timeline/timelineRowStyles';
 import { JUMP_TO_NEW_MESSAGES_Z_INDEX } from '../../components/timeline/timelineVirtualizerConfig';
+import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
+import type { Message } from '../../types/message';
 
 // matchMedia polyfill needed by useIsDesktop (used by MessageDownloadMenu in the real row).
 Object.defineProperty(window, 'matchMedia', {
@@ -415,6 +417,100 @@ describe('sticky header message navigation', () => {
     expect(headerNav('msg-2', 'first').disabled).toBe(false);
     expect(headerNav('msg-2', 'next').disabled).toBe(true);
     expect(headerNav('msg-2', 'last').disabled).toBe(true);
+  });
+});
+
+describe('handoff collapse behavior', () => {
+  const AGENT_HANDOFF_BODY = 'Preview line one.\nPreview line two.\n\nDeferred body sentence.';
+
+  const MESSAGES: Message[] = [
+    {
+      _id: 'user-1',
+      type: 'message',
+      senderRole: 'user',
+      content: 'User message body.',
+      _creationTime: 1,
+    },
+    {
+      _id: 'handoff-1',
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'planner',
+      content: AGENT_HANDOFF_BODY,
+      _creationTime: 2,
+    },
+    {
+      _id: 'handoff-user-1',
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Handoff to user body.',
+      _creationTime: 3,
+    },
+    {
+      _id: 'notice-1',
+      type: 'notice',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Notice body.',
+      _creationTime: 4,
+    },
+  ];
+
+  function renderTimeline() {
+    const events = MESSAGES.map((message) => mapMessageToTimelineEvent(message));
+    return renderList(<AllTabMessageList events={events} anchorId="a1" />);
+  }
+
+  function row(messageId: string): HTMLElement {
+    const el = document.querySelector(`[data-testid="event-row-${messageId}"]`);
+    if (!el) throw new Error(`row ${messageId} is not rendered`);
+    return el as HTMLElement;
+  }
+
+  it('collapses agent-to-agent handoffs to a plain-text preview', () => {
+    renderTimeline();
+    const agentRow = row('handoff-1');
+
+    expect(within(agentRow).getByTestId('timeline-handoff-preview')).toHaveTextContent(
+      'Preview line one. Preview line two.'
+    );
+    expect(within(agentRow).queryByText('Deferred body sentence.')).not.toBeInTheDocument();
+    expect(agentRow.querySelector('.prose')).toBeNull();
+    // Header navigation, row identity, and footer survive the collapsed state.
+    expect(within(agentRow).getByTestId('timeline-header-nav-current')).toBeInTheDocument();
+    expect(within(agentRow).getByTestId('timeline-message-footer')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-message-id="handoff-1"]')).toHaveLength(1);
+  });
+
+  it('keeps user, agent-to-user handoffs, and notices expanded', () => {
+    renderTimeline();
+
+    for (const [messageId, text] of [
+      ['user-1', 'User message body.'],
+      ['handoff-user-1', 'Handoff to user body.'],
+      ['notice-1', 'Notice body.'],
+    ] as const) {
+      const eagerRow = row(messageId);
+      expect(within(eagerRow).getByText(text)).toBeInTheDocument();
+      expect(eagerRow.querySelector('.prose')).not.toBeNull();
+      expect(within(eagerRow).queryByTestId('timeline-handoff-preview')).not.toBeInTheDocument();
+      expect(within(eagerRow).queryByText('Show full handoff')).not.toBeInTheDocument();
+    }
+  });
+
+  it('reveals the full handoff body when Show full handoff is clicked', () => {
+    renderTimeline();
+    const agentRow = row('handoff-1');
+
+    fireEvent.click(within(agentRow).getByText('Show full handoff'));
+
+    expect(within(row('handoff-1')).getByText('Deferred body sentence.')).toBeInTheDocument();
+    expect(
+      within(row('handoff-1')).queryByTestId('timeline-handoff-preview')
+    ).not.toBeInTheDocument();
+    expect(row('handoff-1').querySelector('.prose')).not.toBeNull();
+    expect(document.querySelectorAll('[data-message-id="handoff-1"]')).toHaveLength(1);
   });
 });
 
