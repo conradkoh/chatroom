@@ -23,6 +23,10 @@
  *
  * Source and content tables are deliberately not read here: source issues
  * belong to the settings query, and prompts belong to prompt composition.
+ * Prompt composition is a separate, documented reader:
+ * `readCustomAgentPromptContext` reads `chatroom_customAgentContents` and
+ * `chatroom_customAgentHandoffTemplates` with its own read budget, and nothing
+ * on the always-on team path may start reading them.
  */
 
 import {
@@ -240,11 +244,26 @@ async function hasCustomAgentDefinition(
   workspace: Doc<'chatroom_workspaces'>,
   role: string
 ): Promise<boolean> {
+  return (await findCustomAgentForRole(ctx, workspace, role)) !== null;
+}
+
+/**
+ * The stored definition for one role in a workspace, or null.
+ *
+ * Workspace rows shadow machine rows of the same name, mirroring the merge
+ * precedence. Disabled rows are included: a disabled or in-flight custom role
+ * still keeps its own instructions for prompt composition.
+ */
+export async function findCustomAgentForRole(
+  ctx: DbCtx,
+  workspace: Doc<'chatroom_workspaces'>,
+  role: string
+): Promise<CustomAgentRow | null> {
   const [workspaceRow, machineRow] = await Promise.all([
     findCustomAgentByName(ctx, workspace.machineId, 'workspace', workspace.workingDir, role),
     findCustomAgentByName(ctx, workspace.machineId, 'machine', undefined, role),
   ]);
-  return workspaceRow !== null || machineRow !== null;
+  return workspaceRow ?? machineRow;
 }
 
 /**
