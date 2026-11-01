@@ -54,11 +54,7 @@ export function AllTabConversationPanel({
     [chatrooms, chatroomId]
   );
 
-  useHandoffNotification(
-    useMemo(() => messages.map((m) => m), [messages]),
-    chatroomId,
-    notifyChatroom
-  );
+  useHandoffNotification(messages, chatroomId, notifyChatroom);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
