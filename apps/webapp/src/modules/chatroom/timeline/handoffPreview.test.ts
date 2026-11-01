@@ -9,10 +9,11 @@ describe('getHandoffPreviewText', () => {
     );
   });
 
-  it('strips headings and list markers', () => {
+  it('strips headings and list markers, including indented ones', () => {
     expect(getHandoffPreviewText('## Summary\n- first item\n> quoted line')).toBe(
       'Summary first item'
     );
+    expect(getHandoffPreviewText('  ## Summary\n    - nested item')).toBe('Summary nested item');
   });
 
   it('reduces links to their text', () => {

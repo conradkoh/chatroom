@@ -32,6 +32,7 @@ const FENCE_LINE_PATTERN = /^(?:`{3,}|~{3,})/;
 
 function stripMarkdownSyntax(line: string): string {
   return line
+    .trim()
     .replace(WRAPPER_TAG_PATTERN, ' ')
     .replace(LINK_PATTERN, '$1')
     .replace(HEADING_MARKER_PATTERN, '')
