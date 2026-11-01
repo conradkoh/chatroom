@@ -90,22 +90,13 @@ describe('TimelineEventRow', () => {
     expect(screen.getByText('New Context')).toBeInTheDocument();
   });
 
-  it('renders team message cell with machine label when provided', () => {
+  it('renders team message cell', () => {
     const event = mapMessageToTimelineEvent(
       makeMessage({ senderRole: 'builder', content: 'Handoff note' })
     );
-    const machines = new Map([['m1', { hostname: 'dev-box', alias: 'Dev' }]]);
-    renderRow(
-      <TimelineEventRow
-        event={event}
-        chatroomId={TEST_CHATROOM_ID}
-        machines={machines}
-        machineId="m1"
-      />
-    );
+    renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     expect(screen.getByTestId('timeline-team-message')).toBeInTheDocument();
     expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
-    expect(screen.getByText('(Dev)')).toBeInTheDocument();
     expect(screen.getByText('Handoff note')).toBeInTheDocument();
   });
 

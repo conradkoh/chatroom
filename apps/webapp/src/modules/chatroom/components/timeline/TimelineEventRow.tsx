@@ -3,8 +3,8 @@
 import { memo } from 'react';
 
 import { TimelineContextMessage } from './TimelineContextMessage';
-import type { MachineNameEntry, TimelineMessageHeaderNavigation } from './timelineRowStyles';
-import { TimelineTeamMessage, type TimelineTeamMessageProps } from './TimelineTeamMessage';
+import type { TimelineMessageHeaderNavigation } from './timelineRowStyles';
+import { TimelineTeamMessage } from './TimelineTeamMessage';
 import { TimelineUserMessage } from './TimelineUserMessage';
 import { isEagerTimelineEvent } from '../../timeline/isEagerTimelineEvent';
 import type { TimelineEvent } from '../../timeline/types';
@@ -12,9 +12,6 @@ import type { TimelineEvent } from '../../timeline/types';
 export interface TimelineEventRowProps {
   event: TimelineEvent;
   chatroomId: string;
-  machines?: Map<string, MachineNameEntry>;
-  /** Optional machine id for team rows (hostname via `machines` map). */
-  machineId?: TimelineTeamMessageProps['machineId'];
   /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
   headerNavigation?: TimelineMessageHeaderNavigation;
 }
@@ -22,8 +19,6 @@ export interface TimelineEventRowProps {
 export const TimelineEventRow = memo(function TimelineEventRow({
   event,
   chatroomId,
-  machines,
-  machineId,
   headerNavigation,
 }: TimelineEventRowProps) {
   switch (event.kind) {
@@ -43,8 +38,6 @@ export const TimelineEventRow = memo(function TimelineEventRow({
           message={event.message}
           handoffDurationMs={event.handoffDurationMs}
           chatroomId={chatroomId}
-          machines={machines}
-          machineId={machineId}
           headerNavigation={headerNavigation}
           collapsible={!isEagerTimelineEvent(event)}
         />

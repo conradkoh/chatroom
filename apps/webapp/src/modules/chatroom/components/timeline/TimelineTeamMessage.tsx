@@ -7,14 +7,12 @@ import { TimelineMessageFooter } from './TimelineMessageFooter';
 import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import {
   BADGE_BASE,
-  formatMachineLabel,
   getSenderClasses,
   ICON_SIZE,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
   TIMELINE_ROW_ROOT,
-  type MachineNameEntry,
   type TimelineMessageHeaderNavigation,
 } from './timelineRowStyles';
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
@@ -92,21 +90,16 @@ function getMessageTypeBadge(type: string) {
  * component guarantees identical nav, identity attributes, and layout in both.
  */
 // Faithful extraction of the pre-existing header markup; the branch count is
-// layout-only (badge, nav, machine label, source tag, target role).
+// layout-only (badge, nav, source tag, target role).
 // fallow-ignore-next-line complexity
 const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
   message,
-  machines,
-  machineId,
   headerNavigation,
 }: {
   message: Message;
-  machines?: Map<string, MachineNameEntry>;
-  machineId?: string;
   headerNavigation?: TimelineMessageHeaderNavigation;
 }) {
   const messageTypeBadge = getMessageTypeBadge(message.type);
-  const machineLabel = formatMachineLabel(machines, machineId);
 
   return (
     <div
@@ -129,11 +122,6 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
       {headerNavigation && <TimelineMessageHeaderNav {...headerNavigation} />}
       <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 justify-self-end">
         <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
-        {machineLabel && (
-          <span className="text-[10px] text-chatroom-text-muted font-medium normal-case">
-            ({machineLabel})
-          </span>
-        )}
         {message.sourcePlatform === 'telegram' && (
           <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-tertiary rounded">
             Telegram
@@ -153,9 +141,6 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
 export interface TimelineTeamMessageProps {
   message: Message;
   chatroomId: string;
-  machines?: Map<string, MachineNameEntry>;
-  /** When set, shows resolved hostname/alias beside the sender role. */
-  machineId?: string;
   /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
   headerNavigation?: TimelineMessageHeaderNavigation;
   /** Historical duration from the origin task start through this handoff. */
@@ -170,8 +155,6 @@ export interface TimelineTeamMessageProps {
 export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   message,
   chatroomId: _chatroomId,
-  machines,
-  machineId,
   headerNavigation,
   handoffDurationMs,
   collapsible = false,
@@ -198,12 +181,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       data-testid="timeline-team-message"
       data-message-type={message.type}
     >
-      <TimelineTeamMessageHeader
-        message={message}
-        machines={machines}
-        machineId={machineId}
-        headerNavigation={headerNavigation}
-      />
+      <TimelineTeamMessageHeader message={message} headerNavigation={headerNavigation} />
 
       {collapsible && (
         <TimelineHandoffToggle

@@ -68,15 +68,3 @@ export function getSenderClasses(role: string): string {
   if (role === 'system') return `${base} text-chatroom-status-warning`;
   return `${base} text-chatroom-status-info`;
 }
-
-export type MachineNameEntry = { hostname: string; alias?: string };
-
-export function formatMachineLabel(
-  machines: Map<string, MachineNameEntry> | undefined,
-  machineId: string | undefined
-): string | null {
-  if (!machines || !machineId) return null;
-  const entry = machines.get(machineId);
-  if (!entry) return null;
-  return entry.alias ?? entry.hostname;
-}
