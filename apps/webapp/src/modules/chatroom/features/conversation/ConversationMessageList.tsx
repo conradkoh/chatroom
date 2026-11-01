@@ -192,7 +192,7 @@ export function ConversationMessageList({
         onScroll={handleScroll}
         className={`relative z-0 flex-1 ${TIMELINE_SCROLL_CONTAINER}`}
         style={TIMELINE_SCROLL_CONTAINER_STYLE}
-        data-testid="all-tab-message-list"
+        data-testid="conversation-message-list"
       >
         {events.map((event, index) => (
           <ConversationRow
@@ -205,7 +205,7 @@ export function ConversationMessageList({
           />
         ))}
         {isLoadingMore && (
-          <div className="py-2 flex justify-center" data-testid="all-tab-loading-more">
+          <div className="py-2 flex justify-center" data-testid="conversation-loading-more">
             <ChatroomLoader size="sm" />
           </div>
         )}
@@ -218,7 +218,7 @@ export function ConversationMessageList({
           style={{ bottom: JUMP_TO_NEW_MESSAGES_GAP_PX, zIndex: JUMP_TO_NEW_MESSAGES_Z_INDEX }}
           className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
-          data-testid="all-tab-jump-to-new-messages"
+          data-testid="conversation-jump-to-new-messages"
         >
           <ChevronDown size={16} />
           <span className="text-xs font-medium">Jump to new messages</span>

@@ -12,17 +12,17 @@ import { useHandoffNotification } from '../../hooks/useHandoffNotification';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
-export type AllTabNavigationActions = {
+export type ConversationNavigationActions = {
   goToLatestAnchor: () => void;
 };
 
 export function ConversationPanel({
   chatroomId,
-  onRegisterAllTabNavigation,
+  onRegisterConversationNavigation,
   onRequestComposerFocus,
 }: {
   chatroomId: string;
-  onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
+  onRegisterConversationNavigation?: (actions: ConversationNavigationActions) => void;
   onRequestComposerFocus?: () => void;
 }) {
   const {
@@ -42,8 +42,8 @@ export function ConversationPanel({
   } = useConversation(chatroomId);
 
   useEffect(() => {
-    onRegisterAllTabNavigation?.({ goToLatestAnchor });
-  }, [onRegisterAllTabNavigation, goToLatestAnchor]);
+    onRegisterConversationNavigation?.({ goToLatestAnchor });
+  }, [onRegisterConversationNavigation, goToLatestAnchor]);
 
   const { chatrooms } = useChatroomListing();
   const notifyChatroom = useMemo(

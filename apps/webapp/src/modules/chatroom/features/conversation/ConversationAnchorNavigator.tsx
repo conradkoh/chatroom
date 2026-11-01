@@ -47,7 +47,7 @@ export function ConversationAnchorNavigator({
   return (
     <div
       className="shrink-0 flex items-center gap-2 px-3 py-1 md:py-2 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface"
-      data-testid="all-tab-anchor-navigator"
+      data-testid="conversation-anchor-navigator"
     >
       <button
         type="button"

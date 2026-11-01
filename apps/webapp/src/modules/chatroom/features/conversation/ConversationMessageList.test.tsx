@@ -127,24 +127,30 @@ describe('scroll pinning and jump chip', () => {
   it('shows jump chip when scrolled away from bottom', () => {
     renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
     fireEvent.scroll(list);
 
-    expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).not.toBeNull();
+    expect(
+      document.querySelector('[data-testid="conversation-jump-to-new-messages"]')
+    ).not.toBeNull();
   });
 
   it('positions jump chip above contained timeline rows with long feed', () => {
     const events = Array.from({ length: 40 }, (_, index) => makeEvent(`msg-${index}`));
     renderList(<ConversationMessageList events={events} anchorId="a1" />);
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     expect(list).toHaveClass('relative', 'z-0');
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
     fireEvent.scroll(list);
 
     const chip = document.querySelector(
-      '[data-testid="all-tab-jump-to-new-messages"]'
+      '[data-testid="conversation-jump-to-new-messages"]'
     ) as HTMLElement;
     expect(chip).not.toBeNull();
     expect(chip.style.zIndex).toBe(String(JUMP_TO_NEW_MESSAGES_Z_INDEX));
@@ -154,20 +160,24 @@ describe('scroll pinning and jump chip', () => {
   it('hides jump chip when at bottom (pinned)', () => {
     renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     scrollToBottom(list);
 
-    expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).toBeNull();
+    expect(document.querySelector('[data-testid="conversation-jump-to-new-messages"]')).toBeNull();
   });
 
   it('clicking jump chip scrolls to bottom and hides chip', () => {
     renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
     fireEvent.scroll(list);
 
-    const chip = document.querySelector('[data-testid="all-tab-jump-to-new-messages"]');
+    const chip = document.querySelector('[data-testid="conversation-jump-to-new-messages"]');
     expect(chip).not.toBeNull();
 
     const scrollTo = vi.fn((opts?: ScrollToOptions | number) => {
@@ -185,20 +195,24 @@ describe('scroll pinning and jump chip', () => {
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 1200, behavior: 'smooth' });
     expect(list.scrollTop).toBe(1200);
-    expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).toBeNull();
+    expect(document.querySelector('[data-testid="conversation-jump-to-new-messages"]')).toBeNull();
   });
 
   it('dispatches scroll on anchorId change to unpin', () => {
     const events = [makeEvent('msg-1')];
     const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 800 });
 
     rerender(<ConversationMessageList events={events} anchorId="a2" />);
 
     expect(list.scrollTop).toBe(0);
-    expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).not.toBeNull();
+    expect(
+      document.querySelector('[data-testid="conversation-jump-to-new-messages"]')
+    ).not.toBeNull();
   });
 });
 
@@ -209,7 +223,9 @@ describe('ConversationMessageList', () => {
       <ConversationMessageList events={events} anchorId="anchor-1" />
     );
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     list.scrollTop = 500;
 
     rerender(<ConversationMessageList events={events} anchorId="anchor-2" />);
@@ -219,7 +235,9 @@ describe('ConversationMessageList', () => {
 
   it('uses timeline scroll container with scrollbar width variable', () => {
     renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     expect(list.className).toContain('min-h-0');
     expect(list.style.getPropertyValue('--timeline-scrollbar-width')).toBe('8px');
   });
@@ -236,7 +254,9 @@ describe('ConversationMessageList', () => {
       />
     );
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     onLoadMore.mockClear();
     scrollToBottom(list);
 
@@ -255,7 +275,9 @@ describe('ConversationMessageList', () => {
       />
     );
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     scrollToBottom(list);
 
     expect(onLoadMore).not.toHaveBeenCalled();
@@ -273,7 +295,9 @@ describe('ConversationMessageList', () => {
       />
     );
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     scrollToBottom(list);
 
     expect(onLoadMore).not.toHaveBeenCalled();
@@ -283,7 +307,9 @@ describe('ConversationMessageList', () => {
     const events = [makeEvent('msg-1'), makeEvent('msg-2'), makeEvent('msg-3')];
     renderList(<ConversationMessageList events={events} anchorId="a1" />);
 
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
     const rowWrappers = Array.from(list.querySelectorAll('div[style]'));
     rowWrappers.forEach((wrapper, index) => {
       expect((wrapper as HTMLElement).style.zIndex).toBe(
@@ -302,7 +328,7 @@ describe('ConversationMessageList', () => {
       />
     );
 
-    expect(document.querySelector('[data-testid="all-tab-loading-more"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="conversation-loading-more"]')).not.toBeNull();
   });
 
   it('does not render the loading-more indicator when not loading more', () => {
@@ -315,7 +341,7 @@ describe('ConversationMessageList', () => {
       />
     );
 
-    expect(document.querySelector('[data-testid="all-tab-loading-more"]')).toBeNull();
+    expect(document.querySelector('[data-testid="conversation-loading-more"]')).toBeNull();
   });
 });
 
@@ -324,7 +350,9 @@ describe('sticky header message navigation', () => {
     renderList(
       <ConversationMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />
     );
-    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
 
     list.getBoundingClientRect = () =>
       ({

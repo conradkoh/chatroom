@@ -4,13 +4,13 @@ import type React from 'react';
 
 import {
   ConversationPanel,
-  type AllTabNavigationActions,
+  type ConversationNavigationActions,
 } from '../../features/conversation/ConversationPanel';
 import { ConversationModeProvider } from '../../hooks/useConversationMode';
 
 export interface ChatroomMessagesPanelProps {
   chatroomId: string;
-  onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
+  onRegisterConversationNavigation?: (actions: ConversationNavigationActions) => void;
   onRequestComposerFocus?: () => void;
   /** Optional footer (MessageInput) rendered below feed */
   footer?: React.ReactNode;
@@ -18,7 +18,7 @@ export interface ChatroomMessagesPanelProps {
 
 export function ChatroomMessagesPanel({
   chatroomId,
-  onRegisterAllTabNavigation,
+  onRegisterConversationNavigation,
   onRequestComposerFocus,
   footer,
 }: ChatroomMessagesPanelProps) {
@@ -27,7 +27,7 @@ export function ChatroomMessagesPanel({
       <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
         <ConversationPanel
           chatroomId={chatroomId}
-          onRegisterAllTabNavigation={onRegisterAllTabNavigation}
+          onRegisterConversationNavigation={onRegisterConversationNavigation}
           onRequestComposerFocus={onRequestComposerFocus}
         />
         {footer ? <div className="shrink-0">{footer}</div> : null}

@@ -78,7 +78,7 @@ describe('ConversationPanel', () => {
     });
 
     render(<ConversationPanel chatroomId="room-1" />);
-    expect(screen.getByTestId('all-tab-anchor-navigator')).toBeDefined();
+    expect(screen.getByTestId('conversation-anchor-navigator')).toBeDefined();
     expect(screen.getByRole('status')).toBeDefined();
     expect(screen.getByLabelText('Previous user message')).toBeDefined();
     expect(screen.getByLabelText('Jump to latest')).toBeDefined();
@@ -88,7 +88,7 @@ describe('ConversationPanel', () => {
   it('renders anchor navigator with jump to latest when on latest anchor', () => {
     render(<ConversationPanel chatroomId="room-1" />);
 
-    expect(screen.getByTestId('all-tab-anchor-navigator')).toBeDefined();
+    expect(screen.getByTestId('conversation-anchor-navigator')).toBeDefined();
     const jumpButton = screen.getByRole('button', { name: 'Jump to latest' });
     expect((jumpButton as HTMLButtonElement).disabled).toBe(true);
   });
@@ -118,7 +118,7 @@ describe('ConversationPanel', () => {
 
     render(<ConversationPanel chatroomId="room-1" />);
 
-    expect(screen.getByTestId('all-tab-anchor-navigator')).toBeDefined();
+    expect(screen.getByTestId('conversation-anchor-navigator')).toBeDefined();
     expect(screen.getByTestId('event-row-msg-1')).toBeDefined();
   });
 
@@ -155,9 +155,9 @@ describe('ConversationPanel', () => {
     expect((nextButton as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('registers all-tab navigation actions on mount', () => {
+  it('registers conversation navigation actions on mount', () => {
     const goToLatestAnchor = vi.fn();
-    const onRegisterAllTabNavigation = vi.fn();
+    const onRegisterConversationNavigation = vi.fn();
     mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
@@ -174,11 +174,11 @@ describe('ConversationPanel', () => {
     render(
       <ConversationPanel
         chatroomId="room-1"
-        onRegisterAllTabNavigation={onRegisterAllTabNavigation}
+        onRegisterConversationNavigation={onRegisterConversationNavigation}
       />
     );
 
-    expect(onRegisterAllTabNavigation).toHaveBeenCalledWith({ goToLatestAnchor });
+    expect(onRegisterConversationNavigation).toHaveBeenCalledWith({ goToLatestAnchor });
   });
 
   it('passes the matching chatroom to useHandoffNotification', () => {

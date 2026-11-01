@@ -795,7 +795,7 @@ function ChatroomDashboardContent({
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
-  const allTabNavigationRef = useRef<{ goToLatestAnchor: () => void } | null>(null);
+  const conversationNavigationRef = useRef<{ goToLatestAnchor: () => void } | null>(null);
 
   const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
     focusSendFormRef.current = fn;
@@ -817,15 +817,15 @@ function ChatroomDashboardContent({
     });
   }, [activeView, explorerSplitViewEnabled]);
 
-  const handleRegisterAllTabNavigation = useCallback(
+  const handleRegisterConversationNavigation = useCallback(
     (actions: { goToLatestAnchor: () => void }) => {
-      allTabNavigationRef.current = actions;
+      conversationNavigationRef.current = actions;
     },
     []
   );
 
-  const handleAllTabMessageSent = useCallback(() => {
-    allTabNavigationRef.current?.goToLatestAnchor();
+  const handleConversationMessageSent = useCallback(() => {
+    conversationNavigationRef.current?.goToLatestAnchor();
   }, []);
 
   const handleExplorerSelectionToComposer = useCallback(
@@ -1923,9 +1923,10 @@ function ChatroomDashboardContent({
                               chatroomId={chatroomId as Id<'chatroom_rooms'>}
                               messagesPanelProps={{
                                 onRegisterSendFormFocus: handleRegisterSendFormFocus,
-                                onRegisterAllTabNavigation: handleRegisterAllTabNavigation,
+                                onRegisterConversationNavigation:
+                                  handleRegisterConversationNavigation,
                                 onRequestComposerFocus: handleRequestComposerFocus,
-                                onMessageSent: handleAllTabMessageSent,
+                                onMessageSent: handleConversationMessageSent,
                                 autocompleteFiles,
                                 refreshAutocompleteFiles: handleAtTriggerActivate,
                                 hasAutocompleteWorkspace,
@@ -1940,7 +1941,7 @@ function ChatroomDashboardContent({
                         /* Message Feed — shown in messages view */
                         <ChatroomMessagesPanel
                           chatroomId={chatroomId}
-                          onRegisterAllTabNavigation={handleRegisterAllTabNavigation}
+                          onRegisterConversationNavigation={handleRegisterConversationNavigation}
                           onRequestComposerFocus={handleRequestComposerFocus}
                           footer={
                             <div className="shrink-0 border-t-2 border-chatroom-border-strong">
@@ -1948,7 +1949,7 @@ function ChatroomDashboardContent({
                                 key={chatroomId}
                                 chatroomId={chatroomId}
                                 onRegisterFocus={handleRegisterSendFormFocus}
-                                onMessageSent={handleAllTabMessageSent}
+                                onMessageSent={handleConversationMessageSent}
                                 files={autocompleteFiles}
                                 hasAutocompleteWorkspace={hasAutocompleteWorkspace}
                                 onAtTriggerActivate={handleAtTriggerActivate}
