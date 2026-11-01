@@ -2309,7 +2309,8 @@ export default defineSchema({
    * One push snapshot per source. `rulesVersion`, `issues`, and the per-agent
    * server hashes are the change detection boundary. `contentHash` is the
    * advisory client hash, stored for diagnostics only; it is not used to decide
-   * whether to write.
+   * whether to write. It may lag the client build: it is refreshed only when the
+   * snapshot is rewritten.
    */
   chatroom_customAgentSources: defineTable({
     machineId: v.string(),
