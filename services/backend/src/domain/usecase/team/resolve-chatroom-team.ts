@@ -7,10 +7,14 @@
  * one place.
  *
  * Read budget per resolution (keep exact):
- *   1. chatroom_activeTeamStructures.by_chatroom        (1 row)
- *   2. primary workspace                                 (1 workspace)
+ *   1. chatroom_activeTeamStructures.by_chatroom        (1 row; null ends here)
+ *   2. primary workspace                                 (all chatroom workspaces)
  *   3. custom agents, workspace scope                    (take 12)
  *   4. custom agents, machine scope                      (take 12)
+ *
+ * Step 2 runs for every chatroom with an active structure, solo included, because
+ * the resolved team always carries `primaryWorkspace` for the roster source read.
+ * The helper collects every workspace of the chatroom rather than one row.
  *
  * Steps 3 and 4 are skipped for teams that cannot carry custom agents (solo)
  * and for chatrooms without a primary workspace.
