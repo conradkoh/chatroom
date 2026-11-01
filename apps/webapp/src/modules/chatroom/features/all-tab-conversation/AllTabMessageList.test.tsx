@@ -36,6 +36,29 @@ const { rowRenderCounts } = vi.hoisted(() => ({
   rowRenderCounts: new Map<string, number>(),
 }));
 
+/**
+ * Markdown render counter. Eager rows (user messages, user-facing handoffs) run
+ * the real markdown body, so counting its calls proves which rows re-ran the
+ * expensive render path after an append.
+ */
+const { markdownRenderMock } = vi.hoisted(() => ({ markdownRenderMock: vi.fn() }));
+
+vi.mock('../../components/timeline/TimelineMarkdownBody', () => ({
+  TimelineMarkdownBody: ({ content }: { content: string }) => {
+    markdownRenderMock(content);
+    return (
+      <div className="prose" data-testid="timeline-markdown-body">
+        {content
+          .split('\n')
+          .filter((line) => line.trim())
+          .map((line, index) => (
+            <p key={index}>{line}</p>
+          ))}
+      </div>
+    );
+  },
+}));
+
 vi.mock('../../components/timeline/TimelineEventRow', async (importOriginal) => {
   const actual = await importOriginal<typeof TimelineEventRowModule>();
   const { memo } = await import('react');
@@ -517,6 +540,7 @@ describe('handoff collapse behavior', () => {
 describe('row re-render behavior', () => {
   beforeEach(() => {
     rowRenderCounts.clear();
+    markdownRenderMock.mockClear();
   });
 
   it('does not invoke TimelineEventRow when the events array identity changes only', () => {
@@ -539,5 +563,18 @@ describe('row re-render behavior', () => {
     );
 
     expect([...rowRenderCounts.keys()]).toEqual(['msg-2']);
+  });
+
+  it('re-renders only the previous last row and the appended row on append', () => {
+    const events = [makeEvent('a'), makeEvent('b'), makeEvent('c')];
+    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    rowRenderCounts.clear();
+    markdownRenderMock.mockClear();
+
+    rerender(<AllTabMessageList events={[...events, makeEvent('d')]} anchorId="a1" />);
+
+    // `c` re-renders only because its `isLast` flipped; `a`/`b` keep every prop.
+    expect([...rowRenderCounts.keys()]).toEqual(['c', 'd']);
+    expect(markdownRenderMock.mock.calls.map(([content]) => content)).toEqual(['c', 'd']);
   });
 });
