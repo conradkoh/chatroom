@@ -49,7 +49,7 @@ Each agent directory may also contain:
 - `inbound-handoff.md`: the template the entry point uses to delegate work to this agent.
 - `return-handoff.md`: the template this agent uses to return work to the entry point.
 
-Both are optional. A generated default is planned for when either file is absent, but no default is rendered yet (see [Status](#status)).
+Both are optional. When either file is absent, prompt composition renders a generated default (`services/backend/prompts/custom-agents/default-handoff-templates.ts`) so a teammate always sees the expected shape.
 
 ## AGENT.md format
 
@@ -86,7 +86,7 @@ Handoff templates are markdown with `## ` sections. Each file contains the messa
 | `inbound-handoff.md` | The team entry point | Delegating work to this agent          |
 | `return-handoff.md`  | The custom agent     | Returning work to the team entry point |
 
-When a file is absent, a generated default is planned but not rendered yet (see [Status](#status)). Keep authored templates at or below 4 KiB (4,096 UTF-8 bytes).
+When a file is absent, a generated default is rendered in its place. Authored templates, and therefore the defaults they replace, stay at or below 4 KiB (4,096 UTF-8 bytes).
 
 ## Limits
 
