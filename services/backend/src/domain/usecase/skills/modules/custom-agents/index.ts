@@ -12,7 +12,7 @@ export const customAgentsSkill: SkillModule = {
 
 Custom agents are user-authored roles defined in files. The daemon loads \`.chatroom/agents\` and \`~/.chatroom/agents\`, validates every file, and pushes the snapshot to Convex; the chatroom team then lists each agent as an optional role. Custom agents work only on duo teams.
 
-The daemon pushes on start, on every file change under either root, on a 60 s fallback poll, and when someone presses Rescan in the webapp. A file you create appears in the chatroom within about a minute at worst, and almost immediately once the agent folder already exists.
+The daemon pushes on start, on every file change under either root, on a 60 s fallback poll, and when someone presses Rescan in the webapp or runs \`chatroom custom-agents refresh\`. A file you create appears in the chatroom within about a minute at worst, and almost immediately once the agent folder already exists.
 
 Run \`${cliEnvPrefix}chatroom custom-agents validate\` from the workspace to see exactly what the loader found and every issue it reported. Add \`--machine\` for the machine scope only, or \`--workspace <dir>\` for another directory. The command is offline: no auth and no backend call.
 
@@ -107,10 +107,10 @@ Disable is machine-local and keyed by the agent name: turning off \`reviewer-x\`
 From a terminal:
 
 \`\`\`text
-\`${cliEnvPrefix}chatroom custom-agents list --chatroom-id=<id>\`
-\`${cliEnvPrefix}chatroom custom-agents disable --chatroom-id=<id> --name=<name>\`
-\`${cliEnvPrefix}chatroom custom-agents enable --chatroom-id=<id> --name=<name>\`
-\`${cliEnvPrefix}chatroom custom-agents refresh --chatroom-id=<id>\`
+${cliEnvPrefix}chatroom custom-agents list --chatroom-id=<id>
+${cliEnvPrefix}chatroom custom-agents disable --chatroom-id=<id> --name=<name>
+${cliEnvPrefix}chatroom custom-agents enable --chatroom-id=<id> --name=<name>
+${cliEnvPrefix}chatroom custom-agents refresh --chatroom-id=<id>
 \`\`\`
 
 The same actions live in the Custom Agents section of the chatroom settings: the switch on each row, and Rescan. \`disable\` and \`enable\` print \`confirmed\` once the pushed roster shows the new value, or say the change is still pending after ten seconds. The change is persisted by the machine and applied through the next push.
