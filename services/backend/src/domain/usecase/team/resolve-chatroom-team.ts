@@ -28,6 +28,7 @@ import {
   CUSTOM_AGENT_LIMITS,
   mergeTeamStructureWithCustomAgents,
   supportsCustomAgents,
+  validateCustomAgentName,
   type CustomAgentIdentity,
   type CustomAgentScope,
   type MergedTeam,
@@ -220,11 +221,34 @@ async function hasCustomAgentDefinition(
 }
 
 /**
+ * Whether the role was already projected as ephemeral in this chatroom.
+ *
+ * A role projected as ephemeral stays ephemeral after its definition is removed
+ * or disabled (M1). The projection is written while the definition still exists,
+ * so this single indexed read on the cold path is enough; no scan of in-flight
+ * tasks is needed. Never add an index here.
+ */
+async function hasEphemeralStatusProjection(
+  ctx: DbCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<boolean> {
+  const row = await ctx.db
+    .query('chatroom_agentRoleStatusReadModel')
+    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .first();
+  return row?.roleKind === 'ephemeral';
+}
+
+/**
  * Whether the role should be treated as an ephemeral agent in this chatroom.
  *
  * Builtin lifecycle tags are authoritative. `user` and retired roles are never
  * agents. Any other name is a custom role only when the primary workspace has a
  * stored definition for it, whether or not that role is currently disabled.
+ *
+ * A role projected as ephemeral stays ephemeral after its definition is removed
+ * or disabled (M1), so the release path still runs for an in-flight custom role.
  *
  * Consumed by the ephemeral lifecycle call sites (release, register, status
  * projection, inbox events, and assigned-task reads), so a custom role gets the
@@ -237,9 +261,26 @@ export async function isEphemeralRoleInChatroom(
 ): Promise<boolean> {
   const builtinDecision = builtinEphemeralDecision(role);
   if (builtinDecision !== null) return builtinDecision;
+  return isCustomAgentRoleInChatroom(ctx, chatroomId, role);
+}
+
+/**
+ * Custom-role half of `isEphemeralRoleInChatroom`.
+ *
+ * Names that fail `validateCustomAgentName` (malformed or reserved) never become
+ * ephemeral, so a random role string cannot borrow the ephemeral lifecycle. A
+ * definition row wins; otherwise the projected lifecycle is the sticky fallback.
+ */
+async function isCustomAgentRoleInChatroom(
+  ctx: DbCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<boolean> {
+  if (validateCustomAgentName(role) !== null) return false; // malformed or reserved names are never custom agents
 
   const workspace = await getPrimaryWorkspaceForChatroom(ctx, chatroomId);
-  return workspace !== null && hasCustomAgentDefinition(ctx, workspace, role);
+  if (workspace !== null && (await hasCustomAgentDefinition(ctx, workspace, role))) return true;
+  return hasEphemeralStatusProjection(ctx, chatroomId, role);
 }
 
 async function findCustomAgentByName(

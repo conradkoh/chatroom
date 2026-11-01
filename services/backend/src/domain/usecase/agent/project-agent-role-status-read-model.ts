@@ -123,6 +123,8 @@ export async function projectAgentRoleStatusReadModel(
           occurredAt: now,
         }
       : undefined;
+  // The resolver's sticky fallback keeps this roleKind stable after the
+  // definition is removed, so an in-flight custom role stays ephemeral.
   const roleKind = (await isEphemeralRoleInChatroom(ctx, args.chatroomId, role))
     ? ('ephemeral' as const)
     : ('persistent' as const);
