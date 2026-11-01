@@ -476,6 +476,17 @@ async function disableWorkspaceAgent(
   });
 }
 
+async function syncMachineAgent(sessionId: SessionId, machineId: string, agent: TestAgent) {
+  return t.mutation(api.customAgents.syncDefinitions, {
+    sessionId,
+    machineId,
+    scope: 'machine',
+    contentHash: agent.contentHash,
+    agents: [agent],
+    issues: [],
+  });
+}
+
 async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>, assignedTo: string) {
   return t.run(async (ctx) =>
     ctx.db.insert('chatroom_tasks', {
@@ -547,6 +558,49 @@ describe('chatroom team resolution with custom agents', () => {
     );
     const workspaceSource = settings.sources.find(({ scope }) => scope === 'workspace');
     expect(workspaceSource?.issues).toEqual([]);
+  });
+
+  test('keeps a workspace agent enabled when the shadowed machine row is disabled', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'shadow-enabled-workspace'
+    );
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'w1'));
+    await syncMachineAgent(sessionId, machineId, makeAgent('alpha', 'm1', { disabled: true }));
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).toContain('alpha');
+
+    const settings = await t.query(api.customAgents.getTeamRoster, { sessionId, chatroomId });
+    expect(settings.roster.find(({ role }) => role === 'alpha')).toMatchObject({
+      source: 'custom',
+      scope: 'workspace',
+      disabled: false,
+    });
+  });
+
+  test('keeps a workspace agent disabled when the shadowed machine row is enabled', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'shadow-disabled-workspace'
+    );
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'w1'));
+    await disableWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'w1'));
+    await syncMachineAgent(sessionId, machineId, makeAgent('alpha', 'm1'));
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).not.toContain('alpha');
+
+    const settings = await t.query(api.customAgents.getTeamRoster, { sessionId, chatroomId });
+    expect(settings.roster.find(({ role }) => role === 'alpha')).toMatchObject({
+      source: 'custom',
+      scope: 'workspace',
+      disabled: true,
+    });
   });
 
   test('rejects a duplicate name in one push and keeps the first definition', async () => {
@@ -983,6 +1037,184 @@ async function readRoleStatusRow(chatroomId: Id<'chatroom_rooms'>, role: string)
       .first()
   );
 }
+
+async function readPrimaryWorkspace(chatroomId: Id<'chatroom_rooms'>) {
+  return await t.run(async (ctx) => {
+    const primary = await ctx.db
+      .query('chatroom_primaryWorkspaces')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .first();
+    if (!primary) throw new Error('Chatroom has no primary workspace');
+    const workspace = await ctx.db.get('chatroom_workspaces', primary.workspaceId);
+    if (!workspace) throw new Error('Primary workspace row is missing');
+    return workspace;
+  });
+}
+
+async function insertRoleStatusRow(input: {
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  roleKind: 'persistent' | 'ephemeral';
+  workspaceId?: Id<'chatroom_workspaces'> | undefined;
+}) {
+  return await t.run(async (ctx) =>
+    ctx.db.insert('chatroom_agentRoleStatusReadModel', {
+      chatroomId: input.chatroomId,
+      role: input.role,
+      roleKind: input.roleKind,
+      status: 'offline',
+      projectedAt: FIXED_NOW,
+      ...(input.workspaceId !== undefined ? { workspaceId: input.workspaceId } : {}),
+    })
+  );
+}
+
+describe('custom agent lifecycle scoping', () => {
+  test('keeps a machine-scope definition out of the lifecycle in a solo team', async () => {
+    const { sessionId, machineId, chatroomId } = await setupChatroom('solo-lifecycle-gate', 'solo');
+    await syncMachineAgent(sessionId, machineId, makeAgent('qa', 'm1'));
+    const participantId = await insertParticipant(chatroomId, 'qa');
+
+    // The solo team never merges custom agents, so qa must not become ephemeral.
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).not.toContain('qa');
+    expect(await t.run(async (ctx) => isEphemeralRoleInChatroom(ctx, chatroomId, 'qa'))).toBe(
+      false
+    );
+
+    // A task assigned to qa is created through the public message path even
+    // though the name has no launch config and is not in the team.
+    const sent = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'solo',
+      content: 'hand this to qa',
+      type: 'handoff',
+      targetRole: 'qa',
+    });
+    expect(sent).toBeTruthy();
+
+    const task = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'pending')
+        )
+        .first()
+    );
+    expect(task?.assignedTo).toBe('qa');
+
+    // Drive the task to in_progress through the public task mutations.
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'qa',
+      taskId: task!._id,
+    });
+    await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'qa',
+      taskId: task!._id,
+    });
+
+    // Completing it must not release a role the chatroom never treated as ephemeral.
+    const handoff = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'solo',
+      content: 'qa is done',
+      targetRole: 'user',
+    });
+    expect(handoff.success).toBe(true);
+    expect(handoff.completedTaskIds).toContain(task!._id);
+
+    const participant = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_participants', participantId)
+    );
+    expect(participant?.lastSeenAction).not.toBe(PARTICIPANT_EXITED_ACTION);
+  });
+
+  test('treats a role as ephemeral when any workspace status row is ephemeral', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'multi-workspace-ephemeral'
+    );
+    const primaryWorkspace = await readPrimaryWorkspace(chatroomId);
+    const secondWorkspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/test/workspace-two',
+      hostname: 'test-host',
+      registeredBy: 'user',
+    });
+
+    // The primary workspace saw the role before any definition existed, so its
+    // row is the older `persistent` one.
+    await t.run(async (ctx) =>
+      projectAgentRoleStatusReadModel(ctx, {
+        chatroomId,
+        workspaceId: primaryWorkspace._id,
+        role: 'alpha',
+        event: { status: 'offline' },
+      })
+    );
+
+    // A definition makes the role ephemeral; the other workspace observes it.
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('alpha', 'a1'));
+    await t.run(async (ctx) =>
+      projectAgentRoleStatusReadModel(ctx, {
+        chatroomId,
+        workspaceId: secondWorkspaceId,
+        role: 'alpha',
+        event: { status: 'offline' },
+      })
+    );
+
+    // With the definition gone only the projection decides.
+    await clearWorkspaceAgents(sessionId, machineId, workingDir);
+
+    expect(await t.run(async (ctx) => isEphemeralRoleInChatroom(ctx, chatroomId, 'alpha'))).toBe(
+      true
+    );
+
+    const participantId = await insertParticipant(chatroomId, 'alpha');
+    await seedActiveTask(chatroomId, 'alpha');
+
+    const handoff = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      content: 'alpha finished',
+      targetRole: 'user',
+    });
+    expect(handoff.success).toBe(true);
+
+    const participant = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_participants', participantId)
+    );
+    expect(participant?.lastSeenAction).toBe(PARTICIPANT_EXITED_ACTION);
+  });
+
+  test('never treats a malformed name as ephemeral even with an ephemeral projection', async () => {
+    const { chatroomId } = await setupChatroom('malformed-projection');
+
+    await insertRoleStatusRow({ chatroomId, role: 'Alpha', roleKind: 'ephemeral' });
+    await insertRoleStatusRow({ chatroomId, role: 'a_b', roleKind: 'ephemeral' });
+    await insertRoleStatusRow({ chatroomId, role: 'architect', roleKind: 'persistent' });
+
+    const isEphemeral = (role: string) =>
+      t.run(async (ctx) => isEphemeralRoleInChatroom(ctx, chatroomId, role));
+
+    expect(await isEphemeral('Alpha')).toBe(false);
+    expect(await isEphemeral('a_b')).toBe(false);
+    // A builtin lifecycle decision is authoritative regardless of its projection.
+    expect(await isEphemeral('architect')).toBe(true);
+  });
+});
 
 async function insertParticipant(chatroomId: Id<'chatroom_rooms'>, role: string) {
   return await t.run(async (ctx) =>

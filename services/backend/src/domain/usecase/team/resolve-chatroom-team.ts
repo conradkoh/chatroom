@@ -81,6 +81,24 @@ function readCustomAgents(
 }
 
 /**
+ * The winning row per agent name: the workspace row shadows the machine row.
+ *
+ * Custom agents of the same name can exist in both scopes, and every lookup
+ * (roster, ids, and the disabled flag) must agree on which one wins, so this
+ * precedence is defined once here.
+ */
+function winningRowsByName(
+  workspaceRows: readonly CustomAgentRow[],
+  machineRows: readonly CustomAgentRow[]
+): Map<string, CustomAgentRow> {
+  const rowsByName = new Map<string, CustomAgentRow>();
+  for (const row of [...workspaceRows, ...machineRows]) {
+    if (!rowsByName.has(row.name)) rowsByName.set(row.name, row);
+  }
+  return rowsByName;
+}
+
+/**
  * Reattaches stored ids and origin metadata to the identities the pure merge
  * kept. Workspace rows win the name lookup, mirroring merge precedence.
  */
@@ -89,10 +107,7 @@ function toResolvedCustomAgents(
   workspaceRows: readonly CustomAgentRow[],
   machineRows: readonly CustomAgentRow[]
 ): ResolvedCustomAgent[] {
-  const rowsByName = new Map<string, CustomAgentRow>();
-  for (const row of [...workspaceRows, ...machineRows]) {
-    if (!rowsByName.has(row.name)) rowsByName.set(row.name, row);
-  }
+  const rowsByName = winningRowsByName(workspaceRows, machineRows);
 
   return enabled.map((identity) => {
     const row = rowsByName.get(identity.name);
@@ -126,13 +141,19 @@ function readAgentRows(
 /**
  * Machine-local disable is stamped onto each pushed definition, so the rows the
  * resolver already loads are the projection: no separate disabled-roles read.
+ *
+ * Only the winning row per name decides `disabled`. A workspace definition
+ * shadows the machine definition of the same name everywhere else, so a
+ * disabled machine row must not disable an enabled workspace row.
  */
 function collectDisabledRoles(
   workspaceRows: readonly CustomAgentRow[],
   machineRows: readonly CustomAgentRow[]
 ): Set<string> {
   return new Set(
-    [...workspaceRows, ...machineRows].filter((row) => row.disabled).map((row) => row.name)
+    [...winningRowsByName(workspaceRows, machineRows).values()]
+      .filter((row) => row.disabled)
+      .map((row) => row.name)
   );
 }
 
@@ -221,23 +242,30 @@ async function hasCustomAgentDefinition(
 }
 
 /**
+ * One status row exists per workspace of the chatroom, so a bounded take covers
+ * all of them. The oldest row is not authoritative: an older `persistent` row
+ * from one workspace must not hide an `ephemeral` row from another.
+ */
+const MAX_STATUS_ROWS_PER_ROLE = 16;
+
+/**
  * Whether the role was already projected as ephemeral in this chatroom.
  *
  * A role projected as ephemeral stays ephemeral after its definition is removed
  * or disabled (M1). The projection is written while the definition still exists,
- * so this single indexed read on the cold path is enough; no scan of in-flight
- * tasks is needed. Never add an index here.
+ * so this read on the cold path is enough; no scan of in-flight tasks is needed.
+ * Never add an index here: the read is bounded by the chatroom's workspace count.
  */
 async function hasEphemeralStatusProjection(
   ctx: DbCtx,
   chatroomId: Id<'chatroom_rooms'>,
   role: string
 ): Promise<boolean> {
-  const row = await ctx.db
+  const rows = await ctx.db
     .query('chatroom_agentRoleStatusReadModel')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
-    .first();
-  return row?.roleKind === 'ephemeral';
+    .take(MAX_STATUS_ROWS_PER_ROLE);
+  return rows.some((row) => row.roleKind === 'ephemeral');
 }
 
 /**
@@ -265,10 +293,41 @@ export async function isEphemeralRoleInChatroom(
 }
 
 /**
+ * Whether the chatroom's active team can carry custom agents at all. The stored
+ * structure id is versioned (`duo@1`), so resolve it to the team kind that
+ * `supportsCustomAgents` accepts, exactly as `resolveChatroomTeam` does.
+ */
+async function chatroomSupportsCustomAgents(
+  ctx: DbCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<boolean> {
+  const active = await getActiveTeamStructure(ctx, chatroomId);
+  if (!active) return false;
+  return supportsCustomAgents(getTeamStructure({ teamId: active.teamStructureId }).teamId);
+}
+
+/**
+ * Whether the chatroom knows the role as a custom lifecycle role: either the
+ * primary workspace has a stored definition, or a status projection already
+ * marked it ephemeral (the sticky signal after removal).
+ */
+async function hasCustomAgentLifecycleSignal(
+  ctx: DbCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<boolean> {
+  const workspace = await getPrimaryWorkspaceForChatroom(ctx, chatroomId);
+  if (workspace !== null && (await hasCustomAgentDefinition(ctx, workspace, role))) return true;
+  return hasEphemeralStatusProjection(ctx, chatroomId, role);
+}
+
+/**
  * Custom-role half of `isEphemeralRoleInChatroom`.
  *
  * Names that fail `validateCustomAgentName` (malformed or reserved) never become
- * ephemeral, so a random role string cannot borrow the ephemeral lifecycle. A
+ * ephemeral, so a random role string cannot borrow the ephemeral lifecycle. Only
+ * teams that support custom agents merge them at all, so the same machine-scope
+ * definition must not make the name ephemeral in a solo or legacy chatroom. A
  * definition row wins; otherwise the projected lifecycle is the sticky fallback.
  */
 async function isCustomAgentRoleInChatroom(
@@ -277,10 +336,8 @@ async function isCustomAgentRoleInChatroom(
   role: string
 ): Promise<boolean> {
   if (validateCustomAgentName(role) !== null) return false; // malformed or reserved names are never custom agents
-
-  const workspace = await getPrimaryWorkspaceForChatroom(ctx, chatroomId);
-  if (workspace !== null && (await hasCustomAgentDefinition(ctx, workspace, role))) return true;
-  return hasEphemeralStatusProjection(ctx, chatroomId, role);
+  if (!(await chatroomSupportsCustomAgents(ctx, chatroomId))) return false;
+  return hasCustomAgentLifecycleSignal(ctx, chatroomId, role);
 }
 
 async function findCustomAgentByName(
