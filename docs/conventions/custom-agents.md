@@ -14,14 +14,17 @@ Custom agents are user-authored roles defined in files. They sit beside the buil
 
 Shipped on `feat/custom-agents`:
 
-- Shared domain rules: naming, limits, sanitization, forbidden fields, issue reasons, and the pure team merge in `packages/shared/src/domain/custom-agent.ts`.
+- Shared domain rules: naming, limits, sanitization, issue reasons, and the pure team merge in `packages/shared/src/domain/custom-agent.ts`. The forbidden-key list is defined but not enforced until the loader ships.
 - Convex storage and the sync write path in `services/backend/src/domain/usecase/custom-agents/sync-custom-agent-definitions.ts`, exposed by `services/backend/convex/customAgents.ts`.
 - The single read-time resolver in `services/backend/src/domain/usecase/team/resolve-chatroom-team.ts`.
 
 Not shipped yet:
 
 - Daemon file loading and discovery of `.chatroom/agents` or `~/.chatroom/agents`.
+- Frontmatter validation. `missing-frontmatter`, `invalid-frontmatter`, `name-mismatch`, `forbidden-field`, `unknown-field`, `gitignored`, `unreadable`, and `root-truncated` are in the issue vocabulary but are produced only by the loader; the server does not read frontmatter today.
 - Prompt composition for custom roles, including their handoff templates and system prompts.
+- Generated default handoff templates. Prompt composition is not shipped, so no default is rendered for a custom role.
+- Registered-workspace check on sync. Workspace sources are not checked against the machine's registered workspaces, so an unregistered directory can store rows that never resolve. The check (`requireRegisteredWorkspaceForMachine`) lands with the first push path.
 - CLI sync commands and any `chatroom` command for custom agents.
 - Webapp management surfaces.
 - A user-facing flow for disabling custom agents. The sync and resolver mechanism exists (see [Disable and sync](#disable-and-sync)), but no supported client surface drives it yet.
@@ -44,7 +47,7 @@ Each agent directory may also contain:
 - `inbound-handoff.md`: the template the entry point uses to delegate work to this agent.
 - `return-handoff.md`: the template this agent uses to return work to the entry point.
 
-Both are optional. A generated default applies when either file is absent.
+Both are optional. A generated default is planned for when either file is absent, but no default is rendered yet (see [Status](#status)).
 
 ## AGENT.md format
 
@@ -70,6 +73,8 @@ Rules:
 - `name` and `description` are the only allowed frontmatter keys.
 - The body is the system prompt. State the role's purpose, responsibilities, when to hand off and to whom, and what to return.
 
+The loader enforces these frontmatter rules when it ships; the server does not check frontmatter today.
+
 ## Handoff templates
 
 Handoff templates are markdown with `## ` sections. Each file contains the message body only, not delimiter lines.
@@ -79,19 +84,19 @@ Handoff templates are markdown with `## ` sections. Each file contains the messa
 | `inbound-handoff.md` | The team entry point | Delegating work to this agent          |
 | `return-handoff.md`  | The custom agent     | Returning work to the team entry point |
 
-When a file is absent, a generated default is used. Keep authored templates at or below 4 KiB (4,096 UTF-8 bytes).
+When a file is absent, a generated default is planned but not rendered yet (see [Status](#status)). Keep authored templates at or below 4 KiB (4,096 UTF-8 bytes).
 
 ## Limits
 
-| Constant                  | Value                       | Applies to                              |
-| ------------------------- | --------------------------- | --------------------------------------- |
-| `nameMaxLength`           | 48 characters               | Agent name                              |
-| `descriptionMaxLength`    | 200 characters              | Description after sanitization          |
-| `systemPromptMaxBytes`    | 24 KiB (24,576 UTF-8 bytes) | `AGENT.md` body                         |
-| `handoffTemplateMaxBytes` | 4 KiB (4,096 UTF-8 bytes)   | Each handoff template                   |
-| `agentsPerSource`         | 12                          | One workspace or machine source         |
-| `agentsPerChatroom`       | 16                          | Enabled custom agents in one chatroom   |
-| `issuesPerSource`         | 50                          | Issues reported for one source snapshot |
+| Constant                  | Value                       | Applies to                                                         |
+| ------------------------- | --------------------------- | ------------------------------------------------------------------ |
+| `nameMaxLength`           | 48 characters               | Agent name                                                         |
+| `descriptionMaxLength`    | 200 characters              | Description after sanitization                                     |
+| `systemPromptMaxBytes`    | 24 KiB (24,576 UTF-8 bytes) | `AGENT.md` body                                                    |
+| `handoffTemplateMaxBytes` | 4 KiB (4,096 UTF-8 bytes)   | Each handoff template                                              |
+| `agentsPerSource`         | 12                          | One workspace or machine source                                    |
+| `agentsPerChatroom`       | 16                          | Enabled custom agents in one chatroom                              |
+| `issuesPerSource`         | 50                          | Issues stored for one source snapshot, including server rejections |
 
 A source that pushes more than `agentsPerSource` agents is rejected with `INVALID_SCOPE`. Only agents beyond `agentsPerChatroom` are reported as `over-limit`.
 
@@ -155,13 +160,13 @@ Disable state and definition snapshots both arrive through a single write path, 
 - **In-flight roles stay ephemeral.** A role already projected as ephemeral keeps the ephemeral lifecycle after its definition is removed or disabled, so release and handoff paths still run for work that is already assigned.
 - **Only `duo` is supported.** `supportsCustomAgents` accepts `duo` alone, so `solo` and legacy structures never merge custom agents or treat custom names as ephemeral, regardless of what is synced.
 
-A push replaces the snapshot for one source (`machineId` plus `scope` plus `workingDir`). An unchanged content hash writes nothing; when only disable flags changed, the rows are patched in place and prompt and template bodies keep their ids. The server recomputes each definition hash instead of trusting the pushed value. None of this makes the daemon loader or prompt composition shipped: without the loader, nothing pushes a snapshot, and without prompt composition, a synced definition is not rendered into any prompt.
+A push replaces the snapshot for one source (`machineId` plus `scope` plus `workingDir`). The pushed source hash is advisory: the stored rules version, the canonical issues, and the server-recomputed per-agent hashes decide whether anything changed. An unchanged snapshot writes nothing except a disable-flag pass that patches only rows whose flag differs; any other change upserts the source row and reconciles the agents. A stored rules version that no longer matches forces a full rewrite. Disable flags are excluded from the content key, so a toggle patches the row in place and prompt and template bodies keep their ids. The server recomputes each definition hash instead of trusting the pushed value. None of this makes the daemon loader or prompt composition shipped: without the loader, nothing pushes a snapshot, and without prompt composition, a synced definition is not rendered into any prompt.
 
 ## Git and .gitignore
 
 Commit workspace agents; never commit machine agents.
 
-If `.chatroom/` is ignored by the repository, a workspace agent is reported with the `gitignored` issue and cannot be committed. Replace a bare `.chatroom` ignore rule with:
+If `.chatroom/` is ignored by the repository, a workspace agent is reported with the `gitignored` issue once the loader ships and cannot be committed. Replace a bare `.chatroom` ignore rule with:
 
 ```gitignore
 .chatroom/*
