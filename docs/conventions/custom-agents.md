@@ -24,7 +24,7 @@ Not shipped yet:
 - Prompt composition for custom roles, including their handoff templates and system prompts.
 - CLI sync commands and any `chatroom` command for custom agents.
 - Webapp management surfaces.
-- Disabling custom agents. The mechanism is planned and has no supported user-facing flow, so do not rely on it.
+- A user-facing flow for disabling custom agents. The sync and resolver mechanism exists (see [Disable and sync](#disable-and-sync)), but no supported client surface drives it yet.
 
 Treat the layout and parser rules below as approved design and stable conventions, not as behavior you can exercise end to end today.
 
@@ -139,11 +139,23 @@ Any other key besides `name` and `description` is reported as `unknown-field`.
 | `shadowed`            | A definition lost a name collision and was dropped.                 |
 | `over-limit`          | A custom agent exceeded the per-chatroom enabled cap.               |
 
-Reserved block tags in authored text are neutralized in output. Do not rely on `<handoffs>`, `<task>`, `<team-roster>`, or any other reserved tag to affect prompt structure.
+Reserved block tags in authored text are not neutralized in rendered prompts yet, because prompt composition for custom roles is not shipped. Prompt composition must call `neutralizeChatroomBlockTags` before rendering a stored system prompt or template body. Do not rely on `<handoffs>`, `<task>`, `<team-roster>`, or any other reserved tag to affect prompt structure.
 
 ## Lifecycle
 
 Custom agents are always ephemeral and optional. There is no frontmatter override for lifecycle. A permanent custom role would block the setup wizard's `allJoined` gate, so lifecycle deliberately stays out of authored files.
+
+## Disable and sync
+
+Disable state and definition snapshots both arrive through a single write path, `syncDefinitions`. Definitions reach it from the daemon; disable state is stamped from the daemon's machine-local state and projected onto a chatroom by `resolveChatroomTeam`.
+
+- **Disable is machine-local and keyed by name.** The flag lives on the synced definition, so it follows that machine's row for the role rather than a chatroom setting. Every chatroom resolving the same definition sees the same disabled state.
+- **Disabled agents are removed before the 16-agent cap.** They never consume a per-chatroom slot, so disabling one agent cannot push another into `over-limit`.
+- **The roster still shows disabled agents.** `getTeamRoster` lists every resolved role, including disabled custom agents with `disabled: true`, so a disabled role is visible rather than silently missing.
+- **In-flight roles stay ephemeral.** A role already projected as ephemeral keeps the ephemeral lifecycle after its definition is removed or disabled, so release and handoff paths still run for work that is already assigned.
+- **Only `duo` is supported.** `supportsCustomAgents` accepts `duo` alone, so `solo` and legacy structures never merge custom agents or treat custom names as ephemeral, regardless of what is synced.
+
+A push replaces the snapshot for one source (`machineId` plus `scope` plus `workingDir`). An unchanged content hash writes nothing; when only disable flags changed, the rows are patched in place and prompt and template bodies keep their ids. The server recomputes each definition hash instead of trusting the pushed value. None of this makes the daemon loader or prompt composition shipped: without the loader, nothing pushes a snapshot, and without prompt composition, a synced definition is not rendered into any prompt.
 
 ## Git and .gitignore
 
@@ -183,5 +195,6 @@ pnpm --dir packages/shared exec vitest run \
 
 pnpm --dir services/backend exec vitest run \
   convex/customAgents.spec.ts \
-  src/domain/entities/team-presets.spec.ts
+  src/domain/entities/team-presets.spec.ts \
+  src/domain/usecase/agent/start-agent-from-current-config.spec.ts
 ```

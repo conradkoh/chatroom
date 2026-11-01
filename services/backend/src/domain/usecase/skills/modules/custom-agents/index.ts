@@ -10,7 +10,7 @@ export const customAgentsSkill: SkillModule = {
 
 # Custom Agents
 
-Custom agents are user-authored roles defined in files. They join the chatroom team beside the builtin roles and receive the same task, handoff, and lifecycle handling.
+Custom agents are user-authored roles defined in files. In this build, definitions are synced from the daemon only when the daemon file loader is available; the loader is not shipped yet, so authored files do not reach Convex on their own. Custom agents are supported only on duo teams, and the team composition lists them only once they are enabled.
 
 ## Layout
 
@@ -66,7 +66,7 @@ Cover the task summary, the context the recipient needs, and the expected result
 Two constraints apply to every authored body:
 
 - A body line equal to \`CHATROOM_HANDOFF_END\` or \`CHATROOM_NOTIFY_END\` is rejected with the \`reserved-delimiter\` issue, because it would truncate the handoff payload.
-- Protocol tags are neutralized, so do not rely on authored \`<handoffs>\`, \`<task>\`, \`<team-roster>\`, or other reserved block tags. Their opening delimiters are escaped in rendered prompts.
+- Prompt composition for authored system prompts and handoff templates is not shipped yet, so authored protocol tags are not neutralized in rendered prompts. Do not rely on \`<handoffs>\`, \`<task>\`, \`<team-roster>\`, or any other reserved block tag to affect prompt structure.
 
 ## Name, description, and size rules
 

@@ -239,6 +239,9 @@ export function sanitizeCustomAgentSummary(text: string): string {
  * Escapes opening delimiters of reserved chatroom blocks while leaving
  * non-reserved tags untouched, so authored text cannot impersonate protocol
  * markup. Case-insensitive on the tag name.
+ *
+ * Not yet applied to stored systemPrompt or template bodies. Prompt composition
+ * must call this before rendering them.
  */
 export function neutralizeChatroomBlockTags(text: string): string {
   const reservedTagAlternation = RESERVED_BLOCK_TAGS.join('|');
