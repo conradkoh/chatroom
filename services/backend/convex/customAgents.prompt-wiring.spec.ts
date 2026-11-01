@@ -50,7 +50,11 @@ interface Fixture {
   chatroomId: Id<'chatroom_rooms'>;
 }
 
-async function setupChatroom(suffix: string, workingDir = '/test/workspace'): Promise<Fixture> {
+async function setupChatroom(
+  suffix: string,
+  workingDir = '/test/workspace',
+  teamStructureId = 'duo'
+): Promise<Fixture> {
   const sessionId = `custom-agent-wiring-${suffix}` as SessionId;
   const machineId = `custom-agent-wiring-machine-${suffix}`;
 
@@ -65,7 +69,7 @@ async function setupChatroom(suffix: string, workingDir = '/test/workspace'): Pr
   });
   const { chatroomId } = await t.mutation(api.chatrooms.createWithWorkspace, {
     sessionId,
-    teamStructureId: 'duo',
+    teamStructureId,
     machineId,
     workingDir,
   });
@@ -258,6 +262,21 @@ describe('custom agent prompt wiring', () => {
     );
     expect(withPrompt).not.toContain('<custom-agent-instructions>');
     expect(withPrompt).not.toContain('<team-roster>');
+  });
+
+  test('a solo chatroom never renders custom-agent instructions for a stored row', async () => {
+    // The row exists because the daemon pushes per machine source, not per team.
+    // A solo team still must not merge it into any prompt.
+    const fixture = await setupChatroom('solo-no-customs', '/test/solo-no-customs', 'solo');
+    await syncWorkspaceAgents(fixture, [makeAgent('alpha')]);
+
+    const prompt = await rolePrompt(fixture, 'alpha');
+    expect(prompt).not.toContain('<custom-agent-instructions>');
+    expect(prompt).not.toContain('You are alpha.');
+
+    const entryPrompt = await initPrompt(fixture, 'solo');
+    expect(entryPrompt).not.toContain('<team-roster>');
+    expect(entryPrompt).not.toContain('### Handoff template `solo` → `alpha`');
   });
 
   test('a duo chatroom with a workspace and no custom agents adds no custom context', async () => {

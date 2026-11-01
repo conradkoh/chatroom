@@ -9,7 +9,9 @@
  * returned when the chatroom has no enabled custom agents AND the role has no
  * stored definition. A role that is disabled but still in flight keeps its own
  * instructions, so precedence is reused from `resolveChatroomTeam` and the
- * stored-row lookup rather than recomputed here.
+ * stored-row lookup rather than recomputed here. Teams that do not support
+ * custom agents (solo, legacy) never render one, even when the primary workspace
+ * has a stored row: the daemon pushes rows per machine source, not per team.
  *
  * Read budget (keep exact):
  *   - own role: 1 `chatroom_customAgentContents` row, plus at most 1 `return`
@@ -21,7 +23,10 @@
  *     lookup in `findCustomAgentForRole`; still at most 2 content/template rows.
  */
 
-import { validateCustomAgentName } from '@workspace/shared/domain/custom-agent';
+import {
+  supportsCustomAgents,
+  validateCustomAgentName,
+} from '@workspace/shared/domain/custom-agent';
 
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
@@ -68,11 +73,21 @@ export async function readCustomAgentPromptContext(
     role
   );
   if (known !== undefined) return known;
-  // A builtin, reserved, or malformed name can never be a custom role, so it
-  // returns before the stored-row fallback: no workspace read and no name
-  // lookup for a builtin prompt.
-  if (validateCustomAgentName(role) !== null) return undefined;
+  if (!hasStoredDefinitionPath(input.chatroom, role)) return undefined;
   return await buildStoredSelfContext(ctx, input, role);
+}
+
+/**
+ * Whether the stored-row fallback may run for this chatroom and role.
+ *
+ * A builtin, reserved, or malformed name can never be a custom role, so it stops
+ * here: no workspace read and no name lookup for a builtin prompt. Teams that do
+ * not support custom agents never merge them, and the daemon pushes rows per
+ * machine source rather than per team, so a solo chatroom's workspace can hold a
+ * definition this chatroom must not render.
+ */
+function hasStoredDefinitionPath(chatroom: ResolvedChatroom, role: string): boolean {
+  return validateCustomAgentName(role) === null && supportsCustomAgents(chatroom.teamId ?? '');
 }
 
 /**

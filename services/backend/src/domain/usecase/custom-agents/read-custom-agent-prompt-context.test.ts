@@ -53,7 +53,7 @@ interface Fixture {
   chatroomId: Id<'chatroom_rooms'>;
 }
 
-async function setup(suffix: string): Promise<Fixture> {
+async function setup(suffix: string, teamStructureId = 'duo'): Promise<Fixture> {
   const sessionId = `custom-agent-context-${suffix}` as SessionId;
   const machineId = `custom-agent-context-machine-${suffix}`;
   const workingDir = '/test/workspace';
@@ -69,7 +69,7 @@ async function setup(suffix: string): Promise<Fixture> {
   });
   const { chatroomId } = await t.mutation(api.chatrooms.createWithWorkspace, {
     sessionId,
-    teamStructureId: 'duo',
+    teamStructureId,
     machineId,
     workingDir,
   });
@@ -284,6 +284,18 @@ describe('readCustomAgentPromptContext', () => {
     const { context } = await readContext(fixture.chatroomId, 'alpha');
 
     expect(context?.self?.systemPrompt).toBe('Workspace alpha.');
+  });
+
+  test('returns undefined for a stored custom role in a solo chatroom', async () => {
+    // Custom agents never merge into a solo team. The pushed row still exists, so
+    // the stored-row fallback must be gated by the team, not only by the name.
+    const fixture = await setup('solo', 'solo');
+    await syncWorkspaceAgents(fixture, [makeAgent('alpha')]);
+
+    const { context, reads } = await readContext(fixture.chatroomId, 'alpha');
+
+    expect(context).toBeUndefined();
+    expect(reads).toEqual(NO_READS);
   });
 
   test('returns undefined for a role whose definition was removed', async () => {
