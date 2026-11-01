@@ -51,15 +51,18 @@ export function CustomAgentsRescanButton({
     timers.current.push(handle);
   }, []);
 
-  useEffect(() => {
-    const pending = timers.current;
-    return () => {
-      for (const handle of pending) window.clearTimeout(handle);
-      pending.length = 0;
-    };
+  /** Cancels every pending hint timer, so none can outlive the action that armed it. */
+  const clearScheduled = useCallback(() => {
+    for (const handle of timers.current) window.clearTimeout(handle);
+    timers.current.length = 0;
   }, []);
 
+  useEffect(() => clearScheduled, [clearScheduled]);
+
   const handleClick = useCallback(() => {
+    // A second click restarts the wait; a timer left over from the previous
+    // attempt would force `idle` mid-wait and swallow the next result.
+    clearScheduled();
     baseline.current = changeSignature;
     setPhase('requesting');
     void Promise.resolve(requestRefresh({ chatroomId: chatroomId as Id<'chatroom_rooms'> })).then(
@@ -70,7 +73,7 @@ export function CustomAgentsRescanButton({
         schedule(() => setPhase('idle'), HINT_CLEAR_MS);
       }
     );
-  }, [changeSignature, chatroomId, requestRefresh, schedule]);
+  }, [changeSignature, chatroomId, clearScheduled, requestRefresh, schedule]);
 
   // A changed signature is the only proof the rescan found something.
   // This is a server-truth subscription, not render state derived from a prop:
