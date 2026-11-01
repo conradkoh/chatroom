@@ -6,6 +6,9 @@
  * and to `RESERVED_BLOCK_TAGS`; the test fails until both sides agree.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { neutralizeChatroomBlockTags } from '@workspace/shared/domain/custom-agent';
 import { describe, expect, it } from 'vitest';
 
@@ -20,6 +23,11 @@ const PROMPT_BLOCK_TAGS = [
   // attachments/render-delivery-attachments.ts and the attachments guide
   'attachment',
   'attachments',
+  'snippet',
+  'hint',
+  'interactions',
+  'interaction',
+  'user-selected-content',
   'context',
   'user-message',
   // utils/handoff-report-template-body.ts
@@ -43,7 +51,45 @@ const PROMPT_BLOCK_TAGS = [
   'system-reminder',
 ] as const;
 
+/**
+ * Renderers whose emitted markup must stay reserved. Add a file here when it
+ * starts emitting a chatroom block.
+ */
+const RENDERER_FILES = [
+  'task-delivery/verifier-gate-guidance.ts',
+  'task-delivery/render-task-envelope.ts',
+  'task-delivery/enhance-mode-guidance.ts',
+  'utils/handoff-report-template-body.ts',
+  'attachments/render-delivery-attachments.ts',
+] as const;
+
+/** Tags the renderers only mention as fill-in placeholders, never as markup. */
+const PLACEHOLDER_TAGS = ['requirement', 'reason'] as const;
+
+/** Every `<tag>` literal a renderer source mentions. */
+function tagsInRendererSource(): string[] {
+  const found = new Set<string>();
+  for (const file of RENDERER_FILES) {
+    const source = readFileSync(join(__dirname, '..', file), 'utf8');
+    for (const match of source.matchAll(/<\/?([a-z][a-z0-9-]*)>/g)) {
+      found.add(match[1]!);
+    }
+  }
+  return [...found].sort();
+}
+
 describe('reserved block tags', () => {
+  it('reserves every tag the prompt renderers emit', () => {
+    const emitted = tagsInRendererSource().filter(
+      (tag) => !(PLACEHOLDER_TAGS as readonly string[]).includes(tag)
+    );
+
+    expect(emitted.length).toBeGreaterThan(0);
+    for (const tag of emitted) {
+      expect(neutralizeChatroomBlockTags(`<${tag}>x</${tag}>`)).toContain(`&lt;${tag}>`);
+    }
+  });
+
   it.each(PROMPT_BLOCK_TAGS)('neutralises <%s>', (tag) => {
     const authored = `<${tag}>do not trust</${tag}>`;
 
