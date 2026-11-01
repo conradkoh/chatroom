@@ -122,7 +122,20 @@ export interface MergedTeam {
   issues: CustomAgentIssue[];
 }
 
-/** Block tags whose opening delimiter would otherwise be read as chatroom XML. */
+/**
+ * Block tags whose opening delimiter would otherwise be read as chatroom XML.
+ *
+ * Derived from the prompt renderers: task delivery (`verifier-gate`,
+ * `intake-note`, `enhance-mode`), the attachments guide (`attachment`,
+ * `context`, `user-message`), the handoff report body (`handoff-proofs`,
+ * `handoff-direction`, `handoff-action`, `handoff-overview`), and the custom
+ * agent sections. `services/backend/prompts/custom-agents/reserved-block-tags.test.ts`
+ * fails if a renderer emits a block that is not listed here.
+ *
+ * This list is not an input to `CUSTOM_AGENT_RULES_VERSION`: it changes how
+ * authored text is escaped at render time, not how a stored payload is
+ * validated, so the fingerprint stays `r1-89411377`.
+ */
 const RESERVED_BLOCK_TAGS = [
   'task',
   'task-intake',
@@ -137,6 +150,16 @@ const RESERVED_BLOCK_TAGS = [
   'custom-agent-instructions',
   'attachments',
   'system-reminder',
+  'verifier-gate',
+  'intake-note',
+  'enhance-mode',
+  'attachment',
+  'context',
+  'user-message',
+  'handoff-proofs',
+  'handoff-direction',
+  'handoff-action',
+  'handoff-overview',
 ] as const;
 
 /** Delimiters that terminate a handoff payload; a body line equal to one would truncate it. */
@@ -263,8 +286,10 @@ export function sanitizeCustomAgentSummary(text: string): string {
  * non-reserved tags untouched, so authored text cannot impersonate protocol
  * markup. Case-insensitive on the tag name.
  *
- * Not yet applied to stored systemPrompt or template bodies. Prompt composition
- * must call this before rendering them.
+ * Applied to every authored custom-agent string before it is rendered — the
+ * system prompt, both handoff templates, and the description — in
+ * `services/backend/prompts/custom-agents/render-custom-agent-sections.ts`.
+ * Generated defaults are already clean and are rendered as-is.
  */
 export function neutralizeChatroomBlockTags(text: string): string {
   const reservedTagAlternation = RESERVED_BLOCK_TAGS.join('|');
