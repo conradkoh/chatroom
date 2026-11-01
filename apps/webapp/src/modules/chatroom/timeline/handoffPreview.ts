@@ -11,7 +11,7 @@ const PREVIEW_MAX_CHARS = 240;
 const CODE_BLOCK_PLACEHOLDER = '(code block)';
 
 /**
- * Only known handoff/HTML wrapper tags are removed. A generic `<[^>]+>` pattern
+ * Only known handoff wrapper tags are removed. A generic `<[^>]+>` pattern
  * would also eat generics and autolinks (`Promise<void>`, `<https://…>`), so the
  * alternation is restricted to the tags the chatroom actually emits.
  */
