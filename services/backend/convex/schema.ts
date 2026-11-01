@@ -2306,8 +2306,10 @@ export default defineSchema({
   // `q.eq('workingDir', undefined)`.
 
   /**
-   * One push snapshot per source. `contentHash` and `issues` are the change
-   * detection boundary: identical values make a sync a no-op.
+   * One push snapshot per source. `rulesVersion`, `issues`, and the per-agent
+   * server hashes are the change detection boundary. `contentHash` is the
+   * advisory client hash, stored for diagnostics only; it is not used to decide
+   * whether to write.
    */
   chatroom_customAgentSources: defineTable({
     machineId: v.string(),
