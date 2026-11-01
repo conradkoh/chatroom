@@ -612,6 +612,52 @@ describe('customAgents.syncDefinitions', () => {
     expect(await readSource(fixture.machineId, 'workspace', fixture.workingDir)).not.toBeNull();
   });
 
+  test('accepts a push when a second chatroom keeps the directory registered', async () => {
+    // Both rows come from real registrations on one machine: the first chatroom
+    // was created first, so its removed row precedes the active row in the index
+    // scan. The any-active rule must still accept the directory.
+    const { sessionId, machineId } = await setupMachine('two-rooms-one-machine');
+    const workingDir = '/test/two-rooms-one-machine';
+    const first = await t.mutation(api.chatrooms.createWithWorkspace, {
+      sessionId,
+      teamStructureId: 'duo',
+      machineId,
+      workingDir,
+    });
+    await t.mutation(api.chatrooms.createWithWorkspace, {
+      sessionId,
+      teamStructureId: 'duo',
+      machineId,
+      workingDir,
+    });
+
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query('chatroom_workspaces')
+        .withIndex('by_machine_workingDir', (q) =>
+          q.eq('machineId', machineId).eq('workingDir', workingDir)
+        )
+        .collect();
+      expect(rows).toHaveLength(2);
+      const removedRow = rows.find((row) => row.chatroomId === first.chatroomId);
+      if (removedRow === undefined) throw new Error('first chatroom has no workspace row');
+      await ctx.db.patch('chatroom_workspaces', removedRow._id, { removedAt: FIXED_NOW });
+    });
+
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'hash-1',
+      agents: [makeAgent('alpha', 'a1')],
+      issues: [],
+    });
+
+    expect(result).toEqual({ applied: true, rejected: [] });
+    expect(await readSource(machineId, 'workspace', workingDir)).not.toBeNull();
+  });
+
   test('rejects a workspace-scope push when every row for the workspace is removed', async () => {
     const fixture = await setup('all-rows-removed');
     await t.run(async (ctx) => {
