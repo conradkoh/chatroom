@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 /**
  * Bounded, symlink-safe text reader for the custom-agent loader.
  *

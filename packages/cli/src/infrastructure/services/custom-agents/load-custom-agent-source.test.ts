@@ -8,7 +8,7 @@ import {
 } from '@workspace/shared/domain/custom-agent';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { LOADER_MAX_ROOT_ENTRIES, loadCustomAgentSource } from './load-custom-agent-source.js';
+import { loadCustomAgentSource } from './load-custom-agent-source.js';
 
 const KIB = 1024;
 
@@ -188,8 +188,9 @@ describe('loadCustomAgentSource', () => {
   it('reports truncation after the maximum number of root entries', async () => {
     const agentsRoot = join(workspaceRoot, '.chatroom', 'agents');
     await mkdir(agentsRoot, { recursive: true });
+    // The loader scans at most 64 root entries; create one more to prove the tail is skipped.
     const names = Array.from(
-      { length: LOADER_MAX_ROOT_ENTRIES + 1 },
+      { length: 65 },
       (_, index) => `agent-${String(index).padStart(2, '0')}`
     );
     for (const name of names) await mkdir(join(agentsRoot, name));

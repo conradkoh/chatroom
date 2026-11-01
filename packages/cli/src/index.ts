@@ -833,6 +833,30 @@ skillCommand
   });
 
 // ============================================================================
+// CUSTOM AGENT COMMANDS (offline, no auth)
+// ============================================================================
+
+const customAgentsCommand = program
+  .command('custom-agents')
+  .description('Inspect custom agent definitions on disk');
+
+customAgentsCommand
+  .command('validate')
+  .description('Load custom agents and report every issue (offline)')
+  .option(
+    '--workspace <dir>',
+    'Workspace directory to validate (defaults to the current directory)'
+  )
+  .option('--machine', 'Validate the machine source (~/.chatroom/agents)')
+  .action(async (options: { workspace?: string | undefined; machine?: boolean | undefined }) => {
+    const { validateCustomAgents } = await import('./commands/custom-agents/index.js');
+    await validateCustomAgents({
+      ...(options.workspace !== undefined ? { workspaceDir: options.workspace } : {}),
+      machine: options.machine === true,
+    });
+  });
+
+// ============================================================================
 // WORKSPACE COMMANDS (auth required)
 // ============================================================================
 

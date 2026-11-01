@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * Custom-agent source loader.
  *
@@ -23,10 +22,6 @@
  * - Every issue `path` is relative to the source root; no issue `detail` carries
  *   an absolute path, a home directory, or an OS error message.
  * - The loader never throws: every filesystem failure becomes an issue.
- *
- * Not reachable from a CLI entry point yet: a later slice wires this into the
- * daemon sync path. The dead-code suppression above covers that gap; remove it
- * when the caller lands.
  */
 
 import { lstat, readdir, realpath } from 'node:fs/promises';
@@ -66,7 +61,7 @@ export interface LoadedCustomAgentSource {
 }
 
 /** Root entries are scanned up to this many; the rest are reported and ignored. */
-export const LOADER_MAX_ROOT_ENTRIES = 64;
+const LOADER_MAX_ROOT_ENTRIES = 64;
 
 const AGENTS_SEGMENTS = ['.chatroom', 'agents'] as const;
 const SOURCE_ROOT_PATH = '.chatroom/agents';

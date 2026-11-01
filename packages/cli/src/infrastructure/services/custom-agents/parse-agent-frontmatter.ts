@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 /**
  * Pure `AGENT.md` frontmatter parser.
  *
