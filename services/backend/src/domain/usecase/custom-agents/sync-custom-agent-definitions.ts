@@ -135,6 +135,23 @@ function canonicalizeIssues(issues: readonly CustomAgentIssue[]): {
   };
 }
 
+/**
+ * Merges client-reported issues with the server's own rejections.
+ *
+ * Server rejections are authoritative and always stored. The client list is
+ * trimmed from the end of canonical order so the stored total obeys
+ * `issuesPerSource` even when the client already pushed the maximum.
+ */
+function mergePushedIssues(
+  clientIssues: readonly CustomAgentIssue[],
+  serverIssues: readonly CustomAgentIssue[]
+): CustomAgentIssue[] {
+  const canonicalServer = canonicalizeIssues(serverIssues).issues;
+  const canonicalClient = canonicalizeIssues(clientIssues).issues;
+  const remaining = Math.max(0, CUSTOM_AGENT_LIMITS.issuesPerSource - canonicalServer.length);
+  return [...canonicalClient.slice(0, remaining), ...canonicalServer];
+}
+
 type ValidationResult =
   | { accepted: true; definition: CustomAgentDefinitionPayload }
   | { accepted: false; rejected: RejectedCustomAgent; issue: CustomAgentIssue };
@@ -558,7 +575,7 @@ export async function syncCustomAgentDefinitions(
   assertWithinLimits(normalized);
 
   const validated = partitionAgents(normalized.agents);
-  const canonical = canonicalizeIssues([...normalized.issues, ...validated.issues]);
+  const canonical = canonicalizeIssues(mergePushedIssues(normalized.issues, validated.issues));
   const key = toSourceKey(normalized);
   const existingSource = await findSource(ctx, key);
   if (

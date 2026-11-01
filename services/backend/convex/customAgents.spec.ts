@@ -1,5 +1,6 @@
 import {
   CUSTOM_AGENT_ISSUE_TEXT_LIMIT,
+  CUSTOM_AGENT_LIMITS,
   CUSTOM_AGENT_RULES_VERSION,
   computeCustomAgentContentHash,
 } from '@workspace/shared/domain/custom-agent';
@@ -383,6 +384,29 @@ describe('customAgents.syncDefinitions', () => {
     const [contentAfter] = await readContents(before!._id);
     expect(contentAfter!._id).not.toBe(contentBefore!._id);
     expect(contentAfter!.systemPrompt).toBe('You are alpha, revised.');
+  });
+
+  test('caps stored issues at the per-source limit after merging rejections', async () => {
+    const { sessionId, machineId, workingDir } = await setup('issue-cap-merge');
+    const issues = Array.from({ length: CUSTOM_AGENT_LIMITS.issuesPerSource }, (_, index) => ({
+      path: `file-${String(index).padStart(2, '0')}.md`,
+      reason: 'unreadable' as const,
+    }));
+
+    const result = await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'hash-cap',
+      agents: [makeAgent('Bad_Name', 'bad')],
+      issues,
+    });
+    expect(result.rejected).toEqual([{ name: 'Bad_Name', reason: 'invalid-name' }]);
+
+    const source = await readSource(machineId, 'workspace', workingDir);
+    expect(source!.issues).toHaveLength(CUSTOM_AGENT_LIMITS.issuesPerSource);
+    expect(source!.issues).toContainEqual({ path: 'Bad_Name', reason: 'invalid-name' });
   });
 
   test('rejects more than the per-source agent limit', async () => {
