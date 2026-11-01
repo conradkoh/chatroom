@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowRight, ArrowRightLeft, Info } from 'lucide-react';
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { TimelineMessageFooter } from './TimelineMessageFooter';
 import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
@@ -24,22 +24,48 @@ import type { Message } from '../../types/message';
 
 import { cn } from '@/lib/utils';
 
-/** Collapsed handoff body: plain-text preview plus an expand control. */
-function TimelineHandoffPreview({ content, onExpand }: { content: string; onExpand: () => void }) {
+/** Collapsed handoff body: plain-text preview; the toggle lives outside it. */
+function TimelineHandoffPreview({ content }: { content: string }) {
   const preview = useMemo(() => getHandoffPreviewText(content), [content]);
+  if (!preview) return null;
 
   return (
-    <div data-testid="timeline-handoff-preview">
-      <p className="line-clamp-2 text-sm text-chatroom-text-muted">{preview}</p>
-      <button
-        type="button"
-        aria-expanded="false"
-        onClick={onExpand}
-        className="mt-1 text-xs font-medium text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-      >
-        Show full handoff
-      </button>
-    </div>
+    <p
+      data-testid="timeline-handoff-preview"
+      className="line-clamp-2 text-sm text-chatroom-text-muted"
+    >
+      {preview}
+    </p>
+  );
+}
+
+/**
+ * The single expand/collapse control. It renders in the same slot in both states
+ * so the focused element survives the state change, and it sits above the body so
+ * "Collapse" never hides below a long handoff.
+ */
+function TimelineHandoffToggle({
+  collapsed,
+  controls,
+  onExpand,
+  onCollapse,
+}: {
+  collapsed: boolean;
+  controls: string;
+  onExpand: () => void;
+  onCollapse: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={!collapsed}
+      aria-controls={controls}
+      onClick={collapsed ? onExpand : onCollapse}
+      data-testid="timeline-handoff-toggle"
+      className="px-4 text-xs font-medium text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+    >
+      {collapsed ? 'Show full handoff' : 'Collapse'}
+    </button>
   );
 }
 
@@ -152,12 +178,22 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
 }: TimelineTeamMessageProps) {
   const [expanded, setExpanded] = useState(false);
   const isCollapsed = collapsible && !expanded;
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const bodyId = useId();
   // Keep the original content for generic copy/download behavior; the visual
   // render path additionally unwraps the handoff presentation fence.
   const originalContent = message.content;
 
+  const handleCollapse = useCallback(() => {
+    setExpanded(false);
+    // Collapsing shrinks the row; keep its header in view. Optional call keeps
+    // this safe in DOM environments without scrollIntoView (jsdom).
+    rowRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, []);
+
   return (
     <div
+      ref={rowRef}
       className={`${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
       data-testid="timeline-team-message"
       data-message-type={message.type}
@@ -169,24 +205,23 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
         headerNavigation={headerNavigation}
       />
 
+      {collapsible && (
+        <TimelineHandoffToggle
+          collapsed={isCollapsed}
+          controls={bodyId}
+          onExpand={() => setExpanded(true)}
+          onCollapse={handleCollapse}
+        />
+      )}
+
       <div className={`px-4 py-3 ${TIMELINE_MESSAGE_BODY}`}>
-        {isCollapsed ? (
-          <TimelineHandoffPreview content={originalContent} onExpand={() => setExpanded(true)} />
-        ) : (
-          <>
+        <div id={bodyId}>
+          {isCollapsed ? (
+            <TimelineHandoffPreview content={originalContent} />
+          ) : (
             <TimelineTeamMessageBody message={message} />
-            {collapsible && (
-              <button
-                type="button"
-                aria-expanded="true"
-                onClick={() => setExpanded(false)}
-                className="mt-2 text-xs font-medium text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-              >
-                Collapse
-              </button>
-            )}
-          </>
-        )}
+          )}
+        </div>
         <div className="mt-2 empty:hidden">
           <MessageAttachmentChips message={message} />
         </div>
