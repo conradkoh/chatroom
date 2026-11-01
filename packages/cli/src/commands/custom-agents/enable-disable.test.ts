@@ -197,7 +197,7 @@ describe('setCustomAgentDisabled', () => {
 
     expect(fake.mutations).toEqual([{ name: 'alpha', disabled: false }]);
     expect(harness.lines).toEqual([
-      'enabled, but it is over the custom-agent limit of 16 and is not used until another one is turned off',
+      'enabled, but the chatroom already runs 16 custom agents. It joins when another one is turned off.',
     ]);
     expect(harness.exitCodes).toEqual([]);
     expect(fake.queries()).toBe(1);
