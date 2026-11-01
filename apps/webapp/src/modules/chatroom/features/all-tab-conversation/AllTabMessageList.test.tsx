@@ -1,53 +1,55 @@
-import { fireEvent, render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, within } from '@testing-library/react';
+import type React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AllTabMessageList } from './AllTabMessageList';
+import { AttachmentsProvider } from '../../attachments';
+import type * as TimelineEventRowModule from '../../components/timeline/TimelineEventRow';
 import { getTimelineVirtualRowZIndex } from '../../components/timeline/timelineRowStyles';
-import type { TimelineMessageHeaderNavigation } from '../../components/timeline/timelineRowStyles';
 import { JUMP_TO_NEW_MESSAGES_Z_INDEX } from '../../components/timeline/timelineVirtualizerConfig';
 
-vi.mock('../../components/timeline/TimelineEventRow', () => ({
-  TimelineEventRow: ({
-    event,
-    headerNavigation,
-  }: {
-    event: { id: string };
-    headerNavigation?: TimelineMessageHeaderNavigation;
-  }) => (
-    <div data-testid={`event-row-${event.id}`}>
-      <button
-        type="button"
-        data-testid={`timeline-header-nav-first-${event.id}`}
-        disabled={headerNavigation ? !headerNavigation.hasFirst : true}
-        onClick={headerNavigation?.onJumpToFirst}
-      />
-      <button
-        type="button"
-        data-testid={`timeline-header-nav-previous-${event.id}`}
-        disabled={headerNavigation ? !headerNavigation.hasPrevious : true}
-        onClick={headerNavigation?.onJumpToPrevious}
-      />
-      <button
-        type="button"
-        data-testid={`timeline-header-nav-current-${event.id}`}
-        onClick={headerNavigation?.onJumpToCurrent}
-      />
-      <button
-        type="button"
-        data-testid={`timeline-header-nav-next-${event.id}`}
-        disabled={headerNavigation ? !headerNavigation.hasNext : true}
-        onClick={headerNavigation?.onJumpToNext}
-      />
-      <button
-        type="button"
-        data-testid={`timeline-header-nav-last-${event.id}`}
-        disabled={headerNavigation ? !headerNavigation.hasLast : true}
-        onClick={headerNavigation?.onJumpToLast}
-      />
-      {event.id}
-    </div>
-  ),
+// matchMedia polyfill needed by useIsDesktop (used by MessageDownloadMenu in the real row).
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+/**
+ * Render-counting wrapper around the real `TimelineEventRow`.
+ *
+ * The wrapper is `memo`-ized like the real component, so a count is recorded
+ * exactly when the row's props changed — which is what the All-tab list must
+ * keep minimal.
+ */
+const { rowRenderCounts } = vi.hoisted(() => ({
+  rowRenderCounts: new Map<string, number>(),
 }));
+
+vi.mock('../../components/timeline/TimelineEventRow', async (importOriginal) => {
+  const actual = await importOriginal<typeof TimelineEventRowModule>();
+  const { memo } = await import('react');
+  return {
+    TimelineEventRow: memo(function CountingTimelineEventRow(
+      props: Parameters<typeof actual.TimelineEventRow>[0]
+    ) {
+      rowRenderCounts.set(props.event.id, (rowRenderCounts.get(props.event.id) ?? 0) + 1);
+      return (
+        <div data-testid={`event-row-${props.event.id}`}>
+          <actual.TimelineEventRow {...props} />
+        </div>
+      );
+    }),
+  };
+});
 
 const makeEvent = (id: string) => ({
   id,
@@ -80,9 +82,25 @@ function scrollToBottom(el: HTMLElement) {
   fireEvent.scroll(el);
 }
 
+/** The real row renders attachment chips / footer, which need the provider. */
+function renderList(ui: React.ReactElement) {
+  return render(ui, { wrapper: AttachmentsProvider });
+}
+
+type HeaderNavControl = 'first' | 'previous' | 'current' | 'next' | 'last';
+
+/** Scopes to one rendered row, since the real header nav reuses test ids per row. */
+function headerNav(messageId: string, control: HeaderNavControl): HTMLButtonElement {
+  const row = document.querySelector(`[data-testid="event-row-${messageId}"]`);
+  if (!row) throw new Error(`row ${messageId} is not rendered`);
+  return within(row as HTMLElement).getByTestId(
+    `timeline-header-nav-${control}`
+  ) as HTMLButtonElement;
+}
+
 describe('scroll pinning and jump chip', () => {
   it('shows jump chip when scrolled away from bottom', () => {
-    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
@@ -93,7 +111,7 @@ describe('scroll pinning and jump chip', () => {
 
   it('positions jump chip above contained timeline rows with long feed', () => {
     const events = Array.from({ length: 40 }, (_, index) => makeEvent(`msg-${index}`));
-    render(<AllTabMessageList events={events} anchorId="a1" />);
+    renderList(<AllTabMessageList events={events} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     expect(list).toHaveClass('relative', 'z-0');
@@ -109,7 +127,7 @@ describe('scroll pinning and jump chip', () => {
   });
 
   it('hides jump chip when at bottom (pinned)', () => {
-    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     scrollToBottom(list);
@@ -118,7 +136,7 @@ describe('scroll pinning and jump chip', () => {
   });
 
   it('clicking jump chip scrolls to bottom and hides chip', () => {
-    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
@@ -147,7 +165,7 @@ describe('scroll pinning and jump chip', () => {
 
   it('dispatches scroll on anchorId change to unpin', () => {
     const events = [makeEvent('msg-1')];
-    const { rerender } = render(<AllTabMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 800 });
@@ -162,7 +180,7 @@ describe('scroll pinning and jump chip', () => {
 describe('AllTabMessageList', () => {
   it('scrolls to top when anchorId changes', () => {
     const events = [makeEvent('msg-1')];
-    const { rerender } = render(<AllTabMessageList events={events} anchorId="anchor-1" />);
+    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="anchor-1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     list.scrollTop = 500;
@@ -173,7 +191,7 @@ describe('AllTabMessageList', () => {
   });
 
   it('uses timeline scroll container with scrollbar width variable', () => {
-    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     expect(list.className).toContain('min-h-0');
     expect(list.style.getPropertyValue('--timeline-scrollbar-width')).toBe('8px');
@@ -181,7 +199,7 @@ describe('AllTabMessageList', () => {
 
   it('calls onLoadMore when scrolled near the bottom and canLoadMore is true', () => {
     const onLoadMore = vi.fn();
-    render(
+    renderList(
       <AllTabMessageList
         events={[makeEvent('msg-1'), makeEvent('msg-2')]}
         anchorId="a1"
@@ -200,7 +218,7 @@ describe('AllTabMessageList', () => {
 
   it('does not call onLoadMore when canLoadMore is false', () => {
     const onLoadMore = vi.fn();
-    render(
+    renderList(
       <AllTabMessageList
         events={[makeEvent('msg-1')]}
         anchorId="a1"
@@ -218,7 +236,7 @@ describe('AllTabMessageList', () => {
 
   it('does not call onLoadMore while already loading more', () => {
     const onLoadMore = vi.fn();
-    render(
+    renderList(
       <AllTabMessageList
         events={[makeEvent('msg-1')]}
         anchorId="a1"
@@ -236,7 +254,7 @@ describe('AllTabMessageList', () => {
 
   it('applies ascending z-index to row wrappers for sticky header stacking', () => {
     const events = [makeEvent('msg-1'), makeEvent('msg-2'), makeEvent('msg-3')];
-    render(<AllTabMessageList events={events} anchorId="a1" />);
+    renderList(<AllTabMessageList events={events} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     const rowWrappers = Array.from(list.querySelectorAll('div[style]'));
@@ -248,7 +266,7 @@ describe('AllTabMessageList', () => {
   });
 
   it('renders the loading-more indicator when isLoadingMore is true', () => {
-    render(
+    renderList(
       <AllTabMessageList
         events={[makeEvent('msg-1')]}
         anchorId="a1"
@@ -261,7 +279,7 @@ describe('AllTabMessageList', () => {
   });
 
   it('does not render the loading-more indicator when not loading more', () => {
-    render(
+    renderList(
       <AllTabMessageList
         events={[makeEvent('msg-1')]}
         anchorId="a1"
@@ -276,7 +294,9 @@ describe('AllTabMessageList', () => {
 
 describe('sticky header message navigation', () => {
   function renderTwoEvents() {
-    render(<AllTabMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />);
+    renderList(
+      <AllTabMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />
+    );
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
 
     list.getBoundingClientRect = () =>
@@ -324,7 +344,7 @@ describe('sticky header message navigation', () => {
   }
 
   it('does not render per-row chevron jump buttons', () => {
-    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
     expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).toBeNull();
   });
 
@@ -334,9 +354,7 @@ describe('sticky header message navigation', () => {
     const scrollTo = vi.fn();
     list.scrollTo = scrollTo;
 
-    fireEvent.click(
-      document.querySelector('[data-testid="timeline-header-nav-current-msg-1"]') as HTMLElement
-    );
+    fireEvent.click(headerNav('msg-1', 'current'));
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
   });
@@ -347,9 +365,7 @@ describe('sticky header message navigation', () => {
     const scrollTo = vi.fn();
     list.scrollTo = scrollTo;
 
-    fireEvent.click(
-      document.querySelector('[data-testid="timeline-header-nav-previous-msg-2"]') as HTMLElement
-    );
+    fireEvent.click(headerNav('msg-2', 'previous'));
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
   });
@@ -360,9 +376,7 @@ describe('sticky header message navigation', () => {
     const scrollTo = vi.fn();
     list.scrollTo = scrollTo;
 
-    fireEvent.click(
-      document.querySelector('[data-testid="timeline-header-nav-next-msg-1"]') as HTMLElement
-    );
+    fireEvent.click(headerNav('msg-1', 'next'));
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
   });
@@ -373,9 +387,7 @@ describe('sticky header message navigation', () => {
     const scrollTo = vi.fn();
     list.scrollTo = scrollTo;
 
-    fireEvent.click(
-      document.querySelector('[data-testid="timeline-header-nav-first-msg-2"]') as HTMLElement
-    );
+    fireEvent.click(headerNav('msg-2', 'first'));
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
   });
@@ -386,9 +398,7 @@ describe('sticky header message navigation', () => {
     const scrollTo = vi.fn();
     list.scrollTo = scrollTo;
 
-    fireEvent.click(
-      document.querySelector('[data-testid="timeline-header-nav-last-msg-1"]') as HTMLElement
-    );
+    fireEvent.click(headerNav('msg-1', 'last'));
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
   });
@@ -396,61 +406,42 @@ describe('sticky header message navigation', () => {
   it('disables previous and first on first message, next and last on last message', () => {
     renderTwoEvents();
 
-    expect(
-      (
-        document.querySelector(
-          '[data-testid="timeline-header-nav-previous-msg-1"]'
-        ) as HTMLButtonElement
-      ).disabled
-    ).toBe(true);
-    expect(
-      (
-        document.querySelector(
-          '[data-testid="timeline-header-nav-first-msg-1"]'
-        ) as HTMLButtonElement
-      ).disabled
-    ).toBe(true);
-    expect(
-      (
-        document.querySelector(
-          '[data-testid="timeline-header-nav-next-msg-1"]'
-        ) as HTMLButtonElement
-      ).disabled
-    ).toBe(false);
-    expect(
-      (
-        document.querySelector(
-          '[data-testid="timeline-header-nav-last-msg-1"]'
-        ) as HTMLButtonElement
-      ).disabled
-    ).toBe(false);
-    expect(
-      (
-        document.querySelector(
-          '[data-testid="timeline-header-nav-previous-msg-2"]'
-        ) as HTMLButtonElement
-      ).disabled
-    ).toBe(false);
-    expect(
-      (
-        document.querySelector(
-          '[data-testid="timeline-header-nav-first-msg-2"]'
-        ) as HTMLButtonElement
-      ).disabled
-    ).toBe(false);
-    expect(
-      (
-        document.querySelector(
-          '[data-testid="timeline-header-nav-next-msg-2"]'
-        ) as HTMLButtonElement
-      ).disabled
-    ).toBe(true);
-    expect(
-      (
-        document.querySelector(
-          '[data-testid="timeline-header-nav-last-msg-2"]'
-        ) as HTMLButtonElement
-      ).disabled
-    ).toBe(true);
+    expect(headerNav('msg-1', 'previous').disabled).toBe(true);
+    expect(headerNav('msg-1', 'first').disabled).toBe(true);
+    expect(headerNav('msg-1', 'next').disabled).toBe(false);
+    expect(headerNav('msg-1', 'last').disabled).toBe(false);
+
+    expect(headerNav('msg-2', 'previous').disabled).toBe(false);
+    expect(headerNav('msg-2', 'first').disabled).toBe(false);
+    expect(headerNav('msg-2', 'next').disabled).toBe(true);
+    expect(headerNav('msg-2', 'last').disabled).toBe(true);
+  });
+});
+
+describe('row re-render behavior', () => {
+  beforeEach(() => {
+    rowRenderCounts.clear();
+  });
+
+  it('does not invoke TimelineEventRow when the events array identity changes only', () => {
+    const events = [makeEvent('msg-1'), makeEvent('msg-2')];
+    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    rowRenderCounts.clear();
+
+    rerender(<AllTabMessageList events={[...events]} anchorId="a1" />);
+
+    expect([...rowRenderCounts.keys()]).toEqual([]);
+  });
+
+  it('invokes TimelineEventRow only for the row whose event object changed', () => {
+    const events = [makeEvent('msg-1'), makeEvent('msg-2')];
+    const { rerender } = renderList(<AllTabMessageList events={events} anchorId="a1" />);
+    rowRenderCounts.clear();
+
+    rerender(
+      <AllTabMessageList events={[events[0], { ...events[1], creationTime: 200 }]} anchorId="a1" />
+    );
+
+    expect([...rowRenderCounts.keys()]).toEqual(['msg-2']);
   });
 });
