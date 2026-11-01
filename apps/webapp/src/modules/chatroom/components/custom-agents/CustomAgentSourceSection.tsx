@@ -12,7 +12,6 @@ import type { ReactNode } from 'react';
 
 import {
   CUSTOM_AGENT_ISSUE_COPY,
-  CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
   CUSTOM_AGENTS_GITIGNORE_SNIPPET,
   formatCustomAgentIssueDetail,
 } from './customAgentCopy';
@@ -23,10 +22,10 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 export interface CustomAgentSourceSectionProps {
   source: CustomAgentSourceModel;
   /**
-   * Names whose over-limit enable failed. Such an agent has no roster row, so the
-   * rejection is reported on the issue that already names it.
+   * Message to show on each over-limit issue, keyed by agent name. Such an agent
+   * has no roster row, so the failure is reported on the issue that names it.
    */
-  overLimitFailures?: ReadonlySet<string>;
+  overLimitFailures?: ReadonlyMap<string, string>;
 }
 
 export function CustomAgentSourceSection({
@@ -96,7 +95,7 @@ function SourceIssues({
   overLimitFailures,
 }: {
   issues: CustomAgentSourceModel['issues'];
-  overLimitFailures: ReadonlySet<string> | undefined;
+  overLimitFailures: ReadonlyMap<string, string> | undefined;
 }): ReactNode {
   if (issues.length === 0) return null;
   return (
@@ -105,7 +104,7 @@ function SourceIssues({
         <IssueRow
           key={`${issue.reason}:${issue.path}:${index}`}
           issue={issue}
-          overLimitFailed={overLimitFailures?.has(issue.path) ?? false}
+          overLimitFailure={overLimitFailures?.get(issue.path)}
         />
       ))}
     </ul>
@@ -114,10 +113,10 @@ function SourceIssues({
 
 function IssueRow({
   issue,
-  overLimitFailed,
+  overLimitFailure,
 }: {
   issue: CustomAgentSourceModel['issues'][number];
-  overLimitFailed: boolean;
+  overLimitFailure: string | undefined;
 }): ReactNode {
   const copy = CUSTOM_AGENT_ISSUE_COPY[issue.reason];
   const detail = formatCustomAgentIssueDetail(issue);
@@ -142,28 +141,28 @@ function IssueRow({
             text={CUSTOM_AGENTS_GITIGNORE_SNIPPET}
           />
         )}
-        <OverLimitFailure issue={issue} failed={overLimitFailed} />
+        <OverLimitFailure issue={issue} message={overLimitFailure} />
       </div>
     </li>
   );
 }
 
-/** The user's enable landed on a capped agent; the row is gone, so report it here. */
+/** The cap removed this agent from the team; the row is gone, so report it here. */
 function OverLimitFailure({
   issue,
-  failed,
+  message,
 }: {
   issue: CustomAgentSourceModel['issues'][number];
-  failed: boolean;
+  message: string | undefined;
 }): ReactNode {
-  if (issue.reason !== 'over-limit' || !failed) return null;
+  if (issue.reason !== 'over-limit' || message === undefined) return null;
   return (
     <p
       role="alert"
       data-testid="custom-agent-over-limit-failure"
       className="text-[10px] font-bold text-chatroom-status-error"
     >
-      {CUSTOM_AGENT_OVER_LIMIT_MESSAGE}
+      {message}
     </p>
   );
 }

@@ -3,12 +3,15 @@ import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import {
   CUSTOM_AGENT_ISSUE_REASONS,
   CUSTOM_AGENT_LIMITS,
+  mergeTeamStructureWithCustomAgents,
 } from '@workspace/shared/domain/custom-agent';
+import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import { ConvexError } from 'convex/values';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CUSTOM_AGENT_DISPLACED_MESSAGE,
   CUSTOM_AGENT_ISSUE_COPY,
   CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
   formatCustomAgentIssueDetail,
@@ -149,6 +152,30 @@ function roster(overrides: Partial<TeamRosterResult> = {}): TeamRosterResult {
     roster: [builtin('planner'), custom('alpha')],
     sources: [source('workspace'), source('machine')],
     ...overrides,
+  };
+}
+
+/**
+ * The roster the backend would serve for these custom agents, built through the
+ * real merge so the per-chatroom cap removes the agent it really removes.
+ */
+function mergedRoster(names: readonly string[], disabled: readonly string[]): TeamRosterResult {
+  const merged = mergeTeamStructureWithCustomAgents({
+    base: getTeamStructure({ teamId: 'duo' }),
+    workspaceAgents: names.map((name) => ({
+      name,
+      description: `${name} summary`,
+      scope: 'workspace' as const,
+    })),
+    machineAgents: [],
+    disabledRoles: new Set(disabled),
+  });
+  return {
+    roster: merged.roster,
+    sources: [
+      source('workspace', { issues: merged.issues, agentCount: names.length }),
+      source('machine'),
+    ],
   };
 }
 
@@ -429,27 +456,49 @@ describe('CustomAgentsTab toggle behaviour', () => {
     expect(screen.queryByText('Turning off…')).not.toBeInTheDocument();
   });
 
-  it('reports an over-limit enable on the source issue after the cap drops the row', () => {
-    const capped = Array.from({ length: CUSTOM_AGENT_LIMITS.agentsPerChatroom }, (_, index) =>
-      custom(`agent-${index + 1}`)
-    );
-    mocks.roster = roster({
-      roster: [builtin('planner'), ...capped, custom('agent-17', { disabled: true })],
-    });
+  it('reports the displaced agent on its source issue after a capped enable', () => {
+    // `agent-17` sorts before `agent-2` through `agent-9`, so the real merge keeps
+    // it on and cuts `agent-9` instead. Hand-built rosters hid that swap.
+    const names = [
+      ...Array.from(
+        { length: CUSTOM_AGENT_LIMITS.agentsPerChatroom },
+        (_, index) => `agent-${index + 1}`
+      ),
+      'agent-17',
+    ];
+    mocks.roster = mergedRoster(names, ['agent-17']);
     const { rerender } = renderTab();
 
     fireEvent.click(screen.getByTestId('custom-agent-switch-agent-17'));
 
-    mocks.roster = roster({
-      roster: [builtin('planner'), ...capped],
-      sources: [
-        source('workspace', { issues: [{ path: 'agent-17', reason: 'over-limit' }] }),
-        source('machine'),
-      ],
-    });
+    mocks.roster = mergedRoster(names, []);
     rerender((<CustomAgentsTab chatroomId="chatroom-1" onOpenTab={vi.fn()} />) as ReactNode);
 
-    expect(screen.queryByTestId('custom-agent-row-agent-17')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('custom-agent-row-agent-9')).not.toBeInTheDocument();
+    expect(screen.getByTestId('custom-agent-row-agent-17')).toBeInTheDocument();
+    const alert = screen.getByTestId('custom-agent-over-limit-failure');
+    expect(alert).toHaveAttribute('role', 'alert');
+    expect(alert).toHaveTextContent(CUSTOM_AGENT_DISPLACED_MESSAGE);
+  });
+
+  it('shows the corrected copy when the cap cuts the toggled agent itself', () => {
+    // `zeta` sorts after every `agent-*` name, so this enable is the one cut.
+    const names = [
+      ...Array.from(
+        { length: CUSTOM_AGENT_LIMITS.agentsPerChatroom },
+        (_, index) => `agent-${index + 1}`
+      ),
+      'zeta',
+    ];
+    mocks.roster = mergedRoster(names, ['zeta']);
+    const { rerender } = renderTab();
+
+    fireEvent.click(screen.getByTestId('custom-agent-switch-zeta'));
+
+    mocks.roster = mergedRoster(names, []);
+    rerender((<CustomAgentsTab chatroomId="chatroom-1" onOpenTab={vi.fn()} />) as ReactNode);
+
+    expect(screen.queryByTestId('custom-agent-row-zeta')).not.toBeInTheDocument();
     expect(screen.getByTestId('custom-agent-over-limit-failure')).toHaveTextContent(
       CUSTOM_AGENT_OVER_LIMIT_MESSAGE
     );

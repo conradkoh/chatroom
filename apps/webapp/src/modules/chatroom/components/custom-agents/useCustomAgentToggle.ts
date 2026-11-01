@@ -13,6 +13,10 @@
  *   the per-chatroom cap dropped the enabled agent from the roster entirely;
  * - `idle` once the roster confirms either state, or when the agent disappears
  *   for any reason other than the cap.
+ *
+ * Every `over-limit` name carries a failure, including agents the user never
+ * toggled: enabling one agent can push a different, already-enabled agent past
+ * the cap, and that displaced agent must stay visible in the tab too.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -21,6 +25,7 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
+  CUSTOM_AGENT_DISPLACED_MESSAGE,
   CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
   CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
   customAgentMutationErrorMessage,
@@ -39,7 +44,11 @@ type ToggleStates = Record<string, CustomAgentToggleState>;
 export interface UseCustomAgentToggleArgs {
   chatroomId: string;
   rows: readonly CustomAgentRowModel[];
-  /** Names the source issues mark `over-limit`; an enable for one of these stays failed while it persists. */
+  /**
+   * Names the source issues mark `over-limit`. Every one of them reports a
+   * failure while it persists: the toggled agent with the enable copy, any agent
+   * this enable pushed out with the displaced copy.
+   */
   overLimitNames?: ReadonlySet<string>;
 }
 
@@ -61,6 +70,17 @@ const OVER_LIMIT_FAILURE: CustomAgentToggleState = {
   kind: 'failed',
   desiredDisabled: false,
   message: CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
+};
+
+/**
+ * The state an agent the user never toggled settles on when the cap cuts it. The
+ * copy is the displaced wording: this enable was not its request, but the agent
+ * still joins by itself once a slot frees.
+ */
+const DISPLACED_FAILURE: CustomAgentToggleState = {
+  kind: 'failed',
+  desiredDisabled: false,
+  message: CUSTOM_AGENT_DISPLACED_MESSAGE,
 };
 
 export function useCustomAgentToggle({
@@ -138,13 +158,14 @@ export function useCustomAgentToggle({
   );
 
   // Reconcile against the roster: confirmations clear intent, removals drop it,
-  // and an enable the cap rejected settles on the visible over-limit failure.
+  // and every name the cap cuts settles on a visible failure — the toggled agent
+  // with the enable copy, an agent this enable pushed out with the displaced copy.
   // The roster is server truth; this local map only records intent until it agrees,
   // so it is neither derived render state nor an event-handler side effect.
   /* eslint-disable react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-derived-state */
   useEffect(() => {
-    const { states: next, reset } = reconcile(statesRef.current, rows, overLimitNames);
-    if (reset.length === 0) return;
+    const { states: next, reset, changed } = reconcile(statesRef.current, rows, overLimitNames);
+    if (!changed) return;
     for (const name of reset) clearTimer(name);
     commit(next);
   }, [rows, overLimitNames, clearTimer, commit]);
@@ -168,17 +189,37 @@ function reconcile(
   states: ToggleStates,
   rows: readonly CustomAgentRowModel[],
   overLimitNames: ReadonlySet<string>
-): { states: ToggleStates; reset: string[] } {
+): { states: ToggleStates; reset: string[]; changed: boolean } {
   const byName = new Map(rows.map((row) => [row.name, row]));
+  const { next, reset } = resolveTracked(states, byName, overLimitNames);
+  // The cap can cut an agent this user never toggled, so no intent exists for it
+  // yet: every unresolved over-limit name gets the frozen displaced failure, which
+  // keeps it visible on the source issue that names it.
+  for (const name of overLimitNames) next[name] ??= DISPLACED_FAILURE;
+  return { states: next, reset, changed: !isSameStates(states, next) };
+}
+
+/** The next state of each tracked name; `reset` lists the names whose timer must stop. */
+function resolveTracked(
+  states: ToggleStates,
+  byName: ReadonlyMap<string, CustomAgentRowModel>,
+  overLimitNames: ReadonlySet<string>
+): { next: ToggleStates; reset: string[] } {
   const next: ToggleStates = {};
   const reset: string[] = [];
-
   for (const [name, state] of Object.entries(states)) {
     const resolution = resolveState(state, byName.get(name), overLimitNames.has(name));
     if (resolution.reset) reset.push(name);
     if (resolution.state !== null) next[name] = resolution.state;
   }
-  return { states: next, reset };
+  return { next, reset };
+}
+
+/** Identity comparison is enough: every entry is one of a few frozen objects or a state object. */
+function isSameStates(left: ToggleStates, right: ToggleStates): boolean {
+  const names = Object.keys(left);
+  if (names.length !== Object.keys(right).length) return false;
+  return names.every((name) => left[name] === right[name]);
 }
 
 function resolveState(

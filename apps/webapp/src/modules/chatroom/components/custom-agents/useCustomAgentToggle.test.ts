@@ -1,12 +1,22 @@
 import { act, renderHook } from '@testing-library/react';
-import { CUSTOM_AGENT_LIMITS } from '@workspace/shared/domain/custom-agent';
+import {
+  CUSTOM_AGENT_LIMITS,
+  mergeTeamStructureWithCustomAgents,
+} from '@workspace/shared/domain/custom-agent';
+import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CUSTOM_AGENT_DISPLACED_MESSAGE,
   CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
   CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
 } from './customAgentCopy';
-import type { CustomAgentRowModel } from './customAgentsViewModel';
+import {
+  buildCustomAgentsViewModel,
+  overLimitNames,
+  type CustomAgentRowModel,
+  type TeamRosterResult,
+} from './customAgentsViewModel';
 import { useCustomAgentToggle } from './useCustomAgentToggle';
 
 /** The hook's confirmation window; duplicated here because it is module-private. */
@@ -169,46 +179,108 @@ describe('useCustomAgentToggle', () => {
 });
 
 describe('useCustomAgentToggle over-limit enables', () => {
-  /** A roster at exactly the per-chatroom cap, plus the disabled agent asking for a slot. */
-  function cappedRows(): CustomAgentRowModel[] {
-    const enabled = Array.from({ length: CUSTOM_AGENT_LIMITS.agentsPerChatroom }, (_, index) =>
-      row(`agent-${index + 1}`)
-    );
-    return [...enabled, row('agent-17', true)];
+  /** Sixteen agents, all on, is exactly the per-chatroom cap. */
+  const AT_CAP = Array.from(
+    { length: CUSTOM_AGENT_LIMITS.agentsPerChatroom },
+    (_, index) => `agent-${index + 1}`
+  );
+
+  /**
+   * The roster the backend would serve, built through the real merge so the cap
+   * removes the agent it really removes. `agent-17` sorts before `agent-2`
+   * through `agent-9`, so enabling it keeps `agent-17` and cuts `agent-9`.
+   */
+  function rosterFor(
+    names: readonly string[],
+    disabled: readonly string[]
+  ): { rows: CustomAgentRowModel[]; overLimit: ReadonlySet<string> } {
+    const merged = mergeTeamStructureWithCustomAgents({
+      base: getTeamStructure({ teamId: 'duo' }),
+      workspaceAgents: names.map((name) => ({
+        name,
+        description: `${name} summary`,
+        scope: 'workspace' as const,
+      })),
+      machineAgents: [],
+      disabledRoles: new Set(disabled),
+    });
+    const result: TeamRosterResult = {
+      roster: merged.roster,
+      sources: [
+        {
+          scope: 'workspace',
+          workingDir: '/repo',
+          machineId: 'machine-1',
+          agentCount: names.length,
+          issues: merged.issues,
+          updatedAt: 1,
+        },
+        { scope: 'machine', machineId: 'machine-1', agentCount: 0, issues: [], updatedAt: 1 },
+      ],
+    };
+    const model = buildCustomAgentsViewModel(result, '/repo');
+    return { rows: model.rows, overLimit: overLimitNames(model.sources) };
   }
 
-  function withoutAgent17(rows: CustomAgentRowModel[]): CustomAgentRowModel[] {
-    return rows.filter((entry) => entry.name !== 'agent-17');
-  }
+  const ENABLE_AGENT_17 = [...AT_CAP, 'agent-17'];
+  const BEFORE = rosterFor(ENABLE_AGENT_17, ['agent-17']);
+  const AFTER = rosterFor(ENABLE_AGENT_17, []);
 
-  it('keeps a failed state when the cap drops the row instead of resetting to idle', () => {
+  it('cuts agent-9, not agent-17, when agent-17 is enabled', () => {
+    // Guards the fixture: the real merge keeps agent-17 and displaces agent-9.
+    expect(BEFORE.overLimit.size).toBe(0);
+    expect(AFTER.overLimit).toEqual(new Set(['agent-9']));
+    expect(AFTER.rows.map((row) => row.name)).not.toContain('agent-9');
+    expect(AFTER.rows.map((row) => row.name)).toContain('agent-17');
+  });
+
+  it('keeps the displaced agent visible instead of dropping it silently', () => {
     mockSetDisabled.mockReturnValue(new Promise(() => undefined));
-    const rows = cappedRows();
-    const { result, rerender } = renderToggle(rows);
+    const { result, rerender } = renderToggle(BEFORE.rows);
 
     act(() => result.current.requestToggle('agent-17', false));
-    rerender({ rows: withoutAgent17(rows), overLimit: new Set(['agent-17']) });
+    rerender({ rows: AFTER.rows, overLimit: AFTER.overLimit });
 
-    expect(result.current.stateFor('agent-17')).toEqual({
+    expect(result.current.stateFor('agent-9')).toEqual({
+      kind: 'failed',
+      desiredDisabled: false,
+      message: CUSTOM_AGENT_DISPLACED_MESSAGE,
+    });
+    // The agent the user toggled did join, so it carries no message.
+    expect(result.current.stateFor('agent-17')).toEqual({ kind: 'idle' });
+  });
+
+  it('keeps the toggled copy when the cap cuts the toggled agent itself', () => {
+    // `zeta` sorts after every `agent-*` name, so this enable is the one cut.
+    const names = [...AT_CAP, 'zeta'];
+    const before = rosterFor(names, ['zeta']);
+    const after = rosterFor(names, []);
+    expect(after.overLimit).toEqual(new Set(['zeta']));
+
+    mockSetDisabled.mockReturnValue(new Promise(() => undefined));
+    const { result, rerender } = renderToggle(before.rows);
+
+    act(() => result.current.requestToggle('zeta', false));
+    rerender({ rows: after.rows, overLimit: after.overLimit });
+
+    expect(result.current.stateFor('zeta')).toEqual({
       kind: 'failed',
       desiredDisabled: false,
       message: CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
     });
   });
 
-  it('resets to idle once the over-limit issue clears', () => {
+  it('resets the displaced agent to idle once a slot frees', () => {
     mockSetDisabled.mockReturnValue(new Promise(() => undefined));
-    const rows = cappedRows();
-    const { result, rerender } = renderToggle(rows);
+    const { result, rerender } = renderToggle(BEFORE.rows);
     act(() => result.current.requestToggle('agent-17', false));
-    rerender({ rows: withoutAgent17(rows), overLimit: new Set(['agent-17']) });
-    expect(result.current.stateFor('agent-17')).toMatchObject({ kind: 'failed' });
+    rerender({ rows: AFTER.rows, overLimit: AFTER.overLimit });
+    expect(result.current.stateFor('agent-9')).toMatchObject({ kind: 'failed' });
 
-    rerender({
-      rows: [...rows.filter((entry) => entry.name !== 'agent-17'), row('agent-17')],
-      overLimit: NO_OVER_LIMIT,
-    });
+    // Turning another agent off frees the slot, so agent-9 joins and the issue clears.
+    const freed = rosterFor(ENABLE_AGENT_17, ['agent-1']);
+    rerender({ rows: freed.rows, overLimit: freed.overLimit });
 
-    expect(result.current.stateFor('agent-17')).toEqual({ kind: 'idle' });
+    expect(result.current.stateFor('agent-9')).toEqual({ kind: 'idle' });
   });
 });

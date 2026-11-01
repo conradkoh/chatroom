@@ -379,7 +379,7 @@ function CustomAgentsSources({
   model: CustomAgentsViewModel;
   toggle: ReturnType<typeof useCustomAgentToggle>;
 }): ReactNode {
-  const failedOverLimit = failedOverLimitNames(toggle, model.sources);
+  const overLimitMessages = overLimitFailureMessages(toggle, model.sources);
 
   return (
     <div className="space-y-2">
@@ -390,7 +390,7 @@ function CustomAgentsSources({
         <CustomAgentSourceSection
           key={source.scope}
           source={source}
-          overLimitFailures={failedOverLimit}
+          overLimitFailures={overLimitMessages}
         />
       ))}
     </div>
@@ -398,16 +398,21 @@ function CustomAgentsSources({
 }
 
 /**
- * Names whose over-limit enable is still failed. The cap removes those agents
- * from the roster, so the message rides on the source issue that names them.
+ * Message to show on each over-limit source issue, keyed by agent name. The cap
+ * removes those agents from the roster, so the issue that names them is the only
+ * place the message can ride — whether this user toggled the agent or the enable
+ * pushed it out.
  */
-function failedOverLimitNames(
+function overLimitFailureMessages(
   toggle: ReturnType<typeof useCustomAgentToggle>,
   sources: readonly CustomAgentSourceModel[]
-): ReadonlySet<string> {
-  return new Set(
-    [...overLimitNames(sources)].filter((name) => toggle.stateFor(name).kind === 'failed')
-  );
+): ReadonlyMap<string, string> {
+  const messages = new Map<string, string>();
+  for (const name of overLimitNames(sources)) {
+    const state = toggle.stateFor(name);
+    if (state.kind === 'failed') messages.set(name, state.message);
+  }
+  return messages;
 }
 
 function CustomAgentsMachineWideNote({ hostname }: { hostname: string }): ReactNode {
