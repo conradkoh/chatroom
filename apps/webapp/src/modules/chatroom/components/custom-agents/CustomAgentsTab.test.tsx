@@ -521,6 +521,7 @@ describe('CustomAgentsTab toggle behaviour', () => {
     expect(screen.getByTestId('custom-agent-over-limit-failure')).toHaveTextContent(
       CUSTOM_AGENT_OVER_LIMIT_MESSAGE
     );
+    expect(screen.getByTestId('custom-agent-over-limit-failure')).toHaveAttribute('role', 'alert');
   });
 });
 
