@@ -12,7 +12,7 @@ export const customAgentsSkill: SkillModule = {
 
 Custom agents are user-authored roles defined in files. The daemon loads \`.chatroom/agents\` and \`~/.chatroom/agents\`, validates every file, and pushes the snapshot to Convex; the chatroom team then lists each agent as an optional role. Custom agents work only on duo teams.
 
-The daemon pushes on start, on every file change under either root, on a 60 s fallback poll, and when someone presses Rescan in the webapp or runs \`chatroom custom-agents refresh\`. A file you create appears in the chatroom within about a minute at worst, and almost immediately once the agent folder already exists.
+The daemon pushes on start, on every file change under either root, on a 60 s fallback poll, and when someone presses Rescan in the webapp or runs \`${cliEnvPrefix}chatroom custom-agents refresh --chatroom-id=<id>\`. A file you create appears in the chatroom within about a minute at worst, and almost immediately once the agent folder already exists.
 
 Run \`${cliEnvPrefix}chatroom custom-agents validate\` from the workspace to see exactly what the loader found and every issue it reported. Add \`--machine\` for the machine scope only, or \`--workspace <dir>\` for another directory. The command is offline: no auth and no backend call.
 
