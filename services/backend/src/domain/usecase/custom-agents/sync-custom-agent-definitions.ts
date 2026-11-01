@@ -22,6 +22,7 @@ import { ConvexError } from 'convex/values';
 
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
 
 export interface SyncCustomAgentDefinitionsInput {
   machineId: string;
@@ -74,6 +75,20 @@ function assertWithinLimits(input: SyncCustomAgentDefinitionsInput): void {
   if (input.issues.length > CUSTOM_AGENT_LIMITS.issuesPerSource) {
     throw invalidScope(`Too many custom agent issues (max ${CUSTOM_AGENT_LIMITS.issuesPerSource})`);
   }
+}
+
+/**
+ * Canonicalizes the workspace directory before it becomes an index key. The
+ * resolver matches `workspace.workingDir` exactly, so a push for `/repo/` must
+ * address the same rows as the workspace registered as `/repo`. Machine scope
+ * never carries a directory. An invalid path throws the same error shape as the
+ * other workspace mutations, which also call `normalizeWorkingDir`.
+ */
+function normalizeScopeWorkingDir(
+  input: SyncCustomAgentDefinitionsInput
+): SyncCustomAgentDefinitionsInput {
+  if (input.workingDir === undefined) return input;
+  return { ...input, workingDir: normalizeWorkingDir(input.workingDir) };
 }
 
 /** Positional form makes the serialization independent of object key order. */
@@ -515,15 +530,16 @@ export async function syncCustomAgentDefinitions(
   input: SyncCustomAgentDefinitionsInput
 ): Promise<SyncCustomAgentDefinitionsResult> {
   assertScopeMatchesWorkingDir(input);
-  assertWithinLimits(input);
+  const normalized = normalizeScopeWorkingDir(input);
+  assertWithinLimits(normalized);
 
-  const validated = partitionAgents(input.agents);
-  const canonical = canonicalizeIssues([...input.issues, ...validated.issues]);
-  const key = toSourceKey(input);
+  const validated = partitionAgents(normalized.agents);
+  const canonical = canonicalizeIssues([...normalized.issues, ...validated.issues]);
+  const key = toSourceKey(normalized);
   const existingSource = await findSource(ctx, key);
   if (
     existingSource !== null &&
-    isUnchangedSnapshot(existingSource, input.contentHash, canonical.json)
+    isUnchangedSnapshot(existingSource, normalized.contentHash, canonical.json)
   ) {
     const applied = await reconcileDisabledFlags(
       ctx,
@@ -535,7 +551,7 @@ export async function syncCustomAgentDefinitions(
   }
 
   await writeSnapshot(ctx, key, existingSource, {
-    contentHash: input.contentHash,
+    contentHash: normalized.contentHash,
     accepted: validated.accepted,
     issues: canonical.issues,
   });

@@ -279,6 +279,48 @@ describe('customAgents.syncDefinitions', () => {
     ).rejects.toThrow(/INVALID_SCOPE/);
   });
 
+  test('normalizes a trailing slash in workingDir so the workspace resolves', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } =
+      await setupChatroom('working-dir-normalize');
+
+    const result = await syncWorkspaceAgent(
+      sessionId,
+      machineId,
+      `${workingDir}/`,
+      makeAgent('alpha', 'a1')
+    );
+    expect(result).toEqual({ applied: true, rejected: [] });
+
+    // The row is stored under the canonical path the workspace registered.
+    const source = await readSource(machineId, 'workspace', workingDir);
+    expect(source).not.toBeNull();
+    const rows = await readAgents(source!._id);
+    expect(rows.map(({ name }) => name)).toEqual(['alpha']);
+    expect(rows[0]!.workingDir).toBe(workingDir);
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(structure!.roles.map(({ role }) => role)).toContain('alpha');
+  });
+
+  test('rejects a sync whose workingDir is not an absolute path', async () => {
+    const { sessionId, machineId } = await setup('invalid-working-dir');
+
+    await expect(
+      t.mutation(api.customAgents.syncDefinitions, {
+        sessionId,
+        machineId,
+        scope: 'workspace',
+        workingDir: 'relative/workspace',
+        contentHash: 'hash-1',
+        agents: [makeAgent('alpha', 'a1')],
+        issues: [],
+      })
+    ).rejects.toThrow(/absolute path/);
+  });
+
   test('rejects more than the per-source agent limit', async () => {
     const { sessionId, machineId, workingDir } = await setup('agent-limit');
     const agents = Array.from({ length: 13 }, (_, index) => {
