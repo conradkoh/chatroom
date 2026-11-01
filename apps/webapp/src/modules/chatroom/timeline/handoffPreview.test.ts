@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  getHandoffPreviewText,
-  HANDOFF_PREVIEW_LINE_COUNT,
-  HANDOFF_PREVIEW_MAX_CHARS,
-} from './handoffPreview';
+import { getHandoffPreviewText } from './handoffPreview';
 
 describe('getHandoffPreviewText', () => {
   it('passes plain text through', () => {
@@ -25,14 +21,35 @@ describe('getHandoffPreviewText', () => {
     );
   });
 
-  it('strips emphasis and inline code markers', () => {
-    expect(getHandoffPreviewText('**Bold** and `code` and _italic_')).toBe(
-      'Bold and code and italic'
+  it('strips paired emphasis and inline code markers', () => {
+    expect(getHandoffPreviewText('**bold** and *em* and _italic_ and `code`')).toBe(
+      'bold and em and italic and code'
     );
   });
 
-  it('strips HTML-like tags', () => {
+  it('keeps identifiers and arithmetic operators intact', () => {
+    expect(getHandoffPreviewText('snake_case_name')).toBe('snake_case_name');
+    expect(getHandoffPreviewText('__init__')).toBe('__init__');
+    expect(getHandoffPreviewText('fix/all_tab_x')).toBe('fix/all_tab_x');
+    expect(getHandoffPreviewText('2 * 3')).toBe('2 * 3');
+  });
+
+  it('strips handoff wrapper tags', () => {
     expect(getHandoffPreviewText('<user-message>hello</user-message> world')).toBe('hello world');
+    expect(getHandoffPreviewText('<handoff-overview>Summary</handoff-overview> body')).toBe(
+      'Summary body'
+    );
+  });
+
+  it('leaves generics, comparisons and autolinks alone', () => {
+    expect(getHandoffPreviewText('Promise<void> resolves')).toBe('Promise<void> resolves');
+    expect(getHandoffPreviewText('Map<string, Message> is keyed')).toBe(
+      'Map<string, Message> is keyed'
+    );
+    expect(getHandoffPreviewText('a < b > c')).toBe('a < b > c');
+    expect(getHandoffPreviewText('See <https://example.com/docs>')).toBe(
+      'See <https://example.com/docs>'
+    );
   });
 
   it('reads the inner text of a presentation-fenced handoff', () => {
@@ -55,16 +72,26 @@ describe('getHandoffPreviewText', () => {
     expect(getHandoffPreviewText(content)).toBe('Intro line After code');
   });
 
-  it('keeps only the configured number of lines', () => {
-    expect(HANDOFF_PREVIEW_LINE_COUNT).toBe(2);
-    expect(getHandoffPreviewText('One\nTwo\nThree')).toBe('One Two');
+  it('skips tilde-fenced code blocks', () => {
+    const content = ['Intro line', '~~~', 'const value = 1;', '~~~', 'After code'].join('\n');
+
+    expect(getHandoffPreviewText(content)).toBe('Intro line After code');
   });
 
-  it('caps long previews with an ellipsis', () => {
-    const preview = getHandoffPreviewText('a'.repeat(HANDOFF_PREVIEW_MAX_CHARS + 60));
+  it('keeps only the first two non-empty lines', () => {
+    expect(getHandoffPreviewText('One\nTwo\nThree')).toBe('One Two');
+    expect(getHandoffPreviewText('One\n\n\nTwo\nThree')).toBe('One Two');
+  });
 
-    expect(preview).toHaveLength(HANDOFF_PREVIEW_MAX_CHARS);
+  it('caps long previews at 240 characters with an ellipsis', () => {
+    const preview = getHandoffPreviewText('a'.repeat(300));
+
+    expect(preview).toHaveLength(240);
     expect(preview.endsWith('…')).toBe(true);
+  });
+
+  it('returns a code-block placeholder when the content is only a fenced block', () => {
+    expect(getHandoffPreviewText('```json\n{ "summary": "payload" }\n```')).toBe('(code block)');
   });
 
   it('returns an empty string for empty content', () => {
