@@ -5,7 +5,7 @@
  * Returns a summary view of all available skills.
  */
 
-import { SKILLS_REGISTRY } from './registry';
+import { skillsForTeam } from './registry';
 
 export interface SkillSummary {
   skillId: string;
@@ -14,8 +14,8 @@ export interface SkillSummary {
   type: 'builtin';
 }
 
-export function listSkills(): SkillSummary[] {
-  return SKILLS_REGISTRY.map((s) => ({
+export function listSkills(teamId?: string | undefined): SkillSummary[] {
+  return skillsForTeam(teamId).map((s) => ({
     skillId: s.skillId,
     name: s.name,
     description: s.description,

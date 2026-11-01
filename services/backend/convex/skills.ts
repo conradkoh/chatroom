@@ -10,6 +10,7 @@ import { getSkill } from '../src/domain/usecase/skills/get-skill';
 import { listActivatedSkills } from '../src/domain/usecase/skills/list-activated-skills';
 import { listSkills } from '../src/domain/usecase/skills/list-skills';
 import { SKILLS_REGISTRY } from '../src/domain/usecase/skills/registry';
+import { resolveChatroomTeamStructure } from '../src/domain/usecase/team/resolve-chatroom-team';
 
 const config = getConfig();
 
@@ -18,8 +19,8 @@ const config = getConfig();
 // ---------------------------------------------------------------------------
 
 /**
- * List all built-in skills.
- * Delegates to the list-skills use case — no DB access.
+ * List the built-in skills this chatroom's team can use. The team id decides
+ * whether the duo-only custom-agent skill is listed, matching the glossary.
  */
 export const list = query({
   args: {
@@ -28,7 +29,8 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return listSkills();
+    const structure = await resolveChatroomTeamStructure(ctx, args.chatroomId);
+    return listSkills(structure?.teamId);
   },
 });
 

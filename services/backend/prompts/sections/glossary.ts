@@ -6,9 +6,7 @@
  * so agents know they can run `chatroom skill activate <term>` to get more detail.
  */
 
-import { supportsCustomAgents } from '@workspace/shared/domain/custom-agent';
-
-import { SKILLS_REGISTRY, type SkillModule } from '../../src/domain/usecase/skills/registry';
+import { skillsForTeam } from '../../src/domain/usecase/skills/registry';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
@@ -119,18 +117,6 @@ function formatGlossaryEntry(entry: GlossaryTerm): string[] {
   return [`- \`${entry.term}\`${skillNote}`, `    - ${entry.definition}`, ''];
 }
 
-/**
- * The skills a team may list. Custom agents exist only on duo teams, so the
- * `custom-agents` skill stays hidden everywhere else. An absent team id keeps
- * the historical full list, because the caller cannot prove the team is not duo.
- */
-function listSkillsForTeam(teamId: string | undefined): readonly SkillModule[] {
-  if (teamId === undefined) return SKILLS_REGISTRY;
-  return SKILLS_REGISTRY.filter(
-    (skill) => skill.skillId !== 'custom-agents' || supportsCustomAgents(teamId)
-  );
-}
-
 function buildSkillsSection(cliEnvPrefix: string, teamId: string | undefined): string[] {
   const lines = ['# Skills', ''];
   lines.push(
@@ -140,7 +126,7 @@ function buildSkillsSection(cliEnvPrefix: string, teamId: string | undefined): s
   lines.push('## When to Activate Skills');
   lines.push('');
   lines.push('**Proactively activate skills** when your task matches their purpose:');
-  for (const skill of listSkillsForTeam(teamId)) {
+  for (const skill of skillsForTeam(teamId)) {
     lines.push(`- **${skill.skillId}**: ${skill.description}`);
   }
   lines.push('');
