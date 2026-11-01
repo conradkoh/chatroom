@@ -8,6 +8,8 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'daemon.pickFolder',
   'daemon.gitClone',
   'daemon.refreshCapabilities',
+  'daemon.customAgentsSetDisabled',
+  'daemon.customAgentsRefresh',
 ] as const;
 
 export type DaemonCommandEventType = (typeof DAEMON_COMMAND_EVENT_TYPES)[number];

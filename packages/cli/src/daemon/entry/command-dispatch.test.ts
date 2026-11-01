@@ -247,6 +247,7 @@ function createDedupTracker() {
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
     gitCloneIds: new Map<string, number>(),
+    customAgentsIds: new Map<string, number>(),
   };
 }
 
