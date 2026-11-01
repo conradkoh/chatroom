@@ -109,6 +109,40 @@ function normalizeChatroomIds(prompt: string, chatroomId: string): string {
   return prompt.split(chatroomId).join('<chatroom-id>');
 }
 
+/** Normalise any id that legitimately differs between two equivalent fixtures. */
+function normalizeIds(prompt: string, ids: readonly string[]): string {
+  return ids.reduce((text, id) => text.split(id).join('<id>'), prompt);
+}
+
+async function seedTask(fixture: Fixture, role: string): Promise<Id<'chatroom_tasks'>> {
+  return await t.run(async (ctx) =>
+    ctx.db.insert('chatroom_tasks', {
+      chatroomId: fixture.chatroomId,
+      createdBy: 'user',
+      content: 'Do the work.',
+      status: 'in_progress',
+      assignedTo: role,
+      createdAt: 1_700_000_000_000,
+      updatedAt: 1_700_000_000_000,
+      queuePosition: 0,
+    })
+  );
+}
+
+async function deliveryPrompt(
+  fixture: Fixture,
+  role: string,
+  taskId: Id<'chatroom_tasks'>
+): Promise<string> {
+  const result = await t.query(api.messages.getTaskDeliveryPrompt, {
+    sessionId: fixture.sessionId,
+    chatroomId: fixture.chatroomId,
+    role,
+    taskId,
+  });
+  return result.fullCliOutput;
+}
+
 describe('custom agent prompt wiring', () => {
   test('a custom role prompt carries its instructions and return handoff template', async () => {
     const fixture = await setupChatroom('self');
@@ -222,5 +256,80 @@ describe('custom agent prompt wiring', () => {
     );
     expect(withPrompt).not.toContain('<custom-agent-instructions>');
     expect(withPrompt).not.toContain('<team-roster>');
+  });
+});
+
+describe('custom agent task delivery', () => {
+  test('a task delivered to a custom role carries its return handoff template', async () => {
+    const fixture = await setupChatroom('delivery-self');
+    await syncWorkspaceAgents(fixture, [
+      makeAgent('alpha', { returnHandoffTemplate: '## Summary\n\nAlpha delivers.' }),
+    ]);
+    const taskId = await seedTask(fixture, 'alpha');
+
+    const output = await deliveryPrompt(fixture, 'alpha', taskId);
+
+    expect(output).toContain('### Handoff template `alpha` → `planner`');
+    expect(output).toContain('Alpha delivers.');
+    expect(output).toContain('Fill in the message using the `alpha` → `planner` template');
+  });
+
+  test('a task delivered to the entry point carries the roster and each inbound template', async () => {
+    const fixture = await setupChatroom('delivery-entry');
+    await syncWorkspaceAgents(fixture, [
+      makeAgent('alpha', { inboundHandoffTemplate: '## Task\n\nAlpha inbound.' }),
+      makeAgent('beta'),
+    ]);
+    const taskId = await seedTask(fixture, 'planner');
+
+    const output = await deliveryPrompt(fixture, 'planner', taskId);
+
+    expect(output).toContain('<team-roster>');
+    expect(output).toContain('- alpha — alpha role.');
+    expect(output).toContain('### Handoff template `planner` → `alpha`');
+    expect(output).toContain('Alpha inbound.');
+    expect(output).toContain('### Handoff template `planner` → `beta`');
+    expect(output).toContain(defaultInboundHandoffTemplate('beta'));
+  });
+
+  test('a disabled agent leaves the delivery roster but keeps its own template', async () => {
+    const fixture = await setupChatroom('delivery-disabled');
+    await syncWorkspaceAgents(fixture, [
+      makeAgent('alpha', {
+        disabled: true,
+        returnHandoffTemplate: '## Summary\n\nDisabled alpha still delivers.',
+      }),
+      makeAgent('beta'),
+    ]);
+
+    const entryTask = await seedTask(fixture, 'planner');
+    const entryOutput = await deliveryPrompt(fixture, 'planner', entryTask);
+    expect(entryOutput).toContain('### Handoff template `planner` → `beta`');
+    expect(entryOutput).not.toContain('### Handoff template `planner` → `alpha`');
+
+    const ownTask = await seedTask(fixture, 'alpha');
+    const ownOutput = await deliveryPrompt(fixture, 'alpha', ownTask);
+    expect(ownOutput).toContain('### Handoff template `alpha` → `planner`');
+    expect(ownOutput).toContain('Disabled alpha still delivers.');
+  });
+
+  test('a disabled custom agent leaves a builtin delivery byte-identical', async () => {
+    const withCustoms = await setupChatroom('delivery-builtin-with', '/test/delivery-with');
+    const withoutCustoms = await setupChatroom(
+      'delivery-builtin-without',
+      '/test/delivery-without'
+    );
+    await syncWorkspaceAgents(withCustoms, [makeAgent('alpha', { disabled: true })]);
+
+    const withTask = await seedTask(withCustoms, 'builder');
+    const withoutTask = await seedTask(withoutCustoms, 'builder');
+    const withOutput = await deliveryPrompt(withCustoms, 'builder', withTask);
+    const withoutOutput = await deliveryPrompt(withoutCustoms, 'builder', withoutTask);
+
+    expect(normalizeIds(withOutput, [withCustoms.chatroomId, withTask])).toBe(
+      normalizeIds(withoutOutput, [withoutCustoms.chatroomId, withoutTask])
+    );
+    expect(withOutput).not.toContain('<team-roster>');
+    expect(withOutput).not.toContain('<custom-agent-instructions>');
   });
 });
