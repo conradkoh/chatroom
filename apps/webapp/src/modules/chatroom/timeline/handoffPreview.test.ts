@@ -110,6 +110,16 @@ describe('getHandoffPreviewText', () => {
     expect(preview.endsWith('…')).toBe(true);
   });
 
+  it('truncates on code-point boundaries without splitting surrogate pairs', () => {
+    const preview = getHandoffPreviewText(`${'a'.repeat(238)}😀${'b'.repeat(40)}`);
+
+    expect(preview).not.toMatch(
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+    );
+    expect(preview).toContain('😀');
+    expect(preview.endsWith('…')).toBe(true);
+  });
+
   it('returns a code-block placeholder when the content is only a fenced block', () => {
     expect(getHandoffPreviewText('```json\n{ "summary": "payload" }\n```')).toBe('(code block)');
   });

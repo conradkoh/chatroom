@@ -51,8 +51,14 @@ function stripMarkdownSyntax(line: string): string {
 }
 
 function truncate(text: string): string {
-  if (text.length <= PREVIEW_MAX_CHARS) return text;
-  return `${text.slice(0, PREVIEW_MAX_CHARS - 1).trimEnd()}…`;
+  // Count code points, not UTF-16 code units, so the cut never splits a
+  // surrogate pair (emoji) in half.
+  const chars = Array.from(text);
+  if (chars.length <= PREVIEW_MAX_CHARS) return text;
+  return `${chars
+    .slice(0, PREVIEW_MAX_CHARS - 1)
+    .join('')
+    .trimEnd()}…`;
 }
 
 function getFenceMarker(line: string): FenceMarker | null {
