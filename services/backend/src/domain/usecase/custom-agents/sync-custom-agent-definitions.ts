@@ -580,6 +580,11 @@ function isUnchangedSnapshot(
 /**
  * True when a push would create a brand-new source with nothing to store.
  * Storing it would leave a source row the resolver reports with zero agents.
+ *
+ * Only the first push is skipped. An empty push over an existing source is
+ * written (with zero agents) so the row keeps the last-seen snapshot addressable
+ * and the UI can render "0 agents"; that asymmetry is deliberate and pinned by
+ * the empty-source tests.
  */
 function isEmptyFirstPush(
   existing: Doc<'chatroom_customAgentSources'> | null,
