@@ -1,14 +1,10 @@
-// fallow-ignore-file unused-file
 /**
  * Daemon-side custom-agent service surface.
  *
- * Temporary marker: S3c wires this into the daemon and removes the suppression.
+ * Only what the daemon consumes is re-exported: the production factory and the
+ * service type. The store and the service constructor stay reachable through
+ * their own modules, so the public surface cannot drift from real callers.
  */
 
-export { createFileDisabledStateStore, type DisabledStateStore } from './disabled-state-store.js';
-export {
-  createCustomAgentsService,
-  type CustomAgentsRefreshReason,
-  type CustomAgentsService,
-  type CustomAgentsServiceDeps,
-} from './custom-agents-service.js';
+export { buildCustomAgentsService } from './build-custom-agents-service.js';
+export type { CustomAgentsService } from './custom-agents-service.js';

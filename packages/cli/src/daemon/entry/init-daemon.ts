@@ -16,7 +16,7 @@ import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import type { DaemonDeps } from './daemon-deps.js';
 import { daemonSessionToLayers } from './daemon-layers.js';
 import { asConvexSessionId } from './daemon-types.js';
-import type { DaemonSessionInit, SessionId } from './daemon-types.js';
+import type { ConvexClient, DaemonSessionInit, SessionId } from './daemon-types.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { api } from '../../api.js';
 import { DaemonEventBus } from './events/event-bus.js';
@@ -70,6 +70,10 @@ import {
   createAgentProcessService,
 } from '../services/agent-process-service/index.js';
 import { createAgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
+import {
+  buildCustomAgentsService,
+  type CustomAgentsService,
+} from '../services/custom-agents-service/index.js';
 import { createTaskService } from '../services/service-interfaces.js';
 import { createTaskHandoffRepository } from '../services/task-service/index.js';
 import {
@@ -81,6 +85,7 @@ import {
   type WorkspaceService,
   type WorkspaceServiceOutbox,
 } from '../services/workspace-service/index.js';
+import type { WorkspaceMembershipSource } from '../services/workspace-service/infrastructure/workspace-membership-source.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 
@@ -403,7 +408,12 @@ function createWorkspaceSync(args: {
     AgentProcessManager,
     'listWorkspacePresences' | 'subscribeAgentPresenceChanged'
   >;
-}): { workspaceService: WorkspaceService; workspaceStateOutbox: WorkspaceStateOutboxRegistry } {
+}): {
+  workspaceService: WorkspaceService;
+  workspaceStateOutbox: WorkspaceStateOutboxRegistry;
+  /** Shared with the custom-agent service so there is exactly one membership source. */
+  membership: WorkspaceMembershipSource;
+} {
   const { wsClient, sessionId, machineId, backend, agentProcessManager } = args;
   const { outbox: outboxPolicy } = DEFAULT_WORKSPACE_SYNC_POLICY;
   const workspaceStateOutbox = createWorkspaceStateOutboxRegistry(
@@ -430,12 +440,13 @@ function createWorkspaceSync(args: {
       }
     },
   };
+  const membership = createWorkspaceMembershipSource({
+    wsClient,
+    sessionId: asConvexSessionId(sessionId),
+    machineId,
+  });
   const workspaceService = createWorkspaceService({
-    membershipSource: createWorkspaceMembershipSource({
-      wsClient,
-      sessionId: asConvexSessionId(sessionId),
-      machineId,
-    }),
+    membershipSource: membership,
     agentPresence: {
       list: () => agentProcessManager.listWorkspacePresences(),
       subscribe: (onChange) => agentProcessManager.subscribeAgentPresenceChanged(onChange),
@@ -445,7 +456,35 @@ function createWorkspaceSync(args: {
     machineId,
     backend,
   });
-  return { workspaceService, workspaceStateOutbox };
+  return { workspaceService, workspaceStateOutbox, membership };
+}
+
+/**
+ * Builds the custom-agent service beside the workspace service. A construction
+ * failure is logged and the daemon continues without custom agents: this service
+ * must never take the daemon down.
+ */
+function createCustomAgentsSync(args: {
+  membership: WorkspaceMembershipSource;
+  sessionId: SessionId;
+  machineId: string;
+  client: ConvexClient;
+}): { customAgentsService?: CustomAgentsService; stopCustomAgentsPoll?: () => void } {
+  try {
+    const built = buildCustomAgentsService({
+      membership: args.membership,
+      sessionId: args.sessionId,
+      machineId: args.machineId,
+      convex: args.client,
+      log: (message) => console.log(message),
+    });
+    return { customAgentsService: built.service, stopCustomAgentsPoll: built.stopPoll };
+  } catch (error) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️  Custom-agent service construction failed: ${getErrorMessage(error)}`
+    );
+    return {};
+  }
 }
 
 function assembleDaemonSessionInit(args: {
@@ -512,12 +551,18 @@ function assembleDaemonSessionInit(args: {
     handoffRepository: createTaskHandoffRepository(resolveTaskHandoffRepositoryPath(machineId)),
     logEvent: activeLogEvent ?? (async () => undefined),
   });
-  const { workspaceService, workspaceStateOutbox } = createWorkspaceSync({
+  const { workspaceService, workspaceStateOutbox, membership } = createWorkspaceSync({
     wsClient,
     sessionId: typedSessionId,
     machineId,
     backend: deps.backend,
     agentProcessManager: deps.agentProcessManager,
+  });
+  const { customAgentsService, stopCustomAgentsPoll } = createCustomAgentsSync({
+    membership,
+    sessionId: typedSessionId,
+    machineId,
+    client,
   });
 
   return {
@@ -537,6 +582,8 @@ function assembleDaemonSessionInit(args: {
     agentLifecycleOutbox,
     workspaceService,
     workspaceStateOutbox,
+    customAgentsService,
+    stopCustomAgentsPoll,
     events: new DaemonEventBus(),
     agentServices,
     lastPushedModels: Object.keys(cachedModels).length > 0 ? cachedModels : null,

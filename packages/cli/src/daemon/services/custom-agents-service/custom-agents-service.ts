@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * Daemon-side custom-agent service.
  *
@@ -23,8 +22,6 @@
  *   any `await`, and in-flight work checks `retired` before pushing.
  * - Disable state is machine-local and persisted before the re-push; this
  *   service never patches a row.
- *
- * Temporary marker: S3c wires this into the daemon and removes the suppression.
  */
 
 import { createHash } from 'node:crypto';

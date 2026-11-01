@@ -60,6 +60,7 @@ import {
 import { api } from '../../api.js';
 import { releaseLock } from '../../commands/machine/pid.js';
 import type { WorkspaceStateOutboxRegistry } from '../infrastructure/outbox/workspace-state-outbox.js';
+import type { CustomAgentsService } from '../services/custom-agents-service/index.js';
 import {
   DEFAULT_WORKSPACE_SYNC_POLICY,
   type WorkspaceService,
@@ -95,6 +96,9 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
   let workspaceServiceHandle: WorkspaceService | null = null;
+  /** Custom-agent pushes. Stopped before the workspace service so no push races its teardown. */
+  let customAgentsServiceHandle: CustomAgentsService | null = null;
+  let stopCustomAgentsPoll: (() => void) | null = null;
   /** Owns the liveness sweep; started with the workspace service and stopped before it. */
   let livenessSweepOwner: DaemonAgentProcessManagerServiceShape | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
@@ -150,6 +154,12 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     deps.onNativeDeliveryReady?.(null);
     await taskInboxHandle?.stop();
     livenessSweepOwner?.stopLivenessSweep();
+    // Custom-agent pushes stop before the workspace service, so no push is in flight
+    // when the membership source tears down.
+    stopCustomAgentsPoll?.();
+    stopCustomAgentsPoll = null;
+    await customAgentsServiceHandle?.stopAll();
+    customAgentsServiceHandle = null;
     // Monitors stop before the outbox so no unit is enqueued after the final flush.
     await workspaceServiceHandle?.stopAll();
     await withTimeout(
@@ -307,6 +317,21 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
         console.warn(
           `[${formatTimestamp()}] ⚠️  Workspace service start failed: ${getErrorMessage(error)}`
         );
+        return Effect.void;
+      })
+    );
+
+    customAgentsServiceHandle = session.customAgentsService ?? null;
+    stopCustomAgentsPoll = session.stopCustomAgentsPoll ?? null;
+    yield* Effect.try({
+      try: () => session.customAgentsService?.start(),
+      catch: (error) => error,
+    }).pipe(
+      Effect.catch((error) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Custom-agent service start failed: ${getErrorMessage(error)}`
+        );
+        customAgentsServiceHandle = null;
         return Effect.void;
       })
     );

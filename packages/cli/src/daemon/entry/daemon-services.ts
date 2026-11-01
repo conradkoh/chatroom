@@ -35,6 +35,7 @@ import type {
   StopOpts,
 } from '../services/agent-process-service/index.js';
 import type { AgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
+import type { CustomAgentsService } from '../services/custom-agents-service/index.js';
 import type { AgentProcessManagerService, TaskService } from '../services/service-interfaces.js';
 import type { WorkspaceService } from '../services/workspace-service/index.js';
 
@@ -239,6 +240,10 @@ export interface DaemonSessionServiceShape {
   agentConfigRegistry: AgentConfigRegistry;
   /** Sole owner of per-directory monitoring and workspace state sync. */
   workspaceService: WorkspaceService;
+  /** Daemon-side custom-agent push service. Absent when construction failed. */
+  customAgentsService?: CustomAgentsService | undefined;
+  /** Clears the fallback poll and unsubscribes the membership follow-up. */
+  stopCustomAgentsPoll?: (() => void) | undefined;
   /** Durable daemon-to-Convex lifecycle/status outbox. */
   lifecycleOutbox?: DaemonLifecycleOutboxPort | undefined;
 

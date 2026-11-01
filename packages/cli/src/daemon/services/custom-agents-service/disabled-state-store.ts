@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 /**
  * Machine-local custom-agent disable state.
  *
@@ -13,8 +12,6 @@
  * - Writing validates the 256-entry cap, creates the parent directory, and is
  *   atomic (temp file in the same directory, then rename). The service's serial
  *   queue guarantees two writes never interleave.
- *
- * Temporary marker: S3c wires this into the daemon and removes the suppression.
  */
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';

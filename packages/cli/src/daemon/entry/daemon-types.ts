@@ -17,6 +17,7 @@ import type { RemoteAgentService } from '../infrastructure/local/harness/service
 import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type { WorkspaceStateOutboxRegistry } from '../infrastructure/outbox/workspace-state-outbox.js';
 import type { AgentConfigRegistry } from '../services/chatroom-workspace-configuration-service/index.js';
+import type { CustomAgentsService } from '../services/custom-agents-service/index.js';
 import type {
   AgentProcessManager,
   AgentProcessManagerService,
@@ -135,6 +136,10 @@ export interface DaemonSessionInit {
   workspaceService: WorkspaceService;
   /** Durable workspace-state outbox behind `workspaceService`. The runtime flushes it on shutdown. */
   workspaceStateOutbox: WorkspaceStateOutboxRegistry;
+  /** Daemon-side custom-agent push service. Absent when construction failed. */
+  customAgentsService?: CustomAgentsService | undefined;
+  /** Clears the fallback poll and unsubscribes the membership follow-up. */
+  stopCustomAgentsPoll?: (() => void) | undefined;
 
   // ─── Shared data ──────────────────────────────────────────────────
   events: DaemonEventBus;

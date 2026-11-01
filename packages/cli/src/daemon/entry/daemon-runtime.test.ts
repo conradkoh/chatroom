@@ -16,6 +16,9 @@ const workspaceStateOutboxStop = vi.fn().mockResolvedValue(undefined);
 const shutdownEffectStarted = vi.fn();
 const livenessSweepStart = vi.fn();
 const livenessSweepStop = vi.fn();
+const customAgentsStart = vi.fn();
+const customAgentsStopAll = vi.fn().mockResolvedValue(undefined);
+const stopCustomAgentsPoll = vi.fn();
 const nativeDelivery = {
   dispose: vi.fn(),
   agentTaskState: { clearAll: vi.fn() },
@@ -89,6 +92,10 @@ describe('createDaemonRuntime', () => {
     const { createDaemonRuntime } = await import('./daemon-runtime.js');
 
     const workspaceService = createFakeWorkspaceService();
+    const customAgentsService = {
+      start: customAgentsStart,
+      stopAll: customAgentsStopAll,
+    };
     const session = {
       sessionId: 's1' as const,
       machineId: 'm1',
@@ -96,6 +103,8 @@ describe('createDaemonRuntime', () => {
       convexUrl: 'https://example.com',
       agentServices: new Map(),
       workspaceService,
+      customAgentsService,
+      stopCustomAgentsPoll,
     };
 
     const layers = Layer.mergeAll(
@@ -133,7 +142,7 @@ describe('createDaemonRuntime', () => {
 
     const runPromise = runtime.run();
     await new Promise((r) => setTimeout(r, 50));
-    return { runtime, runPromise, workspaceService, onNativeDeliveryReady };
+    return { runtime, runPromise, workspaceService, customAgentsService, onNativeDeliveryReady };
   }
 
   it('registers inbound handlers on run and unregisters on shutdown', async () => {
@@ -167,6 +176,21 @@ describe('createDaemonRuntime', () => {
     expect(unregisterWorkspaceGitInboundHandler).toHaveBeenCalled();
     expect(onNativeDeliveryReady).toHaveBeenLastCalledWith(null);
     expect(shutdownEffectStarted).toHaveBeenCalledOnce();
+  });
+
+  it('starts custom-agent pushes after the task inbox and stops them before the workspace service', async () => {
+    const { runtime, runPromise, workspaceService } = await startRuntime();
+
+    expect(customAgentsStart).toHaveBeenCalledTimes(1);
+
+    await runtime.shutdown();
+    await runPromise;
+
+    // Poll and pushes stop before the membership source tears down with the workspace service.
+    expect(stopCustomAgentsPoll).toHaveBeenCalledOnce();
+    expect(customAgentsStopAll).toHaveBeenCalledOnce();
+    expect(stopCustomAgentsPoll).toHaveBeenCalledBefore(vi.mocked(workspaceService.stopAll));
+    expect(customAgentsStopAll).toHaveBeenCalledBefore(vi.mocked(workspaceService.stopAll));
   });
 
   it('starts the liveness sweep before the workspace service and stops it before the monitors', async () => {
