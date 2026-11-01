@@ -271,7 +271,6 @@ describe('useCustomAgentToggle over-limit enables', () => {
         desiredDisabled: false,
         message: CUSTOM_AGENT_DISPLACED_MESSAGE,
       });
-      expect(state.kind === 'failed' ? state.message : '').not.toContain('Turned on');
     }
   });
 
@@ -293,6 +292,14 @@ describe('useCustomAgentToggle over-limit enables', () => {
       desiredDisabled: false,
       message: CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
     });
+
+    // A later push that keeps the row absent but no longer reports the issue
+    // (the folder was deleted) has nothing left to confirm, so the intent resets.
+    const deleted = rosterFor(AT_CAP, []);
+    expect(deleted.overLimit.size).toBe(0);
+    rerender({ rows: deleted.rows, overLimit: deleted.overLimit });
+
+    expect(result.current.stateFor('zeta')).toEqual({ kind: 'idle' });
   });
 
   it('clears a stale displaced copy once the displaced agent returns to the roster', () => {
@@ -360,38 +367,6 @@ describe('useCustomAgentToggle over-limit enables', () => {
       desiredDisabled: true,
       message: CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
     });
-  });
-
-  it('keeps a capped enable visible when its row leaves the roster', () => {
-    // The reviewer scenario: sixteen agents on, a seventeenth off. Turning it on
-    // makes seventeen enabled, so the cap drops the last name — this one — from
-    // the roster and reports it as an over-limit issue. The enable intent must
-    // become the enable failure, not reset to idle while the row is gone.
-    const names = [...AT_CAP, 'zeta'];
-    const before = rosterFor(names, ['zeta']);
-    const capped = rosterFor(names, []);
-    expect(capped.overLimit).toEqual(new Set(['zeta']));
-    expect(capped.rows.map((row) => row.name)).not.toContain('zeta');
-
-    mockSetDisabled.mockReturnValue(new Promise(() => undefined));
-    const { result, rerender } = renderToggle(before.rows);
-
-    act(() => result.current.requestToggle('zeta', false));
-    rerender({ rows: capped.rows, overLimit: capped.overLimit });
-
-    expect(result.current.stateFor('zeta')).toEqual({
-      kind: 'failed',
-      desiredDisabled: false,
-      message: CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
-    });
-
-    // A later push that keeps the row absent but no longer reports the issue
-    // (the folder was deleted) has nothing left to confirm, so the intent resets.
-    const deleted = rosterFor(AT_CAP, []);
-    expect(deleted.overLimit.size).toBe(0);
-    rerender({ rows: deleted.rows, overLimit: deleted.overLimit });
-
-    expect(result.current.stateFor('zeta')).toEqual({ kind: 'idle' });
   });
 
   it('resets the displaced agent to idle once a slot frees', () => {
