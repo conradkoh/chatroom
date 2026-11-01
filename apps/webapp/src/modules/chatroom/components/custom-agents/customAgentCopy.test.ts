@@ -7,6 +7,7 @@ import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
 import {
+  CUSTOM_AGENT_DISPLACED_MESSAGE,
   CUSTOM_AGENT_ISSUE_COPY,
   CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
   CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
@@ -132,5 +133,20 @@ describe('customAgentMutationErrorMessage', () => {
     expect(CUSTOM_AGENT_OVER_LIMIT_MESSAGE).toContain(
       `${CUSTOM_AGENT_LIMITS.agentsPerChatroom} custom agents`
     );
+  });
+
+  it('says a capped agent joins on its own instead of claiming it was left off', () => {
+    // The enable is stored, so the copy must not tell the user to turn the agent
+    // on again: a freed slot lets it join without another action.
+    expect(CUSTOM_AGENT_OVER_LIMIT_MESSAGE).not.toContain('not turned on');
+    expect(CUSTOM_AGENT_OVER_LIMIT_MESSAGE).toContain('joins when another one is turned off');
+  });
+
+  it('explains a displaced agent with the same join-on-its-own promise', () => {
+    expect(CUSTOM_AGENT_DISPLACED_MESSAGE).toContain('Not in use');
+    expect(CUSTOM_AGENT_DISPLACED_MESSAGE).toContain(
+      `${CUSTOM_AGENT_LIMITS.agentsPerChatroom} custom agents`
+    );
+    expect(CUSTOM_AGENT_DISPLACED_MESSAGE).toContain('joins when another one is turned off');
   });
 });

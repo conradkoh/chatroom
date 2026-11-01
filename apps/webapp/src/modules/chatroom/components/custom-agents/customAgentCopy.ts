@@ -108,10 +108,19 @@ export const CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE =
   'The machine did not respond. Is the daemon running? The change still applies if the daemon reconnects within a few minutes.';
 
 /**
- * Shown on a toggle whose enable the per-chatroom cap rejected. The roster drops
- * such an agent entirely, so this copy is the only feedback the user gets.
+ * Shown for the agent the user just turned on when the per-chatroom cap keeps it
+ * out of the team. The roster drops such an agent entirely, so this copy is the
+ * only feedback the user gets. The enable is stored: the agent joins by itself
+ * once another agent is turned off, so the copy must not ask for a re-enable.
  */
-export const CUSTOM_AGENT_OVER_LIMIT_MESSAGE = `This agent was not turned on: the chatroom can run ${CUSTOM_AGENT_LIMITS.agentsPerChatroom} custom agents at once. Turn off another one to make room.`;
+export const CUSTOM_AGENT_OVER_LIMIT_MESSAGE = `Turned on, but the chatroom already runs ${CUSTOM_AGENT_LIMITS.agentsPerChatroom} custom agents. It joins when another one is turned off.`;
+
+/**
+ * Shown for an agent that was already on and was pushed out of the team by a
+ * different agent's enable. Its stored flag is still enabled, so it joins by
+ * itself once another agent is turned off — exactly like the toggled agent.
+ */
+export const CUSTOM_AGENT_DISPLACED_MESSAGE = `Not in use: the chatroom already runs ${CUSTOM_AGENT_LIMITS.agentsPerChatroom} custom agents. It joins when another one is turned off.`;
 
 export const CUSTOM_AGENTS_GITIGNORE_SNIPPET = '.chatroom/*\n!.chatroom/agents/';
 
