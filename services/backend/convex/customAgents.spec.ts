@@ -720,6 +720,148 @@ describe('chatroom team resolution with custom agents', () => {
     );
   });
 
+  test('fills the 16-role cap with workspace agents first and attributes over-limit issues', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'cap-roster',
+      'duo',
+      '/test/cap-roster'
+    );
+    const workspaceAgents = Array.from({ length: 12 }, (_, index) =>
+      makeAgent(`ws-${String(index + 1).padStart(2, '0')}`, `w${index + 1}`)
+    );
+    const machineAgents = Array.from({ length: 12 }, (_, index) =>
+      makeAgent(`mc-${String(index + 1).padStart(2, '0')}`, `m${index + 1}`)
+    );
+
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'workspace-cap',
+      agents: workspaceAgents,
+      issues: [],
+    });
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'machine',
+      contentHash: 'machine-cap',
+      agents: machineAgents,
+      issues: [],
+    });
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    const base = getTeamStructure({ teamId: 'duo' });
+    const customRoles = structure!.roles.slice(base.roles.length).map(({ role }) => role);
+
+    expect(customRoles).toHaveLength(CUSTOM_AGENT_LIMITS.agentsPerChatroom);
+    expect(customRoles).toEqual([
+      ...Array.from({ length: 12 }, (_, index) => `ws-${String(index + 1).padStart(2, '0')}`),
+      'mc-01',
+      'mc-02',
+      'mc-03',
+      'mc-04',
+    ]);
+
+    const settings = await t.query(api.customAgents.getTeamRoster, { sessionId, chatroomId });
+    const enabledCustomRoles = settings.roster
+      .filter(({ source, disabled }) => source === 'custom' && !disabled)
+      .map(({ role }) => role);
+    expect(enabledCustomRoles).toEqual(customRoles);
+
+    const overLimitPaths = (scope: 'workspace' | 'machine') => {
+      const source = settings.sources.find((candidate) => candidate.scope === scope);
+      return (source?.issues ?? [])
+        .filter(({ reason }) => reason === 'over-limit')
+        .map(({ path }) => path);
+    };
+
+    expect(overLimitPaths('workspace')).toEqual([]);
+    expect(overLimitPaths('machine')).toEqual([
+      'mc-05',
+      'mc-06',
+      'mc-07',
+      'mc-08',
+      'mc-09',
+      'mc-10',
+      'mc-11',
+      'mc-12',
+    ]);
+  });
+
+  test('keeps a disabled agent out of the cap so the next machine agent enables', async () => {
+    const { sessionId, machineId, workingDir, chatroomId } = await setupChatroom(
+      'cap-disabled-roster',
+      'duo',
+      '/test/cap-disabled-roster'
+    );
+    const workspaceAgents = Array.from({ length: 12 }, (_, index) =>
+      makeAgent(`ws-${String(index + 1).padStart(2, '0')}`, `w${index + 1}`, {
+        disabled: index === 0,
+      })
+    );
+    const machineAgents = Array.from({ length: 12 }, (_, index) =>
+      makeAgent(`mc-${String(index + 1).padStart(2, '0')}`, `m${index + 1}`)
+    );
+
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'workspace',
+      workingDir,
+      contentHash: 'workspace-cap-disabled',
+      agents: workspaceAgents,
+      issues: [],
+    });
+    await t.mutation(api.customAgents.syncDefinitions, {
+      sessionId,
+      machineId,
+      scope: 'machine',
+      contentHash: 'machine-cap-disabled',
+      agents: machineAgents,
+      issues: [],
+    });
+
+    const structure = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    const base = getTeamStructure({ teamId: 'duo' });
+    const customRoles = structure!.roles.slice(base.roles.length).map(({ role }) => role);
+
+    expect(customRoles).not.toContain('ws-01');
+    expect(customRoles).toHaveLength(CUSTOM_AGENT_LIMITS.agentsPerChatroom);
+    expect(customRoles).toEqual([
+      ...Array.from({ length: 11 }, (_, index) => `ws-${String(index + 2).padStart(2, '0')}`),
+      'mc-01',
+      'mc-02',
+      'mc-03',
+      'mc-04',
+      'mc-05',
+    ]);
+
+    const settings = await t.query(api.customAgents.getTeamRoster, { sessionId, chatroomId });
+    expect(settings.roster.find(({ role }) => role === 'ws-01')).toMatchObject({
+      source: 'custom',
+      disabled: true,
+    });
+    const enabledCustomRoles = settings.roster
+      .filter(({ source, disabled }) => source === 'custom' && !disabled)
+      .map(({ role }) => role);
+    expect(enabledCustomRoles).toEqual(customRoles);
+
+    const machineSource = settings.sources.find(({ scope }) => scope === 'machine');
+    expect(
+      (machineSource?.issues ?? [])
+        .filter(({ reason }) => reason === 'over-limit')
+        .map(({ path }) => path)
+    ).toEqual(['mc-06', 'mc-07', 'mc-08', 'mc-09', 'mc-10', 'mc-11', 'mc-12']);
+  });
+
   test('applies a machine-scope disable to every chatroom on that machine', async () => {
     const first = await setupChatroom('machine-wide-disable-a', 'duo', '/test/machine-wide-a');
     const second = await t.mutation(api.chatrooms.createWithWorkspace, {
