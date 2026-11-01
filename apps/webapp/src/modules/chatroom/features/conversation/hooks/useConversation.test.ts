@@ -29,10 +29,10 @@ vi.mock('../../../timeline/mapMessageToTimelineEvent', async () => {
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    allTabConversation: {
-      getAllTabAnchorNavigation: 'getAllTabAnchorNavigation',
-      listAllTabSlicePaginated: 'listAllTabSlicePaginated',
-      subscribeAllTabSliceTail: 'subscribeAllTabSliceTail',
+    conversation: {
+      getConversationAnchorNavigation: 'getConversationAnchorNavigation',
+      listConversationSlicePaginated: 'listConversationSlicePaginated',
+      subscribeConversationSliceTail: 'subscribeConversationSliceTail',
     },
   },
 }));
@@ -51,7 +51,7 @@ const navResult = {
 
 function mockSessionQueryForNav(nav: unknown) {
   mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
-    if (queryRef === 'subscribeAllTabSliceTail') {
+    if (queryRef === 'subscribeConversationSliceTail') {
       if (args === 'skip') return undefined;
       return null;
     }
@@ -74,11 +74,11 @@ describe('useConversation', () => {
   it('loads navigation and paginated slice on mount', () => {
     const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('getAllTabAnchorNavigation', {
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('getConversationAnchorNavigation', {
       chatroomId: 'room-1',
     });
     expect(mockUsePaginatedQuery).toHaveBeenCalledWith(
-      'listAllTabSlicePaginated',
+      'listConversationSlicePaginated',
       {
         chatroomId: 'room-1',
         sessionId: 'session-1',
@@ -110,7 +110,7 @@ describe('useConversation', () => {
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.events).toHaveLength(0);
-    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listAllTabSlicePaginated', 'skip', {
+    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listConversationSlicePaginated', 'skip', {
       initialNumItems: 50,
     });
   });
@@ -125,7 +125,7 @@ describe('useConversation', () => {
     });
     const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('getAllTabAnchorNavigation', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('getConversationAnchorNavigation', 'skip');
     expect(result.current.events).toHaveLength(0);
     expect(result.current.nav).toBeUndefined();
   });
@@ -153,7 +153,7 @@ describe('useConversation', () => {
     expect(result.current.isOnLatestAnchor).toBe(false);
     expect(result.current.nav?.sliceUpperBoundExclusive).toBe(200);
     expect(mockUsePaginatedQuery).toHaveBeenLastCalledWith(
-      'listAllTabSlicePaginated',
+      'listConversationSlicePaginated',
       {
         chatroomId: 'room-1',
         sessionId: 'session-1',
@@ -319,7 +319,7 @@ describe('useConversation', () => {
 
     const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('subscribeAllTabSliceTail', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('subscribeConversationSliceTail', 'skip');
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2']);
   });
@@ -328,7 +328,7 @@ describe('useConversation', () => {
     const { result } = renderHook(() => useConversation('room-1'));
 
     const tailCall = mockUseSessionQuery.mock.calls.find(
-      (call) => call[0] === 'subscribeAllTabSliceTail'
+      (call) => call[0] === 'subscribeConversationSliceTail'
     );
     expect(tailCall).toBeDefined();
     expect(tailCall![1]).toEqual({
@@ -353,7 +353,7 @@ describe('useConversation', () => {
       },
     ];
     mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
-      if (queryRef === 'subscribeAllTabSliceTail') {
+      if (queryRef === 'subscribeConversationSliceTail') {
         if (args === 'skip') return 'skip';
         return tailMessages;
       }
@@ -420,7 +420,7 @@ describe('useConversation', () => {
 
     const callsWithAnchor = mockUseSessionQuery.mock.calls.filter(
       (call) =>
-        call[0] === 'getAllTabAnchorNavigation' &&
+        call[0] === 'getConversationAnchorNavigation' &&
         call[1] !== 'skip' &&
         typeof call[1] === 'object' &&
         'anchorMessageId' in call[1]
@@ -432,7 +432,7 @@ describe('useConversation', () => {
     });
 
     const latestNavCall = mockUseSessionQuery.mock.calls
-      .filter((call) => call[0] === 'getAllTabAnchorNavigation')
+      .filter((call) => call[0] === 'getConversationAnchorNavigation')
       .map((call) => call[1])
       .filter((args) => args !== 'skip')
       .at(-1);

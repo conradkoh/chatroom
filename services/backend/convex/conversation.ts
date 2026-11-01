@@ -89,7 +89,7 @@ async function findNextUserMessageAfter(
 }
 
 /** Resolve current anchor + prev/next navigation ids. */
-export const getAllTabAnchorNavigation = query({
+export const getConversationAnchorNavigation = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
@@ -131,7 +131,7 @@ export const getAllTabAnchorNavigation = query({
 });
 
 /** Paginated slice: anchor inclusive → before next user message. Ascending. */
-export const listAllTabSlicePaginated = query({
+export const listConversationSlicePaginated = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
@@ -204,7 +204,7 @@ export const listAllTabSlicePaginated = query({
 const MAX_SLICE_TAIL_LIMIT = 100;
 
 /** Reactive tail for the active slice (strictly after cursor, before upper bound). */
-export const subscribeAllTabSliceTail = query({
+export const subscribeConversationSliceTail = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),

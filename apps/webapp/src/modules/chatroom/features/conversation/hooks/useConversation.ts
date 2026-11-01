@@ -37,7 +37,7 @@ export function useConversation(chatroomId: string) {
   const [selectedAnchorId, setSelectedAnchorId] = useState<Id<'chatroom_messages'> | null>(null);
 
   const nav = useSessionQuery(
-    api.allTabConversation.getAllTabAnchorNavigation,
+    api.conversation.getConversationAnchorNavigation,
     sessionId
       ? {
           chatroomId: typedChatroomId,
@@ -51,7 +51,7 @@ export function useConversation(chatroomId: string) {
   const sliceUpperBound = nav?.sliceUpperBoundExclusive ?? null;
 
   const paginated = usePaginatedQuery(
-    api.allTabConversation.listAllTabSlicePaginated as PaginatedQueryReference,
+    api.conversation.listConversationSlicePaginated as PaginatedQueryReference,
     effectiveAnchorId && sessionId && nav !== undefined
       ? {
           chatroomId: typedChatroomId,
@@ -81,7 +81,7 @@ export function useConversation(chatroomId: string) {
   }, [paginatedMessages]);
 
   const tail = useSessionQuery(
-    api.allTabConversation.subscribeAllTabSliceTail,
+    api.conversation.subscribeConversationSliceTail,
     sessionId && effectiveAnchorId && isPaginationExhausted
       ? {
           chatroomId: typedChatroomId,
