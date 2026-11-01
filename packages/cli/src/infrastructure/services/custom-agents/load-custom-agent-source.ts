@@ -439,7 +439,19 @@ function compareText(left: string, right: string): number {
 }
 
 function issue(path: string, reason: CustomAgentIssueReason, detail?: string): CustomAgentIssue {
-  return detail === undefined ? { path, reason } : { path, reason, detail };
+  const cleanPath = stripControlCharacters(path);
+  return detail === undefined
+    ? { path: cleanPath, reason }
+    : { path: cleanPath, reason, detail: stripControlCharacters(detail) };
+}
+
+/**
+ * Removes C0, DEL, and C1 control characters. Issue text is printed to a
+ * terminal by `chatroom custom-agents validate`, so a directory name carrying an
+ * ANSI escape (for example `\u001b[31m`) must not reach the screen.
+ */
+function stripControlCharacters(text: string): string {
+  return text.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
 }
 
 function agentFilePath(dirName: string): string {
