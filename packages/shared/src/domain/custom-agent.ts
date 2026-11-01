@@ -140,9 +140,9 @@ const RESERVED_BLOCK_TAGS = [
 ] as const;
 
 /** Delimiters that terminate a handoff payload; a body line equal to one would truncate it. */
-const RESERVED_DELIMITER_LINES = ['CHATROOM_HANDOFF_END', 'CHATROOM_NOTIFY_END'] as const;
+export const RESERVED_DELIMITER_LINES = ['CHATROOM_HANDOFF_END', 'CHATROOM_NOTIFY_END'] as const;
 
-const CUSTOM_AGENT_RULES_REVISION = 1;
+export const CUSTOM_AGENT_RULES_REVISION = 1;
 
 /** FNV-1a 32-bit over UTF-16 code units. Pure, deterministic, no Node APIs. */
 function fnv1a32Hex(text: string): string {
@@ -176,21 +176,44 @@ export function computeCustomAgentContentHash(
 }
 
 /**
+ * The inputs the rules fingerprint is computed from. Every field changes the
+ * fingerprint when it changes, so a test can vary one input at a time.
+ */
+export interface CustomAgentRulesVersionInput {
+  readonly revision: number;
+  readonly limits: typeof CUSTOM_AGENT_LIMITS;
+  readonly forbiddenFrontmatterKeys: readonly string[];
+  readonly builtinRoleNames: readonly string[];
+  readonly reservedDelimiterLines: readonly string[];
+}
+
+/** Pure fingerprint of the validation rules. Input order and JSON shape must stay as-is. */
+export function computeCustomAgentRulesVersion(input: CustomAgentRulesVersionInput): string {
+  return `r${input.revision}-${fnv1a32Hex(
+    JSON.stringify([
+      input.revision,
+      input.limits,
+      input.forbiddenFrontmatterKeys,
+      [...input.builtinRoleNames].sort(),
+      'user',
+      'enhancer',
+      input.reservedDelimiterLines,
+    ])
+  )}`;
+}
+
+/**
  * Bump CUSTOM_AGENT_RULES_REVISION manually when validation semantics change in a way
  * these inputs do not capture. Stored on each source row; a mismatch forces revalidation
  * and a full rewrite (m5).
  */
-export const CUSTOM_AGENT_RULES_VERSION = `r${CUSTOM_AGENT_RULES_REVISION}-${fnv1a32Hex(
-  JSON.stringify([
-    CUSTOM_AGENT_RULES_REVISION,
-    CUSTOM_AGENT_LIMITS,
-    CUSTOM_AGENT_FORBIDDEN_FRONTMATTER_KEYS,
-    Object.keys(AGENT_ROLE_DEFINITIONS).sort(),
-    'user',
-    'enhancer',
-    RESERVED_DELIMITER_LINES,
-  ])
-)}`;
+export const CUSTOM_AGENT_RULES_VERSION = computeCustomAgentRulesVersion({
+  revision: CUSTOM_AGENT_RULES_REVISION,
+  limits: CUSTOM_AGENT_LIMITS,
+  forbiddenFrontmatterKeys: CUSTOM_AGENT_FORBIDDEN_FRONTMATTER_KEYS,
+  builtinRoleNames: Object.keys(AGENT_ROLE_DEFINITIONS),
+  reservedDelimiterLines: RESERVED_DELIMITER_LINES,
+});
 
 const textEncoder = new TextEncoder();
 

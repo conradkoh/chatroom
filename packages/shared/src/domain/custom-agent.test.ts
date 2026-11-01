@@ -1,13 +1,18 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { AgentRoleLifecycleTag } from './agent-role';
+import { AgentRoleLifecycleTag, AGENT_ROLE_DEFINITIONS } from './agent-role';
 import {
+  CUSTOM_AGENT_FORBIDDEN_FRONTMATTER_KEYS,
   CUSTOM_AGENT_LIMITS,
   CUSTOM_AGENT_NAME_PATTERN,
+  CUSTOM_AGENT_RULES_REVISION,
   CUSTOM_AGENT_RULES_VERSION,
+  RESERVED_DELIMITER_LINES,
   type CustomAgentDefinitionPayload,
   type CustomAgentIdentity,
+  type CustomAgentRulesVersionInput,
   computeCustomAgentContentHash,
+  computeCustomAgentRulesVersion,
   isDisableableTeamRole,
   mergeTeamStructureWithCustomAgents,
   neutralizeChatroomBlockTags,
@@ -552,5 +557,41 @@ describe('CUSTOM_AGENT_RULES_VERSION', () => {
     vi.resetModules();
     const reloaded = await import('./custom-agent');
     expect(reloaded.CUSTOM_AGENT_RULES_VERSION).toBe(CUSTOM_AGENT_RULES_VERSION);
+  });
+
+  const liveInputs = (): CustomAgentRulesVersionInput => ({
+    revision: CUSTOM_AGENT_RULES_REVISION,
+    limits: CUSTOM_AGENT_LIMITS,
+    forbiddenFrontmatterKeys: CUSTOM_AGENT_FORBIDDEN_FRONTMATTER_KEYS,
+    builtinRoleNames: Object.keys(AGENT_ROLE_DEFINITIONS),
+    reservedDelimiterLines: RESERVED_DELIMITER_LINES,
+  });
+
+  test('recomputes to the shipped value from its live inputs', () => {
+    expect(computeCustomAgentRulesVersion(liveInputs())).toBe(CUSTOM_AGENT_RULES_VERSION);
+  });
+
+  test.each<[string, (i: CustomAgentRulesVersionInput) => CustomAgentRulesVersionInput]>([
+    [
+      'a limit',
+      (i) => ({
+        ...i,
+        limits: { ...i.limits, systemPromptMaxBytes: i.limits.systemPromptMaxBytes + 1 },
+      }),
+    ],
+    [
+      'a forbidden key',
+      (i) => ({ ...i, forbiddenFrontmatterKeys: [...i.forbiddenFrontmatterKeys, 'temperature'] }),
+    ],
+    ['a builtin role', (i) => ({ ...i, builtinRoleNames: [...i.builtinRoleNames, 'new-builtin'] })],
+    [
+      'a reserved delimiter',
+      (i) => ({ ...i, reservedDelimiterLines: [...i.reservedDelimiterLines, 'EXTRA_END'] }),
+    ],
+    ['the revision', (i) => ({ ...i, revision: i.revision + 1 })],
+  ])('changes when %s changes', (_label, mutate) => {
+    expect(computeCustomAgentRulesVersion(mutate(liveInputs()))).not.toBe(
+      CUSTOM_AGENT_RULES_VERSION
+    );
   });
 });
