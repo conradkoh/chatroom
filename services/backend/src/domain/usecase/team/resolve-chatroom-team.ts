@@ -310,9 +310,11 @@ async function hasEphemeralStatusProjection(
 /**
  * Whether the role should be treated as an ephemeral agent in this chatroom.
  *
- * Builtin lifecycle tags are authoritative. `user` and retired roles are never
- * agents. Any other name is a custom role only when the primary workspace has a
- * stored definition for it, whether or not that role is currently disabled.
+ * Builtin lifecycle tags are authoritative and matched exactly. `user` and
+ * retired roles are never agents. Any other name is a custom role only when the
+ * primary workspace has a stored definition for it, whether or not that role is
+ * currently disabled; that lookup normalises the caller's casing to the stored
+ * canonical form.
  *
  * A role projected as ephemeral stays ephemeral after its definition is removed
  * or disabled (M1), so the release path still runs for an in-flight custom role.
@@ -363,7 +365,9 @@ async function hasCustomAgentLifecycleSignal(
 /**
  * Custom-role half of `isEphemeralRoleInChatroom`.
  *
- * Names that fail `validateCustomAgentName` (malformed or reserved) never become
+ * The caller's casing is normalised to the stored canonical form first, so a
+ * role that arrives as `Reviewer-X` gets the same answer as `reviewer-x`. Names
+ * that fail `validateCustomAgentName` (malformed or reserved) never become
  * ephemeral, so a random role string cannot borrow the ephemeral lifecycle. Only
  * teams that support custom agents merge them at all, so the same machine-scope
  * definition must not make the name ephemeral in a solo or legacy chatroom. A
@@ -374,9 +378,10 @@ async function isCustomAgentRoleInChatroom(
   chatroomId: Id<'chatroom_rooms'>,
   role: string
 ): Promise<boolean> {
-  if (validateCustomAgentName(role) !== null) return false; // malformed or reserved names are never custom agents
+  const name = canonicalCustomAgentRoleName(role);
+  if (validateCustomAgentName(name) !== null) return false; // malformed or reserved names are never custom agents
   if (!(await chatroomSupportsCustomAgents(ctx, chatroomId))) return false;
-  return hasCustomAgentLifecycleSignal(ctx, chatroomId, role);
+  return hasCustomAgentLifecycleSignal(ctx, chatroomId, name);
 }
 
 async function findCustomAgentByName(

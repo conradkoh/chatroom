@@ -11,7 +11,10 @@ import {
 } from '../../entities/chatroom-workspace-task-inbox';
 import { listLastSentLaunchRequestsForChatroom } from '../agent/get-last-sent-launch-request';
 import { removeActiveTaskHeader, syncActiveTaskHeader } from '../task/active-task-header';
-import { isEphemeralRoleInChatroom } from '../team/resolve-chatroom-team';
+import {
+  canonicalCustomAgentRoleName,
+  isEphemeralRoleInChatroom,
+} from '../team/resolve-chatroom-team';
 
 /**
  * Builds the slim task header stored on inbox events and served by `listPending`.
@@ -68,14 +71,16 @@ export async function writeWorkspaceTaskInboxEvent(
 
   const taskPayload = toWorkspaceTaskInboxTaskHeader({ ...task, taskId: task._id });
 
-  // Lifecycle checks are chatroom-scoped, so cache per role to keep a single
-  // resolution for every target that shares the task's role.
+  // Lifecycle checks are chatroom-scoped, so cache per canonical role to keep a
+  // single resolution for every target that shares the task's role. The lookup
+  // normalises casing, so the cache key must too: the key and the decision have
+  // to describe the same role.
   const ephemeralByRole = new Map<string, boolean>();
   const isEphemeral = async (role: string): Promise<boolean> => {
-    const key = role.toLowerCase();
+    const key = canonicalCustomAgentRoleName(role);
     const cached = ephemeralByRole.get(key);
     if (cached !== undefined) return cached;
-    const resolved = await isEphemeralRoleInChatroom(ctx, task.chatroomId, role);
+    const resolved = await isEphemeralRoleInChatroom(ctx, task.chatroomId, key);
     ephemeralByRole.set(key, resolved);
     return resolved;
   };

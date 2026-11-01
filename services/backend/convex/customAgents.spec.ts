@@ -1678,6 +1678,26 @@ describe('custom agent lifecycle scoping', () => {
     expect(participant?.lastSeenAction).toBe(PARTICIPANT_EXITED_ACTION);
   });
 
+  test('canonicalises a mixed-case role before the custom-agent lookup', async () => {
+    // Stored names are lowercase kebab-case and every lookup normalises the
+    // caller's input, so the lifecycle decision must normalise it too:
+    // "Reviewer-X" is the same role as "reviewer-x".
+    const { sessionId, machineId, workingDir, chatroomId } =
+      await setupChatroom('canonical-ephemeral');
+    await syncWorkspaceAgent(sessionId, machineId, workingDir, makeAgent('reviewer-x', 'a1'));
+
+    const isEphemeral = (role: string) =>
+      t.run(async (ctx) => isEphemeralRoleInChatroom(ctx, chatroomId, role));
+
+    expect(await isEphemeral('Reviewer-X')).toBe(true);
+
+    // The projection lookup reads the same canonical name, so the sticky signal
+    // survives removal for a mixed-case caller too.
+    await projectWorking(chatroomId, 'reviewer-x');
+    await clearWorkspaceAgents(sessionId, machineId, workingDir);
+    expect(await isEphemeral('Reviewer-X')).toBe(true);
+  });
+
   test('never treats a malformed name as ephemeral even with an ephemeral projection', async () => {
     const { chatroomId } = await setupChatroom('malformed-projection');
 
