@@ -553,6 +553,7 @@ describe('computeCustomAgentContentHash', () => {
 describe('CUSTOM_AGENT_RULES_VERSION', () => {
   test('is a stable r1 fingerprint', async () => {
     expect(CUSTOM_AGENT_RULES_VERSION).toMatch(/^r1-[0-9a-f]{8}$/);
+    // Changing this value forces a rewrite of every stored source on next push; update deliberately.
     expect(CUSTOM_AGENT_RULES_VERSION).toBe('r1-89411377');
 
     vi.resetModules();
