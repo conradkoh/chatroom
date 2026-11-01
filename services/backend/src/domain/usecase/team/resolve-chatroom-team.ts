@@ -255,10 +255,12 @@ const MAX_STATUS_ROWS_PER_ROLE = 16;
 /**
  * Whether the role was already projected as ephemeral in this chatroom.
  *
- * A role projected as ephemeral stays ephemeral after its definition is removed
- * or disabled (M1). The projection is written while the definition still exists,
- * so this read on the cold path is enough; no scan of in-flight tasks is needed.
- * Never add an index here: the read is bounded by the chatroom's workspace count.
+ * The projection is permanent for the chatroom: once a custom role is projected
+ * as ephemeral it stays ephemeral even after its definition is removed or
+ * disabled (M1). Nothing clears it; a reset path would need its own design.
+ * The projection is written while the definition still exists, so this cold-path
+ * read is enough. Never add an index here: the read is bounded by the chatroom's
+ * workspace count.
  */
 async function hasEphemeralStatusProjection(
   ctx: DbCtx,
