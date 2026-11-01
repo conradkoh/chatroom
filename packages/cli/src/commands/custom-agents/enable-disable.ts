@@ -59,11 +59,12 @@ function reportInvalidName(name: string, deps: ToggleCustomAgentDeps): void {
 }
 
 function reportOutcome(outcome: PollOutcome, deps: ToggleCustomAgentDeps): void {
-  if (outcome === 'confirmed') {
+  if (outcome.kind === 'confirmed') {
     deps.stdout('confirmed');
+    reportDisplaced(outcome.displaced, deps);
     return;
   }
-  if (outcome === 'over-limit') {
+  if (outcome.kind === 'over-limit') {
     // The change is applied; the agent simply cannot join until a slot frees.
     deps.stdout(
       `enabled, but it is over the custom-agent limit of ${CUSTOM_AGENT_LIMITS.agentsPerChatroom} ` +
@@ -73,6 +74,21 @@ function reportOutcome(outcome: PollOutcome, deps: ToggleCustomAgentDeps): void 
   }
   deps.stdout('timed out waiting for the daemon; the change is still pending');
   deps.setExitCode(1);
+}
+
+/**
+ * Reports agents an enable pushed past the cap. They keep their stored enabled
+ * flag, so the wording is the same as the webapp's displaced-agent copy: not in
+ * use now, joins by itself once another agent is turned off.
+ */
+function reportDisplaced(names: readonly string[], deps: ToggleCustomAgentDeps): void {
+  for (const name of names) {
+    deps.stdout(
+      `not in use: ${name} — the chatroom already runs ` +
+        `${CUSTOM_AGENT_LIMITS.agentsPerChatroom} custom agents. ` +
+        'It joins when another one is turned off.'
+    );
+  }
 }
 
 /**
@@ -106,7 +122,8 @@ async function requestToggle(
   }
 }
 
-type PollOutcome = 'confirmed' | 'over-limit' | 'timeout';
+type PollOutcome =
+  { kind: 'confirmed'; displaced: string[] } | { kind: 'over-limit' } | { kind: 'timeout' };
 
 /** Polls the roster until the named agent shows `disabled`, or the deadline passes. */
 async function waitForRosterValue(
@@ -118,8 +135,8 @@ async function waitForRosterValue(
   const deadline = deps.now() + CONFIRM_TIMEOUT_MS;
   for (;;) {
     const outcome = await readRosterOutcome(chatroomId, name, disabled, deps);
-    if (outcome !== 'pending') return outcome;
-    if (deps.now() >= deadline) return 'timeout';
+    if (outcome.kind !== 'pending') return outcome;
+    if (deps.now() >= deadline) return { kind: 'timeout' };
     await deps.sleep(POLL_INTERVAL_MS);
   }
 }
@@ -134,16 +151,25 @@ async function readRosterOutcome(
   name: string,
   disabled: boolean,
   deps: ToggleCustomAgentDeps
-): Promise<'pending' | 'confirmed' | 'over-limit'> {
+): Promise<{ kind: 'pending' } | PollOutcome> {
   const result = (await deps.client.query(api.customAgents.getTeamRoster, {
     sessionId: deps.sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   })) as RosterResult;
 
-  if (rosterHasValue(result.roster, name, disabled)) return 'confirmed';
+  if (rosterHasValue(result.roster, name, disabled))
+    return confirmedOutcome(result, name, disabled);
   // Enabling an over-limit agent is the only case where waiting cannot succeed.
-  if (!disabled && isOverLimit(result.sources, name)) return 'over-limit';
-  return 'pending';
+  if (!disabled && isOverLimit(result.sources, name)) return { kind: 'over-limit' };
+  return { kind: 'pending' };
+}
+
+/** A disable frees a slot, so only an enable can displace another agent. */
+function confirmedOutcome(result: RosterResult, name: string, disabled: boolean): PollOutcome {
+  return {
+    kind: 'confirmed',
+    displaced: disabled ? [] : displacedAgents(result.sources, name),
+  };
 }
 
 interface RosterResult {
@@ -165,17 +191,33 @@ function isOverLimit(
   sources: readonly { issues?: CustomAgentIssue[] }[] | undefined,
   name: string
 ): boolean {
-  return (sources ?? []).some((source) =>
-    (source.issues ?? []).some((issue) => namesAgent(issue, name))
-  );
+  return overLimitPaths(sources).includes(name);
 }
 
 /**
- * True only when this issue names the agent. `over-limit` issues carry no
- * detail, and free prose in `detail` is never a match key: an issue for
- * `reviewer` must not make `rev` look over the cap.
+ * Every agent name the sources report past the per-chatroom cap. The issue
+ * `path` is the agent name and the only match key: free prose in `detail` never
+ * counts, so an issue for `reviewer` cannot make `rev` look over the cap.
  */
-function namesAgent(issue: CustomAgentIssue, name: string): boolean {
-  if (issue.reason !== 'over-limit') return false;
-  return issue.path === name;
+function overLimitPaths(sources: readonly { issues?: CustomAgentIssue[] }[] | undefined): string[] {
+  return (sources ?? []).flatMap((source) =>
+    (source.issues ?? []).filter(isOverLimitIssue).map((issue) => issue.path)
+  );
+}
+
+function isOverLimitIssue(issue: CustomAgentIssue): boolean {
+  return issue.reason === 'over-limit';
+}
+
+/**
+ * Agents past the cap other than the one just enabled. The merge removes them
+ * from the roster but their enable is still stored, so the command reports each
+ * one as not in use rather than leaving it to vanish without a word.
+ */
+function displacedAgents(
+  sources: readonly { issues?: CustomAgentIssue[] }[] | undefined,
+  toggled: string
+): string[] {
+  const paths = new Set(overLimitPaths(sources));
+  return [...paths].filter((path) => path !== toggled).sort();
 }

@@ -1,3 +1,8 @@
+import {
+  CUSTOM_AGENT_LIMITS,
+  mergeTeamStructureWithCustomAgents,
+} from '@workspace/shared/domain/custom-agent';
+import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
@@ -12,6 +17,43 @@ interface RosterEntry {
   source: 'custom' | 'builtin';
   disabled: boolean;
   disableable: boolean;
+}
+
+/** Sixteen agents, all on, is exactly the per-chatroom cap. */
+const AT_CAP = Array.from(
+  { length: CUSTOM_AGENT_LIMITS.agentsPerChatroom },
+  (_, index) => `agent-${index + 1}`
+);
+
+/**
+ * The custom rows the backend would serve for these agents, built through the
+ * real merge. `agent-17` sorts before `agent-2` through `agent-9`, so enabling it
+ * keeps `agent-17` and cuts `agent-9`.
+ */
+function mergedRoster(
+  names: readonly string[],
+  disabled: readonly string[]
+): { roster: RosterEntry[]; issues: { path: string; reason: string }[] } {
+  const merged = mergeTeamStructureWithCustomAgents({
+    base: getTeamStructure({ teamId: 'duo' }),
+    workspaceAgents: names.map((name) => ({
+      name,
+      description: `${name} summary`,
+      scope: 'workspace' as const,
+    })),
+    machineAgents: [],
+    disabledRoles: new Set(disabled),
+  });
+  const custom = merged.roster.filter((entry) => entry.source === 'custom');
+  return {
+    roster: custom.map((entry) => ({
+      role: entry.role,
+      source: 'custom',
+      disabled: entry.disabled,
+      disableable: entry.disableable,
+    })),
+    issues: merged.issues.map((issue) => ({ path: issue.path, reason: issue.reason })),
+  };
 }
 
 /** A clock whose `sleep` advances `now`, so the poll never waits in real time. */
@@ -38,6 +80,8 @@ function createClient(options: {
   issues?: readonly { path: string; reason: string; detail?: string }[] | undefined;
   /** Drop the agent's roster row, as the backend does for over-limit agents. */
   omitRosterRow?: boolean | undefined;
+  /** Full custom roster to report instead of the synthetic `alpha` row. */
+  roster?: readonly RosterEntry[] | undefined;
 }) {
   const mutations: { name: string; disabled: boolean }[] = [];
   let queryCount = 0;
@@ -52,8 +96,10 @@ function createClient(options: {
         disabled: values[index],
         disableable: true,
       } satisfies RosterEntry;
+      const roster =
+        options.roster !== undefined ? options.roster : options.omitRosterRow === true ? [] : [row];
       return {
-        roster: options.omitRosterRow === true ? [] : [row],
+        roster,
         sources: [
           {
             scope: 'workspace',
@@ -155,6 +201,39 @@ describe('setCustomAgentDisabled', () => {
     ]);
     expect(harness.exitCodes).toEqual([]);
     expect(fake.queries()).toBe(1);
+  });
+
+  it('reports an agent displaced by the cap alongside the confirmed enable', async () => {
+    // The real merge keeps the agent just enabled and cuts `agent-9`, whose enable
+    // is still stored. Silence there would leave the agent gone without a word.
+    const names = [...AT_CAP, 'agent-17'];
+    const after = mergedRoster(names, []);
+    expect(after.issues).toContainEqual({ path: 'agent-9', reason: 'over-limit' });
+
+    const fake = createClient({ roster: after.roster, issues: after.issues });
+    const harness = createDeps(fake.client);
+
+    await setCustomAgentDisabled('chatroom-1', 'agent-17', false, harness.deps);
+
+    expect(fake.mutations).toEqual([{ name: 'agent-17', disabled: false }]);
+    expect(harness.lines).toEqual([
+      'confirmed',
+      'not in use: agent-9 — the chatroom already runs 16 custom agents. It joins when another one is turned off.',
+    ]);
+    expect(harness.exitCodes).toEqual([]);
+  });
+
+  it('does not report a displaced agent for a disable', async () => {
+    // Turning an agent off frees a slot, so nothing can be pushed out.
+    const fake = createClient({
+      roster: [{ role: 'agent-17', source: 'custom', disabled: true, disableable: true }],
+      issues: [{ path: 'zeta', reason: 'over-limit' }],
+    });
+    const harness = createDeps(fake.client);
+
+    await setCustomAgentDisabled('chatroom-1', 'agent-17', true, harness.deps);
+
+    expect(harness.lines).toEqual(['confirmed']);
   });
 
   it('does not treat a detail that merely mentions the agent as over-limit', async () => {
