@@ -29,7 +29,7 @@ Object.defineProperty(window, 'matchMedia', {
  * Render-counting wrapper around the real `TimelineEventRow`.
  *
  * The wrapper is `memo`-ized like the real component, so a count is recorded
- * exactly when the row's props changed — which is what the All-tab list must
+ * exactly when the row's props changed — which is what the conversation list must
  * keep minimal.
  */
 const { rowRenderCounts } = vi.hoisted(() => ({

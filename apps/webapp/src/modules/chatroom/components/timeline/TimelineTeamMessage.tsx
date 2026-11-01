@@ -156,13 +156,13 @@ export interface TimelineTeamMessageProps {
   machines?: Map<string, MachineNameEntry>;
   /** When set, shows resolved hostname/alias beside the sender role. */
   machineId?: string;
-  /** When set, sticky header shows centered prev/current/next jump controls (All tab). */
+  /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
   headerNavigation?: TimelineMessageHeaderNavigation;
   /** Historical duration from the origin task start through this handoff. */
   handoffDurationMs?: number;
   /**
    * When true the row starts collapsed: a 2-line plain-text preview instead of
-   * the full markdown body. Used for agent-to-agent traffic in the All tab.
+   * the full markdown body. Used for agent-to-agent traffic in the conversation feed.
    */
   collapsible?: boolean;
 }

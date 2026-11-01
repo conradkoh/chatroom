@@ -5,7 +5,7 @@ import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 import type { ArtifactMeta } from '../components/ArtifactRenderer';
 
 // ─── Shared message types ──────────────────────────────────────────────────────
-// Used by timeline hooks and the All-tab conversation to ensure a
+// Used by timeline hooks and the conversation feed to ensure a
 // single source of truth for message shapes flowing through the cursor-based
 // loading pipeline.
 

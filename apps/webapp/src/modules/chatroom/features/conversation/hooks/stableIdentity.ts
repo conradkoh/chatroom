@@ -6,7 +6,7 @@
  * changed. Derived `TimelineEvent`s then allocate on top of that, which defeats
  * `memo` on every timeline row and makes each update O(N).
  *
- * These helpers let the All-tab conversation swap a fresh-but-equal object back
+ * These helpers let the conversation feed swap a fresh-but-equal object back
  * for the previous reference, so only rows whose data actually changed re-render.
  */
 

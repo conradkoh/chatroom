@@ -15,7 +15,7 @@ export interface TimelineEventRowProps {
   machines?: Map<string, MachineNameEntry>;
   /** Optional machine id for team rows (hostname via `machines` map). */
   machineId?: TimelineTeamMessageProps['machineId'];
-  /** When set, sticky header shows centered prev/current/next jump controls (All tab). */
+  /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
   headerNavigation?: TimelineMessageHeaderNavigation;
 }
 
