@@ -1,12 +1,19 @@
 import { act, renderHook } from '@testing-library/react';
+import { CUSTOM_AGENT_LIMITS } from '@workspace/shared/domain/custom-agent';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE } from './customAgentCopy';
+import {
+  CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
+  CUSTOM_AGENT_TOGGLE_TIMEOUT_MESSAGE,
+} from './customAgentCopy';
 import type { CustomAgentRowModel } from './customAgentsViewModel';
 import { useCustomAgentToggle } from './useCustomAgentToggle';
 
 /** The hook's confirmation window; duplicated here because it is module-private. */
 const CUSTOM_AGENT_TOGGLE_TIMEOUT_MS = 10_000;
+
+/** No agent is past the chatroom cap. */
+const NO_OVER_LIMIT: ReadonlySet<string> = new Set();
 
 const mockSetDisabled = vi.fn();
 
@@ -25,11 +32,20 @@ function row(name: string, disabled = false): CustomAgentRowModel {
   };
 }
 
+interface ToggleHookProps {
+  rows: CustomAgentRowModel[];
+  overLimit?: ReadonlySet<string>;
+}
+
 function renderToggle(initialRows: CustomAgentRowModel[]) {
   return renderHook(
-    ({ rows }: { rows: CustomAgentRowModel[] }) =>
-      useCustomAgentToggle({ chatroomId: 'chatroom-1', rows }),
-    { initialProps: { rows: initialRows } }
+    ({ rows, overLimit }: ToggleHookProps) =>
+      useCustomAgentToggle({
+        chatroomId: 'chatroom-1',
+        rows,
+        overLimitNames: overLimit ?? NO_OVER_LIMIT,
+      }),
+    { initialProps: { rows: initialRows } as ToggleHookProps }
   );
 }
 
@@ -149,5 +165,50 @@ describe('useCustomAgentToggle', () => {
 
     expect(clearSpy).toHaveBeenCalled();
     clearSpy.mockRestore();
+  });
+});
+
+describe('useCustomAgentToggle over-limit enables', () => {
+  /** A roster at exactly the per-chatroom cap, plus the disabled agent asking for a slot. */
+  function cappedRows(): CustomAgentRowModel[] {
+    const enabled = Array.from({ length: CUSTOM_AGENT_LIMITS.agentsPerChatroom }, (_, index) =>
+      row(`agent-${index + 1}`)
+    );
+    return [...enabled, row('agent-17', true)];
+  }
+
+  function withoutAgent17(rows: CustomAgentRowModel[]): CustomAgentRowModel[] {
+    return rows.filter((entry) => entry.name !== 'agent-17');
+  }
+
+  it('keeps a failed state when the cap drops the row instead of resetting to idle', () => {
+    mockSetDisabled.mockReturnValue(new Promise(() => undefined));
+    const rows = cappedRows();
+    const { result, rerender } = renderToggle(rows);
+
+    act(() => result.current.requestToggle('agent-17', false));
+    rerender({ rows: withoutAgent17(rows), overLimit: new Set(['agent-17']) });
+
+    expect(result.current.stateFor('agent-17')).toEqual({
+      kind: 'failed',
+      desiredDisabled: false,
+      message: CUSTOM_AGENT_OVER_LIMIT_MESSAGE,
+    });
+  });
+
+  it('resets to idle once the over-limit issue clears', () => {
+    mockSetDisabled.mockReturnValue(new Promise(() => undefined));
+    const rows = cappedRows();
+    const { result, rerender } = renderToggle(rows);
+    act(() => result.current.requestToggle('agent-17', false));
+    rerender({ rows: withoutAgent17(rows), overLimit: new Set(['agent-17']) });
+    expect(result.current.stateFor('agent-17')).toMatchObject({ kind: 'failed' });
+
+    rerender({
+      rows: [...rows.filter((entry) => entry.name !== 'agent-17'), row('agent-17')],
+      overLimit: NO_OVER_LIMIT,
+    });
+
+    expect(result.current.stateFor('agent-17')).toEqual({ kind: 'idle' });
   });
 });
