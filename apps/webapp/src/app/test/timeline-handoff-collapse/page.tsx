@@ -4,10 +4,17 @@ import { useState } from 'react';
 
 import { AttachmentsProvider } from '@/modules/chatroom/attachments';
 import { TimelineTeamMessage } from '@/modules/chatroom/components/timeline/TimelineTeamMessage';
+import { isEagerTimelineEvent } from '@/modules/chatroom/timeline/isEagerTimelineEvent';
+import { mapMessageToTimelineEvent } from '@/modules/chatroom/timeline/mapMessageToTimelineEvent';
 import type { Message } from '@/modules/chatroom/types/message';
 
-// Keep the fixtures away from midnight so the browser's local timezone cannot change the day.
+// The e2e spec pins the browser timezone to UTC; noon keeps the date stable there.
 const CREATION_TIME = Date.UTC(2023, 10, 15, 12, 14, 22);
+
+/** Use the production predicate so the fixtures cannot drift from the feed's behaviour. */
+function isCollapsible(message: Message): boolean {
+  return !isEagerTimelineEvent(mapMessageToTimelineEvent(message));
+}
 
 const NORMAL: Message = {
   _id: 'e2e-collapse-normal',
@@ -84,24 +91,40 @@ export default function TimelineHandoffCollapseTestPage() {
             message={NORMAL}
             chatroomId="e2e-chatroom"
             handoffDurationMs={252_000}
-            collapsible
+            collapsible={isCollapsible(NORMAL)}
           />
         </section>
 
         <section data-testid="collapse-empty">
-          <TimelineTeamMessage message={EMPTY} chatroomId="e2e-chatroom" collapsible />
+          <TimelineTeamMessage
+            message={EMPTY}
+            chatroomId="e2e-chatroom"
+            collapsible={isCollapsible(EMPTY)}
+          />
         </section>
 
         <section data-testid="collapse-code">
-          <TimelineTeamMessage message={CODE_ONLY} chatroomId="e2e-chatroom" collapsible />
+          <TimelineTeamMessage
+            message={CODE_ONLY}
+            chatroomId="e2e-chatroom"
+            collapsible={isCollapsible(CODE_ONLY)}
+          />
         </section>
 
         <section data-testid="collapse-long">
-          <TimelineTeamMessage message={LONG} chatroomId="e2e-chatroom" collapsible />
+          <TimelineTeamMessage
+            message={LONG}
+            chatroomId="e2e-chatroom"
+            collapsible={isCollapsible(LONG)}
+          />
         </section>
 
         <section data-testid="eager-control">
-          <TimelineTeamMessage message={EAGER} chatroomId="e2e-chatroom" />
+          <TimelineTeamMessage
+            message={EAGER}
+            chatroomId="e2e-chatroom"
+            collapsible={isCollapsible(EAGER)}
+          />
         </section>
       </main>
     </AttachmentsProvider>

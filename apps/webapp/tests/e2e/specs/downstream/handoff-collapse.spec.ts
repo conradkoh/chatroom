@@ -3,6 +3,10 @@ import { expect, test } from '@playwright/test';
 import { TAG_DOWNSTREAM } from '../../support/tags';
 
 test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
+  // The fixtures render a fixed 15th November 2023 date; pin the browser timezone so
+  // the assertion does not depend on the CI host.
+  test.use({ timezoneId: 'UTC' });
+
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/test/timeline-handoff-collapse');
