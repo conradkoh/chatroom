@@ -86,7 +86,7 @@ describe('game-asset skill prompts', () => {
 
   it('3D AI prompt keeps the glTF measurement hint', () => {
     const prompt = gameAsset3dAiSkill.getPrompt('');
-    expect(prompt).toContain('gltf-transform inspect');
+    expect(prompt).toContain('Measure the exported master GLB');
   });
 
   it('2D AI prompt anchors the generate-image and slice-image commands', () => {
@@ -102,11 +102,13 @@ describe('game-asset skill prompts', () => {
 
   it('2D AI prompt keeps the trim, naming, and sheet rules', () => {
     const prompt = gameAsset2dAiSkill.getPrompt('');
-    expect(prompt).toContain('--trim');
-    expect(prompt).toContain('--trim-padding');
-    expect(prompt).toContain('--names');
+    expect(prompt).toContain('Always pass `--trim` to `chatroom remove-image-background`');
+    expect(prompt).toContain('use `--trim-padding` only when the brief names a padding');
+    expect(prompt).toContain('Never pass `--names` to `slice-image`');
     expect(prompt).toContain('ceil(N/(C×R))');
-    expect(prompt).toContain('2x2');
+    expect(prompt).toContain(
+      "at most the brief's `## Sheet grid` (default 2x2); a larger grid needs a user request quoted in the brief, one asset per cell"
+    );
     expect(prompt).toContain('never use a sheet');
     expect(prompt).toContain('A mismatched item is regenerated individually');
     expect(prompt).toContain('as a failed item/open question');
