@@ -204,6 +204,9 @@ describe('skills.list', () => {
     expect(skills.some((s) => s.skillId === 'defragmentation')).toBe(true);
     expect(skills.some((s) => s.skillId === 'user-centricity')).toBe(true);
     expect(skills.some((s) => s.skillId === 'data-design')).toBe(true);
+    expect(skills.some((s) => s.skillId === 'game-asset-3d-ai')).toBe(true);
+    expect(skills.some((s) => s.skillId === 'game-asset-2d-ai')).toBe(true);
+    expect(skills.some((s) => s.skillId === 'game-asset-3d-procedural')).toBe(true);
     expect(skills.some((s) => s.skillId === 'software-engineering')).toBe(false);
     expect(skills.some((s) => s.skillId === 'development-workflow')).toBe(false);
   });
