@@ -12,7 +12,7 @@ function formatIntervalSchedule(intervalMinutes: number): string {
   return `Every ${intervalMinutes} minutes`;
 }
 
-// Exhaustive per-kind switch: every schedule kind gets its own branch.
+// Three schedule kinds, exhaustive switch with a never default.
 // fallow-ignore-next-line complexity
 export function formatSchedule(prompt: {
   scheduleKind: ScheduledPromptScheduleKind;
@@ -28,6 +28,10 @@ export function formatSchedule(prompt: {
       return formatDailyScheduleLocal(prompt.hourUTC ?? 0, prompt.minuteUTC ?? 0);
     case 'once':
       return prompt.runAt !== undefined ? `Once on ${formatTimestampFull(prompt.runAt)}` : 'Once';
+    default: {
+      const never: never = prompt.scheduleKind;
+      throw new Error(`Unknown scheduleKind ${String(never)}`);
+    }
   }
 }
 
@@ -36,41 +40,34 @@ export function formatTime(ts: number): string {
 }
 
 /** The single mapping from `disabledReason` to a display status. */
-// Exhaustive by design: one branch per terminal reason.
-// fallow-ignore-next-line complexity
+const STATUS_BY_DISABLED_REASON: Record<
+  ScheduledPromptDisabledReason | 'none',
+  ScheduledPromptStatus
+> = {
+  none: 'active',
+  user: 'disabled',
+  archive: 'archived',
+  completed: 'completed',
+  failed: 'failed',
+};
+
 export function getScheduledPromptStatus(p: {
   disabledReason?: ScheduledPromptDisabledReason;
 }): ScheduledPromptStatus {
-  switch (p.disabledReason) {
-    case undefined:
-      return 'active';
-    case 'user':
-      return 'disabled';
-    case 'archive':
-      return 'archived';
-    case 'completed':
-      return 'completed';
-    case 'failed':
-      return 'failed';
-  }
+  return STATUS_BY_DISABLED_REASON[p.disabledReason ?? 'none'];
 }
 
 /** Display label for a derived status. */
-// Exhaustive by design: one branch per status.
-// fallow-ignore-next-line complexity
+const STATUS_LABEL: Record<ScheduledPromptStatus, string> = {
+  active: 'Active',
+  disabled: 'Disabled',
+  archived: 'Disabled by archive',
+  completed: 'Completed',
+  failed: 'Failed',
+};
+
 export function formatScheduledPromptStatus(s: ScheduledPromptStatus): string {
-  switch (s) {
-    case 'active':
-      return 'Active';
-    case 'disabled':
-      return 'Disabled';
-    case 'archived':
-      return 'Disabled by archive';
-    case 'completed':
-      return 'Completed';
-    case 'failed':
-      return 'Failed';
-  }
+  return STATUS_LABEL[s];
 }
 
 export function isFinishedScheduledPromptStatus(s: ScheduledPromptStatus): boolean {

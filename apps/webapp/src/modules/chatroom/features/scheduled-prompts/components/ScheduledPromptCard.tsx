@@ -1,6 +1,7 @@
 'use client';
 
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { LucideIcon } from 'lucide-react';
 import { AlertCircle, CheckCircle2, Loader2, Power, PowerOff, Trash2 } from 'lucide-react';
 import React, { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ import {
   formatTime,
   getScheduledPromptStatus,
   isFinishedScheduledPromptStatus,
+  type ScheduledPromptStatus,
 } from '../utils/scheduledPromptFormat';
 
 import { Button } from '@/components/ui/button';
@@ -123,8 +125,29 @@ export function ActionsMenuContent({
   );
 }
 
-// Exhaustive per-status badge/switch gating: finished rows are immutable history.
-// fallow-ignore-next-line complexity
+/**
+ * Badge styling for every derived status. Finished rows are immutable history,
+ * so the map is the single source of badge colour and icon.
+ */
+const STATUS_BADGE: Record<ScheduledPromptStatus, { className: string; Icon?: LucideIcon }> = {
+  active: {
+    className: 'bg-green-500/10 text-green-500 dark:bg-green-500/20 dark:text-green-400',
+    Icon: Power,
+  },
+  disabled: { className: 'bg-chatroom-bg-tertiary text-chatroom-text-muted', Icon: PowerOff },
+  archived: {
+    className: 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400',
+  },
+  completed: {
+    className: 'bg-chatroom-bg-tertiary text-chatroom-text-muted',
+    Icon: CheckCircle2,
+  },
+  failed: {
+    className: 'bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400',
+    Icon: AlertCircle,
+  },
+};
+
 export function ScheduledPromptCard({
   prompt,
   onEdit,
@@ -138,6 +161,8 @@ export function ScheduledPromptCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const status = getScheduledPromptStatus(prompt);
+  const badge = STATUS_BADGE[status];
+  const statusLabel = formatScheduledPromptStatus(status);
   const isArchiveDisabled = status === 'archived';
   const isActive = status === 'active';
   const isFinished = isFinishedScheduledPromptStatus(status);
@@ -202,39 +227,10 @@ export function ScheduledPromptCard({
             {displayName}
           </span>
           <span
-            className={`inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${
-              status === 'active'
-                ? 'bg-green-500/10 text-green-500 dark:bg-green-500/20 dark:text-green-400'
-                : status === 'archived'
-                  ? 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
-                  : status === 'failed'
-                    ? 'bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400'
-                    : 'bg-chatroom-bg-tertiary text-chatroom-text-muted'
-            }`}
+            className={`inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${badge.className}`}
           >
-            {status === 'active' ? (
-              <>
-                <Power size={10} />
-                {formatScheduledPromptStatus(status)}
-              </>
-            ) : status === 'archived' ? (
-              formatScheduledPromptStatus(status)
-            ) : status === 'completed' ? (
-              <>
-                <CheckCircle2 size={10} />
-                {formatScheduledPromptStatus(status)}
-              </>
-            ) : status === 'failed' ? (
-              <>
-                <AlertCircle size={10} />
-                {formatScheduledPromptStatus(status)}
-              </>
-            ) : (
-              <>
-                <PowerOff size={10} />
-                {formatScheduledPromptStatus(status)}
-              </>
-            )}
+            {badge.Icon && <badge.Icon size={10} />}
+            {statusLabel}
           </span>
         </div>
 
