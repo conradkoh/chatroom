@@ -1,5 +1,5 @@
 import { AlertCircle, Check, Copy, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { LogDimensionBadges } from './LogDimensionBadges';
 import { LogLevelBadge } from './LogLevelBadge';
@@ -34,6 +34,10 @@ export function LogDetailPanel({
   } | null>(null);
   const copyStatus = copyFeedback?.line === line ? copyFeedback.status : null;
 
+  // Counts copy requests so a result from an earlier click that settles late
+  // cannot overwrite the feedback of a later click.
+  const latestCopyRequestId = useRef(0);
+
   // Revert the icon after a short delay, and clean the timer up so no state
   // update lands after unmount.
   useEffect(() => {
@@ -45,12 +49,18 @@ export function LogDetailPanel({
   }, [copyFeedback]);
 
   const handleCopy = async () => {
+    const requestId = ++latestCopyRequestId.current;
+    const isLatest = () => requestId === latestCopyRequestId.current;
     try {
       await navigator.clipboard.writeText(formatLogLineAsXml(line, chatroomName));
-      setCopyFeedback({ line, status: 'copied' });
+      if (isLatest()) {
+        setCopyFeedback({ line, status: 'copied' });
+      }
     } catch (error) {
       console.error('Failed to copy log detail as XML:', error);
-      setCopyFeedback({ line, status: 'failed' });
+      if (isLatest()) {
+        setCopyFeedback({ line, status: 'failed' });
+      }
     }
   };
 
