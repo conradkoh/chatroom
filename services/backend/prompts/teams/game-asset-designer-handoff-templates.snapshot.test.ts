@@ -95,6 +95,8 @@ describe('game asset designer handoff template snapshots', () => {
     expect(brief).toContain(
       'keep the line for each domain the brief contains and delete the others; `None.` for `spec only`'
     );
+    expect(brief).toContain('For a mixed brief, give one line per domain prefixed');
+    expect(brief.split('For a mixed brief, give one line per domain prefixed')).toHaveLength(3);
     expect(brief).toContain(
       'AI 3D: `chatroom generate-3d --platform=fal --model <Model> (dry run first), gltf-transform inspect`'
     );
