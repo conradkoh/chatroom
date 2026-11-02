@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buildScheduleFields } from '../features/scheduled-prompts/utils/scheduledPromptFields';
 import {
   localDateTimeInputToUtcMs,
   utcMsToLocalDateTimeInput,
@@ -451,5 +452,60 @@ describe('ScheduledPromptsTab', () => {
       expect(screen.getByText('Pick a time in the future')).toBeDefined();
     });
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('buildScheduleFields', () => {
+  beforeAll(() => {
+    vi.stubEnv('TZ', 'UTC');
+  });
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /** Now is 2023-11-14T22:13:20Z; only the daily ref date depends on it. */
+  const base = { intervalMinutes: 30, hour: 9, minute: 0, now: 1_700_000_000_000 };
+
+  it('builds a future one-time payload', () => {
+    expect(buildScheduleFields('once', { ...base, runAtLocal: '2030-01-01T09:00' })).toEqual({
+      data: { scheduleKind: 'once', runAt: 1893488400000 },
+    });
+  });
+
+  it('rejects a past one-time payload', () => {
+    expect(buildScheduleFields('once', { ...base, runAtLocal: '2020-01-01T09:00' })).toEqual({
+      error: 'Pick a time in the future',
+    });
+  });
+
+  it('accepts an unchanged past time when editing a one-time row', () => {
+    expect(
+      buildScheduleFields('once', {
+        ...base,
+        runAtLocal: '2020-01-01T09:00',
+        initialRunAt: 1577869200000,
+      })
+    ).toEqual({ data: { scheduleKind: 'once', runAt: 1577869200000 } });
+  });
+
+  it('rejects an interval below the minimum', () => {
+    expect(
+      buildScheduleFields('interval', { ...base, intervalMinutes: 0, runAtLocal: '' })
+    ).toEqual({ error: 'Interval must be at least 1 minute' });
+  });
+
+  it('rejects daily hours and minutes outside their bounds', () => {
+    expect(buildScheduleFields('daily', { ...base, hour: 24, runAtLocal: '' })).toEqual({
+      error: 'Daily schedule requires valid hour (0-23) and minute (0-59)',
+    });
+    expect(buildScheduleFields('daily', { ...base, minute: 60, runAtLocal: '' })).toEqual({
+      error: 'Daily schedule requires valid hour (0-23) and minute (0-59)',
+    });
+  });
+
+  it('builds daily UTC fields from the local time', () => {
+    expect(buildScheduleFields('daily', { ...base, hour: 9, minute: 30, runAtLocal: '' })).toEqual({
+      data: { scheduleKind: 'daily', hourUTC: 9, minuteUTC: 30 },
+    });
   });
 });

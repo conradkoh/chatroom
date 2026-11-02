@@ -1,16 +1,18 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Clock, Loader2, Plus } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 
 import { ScheduledPromptCard } from '../features/scheduled-prompts/components/ScheduledPromptCard';
 import {
+  buildScheduleFields,
+  type ScheduleFields,
+} from '../features/scheduled-prompts/utils/scheduledPromptFields';
+import {
   formatTimezoneLabel,
-  localDateTimeInputToUtcMs,
-  localDailyTimeToUtc,
   utcDailyTimeToLocal,
   utcMsToLocalDateTimeInput,
 } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
@@ -22,14 +24,9 @@ interface ScheduledPromptsTabProps {
   chatroomId: string;
 }
 
-export type ScheduledPromptFormData = {
+export type ScheduledPromptFormData = ScheduleFields & {
   name?: string;
   prompt: string;
-  scheduleKind: 'interval' | 'daily' | 'once';
-  intervalMinutes?: number;
-  hourUTC?: number;
-  minuteUTC?: number;
-  runAt?: number;
 };
 
 export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
@@ -89,7 +86,7 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
 
       {showForm && (
         <ScheduledPromptForm
-          initial={editingPrompt}
+          initial={editingPrompt ?? undefined}
           onSave={handleFormSave}
           onCancel={handleFormClose}
         />
@@ -138,14 +135,41 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 });
 
-// Exhaustive per-kind form: every schedule kind owns its fields and validation.
+/** Convex errors carry the user-facing message under `data.message`. */
+function firstErrorMessage(err: unknown): string | undefined {
+  const e = (err ?? {}) as { data?: { message?: string }; message?: string };
+  const dataMessage = e.data && e.data.message;
+  return dataMessage || e.message;
+}
+
+function saveErrorMessage(err: unknown): string {
+  return firstErrorMessage(err) ?? 'Failed to save';
+}
+
+/** Prompt content validation shared by every schedule kind. */
+function validatePromptContent(prompt: string): string | undefined {
+  const trimmed = prompt.trim();
+  if (!trimmed) return 'Prompt cannot be empty';
+  if (trimmed.length > 10000) return 'Prompt must be 10000 characters or less';
+  return undefined;
+}
+
+/** The stored runAt to compare against when editing an existing once row. */
+function editedOnceRunAt(
+  initial: Doc<'chatroom_scheduledPrompts'> | undefined
+): number | undefined {
+  return initial?.scheduleKind === 'once' ? initial.runAt : undefined;
+}
+
+// One controlled form for three schedule kinds; the conditional field groups
+// share the same local state, so the branches are inherent to the form.
 // fallow-ignore-next-line complexity
 const ScheduledPromptForm = memo(function ScheduledPromptForm({
   initial,
   onSave,
   onCancel,
 }: {
-  initial?: any;
+  initial?: Doc<'chatroom_scheduledPrompts'>;
   onSave: (data: ScheduledPromptFormData) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -166,76 +190,51 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Validates every schedule kind before building the payload; the server
-  // remains authoritative for INVALID_SCHEDULE / SCHEDULE_FINISHED.
-  // fallow-ignore-next-line complexity
+  // Prompt content is validated here; per-kind schedule validation lives in
+  // buildScheduleFields. The server stays authoritative for
+  // INVALID_SCHEDULE / SCHEDULE_FINISHED.
   const handleSave = useCallback(async () => {
-    if (!prompt.trim()) {
-      setError('Prompt cannot be empty');
+    const contentError = validatePromptContent(prompt);
+    if (contentError) {
+      setError(contentError);
       return;
     }
-    if (prompt.trim().length > 10000) {
-      setError('Prompt must be 10000 characters or less');
+    const schedule = buildScheduleFields(scheduleKind, {
+      runAtLocal,
+      intervalMinutes,
+      hour: hourLocal,
+      minute: minuteLocal,
+      now: Date.now(),
+      initialRunAt: editedOnceRunAt(initial),
+    });
+    if ('error' in schedule) {
+      setError(schedule.error);
       return;
-    }
-    if (scheduleKind === 'interval' && (!intervalMinutes || intervalMinutes < 1)) {
-      setError('Interval must be at least 1 minute');
-      return;
-    }
-    if (
-      scheduleKind === 'daily' &&
-      (hourLocal === undefined ||
-        minuteLocal === undefined ||
-        hourLocal < 0 ||
-        hourLocal > 23 ||
-        minuteLocal < 0 ||
-        minuteLocal > 59)
-    ) {
-      setError('Daily schedule requires valid hour (0-23) and minute (0-59)');
-      return;
-    }
-    const runAt = scheduleKind === 'once' ? localDateTimeInputToUtcMs(runAtLocal) : undefined;
-    if (scheduleKind === 'once') {
-      if (runAt === undefined) {
-        setError('Pick a date and time');
-        return;
-      }
-      // Compare at minute precision: the form input has no seconds. An unchanged
-      // time is not re-checked, so a past-due row can still be renamed before the
-      // cron fires it (the backend skips re-validation the same way).
-      const runAtUnchanged =
-        initial?.scheduleKind === 'once' &&
-        initial.runAt !== undefined &&
-        Math.floor(runAt / 60_000) === Math.floor(initial.runAt / 60_000);
-      if (!runAtUnchanged && runAt <= Date.now()) {
-        setError('Pick a time in the future');
-        return;
-      }
     }
     setSaving(true);
     setError(null);
     try {
-      const data: ScheduledPromptFormData = {
+      await onSave({
         name: name.trim() || undefined,
         prompt: prompt.trim(),
-        scheduleKind,
-      };
-      if (scheduleKind === 'interval') {
-        data.intervalMinutes = intervalMinutes;
-      } else if (scheduleKind === 'daily') {
-        const { hourUTC, minuteUTC } = localDailyTimeToUtc(hourLocal, minuteLocal);
-        data.hourUTC = hourUTC;
-        data.minuteUTC = minuteUTC;
-      } else {
-        data.runAt = runAt;
-      }
-      await onSave(data);
+        ...schedule.data,
+      });
     } catch (err: any) {
-      setError(err?.data?.message ?? err?.message ?? 'Failed to save');
+      setError(saveErrorMessage(err));
     } finally {
       setSaving(false);
     }
-  }, [name, prompt, scheduleKind, intervalMinutes, hourLocal, minuteLocal, runAtLocal, onSave]);
+  }, [
+    name,
+    prompt,
+    scheduleKind,
+    intervalMinutes,
+    hourLocal,
+    minuteLocal,
+    runAtLocal,
+    initial,
+    onSave,
+  ]);
 
   return (
     <div className="border border-chatroom-border rounded-none bg-chatroom-bg-secondary overflow-hidden">
