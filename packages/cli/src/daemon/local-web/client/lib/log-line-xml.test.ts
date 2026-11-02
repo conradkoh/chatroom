@@ -197,6 +197,17 @@ describe('formatLogLineAsXml', () => {
     expect(formatLogLineAsXml(line)).toContain('<message>before red after</message>');
   });
 
+  it('strips OSC hyperlink sequences from the message', () => {
+    const line: LogLine = {
+      timestamp: 0,
+      level: 'info',
+      source: 'daemon',
+      message: 'link: \u001b]8;;https://example.com\u0007text\u001b]8;;\u0007',
+    };
+
+    expect(formatLogLineAsXml(line)).toContain('<message>link: text</message>');
+  });
+
   it('never emits a reference to a code point outside the XML 1.0 Char production', () => {
     const line: LogLine = {
       timestamp: 0,
@@ -207,6 +218,9 @@ describe('formatLogLineAsXml', () => {
 
     const xml = formatLogLineAsXml(line);
 
+    expect(xml).toContain(
+      '<message>a&#xFFFD;b&#xFFFD;c&#xFFFD;d&#xFFFD;e&#xFFFD;f&#xFFFD;g&#xFFFD;x&#xFFFD;y&#x7F;z</message>'
+    );
     expect(illegalCodePointReferences(xml)).toEqual([]);
     expect(ASCII_ONLY.test(xml)).toBe(true);
   });
@@ -223,6 +237,32 @@ describe('formatLogLineAsXml', () => {
     expect(formatLogLineAsXml(line, 'Dev\nroom\tx')).toContain(
       '<chatroom name="Dev&#xA;room&#x9;x">abc123</chatroom>'
     );
+  });
+
+  it('sanitises ANSI sequences and illegal code points in the chatroom name attribute', () => {
+    const line: LogLine = {
+      timestamp: 0,
+      level: 'info',
+      source: 'daemon',
+      message: 'm',
+      metadata: { chatroomId: 'abc123' },
+    };
+
+    expect(formatLogLineAsXml(line, 'Dev\u001b[31mX\u0000')).toContain(
+      '<chatroom name="DevX&#xFFFD;">abc123</chatroom>'
+    );
+  });
+
+  it('sanitises ANSI sequences and illegal code points in metadata field names', () => {
+    const line: LogLine = {
+      timestamp: 0,
+      level: 'info',
+      source: 'daemon',
+      message: 'm',
+      metadata: { 'k\u001b[31mk\u0000': 1 } as LogMetadata,
+    };
+
+    expect(formatLogLineAsXml(line)).toContain('<field name="kk&#xFFFD;">1</field>');
   });
 
   it('escapes XML metacharacters in metadata field names', () => {
