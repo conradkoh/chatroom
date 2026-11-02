@@ -144,8 +144,8 @@ Instructions (not part of the message): Pass the asset request as a brief the de
 ## Allowed tools
 <keep the line for each domain the brief contains and delete the others; \`None.\` for \`spec only\`.
 AI 2D: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`
-AI 3D: \`chatroom generate-3d --platform=fal --model <Model> (dry run first)\`
-Procedural 3D: \`<generator script path> <run command>, gltf-transform inspect\`>
+AI 3D: \`chatroom generate-3d --platform=fal --model <Model> (dry run first), gltf-transform inspect\`
+Procedural 3D: \`<generator script path> <run command>, git rev-parse HEAD, gltf-transform inspect\`>
 
 ## Allowed edit paths
 <repository-relative paths the designer may edit; \`None.\` for none>
