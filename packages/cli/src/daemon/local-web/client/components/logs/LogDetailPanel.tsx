@@ -1,4 +1,4 @@
-import { Check, Copy, X } from 'lucide-react';
+import { AlertCircle, Check, Copy, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { LogDimensionBadges } from './LogDimensionBadges';
@@ -9,6 +9,11 @@ import { Button } from '@/components/ui/button';
 import { formatLocalLogDateTime } from '@/lib/format-local-timestamp';
 import { formatLogLineAsXml } from '@/lib/log-line-xml';
 
+/** How long the copy button keeps its success or failure icon. */
+const COPY_FEEDBACK_DURATION_MS = 2000;
+
+type CopyStatus = 'copied' | 'failed';
+
 export function LogDetailPanel({
   line,
   chatroomName,
@@ -18,30 +23,39 @@ export function LogDetailPanel({
   chatroomName?: string | undefined;
   onClose: () => void;
 }) {
-  // Track which line was copied rather than a bare boolean, so selecting a
-  // different line immediately clears the success icon instead of showing it
-  // for the new line.
-  const [copiedLine, setCopiedLine] = useState<LogLine | null>(null);
-  const copied = copiedLine === line;
+  // Remember which line produced the feedback, not a bare boolean, so the icon
+  // is only shown for the line that was copied. The timer is keyed on the
+  // feedback itself rather than on the current line, so switching lines does
+  // not cancel the reset and leave a stale tick behind when the copied line is
+  // selected again later.
+  const [copyFeedback, setCopyFeedback] = useState<{
+    line: LogLine;
+    status: CopyStatus;
+  } | null>(null);
+  const copyStatus = copyFeedback?.line === line ? copyFeedback.status : null;
 
-  // Revert the success icon after a short delay, and always clean the timer up
-  // so no state update lands after unmount or after the line changes.
+  // Revert the icon after a short delay, and clean the timer up so no state
+  // update lands after unmount.
   useEffect(() => {
-    if (!copied) {
+    if (copyFeedback === null) {
       return;
     }
-    const timeoutId = setTimeout(() => setCopiedLine(null), 2000);
+    const timeoutId = setTimeout(() => setCopyFeedback(null), COPY_FEEDBACK_DURATION_MS);
     return () => clearTimeout(timeoutId);
-  }, [copied]);
+  }, [copyFeedback]);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(formatLogLineAsXml(line, chatroomName));
-      setCopiedLine(line);
+      setCopyFeedback({ line, status: 'copied' });
     } catch (error) {
       console.error('Failed to copy log detail as XML:', error);
+      setCopyFeedback({ line, status: 'failed' });
     }
   };
+
+  const copyFeedbackLabel =
+    copyStatus === 'copied' ? 'Copied as XML' : copyStatus === 'failed' ? 'Copy failed' : undefined;
 
   return (
     <aside
@@ -58,10 +72,19 @@ export function LogDetailPanel({
             size="sm"
             onClick={handleCopy}
             aria-label="Copy log detail as XML"
-            title="Copy as XML"
+            title={copyFeedbackLabel ?? 'Copy as XML'}
           >
-            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+            {copyStatus === 'copied' ? (
+              <Check className="size-4" />
+            ) : copyStatus === 'failed' ? (
+              <AlertCircle className="size-4" />
+            ) : (
+              <Copy className="size-4" />
+            )}
           </Button>
+          <span className="sr-only" role="status" aria-live="polite">
+            {copyFeedbackLabel ?? ''}
+          </span>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close detail panel">
             <X className="size-4" />
           </Button>
