@@ -1,11 +1,11 @@
 /**
  * Shared, domain-neutral rules and proof blocks for the game asset designer.
  *
- * The role prompt, its handoff templates, and the AI generation skills render
- * this same generic block so the brief, the designer's checks, and the delivery
- * report cannot drift apart. Domain-specific rules (generator commands, flags,
- * package contents, sheet and tile steps, and the 3D/2D checklists) live in the
- * matching skill so this block stays true for every asset type.
+ * The role prompt and its handoff templates render this same generic block so
+ * the brief, the designer's checks, and the delivery report cannot drift
+ * apart. Domain-specific rules (generator commands, flags, package contents,
+ * sheet and tile steps, and the 3D/2D checklists) live in the matching skill,
+ * which defers to this block rather than rendering it again.
  */
 
 export const GAME_ASSET_RULES: readonly string[] = [
