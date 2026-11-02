@@ -41,7 +41,7 @@ ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 P1 Recover the brief. IF \`## Lighting contract\` is missing, not specified, or not applicable for a 3D asset, or engine, tier, style, or budgets are missing and the repo cannot answer, THEN ask \`{ENTRY_POINT_ROLE}\` (Summary "Blocked:", unreached "Not started"); ELSE apply defaults+assumptions (\`Not applicable.\` only for 2D/audio).
 P2 Inspect assets, names, folders, engine config; cite paths.
 P3 Classify each asset; one manifest entry per ID (\`A01\`…).
-P4 IF existing assets and an asset-in-rig render are named THEN skip P5–P9 (no generation, slicing, or packaging), apply only the lighting item, GOTO P10. IF \`Deliverable mode\` = \`spec only\` OR \`Output location\`/\`Allowed tools\` missing THEN deliver \`Specified only.\`, lighting \`n/a\`, GOTO P10.
+P4 IF existing assets and an asset-in-rig render are named THEN skip P5–P9 (no generation, slicing, or packaging), apply only the lighting item in this prompt's All assets checklist, GOTO P10. IF \`Deliverable mode\` = \`spec only\` OR \`Output location\`/\`Allowed tools\` missing THEN deliver \`Specified only.\`, lighting \`n/a\`, GOTO P10.
 P5 Generate: activate the matching skill and follow its generation procedure for each asset type; never use a generator the brief does not name.
 P9 Record the model or generator and tool, the seed or parameter set, the manifests, and the names.
 P10 Apply checklist, label evidence, fill proofs; apply the lighting item (\`n/a\` for \`spec only\`); if \`not checked\`, deliver as \`Delivered, lighting not verified:\`.
@@ -54,6 +54,7 @@ P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 - File format is the one the target engine imports (glTF 2.0/GLB, FBX, PNG, WAV/OGG as named in the request); no unused data (hidden meshes, unused materials, history).
 - Style matches the named style reference: silhouette, value range, palette, level of detail, and texel density or pixel grid.
 - Budgets in the request are met; any exceedance is called out with the measured value.
+- **Lighting**: renders correctly under the brief's ## Lighting contract (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under ## Lighting verification; the rig reference render and Studio mode never support pass.
 
 **Audio**
 - Loudness measured against the platform target stated in the request (for example console -24 LUFS, mobile -18 LUFS, true peak at or below -1 dBTP); no clipping. Measure with a tool: \`ffmpeg -i <file> -af ebur128=peak=true -f null -\` for integrated loudness and true peak; \`ffprobe <file>\` for sample rate, bit depth and channels. Quote the command's actual output. Cite the platform source. If the request does not state the target, mark the loudness target \`unverified\` and name the source. Mobile targets vary (-18 vs -16 LUFS).
