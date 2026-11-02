@@ -87,7 +87,7 @@ vi.mock('@/hooks/useIsDesktop', () => ({
 vi.mock('../features/scheduled-prompts/components/ScheduledPromptCard', () => {
   const React = require('react');
   return {
-    ScheduledPromptCard: ({ prompt, setEnabled }: any) => {
+    ScheduledPromptCard: ({ prompt, setEnabled, onEdit }: any) => {
       const [actionsOpen, setActionsOpen] = React.useState(false);
       const isArchiveDisabled = prompt.disabledReason === 'archive';
       const isActive = prompt.disabledReason === undefined;
@@ -135,8 +135,24 @@ vi.mock('../features/scheduled-prompts/components/ScheduledPromptCard', () => {
         actionsOpen &&
           !isArchiveDisabled &&
           (isDesktop
-            ? React.createElement('div', { 'data-testid': 'popover-content' }, 'Edit')
-            : React.createElement('div', { 'data-testid': 'drawer-content' }, 'Edit'))
+            ? React.createElement(
+                'div',
+                { 'data-testid': 'popover-content' },
+                React.createElement(
+                  'button',
+                  { type: 'button', onClick: () => onEdit(prompt._id) },
+                  'Edit'
+                )
+              )
+            : React.createElement(
+                'div',
+                { 'data-testid': 'drawer-content' },
+                React.createElement(
+                  'button',
+                  { type: 'button', onClick: () => onEdit(prompt._id) },
+                  'Edit'
+                )
+              ))
       );
     },
   };
@@ -354,5 +370,86 @@ describe('ScheduledPromptsTab', () => {
       expect(screen.getByText('Pick a time in the future')).toBeDefined();
     });
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('renames a past-due, user-disabled once row without a future-time error', async () => {
+    desktopMock.value = true;
+    const pastRunAt = Date.now() - 60 * 60_000;
+    mocks.list.mockReturnValue([
+      {
+        ...PROMPT_ACTIVE,
+        _id: 'prompt-past-once',
+        name: 'Past one',
+        prompt: 'Rename me',
+        scheduleKind: 'once',
+        hourUTC: undefined,
+        minuteUTC: undefined,
+        runAt: pastRunAt,
+        disabledReason: 'user',
+        isRunnable: false,
+        nextRunAt: undefined,
+      },
+    ]);
+    mocks.update.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByTestId('scheduled-prompt-card'));
+    fireEvent.click(await screen.findByText('Edit'));
+
+    fireEvent.change(await screen.findByPlaceholderText('Daily Standup'), {
+      target: { value: 'Renamed' },
+    });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => {
+      expect(mocks.update).toHaveBeenCalledWith({
+        scheduledPromptId: 'prompt-past-once',
+        name: 'Renamed',
+        prompt: 'Rename me',
+        scheduleKind: 'once',
+        runAt: Math.floor(pastRunAt / 60_000) * 60_000,
+      });
+    });
+    expect(screen.queryByText('Pick a time in the future')).toBeNull();
+  });
+
+  it('still rejects changing a once row to a past time', async () => {
+    desktopMock.value = true;
+    const futureRunAt = Date.now() + 60 * 60_000;
+    mocks.list.mockReturnValue([
+      {
+        ...PROMPT_ACTIVE,
+        _id: 'prompt-future-once',
+        name: 'Future one',
+        prompt: 'Keep me',
+        scheduleKind: 'once',
+        hourUTC: undefined,
+        minuteUTC: undefined,
+        runAt: futureRunAt,
+        disabledReason: undefined,
+        isRunnable: true,
+        nextRunAt: futureRunAt,
+      },
+    ]);
+    mocks.update.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByTestId('scheduled-prompt-card'));
+    fireEvent.click(await screen.findByText('Edit'));
+
+    fireEvent.change(await screen.findByPlaceholderText('Daily Standup'), {
+      target: { value: 'Renamed' },
+    });
+    fireEvent.change(document.querySelector('input[type="datetime-local"]') as HTMLInputElement, {
+      target: { value: utcMsToLocalDateTimeInput(Date.now() - 60 * 60_000) },
+    });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Pick a time in the future')).toBeDefined();
+    });
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

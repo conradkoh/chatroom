@@ -200,7 +200,14 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
         setError('Pick a date and time');
         return;
       }
-      if (runAt <= Date.now()) {
+      // Compare at minute precision: the form input has no seconds. An unchanged
+      // time is not re-checked, so a past-due row can still be renamed before the
+      // cron fires it (the backend skips re-validation the same way).
+      const runAtUnchanged =
+        initial?.scheduleKind === 'once' &&
+        initial.runAt !== undefined &&
+        Math.floor(runAt / 60_000) === Math.floor(initial.runAt / 60_000);
+      if (!runAtUnchanged && runAt <= Date.now()) {
         setError('Pick a time in the future');
         return;
       }
