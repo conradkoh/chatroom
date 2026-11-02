@@ -40,6 +40,8 @@ The shared rules in your role prompt apply, including its evidence labels; this 
 
 Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label.
 
+Also apply the role prompt's All assets checklist.
+
 ${format3dModelChecklist({
   metalnessLine:
     'Metalness follows the lighting contract: with no environment map, the material is not whole-surface metal (metallic 0 across the surface; metal has no diffuse response and renders near-black).',
@@ -47,11 +49,7 @@ ${format3dModelChecklist({
 
 ## Lighting contract
 
-- Apply the brief's \`## Lighting contract\` exactly. No lighting may be baked into the base colour, and with no environment map the material is not whole-surface metal.
-- The **rig reference render** is "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`."
-- The **asset-in-rig render** is "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`."
-- Producing either render is never your job. Procedural output has no preview; without the asset-in-rig render the lighting item is \`not checked\`.
-- \`not checked\` blocks delivery: the summary starts \`Delivered, lighting not verified:\`.
+- Procedural output has no preview.
 
 ## Proof of Principles
 

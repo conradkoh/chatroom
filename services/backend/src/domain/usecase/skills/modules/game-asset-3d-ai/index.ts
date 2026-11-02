@@ -29,6 +29,8 @@ The shared rules in your role prompt apply, including its evidence labels; this 
 
 Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label.
 
+Also apply the role prompt's All assets checklist.
+
 ${format3dModelChecklist({
   metalnessLine:
     'Metalness follows the lighting contract: with no environment map, the written material is not whole-surface metal (metallic 0 across the surface; metal has no diffuse response and renders near-black). \`generate-3d\` reports a whole-surface metal material as the \`metal-whole-texture\` warning; if it remains after one regeneration, report it under Open questions.',
@@ -36,11 +38,7 @@ ${format3dModelChecklist({
 
 ## Lighting contract
 
-- Apply the brief's \`## Lighting contract\` exactly. No lighting may be baked into the base colour, and with no environment map the material is not whole-surface metal.
-- The **rig reference render** is "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`."
-- The **asset-in-rig render** is "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`."
-- Producing either render is never your job. Without the asset-in-rig render the lighting item is \`not checked\`; the preview's Directional and Unlit modes are the game case, but no allowed tool captures those views, so record the reason "no allowed capture tool". Studio mode is image-based lighting and is never lighting evidence.
-- \`not checked\` blocks delivery: the summary starts \`Delivered, lighting not verified:\`.
+- For the asset preview, the preview's Directional and Unlit modes are the game case, but no allowed tool captures those views, so record the reason "no allowed capture tool". Studio mode is image-based lighting and is never lighting evidence.
 - For a 3D set, generate the first approved asset's reference and reuse its palette and lighting words for the rest.
 
 ## Proof of Principles

@@ -45,16 +45,14 @@ Assets used together must share one camera perspective. The model's constraints 
 
 Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label.
 
+Also apply the role prompt's All assets checklist.
+
 - Fixed grid and pixels-per-unit declared; sprite sizes are multiples of the grid; no sub-pixel offsets.
 - Palette size and colors declared; transparent background with clean alpha edges.
 - Animation: uniform frame size per clip, frame count, frame rate, loop flag, and pivot per clip.
 - Atlas: padding of at least the engine default (Unity default 4 px), atlas size within the platform max, filter mode Point for pixel art, and no mip maps.
 - Export PNG (lossless with alpha); the name states size and frame count where relevant.
 - Camera perspective matches the perspective chosen for the set (the brief's \`Perspective\`, or the one recorded under assumptions) and every other asset in the set (compare them side by side); \`n/a\` for a single asset.
-- Naming follows the project convention (type prefix, descriptive name, variant); ASCII, no spaces; the folder matches the asset category.
-- The file format is the one the target engine imports; no unused data.
-- Style matches the named style reference: silhouette, value range, palette, level of detail, and pixel grid.
-- Budgets in the request are met; any exceedance is called out with the measured value.
 
 ## Domain rules
 
