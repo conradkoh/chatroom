@@ -13,7 +13,7 @@ import type * as admin_users from '../admin/users.js';
 import type * as agentWorkspaces from '../agentWorkspaces.js';
 import type * as agenticQueryCleanup from '../agenticQueryCleanup.js';
 import type * as agents from '../agents.js';
-import type * as allTabConversation from '../allTabConversation.js';
+import type * as conversation from '../conversation.js';
 import type * as api_agenticQueryHelpers from '../api/agenticQueryHelpers.js';
 import type * as api_harnessChunkAggregate from '../api/harnessChunkAggregate.js';
 import type * as api_harnessTurnViewHelpers from '../api/harnessTurnViewHelpers.js';
@@ -158,7 +158,7 @@ declare const fullApi: ApiFromModules<{
   agentWorkspaces: typeof agentWorkspaces;
   agenticQueryCleanup: typeof agenticQueryCleanup;
   agents: typeof agents;
-  allTabConversation: typeof allTabConversation;
+  conversation: typeof conversation;
   'api/agenticQueryHelpers': typeof api_agenticQueryHelpers;
   'api/harnessChunkAggregate': typeof api_harnessChunkAggregate;
   'api/harnessTurnViewHelpers': typeof api_harnessTurnViewHelpers;

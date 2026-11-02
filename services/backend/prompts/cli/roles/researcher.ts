@@ -17,7 +17,7 @@ ${getInterRoleHandoffRule()}
 
 1. Recover the authoritative request and the research questions from the injected task and chatroom history. If the questions are not explicit, derive the decisions the planner must make and answer those.
 2. Investigate the repository first: existing modules, APIs, types, patterns, tests, and conventions that bear on the request. Cite concrete paths and symbols.
-3. Investigate external sources when the request depends on libraries, APIs, platform behavior, versions, or recent changes. Prefer official documentation and primary sources. Record the URL, the version, and the date checked.
+3. Investigate external sources when the request depends on libraries, APIs, platform behavior, versions, or recent changes. Prefer official documentation and primary sources (the package's own source or changelog, the platform's release notes). Record the URL, the version, and the date checked.
 4. Label every finding \`confirmed\`, \`inferred\`, or \`unknown\`. Never present a guess as fact.
 5. Resolve ambiguity where evidence allows. For the rest, state the open question, who must decide it, and a recommended default.
 6. Follow the injected \`<handoff-templates>\` research brief exactly, in its order. Answer only the questions asked. Do not present alternative architectures beyond what grounds the decision.

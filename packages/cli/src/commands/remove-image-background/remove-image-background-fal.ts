@@ -28,6 +28,7 @@ import {
   sha256,
 } from '../image-shared/image-preflight.js';
 import type { PathStatus } from '../image-shared/output-files.js';
+import { findUnwritablePathMessage, type WritableTarget } from '../image-shared/writable-path.js';
 
 export type BackgroundEngine = 'bria' | 'birefnet';
 export const DEFAULT_BACKGROUND_ENGINE: BackgroundEngine = 'bria';
@@ -212,25 +213,14 @@ function requireMatchingDimensions(args: {
   return result;
 }
 
-/**
- * Refuse to clobber an existing file unless the user asked with --force.
- * A directory is always a conflict, even with --force.
- */
-async function requireWritablePath(
-  path: string,
-  label: string,
-  force: boolean,
-  deps: RemoveBackgroundFalDeps
+/** Throw the shared refusal message with this command's error type. */
+async function requireWritablePaths(
+  deps: RemoveBackgroundFalDeps,
+  targets: readonly WritableTarget[],
+  force: boolean
 ): Promise<void> {
-  const status = await deps.pathStatus(path);
-  if (status === 'directory') {
-    throw new RemoveBackgroundFalError(`${label} is a directory: ${path}. Pass a file path.`);
-  }
-  if (status === 'file' && !force) {
-    throw new RemoveBackgroundFalError(
-      `${label} already exists: ${path}. Pass --force to overwrite.`
-    );
-  }
+  const message = await findUnwritablePathMessage(deps, targets, force);
+  if (message !== null) throw new RemoveBackgroundFalError(message);
 }
 
 /** Both outputs are preflighted before the paid call, as in generate-image. */
@@ -240,8 +230,14 @@ async function requireWritableOutputs(
   force: boolean,
   deps: RemoveBackgroundFalDeps
 ): Promise<void> {
-  await requireWritablePath(outPath, '--out', force, deps);
-  await requireWritablePath(manifestPath, 'Manifest', force, deps);
+  await requireWritablePaths(
+    deps,
+    [
+      { path: outPath, label: '--out' },
+      { path: manifestPath, label: 'Manifest' },
+    ],
+    force
+  );
 }
 
 /** A manifest write failure happens after the paid call, so name the request id. */

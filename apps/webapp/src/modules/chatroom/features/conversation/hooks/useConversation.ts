@@ -4,8 +4,9 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { usePaginatedQuery, type PaginatedQueryReference } from 'convex/react';
 import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { shallowEqualRecord, structurallyEqual } from './stableIdentity';
 import { toMessage } from '../../../hooks/chatroomMessageStore';
 import { getHandoffDurationMs } from '../../../timeline/handoffTiming';
 import { mapMessageToTimelineEvent } from '../../../timeline/mapMessageToTimelineEvent';
@@ -30,13 +31,13 @@ function mergeMessagesById(base: Message[], extra: Message[]): Message[] {
 }
 
 // fallow-ignore-next-line complexity
-export function useAllTabConversation(chatroomId: string) {
+export function useConversation(chatroomId: string) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const [sessionId] = useSessionId();
   const [selectedAnchorId, setSelectedAnchorId] = useState<Id<'chatroom_messages'> | null>(null);
 
   const nav = useSessionQuery(
-    api.allTabConversation.getAllTabAnchorNavigation,
+    api.conversation.getConversationAnchorNavigation,
     sessionId
       ? {
           chatroomId: typedChatroomId,
@@ -50,7 +51,7 @@ export function useAllTabConversation(chatroomId: string) {
   const sliceUpperBound = nav?.sliceUpperBoundExclusive ?? null;
 
   const paginated = usePaginatedQuery(
-    api.allTabConversation.listAllTabSlicePaginated as PaginatedQueryReference,
+    api.conversation.listConversationSlicePaginated as PaginatedQueryReference,
     effectiveAnchorId && sessionId && nav !== undefined
       ? {
           chatroomId: typedChatroomId,
@@ -80,7 +81,7 @@ export function useAllTabConversation(chatroomId: string) {
   }, [paginatedMessages]);
 
   const tail = useSessionQuery(
-    api.allTabConversation.subscribeAllTabSliceTail,
+    api.conversation.subscribeConversationSliceTail,
     sessionId && effectiveAnchorId && isPaginationExhausted
       ? {
           chatroomId: typedChatroomId,
@@ -92,10 +93,32 @@ export function useAllTabConversation(chatroomId: string) {
 
   const tailMessages = useMemo(() => (tail ?? []).map(toMessage), [tail]);
 
-  const messages = useMemo(
+  const mergedMessages = useMemo(
     () => mergeMessagesById(paginatedMessages, tailMessages),
     [paginatedMessages, tailMessages]
   );
+
+  // Reuse the previous `Message` object whenever the served document is equal.
+  // Convex rebuilds the whole document tree on each update, so without this every
+  // row below receives a new object and `memo` never bails out (O(N) per update).
+  //
+  // This writes a ref during render. That is safe because the write is idempotent
+  // for a given `mergedMessages` (same input → same cache) and a render React
+  // discards only costs one extra stabilization pass on the next render.
+  const stableMessagesRef = useRef<Map<string, Message>>(new Map());
+  const messages = useMemo(() => {
+    const previousById = stableMessagesRef.current;
+    const nextById = new Map<string, Message>();
+    const stabilized = mergedMessages.map((message) => {
+      const previous = previousById.get(message._id);
+      const stable = previous && structurallyEqual(previous, message) ? previous : message;
+      nextById.set(message._id, stable);
+      return stable;
+    });
+    // Cache only the ids present in this pass so it never grows unbounded.
+    stableMessagesRef.current = nextById;
+    return stabilized;
+  }, [mergedMessages]);
 
   const messagesById = useMemo(
     () => new Map(messages.map((message) => [message._id, message] as const)),
@@ -125,13 +148,36 @@ export function useAllTabConversation(chatroomId: string) {
     setSelectedAnchorId(null);
   }, []);
 
-  const events: TimelineEvent[] = useMemo(
-    () =>
-      messages.map((message) =>
-        mapMessageToTimelineEvent(message, getHandoffDurationMs(message, messagesById))
-      ),
-    [messages, messagesById]
-  );
+  // `handoffDurationMs` is derived from other messages, so an event is keyed on
+  // both its message (now identity-stable) and the freshly computed duration.
+  //
+  // Like `stableMessagesRef`, this ref write happens during render. It is safe
+  // because the write is idempotent per `messages`/`messagesById` pair, and a
+  // discarded render only costs one extra pass on the next render.
+  const stableEventsRef = useRef<Map<string, TimelineEvent>>(new Map());
+  const events: TimelineEvent[] = useMemo(() => {
+    const previousById = stableEventsRef.current;
+    const nextById = new Map<string, TimelineEvent>();
+    const stabilized = messages.map((message) => {
+      const next = mapMessageToTimelineEvent(message, getHandoffDurationMs(message, messagesById));
+      const previous = previousById.get(next.id);
+      const stable = previous && shallowEqualRecord(previous, next) ? previous : next;
+      nextById.set(next.id, stable);
+      return stable;
+    });
+    stableEventsRef.current = nextById;
+    return stabilized;
+  }, [messages, messagesById]);
+
+  // `usePaginatedQuery` allocates a fresh `loadMore` on every render, so keep the
+  // latest one in a ref to expose a callback whose identity never changes.
+  // `useLayoutEffect` matches the `eventsRef` sync in `ConversationMessageList`, so both
+  // refs are current before the browser can paint or scroll.
+  const paginatedLoadMoreRef = useRef(paginated.loadMore);
+  useLayoutEffect(() => {
+    paginatedLoadMoreRef.current = paginated.loadMore;
+  }, [paginated.loadMore]);
+  const loadMore = useCallback(() => paginatedLoadMoreRef.current(PAGE_SIZE), []);
 
   return {
     events,
@@ -140,7 +186,7 @@ export function useAllTabConversation(chatroomId: string) {
     isLoading: isSliceLoading,
     isLoadingMore: paginated.status === 'LoadingMore',
     canLoadMore: paginated.status === 'CanLoadMore',
-    loadMore: () => paginated.loadMore(PAGE_SIZE),
+    loadMore,
     goToPrev,
     goToNext,
     goToLatestAnchor,

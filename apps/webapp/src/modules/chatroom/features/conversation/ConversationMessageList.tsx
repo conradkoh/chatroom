@@ -3,7 +3,7 @@
 // fallow-ignore-file complexity
 
 import { ChevronDown } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 
 import { TimelineEventRow } from '../../components/timeline/TimelineEventRow';
 import {
@@ -11,7 +11,7 @@ import {
   TIMELINE_SCROLL_CONTAINER,
   TIMELINE_SCROLL_CONTAINER_STYLE,
 } from '../../components/timeline/timelineRowStyles';
-import type { MachineNameEntry } from '../../components/timeline/timelineRowStyles';
+import type { TimelineMessageHeaderNavigation } from '../../components/timeline/timelineRowStyles';
 import {
   JUMP_TO_NEW_MESSAGES_GAP_PX,
   JUMP_TO_NEW_MESSAGES_Z_INDEX,
@@ -23,22 +23,69 @@ import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 const LOAD_MORE_THRESHOLD = 120;
 
+type JumpTarget = 'first' | 'previous' | 'current' | 'next' | 'last';
+
 function scrollRowToTop(container: HTMLElement, row: HTMLElement): void {
   const top =
     row.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
   container.scrollTo({ top, behavior: 'smooth' });
 }
 
-export function AllTabMessageList({
+/**
+ * Memoized timeline row.
+ *
+ * `headerNavigation` used to be built inline per row in the parent's render,
+ * which handed every row a new object and defeated `memo` on
+ * `TimelineEventRow`/`TimelineTeamMessage` — so every Convex update re-rendered
+ * the whole feed. Building it here (memoized on index/bounds/onJump) keeps row
+ * props stable across updates that change other rows only.
+ */
+const ConversationRow = memo(function ConversationRow({
+  event,
+  index,
+  isFirst,
+  isLast,
+  onJump,
+}: {
+  event: TimelineEvent;
+  index: number;
+  isFirst: boolean;
+  isLast: boolean;
+  onJump: (index: number, target: JumpTarget) => void;
+}) {
+  const headerNavigation = useMemo<TimelineMessageHeaderNavigation>(
+    () => ({
+      onJumpToFirst: () => onJump(index, 'first'),
+      onJumpToPrevious: () => onJump(index, 'previous'),
+      onJumpToCurrent: () => onJump(index, 'current'),
+      onJumpToNext: () => onJump(index, 'next'),
+      onJumpToLast: () => onJump(index, 'last'),
+      hasFirst: !isFirst,
+      hasPrevious: !isFirst,
+      hasNext: !isLast,
+      hasLast: !isLast,
+    }),
+    [index, isFirst, isLast, onJump]
+  );
+
+  return (
+    <div
+      data-message-id={event.id}
+      style={{ position: 'relative', zIndex: getTimelineVirtualRowZIndex(index) }}
+    >
+      <TimelineEventRow event={event} chatroomId="" headerNavigation={headerNavigation} />
+    </div>
+  );
+});
+
+export function ConversationMessageList({
   events,
-  machines,
   anchorId,
   canLoadMore,
   isLoadingMore,
   onLoadMore,
 }: {
   events: TimelineEvent[];
-  machines?: Map<string, MachineNameEntry>;
   anchorId: string | null;
   canLoadMore?: boolean;
   isLoadingMore?: boolean;
@@ -77,6 +124,29 @@ export function AllTabMessageList({
     if (!row) return;
     scrollRowToTop(el, row);
   }, []);
+
+  // Latest events for the stable jump callback below. A ref keeps `onJump`
+  // identity stable so memoized rows are not invalidated by every append.
+  const eventsRef = useRef(events);
+  useLayoutEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
+
+  const onJump = useCallback(
+    (index: number, target: JumpTarget) => {
+      const list = eventsRef.current;
+      const targetIndex = {
+        first: 0,
+        previous: index - 1,
+        current: index,
+        next: index + 1,
+        last: list.length - 1,
+      }[target];
+      const event = list[targetIndex];
+      if (event) scrollToMessageTop(event.id);
+    },
+    [scrollToMessageTop]
+  );
 
   // Anchor change → scroll to top + sync pin (dispatch scroll so controller unpins)
   useEffect(() => {
@@ -122,46 +192,20 @@ export function AllTabMessageList({
         onScroll={handleScroll}
         className={`relative z-0 flex-1 ${TIMELINE_SCROLL_CONTAINER}`}
         style={TIMELINE_SCROLL_CONTAINER_STYLE}
-        data-testid="all-tab-message-list"
+        data-testid="conversation-message-list"
       >
         {events.map((event, index) => (
-          <div
+          <ConversationRow
             key={event.id}
-            data-message-id={event.id}
-            style={{ position: 'relative', zIndex: getTimelineVirtualRowZIndex(index) }}
-          >
-            <TimelineEventRow
-              event={event}
-              chatroomId=""
-              machines={machines}
-              headerNavigation={{
-                onJumpToFirst: () => {
-                  const first = events[0];
-                  if (first) scrollToMessageTop(first.id);
-                },
-                onJumpToPrevious: () => {
-                  const previous = events[index - 1];
-                  if (previous) scrollToMessageTop(previous.id);
-                },
-                onJumpToCurrent: () => scrollToMessageTop(event.id),
-                onJumpToNext: () => {
-                  const next = events[index + 1];
-                  if (next) scrollToMessageTop(next.id);
-                },
-                onJumpToLast: () => {
-                  const last = events[events.length - 1];
-                  if (last) scrollToMessageTop(last.id);
-                },
-                hasFirst: index > 0,
-                hasPrevious: index > 0,
-                hasNext: index < events.length - 1,
-                hasLast: index < events.length - 1,
-              }}
-            />
-          </div>
+            event={event}
+            index={index}
+            isFirst={index === 0}
+            isLast={index === events.length - 1}
+            onJump={onJump}
+          />
         ))}
         {isLoadingMore && (
-          <div className="py-2 flex justify-center" data-testid="all-tab-loading-more">
+          <div className="py-2 flex justify-center" data-testid="conversation-loading-more">
             <ChatroomLoader size="sm" />
           </div>
         )}
@@ -174,7 +218,7 @@ export function AllTabMessageList({
           style={{ bottom: JUMP_TO_NEW_MESSAGES_GAP_PX, zIndex: JUMP_TO_NEW_MESSAGES_Z_INDEX }}
           className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
-          data-testid="all-tab-jump-to-new-messages"
+          data-testid="conversation-jump-to-new-messages"
         >
           <ChevronDown size={16} />
           <span className="text-xs font-medium">Jump to new messages</span>

@@ -10,7 +10,7 @@ function formatChatroomTimestamp(ms: number, year: boolean): string {
   const d = year
     ? `${ordinalDay(dt.day)} ${dt.toFormat('MMMM yyyy')}`
     : `${ordinalDay(dt.day)} ${dt.toFormat('MMMM')}`;
-  return `${d}, ${dt.toFormat('h:mma').toLowerCase()}`;
+  return `${d}, ${formatTimeOfDay(ms)}`;
 }
 export function formatTimestamp(ms: number): string {
   const dt = DateTime.fromMillis(ms);
@@ -18,4 +18,9 @@ export function formatTimestamp(ms: number): string {
 }
 export function formatTimestampFull(ms: number): string {
   return formatChatroomTimestamp(ms, true);
+}
+
+/** Time of day only (e.g. `2:14pm`); the compact form of {@link formatChatroomTimestamp}'s time part. */
+export function formatTimeOfDay(ms: number): string {
+  return DateTime.fromMillis(ms).toFormat('h:mma').toLowerCase();
 }

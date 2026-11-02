@@ -151,9 +151,11 @@ The preview page has three lighting modes:
   API. It reuses the loaded base-colour texture and does not embed a second copy
   of the model.
 
-These modes are for inspecting the asset. The game's environment lighting is the
-engine's job: an asset should look right under a neutral environment map, and
-the preview does not prescribe a game lighting setup.
+These modes are for inspecting the asset. Studio is image-based lighting: it is
+the best case, and it is **not evidence** that the asset renders in a game whose
+scene has no environment map. Directional and Unlit approximate the no-environment
+game case. An asset is not accepted until it has been rendered under the project's
+real rig, or the user explicitly accepts it.
 
 ## Checks
 
@@ -188,22 +190,22 @@ alike; `prompt` and `image_url` are reserved for `--prompt` and `--input-image`.
 
 ## Flags
 
-| Flag                          | Meaning                                                                      |
-| ----------------------------- | ---------------------------------------------------------------------------- |
-| `--model <id>`                | fal endpoint id; defaults to `fal-ai/trellis-2`, any id is accepted.         |
-| `--out <path>`                | Output GLB path; the manifest is `<path>.json`.                              |
-| `--prompt <text>`             | Text prompt; with the default model a reference image is generated first.    |
-| `--input-image <path-or-url>` | Reference image: a local `.png`/`.jpg`/`.jpeg` (uploaded) or an http(s) URL. |
-| `--input <json\|@file>`       | Extra fal request fields, merged over the model defaults.                    |
-| `--rig`                       | Rig with Meshy 7.1; Meshy models only, and needs `--confirm-cost`.           |
-| `--animation-action-id <id>`  | Meshy preset clip (0–696), repeatable; requires `--rig`.                     |
-| `--target-height <m>`         | Scale the model so its height is this many metres.                           |
-| `--origin <mode>`             | `feet`, `center`, or `as-is` (default).                                      |
-| `--confirm-cost`              | Confirm the priced plan for a real rigging run; not needed with `--dry-run`. |
-| `--package-dir <dir>`         | Directory for the zip and preview; defaults to the directory of `--out`.     |
-| `--force`                     | Replace existing output, reference, package, preview, rig, and clip files.   |
-| `--dry-run`                   | Print the request and the list-price estimate; no upload or fal call.        |
-| `--platform <name>`           | Generation platform; only `fal`.                                             |
+| Flag                          | Meaning                                                                                                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--model <id>`                | fal endpoint id; defaults to `fal-ai/trellis-2`, any id is accepted.                                                                                        |
+| `--out <path>`                | Output GLB path; the manifest is `<path>.json`.                                                                                                             |
+| `--prompt <text>`             | Text prompt; with the default model a reference image is generated first.                                                                                   |
+| `--input-image <path-or-url>` | Reference image: a local `.png`/`.jpg`/`.jpeg` (uploaded) or an http(s) URL.                                                                                |
+| `--input <json\|@file>`       | Extra fal request fields, merged over the model defaults.                                                                                                   |
+| `--rig`                       | Rig with Meshy 7.1; Meshy models only, and needs `--confirm-cost`.                                                                                          |
+| `--animation-action-id <id>`  | Meshy preset clip (0–696), repeatable; requires `--rig`.                                                                                                    |
+| `--target-height <m>`         | Scale the model so its height is this many metres.                                                                                                          |
+| `--origin <mode>`             | `feet`, `center`, or `as-is` (default).                                                                                                                     |
+| `--confirm-cost`              | Confirm the priced plan for a real rigging run; not needed with `--dry-run`.                                                                                |
+| `--package-dir <dir>`         | Directory for the zip and preview; defaults to the directory of `--out`.                                                                                    |
+| `--force`                     | Replace existing output, reference, package, preview, rig, and clip files.                                                                                  |
+| `--dry-run`                   | Print the request and the list-price estimate; no upload or fal call. Refuses an existing output unless `--force`; a dry run with `--force` writes nothing. |
+| `--platform <name>`           | Generation platform; only `fal`.                                                                                                                            |
 
 ## Known limits
 
