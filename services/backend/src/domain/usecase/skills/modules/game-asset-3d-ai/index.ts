@@ -30,7 +30,7 @@ ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 
 1. Recover the brief. Do not generate unless \`## Output location\`, \`## Allowed tools\`, \`## Model\`, and \`## Output paths\` are named. If \`## Lighting contract\` is missing, \`Not specified.\`, or not applicable for a 3D asset, stop with \`Blocked:\` and ask for it.
 2. Run \`chatroom generate-3d --help\` before the first real call. The known model ids and the flags each model accepts come from that output, never from memory.
-3. Dry run the exact command shape first: \`chatroom generate-3d --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/<ascii-name>.glb --dry-run\`. Apply every constraint it prints and never add a parameter it reports as unsupported. The default model is \`fal-ai/trellis-2\`: a prompt on it generates a 1024x1024 reference image with FLUX 2 Flash first, and that image ships in the package.
+3. Dry run the exact command shape you will use (\`--prompt\` or \`--input-image\`) first: \`chatroom generate-3d --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/<ascii-name>.glb --dry-run\`. Apply every constraint it prints and never add a parameter it reports as unsupported. The default model is \`fal-ai/trellis-2\`: a prompt on it generates a 1024x1024 reference image with FLUX 2 Flash first, and that image ships in the package.
 4. Real run only in the shape the dry run validated: \`chatroom generate-3d --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/<ascii-name>.glb\`. Pass \`--confirm-cost\` only when \`## Cost confirmation\` quotes the user's approval of that priced plan; otherwise return the priced plan and stop.
 5. Pass \`--rig\` and \`--animation-action-id\` only for \`meshy/v7.1\` models, only when the brief asks for rigging or animation, and only after the user confirms the priced dry run. Rigging expects a humanoid mesh and is verified only for Meshy GLBs.
 6. Choose the input shape from the brief: \`--prompt\` for text-to-3D, \`--input-image <path>\` for image-to-3D, and \`--input '<JSON>'\` from \`## Model parameters\` on every call. The rig reference render is a style target only; it is not an input image unless the brief says so.
@@ -64,14 +64,6 @@ Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label
 - The **asset-in-rig render** is "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`."
 - Producing either render is never your job. Without the asset-in-rig render the lighting item is \`not checked\`; the preview's Directional and Unlit modes are the game case, but no allowed tool captures those views, so record the reason "no allowed capture tool". Studio mode is image-based lighting and is never lighting evidence.
 - \`not checked\` blocks delivery: the summary starts \`Delivered, lighting not verified:\`.
-
-## Scope and failure handling
-
-- Write only under \`Output location\` and \`Allowed edit paths\`; never overwrite or delete a path the brief does not name.
-- If \`FAL_API_KEY\` is unset, the generator is missing, or a run fails, stop generation, quote the exact error, and record the item as unverified. Do not retry in a loop.
-- Do not install or run any remote tool, script, or skill, and do not fetch generator code.
-- Never switch generators: the 3D model comes from \`chatroom generate-3d --platform=fal\` and nothing else.
-- Commit only when the brief names the paths and the commit message.
-- Describe output as production-ready only when every checklist item passes with \`measured\` or \`inspected\` evidence.
+- For a 3D set, generate the first approved asset's reference and reuse its palette and lighting words for the rest.
 `,
 };

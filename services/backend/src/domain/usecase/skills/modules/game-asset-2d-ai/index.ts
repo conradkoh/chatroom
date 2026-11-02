@@ -30,7 +30,7 @@ ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 
 1. Recover the brief. Do not generate unless \`## Output location\`, \`## Allowed tools\`, \`## Model\`, and \`## Perspective\` are answered. If the perspective is \`Not specified.\`, pick one, record it under assumptions, and use it for the whole set.
 2. Count the assets (N). If N is 1 or the styles differ, use the per-asset path (step 4). Otherwise use \`ceil(N/(C×R))\` sheets at most the brief's \`## Sheet grid\` (default 2x2); a larger grid needs a user request quoted in the brief, one asset per cell, \`CxR\` cells, no borders and no duplicates.
-3. Dry run the exact command shape first: \`chatroom generate-image --platform=fal --model fal-ai/flux-2/flash --prompt "<prompt>" --out <Output location>/_work/<sheet>.png --dry-run\`. Apply every constraint it prints; never add a parameter the dry run reports as unsupported. Then generate with the same shape, adding \`--seed <n>\` and \`--input '<JSON>'\` from \`## Model parameters\`. Use \`fal-ai/flux-2/flash/edit\` with \`--input-image <path>\` only when the brief names that model and \`## Perspective\` names a reference path; in edit mode generate every asset individually and never use a sheet.
+3. Dry run each command shape (sheet, per-asset, and reference edit) before its first real call: \`chatroom generate-image --platform=fal --model fal-ai/flux-2/flash --prompt "<prompt>" --out <Output location>/_work/<sheet>.png --dry-run\`. Apply every constraint it prints; never add a parameter the dry run reports as unsupported. Then generate with the same shape, adding \`--seed <n>\` and \`--input '<JSON>'\` from \`## Model parameters\`. Use \`fal-ai/flux-2/flash/edit\` with \`--input-image <path>\` only when the brief names that model and \`## Perspective\` names a reference path; in edit mode generate every asset individually and never use a sheet.
 4. Per-asset path, one call per asset: \`chatroom generate-image --platform=fal --model fal-ai/flux-2/flash --prompt "<prompt>" --out <Output location>/_work/<ascii-name>.png --seed <n> --input '<JSON>'\`.
 5. Run \`chatroom slice-image --help\` before the first use, then \`chatroom slice-image --in <sheet> --out-dir <Output location>/_work/tiles --cols C --rows R\`. If the sheet is refused, regenerate it once; if it is still refused, fall back to one \`generate-image\` call per asset (step 4).
 6. Inspect every tile. A valid tile holds exactly one complete asset: zero or two or more items, a cut item, or a count that differs from the brief's requested count (extra empty cells are fine) fails the tile check. Regenerate the sheet once; if a tile still fails, fall back to one \`generate-image\` call for that asset (step 4). Assign names from what you see, never from cell order or prompt order.
@@ -69,14 +69,9 @@ Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label
 - Style matches the named style reference: silhouette, value range, palette, level of detail, and pixel grid.
 - Budgets in the request are met; any exceedance is called out with the measured value.
 
-## Scope and failure handling
+## Domain rules
 
-- Write only under \`Output location\` and \`Allowed edit paths\`; never overwrite or delete a path the brief does not name.
 - Process images only with \`chatroom slice-image\` and \`chatroom remove-image-background\`; no other tool, script, or remote service.
-- If \`FAL_API_KEY\` is unset, the generator is missing, or a call fails, stop generation, quote the exact error, and record the item as unverified. Do not retry in a loop.
-- Do not install or run any remote tool, script, or skill, and do not fetch generator code.
-- Never switch generators: 2D art comes from \`chatroom generate-image --platform=fal\` and nothing else.
-- Commit only when the brief names the paths and the commit message.
-- Describe output as production-ready only when every checklist item passes with \`measured\` or \`inspected\` evidence.
+- Never pass \`--names\` to \`slice-image\` except for the fallback above; assign names only with \`remove-image-background --map\` or \`--out\`.
 `,
 };
