@@ -35,6 +35,7 @@ import {
 } from './messageInputAutosize';
 import { ComposerAccessoryButton } from './shared/ComposerAccessoryButton';
 import { composerAccessoryRowClassName } from './shared/composerAccessoryButtonStyles';
+import { requestScheduledPrompt } from '../features/scheduled-prompts/stores/scheduledPromptComposerStore';
 import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useConversationMode } from '../hooks/useConversationMode';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
@@ -70,6 +71,14 @@ function useIsTouchDevice(): boolean | undefined {
   );
   return mounted ? isTouch : undefined;
 }
+
+// ── Send-button schedule gestures ────────────────────────────────────────────
+
+/** Touch press duration that schedules the draft instead of sending it. */
+const LONG_PRESS_MS = 500;
+
+/** Finger travel (px) that cancels a long-press, so scrolling does not schedule. */
+const LONG_PRESS_MOVE_THRESHOLD_PX = 10;
 
 // ── Draft storage helpers ────────────────────────────────────────────────────
 
@@ -488,11 +497,7 @@ export function MessageInput({
 
   const handleFileSelect = fileAutocomplete.handleFileSelect;
 
-  // ── Send button click ──────────────────────────────────────────────────────
-  const handleSendClick = useCallback(() => {
-    handleSubmit();
-  }, [handleSubmit]);
-
+  // ── Send button: click sends; right-click / long-press schedules ───────────
   const hasAttachments =
     attachedTasks.length > 0 ||
     attachedBacklogItems.length > 0 ||
@@ -510,6 +515,75 @@ export function MessageInput({
   );
 
   const canSend = message.trim().length > 0 && !sending && !hasActiveUploads;
+
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressNextSendClickRef = useRef(false);
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressOriginRef.current = null;
+  }, []);
+
+  // Never leave a pending timer behind if the composer unmounts mid-press.
+  useEffect(() => clearLongPress, [clearLongPress]);
+
+  const requestSchedule = useCallback(() => {
+    if (!canSend) return;
+    requestScheduledPrompt({ prompt: message.trim(), hasAttachments }, () => {
+      setMessage('');
+      setSendError(null);
+    });
+  }, [canSend, message, hasAttachments]);
+
+  const handleSendClick = useCallback(() => {
+    // A long-press already opened the schedule form; the release's click must
+    // not also send. Reset so the next click behaves normally.
+    if (suppressNextSendClickRef.current) {
+      suppressNextSendClickRef.current = false;
+      return;
+    }
+    handleSubmit();
+  }, [handleSubmit]);
+
+  const handleSendContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      requestSchedule();
+    },
+    [requestSchedule]
+  );
+
+  const handleSendPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      suppressNextSendClickRef.current = false;
+      if (e.pointerType === 'mouse' || !canSend) return;
+      clearLongPress();
+      longPressOriginRef.current = { x: e.clientX, y: e.clientY };
+      longPressTimerRef.current = setTimeout(() => {
+        longPressTimerRef.current = null;
+        longPressOriginRef.current = null;
+        suppressNextSendClickRef.current = true;
+        requestSchedule();
+      }, LONG_PRESS_MS);
+    },
+    [canSend, clearLongPress, requestSchedule]
+  );
+
+  const handleSendPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      const origin = longPressOriginRef.current;
+      if (!origin) return;
+      const moved = Math.hypot(e.clientX - origin.x, e.clientY - origin.y);
+      if (moved > LONG_PRESS_MOVE_THRESHOLD_PX) clearLongPress();
+    },
+    [clearLongPress]
+  );
+
+  const handleSendPointerEnd = clearLongPress;
 
   return (
     <div
@@ -656,12 +730,19 @@ export function MessageInput({
           <button
             type="button"
             onClick={handleSendClick}
+            onContextMenu={handleSendContextMenu}
+            onPointerDown={handleSendPointerDown}
+            onPointerUp={handleSendPointerEnd}
+            onPointerLeave={handleSendPointerEnd}
+            onPointerCancel={handleSendPointerEnd}
+            onPointerMove={handleSendPointerMove}
             disabled={!canSend}
             onMouseDown={(e) => {
               // Prevent focus from leaving the textarea on click
               e.preventDefault();
             }}
-            className="rounded-none w-8 h-8 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-none w-8 h-8 flex-shrink-0 flex items-center justify-center transition-all duration-100 bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-40 disabled:cursor-not-allowed select-none [-webkit-touch-callout:none]"
+            title="Right-click or long-press to schedule"
             aria-label="Send message"
           >
             <ArrowUp size={16} />
