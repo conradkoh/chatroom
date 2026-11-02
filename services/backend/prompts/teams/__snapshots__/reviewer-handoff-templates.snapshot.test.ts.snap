@@ -33,10 +33,29 @@ exports[`reviewer handoff template snapshots > 'duo' 'reviewer' → 'planner' re
 
 Handoff template \`reviewer\` → \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Instructions (not part of the message): Return a complete review report for the target the planner named. The reviewer is advisory: do not edit files, implement fixes, run builds or tests, or propose architecture rewrites beyond each issue's suggested fix. Report only what you observed and mark anything unverified as such. Label every issue with a severity: \`blocker\`, \`major\`, \`minor\`, or \`nit\`. Group the issues by severity with blockers first, and cite the repository-relative file and line or line range for each. Judge the target on three axes: \`standards\` (the repository's documented standards, such as \`CONTRIBUTING.md\`, \`AGENTS.md\`, or \`CLAUDE.md\` when present, and the conventions of the surrounding code; cite the standard by file and rule), \`spec\` (the request, issue, or spec the planner named (record it in \`## Review scope\`); quote the requirement), or \`defect\` (a demonstrable bug or security flaw, cited by reproduction or code path). Tag each issue with its axis; the Summary states the pass/fail result per axis. Mark each issue that is a heuristic call rather than a documented-standard breach or a \`defect\` as \`judgement\`. Use the exact sections below, in this order.
+Instructions (not part of the message): Return a complete review report for the target the planner named. The reviewer is advisory: do not edit files, implement fixes, run builds or tests, or propose architecture rewrites beyond each issue's suggested fix.
+
+What a good review covers:
+- Read the actual files and the surrounding code the diff depends on, not summaries.
+- Judge the target on three axes: \`standards\` (the repository's documented standards, such as \`CONTRIBUTING.md\`, \`AGENTS.md\`, or \`CLAUDE.md\` when present, and the conventions of the surrounding code; cite the standard by file and rule), \`spec\` (the request, issue, or spec the planner named, recorded in \`## Review scope\`; quote the requirement), and \`defect\` (a demonstrable bug or security flaw, cited by reproduction or code path). Tag every issue with its axis.
+- Cite \`file:line\` for every issue, give the evidence (the quoted line or the code path), and suggest a concrete, small fix.
+- Calibrate severity: \`blocker\` for security or data exposure, a broken build, or a violated spec requirement; \`major\` for a real defect or spec miss that does not block; \`minor\` for a real but low-impact issue; \`nit\` for style only. Group the issues by severity with blockers first.
+- Report only what you observed; mark anything unverified as such and append \`(judgement)\` to a heuristic call that is neither a documented-standard breach nor a \`defect\`.
+- Quote the named spec's requirement for every \`spec\` issue. If no spec was named or found, write \`no spec available\` in \`## Review scope\`; do not invent one.
+- Stay within the stated focus, do not duplicate issues, and do not edit, build, or test.
+- Name what you did not check under \`## Not reviewed\`.
+
+Audit authentication and authorization for every backend endpoint in review scope. An endpoint is any exported Convex query, mutation, or action, HTTP route, or API handler that the target adds or changes, plus any such endpoint the changed code calls or exposes. For each endpoint, check:
+- **Authentication:** the endpoint establishes the caller's identity before it reads or writes data, using the shared auth helper the sibling endpoints use. It does not trust a caller-supplied user id, role, or team id as proof of identity.
+- **Authorization:** the endpoint checks that the authenticated caller may act on the specific resource the request names (for example chatroom membership, ownership, or role) before it returns data or changes state. A login check alone is not sufficient.
+- **Coverage:** no code path returns or changes data before its check runs. An internal helper that skips checks may be called only from endpoints that already performed them.
+- **Intent:** an endpoint without a check is acceptable only when the code or the spec states why it is public. Otherwise report it.
+- **Reporting:** report each missing or wrong check as a \`defect\` axis issue. Use \`blocker\` when it exposes or changes another user's data, and \`major\` otherwise. Cite the endpoint's \`file:line\`; list every in-scope endpoint you did not read under \`## Not reviewed\`.
+
+Use the exact sections below, in this order.
 
 ## Summary
-<one to three sentences: overall state of the target and the count of blocker/major issues>
+<one to three sentences: overall state of the target; the pass/fail result for each of \`standards\`, \`spec\`, and \`defect\`; and the count of blocker/major issues>
 
 ## Review scope
 <commits, paths, and PR/branch inspected; the spec source used for the spec axis, or exactly \`no spec available\` when none was named or found; the standards files read; commands run, if any>
