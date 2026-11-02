@@ -176,6 +176,8 @@ describe('game-asset skill prompts', () => {
   it('procedural prompt anchors the measured inspection and forbids remote generators', () => {
     const prompt = gameAsset3dProceduralSkill.getPrompt('');
     expect(prompt).toContain('gltf-transform inspect');
+    expect(prompt).not.toContain('measurement command the brief names');
+    expect(prompt).not.toContain("the brief's measurement command");
     expect(prompt).toContain('no `chatroom generate-3d`');
     expect(prompt).toContain('No fal call');
     expect(prompt).toContain('Export glTF 2.0/GLB to');
