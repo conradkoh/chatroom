@@ -1,13 +1,20 @@
 'use client';
 
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Loader2, Power, PowerOff, Trash2 } from 'lucide-react';
+import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
+import { AlertCircle, CheckCircle2, Loader2, Power, PowerOff, Trash2 } from 'lucide-react';
 import React, { useCallback, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
 import { useOverlayPortalContainer } from '../../../components/shared/overlayPortalContainer';
 import { useOverlayDismissStack } from '../../../hooks/useOverlayDismissStack';
-import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
+import {
+  formatSchedule,
+  formatScheduledPromptStatus,
+  formatTime,
+  getScheduledPromptStatus,
+  isFinishedScheduledPromptStatus,
+} from '../utils/scheduledPromptFormat';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -23,18 +30,20 @@ import { Switch } from '@/components/ui/switch';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface ScheduledPromptCardProps {
-  prompt: {
-    _id: Id<'chatroom_scheduledPrompts'>;
-    name?: string;
-    prompt: string;
-    scheduleKind: 'interval' | 'daily';
-    intervalMinutes?: number;
-    hourUTC?: number;
-    minuteUTC?: number;
-    disabledReason?: 'archive' | 'user';
-    lastRunAt?: number;
-    nextRunAt?: number;
-  };
+  prompt: Pick<
+    Doc<'chatroom_scheduledPrompts'>,
+    | '_id'
+    | 'name'
+    | 'prompt'
+    | 'scheduleKind'
+    | 'intervalMinutes'
+    | 'hourUTC'
+    | 'minuteUTC'
+    | 'runAt'
+    | 'disabledReason'
+    | 'lastRunAt'
+    | 'nextRunAt'
+  >;
   onEdit: (id: Id<'chatroom_scheduledPrompts'>) => void;
   setEnabled: (args: {
     scheduledPromptId: Id<'chatroom_scheduledPrompts'>;
@@ -50,6 +59,7 @@ export function ActionsMenuContent({
   onDelete,
   isDeleting,
   isArchiveDisabled,
+  canEdit,
   onClose,
 }: {
   showDeleteConfirm: boolean;
@@ -58,21 +68,25 @@ export function ActionsMenuContent({
   onDelete: () => void;
   isDeleting: boolean;
   isArchiveDisabled: boolean;
+  /** Finished rows are immutable history, so Edit is hidden for them. */
+  canEdit: boolean;
   onClose: () => void;
 }) {
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full text-xs justify-start"
-        onClick={() => {
-          onEdit();
-          onClose();
-        }}
-      >
-        Edit
-      </Button>
+      {canEdit && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full text-xs justify-start"
+          onClick={() => {
+            onEdit();
+            onClose();
+          }}
+        >
+          Edit
+        </Button>
+      )}
       {showDeleteConfirm ? (
         <div className="flex gap-2">
           <Button
@@ -109,6 +123,8 @@ export function ActionsMenuContent({
   );
 }
 
+// Exhaustive per-status badge/switch gating: finished rows are immutable history.
+// fallow-ignore-next-line complexity
 export function ScheduledPromptCard({
   prompt,
   onEdit,
@@ -121,8 +137,10 @@ export function ScheduledPromptCard({
   const [actionsOpen, setActionsOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const isArchiveDisabled = prompt.disabledReason === 'archive';
-  const isActive = prompt.disabledReason === undefined;
+  const status = getScheduledPromptStatus(prompt);
+  const isArchiveDisabled = status === 'archived';
+  const isActive = status === 'active';
+  const isFinished = isFinishedScheduledPromptStatus(status);
   const isDesktop = useIsDesktop();
   const portalContainer = useOverlayPortalContainer();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -164,6 +182,7 @@ export function ScheduledPromptCard({
       onDelete={handleDelete}
       isDeleting={isDeleting}
       isArchiveDisabled={isArchiveDisabled}
+      canEdit={!isFinished}
       onClose={() => setActionsOpen(false)}
     />
   );
@@ -184,24 +203,36 @@ export function ScheduledPromptCard({
           </span>
           <span
             className={`inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${
-              isActive
+              status === 'active'
                 ? 'bg-green-500/10 text-green-500 dark:bg-green-500/20 dark:text-green-400'
-                : isArchiveDisabled
+                : status === 'archived'
                   ? 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
-                  : 'bg-chatroom-bg-tertiary text-chatroom-text-muted'
+                  : status === 'failed'
+                    ? 'bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400'
+                    : 'bg-chatroom-bg-tertiary text-chatroom-text-muted'
             }`}
           >
-            {isActive ? (
+            {status === 'active' ? (
               <>
                 <Power size={10} />
-                Active
+                {formatScheduledPromptStatus(status)}
               </>
-            ) : isArchiveDisabled ? (
-              'Disabled by archive'
+            ) : status === 'archived' ? (
+              formatScheduledPromptStatus(status)
+            ) : status === 'completed' ? (
+              <>
+                <CheckCircle2 size={10} />
+                {formatScheduledPromptStatus(status)}
+              </>
+            ) : status === 'failed' ? (
+              <>
+                <AlertCircle size={10} />
+                {formatScheduledPromptStatus(status)}
+              </>
             ) : (
               <>
                 <PowerOff size={10} />
-                Disabled
+                {formatScheduledPromptStatus(status)}
               </>
             )}
           </span>
@@ -234,18 +265,22 @@ export function ScheduledPromptCard({
           >
             View trigger history
           </Button>
-          <Switch
-            checked={isActive}
-            onCheckedChange={(checked) => {
-              if (checked === isActive) return;
-              setIsToggling(true);
-              setEnabled({ scheduledPromptId: prompt._id, enabled: checked }).finally(() =>
-                setIsToggling(false)
-              );
-            }}
-            disabled={isToggling || isArchiveDisabled}
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          />
+          {!isFinished && (
+            <Switch
+              checked={isActive}
+              onCheckedChange={(checked) => {
+                if (checked === isActive) return;
+                setIsToggling(true);
+                setEnabled({ scheduledPromptId: prompt._id, enabled: checked })
+                  .catch((err: { data?: { message?: string } } | undefined) =>
+                    toast.error(err?.data?.message ?? 'Failed to update schedule')
+                  )
+                  .finally(() => setIsToggling(false));
+              }}
+              disabled={isToggling || isArchiveDisabled}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          )}
         </div>
       </div>
 

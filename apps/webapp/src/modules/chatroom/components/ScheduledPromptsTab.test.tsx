@@ -1,6 +1,11 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  localDateTimeInputToUtcMs,
+  utcMsToLocalDateTimeInput,
+} from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
+
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   create: vi.fn(),
@@ -269,5 +274,85 @@ describe('ScheduledPromptsTab', () => {
       expect(screen.getByTestId('popover-content')).toBeDefined();
     });
     expect(screen.getByText('Edit')).toBeDefined();
+  });
+
+  it('creates a one-time prompt with the datetime-local value converted to epoch ms', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    fireEvent.click(screen.getByLabelText('One time'));
+    fireEvent.change(screen.getByPlaceholderText('What should the prompt say?'), {
+      target: { value: 'Ping me' },
+    });
+
+    const futureValue = utcMsToLocalDateTimeInput(Date.now() + 2 * 60 * 60_000);
+    const dateTimeInput = document.querySelector(
+      'input[type="datetime-local"]'
+    ) as HTMLInputElement;
+    fireEvent.change(dateTimeInput, { target: { value: futureValue } });
+
+    fireEvent.click(screen.getByText('Create Prompt'));
+
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        name: undefined,
+        prompt: 'Ping me',
+        scheduleKind: 'once',
+        runAt: localDateTimeInputToUtcMs(futureValue),
+      });
+    });
+  });
+
+  it('rejects a missing one-time value and does not call create', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    fireEvent.click(screen.getByLabelText('One time'));
+    fireEvent.change(screen.getByPlaceholderText('What should the prompt say?'), {
+      target: { value: 'No date' },
+    });
+    fireEvent.change(document.querySelector('input[type="datetime-local"]') as HTMLInputElement, {
+      target: { value: '' },
+    });
+
+    fireEvent.click(screen.getByText('Create Prompt'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Pick a date and time')).toBeDefined();
+    });
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a past one-time value and does not call create', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    fireEvent.click(screen.getByLabelText('One time'));
+    fireEvent.change(screen.getByPlaceholderText('What should the prompt say?'), {
+      target: { value: 'Too late' },
+    });
+
+    const pastValue = utcMsToLocalDateTimeInput(Date.now() - 60_000);
+    const dateTimeInput = document.querySelector(
+      'input[type="datetime-local"]'
+    ) as HTMLInputElement;
+    fireEvent.change(dateTimeInput, { target: { value: pastValue } });
+
+    fireEvent.click(screen.getByText('Create Prompt'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Pick a time in the future')).toBeDefined();
+    });
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 });

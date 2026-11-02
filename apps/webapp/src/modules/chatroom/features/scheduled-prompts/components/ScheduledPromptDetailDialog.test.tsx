@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
+import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -71,6 +72,34 @@ describe('ScheduledPromptDetailDialog', () => {
     expect(screen.getByText('Daily Standup')).toBeInTheDocument();
     expect(screen.getByText(/Status:/)).toBeInTheDocument();
     expect(screen.getByText('Active')).toBeInTheDocument();
+  });
+
+  it('shows Completed and the once schedule for a finished one-time row, with no Disable button', () => {
+    const runAt = 1_800_000_000_000;
+    mocks.get.mockReturnValue({
+      _id: 'prompt-once',
+      name: 'One shot',
+      prompt: 'Run once',
+      scheduleKind: 'once' as const,
+      runAt,
+      disabledReason: 'completed' as const,
+      isRunnable: false,
+      lastRunAt: runAt,
+      nextRunAt: undefined,
+    });
+    mocks.listTriggeredMessages.mockReturnValue([]);
+
+    render(
+      <ScheduledPromptDetailDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        scheduledPromptId={'prompt-once' as any}
+      />
+    );
+
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText(`Once on ${formatTimestampFull(runAt)}`)).toBeInTheDocument();
+    expect(screen.queryByText('Disable schedule')).not.toBeInTheDocument();
   });
 
   it('shows trigger history list', () => {

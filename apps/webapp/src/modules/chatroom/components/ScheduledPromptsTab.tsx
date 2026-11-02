@@ -9,8 +9,10 @@ import React, { useState, useCallback, memo } from 'react';
 import { ScheduledPromptCard } from '../features/scheduled-prompts/components/ScheduledPromptCard';
 import {
   formatTimezoneLabel,
+  localDateTimeInputToUtcMs,
   localDailyTimeToUtc,
   utcDailyTimeToLocal,
+  utcMsToLocalDateTimeInput,
 } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
 
 import { Button } from '@/components/ui/button';
@@ -19,6 +21,16 @@ import { Input } from '@/components/ui/input';
 interface ScheduledPromptsTabProps {
   chatroomId: string;
 }
+
+export type ScheduledPromptFormData = {
+  name?: string;
+  prompt: string;
+  scheduleKind: 'interval' | 'daily' | 'once';
+  intervalMinutes?: number;
+  hourUTC?: number;
+  minuteUTC?: number;
+  runAt?: number;
+};
 
 export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   chatroomId,
@@ -53,14 +65,7 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   }, []);
 
   const handleFormSave = useCallback(
-    async (data: {
-      name?: string;
-      prompt: string;
-      scheduleKind: 'interval' | 'daily';
-      intervalMinutes?: number;
-      hourUTC?: number;
-      minuteUTC?: number;
-    }) => {
+    async (data: ScheduledPromptFormData) => {
       if (editingId) {
         await updatePrompt({ scheduledPromptId: editingId, ...data });
       } else {
@@ -123,7 +128,7 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
       </div>
       <h3 className="text-sm font-bold text-chatroom-text-primary mb-1">No scheduled prompts</h3>
       <p className="text-xs text-chatroom-text-muted mb-6 max-w-xs">
-        Create prompts that fire automatically on an interval or daily schedule.
+        Create prompts that fire automatically on an interval, daily, or once at a set time.
       </p>
       <Button variant="outline" size="sm" onClick={onAdd} className="text-xs gap-1.5">
         <Plus size={14} />
@@ -133,34 +138,37 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 });
 
+// Exhaustive per-kind form: every schedule kind owns its fields and validation.
+// fallow-ignore-next-line complexity
 const ScheduledPromptForm = memo(function ScheduledPromptForm({
   initial,
   onSave,
   onCancel,
 }: {
   initial?: any;
-  onSave: (data: {
-    name?: string;
-    prompt: string;
-    scheduleKind: 'interval' | 'daily';
-    intervalMinutes?: number;
-    hourUTC?: number;
-    minuteUTC?: number;
-  }) => Promise<void>;
+  onSave: (data: ScheduledPromptFormData) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [prompt, setPrompt] = useState(initial?.prompt ?? '');
-  const [scheduleKind, setScheduleKind] = useState<'interval' | 'daily'>(
+  const [scheduleKind, setScheduleKind] = useState<'interval' | 'daily' | 'once'>(
     initial?.scheduleKind ?? 'interval'
   );
   const [intervalMinutes, setIntervalMinutes] = useState(initial?.intervalMinutes ?? 30);
   const localInit = utcDailyTimeToLocal(initial?.hourUTC ?? 9, initial?.minuteUTC ?? 0);
   const [hourLocal, setHourLocal] = useState(localInit.hour);
   const [minuteLocal, setMinuteLocal] = useState(localInit.minute);
+  const [runAtLocal, setRunAtLocal] = useState<string>(
+    initial?.runAt !== undefined
+      ? utcMsToLocalDateTimeInput(initial.runAt)
+      : utcMsToLocalDateTimeInput(Date.now() + 60 * 60_000)
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Validates every schedule kind before building the payload; the server
+  // remains authoritative for INVALID_SCHEDULE / SCHEDULE_FINISHED.
+  // fallow-ignore-next-line complexity
   const handleSave = useCallback(async () => {
     if (!prompt.trim()) {
       setError('Prompt cannot be empty');
@@ -186,20 +194,33 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
       setError('Daily schedule requires valid hour (0-23) and minute (0-59)');
       return;
     }
+    const runAt = scheduleKind === 'once' ? localDateTimeInputToUtcMs(runAtLocal) : undefined;
+    if (scheduleKind === 'once') {
+      if (runAt === undefined) {
+        setError('Pick a date and time');
+        return;
+      }
+      if (runAt <= Date.now()) {
+        setError('Pick a time in the future');
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
-      const data: any = {
+      const data: ScheduledPromptFormData = {
         name: name.trim() || undefined,
         prompt: prompt.trim(),
         scheduleKind,
       };
       if (scheduleKind === 'interval') {
         data.intervalMinutes = intervalMinutes;
-      } else {
+      } else if (scheduleKind === 'daily') {
         const { hourUTC, minuteUTC } = localDailyTimeToUtc(hourLocal, minuteLocal);
         data.hourUTC = hourUTC;
         data.minuteUTC = minuteUTC;
+      } else {
+        data.runAt = runAt;
       }
       await onSave(data);
     } catch (err: any) {
@@ -207,7 +228,7 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
     } finally {
       setSaving(false);
     }
-  }, [name, prompt, scheduleKind, intervalMinutes, hourLocal, minuteLocal, onSave]);
+  }, [name, prompt, scheduleKind, intervalMinutes, hourLocal, minuteLocal, runAtLocal, onSave]);
 
   return (
     <div className="border border-chatroom-border rounded-none bg-chatroom-bg-secondary overflow-hidden">
@@ -267,10 +288,20 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
               />
               Daily
             </label>
+            <label className="flex items-center gap-2 text-xs text-chatroom-text-primary cursor-pointer">
+              <input
+                type="radio"
+                name="scheduleKind"
+                checked={scheduleKind === 'once'}
+                onChange={() => setScheduleKind('once')}
+                className="accent-chatroom-accent"
+              />
+              One time
+            </label>
           </div>
         </div>
 
-        {scheduleKind === 'interval' ? (
+        {scheduleKind === 'interval' && (
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
               Every N minutes
@@ -283,7 +314,9 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
               className="text-xs bg-chatroom-bg-primary border-chatroom-border w-24"
             />
           </div>
-        ) : (
+        )}
+
+        {scheduleKind === 'daily' && (
           <div className="space-y-2">
             <div className="flex gap-4">
               <div className="space-y-1.5">
@@ -312,6 +345,26 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
                   className="text-xs bg-chatroom-bg-primary border-chatroom-border w-20"
                 />
               </div>
+            </div>
+            <p className="text-[10px] text-chatroom-text-muted">
+              Your timezone: {formatTimezoneLabel()}
+            </p>
+          </div>
+        )}
+
+        {scheduleKind === 'once' && (
+          <div className="space-y-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
+                Date and time
+              </label>
+              <Input
+                type="datetime-local"
+                value={runAtLocal}
+                min={utcMsToLocalDateTimeInput(Date.now())}
+                onChange={(e) => setRunAtLocal(e.target.value)}
+                className="text-xs bg-chatroom-bg-primary border-chatroom-border w-64"
+              />
             </div>
             <p className="text-[10px] text-chatroom-text-muted">
               Your timezone: {formatTimezoneLabel()}
