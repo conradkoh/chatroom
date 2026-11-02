@@ -11,7 +11,7 @@ export const gameAsset3dAiSkill: SkillModule = {
   skillId: 'game-asset-3d-ai',
   name: '3D Game Asset Design (AI Generation)',
   description:
-    'Use when a task needs a 3D model asset generated with `chatroom generate-3d --platform=fal`, including its PBR materials, rigging options, and package outputs.',
+    'Use when a task needs a 3D model asset generated with `chatroom generate-3d --platform=fal`, including its PBR materials, rigging options, and package outputs. (game-asset-designer only)',
   getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "game-asset-3d-ai" skill.
 
 # 3D Game Asset Design — AI Generation
@@ -30,12 +30,12 @@ ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 
 1. Recover the brief. Do not generate unless \`## Output location\`, \`## Allowed tools\`, \`## Model\`, and \`## Output paths\` are named. If \`## Lighting contract\` is missing, \`Not specified.\`, or not applicable for a 3D asset, stop with \`Blocked:\` and ask for it.
 2. Run \`chatroom generate-3d --help\` before the first real call. The known model ids and the flags each model accepts come from that output, never from memory.
-3. Dry run the exact command shape you will use (\`--prompt\` or \`--input-image\`) first: \`chatroom generate-3d --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/<ascii-name>.glb --dry-run\`. Apply every constraint it prints and never add a parameter it reports as unsupported. The default model is \`fal-ai/trellis-2\`: a prompt on it generates a 1024x1024 reference image with FLUX 2 Flash first, and that image ships in the package.
-4. Real run only in the shape the dry run validated: \`chatroom generate-3d --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/<ascii-name>.glb\`. Pass \`--confirm-cost\` only when \`## Cost confirmation\` quotes the user's approval of that priced plan; otherwise return the priced plan and stop.
-5. Pass \`--rig\` and \`--animation-action-id\` only for \`meshy/v7.1\` models, only when the brief asks for rigging or animation, and only after the user confirms the priced dry run. Rigging expects a humanoid mesh and is verified only for Meshy GLBs.
-6. Choose the input shape from the brief: \`--prompt\` for text-to-3D, \`--input-image <path>\` for image-to-3D, and \`--input '<JSON>'\` from \`## Model parameters\` on every call. The rig reference render is a style target only; it is not an input image unless the brief says so.
+3. Choose the input shape from the brief: \`--prompt\` for text-to-3D, \`--input-image <path>\` for image-to-3D, and \`--input '<JSON>'\` from \`## Model parameters\` on every call. The rig reference render is a style target only; it is not an input image unless the brief says so.
+4. Dry run the exact command shape you will use (\`--prompt\` or \`--input-image\`) first: \`chatroom generate-3d --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/<ascii-name>.glb --input '<JSON>' --dry-run\`. Apply every constraint it prints and never add a parameter it reports as unsupported. The default model is \`fal-ai/trellis-2\`: a prompt on it generates a 1024x1024 reference image with FLUX 2 Flash first, and that image ships in the package.
+5. Real run only in the shape the dry run validated: \`chatroom generate-3d --platform=fal --model <Model> --prompt "<prompt>" --out <Output location>/<ascii-name>.glb --input '<JSON>'\`. Pass \`--confirm-cost\` only when \`## Cost confirmation\` quotes the user's approval of that priced plan; otherwise return the priced plan and stop.
+6. Pass \`--rig\` and \`--animation-action-id\` only for \`meshy/v7.1\` models, only when the brief asks for rigging or animation, and only after the user confirms the priced dry run. Rigging expects a humanoid mesh and is verified only for Meshy GLBs.
 7. Read the package, do not assume it. A run writes \`<base>.zip\` holding \`<stem>.glb\`, \`web/<stem>.web.glb\`, \`manifest.json\`, the reference image under \`reference/...\` when one was generated or supplied, and the rigged and animation GLBs with their web versions when rigging ran. It also writes \`<base>.html\`, a standalone preview of the high-resolution master and the scaled-down web variant. \`<base>\` is the \`--out\` stem plus the run's UTC timestamp, and \`--package-dir <dir>\` (default: the master's directory) moves both.
-8. Record what the run actually used: the model id, the seed and \`--input\` parameters, the package, master GLB, and manifest paths, and each asset name. A name comes from the file you opened, never from the prompt order.
+8. Measure the exported master GLB before recording it: for glTF, \`gltf-transform inspect <file>\` lists meshes, primitives, materials, and textures; quote the command's actual output for triangle count, bounds, and scale. Record what the run actually used: the model id, the seed and \`--input\` parameters, the package, master GLB, and manifest paths, and each asset name. A name comes from the file you opened, never from the prompt order.
 
 ## Quality checklist — 3D models
 
@@ -52,10 +52,11 @@ Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label
 - The file format is the one the target engine imports (glTF 2.0/GLB unless the brief names another); no unused data (hidden meshes, unused materials, history).
 - Style matches the named style reference: silhouette, value range, palette, level of detail, and texel density.
 - Budgets in the request are met; any exceedance is called out with the measured value.
-- PBR materials: metallic-roughness with documented channel packing (glTF: roughness in G, metallic in B, occlusion in R); base color and emissive sRGB, normal/roughness/metallic/occlusion/masks linear; state the normal map Y convention. In glTF, color space is set by the material slot that references the image, not by embedded PNG chunks: \`baseColorTexture\` and \`emissiveTexture\` are sRGB; \`metallicRoughnessTexture\`, \`occlusionTexture\`, and \`normalTexture\` are linear.
+- PBR materials: metallic-roughness with documented channel packing (glTF: roughness in G, metallic in B, occlusion in R); base color and emissive sRGB, normal/roughness/metallic/occlusion/masks linear; state the normal map Y convention. In glTF, color space is set by the material slot that references the image, not by embedded PNG chunks. Verify the slot for each map: \`baseColorTexture\` and \`emissiveTexture\` are sRGB; \`metallicRoughnessTexture\`, \`occlusionTexture\`, and \`normalTexture\` are linear.
 - Base color values stay in a physically plausible range (community starting range roughly 30–240 sRGB per channel for non-metals; the request's budget overrides it); metallic is near binary.
-- Texture resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming); compression format named. Maps in one set share texel density, value range, and naming (\`T_Name_BaseColor\`, \`_Normal\`, \`_ORM\`). Tiling textures wrap without a visible seam, and no lighting is baked into base color unless declared.
+- Texture resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming, for example Unreal; confirm for the target engine version); compression format named. Maps in one set share texel density, value range, and naming (\`T_Name_BaseColor\`, \`_Normal\`, \`_ORM\`). Tiling textures wrap without a visible seam, and no baked-in lighting or text in base color unless declared.
 - Metalness follows the lighting contract: with no environment map, the written material is not whole-surface metal (metallic 0 across the surface; metal has no diffuse response and renders near-black). \`generate-3d\` reports a whole-surface metal material as the \`metal-whole-texture\` warning; if it remains after one regeneration, report it under Open questions.
+- **Lighting**: renders correctly under the brief's ## Lighting contract (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under ## Lighting verification; the rig reference render and Studio mode never support pass.
 
 ## Lighting contract
 
@@ -65,5 +66,14 @@ Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label
 - Producing either render is never your job. Without the asset-in-rig render the lighting item is \`not checked\`; the preview's Directional and Unlit modes are the game case, but no allowed tool captures those views, so record the reason "no allowed capture tool". Studio mode is image-based lighting and is never lighting evidence.
 - \`not checked\` blocks delivery: the summary starts \`Delivered, lighting not verified:\`.
 - For a 3D set, generate the first approved asset's reference and reuse its palette and lighting words for the rest.
+
+## Proof of Principles
+
+Append these lines to the report's Proof of Principles when this skill is used:
+
+- \`chatroom generate-3d --help\` before the first use of the generator; the ids and flags come from that output, never from memory.
+- A dry run of each command shape (\`--prompt\` or \`--input-image\`) before its first real call.
+- The package the run writes, quoted with its actual file names and paths.
+- \`gltf-transform inspect <file>\` for every glTF measurement, quoting the command's output.
 `,
 };
