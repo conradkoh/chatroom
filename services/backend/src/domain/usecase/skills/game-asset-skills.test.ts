@@ -86,24 +86,21 @@ describe('game-asset skill prompts', () => {
 
   it('3D AI prompt keeps the glTF measurement hint', () => {
     const prompt = gameAsset3dAiSkill.getPrompt('');
-    expect(prompt).toContain('Measure the exported master GLB');
+    expect(prompt).toContain(
+      'Measure the exported master GLB before recording it: for glTF, `gltf-transform inspect <file>` lists meshes'
+    );
   });
 
-  it('ai prompts reference the shared All assets checklist instead of restating it', () => {
-    const cases = [
-      ['2D AI', gameAsset2dAiSkill],
-      ['3D AI', gameAsset3dAiSkill],
-      ['procedural', gameAsset3dProceduralSkill],
-    ] as const;
-
-    for (const [, module] of cases) {
+  it.each(NEW_SKILLS.map(({ id, module }) => [id, module] as const))(
+    'ai and procedural prompts: %s references the shared All assets checklist instead of restating it',
+    (_id, module) => {
       const prompt = module.getPrompt('');
       expect(prompt).toContain("Also apply the role prompt's All assets checklist.");
       expect(prompt).not.toContain('Naming follows the project convention');
       expect(prompt).not.toContain('Style matches the named style reference');
       expect(prompt).not.toContain('Budgets in the request');
     }
-  });
+  );
 
   it.each([
     ['3D AI', gameAsset3dAiSkill],
