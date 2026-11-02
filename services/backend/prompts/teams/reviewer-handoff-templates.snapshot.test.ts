@@ -51,6 +51,23 @@ describe('reviewer handoff template snapshots', () => {
     expect(template).toContain('next-role="planner"');
   });
 
+  test('reviewer report template encodes the good-review criteria and endpoint auth audit', () => {
+    const template = renderPair({ teamId: 'duo', fromRole: 'reviewer', toRole: 'planner' });
+
+    expect(template).toContain('Audit authentication and authorization for every backend endpoint');
+    expect(template).toContain('**Authorization:**');
+    expect(template).toContain('`defect` axis');
+    expect(template).toContain('`blocker` when it exposes or changes another user');
+    expect(template).toContain('What a good review covers:');
+    expect(template).toContain('Calibrate severity:');
+    expect(template).toContain(
+      'the pass/fail result for each of `standards`, `spec`, and `defect`'
+    );
+    expect(template).toContain(
+      'list every in-scope endpoint you did not read under `## Not reviewed`'
+    );
+  });
+
   test('reviewer report labels severities and cites file and line', () => {
     const template = renderPair({ teamId: 'duo', fromRole: 'reviewer', toRole: 'planner' });
 
