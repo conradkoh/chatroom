@@ -8,6 +8,7 @@
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
+import { Command } from 'commander';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FalImageResult, GenerateImageDeps, PathStatus } from './deps.js';
@@ -19,12 +20,27 @@ import {
   planGenerateImage,
 } from './image.js';
 import type { GenerateImagePlatform } from './image.js';
+import { registerGenerateImageCommand } from './index.js';
 import { FLUX_2_FLASH_EDIT_MODEL, FLUX_2_FLASH_MODEL } from './model-capabilities.js';
 import {
   listUnitPrices,
   lookupFalUnitPrices,
   type FalUnitPrice,
 } from '../image-shared/fal-pricing.js';
+
+/** The deps the command action resolves; null keeps the real factory. */
+const commandDeps = vi.hoisted(() => ({ current: null as GenerateImageDeps | null }));
+
+vi.mock('./deps.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as {
+    createDefaultGenerateImageDeps: () => GenerateImageDeps;
+  };
+  return {
+    ...actual,
+    createDefaultGenerateImageDeps: () =>
+      commandDeps.current ?? actual.createDefaultGenerateImageDeps(),
+  };
+});
 
 const FAL_API_KEY = 'fal-api-key-should-never-be-written';
 const OUT_PATH = '/tmp/generated/hero.png';
@@ -447,9 +463,13 @@ describe('generateImage', () => {
   it('refuses to overwrite an existing output without --force', async () => {
     const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
 
-    await expect(
+    const error = await captureError(
       generateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
-    ).rejects.toThrow(`--out already exists: ${OUT_PATH}. Pass --force to overwrite.`);
+    );
+
+    expect(error.message).toBe(`--out already exists: ${OUT_PATH}. Pass --force to overwrite.`);
+    // A real run writes, so the dry-run advice would point at the wrong action.
+    expect(error.message).not.toContain('Add --force to print the plan');
     expect(deps.falSubscribe).not.toHaveBeenCalled();
     expect(deps.ensureParentDir).not.toHaveBeenCalled();
   });
@@ -916,6 +936,72 @@ describe('generateImage', () => {
       planGenerateImage({ model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH }, deps)
     ).rejects.toThrow(`--out already exists: ${OUT_PATH}`);
     expect(deps.ensureParentDir).not.toHaveBeenCalled();
+  });
+
+  it('points a dry run at --force when the output already exists', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
+
+    const error = await captureError(
+      planGenerateImage(
+        { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, dryRun: true },
+        deps
+      )
+    );
+
+    expect(error).toBeInstanceOf(GenerateImageError);
+    expect(error.message).toMatch(
+      /--out already exists.*Add --force to print the plan.*dry run writes nothing/
+    );
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('plans an existing output in a dry run when --force is passed', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
+
+    const plan = await planGenerateImage(
+      { model: FLUX_2_FLASH_MODEL, prompt: 'a hero', out: OUT_PATH, dryRun: true, force: true },
+      deps
+    );
+
+    expect(plan.outPath).toBe(OUT_PATH);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing through the command action when a dry run with --force targets an existing output', async () => {
+    const deps = createDeps({ pathStatus: pathStatusFor({ [OUT_PATH]: 'file' }) });
+    commandDeps.current = deps;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const program = new Command();
+    program.exitOverride();
+    registerGenerateImageCommand(program);
+
+    await program.parseAsync([
+      'node',
+      'chatroom',
+      'generate-image',
+      '--prompt',
+      'a hero',
+      '--model',
+      FLUX_2_FLASH_MODEL,
+      '--out',
+      OUT_PATH,
+      '--dry-run',
+      '--force',
+    ]);
+
+    // Nothing is written, so the existing file keeps its bytes: the plan path
+    // reaches neither a writer nor fal.
+    expect(deps.pathStatus).toHaveBeenCalledWith(OUT_PATH);
+    expect(deps.falSubscribe).not.toHaveBeenCalled();
+    expect(deps.writeFile).not.toHaveBeenCalled();
+    expect(deps.writeJson).not.toHaveBeenCalled();
+    expect(log.mock.calls.map((call) => String(call[0])).join('\n')).toContain(
+      `Would generate ${OUT_PATH}`
+    );
+    log.mockRestore();
+    commandDeps.current = null;
   });
 
   it('refuses an unsupported output extension while planning', async () => {

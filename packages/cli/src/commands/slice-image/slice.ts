@@ -412,11 +412,12 @@ async function preflightOutputs(
   paths: string[],
   sourcePaths: ReadonlySet<string>,
   sourceIdentities: readonly (FileIdentity | null)[],
-  force: boolean
+  force: boolean,
+  dryRun: boolean
 ): Promise<void> {
   const conflicts = await findOutputConflicts(deps, paths, sourcePaths, sourceIdentities, force);
   if (conflicts.length > 0) {
-    throw new SliceImageError(formatConflicts(conflicts));
+    throw new SliceImageError(formatConflicts(conflicts, dryRun));
   }
 }
 
@@ -752,7 +753,8 @@ export async function sliceImage(
     allOutputPaths,
     new Set([inPath, sourceManifestPath]),
     sourceIdentities,
-    force
+    force,
+    dryRun
   );
 
   // 9. Crop and encode everything in memory. Any failure leaves the disk alone.

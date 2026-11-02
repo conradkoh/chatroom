@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto';
 
 import type { PathStatus } from './output-files.js';
+import { dryRunOverwriteHint } from './writable-path.js';
 
 /** Filesystem identity used to compare paths across case and symlink aliases. */
 export interface FileIdentity {
@@ -88,13 +89,14 @@ export interface OutputConflict {
 }
 
 /** Format every conflict at once, capped so one noisy directory stays readable. */
-export function formatConflicts(conflicts: OutputConflict[]): string {
+export function formatConflicts(conflicts: OutputConflict[], dryRun: boolean): string {
   const shown = conflicts.slice(0, 10);
   const lines = shown.map((conflict) => `- ${conflict.path}: ${conflict.reason}`);
   if (conflicts.length > shown.length) {
     lines.push(`- and ${conflicts.length - shown.length} more`);
   }
-  return `Refusing to write ${conflicts.length} output file(s):\n${lines.join('\n')}\nPass --force to overwrite.`;
+  const hint = dryRunOverwriteHint(dryRun) ?? 'Pass --force to overwrite.';
+  return `Refusing to write ${conflicts.length} output file(s):\n${lines.join('\n')}\n${hint}`;
 }
 
 /**
