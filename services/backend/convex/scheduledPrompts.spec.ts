@@ -995,6 +995,101 @@ describe('scheduled prompts', () => {
     ).rejects.toThrow(/SCHEDULE_FINISHED/);
   });
 
+  test('a failed one-time row is terminal', async () => {
+    const { sessionId, userId } = await createTestSession('sp-once-failed');
+    const chatroomId = await createChatroom(sessionId);
+
+    const now = Date.now();
+    const id = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'failed once prompt',
+        scheduleKind: 'once',
+        runAt: now - 60_000,
+        disabledReason: 'failed',
+        isRunnable: false,
+        lastRunAt: now - 30_000,
+        createdBy: userId,
+        createdAt: now - 120_000,
+        updatedAt: now - 30_000,
+      })
+    );
+
+    await expect(
+      t.mutation(api.scheduledPrompts.setEnabled, {
+        sessionId,
+        scheduledPromptId: id,
+        enabled: true,
+      })
+    ).rejects.toThrow(/SCHEDULE_FINISHED/);
+    await expect(
+      t.mutation(api.scheduledPrompts.setEnabled, {
+        sessionId,
+        scheduledPromptId: id,
+        enabled: false,
+      })
+    ).rejects.toThrow(/SCHEDULE_FINISHED/);
+    await expect(
+      t.mutation(api.scheduledPrompts.update, {
+        sessionId,
+        scheduledPromptId: id,
+        name: 'renamed',
+      })
+    ).rejects.toThrow(/SCHEDULE_FINISHED/);
+  });
+
+  test('switching a one-time row to interval or daily clears runAt', async () => {
+    const { sessionId } = await createTestSession('sp-once-to-recurring');
+    const chatroomId = await createChatroom(sessionId);
+    const futureRunAt = () => Date.now() + 3_600_000;
+
+    const intervalId = await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'once to interval',
+      scheduleKind: 'once',
+      runAt: futureRunAt(),
+    });
+    await t.mutation(api.scheduledPrompts.update, {
+      sessionId,
+      scheduledPromptId: intervalId as Id<'chatroom_scheduledPrompts'>,
+      scheduleKind: 'interval',
+      intervalMinutes: 15,
+    });
+
+    let row = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_scheduledPrompts', intervalId as Id<'chatroom_scheduledPrompts'>)
+    );
+    expect(row!.scheduleKind).toBe('interval');
+    expect(row!.runAt).toBeUndefined();
+    expect(row!.intervalMinutes).toBe(15);
+    expect(row!.nextRunAt).toBeDefined();
+
+    const dailyId = await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'once to daily',
+      scheduleKind: 'once',
+      runAt: futureRunAt(),
+    });
+    await t.mutation(api.scheduledPrompts.update, {
+      sessionId,
+      scheduledPromptId: dailyId as Id<'chatroom_scheduledPrompts'>,
+      scheduleKind: 'daily',
+      hourUTC: 9,
+      minuteUTC: 30,
+    });
+
+    row = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_scheduledPrompts', dailyId as Id<'chatroom_scheduledPrompts'>)
+    );
+    expect(row!.scheduleKind).toBe('daily');
+    expect(row!.runAt).toBeUndefined();
+    expect(row!.hourUTC).toBe(9);
+    expect(row!.minuteUTC).toBe(30);
+    expect(row!.nextRunAt).toBeDefined();
+  });
+
   test('a one-time row whose send fails becomes terminal', async () => {
     vi.useFakeTimers();
     try {
