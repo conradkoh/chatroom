@@ -27,6 +27,7 @@ Object.defineProperty(window, 'matchMedia', {
 vi.mock('../../utils/chatroomTimestamp', () => ({
   formatTimestamp: (time: number) => `TS:${time}`,
   formatTimestampFull: (time: number) => `TS_FULL:${time}`,
+  formatTimeOfDay: (time: number) => `TOD:${time}`,
 }));
 
 function makeMessage(overrides: Partial<Message> = {}): Message {

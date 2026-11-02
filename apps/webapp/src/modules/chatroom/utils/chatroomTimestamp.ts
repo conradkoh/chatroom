@@ -19,3 +19,8 @@ export function formatTimestamp(ms: number): string {
 export function formatTimestampFull(ms: number): string {
   return formatChatroomTimestamp(ms, true);
 }
+
+/** Time of day only (e.g. `2:14pm`); the compact form of {@link formatChatroomTimestamp}'s time part. */
+export function formatTimeOfDay(ms: number): string {
+  return DateTime.fromMillis(ms).toFormat('h:mma').toLowerCase();
+}

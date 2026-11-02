@@ -8,7 +8,13 @@ import { MessageDownloadMenu } from './MessageDownloadMenu';
 import { useAttachments } from '../../attachments';
 import { formatHandoffDuration } from '../../timeline/handoffTiming';
 import type { Message } from '../../types/message';
-import { formatTimestamp, formatTimestampFull } from '../../utils/chatroomTimestamp';
+import {
+  formatTimeOfDay,
+  formatTimestamp,
+  formatTimestampFull,
+} from '../../utils/chatroomTimestamp';
+
+import { cn } from '@/lib/utils';
 
 /** Small copy-to-clipboard button with brief check-mark feedback. */
 
@@ -46,6 +52,53 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
     >
       {copied ? <Check size={12} className="text-chatroom-status-success" /> : <Copy size={12} />}
     </button>
+  );
+});
+
+export interface TimelineMessageTimestampProps {
+  creationTime: number;
+  handoffDurationMs?: number;
+  /** Collapsed handoff bar: below `sm`, hide the duration and show the time of day only. */
+  compact?: boolean;
+}
+
+/**
+ * The footer's timestamp cluster, also rendered inside the collapsed handoff bar.
+ * `compact` keeps the same markup but swaps the full date for the time of day
+ * below `sm`, where the summary bar has no room for the date.
+ */
+const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
+  creationTime,
+  handoffDurationMs,
+  compact = false,
+}: TimelineMessageTimestampProps) {
+  return (
+    <>
+      {handoffDurationMs !== undefined && (
+        <span
+          data-testid="timeline-handoff-duration"
+          title={`Time since task started: ${formatHandoffDuration(handoffDurationMs)}`}
+          className={cn(
+            'text-[10px] font-mono tabular-nums text-chatroom-text-muted',
+            compact && 'hidden sm:inline'
+          )}
+        >
+          {formatHandoffDuration(handoffDurationMs)}
+        </span>
+      )}
+      <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
+        <span title={formatTimestampFull(creationTime)}>
+          {compact ? (
+            <>
+              <span className="hidden sm:inline">{formatTimestamp(creationTime)}</span>
+              <span className="sm:hidden">{formatTimeOfDay(creationTime)}</span>
+            </>
+          ) : (
+            formatTimestamp(creationTime)
+          )}
+        </span>
+      </span>
+    </>
   );
 });
 
@@ -102,20 +155,10 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
         <MessageDownloadMenu message={message} contentOverride={displayContent} />
       </div>
       <div className="flex items-center gap-1.5">
-        {handoffDurationMs !== undefined && (
-          <span
-            data-testid="timeline-handoff-duration"
-            title={`Time since task started: ${formatHandoffDuration(handoffDurationMs)}`}
-            className="text-[10px] font-mono tabular-nums text-chatroom-text-muted"
-          >
-            {formatHandoffDuration(handoffDurationMs)}
-          </span>
-        )}
-        <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
-          <span title={formatTimestampFull(message._creationTime)}>
-            {formatTimestamp(message._creationTime)}
-          </span>
-        </span>
+        <TimelineMessageTimestamp
+          creationTime={message._creationTime}
+          handoffDurationMs={handoffDurationMs}
+        />
       </div>
     </div>
   );
