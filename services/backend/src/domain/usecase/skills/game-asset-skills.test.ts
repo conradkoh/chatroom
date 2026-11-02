@@ -64,6 +64,11 @@ describe('game-asset skill prompts', () => {
     expect(prompt).not.toContain('a tool or script you ran on the actual file');
   });
 
+  it.each(NEW_SKILLS)('$id lets an unverified item be marked not checked', ({ module }) => {
+    const prompt = module.getPrompt('');
+    expect(prompt).toContain('`not checked` with its evidence label');
+  });
+
   it('3D AI prompt anchors the generate-3d command and its dry run', () => {
     const prompt = gameAsset3dAiSkill.getPrompt('');
     expect(prompt).toContain('chatroom generate-3d --platform=fal');

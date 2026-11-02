@@ -38,7 +38,7 @@ The shared rules in your role prompt apply, including its evidence labels; this 
 
 ## Quality checklist — 3D models
 
-Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label.
+Mark each applicable item \`pass\`, \`fail\`, \`n/a\`, or \`not checked\` with its evidence label.
 
 Also apply the role prompt's All assets checklist.
 

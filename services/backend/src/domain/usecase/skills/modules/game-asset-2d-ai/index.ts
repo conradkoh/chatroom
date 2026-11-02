@@ -43,7 +43,7 @@ Assets used together must share one camera perspective. The model's constraints 
 
 ## Quality checklist — 2D sprites and UI art
 
-Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label.
+Mark each applicable item \`pass\`, \`fail\`, \`n/a\`, or \`not checked\` with its evidence label.
 
 Also apply the role prompt's All assets checklist.
 
