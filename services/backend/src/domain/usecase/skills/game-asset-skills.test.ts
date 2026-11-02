@@ -78,7 +78,8 @@ describe('game-asset skill prompts', () => {
   it('3D AI prompt keeps the lighting contract and its evidence rules', () => {
     const prompt = gameAsset3dAiSkill.getPrompt('');
     expect(prompt).toContain('visible, coloured');
-    expect(prompt).toContain('Directional and Unlit modes are the game case');
+    expect(prompt).toContain("preview's Directional and Unlit modes are the game case");
+    expect(prompt).toContain('mark that preview inspection `not checked` with the reason');
     expect(prompt).toContain('Studio mode');
     expect(prompt).toContain('never lighting evidence');
     expect(prompt).toContain('Metalness follows the lighting contract');
