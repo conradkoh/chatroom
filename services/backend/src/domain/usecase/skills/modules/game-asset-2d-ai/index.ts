@@ -1,0 +1,82 @@
+import {
+  GAME_ASSET_EVIDENCE_DEFINITIONS,
+  GAME_ASSET_EVIDENCE_LABEL_LIST,
+  GAME_ASSET_NEVER_CLAIM_RULE,
+  GAME_ASSET_RESULT_RULE,
+} from '../../../../../../prompts/teams/game-asset-designer-evidence';
+import { formatGameAssetRules } from '../../../../../../prompts/teams/game-asset-designer-workflow';
+import type { SkillModule } from '../../registry';
+
+export const gameAsset2dAiSkill: SkillModule = {
+  skillId: 'game-asset-2d-ai',
+  name: '2D Game Asset Design (AI Generation)',
+  description:
+    'Use when a task needs 2D sprite or UI art generated with `chatroom generate-image --platform=fal`, including sheets, slicing, background removal, and per-asset fallbacks.',
+  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "game-asset-2d-ai" skill.
+
+# 2D Game Asset Design — AI Generation
+
+Activate this skill when the asset is 2D sprite or UI art produced by \`chatroom generate-image --platform=fal\`, whether one image at a time or a sheet that is sliced into tiles. The brief is the contract: it names the model, the sheet grid, the perspective, the output paths, the allowed tools, and the lighting contract.
+
+## Shared rules
+${formatGameAssetRules()}
+
+## Evidence
+Say exactly how each claim was established, using only these labels (${GAME_ASSET_EVIDENCE_LABEL_LIST}):
+${GAME_ASSET_EVIDENCE_DEFINITIONS}
+${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
+
+## Procedure
+
+1. Recover the brief. Do not generate unless \`## Output location\`, \`## Allowed tools\`, \`## Model\`, and \`## Perspective\` are answered. If the perspective is \`Not specified.\`, pick one, record it under assumptions, and use it for the whole set.
+2. Count the assets (N). If N is 1 or the styles differ, use the per-asset path (step 4). Otherwise use \`ceil(N/(C×R))\` sheets at most the brief's \`## Sheet grid\` (default 2x2); a larger grid needs a user request quoted in the brief, one asset per cell, \`CxR\` cells, no borders and no duplicates.
+3. Dry run the exact command shape first: \`chatroom generate-image --platform=fal --model fal-ai/flux-2/flash --prompt "<prompt>" --out <Output location>/_work/<sheet>.png --dry-run\`. Apply every constraint it prints; never add a parameter the dry run reports as unsupported. Then generate with the same shape, adding \`--seed <n>\` and \`--input '<JSON>'\` from \`## Model parameters\`. Use \`fal-ai/flux-2/flash/edit\` with \`--input-image <path>\` only when the brief names that model and \`## Perspective\` names a reference path; in edit mode generate every asset individually and never use a sheet.
+4. Per-asset path, one call per asset: \`chatroom generate-image --platform=fal --model fal-ai/flux-2/flash --prompt "<prompt>" --out <Output location>/_work/<ascii-name>.png --seed <n> --input '<JSON>'\`.
+5. Run \`chatroom slice-image --help\` before the first use, then \`chatroom slice-image --in <sheet> --out-dir <Output location>/_work/tiles --cols C --rows R\`. If the sheet is refused, regenerate it once; if it is still refused, fall back to one \`generate-image\` call per asset (step 4).
+6. Inspect every tile. A valid tile holds exactly one complete asset: zero or two or more items, a cut item, or a count that differs from the brief's requested count (extra empty cells are fine) fails the tile check. Regenerate the sheet once; if a tile still fails, fall back to one \`generate-image\` call for that asset (step 4). Assign names from what you see, never from cell order or prompt order.
+7. Run \`chatroom remove-image-background --help\`. When it succeeds, isolate with \`remove-image-background --in-dir <tiles> --out-dir <Output location> --map <stem>=<name>,... --trim\` for a sheet, or \`remove-image-background --in <image> --out <Output location>/<name>.png --trim\` for one asset, then view the results. If it warns or leaves a halo, rerun with \`--tolerance\`/\`--force\` at most twice, then accept. If \`--help\` fails, rerun \`slice-image --names\` and record trimming as not delivered under Open questions.
+8. Record the model id, seed, sheet and tile manifests, and each isolated asset name and path.
+
+## Perspective consistency (generated 2D sets)
+
+Assets used together must share one camera perspective. The model's constraints (unsupported parameters, size defaults, what it does not guarantee) come only from the matching \`--dry-run\`; apply them, and never add a parameter the dry run reports as unsupported.
+
+- Repeat the perspective term from the brief's \`## Perspective\` word for word in every prompt of the set (never the \`reference:\` path), and add the same flattening terms to every prompt: \`flat 2D game asset, orthographic, centered, plain background, even lighting\`. Suggested perspective terms (\`unverified\`): side view, front view, orthographic top-down, orthographic isometric, dimetric 2:1, three-quarter view. If the field names only a reference, describe that reference's view in words and record the description under assumptions. If \`## Perspective\` is \`Not specified.\`, pick one, record it under assumptions, and use it for the whole set. If the \`## Style reference\` asks for a lighting style these terms contradict (for example dramatic lighting), keep the perspective term and drop only the conflicting flattening term.
+- Use one \`--input\` JSON on every call of the set; if the dry run reports a size parameter as defaulted, set it once in that JSON and reuse it.
+- Use one shared \`--seed\` for the first call of each item or sheet. For every regeneration (a refused or failed sheet, a failed tile, or a perspective mismatch), use a new seed and record it.
+- Inspect the set side by side. A mismatched item is regenerated individually with a new seed, at most twice per item, separately from sheet regenerations. If it still differs, mark the perspective checklist item \`fail\` with \`inspected\` evidence.
+
+## Lighting and palette anchor
+
+- You own the anchor: from the brief's \`## Lighting contract\` and \`## Style reference\`, choose one lighting and palette anchor (palette, light direction, colour temperature, background, material treatment) for the whole set.
+- Repeat the same lighting, palette, and background terms word for word in every prompt of the set; they extend the perspective terms above.
+- Generating a separate, unrelated reference image per asset is how colour and lighting drift; generate the first approved asset's reference and reuse its palette and lighting words for the rest.
+- The planner's brief gives goals and constraints; you write the prompts.
+- If the \`## Lighting contract\` and the \`## Style reference\` conflict, follow the contract and record the deviation under assumptions.
+
+## Quality checklist — 2D sprites and UI art
+
+Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label.
+
+- Fixed grid and pixels-per-unit declared; sprite sizes are multiples of the grid; no sub-pixel offsets.
+- Palette size and colors declared; transparent background with clean alpha edges.
+- Animation: uniform frame size per clip, frame count, frame rate, loop flag, and pivot per clip.
+- Atlas: padding of at least the engine default (Unity default 4 px), atlas size within the platform max, filter mode Point for pixel art, and no mip maps.
+- Export PNG (lossless with alpha); the name states size and frame count where relevant.
+- Camera perspective matches the perspective chosen for the set and every other asset in the set (compare them side by side); \`n/a\` for a single asset.
+- Naming follows the project convention (type prefix, descriptive name, variant); ASCII, no spaces; the folder matches the asset category.
+- The file format is the one the target engine imports; no unused data.
+- Style matches the named style reference: silhouette, value range, palette, level of detail, and pixel grid.
+- Budgets in the request are met; any exceedance is called out with the measured value.
+
+## Scope and failure handling
+
+- Write only under \`Output location\` and \`Allowed edit paths\`; never overwrite or delete a path the brief does not name.
+- Process images only with \`chatroom slice-image\` and \`chatroom remove-image-background\`; no other tool, script, or remote service.
+- If \`FAL_API_KEY\` is unset, the generator is missing, or a call fails, stop generation, quote the exact error, and record the item as unverified. Do not retry in a loop.
+- Do not install or run any remote tool, script, or skill, and do not fetch generator code.
+- Never switch generators: 2D art comes from \`chatroom generate-image --platform=fal\` and nothing else.
+- Commit only when the brief names the paths and the commit message.
+- Describe output as production-ready only when every checklist item passes with \`measured\` or \`inspected\` evidence.
+`,
+};

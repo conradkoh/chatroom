@@ -10,6 +10,9 @@ import { backlogSkill } from './modules/backlog/index';
 import { codeReviewSkill } from './modules/code-review/index';
 import { dataDesignSkill } from './modules/data-design/index';
 import { defragmentationSkill } from './modules/defragmentation/index';
+import { gameAsset2dAiSkill } from './modules/game-asset-2d-ai/index';
+import { gameAsset3dAiSkill } from './modules/game-asset-3d-ai/index';
+import { gameAsset3dProceduralSkill } from './modules/game-asset-3d-procedural/index';
 import { userCentricitySkill } from './modules/user-centricity/index';
 import type { SkillId } from '../../types/skills';
 
@@ -26,4 +29,7 @@ export const SKILLS_REGISTRY: readonly SkillModule[] = [
   defragmentationSkill,
   userCentricitySkill,
   dataDesignSkill,
+  gameAsset3dAiSkill,
+  gameAsset2dAiSkill,
+  gameAsset3dProceduralSkill,
 ];
