@@ -6,6 +6,34 @@ import type { LogLine, LogMetadata } from '../api/types';
 /** Every character the output is allowed to contain (validated by the ASCII test). */
 const ASCII_ONLY = /^[\x09\x0A\x0D\x20-\x7E]*$/;
 
+/** Matches every numeric character reference the formatter can emit. */
+const NUMERIC_CHARACTER_REFERENCE = /&#x([0-9A-F]+);/g;
+
+/**
+ * XML 1.0 `Char` production, duplicated deliberately: the test must fail if the
+ * formatter starts emitting references to code points a parser rejects.
+ */
+function isLegalXmlChar(codePoint: number): boolean {
+  return (
+    codePoint === 0x09 ||
+    codePoint === 0x0a ||
+    codePoint === 0x0d ||
+    (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+    (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+    (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+  );
+}
+
+/** Numeric references in `xml` whose code point is not a legal XML 1.0 Char. */
+function illegalCodePointReferences(xml: string): string[] {
+  return [...xml.matchAll(NUMERIC_CHARACTER_REFERENCE)]
+    .map((match) => `&#x${match[1]};`)
+    .filter((reference) => {
+      const codePoint = Number.parseInt(reference.slice(3, -1), 16);
+      return !isLegalXmlChar(codePoint);
+    });
+}
+
 describe('formatLogLineAsXml', () => {
   it('renders every field of a full log line', () => {
     const line: LogLine = {
@@ -119,6 +147,75 @@ describe('formatLogLineAsXml', () => {
 
     expect(xml).toContain('<message>line1&#xD;\nline2\ttab</message>');
     expect(xml).not.toContain('\r');
+  });
+
+  it('replaces code points that XML 1.0 does not allow with U+FFFD', () => {
+    const line: LogLine = {
+      timestamp: 0,
+      level: 'info',
+      source: 'daemon',
+      message: 'esc:\u001b nul:\u0000 surrogate:\uD800',
+    };
+
+    const xml = formatLogLineAsXml(line);
+
+    expect(xml).toContain('<message>esc:&#xFFFD; nul:&#xFFFD; surrogate:&#xFFFD;</message>');
+    expect(illegalCodePointReferences(xml)).toEqual([]);
+    expect(ASCII_ONLY.test(xml)).toBe(true);
+  });
+
+  it('strips ANSI escape sequences from the message', () => {
+    const line: LogLine = {
+      timestamp: 0,
+      level: 'info',
+      source: 'daemon',
+      message: 'before \u001b[1;31mred\u001b[0m after',
+    };
+
+    expect(formatLogLineAsXml(line)).toContain('<message>before red after</message>');
+  });
+
+  it('never emits a reference to a code point outside the XML 1.0 Char production', () => {
+    const line: LogLine = {
+      timestamp: 0,
+      level: 'info',
+      source: 'daemon',
+      message: 'a\u0000b\u0008c\u000Bd\u000Ce\u001Bf\uD800g\uFFFEx\uFFFFy\u007Fz',
+    };
+
+    const xml = formatLogLineAsXml(line);
+
+    expect(illegalCodePointReferences(xml)).toEqual([]);
+    expect(ASCII_ONLY.test(xml)).toBe(true);
+  });
+
+  it('encodes newlines and tabs inside attribute values', () => {
+    const line: LogLine = {
+      timestamp: 0,
+      level: 'info',
+      source: 'daemon',
+      message: 'm',
+      metadata: { chatroomId: 'abc123' },
+    };
+
+    expect(formatLogLineAsXml(line, 'Dev\nroom\tx')).toContain(
+      '<chatroom name="Dev&#xA;room&#x9;x">abc123</chatroom>'
+    );
+  });
+
+  it('escapes XML metacharacters in metadata field names', () => {
+    const line: LogLine = {
+      timestamp: 0,
+      level: 'info',
+      source: 'daemon',
+      message: 'm',
+      metadata: { 'a&b': 1, 'x"y<z': 2 } as LogMetadata,
+    };
+
+    const xml = formatLogLineAsXml(line);
+
+    expect(xml).toContain('<field name="a&amp;b">1</field>');
+    expect(xml).toContain('<field name="x&quot;y&lt;z">2</field>');
   });
 
   it('uses the provided chatroom name with the chatroom id', () => {

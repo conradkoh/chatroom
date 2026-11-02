@@ -4,19 +4,60 @@ import type { LogLine } from '../api/types.js';
 /** Metadata keys that already have their own dedicated element in the document. */
 const RESERVED_METADATA_KEYS = new Set(['chatroomId', 'role', 'harness']);
 
+/** U+FFFD REPLACEMENT CHARACTER, written as a reference so the output stays ASCII. */
+const REPLACEMENT_CHARACTER_REFERENCE = '&#xFFFD;';
+
+/**
+ * OSC and CSI escape sequences, matching the rules in
+ * `packages/cli/src/utils/terminal-safety.ts`. `sanitizeForTerminal` itself is
+ * not reused here because it also deletes every C0/C1 control character and
+ * normalises CR to LF, whereas this formatter must preserve tab/LF/CR
+ * semantics and replace other illegal code points with U+FFFD.
+ */
+const ANSI_OSC_SEQUENCE = /\u001B\][^\u0007\u001B\u009C]*(?:\u0007|\u001B\\|\u009C)/g;
+const ANSI_CSI_SEQUENCE = /\u001B\[[0-?]*[ -/]*[@-~]/g;
+
+/**
+ * Remove ANSI escape sequences before escaping.
+ *
+ * Harness stdout is logged raw, so coloured output arrives with ESC (0x1B)
+ * still in the text. ESC is not a legal XML 1.0 Char, so leaving it in would
+ * make the copied document fail to parse.
+ */
+function stripAnsiSequences(value: string): string {
+  return value.replace(ANSI_OSC_SEQUENCE, '').replace(ANSI_CSI_SEQUENCE, '');
+}
+
+/**
+ * XML 1.0 `Char` production: the only code points a numeric reference may name.
+ * Anything else is a fatal parse error, so it must not be emitted.
+ */
+function isLegalXmlChar(codePoint: number): boolean {
+  return (
+    codePoint === 0x09 ||
+    codePoint === 0x0a ||
+    codePoint === 0x0d ||
+    (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+    (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+    (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+  );
+}
+
 /**
  * Escape a string so the result is safe to embed in XML character data.
  *
  * The output is guaranteed to be pure ASCII: characters outside printable
  * ASCII (0x20-0x7E), plus control characters other than `\n` and `\t`, are
  * emitted as uppercase-hex numeric character references. `\n` and `\t` are
- * preserved verbatim so multi-line messages keep their shape.
+ * preserved verbatim so multi-line messages keep their shape. Code points that
+ * XML 1.0 does not allow (control characters, lone surrogates, U+FFFE/U+FFFF)
+ * are emitted as U+FFFD instead of an illegal reference.
  */
 function escapeXmlText(value: string): string {
   let out = '';
   // Iterating a string yields code points, so astral characters (emoji) are
   // emitted as a single reference rather than two surrogate escapes.
-  for (const char of value) {
+  for (const char of stripAnsiSequences(value)) {
     switch (char) {
       case '&':
         out += '&amp;';
@@ -55,7 +96,7 @@ function escapeXmlText(value: string): string {
  */
 function escapeXmlAttribute(value: string): string {
   let out = '';
-  for (const char of value) {
+  for (const char of stripAnsiSequences(value)) {
     switch (char) {
       case '&':
         out += '&amp;';
@@ -83,6 +124,9 @@ function escapeCodePoint(char: string): string {
   const codePoint = char.codePointAt(0) ?? 0;
   if (codePoint >= 0x20 && codePoint <= 0x7e) {
     return char;
+  }
+  if (!isLegalXmlChar(codePoint)) {
+    return REPLACEMENT_CHARACTER_REFERENCE;
   }
   return `&#x${codePoint.toString(16).toUpperCase()};`;
 }
