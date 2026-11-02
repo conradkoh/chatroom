@@ -400,7 +400,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
-      A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators.
       <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
       ## Code Change Verification
@@ -441,7 +440,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-      **Test seams:** A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators. Fill \`## Test seams\` in the brief body for each behavior the slice changes.
+      **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
       Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
 
@@ -542,7 +541,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-      **Test seams:** A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators. Fill \`## Test seams\` in the brief body for each behavior the slice changes.
+      **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
       Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
 

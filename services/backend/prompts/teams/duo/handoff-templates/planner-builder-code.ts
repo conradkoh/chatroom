@@ -20,7 +20,7 @@ function getPlannerBuilderCodeBody(): string {
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
-**Test seams:** A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators. Fill \`## Test seams\` in the brief body for each behavior the slice changes.
+**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
 Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
 

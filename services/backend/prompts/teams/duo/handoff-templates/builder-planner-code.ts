@@ -33,7 +33,6 @@ ${getHandoffQualityPrinciplesSectionBlock()}
 ## Proof of Completion
 ${getDelegationBriefDisclosureBlock()}
 ${getFileReferenceProofOfCompletionExample()}
-A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators.
 <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
 ## Code Change Verification
