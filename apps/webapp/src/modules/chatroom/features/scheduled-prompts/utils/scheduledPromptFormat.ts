@@ -1,8 +1,12 @@
+import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
+
 import { formatDailyScheduleLocal, formatTimestampLocal } from './scheduledPromptTimezone';
 import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
 
-type ScheduledPromptScheduleKind = 'interval' | 'daily' | 'once';
-type ScheduledPromptDisabledReason = 'user' | 'archive' | 'completed' | 'failed';
+export type ScheduledPromptScheduleKind = Doc<'chatroom_scheduledPrompts'>['scheduleKind'];
+type ScheduledPromptDisabledReason = NonNullable<
+  Doc<'chatroom_scheduledPrompts'>['disabledReason']
+>;
 
 /** Derived display status for a scheduled prompt row. */
 export type ScheduledPromptStatus = 'active' | 'disabled' | 'archived' | 'completed' | 'failed';

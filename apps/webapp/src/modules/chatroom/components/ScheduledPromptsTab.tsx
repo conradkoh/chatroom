@@ -175,7 +175,7 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [prompt, setPrompt] = useState(initial?.prompt ?? '');
-  const [scheduleKind, setScheduleKind] = useState<'interval' | 'daily' | 'once'>(
+  const [scheduleKind, setScheduleKind] = useState<ScheduleFields['scheduleKind']>(
     initial?.scheduleKind ?? 'interval'
   );
   const [intervalMinutes, setIntervalMinutes] = useState(initial?.intervalMinutes ?? 30);

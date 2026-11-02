@@ -1,4 +1,4 @@
-import { ConvexError, v } from 'convex/values';
+import { ConvexError, v, type Infer } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { internal } from './_generated/api';
@@ -36,7 +36,7 @@ async function requireScheduledPromptAccess(
 const scheduleKindValidator = v.union(v.literal('interval'), v.literal('daily'), v.literal('once'));
 
 type ScheduleInput = {
-  scheduleKind: 'interval' | 'daily' | 'once';
+  scheduleKind: Infer<typeof scheduleKindValidator>;
   intervalMinutes?: number | undefined;
   hourUTC?: number | undefined;
   minuteUTC?: number | undefined;
@@ -45,7 +45,7 @@ type ScheduleInput = {
 
 /** Fields an update may change on a schedule. Absent means "keep current". */
 type ScheduleUpdateInput = {
-  scheduleKind?: 'interval' | 'daily' | 'once' | undefined;
+  scheduleKind?: Infer<typeof scheduleKindValidator> | undefined;
   intervalMinutes?: number | undefined;
   hourUTC?: number | undefined;
   minuteUTC?: number | undefined;

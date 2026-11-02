@@ -1,8 +1,9 @@
+import type { ScheduledPromptScheduleKind } from './scheduledPromptFormat';
 import { localDailyTimeToUtc, localDateTimeInputToUtcMs } from './scheduledPromptTimezone';
 
 /** The schedule-kind-specific part of a scheduled prompt form submission. */
 export type ScheduleFields = {
-  scheduleKind: 'interval' | 'daily' | 'once';
+  scheduleKind: ScheduledPromptScheduleKind;
   intervalMinutes?: number;
   hourUTC?: number;
   minuteUTC?: number;
