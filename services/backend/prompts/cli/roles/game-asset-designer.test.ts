@@ -69,6 +69,17 @@ describe('game asset designer guidance — skills', () => {
     expect(text).toContain('chatroom handoff');
   });
 
+  it('keeps the master R10 split for material warnings', () => {
+    const text = guidance();
+
+    expect(text).toContain(
+      'If the metal warning remains after one regeneration, or any other material warning remains, report it under Open questions.'
+    );
+    expect(text).not.toContain(
+      'every material warning the generator reports that remains after one regeneration'
+    );
+  });
+
   it('keeps one short principle for perspective and for the lighting anchor', () => {
     const text = guidance();
 

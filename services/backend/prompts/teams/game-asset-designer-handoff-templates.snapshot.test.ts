@@ -84,6 +84,25 @@ describe('game asset designer handoff template snapshots', () => {
     expect(`${brief}\n${report}`).not.toMatch(/FLUX\.2|FLUX 2(?! Flash)/);
   });
 
+  test('brief keeps one fixed tool line per domain and covers every skill tool', () => {
+    const brief = renderPair({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'game-asset-designer',
+    });
+
+    expect(brief).toContain('keep the fixed line for each domain the brief contains');
+    expect(brief).toContain(
+      'AI 3D: `chatroom generate-3d --platform=fal --model <Model> (dry run first), gltf-transform inspect`'
+    );
+    expect(brief).toContain(
+      'Procedural 3D: `<generator script path> <run command>, git rev-parse HEAD, gltf-transform inspect`'
+    );
+    expect(brief).toContain(
+      '`Not applicable.` for a procedural asset (its parameters live in the config file named in `## Allowed edit paths`)'
+    );
+  });
+
   test('planner delegation states the target, budgets, style reference, and deliverable mode', () => {
     const template = renderPair({
       teamId: 'duo',

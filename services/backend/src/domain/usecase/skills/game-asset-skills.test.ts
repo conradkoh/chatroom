@@ -89,6 +89,49 @@ describe('game-asset skill prompts', () => {
     expect(prompt).toContain('Measure the exported master GLB');
   });
 
+  it('ai prompts reference the shared All assets checklist instead of restating it', () => {
+    const cases = [
+      ['2D AI', gameAsset2dAiSkill],
+      ['3D AI', gameAsset3dAiSkill],
+      ['procedural', gameAsset3dProceduralSkill],
+    ] as const;
+
+    for (const [, module] of cases) {
+      const prompt = module.getPrompt('');
+      expect(prompt).toContain("Also apply the role prompt's All assets checklist.");
+      expect(prompt).not.toContain('Naming follows the project convention');
+      expect(prompt).not.toContain('Style matches the named style reference');
+      expect(prompt).not.toContain('Budgets in the request');
+    }
+  });
+
+  it.each([
+    ['3D AI', gameAsset3dAiSkill],
+    ['procedural', gameAsset3dProceduralSkill],
+  ] as const)('%s prompt defers the lighting definitions to the role prompt', (_label, module) => {
+    const prompt = module.getPrompt('');
+    expect(prompt).not.toContain('the existing render of the target rig');
+    expect(prompt).not.toContain(
+      "a render of the generated asset loaded in the project's real scene"
+    );
+    expect(prompt).not.toContain('`not checked` blocks delivery');
+  });
+
+  it('procedural prompt shares the AI 3D PBR checklist', () => {
+    const prompt = gameAsset3dProceduralSkill.getPrompt('');
+    expect(prompt).toContain('Verify the slot for each map');
+    expect(prompt).toContain('for example Unreal; confirm for the target engine version');
+    expect(prompt).toContain('no baked-in lighting or text in base color');
+  });
+
+  it('3D prompts backtick the shared lighting headings', () => {
+    for (const module of [gameAsset3dAiSkill, gameAsset3dProceduralSkill]) {
+      const prompt = module.getPrompt('');
+      expect(prompt).toContain("the brief's `## Lighting contract`");
+      expect(prompt).toContain('under `## Lighting verification`');
+    }
+  });
+
   it('2D AI prompt anchors the generate-image and slice-image commands', () => {
     const prompt = gameAsset2dAiSkill.getPrompt('');
     expect(prompt).toContain('chatroom generate-image --platform=fal');
