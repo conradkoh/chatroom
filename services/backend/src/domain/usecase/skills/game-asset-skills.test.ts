@@ -136,7 +136,7 @@ describe('game-asset skill prompts', () => {
   ] as const)('%s prompt marks the shared lighting item once', (_label, module) => {
     const prompt = module.getPrompt('');
     expect(prompt.match(/\*\*Lighting\*\*/g)).toHaveLength(1);
-    expect(prompt).toContain('(the same item as in All assets; mark it once)');
+    expect(prompt).toContain('This is the same item as in All assets; mark it once');
   });
 
   it('2D AI prompt anchors the generate-image and slice-image commands', () => {

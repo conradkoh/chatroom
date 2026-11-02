@@ -29,7 +29,7 @@ export function format3dModelChecklist({ metalnessLine }: Format3dModelChecklist
     "Base color values stay in a physically plausible range (community starting range roughly 30–240 sRGB per channel for non-metals; the request's budget overrides it); metallic is near binary.",
     'Texture resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming, for example Unreal; confirm for the target engine version); compression format named. Maps in one set share texel density, value range, and naming (`T_Name_BaseColor`, `_Normal`, `_ORM`). Tiling textures wrap without a visible seam, and no baked-in lighting or text in base color unless declared.',
     metalnessLine,
-    "**Lighting**: renders correctly under the brief's `## Lighting contract` (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under `## Lighting verification`; the rig reference render and Studio mode never support pass. (the same item as in All assets; mark it once)",
+    "**Lighting**: renders correctly under the brief's `## Lighting contract` (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under `## Lighting verification`; the rig reference render and Studio mode never support pass. This is the same item as in All assets; mark it once",
   ]
     .map((line) => `- ${line}`)
     .join('\n');
