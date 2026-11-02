@@ -156,7 +156,7 @@ describe('game-asset skill prompts', () => {
     expect(prompt).toContain('use `--trim-padding` only when the brief names a padding');
     expect(prompt).toContain('Never pass `--names` to `slice-image`');
     expect(prompt).toContain(
-      '(sheet: `<Output location>/_work/<sheet>.png`; per-asset: the step 4 path)'
+      '(sheet: `<Output location>/_work/<sheet>.png`; per-asset and reference edit: the step 4 path)'
     );
     expect(prompt).toContain('ceil(N/(C×R))');
     expect(prompt).toContain(
