@@ -58,8 +58,14 @@ describe('reviewer handoff template snapshots', () => {
     expect(template).toContain('**Authorization:**');
     expect(template).toContain('`defect` axis');
     expect(template).toContain('`blocker` when it exposes or changes another user');
-    expect(template).toContain('## Not reviewed');
-    expect(template).toContain('pass/fail');
+    expect(template).toContain('What a good review covers:');
+    expect(template).toContain('Calibrate severity:');
+    expect(template).toContain(
+      'the pass/fail result for each of `standards`, `spec`, and `defect`'
+    );
+    expect(template).toContain(
+      'list every in-scope endpoint you did not read under `## Not reviewed`'
+    );
   });
 
   test('reviewer report labels severities and cites file and line', () => {
