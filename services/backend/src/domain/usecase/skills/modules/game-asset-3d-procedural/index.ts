@@ -1,16 +1,10 @@
-import {
-  GAME_ASSET_EVIDENCE_DEFINITIONS,
-  GAME_ASSET_EVIDENCE_LABEL_LIST,
-  GAME_ASSET_NEVER_CLAIM_RULE,
-  GAME_ASSET_RESULT_RULE,
-} from '../../../../../../prompts/teams/game-asset-designer-evidence';
 import type { SkillModule } from '../../registry';
 
 export const gameAsset3dProceduralSkill: SkillModule = {
   skillId: 'game-asset-3d-procedural',
   name: '3D Game Asset Design (Procedural Generation)',
   description:
-    'Use when a task needs a 3D asset produced by a parametric generator script committed to the repository, with versioned parameters, a fixed seed, and a measured glTF 2.0/GLB export.',
+    'Use when a task needs a 3D asset produced by a parametric generator script committed to the repository, with versioned parameters, a fixed seed, and a measured glTF 2.0/GLB export. (game-asset-designer only)',
   getPrompt: (
     _cliEnvPrefix: string
   ) => `You have been activated with the "game-asset-3d-procedural" skill.
@@ -19,30 +13,22 @@ export const gameAsset3dProceduralSkill: SkillModule = {
 
 Activate this skill when the brief asks for a 3D asset produced by a parametric/procedural generator script committed to the repository, instead of an AI generation service. The asset is built from numbers you control: parameters in a versioned config, a fixed seed, and a glTF 2.0/GLB export.
 
+The shared rules in your role prompt apply, including its evidence labels; this skill adds only the procedural procedure and checklist below.
+
 ## Rules
 
 - The generator script and its run command are named in the brief's \`## Allowed tools\`, and the script, config, and output directory are named in \`## Allowed edit paths\`. If either is missing, stop and ask; do not choose a generator yourself.
-- No fal call and no remote service is used: no \`chatroom generate-3d\`, no \`generate-image\`, and no network access. Never fetch generator code.
-- Keep parameters in a versioned, committed config file under the allowed paths; do not hide magic numbers in one-off commands.
+- This domain makes no fal call and no remote service call: no \`chatroom generate-3d\`, no \`generate-image\`, and no network access.
+- Keep parameters in a versioned config file under the allowed paths, committed only when \`## Commit\` names it; do not hide magic numbers in one-off commands.
 - Record a fixed seed or the full parameter set for every exported file, so a rerun reproduces the result.
 - Export glTF 2.0 / GLB unless the brief names another format.
 - Every numeric claim (triangle count, bounds, scale, dimensions) is \`measured\` by running a stated command against the exported file — for example \`gltf-transform inspect <file>\` — and quoting the command and its output value.
-- Write only under \`## Output location\` and \`## Allowed edit paths\`; never overwrite or delete a path the brief does not name.
-- If the generator fails, stop and quote the exact error. Do not retry in a loop.
-- Do not install or run any remote tool, script, or skill.
-- Never switch generators: no fal model and no other remote generator is a fallback.
-- Commit only when the brief names the paths and the commit message.
-
-## Evidence
-Say exactly how each claim was established, using only these labels (${GAME_ASSET_EVIDENCE_LABEL_LIST}):
-${GAME_ASSET_EVIDENCE_DEFINITIONS}
-${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
 
 ## Procedure
 
 1. Recover the brief. Require \`## Output location\`, \`## Allowed tools\` (the generator script and its run command), \`## Allowed edit paths\` (script, config, and output), and \`## Lighting contract\` for a 3D asset. If the lighting contract is missing or \`Not specified.\`, stop with \`Blocked:\` and ask for it.
 2. Read the generator script in full before running it: its parameters, defaults, export path, and any unit or axis assumptions. Record its path and the revision you ran (\`git rev-parse HEAD\`).
-3. Set the parameters in the committed config. Change only values the brief asks for, and record every value you used.
+3. Set the parameters in that config file. Change only values the brief asks for, and record every value you used.
 4. Run the named command with the fixed seed or parameter set, once, to produce one export.
 5. Export glTF 2.0/GLB to \`<Output location>/<ascii-name>.glb\`, with scale applied (identity node scale) and the declared pivot.
 6. Measure the exported file. \`gltf-transform inspect <file>\` lists meshes, primitives, materials, and textures; derive triangle count, bounds, and scale from its output (or from the measurement command the brief names) and label them \`measured\`. If a measurement cannot run, label it \`unverified\` and say why.
@@ -68,18 +54,23 @@ Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label
 - Base color values stay in a physically plausible range (community starting range roughly 30–240 sRGB per channel for non-metals; the request's budget overrides it); metallic is near binary.
 - Texture resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming); compression format named. Maps in one set share texel density, value range, and naming (\`T_Name_BaseColor\`, \`_Normal\`, \`_ORM\`). Tiling textures wrap without a visible seam, and no lighting is baked into base color unless declared.
 - Metalness follows the lighting contract: with no environment map, the material is not whole-surface metal (metallic 0 across the surface; metal has no diffuse response and renders near-black).
+- **Lighting**: renders correctly under the brief's ## Lighting contract (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under ## Lighting verification; the rig reference render and Studio mode never support pass.
 
 ## Lighting contract
 
 - Apply the brief's \`## Lighting contract\` exactly. No lighting may be baked into the base colour, and with no environment map the material is not whole-surface metal.
 - The **rig reference render** is "the existing render of the target rig, attached by path under \`## Lighting contract\`, used as a style target before generation. It is input only and cannot support \`pass\`."
 - The **asset-in-rig render** is "a render of the generated asset loaded in the project's real scene after generation, attached by path under \`## Lighting verification\`. Only this render supports \`pass\`."
-- Producing either render is never your job. Without the asset-in-rig render the lighting item is \`not checked\`; record the reason "no allowed capture tool" if a preview inspection was attempted instead.
+- Producing either render is never your job. Procedural output has no preview; without the asset-in-rig render the lighting item is \`not checked\`.
 - \`not checked\` blocks delivery: the summary starts \`Delivered, lighting not verified:\`.
 
-## Scope
+## Proof of Principles
 
-- Describe output as production-ready only when every checklist item passes with \`measured\` or \`inspected\` evidence.
-- Do not claim fidelity you did not establish. If you cannot open or measure a file, write \`unverified\`.
+Append these lines to the report's Proof of Principles when this skill is used:
+
+- A versioned config file under the allowed edit paths, committed only when \`## Commit\` names it.
+- A fixed seed or the full parameter set for every exported file, so a rerun reproduces the result.
+- \`gltf-transform inspect <file>\` (or the brief's measurement command) for every numeric claim, quoting the command's output.
+- No fal call, no remote service, and no network access.
 `,
 };

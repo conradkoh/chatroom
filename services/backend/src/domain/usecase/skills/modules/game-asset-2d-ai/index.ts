@@ -1,10 +1,3 @@
-import {
-  GAME_ASSET_EVIDENCE_DEFINITIONS,
-  GAME_ASSET_EVIDENCE_LABEL_LIST,
-  GAME_ASSET_NEVER_CLAIM_RULE,
-  GAME_ASSET_RESULT_RULE,
-} from '../../../../../../prompts/teams/game-asset-designer-evidence';
-import { formatGameAssetRules } from '../../../../../../prompts/teams/game-asset-designer-workflow';
 import type { SkillModule } from '../../registry';
 
 export const gameAsset2dAiSkill: SkillModule = {
@@ -18,13 +11,7 @@ export const gameAsset2dAiSkill: SkillModule = {
 
 Activate this skill when the asset is 2D sprite or UI art produced by \`chatroom generate-image --platform=fal\`, whether one image at a time or a sheet that is sliced into tiles. The brief is the contract: it names the model, the sheet grid, the perspective, the output paths, the allowed tools, and the lighting contract.
 
-## Shared rules
-${formatGameAssetRules()}
-
-## Evidence
-Say exactly how each claim was established, using only these labels (${GAME_ASSET_EVIDENCE_LABEL_LIST}):
-${GAME_ASSET_EVIDENCE_DEFINITIONS}
-${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
+The shared rules in your role prompt apply, including its evidence labels; this skill adds only the 2D procedure and checklist below.
 
 ## Procedure
 

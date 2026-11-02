@@ -1,10 +1,3 @@
-import {
-  GAME_ASSET_EVIDENCE_DEFINITIONS,
-  GAME_ASSET_EVIDENCE_LABEL_LIST,
-  GAME_ASSET_NEVER_CLAIM_RULE,
-  GAME_ASSET_RESULT_RULE,
-} from '../../../../../../prompts/teams/game-asset-designer-evidence';
-import { formatGameAssetRules } from '../../../../../../prompts/teams/game-asset-designer-workflow';
 import type { SkillModule } from '../../registry';
 
 export const gameAsset3dAiSkill: SkillModule = {
@@ -18,13 +11,7 @@ export const gameAsset3dAiSkill: SkillModule = {
 
 Activate this skill when the asset is a 3D model produced by \`chatroom generate-3d --platform=fal\`, including its PBR materials, rig and animation options, and package outputs. The brief is the contract: it names the model, the output paths, the allowed tools, and the lighting contract.
 
-## Shared rules
-${formatGameAssetRules()}
-
-## Evidence
-Say exactly how each claim was established, using only these labels (${GAME_ASSET_EVIDENCE_LABEL_LIST}):
-${GAME_ASSET_EVIDENCE_DEFINITIONS}
-${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE}
+The shared rules in your role prompt apply, including its evidence labels; this skill adds only the 3D procedure and checklist below.
 
 ## Procedure
 
