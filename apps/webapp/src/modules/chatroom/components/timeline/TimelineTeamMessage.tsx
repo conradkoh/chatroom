@@ -10,6 +10,7 @@ import {
   getSenderClasses,
   ICON_SIZE,
   TIMELINE_HANDOFF_CHEVRON,
+  TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_META,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
   TIMELINE_HANDOFF_TOGGLE,
@@ -279,7 +280,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       {isCollapsed ? (
         <>
           <div id={bodyId} hidden />
-          <div className="pl-[2.375rem] pr-4 pb-2 empty:hidden">
+          <div className={cn(TIMELINE_HANDOFF_CHIPS, 'pr-4 pb-2 empty:hidden')}>
             <MessageAttachmentChips message={message} />
           </div>
         </>

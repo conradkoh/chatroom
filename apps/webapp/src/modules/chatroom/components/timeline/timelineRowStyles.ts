@@ -92,3 +92,9 @@ export const TIMELINE_HANDOFF_TOGGLE_LABEL =
 
 /** Right-aligned time column inside the collapsed bar. */
 export const TIMELINE_HANDOFF_META = 'flex shrink-0 items-center gap-1.5 leading-5';
+
+/**
+ * Collapsed-row attachment chips. 38px (2.375rem) = 16px bar padding (px-4) + 14px
+ * chevron + 8px gap-2, so the chips line up with the preview text above them.
+ */
+export const TIMELINE_HANDOFF_CHIPS = 'pl-[2.375rem]';

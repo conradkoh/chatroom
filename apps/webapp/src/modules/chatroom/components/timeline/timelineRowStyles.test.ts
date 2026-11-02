@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   getTimelineVirtualRowZIndex,
   TIMELINE_HANDOFF_CHEVRON,
+  TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
   TIMELINE_HANDOFF_TOGGLE,
   TIMELINE_HANDOFF_TOGGLE_LABEL,
@@ -77,5 +78,11 @@ describe('TIMELINE_HANDOFF_PREVIEW_TEXT', () => {
 describe('TIMELINE_HANDOFF_TOGGLE_LABEL', () => {
   it('matches the 20px line height of the bar', () => {
     expect(TIMELINE_HANDOFF_TOGGLE_LABEL).toContain('leading-5');
+  });
+});
+
+describe('TIMELINE_HANDOFF_CHIPS', () => {
+  it('indents chips to the preview text', () => {
+    expect(TIMELINE_HANDOFF_CHIPS).toBe('pl-[2.375rem]');
   });
 });
