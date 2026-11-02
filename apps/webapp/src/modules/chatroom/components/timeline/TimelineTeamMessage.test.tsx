@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimelineTeamMessage } from './TimelineTeamMessage';
 import type * as AttachmentsModule from '../../attachments';
+import type * as PreviewModule from '../../timeline/handoffPreview';
+import { getHandoffPreviewText } from '../../timeline/handoffPreview';
 import type { Message } from '../../types/message';
 import { formatTimestamp } from '../../utils/chatroomTimestamp';
 import type * as NormalizeModule from '../../utils/normalizeChatroomMarkdownContent';
@@ -56,6 +58,11 @@ vi.mock('../../utils/parseHandoffReport', async (importOriginal) => {
   return { ...actual, hasHandoffReport: vi.fn(actual.hasHandoffReport) };
 });
 
+vi.mock('../../timeline/handoffPreview', async (importOriginal) => {
+  const actual = await importOriginal<typeof PreviewModule>();
+  return { ...actual, getHandoffPreviewText: vi.fn(actual.getHandoffPreviewText) };
+});
+
 vi.mock('../../attachments', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof AttachmentsModule;
   return {
@@ -103,6 +110,7 @@ beforeEach(() => {
   vi.mocked(normalizeChatroomMarkdownContent).mockClear();
   vi.mocked(hasHandoffEnvelope).mockClear();
   vi.mocked(hasHandoffReport).mockClear();
+  vi.mocked(getHandoffPreviewText).mockClear();
   scrollIntoViewMock.mockClear();
 });
 
@@ -439,6 +447,39 @@ Edge case X
       expect(normalizeChatroomMarkdownContent).toHaveBeenCalled();
       expect(hasHandoffEnvelope).toHaveBeenCalled();
       expect(hasHandoffReport).toHaveBeenCalled();
+    });
+
+    it('computes the preview only while collapsed', () => {
+      const { rerender } = render(
+        <TimelineTeamMessage
+          message={COLLAPSIBLE_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={1_000}
+          collapsible
+        />
+      );
+
+      expect(getHandoffPreviewText).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show full handoff' }));
+      expect(getHandoffPreviewText).toHaveBeenCalledTimes(1);
+
+      // An expanded re-render must not recompute the preview.
+      rerender(
+        <TimelineTeamMessage
+          message={COLLAPSIBLE_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={2_000}
+          collapsible
+        />
+      );
+      expect(getHandoffPreviewText).toHaveBeenCalledTimes(1);
+    });
+
+    it('never computes the preview for an eager row', () => {
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" />);
+
+      expect(getHandoffPreviewText).not.toHaveBeenCalled();
     });
 
     it('previews presentation-fenced handoff content instead of rendering nothing', () => {
