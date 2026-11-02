@@ -1,7 +1,6 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { disableScheduledPromptsForArchive } from './lifecycle-impacts';
 import { api } from '../../../../convex/_generated/api';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
@@ -205,10 +204,11 @@ describe('lifecycle impacts', () => {
     });
     expect(impacts.impacts).toEqual([{ kind: 'scheduled_prompt', count: 1 }]);
 
-    const disabledCount = await t.run(async (ctx: any) => {
-      return await disableScheduledPromptsForArchive(ctx, chatroomId, now);
+    // Archive through the public mutation so the lifecycle wiring is covered.
+    await t.mutation(api.chatrooms.archive, {
+      sessionId,
+      chatroomId,
     });
-    expect(disabledCount).toBe(1);
 
     const prompts: Doc<'chatroom_scheduledPrompts'>[] = await t.run(async (ctx: any) => {
       return await ctx.db
