@@ -83,4 +83,10 @@ describe('computeNextRunAt', () => {
     );
     expect(result).toBe(ceiled);
   });
+
+  test('computeNextRunAtForEnable once returns runAt unchanged', () => {
+    expect(computeNextRunAtForEnable({ scheduleKind: 'once', runAt: 1_800_000 }, 1_000)).toBe(
+      1_800_000
+    );
+  });
 });

@@ -129,6 +129,29 @@ async function seedOverduePrompt(
   );
 }
 
+async function seedOverdueOncePrompt(
+  chatroomId: Id<'chatroom_rooms'>,
+  userId: Id<'users'>,
+  prompt = 'once message'
+): Promise<Id<'chatroom_scheduledPrompts'>> {
+  const now = Date.now();
+  const runAt = now - 1000; // overdue
+  return await t.run(async (ctx) =>
+    ctx.db.insert('chatroom_scheduledPrompts', {
+      chatroomId,
+      prompt,
+      scheduleKind: 'once',
+      runAt,
+      disabledReason: undefined,
+      isRunnable: true,
+      nextRunAt: runAt,
+      createdBy: userId,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+}
+
 describe('scheduled prompts', () => {
   test('create validates minimum interval', async () => {
     const { sessionId } = await createTestSession('sp-min-interval');
@@ -645,6 +668,452 @@ describe('scheduled prompts', () => {
           expect.objectContaining({ type: 'agent.requestStart', chatroomId, role: 'builder' }),
         ])
       );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('fireOne fires a one-time row exactly once and marks it completed', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-once-fire-exactly-once');
+      const chatroomId = await createChatroom(sessionId);
+      const id = await seedOverdueOncePrompt(chatroomId, userId);
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const row = await t.run(async (ctx) =>
+        ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+      );
+      expect(row!.disabledReason).toBe('completed');
+      expect(row!.isRunnable).toBe(false);
+      expect(row!.nextRunAt).toBeUndefined();
+      expect(row!.lastRunAt).toBeDefined();
+
+      const messages = await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_scheduledPromptId', (q) => q.eq('scheduledPromptId', id))
+          .collect()
+      );
+      expect(messages).toHaveLength(1);
+      expect(messages[0]!.sourcePlatform).toBe('scheduled');
+
+      // A second fire must be a no-op: the terminal state is not re-armable.
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const messagesAfterSecondFire = await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_scheduledPromptId', (q) => q.eq('scheduledPromptId', id))
+          .collect()
+      );
+      expect(messagesAfterSecondFire).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('runDue fires a one-time row once end to end', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-once-run-due');
+      const chatroomId = await createChatroom(sessionId);
+      const id = await seedOverdueOncePrompt(chatroomId, userId);
+
+      await t.mutation(api.scheduledPrompts.runDue as any, {});
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const firstPass = await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_scheduledPromptId', (q) => q.eq('scheduledPromptId', id))
+          .collect()
+      );
+      expect(firstPass).toHaveLength(1);
+
+      // A second cron pass must not fire the completed row again.
+      await t.mutation(api.scheduledPrompts.runDue as any, {});
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const secondPass = await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_scheduledPromptId', (q) => q.eq('scheduledPromptId', id))
+          .collect()
+      );
+      expect(secondPass).toHaveLength(1);
+
+      const row = await t.run(async (ctx) =>
+        ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+      );
+      expect(row!.disabledReason).toBe('completed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('create validates and stores a one-time schedule', async () => {
+    const { sessionId } = await createTestSession('sp-once-create');
+    const chatroomId = await createChatroom(sessionId);
+
+    const runAt = Date.now() + 3_600_000;
+    const id = await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'one time prompt',
+      scheduleKind: 'once',
+      runAt,
+    });
+
+    const row = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+    );
+    expect(row!.scheduleKind).toBe('once');
+    expect(row!.runAt).toBe(runAt);
+    expect(row!.nextRunAt).toBe(runAt);
+    expect(row!.isRunnable).toBe(true);
+    expect(row!.disabledReason).toBeUndefined();
+    expect(row!.intervalMinutes).toBeUndefined();
+    expect(row!.hourUTC).toBeUndefined();
+    expect(row!.minuteUTC).toBeUndefined();
+
+    await expect(
+      t.mutation(api.scheduledPrompts.create, {
+        sessionId,
+        chatroomId,
+        prompt: 'past prompt',
+        scheduleKind: 'once',
+        runAt: Date.now() - 60_000,
+      })
+    ).rejects.toThrow(/INVALID_SCHEDULE/);
+
+    await expect(
+      t.mutation(api.scheduledPrompts.create, {
+        sessionId,
+        chatroomId,
+        prompt: 'missing time prompt',
+        scheduleKind: 'once',
+      })
+    ).rejects.toThrow(/INVALID_SCHEDULE/);
+  });
+
+  test('update re-arms a pending one-time row and rejects a past time', async () => {
+    const { sessionId } = await createTestSession('sp-once-update');
+    const chatroomId = await createChatroom(sessionId);
+
+    const firstRunAt = Date.now() + 3_600_000;
+    const id = await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'one time prompt',
+      scheduleKind: 'once',
+      runAt: firstRunAt,
+    });
+    const scheduledPromptId = id as Id<'chatroom_scheduledPrompts'>;
+
+    const secondRunAt = firstRunAt + 3_600_000;
+    await t.mutation(api.scheduledPrompts.update, {
+      sessionId,
+      scheduledPromptId,
+      scheduleKind: 'once',
+      runAt: secondRunAt,
+    });
+
+    let row = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_scheduledPrompts', scheduledPromptId)
+    );
+    expect(row!.runAt).toBe(secondRunAt);
+    expect(row!.nextRunAt).toBe(secondRunAt);
+
+    await expect(
+      t.mutation(api.scheduledPrompts.update, {
+        sessionId,
+        scheduledPromptId,
+        scheduleKind: 'once',
+        runAt: Date.now() - 60_000,
+      })
+    ).rejects.toThrow(/INVALID_SCHEDULE/);
+
+    // A user-disabled row whose time has already passed can still be renamed
+    // when the edit form resends the unchanged runAt.
+    const { userId } = await createTestSession('sp-once-update-disabled-owner');
+    const pastRunAt = Date.now() - 60_000;
+    const disabledId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'disabled once prompt',
+        scheduleKind: 'once',
+        runAt: pastRunAt,
+        disabledReason: 'user',
+        isRunnable: false,
+        createdBy: userId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    );
+    await t.mutation(api.scheduledPrompts.update, {
+      sessionId,
+      scheduledPromptId: disabledId,
+      name: 'renamed',
+      scheduleKind: 'once',
+      runAt: pastRunAt,
+    });
+
+    row = await t.run(async (ctx) => ctx.db.get('chatroom_scheduledPrompts', disabledId));
+    expect(row!.name).toBe('renamed');
+    expect(row!.runAt).toBe(pastRunAt);
+    expect(row!.isRunnable).toBe(false);
+  });
+
+  test('update from interval to once clears recurring fields', async () => {
+    const { sessionId } = await createTestSession('sp-once-from-interval');
+    const chatroomId = await createChatroom(sessionId);
+
+    const id = await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'recurring prompt',
+      scheduleKind: 'interval',
+      intervalMinutes: 30,
+    });
+
+    const runAt = Date.now() + 7_200_000;
+    await t.mutation(api.scheduledPrompts.update, {
+      sessionId,
+      scheduledPromptId: id as Id<'chatroom_scheduledPrompts'>,
+      scheduleKind: 'once',
+      runAt,
+    });
+
+    const row = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+    );
+    expect(row!.scheduleKind).toBe('once');
+    expect(row!.intervalMinutes).toBeUndefined();
+    expect(row!.runAt).toBe(runAt);
+    expect(row!.nextRunAt).toBe(runAt);
+  });
+
+  test('setEnabled round trip re-arms a future one-time row and rejects a past one', async () => {
+    const { sessionId } = await createTestSession('sp-once-set-enabled');
+    const chatroomId = await createChatroom(sessionId);
+
+    const runAt = Date.now() + 3_600_000;
+    const id = await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'one time prompt',
+      scheduleKind: 'once',
+      runAt,
+    });
+    const scheduledPromptId = id as Id<'chatroom_scheduledPrompts'>;
+
+    await t.mutation(api.scheduledPrompts.setEnabled, {
+      sessionId,
+      scheduledPromptId,
+      enabled: false,
+    });
+    await t.mutation(api.scheduledPrompts.setEnabled, {
+      sessionId,
+      scheduledPromptId,
+      enabled: true,
+    });
+
+    const row = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_scheduledPrompts', scheduledPromptId)
+    );
+    expect(row!.isRunnable).toBe(true);
+    expect(row!.disabledReason).toBeUndefined();
+    expect(row!.nextRunAt).toBe(runAt);
+
+    const { userId } = await createTestSession('sp-once-set-enabled-past-owner');
+    const pastId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'past once prompt',
+        scheduleKind: 'once',
+        runAt: Date.now() - 60_000,
+        disabledReason: 'user',
+        isRunnable: false,
+        createdBy: userId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    );
+    await expect(
+      t.mutation(api.scheduledPrompts.setEnabled, {
+        sessionId,
+        scheduledPromptId: pastId,
+        enabled: true,
+      })
+    ).rejects.toThrow(/INVALID_SCHEDULE/);
+  });
+
+  test('a completed one-time row is terminal', async () => {
+    const { sessionId, userId } = await createTestSession('sp-once-completed');
+    const chatroomId = await createChatroom(sessionId);
+
+    const now = Date.now();
+    const id = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'completed once prompt',
+        scheduleKind: 'once',
+        runAt: now - 60_000,
+        disabledReason: 'completed',
+        isRunnable: false,
+        lastRunAt: now - 30_000,
+        createdBy: userId,
+        createdAt: now - 120_000,
+        updatedAt: now - 30_000,
+      })
+    );
+
+    await expect(
+      t.mutation(api.scheduledPrompts.setEnabled, {
+        sessionId,
+        scheduledPromptId: id,
+        enabled: true,
+      })
+    ).rejects.toThrow(/SCHEDULE_FINISHED/);
+    await expect(
+      t.mutation(api.scheduledPrompts.setEnabled, {
+        sessionId,
+        scheduledPromptId: id,
+        enabled: false,
+      })
+    ).rejects.toThrow(/SCHEDULE_FINISHED/);
+    await expect(
+      t.mutation(api.scheduledPrompts.update, {
+        sessionId,
+        scheduledPromptId: id,
+        name: 'renamed',
+      })
+    ).rejects.toThrow(/SCHEDULE_FINISHED/);
+  });
+
+  test('a one-time row whose send fails becomes terminal', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-once-send-failed');
+      const chatroomId = await createChatroom(sessionId);
+      // Whitespace-only prompt: sendAutomatedUserMessage rejects it (empty_content).
+      const id = await seedOverdueOncePrompt(chatroomId, userId, '   ');
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const row = await t.run(async (ctx) =>
+        ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+      );
+      expect(row!.disabledReason).toBe('failed');
+      expect(row!.isRunnable).toBe(false);
+      expect(row!.nextRunAt).toBeUndefined();
+      expect(row!.lastRunAt).toBeUndefined();
+
+      await t.mutation(api.scheduledPrompts.runDue as any, {});
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const messages = await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_scheduledPromptId', (q) => q.eq('scheduledPromptId', id))
+          .collect()
+      );
+      expect(messages).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a one-time row on a non-active chatroom becomes failed', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-once-inactive');
+      const chatroomId = await createChatroom(sessionId);
+      const id = await seedOverdueOncePrompt(chatroomId, userId);
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch('chatroom_rooms', chatroomId, { status: 'completed' });
+      });
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const row = await t.run(async (ctx) =>
+        ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+      );
+      expect(row!.disabledReason).toBe('failed');
+      expect(row!.isRunnable).toBe(false);
+      expect(row!.nextRunAt).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a second overdue one-time row is queued behind the first task', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-once-queue');
+      const chatroomId = await createChatroom(sessionId);
+      const firstId = await seedOverdueOncePrompt(chatroomId, userId, 'first once message');
+      const secondId = await seedOverdueOncePrompt(chatroomId, userId, 'second once message');
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: firstId });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: secondId });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const firstMessages = await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_scheduledPromptId', (q) => q.eq('scheduledPromptId', firstId))
+          .collect()
+      );
+      expect(firstMessages).toHaveLength(1);
+
+      const queued = await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_messageQueue')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .collect()
+      );
+      expect(queued).toHaveLength(1);
+      expect(queued[0]!.scheduledPromptId).toBe(secondId);
+      expect(queued[0]!.content).toBe('second once message');
+
+      const rows = await t.run(async (ctx) =>
+        Promise.all([
+          ctx.db.get('chatroom_scheduledPrompts', firstId),
+          ctx.db.get('chatroom_scheduledPrompts', secondId),
+        ])
+      );
+      expect(rows[0]!.disabledReason).toBe('completed');
+      expect(rows[1]!.disabledReason).toBe('completed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('listTriggeredMessages keeps history for a completed one-time row', async () => {
+    vi.useFakeTimers();
+    try {
+      const { sessionId, userId } = await createTestSession('sp-once-history');
+      const chatroomId = await createChatroom(sessionId);
+      const id = await seedOverdueOncePrompt(chatroomId, userId, 'kept in history');
+
+      await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const triggered = await t.query(api.scheduledPrompts.listTriggeredMessages, {
+        sessionId,
+        scheduledPromptId: id,
+      });
+      expect(triggered).toHaveLength(1);
+      expect(triggered[0]!.content).toBe('kept in history');
     } finally {
       vi.useRealTimers();
     }

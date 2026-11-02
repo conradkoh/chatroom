@@ -2221,17 +2221,26 @@ export default defineSchema({
     .index('by_chatroom_platform', ['chatroomId', 'platform']),
 
   /**
-   * Scheduled prompts that fire as user messages on interval/daily schedules.
+   * Scheduled prompts that fire as user messages on interval/daily/one-time schedules.
+   *
+   * Trigger projection: `isRunnable` + `nextRunAt` (indexed). `nextRunAt` is the only
+   * field the cron queries. One-time rows transition to a terminal `disabledReason`
+   * (`completed` / `failed`) after firing and are never re-armed.
    */
   chatroom_scheduledPrompts: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     name: v.optional(v.string()),
     prompt: v.string(),
-    scheduleKind: v.union(v.literal('interval'), v.literal('daily')),
+    scheduleKind: v.union(v.literal('interval'), v.literal('daily'), v.literal('once')),
     intervalMinutes: v.optional(v.number()),
     hourUTC: v.optional(v.number()),
     minuteUTC: v.optional(v.number()),
-    disabledReason: v.optional(v.union(v.literal('user'), v.literal('archive'))),
+    /** once only: absolute UTC epoch ms chosen by the user. Configuration — never indexed; nextRunAt is the trigger projection. */
+    runAt: v.optional(v.number()),
+    /** undefined = live. 'completed' | 'failed' are terminal states of a once row (never re-armable). */
+    disabledReason: v.optional(
+      v.union(v.literal('user'), v.literal('archive'), v.literal('completed'), v.literal('failed'))
+    ),
     isRunnable: v.boolean(),
     nextRunAt: v.optional(v.number()),
     lastRunAt: v.optional(v.number()),
