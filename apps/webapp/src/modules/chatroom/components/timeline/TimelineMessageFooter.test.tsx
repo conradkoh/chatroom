@@ -6,7 +6,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
-import { TimelineMessageFooter } from './TimelineMessageFooter';
+import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessageFooter';
 import { AttachmentsProvider } from '../../attachments';
 import type { Message } from '../../types/message';
 
@@ -78,5 +78,40 @@ describe('TimelineMessageFooter', () => {
   it('hides handoff duration when no timing is supplied', () => {
     renderFooter(makeMessage());
     expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
+  });
+});
+
+describe('TimelineMessageTimestamp', () => {
+  const CREATION_TIME = 1_700_000_000_000;
+
+  it('renders the footer timestamp markup in non-compact mode', () => {
+    render(<TimelineMessageTimestamp creationTime={CREATION_TIME} handoffDurationMs={62_000} />);
+
+    const duration = screen.getByTestId('timeline-handoff-duration');
+    expect(duration).toHaveTextContent('1m 2s');
+    expect(duration).toHaveAttribute('title', 'Time since task started: 1m 2s');
+    expect(duration).not.toHaveClass('hidden');
+    expect(duration).not.toHaveClass('sm:inline');
+
+    const fullDate = screen.getByText(`TS:${CREATION_TIME}`);
+    expect(fullDate).toHaveAttribute('title', `TS_FULL:${CREATION_TIME}`);
+    expect(screen.queryByText(`TOD:${CREATION_TIME}`)).not.toBeInTheDocument();
+  });
+
+  it('renders the compact variant with responsive duration and time-of-day spans', () => {
+    render(
+      <TimelineMessageTimestamp creationTime={CREATION_TIME} handoffDurationMs={62_000} compact />
+    );
+
+    const duration = screen.getByTestId('timeline-handoff-duration');
+    expect(duration).toHaveTextContent('1m 2s');
+    expect(duration).toHaveClass('hidden', 'sm:inline');
+
+    const fullDate = screen.getByText(`TS:${CREATION_TIME}`);
+    expect(fullDate).toHaveClass('hidden', 'sm:inline');
+    expect(fullDate.parentElement).toHaveAttribute('title', `TS_FULL:${CREATION_TIME}`);
+
+    const timeOfDay = screen.getByText(`TOD:${CREATION_TIME}`);
+    expect(timeOfDay).toHaveClass('sm:hidden');
   });
 });

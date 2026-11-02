@@ -1,9 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimelineTeamMessage } from './TimelineTeamMessage';
 import type * as AttachmentsModule from '../../attachments';
 import type { Message } from '../../types/message';
+import { formatTimestamp } from '../../utils/chatroomTimestamp';
 import type * as NormalizeModule from '../../utils/normalizeChatroomMarkdownContent';
 import { normalizeChatroomMarkdownContent } from '../../utils/normalizeChatroomMarkdownContent';
 import type * as EnvelopeModule from '../../utils/parseHandoffEnvelope';
@@ -407,17 +409,22 @@ Edge case X
       content: 'Preview sentence one.\nPreview sentence two.\n\nDeferred body sentence.',
     };
 
-    it('starts collapsed with a plain-text preview and no markdown body', () => {
-      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+    const collapsedTime = () => formatTimestamp(COLLAPSIBLE_HANDOFF._creationTime);
 
-      expect(screen.getByTestId('timeline-handoff-preview')).toHaveTextContent(
+    it('starts collapsed as a summary bar with preview, time, and no footer or body', () => {
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+      const toggle = screen.getByTestId('timeline-handoff-toggle');
+
+      expect(within(toggle).getByTestId('timeline-handoff-preview')).toHaveTextContent(
         'Preview sentence one. Preview sentence two.'
       );
+      expect(within(toggle).getByText(collapsedTime())).toBeInTheDocument();
       expect(screen.queryByText(/Deferred body sentence/)).not.toBeInTheDocument();
       expect(document.querySelector('.prose')).toBeNull();
       expect(markdownBodyMock).not.toHaveBeenCalled();
-      expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-message-footer')).not.toBeInTheDocument();
       expect(screen.getByTestId('timeline-message-header')).toBeInTheDocument();
+      expect(toggle).toHaveAttribute('data-state', 'collapsed');
     });
 
     it('skips handoff parsing while collapsed and runs it on expand', () => {
@@ -441,27 +448,32 @@ Edge case X
       };
       render(<TimelineTeamMessage message={fencedHandoff} chatroomId="room-1" collapsible />);
 
-      expect(screen.getByTestId('timeline-handoff-preview')).toHaveTextContent(
-        'Summary Fixed the thing.'
-      );
+      expect(
+        within(screen.getByTestId('timeline-handoff-toggle')).getByTestId(
+          'timeline-handoff-preview'
+        )
+      ).toHaveTextContent('Summary Fixed the thing.');
     });
 
-    it('renders no preview paragraph when the content has no visible text', () => {
+    it('shows the visible label and no describedby when the preview is empty', () => {
       const blankHandoff: Message = { ...COLLAPSIBLE_HANDOFF, content: '   \n\n  ' };
       render(<TimelineTeamMessage message={blankHandoff} chatroomId="room-1" collapsible />);
+      const toggle = screen.getByTestId('timeline-handoff-toggle');
 
-      expect(screen.queryByTestId('timeline-handoff-preview')).not.toBeInTheDocument();
-      expect(screen.getByTestId('timeline-handoff-toggle')).toBeInTheDocument();
+      expect(within(toggle).queryByTestId('timeline-handoff-preview')).not.toBeInTheDocument();
+      expect(within(toggle).getByText('Show full handoff')).toBeInTheDocument();
+      expect(toggle).not.toHaveAttribute('aria-describedby');
     });
 
-    it('mounts the full body on expand and unmounts it on collapse', () => {
+    it('mounts the body and footer on expand and unmounts both on collapse', () => {
       render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
 
-      fireEvent.click(screen.getByText('Show full handoff'));
+      fireEvent.click(screen.getByRole('button', { name: 'Show full handoff' }));
 
       expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
         'Deferred body sentence.'
       );
+      expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
       expect(screen.queryByTestId('timeline-handoff-preview')).not.toBeInTheDocument();
       expect(screen.getByTestId('timeline-team-message')).toHaveAttribute(
         'data-message-type',
@@ -471,7 +483,8 @@ Edge case X
       fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
 
       expect(screen.queryByTestId('timeline-markdown-body')).not.toBeInTheDocument();
-      expect(screen.getByText('Show full handoff')).toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-message-footer')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Show full handoff' })).toBeInTheDocument();
     });
 
     it('keeps one toggle button focused and wired to the body across expand and collapse', () => {
@@ -482,7 +495,6 @@ Edge case X
       expect(bodyId).toBeTruthy();
       expect(document.getElementById(bodyId as string)).toBeInTheDocument();
       expect(toggle).toHaveAttribute('aria-expanded', 'false');
-      expect(toggle).toHaveTextContent('Show full handoff');
 
       toggle.focus();
       fireEvent.click(toggle);
@@ -518,14 +530,139 @@ Edge case X
       expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });
 
-    it('renders the full body with no toggle when not collapsible', () => {
+    it('describes itself with the preview and names both actions', () => {
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+      const toggle = screen.getByTestId('timeline-handoff-toggle');
+      const preview = within(toggle).getByTestId('timeline-handoff-preview');
+
+      expect(toggle).toHaveAttribute('aria-describedby', preview.id);
+      expect(toggle).toHaveAccessibleName('Show full handoff');
+
+      fireEvent.click(toggle);
+
+      expect(toggle).toHaveAccessibleName('Collapse');
+      expect(toggle).not.toHaveAttribute('aria-describedby');
+    });
+
+    it('flips data-state and rotates the same chevron when expanded', () => {
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+      const toggle = screen.getByTestId('timeline-handoff-toggle');
+      const chevron = toggle.querySelector('svg');
+
+      expect(toggle).toHaveAttribute('data-state', 'collapsed');
+      expect(chevron).not.toBeNull();
+      expect(chevron).not.toHaveClass('rotate-90');
+
+      fireEvent.click(toggle);
+
+      expect(toggle).toHaveAttribute('data-state', 'expanded');
+      expect(toggle.querySelector('svg')).toBe(chevron);
+      expect(chevron).toHaveClass('rotate-90');
+    });
+
+    it('shows the code-block placeholder for code-only content', () => {
+      const codeHandoff: Message = {
+        ...COLLAPSIBLE_HANDOFF,
+        content: '```ts\nconst a = 1;\n```',
+      };
+      render(<TimelineTeamMessage message={codeHandoff} chatroomId="room-1" collapsible />);
+
+      expect(
+        within(screen.getByTestId('timeline-handoff-toggle')).getByTestId(
+          'timeline-handoff-preview'
+        )
+      ).toHaveTextContent('(code block)');
+    });
+
+    it('clamps a long preview to two lines and 240 characters', () => {
+      const longHandoff: Message = {
+        ...COLLAPSIBLE_HANDOFF,
+        content: 'word '.repeat(120).trim(),
+      };
+      render(<TimelineTeamMessage message={longHandoff} chatroomId="room-1" collapsible />);
+
+      const preview = within(screen.getByTestId('timeline-handoff-toggle')).getByTestId(
+        'timeline-handoff-preview'
+      );
+      expect(preview).toHaveClass('line-clamp-2');
+      expect(preview.textContent?.length ?? 0).toBeLessThanOrEqual(240);
+      expect(preview.textContent?.endsWith('…')).toBe(true);
+    });
+
+    it('moves the duration from the summary bar into the footer on expand', () => {
+      render(
+        <TimelineTeamMessage
+          message={COLLAPSIBLE_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={62_000}
+          collapsible
+        />
+      );
+
+      const toggle = screen.getByTestId('timeline-handoff-toggle');
+      const collapsedDuration = within(toggle).getByTestId('timeline-handoff-duration');
+      expect(collapsedDuration).toHaveTextContent('1m 2s');
+      expect(collapsedDuration).toHaveClass('hidden', 'sm:inline');
+      expect(screen.getAllByTestId('timeline-handoff-duration')).toHaveLength(1);
+
+      fireEvent.click(toggle);
+
+      const footer = screen.getByTestId('timeline-message-footer');
+      const expandedDuration = within(footer).getByTestId('timeline-handoff-duration');
+      expect(expandedDuration).toHaveTextContent('1m 2s');
+      expect(expandedDuration).not.toHaveClass('hidden');
+      expect(screen.getAllByTestId('timeline-handoff-duration')).toHaveLength(1);
+    });
+
+    it('renders attachment chips under the bar when collapsed', () => {
+      const withAttachments: Message = {
+        ...COLLAPSIBLE_HANDOFF,
+        attachedTasks: [{ _id: 'task-1', content: 'Attached task' }],
+      };
+      render(<TimelineTeamMessage message={withAttachments} chatroomId="room-1" collapsible />);
+
+      const row = screen.getByTestId('timeline-team-message');
+      const chipsWrapper = row.querySelector('.pl-\\[2\\.375rem\\]');
+      expect(chipsWrapper).not.toBeNull();
+      expect(chipsWrapper).toHaveTextContent('Attached task');
+      expect(screen.queryByTestId('timeline-message-footer')).not.toBeInTheDocument();
+    });
+
+    it('toggles with Enter and Space and keeps focus on the same button', async () => {
+      const user = userEvent.setup();
+      render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />);
+      const toggle = screen.getByTestId('timeline-handoff-toggle');
+
+      await user.tab();
+      expect(document.activeElement).toBe(toggle);
+
+      await user.keyboard('{Enter}');
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      expect(document.activeElement).toBe(toggle);
+
+      scrollIntoViewMock.mockClear();
+      await user.keyboard(' ');
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      expect(document.activeElement).toBe(toggle);
+      expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    });
+
+    it('drops the header margin for collapsible rows and keeps eager rows unchanged', () => {
+      const { unmount } = render(
+        <TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" collapsible />
+      );
+      expect(screen.getByTestId('timeline-message-header')).not.toHaveClass('mb-2');
+      unmount();
+
       render(<TimelineTeamMessage message={COLLAPSIBLE_HANDOFF} chatroomId="room-1" />);
 
+      expect(screen.getByTestId('timeline-message-header')).toHaveClass('mb-2');
       expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
         'Deferred body sentence.'
       );
+      expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
+      expect(screen.getByTestId('timeline-team-message').querySelector('.py-3')).not.toBeNull();
       expect(screen.queryByText('Show full handoff')).not.toBeInTheDocument();
-      expect(screen.queryByText('Collapse')).not.toBeInTheDocument();
       expect(screen.queryByTestId('timeline-handoff-toggle')).not.toBeInTheDocument();
     });
   });

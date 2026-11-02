@@ -67,7 +67,7 @@ export interface TimelineMessageTimestampProps {
  * `compact` keeps the same markup but swaps the full date for the time of day
  * below `sm`, where the summary bar has no room for the date.
  */
-const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
+export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
   creationTime,
   handoffDurationMs,
   compact = false,
