@@ -73,7 +73,7 @@ describe('game asset designer guidance — skills', () => {
     const text = guidance();
 
     expect(text).toContain(
-      "If the generator's whole-surface metal warning (named in the matching skill) remains after one regeneration, or any other material warning remains, report it under Open questions."
+      "If the generator's whole-surface metal warning (named in `game-asset-3d-ai`) remains after one regeneration, or any other material warning remains, report it under Open questions."
     );
     expect(text).not.toContain(
       'every material warning the generator reports that remains after one regeneration'
