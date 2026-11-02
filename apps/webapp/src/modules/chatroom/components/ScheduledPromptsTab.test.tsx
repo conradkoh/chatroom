@@ -451,6 +451,90 @@ describe('ScheduledPromptsTab', () => {
     });
     expect(mocks.update).not.toHaveBeenCalled();
   });
+
+  it('opens a prefilled one-time form from a composer request', async () => {
+    mocks.list.mockReturnValue([]);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(
+      <ScheduledPromptsTab
+        chatroomId="room-1"
+        pendingPrefill={{ prompt: '  Draft from composer  ', hasAttachments: true }}
+      />
+    );
+
+    expect(await screen.findByText('New Scheduled Prompt')).toBeDefined();
+    expect(screen.getByLabelText('One time')).toBeChecked();
+    expect(screen.getByPlaceholderText('What should the prompt say?')).toHaveValue(
+      '  Draft from composer  '
+    );
+    expect(screen.getByText('Attachments are not included in scheduled prompts.')).toBeDefined();
+  });
+
+  it('omits the attachment helper line when there are no attachments', async () => {
+    mocks.list.mockReturnValue([]);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(
+      <ScheduledPromptsTab
+        chatroomId="room-1"
+        pendingPrefill={{ prompt: 'No attachments', hasAttachments: false }}
+      />
+    );
+
+    expect(await screen.findByText('New Scheduled Prompt')).toBeDefined();
+    expect(screen.queryByText('Attachments are not included in scheduled prompts.')).toBeNull();
+  });
+
+  it('creates the prefilled prompt once and fires onScheduled', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const onScheduled = vi.fn();
+    const onPendingPrefillCleared = vi.fn();
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(
+      <ScheduledPromptsTab
+        chatroomId="room-1"
+        pendingPrefill={{ prompt: '  Draft from composer  ', hasAttachments: false }}
+        onScheduled={onScheduled}
+        onPendingPrefillCleared={onPendingPrefillCleared}
+      />
+    );
+
+    fireEvent.click(await screen.findByText('Create Prompt'));
+
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledTimes(1);
+    });
+    const payload = mocks.create.mock.calls[0]?.[0];
+    expect(payload).toMatchObject({
+      chatroomId: 'room-1',
+      prompt: 'Draft from composer',
+      scheduleKind: 'once',
+    });
+    expect(payload?.runAt).toBeGreaterThan(Date.now() + 55 * 60_000);
+    expect(onScheduled).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onPendingPrefillCleared).toHaveBeenCalled());
+  });
+
+  it('does not fire onScheduled when the prefilled form is cancelled', async () => {
+    mocks.list.mockReturnValue([]);
+    const onScheduled = vi.fn();
+    const onPendingPrefillCleared = vi.fn();
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(
+      <ScheduledPromptsTab
+        chatroomId="room-1"
+        pendingPrefill={{ prompt: 'Keep me', hasAttachments: false }}
+        onScheduled={onScheduled}
+        onPendingPrefillCleared={onPendingPrefillCleared}
+      />
+    );
+
+    fireEvent.click(await screen.findByText('Cancel'));
+
+    expect(onScheduled).not.toHaveBeenCalled();
+    expect(onPendingPrefillCleared).toHaveBeenCalledTimes(1);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('buildScheduleFields', () => {

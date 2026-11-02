@@ -4,9 +4,10 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Clock, Loader2, Plus } from 'lucide-react';
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useEffect } from 'react';
 
 import { ScheduledPromptCard } from '../features/scheduled-prompts/components/ScheduledPromptCard';
+import type { ScheduledPromptPrefill } from '../features/scheduled-prompts/stores/scheduledPromptComposerStore';
 import {
   buildScheduleFields,
   type ScheduleFields,
@@ -22,6 +23,15 @@ import { Input } from '@/components/ui/input';
 
 interface ScheduledPromptsTabProps {
   chatroomId: string;
+  /**
+   * Composer draft to schedule instead of send. When set, the one-time form
+   * opens prefilled; the dialog clears it when the form closes.
+   */
+  pendingPrefill?: ScheduledPromptPrefill | null;
+  /** Fired after a successful create, so the composer can clear its draft. */
+  onScheduled?: () => void;
+  /** Fired when the form closes, so the dialog can drop the pending prefill. */
+  onPendingPrefillCleared?: () => void;
 }
 
 export type ScheduledPromptFormData = ScheduleFields & {
@@ -31,6 +41,9 @@ export type ScheduledPromptFormData = ScheduleFields & {
 
 export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   chatroomId,
+  pendingPrefill,
+  onScheduled,
+  onPendingPrefillCleared,
 }: ScheduledPromptsTabProps) {
   const prompts = useSessionQuery(api.scheduledPrompts.list, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -46,6 +59,14 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   const hasPrompts = prompts && prompts.length > 0;
   const editingPrompt = editingId ? prompts?.find((p) => p._id === editingId) : null;
 
+  // A composer request opens a fresh create form (never an edit form), and the
+  // prefill only changes when a new request replaces the old one.
+  useEffect(() => {
+    if (!pendingPrefill) return;
+    setEditingId(null);
+    setShowForm(true);
+  }, [pendingPrefill]);
+
   const handleAdd = useCallback(() => {
     setEditingId(null);
     setShowForm(true);
@@ -59,7 +80,8 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   const handleFormClose = useCallback(() => {
     setShowForm(false);
     setEditingId(null);
-  }, []);
+    onPendingPrefillCleared?.();
+  }, [onPendingPrefillCleared]);
 
   const handleFormSave = useCallback(
     async (data: ScheduledPromptFormData) => {
@@ -67,10 +89,11 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
         await updatePrompt({ scheduledPromptId: editingId, ...data });
       } else {
         await createPrompt({ chatroomId: chatroomId as Id<'chatroom_rooms'>, ...data });
+        onScheduled?.();
       }
       handleFormClose();
     },
-    [chatroomId, editingId, createPrompt, updatePrompt, handleFormClose]
+    [chatroomId, editingId, createPrompt, updatePrompt, handleFormClose, onScheduled]
   );
 
   return (
@@ -87,6 +110,7 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
       {showForm && (
         <ScheduledPromptForm
           initial={editingPrompt ?? undefined}
+          prefill={pendingPrefill ?? undefined}
           onSave={handleFormSave}
           onCancel={handleFormClose}
         />
@@ -166,17 +190,19 @@ function editedOnceRunAt(
 // fallow-ignore-next-line complexity
 const ScheduledPromptForm = memo(function ScheduledPromptForm({
   initial,
+  prefill,
   onSave,
   onCancel,
 }: {
   initial?: Doc<'chatroom_scheduledPrompts'>;
+  prefill?: ScheduledPromptPrefill;
   onSave: (data: ScheduledPromptFormData) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [prompt, setPrompt] = useState(initial?.prompt ?? '');
+  const [prompt, setPrompt] = useState(initial?.prompt ?? prefill?.prompt ?? '');
   const [scheduleKind, setScheduleKind] = useState<ScheduleFields['scheduleKind']>(
-    initial?.scheduleKind ?? 'interval'
+    initial?.scheduleKind ?? (prefill ? 'once' : 'interval')
   );
   const [intervalMinutes, setIntervalMinutes] = useState(initial?.intervalMinutes ?? 30);
   const localInit = utcDailyTimeToLocal(initial?.hourUTC ?? 9, initial?.minuteUTC ?? 0);
@@ -267,6 +293,11 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
             rows={3}
             className="w-full text-xs bg-chatroom-bg-primary border border-chatroom-border rounded-none p-2 text-chatroom-text-primary placeholder:text-chatroom-text-muted resize-none focus:outline-none focus:ring-1 focus:ring-chatroom-accent"
           />
+          {prefill?.hasAttachments && (
+            <p className="text-[10px] text-chatroom-text-muted">
+              Attachments are not included in scheduled prompts.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
