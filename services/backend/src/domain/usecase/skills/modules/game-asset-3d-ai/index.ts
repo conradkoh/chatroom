@@ -38,7 +38,7 @@ ${format3dModelChecklist({
 
 ## Lighting contract
 
-- For the asset preview, the preview's Directional and Unlit modes are the game case, but no allowed tool captures those views, so record the reason "no allowed capture tool". Studio mode is image-based lighting and is never lighting evidence.
+- Directional and Unlit modes are the game case, but no allowed tool captures those views, so record the reason "no allowed capture tool". Studio mode is image-based lighting and is never lighting evidence.
 - For a 3D set, generate the first approved asset's reference and reuse its palette and lighting words for the rest.
 
 ## Proof of Principles

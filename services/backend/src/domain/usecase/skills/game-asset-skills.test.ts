@@ -78,7 +78,7 @@ describe('game-asset skill prompts', () => {
   it('3D AI prompt keeps the lighting contract and its evidence rules', () => {
     const prompt = gameAsset3dAiSkill.getPrompt('');
     expect(prompt).toContain('visible, coloured');
-    expect(prompt).toContain("the preview's Directional and Unlit modes are the game case");
+    expect(prompt).toContain('Directional and Unlit modes are the game case');
     expect(prompt).toContain('Studio mode');
     expect(prompt).toContain('never lighting evidence');
     expect(prompt).toContain('Metalness follows the lighting contract');
@@ -127,6 +127,15 @@ describe('game-asset skill prompts', () => {
       expect(prompt).toContain("the brief's `## Lighting contract`");
       expect(prompt).toContain('under `## Lighting verification`');
     }
+  });
+
+  it.each([
+    ['3D AI', gameAsset3dAiSkill],
+    ['procedural', gameAsset3dProceduralSkill],
+  ] as const)('%s prompt marks the shared lighting item once', (_label, module) => {
+    const prompt = module.getPrompt('');
+    expect(prompt.match(/\*\*Lighting\*\*/g)).toHaveLength(1);
+    expect(prompt).toContain('(the same item as in All assets; mark it once)');
   });
 
   it('2D AI prompt anchors the generate-image and slice-image commands', () => {
