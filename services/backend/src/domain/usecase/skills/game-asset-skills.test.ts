@@ -41,6 +41,13 @@ describe('game-asset skills registration', () => {
       expect(SKILLS_REGISTRY.find((skill) => skill.skillId === id)).toBe(module);
     }
   });
+
+  it.each(NEW_SKILLS)('$id is scoped to the game asset designer', ({ id, module }) => {
+    expect(module.description).toContain('(game-asset-designer only)');
+    expect(SKILLS_REGISTRY.find((skill) => skill.skillId === id)?.description).toContain(
+      '(game-asset-designer only)'
+    );
+  });
 });
 
 describe('game-asset skill prompts', () => {
@@ -50,23 +57,65 @@ describe('game-asset skill prompts', () => {
     expect(prompt.startsWith(`You have been activated with the "${id}" skill.`)).toBe(true);
   });
 
+  it.each(NEW_SKILLS)('$id defers to the shared rules in the role prompt', ({ module }) => {
+    const prompt = module.getPrompt('');
+    expect(prompt).toContain('shared rules in your role prompt apply');
+    expect(prompt).not.toContain('- R1 ');
+    expect(prompt).not.toContain('a tool or script you ran on the actual file');
+  });
+
   it('3D AI prompt anchors the generate-3d command and its dry run', () => {
     const prompt = gameAsset3dAiSkill.getPrompt('');
     expect(prompt).toContain('chatroom generate-3d --platform=fal');
+    expect(prompt).toContain('--model <Model>');
     expect(prompt).toContain('--dry-run');
+    expect(prompt).toContain("--input '<JSON>'");
     expect(prompt).toContain('--confirm-cost');
     expect(prompt).toContain('fal-ai/trellis-2');
     expect(prompt).toContain('metal-whole-texture');
-    expect(prompt).toContain('asset-in-rig render');
+  });
+
+  it('3D AI prompt keeps the lighting contract and its evidence rules', () => {
+    const prompt = gameAsset3dAiSkill.getPrompt('');
+    expect(prompt).toContain('visible, coloured');
+    expect(prompt).toContain("the preview's Directional and Unlit modes are the game case");
+    expect(prompt).toContain('Studio mode');
+    expect(prompt).toContain('never lighting evidence');
+    expect(prompt).toContain('Metalness follows the lighting contract');
+  });
+
+  it('3D AI prompt keeps the glTF measurement hint', () => {
+    const prompt = gameAsset3dAiSkill.getPrompt('');
+    expect(prompt).toContain('gltf-transform inspect');
   });
 
   it('2D AI prompt anchors the generate-image and slice-image commands', () => {
     const prompt = gameAsset2dAiSkill.getPrompt('');
     expect(prompt).toContain('chatroom generate-image --platform=fal');
+    expect(prompt).toContain('--model <Model>');
+    expect(prompt).toContain("--input '<JSON>'");
     expect(prompt).toContain('chatroom slice-image');
-    expect(prompt).toContain('remove-image-background');
+    expect(prompt).toContain('remove-image-background --help');
     expect(prompt).toContain('Perspective consistency');
     expect(prompt).toContain('Lighting and palette anchor');
+  });
+
+  it('2D AI prompt keeps the trim, naming, and sheet rules', () => {
+    const prompt = gameAsset2dAiSkill.getPrompt('');
+    expect(prompt).toContain('--trim');
+    expect(prompt).toContain('--trim-padding');
+    expect(prompt).toContain('--names');
+    expect(prompt).toContain('ceil(N/(C×R))');
+    expect(prompt).toContain('2x2');
+    expect(prompt).toContain('never use a sheet');
+    expect(prompt).toContain('A mismatched item is regenerated individually');
+    expect(prompt).toContain('as a failed item/open question');
+  });
+
+  it('2D AI prompt keeps the perspective and seed wording', () => {
+    const prompt = gameAsset2dAiSkill.getPrompt('');
+    expect(prompt).toContain('A shared seed does not keep perspective across different prompts');
+    expect(prompt).toContain("(the brief's `Perspective`, or the one recorded under assumptions)");
   });
 
   it('procedural prompt anchors the measured inspection and forbids remote generators', () => {
@@ -74,6 +123,13 @@ describe('game-asset skill prompts', () => {
     expect(prompt).toContain('gltf-transform inspect');
     expect(prompt).toContain('no `chatroom generate-3d`');
     expect(prompt).toContain('No fal call');
-    expect(prompt).toContain('GLB');
+    expect(prompt).toContain('Export glTF 2.0/GLB to');
+  });
+
+  it('procedural prompt keeps one committed-config policy and its lighting item', () => {
+    const prompt = gameAsset3dProceduralSkill.getPrompt('');
+    expect(prompt).toContain('visible, coloured');
+    expect(prompt).toContain('committed only when `## Commit` names it');
+    expect(prompt).not.toContain('versioned, committed config');
   });
 });

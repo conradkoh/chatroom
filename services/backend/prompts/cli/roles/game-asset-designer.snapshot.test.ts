@@ -36,6 +36,9 @@ describe('game asset designer guidance snapshots', () => {
     expect(guidance).toContain('### RULES');
     expect(guidance).toContain('### PROCEDURE');
     expect(guidance).toContain('### Set consistency principles');
+    expect(guidance).toContain('**Lighting**: renders correctly under the brief');
+    expect(guidance).toContain('visible, coloured and textured, not near-black');
+    expect(guidance).toContain('The lighting item is `n/a` when the brief');
     expect(guidance).toContain('`Delivered, lighting not verified:`');
     expect(guidance).toContain(
       '`## Lighting contract` is missing, not specified, or not applicable'

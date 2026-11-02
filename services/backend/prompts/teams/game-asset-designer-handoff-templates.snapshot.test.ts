@@ -72,7 +72,14 @@ describe('game asset designer handoff template snapshots', () => {
     expect(brief).toContain('## Model parameters');
     expect(brief).toContain('fal-ai/flux-2/flash');
     expect(brief).not.toContain('default model');
-    expect(brief).toContain('see the matching skill');
+    expect(brief).toContain('chatroom generate-3d --help');
+    expect(brief).toContain('(dry run first)');
+    expect(brief).toContain('procedural: <generator script path>');
+    expect(brief).toContain('Procedural 3D:');
+    expect(brief).toContain('gltf-transform inspect');
+    expect(brief).not.toContain('any other tools you explicitly allow');
+    expect(report).toContain('grid values when a sheet was generated');
+    expect(report).toContain('For an AI-generated 3D asset also record the preview inspection');
     expect(`${brief}\n${report}`).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);
     expect(`${brief}\n${report}`).not.toMatch(/FLUX\.2|FLUX 2(?! Flash)/);
   });
