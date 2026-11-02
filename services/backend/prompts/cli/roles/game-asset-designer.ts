@@ -54,7 +54,7 @@ P11 Hand off to \`{ENTRY_POINT_ROLE}\`, then stop.
 - File format is the one the target engine imports (glTF 2.0/GLB, FBX, PNG, WAV/OGG as named in the request); no unused data (hidden meshes, unused materials, history).
 - Style matches the named style reference: silhouette, value range, palette, level of detail, and texel density or pixel grid.
 - Budgets in the request are met; any exceedance is called out with the measured value.
-- **Lighting**: renders correctly under the brief's ## Lighting contract (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under ## Lighting verification; the rig reference render and Studio mode never support pass.
+- **Lighting**: renders correctly under the brief's \`## Lighting contract\` (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under \`## Lighting verification\`; the rig reference render and Studio mode never support pass.
 
 **Audio**
 - Loudness measured against the platform target stated in the request (for example console -24 LUFS, mobile -18 LUFS, true peak at or below -1 dBTP); no clipping. Measure with a tool: \`ffmpeg -i <file> -af ebur128=peak=true -f null -\` for integrated loudness and true peak; \`ffprobe <file>\` for sample rate, bit depth and channels. Quote the command's actual output. Cite the platform source. If the request does not state the target, mark the loudness target \`unverified\` and name the source. Mobile targets vary (-18 vs -16 LUFS).

@@ -54,7 +54,7 @@ Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label
 - Base color values stay in a physically plausible range (community starting range roughly 30–240 sRGB per channel for non-metals; the request's budget overrides it); metallic is near binary.
 - Texture resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming); compression format named. Maps in one set share texel density, value range, and naming (\`T_Name_BaseColor\`, \`_Normal\`, \`_ORM\`). Tiling textures wrap without a visible seam, and no lighting is baked into base color unless declared.
 - Metalness follows the lighting contract: with no environment map, the material is not whole-surface metal (metallic 0 across the surface; metal has no diffuse response and renders near-black).
-- **Lighting**: renders correctly under the brief's ## Lighting contract (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under ## Lighting verification; the rig reference render and Studio mode never support pass.
+- **Lighting**: renders correctly under the brief's \`## Lighting contract\` (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under \`## Lighting verification\`; the rig reference render and Studio mode never support pass.
 
 ## Lighting contract
 

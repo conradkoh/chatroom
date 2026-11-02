@@ -43,7 +43,7 @@ Mark each applicable item \`pass\`, \`fail\`, or \`n/a\` with its evidence label
 - Base color values stay in a physically plausible range (community starting range roughly 30–240 sRGB per channel for non-metals; the request's budget overrides it); metallic is near binary.
 - Texture resolution matches the texel-density budget and surface size; dimensions meet the engine/platform rule (power of two where the engine needs mipmaps or streaming, for example Unreal; confirm for the target engine version); compression format named. Maps in one set share texel density, value range, and naming (\`T_Name_BaseColor\`, \`_Normal\`, \`_ORM\`). Tiling textures wrap without a visible seam, and no baked-in lighting or text in base color unless declared.
 - Metalness follows the lighting contract: with no environment map, the written material is not whole-surface metal (metallic 0 across the surface; metal has no diffuse response and renders near-black). \`generate-3d\` reports a whole-surface metal material as the \`metal-whole-texture\` warning; if it remains after one regeneration, report it under Open questions.
-- **Lighting**: renders correctly under the brief's ## Lighting contract (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under ## Lighting verification; the rig reference render and Studio mode never support pass.
+- **Lighting**: renders correctly under the brief's \`## Lighting contract\` (visible, coloured and textured, not near-black). Pass needs the asset-in-rig render under \`## Lighting verification\`; the rig reference render and Studio mode never support pass.
 
 ## Lighting contract
 

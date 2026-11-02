@@ -14,7 +14,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 ): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default, except \`## Lighting contract\`, which is required for a brief with any 3D asset and may be \`Not applicable.\` only when the brief has only 2D or audio assets. Pass goals and constraints as an open problem: do not author prompts, material treatment, style, or lighting art direction; the designer proposes the palette, lighting anchor, and prompts. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. In \`## Allowed tools\`, keep only the fixed line for the brief's domain; name no other tool or generator. See the matching skill for how each tool is used. For a 3D model generated with AI also fill \`## Output paths\`; a procedural asset uses \`## Output location\` and the brief's allowed edit paths instead. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers. For a verification-only lighting brief, name the existing generated asset paths and the asset-in-rig render under \`## Existing assets\`; the designer applies only the lighting checklist item and does not generate, slice, or package.
+  return `Instructions (not part of the message): Pass the asset request as a brief the designer can act on without guessing. Provide every field below; write \`Not specified.\` for a field you cannot fill and the designer will ask or apply a stated default, except \`## Lighting contract\`, which is required for a brief with any 3D asset and may be \`Not applicable.\` only when the brief has only 2D or audio assets. Pass goals and constraints as an open problem: do not author prompts, material treatment, style, or lighting art direction; the designer proposes the palette, lighting anchor, and prompts. Give each asset a stable ID (\`A01\`, \`A02\`…). Use \`spec only\` only when you want a specification with no files; the default is \`spec and generate\`. In \`## Allowed tools\`, keep the fixed line for each domain the brief contains and delete the others; name no other tool or generator. See the matching skill for how each tool is used. For a 3D model generated with AI also fill \`## Output paths\`; a procedural asset uses \`## Output location\` and the brief's allowed edit paths instead. Before generating anything, the designer evaluates each \`## Free asset candidates\` entry and records a \`use\`, \`adapt\`, or \`reject\` decision; it generates only the assets that no candidate covers. For a verification-only lighting brief, name the existing generated asset paths and the asset-in-rig render under \`## Existing assets\`; the designer applies only the lighting checklist item and does not generate, slice, or package.
 
 ## Asset request
 <one to three sentences: what the assets are for and the user-visible goal>
@@ -41,7 +41,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <for a 2D asset: \`fal-ai/flux-2/flash\` (FLUX 2 Flash), passed as --model; \`fal-ai/flux-2/flash/edit\` only when \`## Perspective\` names a reference asset. For a 3D asset generated with AI: one fal 3D model id; \`chatroom generate-3d --help\` lists the known ids and the flags each takes. For a procedural 3D asset: \`procedural: <generator script path>\`>
 
 ## Model parameters
-<a JSON object of model parameters, one object for every call of a set; its keys must pass the model's parameter check; \`Not specified.\` if none>
+<a JSON object of model parameters, one object for every call of a set; its keys must pass the model's parameter check; \`Not specified.\` if none. \`Not applicable.\` for a procedural asset (its parameters live in the config file named in \`## Allowed edit paths\`).>
 
 ## Cost confirmation
 <the user's quoted approval of the priced generation plan, with the estimate it approved; or Not confirmed. \`Not applicable.\` for a procedural asset (no fal cost).>
@@ -62,7 +62,7 @@ export function getEntryPointToGameAssetDesignerHandoffTemplate(
 <\`spec and generate\` (default when you name an output location and allowed tools) or \`spec only\`>
 
 ## Allowed tools
-<keep only the line for the brief's domain and delete the other two; \`None.\` for \`spec only\`.
+<keep the line for each domain the brief contains and delete the others; \`None.\` for \`spec only\`.
 AI 2D: \`chatroom generate-image --platform=fal --model <Model> (dry run first), chatroom slice-image, chatroom remove-image-background\`
 AI 3D: \`chatroom generate-3d --platform=fal --model <Model> (dry run first)\`
 Procedural 3D: \`<generator script path> <run command>, gltf-transform inspect\`>
