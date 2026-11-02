@@ -113,6 +113,9 @@ describe('Duo Team > Builder > System Prompt', () => {
       - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
 
+      - \`test-seam\`
+          - The public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port); do not mock internal collaborators.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.

@@ -20,6 +20,8 @@ function getPlannerBuilderCodeBody(): string {
 
 **Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
 
+**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
+
 Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
 
 \`\`\`\`markdown
@@ -74,8 +76,15 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 - <verifiable outcome the builder can self-check>
 - Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
 
+## Test seams
+- <behavior>: seam <public interface or port>; catches <what>; misses <what>
+- or: no test seam — <reason>
+- For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+- Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
+- Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.
 - <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
 ## Skills to activate
