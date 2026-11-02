@@ -2,17 +2,21 @@
  * Shared 3D model checklist for the `game-asset-3d-ai` and
  * `game-asset-3d-procedural` skills.
  *
+ * Lives outside `modules/`, which holds one `<skill-id>/index.ts` per registry
+ * skill (see `../registry.ts`). This file is a helper shared by two skills,
+ * not a skill itself.
+ *
  * Every line both skills share lives here so the two prompts cannot drift.
  * The metalness line is a parameter: the AI skill names the generator's
  * `metal-whole-texture` warning, while a procedural generator reports none.
  */
 
-export type ThreeDChecklistOptions = {
+export interface Format3dModelChecklistOptions {
   /** The metalness checklist line, including the skill's generator warning rule. */
   metalnessLine: string;
-};
+}
 
-export function format3dModelChecklist({ metalnessLine }: ThreeDChecklistOptions): string {
+export function format3dModelChecklist({ metalnessLine }: Format3dModelChecklistOptions): string {
   return [
     'Units and axes match the target (glTF: meters, +Y up, front +Z); scale is applied (identity scale) and a real-world size is stated.',
     'Pivot/origin follows the declared policy; LODs share the base pivot and alignment.',

@@ -1,5 +1,5 @@
 import type { SkillModule } from '../../registry';
-import { format3dModelChecklist } from '../game-asset-3d-checklist';
+import { format3dModelChecklist } from '../../shared/game-asset-3d-checklist';
 
 export const gameAsset3dProceduralSkill: SkillModule = {
   skillId: 'game-asset-3d-procedural',
