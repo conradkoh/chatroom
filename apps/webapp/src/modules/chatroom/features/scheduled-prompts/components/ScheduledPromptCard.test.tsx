@@ -1,8 +1,15 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ScheduledPromptCard } from './ScheduledPromptCard';
-import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
+
+// Pin the timezone so the formatted timestamp literals are stable everywhere.
+beforeAll(() => {
+  vi.stubEnv('TZ', 'UTC');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
@@ -77,7 +84,7 @@ describe('ScheduledPromptCard', () => {
     );
 
     expect(screen.getByText('Completed')).toBeDefined();
-    expect(screen.getByText(`Once on ${formatTimestampFull(RUN_AT)}`)).toBeDefined();
+    expect(screen.getByText('Once on 15th January 2027, 8:00am')).toBeDefined();
     expect(screen.getByText('View trigger history')).toBeDefined();
     expect(screen.queryByRole('switch')).toBeNull();
 

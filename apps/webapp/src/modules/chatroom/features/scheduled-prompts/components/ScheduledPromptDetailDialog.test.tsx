@@ -1,8 +1,15 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
-import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
+
+// Pin the timezone so the formatted timestamp literals are stable everywhere.
+beforeAll(() => {
+  vi.stubEnv('TZ', 'UTC');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -98,7 +105,7 @@ describe('ScheduledPromptDetailDialog', () => {
     );
 
     expect(screen.getByText('Completed')).toBeInTheDocument();
-    expect(screen.getByText(`Once on ${formatTimestampFull(runAt)}`)).toBeInTheDocument();
+    expect(screen.getByText('Once on 15th January 2027, 8:00am')).toBeInTheDocument();
     expect(screen.queryByText('Disable schedule')).not.toBeInTheDocument();
   });
 

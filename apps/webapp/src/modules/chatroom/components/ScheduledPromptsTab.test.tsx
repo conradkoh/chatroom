@@ -2,10 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildScheduleFields } from '../features/scheduled-prompts/utils/scheduledPromptFields';
-import {
-  localDateTimeInputToUtcMs,
-  utcMsToLocalDateTimeInput,
-} from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
+import { utcMsToLocalDateTimeInput } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -305,7 +302,8 @@ describe('ScheduledPromptsTab', () => {
       target: { value: 'Ping me' },
     });
 
-    const futureValue = utcMsToLocalDateTimeInput(Date.now() + 2 * 60 * 60_000);
+    const futureRunAt = Math.floor((Date.now() + 2 * 60 * 60_000) / 60_000) * 60_000;
+    const futureValue = utcMsToLocalDateTimeInput(futureRunAt);
     const dateTimeInput = document.querySelector(
       'input[type="datetime-local"]'
     ) as HTMLInputElement;
@@ -319,7 +317,7 @@ describe('ScheduledPromptsTab', () => {
         name: undefined,
         prompt: 'Ping me',
         scheduleKind: 'once',
-        runAt: localDateTimeInputToUtcMs(futureValue),
+        runAt: futureRunAt,
       });
     });
   });

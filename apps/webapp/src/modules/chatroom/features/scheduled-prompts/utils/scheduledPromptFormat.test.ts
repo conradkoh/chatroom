@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, vi } from 'vitest';
 
 import {
   formatSchedule,
@@ -7,7 +7,14 @@ import {
   isFinishedScheduledPromptStatus,
   type ScheduledPromptStatus,
 } from './scheduledPromptFormat';
-import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
+
+// Pin the timezone so the formatted timestamp literals are stable everywhere.
+beforeAll(() => {
+  vi.stubEnv('TZ', 'UTC');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('formatSchedule', () => {
   it('uses singular for 1 minute interval', () => {
@@ -25,7 +32,7 @@ describe('formatSchedule one-time', () => {
 
   it('formats a one-time schedule with the full local timestamp', () => {
     expect(formatSchedule({ scheduleKind: 'once', runAt: T })).toBe(
-      `Once on ${formatTimestampFull(T)}`
+      'Once on 3rd November 2026, 9:05am'
     );
   });
 
