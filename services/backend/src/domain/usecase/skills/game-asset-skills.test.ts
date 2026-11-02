@@ -148,6 +148,9 @@ describe('game-asset skill prompts', () => {
     expect(prompt).toContain('Always pass `--trim` to `chatroom remove-image-background`');
     expect(prompt).toContain('use `--trim-padding` only when the brief names a padding');
     expect(prompt).toContain('Never pass `--names` to `slice-image`');
+    expect(prompt).toContain(
+      '(sheet: `<Output location>/_work/<sheet>.png`; per-asset: the step 4 path)'
+    );
     expect(prompt).toContain('ceil(N/(C×R))');
     expect(prompt).toContain(
       "at most the brief's `## Sheet grid` (default 2x2); a larger grid needs a user request quoted in the brief, one asset per cell"
