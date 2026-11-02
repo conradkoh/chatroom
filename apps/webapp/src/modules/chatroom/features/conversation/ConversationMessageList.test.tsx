@@ -521,18 +521,19 @@ describe('handoff collapse behavior', () => {
     return el as HTMLElement;
   }
 
-  it('collapses agent-to-agent handoffs to a plain-text preview', () => {
+  it('collapses agent-to-agent handoffs to a summary bar', () => {
     renderTimeline();
     const agentRow = row('handoff-1');
+    const toggle = within(agentRow).getByTestId('timeline-handoff-toggle');
 
-    expect(within(agentRow).getByTestId('timeline-handoff-preview')).toHaveTextContent(
+    expect(within(toggle).getByTestId('timeline-handoff-preview')).toHaveTextContent(
       'Preview line one. Preview line two.'
     );
     expect(within(agentRow).queryByText('Deferred body sentence.')).not.toBeInTheDocument();
     expect(agentRow.querySelector('.prose')).toBeNull();
-    // Header navigation, row identity, and footer survive the collapsed state.
+    // Header navigation and row identity survive; the footer does not render.
     expect(within(agentRow).getByTestId('timeline-header-nav-current')).toBeInTheDocument();
-    expect(within(agentRow).getByTestId('timeline-message-footer')).toBeInTheDocument();
+    expect(within(agentRow).queryByTestId('timeline-message-footer')).not.toBeInTheDocument();
     expect(document.querySelectorAll('[data-message-id="handoff-1"]')).toHaveLength(1);
   });
 
@@ -556,9 +557,10 @@ describe('handoff collapse behavior', () => {
     renderTimeline();
     const agentRow = row('handoff-1');
 
-    fireEvent.click(within(agentRow).getByText('Show full handoff'));
+    fireEvent.click(within(agentRow).getByRole('button', { name: 'Show full handoff' }));
 
     expect(within(row('handoff-1')).getByText('Deferred body sentence.')).toBeInTheDocument();
+    expect(within(row('handoff-1')).getByTestId('timeline-message-footer')).toBeInTheDocument();
     expect(
       within(row('handoff-1')).queryByTestId('timeline-handoff-preview')
     ).not.toBeInTheDocument();

@@ -91,8 +91,9 @@ describe('TimelineEventRow', () => {
   });
 
   it('renders team message cell', () => {
+    // Agent-to-user rows stay eager, so the cell renders its body and footer.
     const event = mapMessageToTimelineEvent(
-      makeMessage({ senderRole: 'builder', content: 'Handoff note' })
+      makeMessage({ senderRole: 'builder', targetRole: 'user', content: 'Handoff note' })
     );
     renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     expect(screen.getByTestId('timeline-team-message')).toBeInTheDocument();

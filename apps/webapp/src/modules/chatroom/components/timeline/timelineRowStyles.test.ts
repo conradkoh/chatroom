@@ -2,6 +2,11 @@ import { describe, it, expect } from 'vitest';
 
 import {
   getTimelineVirtualRowZIndex,
+  TIMELINE_HANDOFF_CHEVRON,
+  TIMELINE_HANDOFF_CHIPS,
+  TIMELINE_HANDOFF_PREVIEW_TEXT,
+  TIMELINE_HANDOFF_TOGGLE,
+  TIMELINE_HANDOFF_TOGGLE_LABEL,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_ROOT,
@@ -42,5 +47,42 @@ describe('TIMELINE_MESSAGE_HEADER_STICKY', () => {
 describe('TIMELINE_SCROLL_CONTAINER_STYLE', () => {
   it('sets inherited scrollbar width variable', () => {
     expect(TIMELINE_SCROLL_CONTAINER_STYLE['--timeline-scrollbar-width']).toBe('8px');
+  });
+});
+
+describe('TIMELINE_HANDOFF_TOGGLE', () => {
+  it('is a full-width, interactive disclosure bar', () => {
+    expect(TIMELINE_HANDOFF_TOGGLE).toContain('w-full');
+    expect(TIMELINE_HANDOFF_TOGGLE).toContain('py-2');
+    expect(TIMELINE_HANDOFF_TOGGLE).toContain('hover:bg-chatroom-bg-hover');
+    expect(TIMELINE_HANDOFF_TOGGLE).toContain('active:opacity-80');
+    expect(TIMELINE_HANDOFF_TOGGLE).toContain('focus-visible:ring-chatroom-accent');
+  });
+});
+
+describe('TIMELINE_HANDOFF_CHEVRON', () => {
+  it('aligns to the first text line and respects reduced motion', () => {
+    expect(TIMELINE_HANDOFF_CHEVRON).toContain('mt-[3px]');
+    expect(TIMELINE_HANDOFF_CHEVRON).toContain('motion-reduce:transition-none');
+  });
+});
+
+describe('TIMELINE_HANDOFF_PREVIEW_TEXT', () => {
+  it('clamps the preview to two wrapped lines', () => {
+    expect(TIMELINE_HANDOFF_PREVIEW_TEXT).toContain('line-clamp-2');
+    expect(TIMELINE_HANDOFF_PREVIEW_TEXT).toContain('leading-5');
+    expect(TIMELINE_HANDOFF_PREVIEW_TEXT).toContain('[overflow-wrap:anywhere]');
+  });
+});
+
+describe('TIMELINE_HANDOFF_TOGGLE_LABEL', () => {
+  it('matches the 20px line height of the bar', () => {
+    expect(TIMELINE_HANDOFF_TOGGLE_LABEL).toContain('leading-5');
+  });
+});
+
+describe('TIMELINE_HANDOFF_CHIPS', () => {
+  it('indents chips to the preview text', () => {
+    expect(TIMELINE_HANDOFF_CHIPS).toBe('pl-[2.375rem]');
   });
 });
