@@ -167,7 +167,13 @@ export function formatLogLineAsXml(line: LogLine, chatroomName?: string): string
   if (line.id != null) {
     lines.push(...renderElement('  ', 'id', String(line.id)));
   }
-  lines.push(...renderElement('  ', 'timestamp', new Date(line.timestamp).toISOString()));
+  // `new Date(NaN).toISOString()` throws, and so does any date outside the
+  // representable range (±8.64e15 ms). Omit the element instead of failing the
+  // whole copy, consistent with optional elements being omitted when absent.
+  const timestamp = new Date(line.timestamp);
+  if (Number.isFinite(line.timestamp) && !Number.isNaN(timestamp.getTime())) {
+    lines.push(...renderElement('  ', 'timestamp', timestamp.toISOString()));
+  }
   lines.push(...renderElement('  ', 'level', line.level));
   lines.push(...renderElement('  ', 'source', line.source));
   lines.push(...renderElement('  ', 'stream', line.stream));

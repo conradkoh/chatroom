@@ -91,6 +91,28 @@ describe('formatLogLineAsXml', () => {
     );
   });
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, 1e16])(
+    'omits the timestamp element when the timestamp is %s',
+    (timestamp) => {
+      const line: LogLine = {
+        timestamp,
+        level: 'info',
+        source: 'daemon',
+        message: 'm',
+      };
+
+      expect(formatLogLineAsXml(line)).toBe(
+        `<?xml version="1.0" encoding="US-ASCII"?>
+<logLine>
+  <level>info</level>
+  <source>daemon</source>
+  <message>m</message>
+</logLine>
+`
+      );
+    }
+  );
+
   it('escapes XML metacharacters in the message', () => {
     const line: LogLine = {
       timestamp: 0,
