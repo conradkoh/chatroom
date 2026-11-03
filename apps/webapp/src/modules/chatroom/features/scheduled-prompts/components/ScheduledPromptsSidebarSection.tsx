@@ -49,7 +49,7 @@ function previewLabels(rows: Doc<'chatroom_scheduledPrompts'>[]) {
     countLabel: capped ? `${rows.length}+` : undefined,
     // A capped list may hide more than the visible remainder, so its footer
     // must not claim a definite number.
-    viewMoreLabel: capped ? 'View more' : undefined,
+    viewMoreLabel: capped ? 'View More' : undefined,
     viewMoreCount: Math.max(0, rows.length - SIDEBAR_PREVIEW_LIMIT),
   };
 }

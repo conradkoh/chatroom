@@ -157,7 +157,7 @@ describe('ScheduledPromptsSidebarSection', () => {
     renderSection();
 
     const footer = screen.getByRole('button', { name: /view more/i });
-    expect(footer).toHaveTextContent('View more');
+    expect(footer).toHaveTextContent('View More');
     expect(footer.textContent).not.toMatch(/\d/);
   });
 
