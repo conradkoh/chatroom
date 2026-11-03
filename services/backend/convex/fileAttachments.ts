@@ -79,35 +79,30 @@ export const discardUploads = mutation({
     attachmentIds: v.array(v.id('chatroom_fileAttachments')),
   },
   handler: async (ctx, args) => {
-    const session = await requireDiscardSession(ctx, args.sessionId, args.attachmentIds.length);
+    assertDiscardBatchSize(args.attachmentIds.length);
+
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.ok) {
+      throw new ConvexError({
+        code: 'AUTH_FAILED',
+        message: `Authentication failed: ${session.reason}`,
+      });
+    }
+
     const rows = await collectDiscardableRows(ctx, session.userId, args.attachmentIds);
     await deleteFileAttachments(ctx, rows);
     return { discarded: rows.length };
   },
 });
 
-/** Enforces the batch cap and authenticates the caller. */
-async function requireDiscardSession(
-  ctx: MutationCtx,
-  sessionId: string,
-  count: number
-): Promise<{ userId: Id<'users'> }> {
-  if (count > FILE_ATTACHMENT_MAX_PER_HANDOFF) {
-    throw new ConvexError({
-      code: 'VALIDATION_ERROR',
-      message: `At most ${FILE_ATTACHMENT_MAX_PER_HANDOFF} attachments can be discarded at once`,
-      fields: ['attachmentIds'],
-    });
-  }
-
-  const session = await validateSession(ctx, sessionId);
-  if (!session.ok) {
-    throw new ConvexError({
-      code: 'AUTH_FAILED',
-      message: `Authentication failed: ${session.reason}`,
-    });
-  }
-  return { userId: session.userId };
+/** Enforces the per-call discard cap before any database reads. */
+function assertDiscardBatchSize(count: number): void {
+  if (count <= FILE_ATTACHMENT_MAX_PER_HANDOFF) return;
+  throw new ConvexError({
+    code: 'VALIDATION_ERROR',
+    message: `At most ${FILE_ATTACHMENT_MAX_PER_HANDOFF} attachments can be discarded at once`,
+    fields: ['attachmentIds'],
+  });
 }
 
 /** Collects the caller's rows that are still discardable. */
