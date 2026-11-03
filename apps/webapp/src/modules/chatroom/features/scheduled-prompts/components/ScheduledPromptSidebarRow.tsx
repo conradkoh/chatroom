@@ -5,12 +5,13 @@ import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { nextConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 
 import {
   ConversationModeButton,
   SessionPolicyButton,
 } from '../../../components/shared/EnvelopePolicyButtons';
+import { useGuardedWrite } from '../../../components/shared/useGuardedWrite';
 import { WorkQueueDeleteButton } from '../../../components/shared/WorkQueueDeleteButton';
 import { WorkQueueRow } from '../../../components/shared/WorkQueueRow';
 import { WorkQueuePreviewText } from '../../../components/WorkQueue/WorkQueuePreviewText';
@@ -57,36 +58,13 @@ function describePrompt(prompt: Doc<'chatroom_scheduledPrompts'>) {
 }
 
 /** One guarded policy write at a time; the query re-renders canonical state. */
-async function runWrite(
-  isPending: boolean,
-  setPending: (value: boolean) => void,
-  setError: (value: string | null) => void,
-  fn: () => Promise<unknown>,
-  fallback: string
-): Promise<void> {
-  if (isPending) return;
-  setPending(true);
-  setError(null);
-  try {
-    await fn();
-  } catch (e) {
-    setError(scheduledPromptActionErrorMessage(e, fallback));
-  } finally {
-    setPending(false);
-  }
-}
-
-/** Policy writes for one row. Legacy rows read as code + new session. */
 function usePolicyWrites(prompt: Doc<'chatroom_scheduledPrompts'>) {
   const updatePolicy = useSessionMutation(api.scheduledPrompts.updatePolicy);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const write = useCallback(
-    (fn: () => Promise<unknown>, fallback: string) => {
-      void runWrite(pending, setPending, setError, fn, fallback);
-    },
-    [pending]
+  const mapError = useCallback(
+    (e: unknown) => scheduledPromptActionErrorMessage(e, UPDATE_FALLBACK),
+    []
   );
+  const { pending, error, setError, run } = useGuardedWrite(mapError);
   const envelope = normalizeTaskEnvelope({
     taskEnvelope: prompt.taskEnvelope,
     startInNewSession: true,
@@ -94,13 +72,13 @@ function usePolicyWrites(prompt: Doc<'chatroom_scheduledPrompts'>) {
 
   const onToggleSession = useCallback(() => {
     const sessionPolicy = envelope.sessionPolicy === 'new' ? 'continue' : 'new';
-    write(() => updatePolicy({ scheduledPromptId: prompt._id, sessionPolicy }), UPDATE_FALLBACK);
-  }, [write, updatePolicy, prompt._id, envelope.sessionPolicy]);
+    void run(() => updatePolicy({ scheduledPromptId: prompt._id, sessionPolicy }));
+  }, [run, updatePolicy, prompt._id, envelope.sessionPolicy]);
 
   const onCycleMode = useCallback(() => {
     const conversationMode = nextConversationMode(envelope.conversationMode);
-    write(() => updatePolicy({ scheduledPromptId: prompt._id, conversationMode }), UPDATE_FALLBACK);
-  }, [write, updatePolicy, prompt._id, envelope.conversationMode]);
+    void run(() => updatePolicy({ scheduledPromptId: prompt._id, conversationMode }));
+  }, [run, updatePolicy, prompt._id, envelope.conversationMode]);
 
   return { envelope, pending, error, setError, onToggleSession, onCycleMode };
 }

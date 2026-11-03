@@ -10,10 +10,11 @@ import {
   type TaskEnvelopeV1,
 } from '@workspace/shared/domain/task-envelope';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 
 import type { Message } from '../types/message';
 import { ConversationModeButton, SessionPolicyButton } from './shared/EnvelopePolicyButtons';
+import { useGuardedWrite } from './shared/useGuardedWrite';
 
 import { cn } from '@/lib/utils';
 
@@ -42,8 +43,13 @@ export function QueuedMessageEnvelopeControls({
   className,
 }: QueuedMessageEnvelopeControlsProps) {
   const update = useSessionMutation(api.messages.updateQueuedMessageEnvelope);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const mapError = useCallback((err: unknown) => {
+    const raw = err instanceof Error ? err.message : String(err);
+    return /QUEUED_MESSAGE_NOT_FOUND|Queued message not found/i.test(raw)
+      ? 'This task has already started.'
+      : 'Failed to update queued task settings.';
+  }, []);
+  const { pending: isUpdating, error, run } = useGuardedWrite(mapError);
 
   const current = normalizeTaskEnvelope({
     taskEnvelope: message.taskEnvelope,
@@ -56,32 +62,18 @@ export function QueuedMessageEnvelopeControls({
     e.stopPropagation();
   }, []);
 
-  // Guard-and-apply path for one complete envelope write (pending guard,
-  // success clears error, failure maps the not-found case to a user-facing line).
+  // Guard-and-apply path for one complete envelope write; the shared hook owns
+  // the pending guard and maps failures to a user-facing line.
   const applyEnvelope = useCallback(
-    // fallow-ignore-next-line complexity
-    async (next: TaskEnvelopeV1) => {
-      // Guard duplicate changes while a mutation is already pending.
-      if (isUpdating) return;
-      setIsUpdating(true);
-      setError(null);
-      try {
-        await update({
+    (next: TaskEnvelopeV1) => {
+      void run(() =>
+        update({
           queuedMessageId: message._id as Id<'chatroom_messageQueue'>,
           taskEnvelope: next,
-        });
-      } catch (err) {
-        const raw = err instanceof Error ? err.message : String(err);
-        setError(
-          /QUEUED_MESSAGE_NOT_FOUND|Queued message not found/i.test(raw)
-            ? 'This task has already started.'
-            : 'Failed to update queued task settings.'
-        );
-      } finally {
-        setIsUpdating(false);
-      }
+        })
+      );
     },
-    [isUpdating, update, message._id]
+    [run, update, message._id]
   );
 
   const handleModeCycle = useCallback(() => {
