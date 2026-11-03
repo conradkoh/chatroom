@@ -35,6 +35,8 @@ ${handoffCmd}
 
 ${getHandoffBodyGuidance(params.role)}
 
+Attach files only with \`--next-role=user\`: \`--attach-file=<path>\` (repeatable, up to 10 files, 10 MiB each, allowed types only).
+
 **Send the user an interim update (does not complete your task):**
 \`\`\`bash
 ${notifyUserCommand({ chatroomId: params.chatroomId, role: params.role, cliEnvPrefix })}
