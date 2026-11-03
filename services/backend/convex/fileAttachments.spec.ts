@@ -11,6 +11,7 @@
 
 import {
   FILE_ATTACHMENT_MAX_BYTES,
+  FILE_ATTACHMENT_MAX_PER_HANDOFF,
   FILE_ATTACHMENT_UPLOAD_PATH,
 } from '@workspace/shared/domain/file-attachment';
 import { ConvexError } from 'convex/values';
@@ -705,6 +706,59 @@ async function uploadFile(
   return ticket.attachmentId;
 }
 
+/** Message / task / attachment state used to prove a rejection wrote nothing. */
+async function captureState(chatroomId: Id<'chatroom_rooms'>) {
+  return await t.run(async (ctx) => {
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+    const attachments = await ctx.db
+      .query('chatroom_fileAttachments')
+      .withIndex('by_chatroom_status_attachedAt', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+    const tasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+    return {
+      messageIds: messages.map((message) => message._id).sort(),
+      attachmentStates: attachments.map((row) => `${row._id}:${row.status}`).sort(),
+      taskStates: tasks.map((task) => `${task._id}:${task.status}`).sort(),
+    };
+  });
+}
+
+/** Creates an acknowledged user message plus an in_progress task for planner. */
+async function seedPlannerWork(
+  chatroomId: Id<'chatroom_rooms'>,
+  content: string
+): Promise<{ userMessageId: Id<'chatroom_messages'>; taskId: Id<'chatroom_tasks'> }> {
+  return await t.run(async (ctx) => {
+    const now = Date.now();
+    const userMessageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId,
+      senderRole: 'user',
+      content,
+      targetRole: 'planner',
+      type: 'message',
+      acknowledgedAt: now,
+    });
+    const taskId = await ctx.db.insert('chatroom_tasks', {
+      chatroomId,
+      createdBy: 'user',
+      content,
+      status: 'in_progress',
+      assignedTo: 'planner',
+      sourceMessageId: userMessageId,
+      createdAt: now,
+      updatedAt: now,
+      queuePosition: 1,
+    });
+    return { userMessageId, taskId };
+  });
+}
+
 describe('handoff binding to user', () => {
   test('binds two uploaded files in the requested order and exposes attachedFiles', async () => {
     const user = await setupUser('handoff-bind');
@@ -786,6 +840,273 @@ describe('handoff binding to user', () => {
     const plain = feed.messages.find((entry) => entry._id === plainMessageId);
     expect(plain).toBeDefined();
     expect(plain).not.toHaveProperty('attachedFiles');
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects file attachments on an agent-to-agent handoff without writing', async () => {
+    const user = await setupUser('handoff-agent-target');
+    const attachmentId = await uploadFile(user);
+    const { taskId } = await seedPlannerWork(user.chatroomId, 'Planner work');
+    const before = await captureState(user.chatroomId);
+    const usageBefore = await getUsage(user.userId, undefined);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Agent handoff with a file.',
+      targetRole: 'builder',
+      attachedFileIds: [attachmentId],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('FILE_ATTACHMENTS_REQUIRE_USER_TARGET');
+    expect(result.completedTaskIds).toEqual([]);
+    expect(await captureState(user.chatroomId)).toEqual(before);
+    expect((await t.run((ctx) => ctx.db.get('chatroom_tasks', taskId)))?.status).toBe(
+      'in_progress'
+    );
+
+    const row = await getRow(attachmentId);
+    expect(row?.status).toBe('uploaded');
+    expect(row?.messageId).toBeUndefined();
+
+    const usageAfter = await getUsage(user.userId, undefined);
+    expect(usageAfter?.bytes).toBe(usageBefore?.bytes);
+    expect(usageAfter?.fileCount).toBe(usageBefore?.fileCount);
+
+    await assertUsageInvariant(user.userId);
+  });
+});
+
+describe('handoff attachment validation', () => {
+  test('rejects an attachment from another chatroom without writing', async () => {
+    const owner = await setupUser('validation-other-chatroom-owner');
+    const foreignAttachmentId = await uploadFile(owner);
+
+    const user = await setupUser('validation-other-chatroom');
+    const before = await captureState(user.chatroomId);
+    const usageBefore = await getUsage(user.userId, undefined);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Foreign file.',
+      targetRole: 'user',
+      attachedFileIds: [foreignAttachmentId],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('FILE_ATTACHMENT_INVALID');
+    expect(result.completedTaskIds).toEqual([]);
+    expect(await captureState(user.chatroomId)).toEqual(before);
+    expect((await getRow(foreignAttachmentId))?.status).toBe('uploaded');
+
+    const usageAfter = await getUsage(user.userId, undefined);
+    expect(usageAfter?.bytes).toBe(usageBefore?.bytes);
+    expect(usageAfter?.fileCount).toBe(usageBefore?.fileCount);
+
+    await assertUsageInvariant(user.userId);
+    await assertUsageInvariant(owner.userId);
+  });
+
+  test('rejects a file uploaded by another role without writing', async () => {
+    const user = await setupUser('validation-sender-role');
+    const attachmentId = await uploadFile(user, { senderRole: 'builder' });
+    const before = await captureState(user.chatroomId);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Wrong role.',
+      targetRole: 'user',
+      attachedFileIds: [attachmentId],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('FILE_ATTACHMENT_INVALID');
+    expect(result.error?.message).toContain('not uploaded by role');
+    expect(await captureState(user.chatroomId)).toEqual(before);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects an already-attached file without writing', async () => {
+    const user = await setupUser('validation-attached');
+    const attachmentId = await uploadFile(user);
+    await patchStatus(attachmentId, 'attached');
+    const before = await captureState(user.chatroomId);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Already bound.',
+      targetRole: 'user',
+      attachedFileIds: [attachmentId],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('FILE_ATTACHMENT_INVALID');
+    expect(result.error?.message).toContain('not awaiting handoff');
+    expect(await captureState(user.chatroomId)).toEqual(before);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects duplicate ids without writing', async () => {
+    const user = await setupUser('validation-duplicate');
+    const attachmentId = await uploadFile(user);
+    const before = await captureState(user.chatroomId);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Duplicate ids.',
+      targetRole: 'user',
+      attachedFileIds: [attachmentId, attachmentId],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('FILE_ATTACHMENT_INVALID');
+    expect(result.error?.message).toContain('Duplicate attachment id');
+    expect(await captureState(user.chatroomId)).toEqual(before);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects more than the per-handoff limit without writing', async () => {
+    const user = await setupUser('validation-limit');
+    const attachmentIds: Id<'chatroom_fileAttachments'>[] = [];
+    for (let i = 0; i < FILE_ATTACHMENT_MAX_PER_HANDOFF + 1; i++) {
+      attachmentIds.push(await uploadFile(user, { filename: `file-${i}.txt` }));
+    }
+    const before = await captureState(user.chatroomId);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Too many files.',
+      targetRole: 'user',
+      attachedFileIds: attachmentIds,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('FILE_ATTACHMENT_LIMIT_EXCEEDED');
+    expect(await captureState(user.chatroomId)).toEqual(before);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects an expired upload without writing', async () => {
+    const user = await setupUser('validation-expired');
+    const attachmentId = await uploadFile(user);
+    const row = await getRow(attachmentId);
+    const before = await captureState(user.chatroomId);
+
+    vi.useFakeTimers();
+    vi.setSystemTime(row!.expiresAt!);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Expired file.',
+      targetRole: 'user',
+      attachedFileIds: [attachmentId],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('FILE_ATTACHMENT_INVALID');
+    expect(result.error?.message).toContain('expired');
+    expect(await captureState(user.chatroomId)).toEqual(before);
+
+    vi.useRealTimers();
+    await assertUsageInvariant(user.userId);
+  });
+});
+
+describe('handoff replay cleanup', () => {
+  test('a retried handoff deletes only the new uploads and keeps the original binding', async () => {
+    const user = await setupUser('handoff-replay');
+    const { userMessageId } = await seedPlannerWork(
+      user.chatroomId,
+      'Ship the attachments feature'
+    );
+
+    const first = await uploadFile(user, { filename: 'original-a.txt' });
+    const second = await uploadFile(user, { filename: 'original-b.txt' });
+
+    const firstResult = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Done — files attached.',
+      targetRole: 'user',
+      attachedFileIds: [first, second],
+    });
+    expect(firstResult.success).toBe(true);
+    const messageId = firstResult.messageId!;
+
+    const storageAfterFirst = await countStorage();
+    const usageAfterFirst = await getUsage(user.userId, undefined);
+    expect(usageAfterFirst?.bytes).toBe(10);
+    expect(usageAfterFirst?.fileCount).toBe(2);
+
+    const retriedFirst = await uploadFile(user, { filename: 'retry-a.txt' });
+    const retriedSecond = await uploadFile(user, { filename: 'retry-b.txt' });
+    expect(await countStorage()).toBe(storageAfterFirst + 2);
+    expect((await getUsage(user.userId, undefined))?.bytes).toBe(20);
+
+    const replay = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Done — files attached.',
+      targetRole: 'user',
+      attachedFileIds: [retriedFirst, retriedSecond],
+    });
+
+    expect(replay.success).toBe(true);
+    expect(replay.messageId).toBe(messageId);
+    expect(replay.completedTaskIds).toEqual([]);
+    expect(replay.newTaskId).toBeNull();
+    expect(replay.promotedTaskId).toBeNull();
+
+    // The retried uploads and their blobs are gone; the original blobs remain.
+    expect(await getRow(retriedFirst)).toBeNull();
+    expect(await getRow(retriedSecond)).toBeNull();
+    expect(await countStorage()).toBe(storageAfterFirst);
+
+    const restoredUsage = await getUsage(user.userId, undefined);
+    expect(restoredUsage?.bytes).toBe(usageAfterFirst?.bytes);
+    expect(restoredUsage?.fileCount).toBe(usageAfterFirst?.fileCount);
+
+    // The original message and its bound rows are untouched.
+    const message = await t.run(async (ctx) => ctx.db.get('chatroom_messages', messageId));
+    expect(message?.attachedFileIds).toEqual([first, second]);
+    expect((await getRow(first))?.messageId).toBe(messageId);
+    expect((await getRow(second))?.messageId).toBe(messageId);
+    expect((await getRow(first))?.status).toBe('attached');
+    expect((await getRow(second))?.status).toBe('attached');
+
+    const terminalHandoffs = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom_terminalHandoffKey', (q) =>
+          q
+            .eq('chatroomId', user.chatroomId)
+            .eq('terminalHandoffKey', `${user.chatroomId}:${userMessageId}:planner:user`)
+        )
+        .collect()
+    );
+    expect(terminalHandoffs).toHaveLength(1);
+    expect(terminalHandoffs[0]!._id).toBe(messageId);
 
     await assertUsageInvariant(user.userId);
   });

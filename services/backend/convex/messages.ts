@@ -34,6 +34,7 @@ import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-au
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import {
   bindHandoffAttachments,
+  deleteFileAttachments,
   validateHandoffAttachments,
 } from '../src/domain/usecase/file-attachment/lifecycle';
 import {
@@ -506,6 +507,27 @@ export const enqueueMessageAtFront = mutation({
   },
 });
 
+/**
+ * Failure result for handoff rejections raised before any write. Mirrors the
+ * shape of the existing validation failures so callers need no special case.
+ */
+function handoffFailure(
+  code:
+    | 'FILE_ATTACHMENT_LIMIT_EXCEEDED'
+    | 'FILE_ATTACHMENT_INVALID'
+    | 'FILE_ATTACHMENTS_REQUIRE_USER_TARGET',
+  message: string
+) {
+  return {
+    success: false,
+    error: { code, message },
+    messageId: null,
+    completedTaskIds: [] as Id<'chatroom_tasks'>[],
+    newTaskId: null,
+    promotedTaskId: null,
+  };
+}
+
 /** @internal Shared handoff implementation for messages.handoff and legacy enqueueHandoff. */
 export async function runHandoffHandler(
   ctx: MutationCtx,
@@ -576,11 +598,16 @@ export async function runHandoffHandler(
 
   const now = Date.now();
 
-  // File attachments can only be bound to a user handoff. Validate them before
-  // ANY write so a rejected handoff leaves tasks, messages, attachments, and
-  // usage untouched.
+  // File attachments are user-facing only. Validate them before ANY write so a
+  // rejected handoff leaves tasks, messages, attachments, and usage untouched.
   let attachedFileRows: Doc<'chatroom_fileAttachments'>[] = [];
   if (args.attachedFileIds && args.attachedFileIds.length > 0) {
+    if (!isHandoffToUser) {
+      return handoffFailure(
+        'FILE_ATTACHMENTS_REQUIRE_USER_TARGET',
+        'Files can only be attached to a handoff addressed to user. Remove --attach-file or hand off to user.'
+      );
+    }
     const validation = await validateHandoffAttachments(ctx, {
       chatroomId: args.chatroomId,
       senderRole: args.senderRole,
@@ -588,14 +615,7 @@ export async function runHandoffHandler(
       now,
     });
     if (!validation.ok) {
-      return {
-        success: false,
-        error: { code: validation.code, message: validation.message },
-        messageId: null,
-        completedTaskIds: [] as Id<'chatroom_tasks'>[],
-        newTaskId: null,
-        promotedTaskId: null,
-      };
+      return handoffFailure(validation.code, validation.message);
     }
     attachedFileRows = validation.rows;
   }
@@ -677,6 +697,10 @@ export async function runHandoffHandler(
       (task) => task.assignedTo?.toLowerCase() === normalizedSenderRole
     );
     if (existing && !hasActiveSenderWork) {
+      // Retried terminal handoff: the caller uploaded fresh files for a message
+      // that already exists, so remove only those new uploads (row + blob +
+      // usage). The original message's bound rows are untouched.
+      await deleteFileAttachments(ctx, attachedFileRows);
       return {
         success: true,
         error: null,
