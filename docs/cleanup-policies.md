@@ -8,23 +8,24 @@ All cleanup functions run as Convex `internalMutation` cron jobs. They process r
 
 ## Cleanup Schedule
 
-| Table                                   | Cleanup Strategy            | TTL / Condition              | Batch Size                | Schedule     | File                       | Notes                                                   |
-| --------------------------------------- | --------------------------- | ---------------------------- | ------------------------- | ------------ | -------------------------- | ------------------------------------------------------- |
-| `chatroom_machineCommandInbox`          | Age-based / lease recovery  | Command deadline             | 2,000                     | Every 15 min | `machineCommandCleanup.ts` | Recovers expired claims every minute                    |
-| `chatroom_commandOutput`                | Age-based (terminal runs)   | 7 days                       | 500 chunks (50 runs)      | Hourly       | `storageCleanup.ts`        | Deletes output chunks for completed/failed/stopped runs |
-| `chatroom_commandRuns`                  | Age-based (terminal status) | 30 days                      | 500                       | Daily        | `storageCleanup.ts`        | Also deletes remaining output chunks                    |
-| `chatroom_workspaceCommitDetail`        | Age-based                   | 30 days                      | 500                       | Daily        | `storageCleanup.ts`        |                                                         |
-| `chatroom_workspaceFullDiff`            | Age-based                   | 24 hours                     | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
-| `chatroom_workspaceFileContent`         | Age-based                   | 24 hours                     | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
-| `chatroom_workspaceDiffRequests`        | Age-based                   | 24 hours                     | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
-| `chatroom_workspaceFileContentRequests` | Age-based                   | 24 hours                     | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
-| `chatroom_workspaceFileTree`            | Stale scannedAt             | 30 days                      | 500                       | Daily        | `chatroomCleanup.ts`       | Self-reschedules if batch full                          |
-| `chatroom_read_cursors`                 | Orphaned (chatroom deleted) | —                            | 500 scan / 300 delete cap | Daily        | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                 |
-| `chatroom_machines`                     | Inactive (lastSeenAt)       | 90 days                      | 50                        | Daily        | `chatroomCleanup.ts`       | Full cascading delete of 16+ related tables             |
-| `chatroom_participants`                 | Orphaned (chatroom deleted) | —                            | 500 scan / 300 delete cap | Daily        | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                 |
-| `cliSessions`                           | Inactive + stale            | 30d (inactive) / 90d (stale) | 500                       | Daily        | `chatroomCleanup.ts`       | Two passes with dedup Set to prevent double-delete      |
-| `cliAuthRequests`                       | Terminal status age         | 7 days                       | 500                       | Daily        | `chatroomCleanup.ts`       | Targets expired, denied, approved requests              |
-| `chatroom_tasks`                        | Terminal status age         | 60 days                      | 500                       | Daily        | `chatroomCleanup.ts`       | Uses completedAt with \_creationTime fallback           |
+| Table                                   | Cleanup Strategy            | TTL / Condition                             | Batch Size                | Schedule     | File                       | Notes                                                   |
+| --------------------------------------- | --------------------------- | ------------------------------------------- | ------------------------- | ------------ | -------------------------- | ------------------------------------------------------- |
+| `chatroom_machineCommandInbox`          | Age-based / lease recovery  | Command deadline                            | 2,000                     | Every 15 min | `machineCommandCleanup.ts` | Recovers expired claims every minute                    |
+| `chatroom_commandOutput`                | Age-based (terminal runs)   | 7 days                                      | 500 chunks (50 runs)      | Hourly       | `storageCleanup.ts`        | Deletes output chunks for completed/failed/stopped runs |
+| `chatroom_commandRuns`                  | Age-based (terminal status) | 30 days                                     | 500                       | Daily        | `storageCleanup.ts`        | Also deletes remaining output chunks                    |
+| `chatroom_workspaceCommitDetail`        | Age-based                   | 30 days                                     | 500                       | Daily        | `storageCleanup.ts`        |                                                         |
+| `chatroom_workspaceFullDiff`            | Age-based                   | 24 hours                                    | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
+| `chatroom_workspaceFileContent`         | Age-based                   | 24 hours                                    | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
+| `chatroom_workspaceDiffRequests`        | Age-based                   | 24 hours                                    | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
+| `chatroom_workspaceFileContentRequests` | Age-based                   | 24 hours                                    | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
+| `chatroom_workspaceFileTree`            | Stale scannedAt             | 30 days                                     | 500                       | Daily        | `chatroomCleanup.ts`       | Self-reschedules if batch full                          |
+| `chatroom_read_cursors`                 | Orphaned (chatroom deleted) | —                                           | 500 scan / 300 delete cap | Daily        | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                 |
+| `chatroom_machines`                     | Inactive (lastSeenAt)       | 90 days                                     | 50                        | Daily        | `chatroomCleanup.ts`       | Full cascading delete of 16+ related tables             |
+| `chatroom_participants`                 | Orphaned (chatroom deleted) | —                                           | 500 scan / 300 delete cap | Daily        | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                 |
+| `cliSessions`                           | Inactive + stale            | 30d (inactive) / 90d (stale)                | 500                       | Daily        | `chatroomCleanup.ts`       | Two passes with dedup Set to prevent double-delete      |
+| `cliAuthRequests`                       | Terminal status age         | 7 days                                      | 500                       | Daily        | `chatroomCleanup.ts`       | Targets expired, denied, approved requests              |
+| `chatroom_tasks`                        | Terminal status age         | 60 days                                     | 500                       | Daily        | `chatroomCleanup.ts`       | Uses completedAt with \_creationTime fallback           |
+| `chatroom_fileAttachments`              | Age-based (unbound)         | `pending_upload` 15 min / `uploaded` 60 min | 100                       | Every 15 min | `fileAttachments.ts`       | Self-reschedules when a batch is full                   |
 
 ## Self-Rescheduling Pattern
 
@@ -43,6 +44,19 @@ This ensures eventual convergence without overloading a single mutation. Functio
 - `chatroomCleanup.cleanupCliSessions` (batch 500)
 - `chatroomCleanup.cleanupCliAuthRequests` (batch 500)
 - `chatroomCleanup.cleanupCompletedTasks` (batch 500)
+- `fileAttachments.expireStaleUploads` (batch 100)
+
+### File attachment upload expiry
+
+Unbound `chatroom_fileAttachments` rows are removed by
+`fileAttachments.expireStaleUploads`: `pending_upload` rows expire 15 minutes
+after creation (no blob, no usage change) and `uploaded` rows expire 60 minutes
+after upload (blob deleted, usage decremented). `attached` rows belong to a
+delivered handoff and are never expired by this job.
+
+The upload HTTP action stores the blob before binding it to the row. If the
+process crashes between `ctx.storage.store` and `completeUpload`, one orphaned
+blob can remain. This residual risk is accepted; no `_storage` sweep exists yet.
 
 ### Delete-Capped Orphan Detection
 
@@ -86,4 +100,5 @@ Due to the large number of related rows, machines are processed in small batches
 - `services/backend/convex/machineCommandCleanup.ts` — Machine command inbox cleanup and lease recovery
 - `services/backend/convex/storageCleanup.ts` — Command output, runs, commit details, cached content
 - `services/backend/convex/chatroomCleanup.ts` — File trees, cursors, machines, participants, sessions, auth requests, tasks
+- `services/backend/convex/fileAttachments.ts` — File attachment upload expiry
 - `services/backend/convex/crons.ts` — Cron job registration
