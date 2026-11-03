@@ -928,11 +928,6 @@
         "count": 1
       }
     },
-    "apps/webapp/src/modules/chatroom/features/all-tab-conversation/AllTabAnchorNavigator.tsx": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "apps/webapp/src/modules/chatroom/features/enhancers/components/EnhancerConfigDialog.tsx": {
       "crap_high": {
         "count": 2

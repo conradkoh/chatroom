@@ -95,6 +95,11 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
       'folder structure, file naming, interface definitions, and key abstraction names/locations ' +
       '(e.g., Repository/Service layers).',
   },
+  {
+    term: 'test-seam',
+    definition:
+      'The public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port); do not mock internal collaborators.',
+  },
 ];
 
 const NATIVE_GLOSSARY_TERMS: GlossaryTerm[] = [

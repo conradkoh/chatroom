@@ -1,12 +1,20 @@
-import { ConvexError, v } from 'convex/values';
+import {
+  createTaskEnvelope,
+  normalizeTaskEnvelope,
+  withTaskEnvelopeConversationMode,
+  withTaskEnvelopeSessionPolicy,
+  type TaskEnvelopeV1,
+} from '@workspace/shared/domain/task-envelope';
+import { ConvexError, v, type Infer } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { internal } from './_generated/api';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { omitUndefined } from './lib/omitUndefined';
+import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import {
   computeNextRunAt,
   computeNextRunAtForEnable,
@@ -17,6 +25,8 @@ import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-au
 const MAX_PROMPT_LENGTH = 10_000;
 const MIN_INTERVAL_MINUTES = 1;
 const SCAN_BATCH_SIZE = 10;
+/** Sidebar section bound: only soonest upcoming prompts are exposed. */
+const MAX_UPCOMING = 20;
 
 // ─── Access helper ───
 
@@ -31,55 +41,206 @@ async function requireScheduledPromptAccess(
   return row;
 }
 
+/**
+ * Rows created before the policy field existed fire as code + new session,
+ * matching the historical behaviour.
+ */
+function effectiveEnvelope(row: Doc<'chatroom_scheduledPrompts'>): TaskEnvelopeV1 {
+  return normalizeTaskEnvelope({ taskEnvelope: row.taskEnvelope, startInNewSession: true });
+}
+
 // ─── Validation helpers ───
 
-function validateSchedule(args: {
-  scheduleKind: 'interval' | 'daily';
+const scheduleKindValidator = v.union(v.literal('interval'), v.literal('daily'), v.literal('once'));
+
+type ScheduleInput = {
+  scheduleKind: Infer<typeof scheduleKindValidator>;
   intervalMinutes?: number | undefined;
   hourUTC?: number | undefined;
   minuteUTC?: number | undefined;
-}) {
-  if (args.scheduleKind === 'interval') {
-    if (!args.intervalMinutes || args.intervalMinutes < MIN_INTERVAL_MINUTES) {
-      throw new ConvexError({
-        code: 'INVALID_SCHEDULE',
-        message: `Interval must be at least ${MIN_INTERVAL_MINUTES} minutes`,
-      });
-    }
-  } else {
-    if (
-      args.hourUTC === undefined ||
-      args.minuteUTC === undefined ||
-      args.hourUTC < 0 ||
-      args.hourUTC > 23 ||
-      args.minuteUTC < 0 ||
-      args.minuteUTC > 59
-    ) {
-      throw new ConvexError({
-        code: 'INVALID_SCHEDULE',
-        message: 'Daily schedule requires valid hourUTC (0-23) and minuteUTC (0-59)',
-      });
+  runAt?: number | undefined;
+};
+
+/** Fields an update may change on a schedule. Absent means "keep current". */
+type ScheduleUpdateInput = {
+  scheduleKind?: Infer<typeof scheduleKindValidator> | undefined;
+  intervalMinutes?: number | undefined;
+  hourUTC?: number | undefined;
+  minuteUTC?: number | undefined;
+  runAt?: number | undefined;
+};
+
+function assertValidInterval(intervalMinutes: number | undefined): void {
+  if (!intervalMinutes || intervalMinutes < MIN_INTERVAL_MINUTES) {
+    throw new ConvexError({
+      code: 'INVALID_SCHEDULE',
+      message: `Interval must be at least ${MIN_INTERVAL_MINUTES} minutes`,
+    });
+  }
+}
+
+function isValidHour(hourUTC: number | undefined): boolean {
+  return hourUTC !== undefined && hourUTC >= 0 && hourUTC <= 23;
+}
+
+function isValidMinute(minuteUTC: number | undefined): boolean {
+  return minuteUTC !== undefined && minuteUTC >= 0 && minuteUTC <= 59;
+}
+
+function assertValidDaily(hourUTC: number | undefined, minuteUTC: number | undefined): void {
+  if (!isValidHour(hourUTC) || !isValidMinute(minuteUTC)) {
+    throw new ConvexError({
+      code: 'INVALID_SCHEDULE',
+      message: 'Daily schedule requires valid hourUTC (0-23) and minuteUTC (0-59)',
+    });
+  }
+}
+
+function assertValidOnce(runAt: number | undefined, nowMs: number): void {
+  if (runAt === undefined || !Number.isFinite(runAt) || runAt <= nowMs) {
+    throw new ConvexError({
+      code: 'INVALID_SCHEDULE',
+      message: 'One-time schedule requires a time in the future',
+    });
+  }
+}
+
+function assertValidPromptContent(trimmed: string): void {
+  if (!trimmed) {
+    throw new ConvexError({ code: 'EMPTY_PROMPT', message: 'Prompt cannot be empty' });
+  }
+  if (trimmed.length > MAX_PROMPT_LENGTH) {
+    throw new ConvexError({
+      code: 'CONTENT_TOO_LONG',
+      message: `Prompt must be ${MAX_PROMPT_LENGTH} chars or less`,
+    });
+  }
+}
+
+function validateSchedule(args: ScheduleInput, nowMs: number): void {
+  switch (args.scheduleKind) {
+    case 'interval':
+      return assertValidInterval(args.intervalMinutes);
+    case 'daily':
+      return assertValidDaily(args.hourUTC, args.minuteUTC);
+    case 'once':
+      return assertValidOnce(args.runAt, nowMs);
+    default: {
+      const never: never = args.scheduleKind;
+      throw new Error(`Unknown scheduleKind ${String(never)}`);
     }
   }
 }
 
-function toScheduleRow(args: {
-  scheduleKind: 'interval' | 'daily';
-  intervalMinutes?: number | undefined;
-  hourUTC?: number | undefined;
-  minuteUTC?: number | undefined;
-}): ScheduledPromptSchedule {
+function toScheduleRow(args: ScheduleInput): ScheduledPromptSchedule {
   if (args.scheduleKind === 'interval') {
     return {
       scheduleKind: 'interval',
       intervalMinutes: args.intervalMinutes ?? 0,
     };
   }
+  if (args.scheduleKind === 'daily') {
+    return {
+      scheduleKind: 'daily',
+      hourUTC: args.hourUTC ?? 0,
+      minuteUTC: args.minuteUTC ?? 0,
+    };
+  }
+  return { scheduleKind: 'once', runAt: args.runAt ?? 0 };
+}
+
+/**
+ * A one-time prompt that already fired (or failed to fire) is terminal history.
+ * It can never be edited or re-armed; only `remove` and reads remain available.
+ */
+function assertNotFinished(row: Doc<'chatroom_scheduledPrompts'>): void {
+  if (row.disabledReason === 'completed' || row.disabledReason === 'failed') {
+    throw new ConvexError({
+      code: 'SCHEDULE_FINISHED',
+      message: 'This one-time prompt has already run and cannot be changed',
+    });
+  }
+}
+
+/** Build the schedule fields for a one-time update; empty when the time is unchanged. */
+function buildOnceSchedulePatch(
+  row: Doc<'chatroom_scheduledPrompts'>,
+  runAt: number | undefined,
+  now: number
+): Record<string, unknown> {
+  const nextRunAt = runAt ?? row.runAt;
+  // The edit form always resends runAt. Only re-validate and re-arm when the
+  // time (or the kind) actually changed, so renaming a row whose time has
+  // passed but which the cron has not fired yet still succeeds.
+  const timeChanged = row.scheduleKind !== 'once' || nextRunAt !== row.runAt;
+  if (!timeChanged) return {};
+  validateSchedule({ scheduleKind: 'once', runAt: nextRunAt }, now);
   return {
-    scheduleKind: 'daily',
-    hourUTC: args.hourUTC ?? 0,
-    minuteUTC: args.minuteUTC ?? 0,
+    scheduleKind: 'once',
+    runAt: nextRunAt,
+    intervalMinutes: undefined,
+    hourUTC: undefined,
+    minuteUTC: undefined,
+    ...(row.isRunnable ? { nextRunAt } : {}),
   };
+}
+
+/** Build the schedule fields for an interval/daily update; empty when nothing changed. */
+function buildRecurringSchedulePatch(
+  row: Doc<'chatroom_scheduledPrompts'>,
+  args: ScheduleUpdateInput,
+  scheduleKind: 'interval' | 'daily',
+  now: number
+): Record<string, unknown> {
+  const scheduleInput: ScheduleInput = {
+    scheduleKind,
+    intervalMinutes: args.intervalMinutes ?? row.intervalMinutes,
+    hourUTC: args.hourUTC ?? row.hourUTC,
+    minuteUTC: args.minuteUTC ?? row.minuteUTC,
+  };
+  validateSchedule(scheduleInput, now);
+  const fullSchedule = toScheduleRow(scheduleInput);
+  if (fullSchedule.scheduleKind === 'once') {
+    throw new Error('Invariant: a recurring schedule update produced a one-time schedule');
+  }
+  return {
+    ...fullSchedule,
+    runAt: undefined,
+    ...(row.isRunnable ? { nextRunAt: computeNextRunAtForEnable(fullSchedule, now) } : {}),
+  };
+}
+
+function buildContentPatch(
+  name: string | undefined,
+  prompt: string | undefined
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (name !== undefined) patch.name = name.trim() || undefined;
+  if (prompt === undefined) return patch;
+  const trimmed = prompt.trim();
+  assertValidPromptContent(trimmed);
+  patch.prompt = trimmed;
+  return patch;
+}
+
+function isRecurringScheduleChanged(args: ScheduleUpdateInput): boolean {
+  return (
+    args.scheduleKind !== undefined ||
+    args.intervalMinutes !== undefined ||
+    args.hourUTC !== undefined ||
+    args.minuteUTC !== undefined
+  );
+}
+
+function buildSchedulePatch(
+  row: Doc<'chatroom_scheduledPrompts'>,
+  args: ScheduleUpdateInput,
+  now: number
+): Record<string, unknown> {
+  const kind = args.scheduleKind ?? row.scheduleKind;
+  if (kind === 'once') return buildOnceSchedulePatch(row, args.runAt, now);
+  if (!isRecurringScheduleChanged(args)) return {};
+  return buildRecurringSchedulePatch(row, args, kind, now);
 }
 
 // ─── Queries ───
@@ -92,6 +253,20 @@ export const list = query({
       .query('chatroom_scheduledPrompts')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
+  },
+});
+
+export const listUpcoming = query({
+  args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms') },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return await ctx.db
+      .query('chatroom_scheduledPrompts')
+      .withIndex('by_chatroom_isRunnable_nextRunAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('isRunnable', true)
+      )
+      .order('asc')
+      .take(MAX_UPCOMING);
   },
 });
 
@@ -127,23 +302,18 @@ export const create = mutation({
     chatroomId: v.id('chatroom_rooms'),
     name: v.optional(v.string()),
     prompt: v.string(),
-    scheduleKind: v.union(v.literal('interval'), v.literal('daily')),
+    scheduleKind: scheduleKindValidator,
     intervalMinutes: v.optional(v.number()),
     hourUTC: v.optional(v.number()),
     minuteUTC: v.optional(v.number()),
+    runAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const trimmed = args.prompt.trim();
-    if (!trimmed)
-      throw new ConvexError({ code: 'EMPTY_PROMPT', message: 'Prompt cannot be empty' });
-    if (trimmed.length > MAX_PROMPT_LENGTH)
-      throw new ConvexError({
-        code: 'CONTENT_TOO_LONG',
-        message: `Prompt must be ${MAX_PROMPT_LENGTH} chars or less`,
-      });
-    validateSchedule(args);
+    assertValidPromptContent(trimmed);
     const now = Date.now();
+    validateSchedule(args, now);
     const schedule = toScheduleRow(args);
     const nextRunAt = computeNextRunAtForEnable(schedule, now);
     return await ctx.db.insert(
@@ -155,9 +325,9 @@ export const create = mutation({
           : {}),
         prompt: trimmed,
         ...schedule,
-        ...{},
         isRunnable: true,
         nextRunAt,
+        taskEnvelope: createTaskEnvelope({ sessionPolicy: 'new' }),
         createdBy: session.userId,
         createdAt: now,
         updatedAt: now,
@@ -166,16 +336,17 @@ export const create = mutation({
   },
 });
 
-export const update = mutation({
+/**
+ * Edit the delivery policy of an existing prompt. Field-level merge: an absent
+ * argument keeps the current value. Never touches scheduling state, so it can
+ * neither re-arm a paused row nor un-finish a terminal one.
+ */
+export const updatePolicy = mutation({
   args: {
     ...SessionIdArg,
     scheduledPromptId: v.id('chatroom_scheduledPrompts'),
-    name: v.optional(v.string()),
-    prompt: v.optional(v.string()),
-    scheduleKind: v.optional(v.union(v.literal('interval'), v.literal('daily'))),
-    intervalMinutes: v.optional(v.number()),
-    hourUTC: v.optional(v.number()),
-    minuteUTC: v.optional(v.number()),
+    conversationMode: v.optional(taskEnvelopeV1Validator.fields.conversationMode),
+    sessionPolicy: v.optional(taskEnvelopeV1Validator.fields.sessionPolicy),
   },
   handler: async (ctx, args) => {
     const row = await requireScheduledPromptAccess(ctx, args.sessionId, args.scheduledPromptId);
@@ -185,67 +356,54 @@ export const update = mutation({
         message: 'Cannot update a prompt disabled by archive',
       });
     }
+    assertNotFinished(row);
+    if (args.conversationMode === undefined && args.sessionPolicy === undefined) {
+      throw new ConvexError({
+        code: 'NOTHING_TO_UPDATE',
+        message: 'Provide conversationMode or sessionPolicy',
+      });
+    }
+    let envelope = effectiveEnvelope(row);
+    if (args.conversationMode !== undefined) {
+      envelope = withTaskEnvelopeConversationMode(envelope, args.conversationMode);
+    }
+    if (args.sessionPolicy !== undefined) {
+      envelope = withTaskEnvelopeSessionPolicy(envelope, args.sessionPolicy);
+    }
+    await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
+      taskEnvelope: envelope,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const update = mutation({
+  args: {
+    ...SessionIdArg,
+    scheduledPromptId: v.id('chatroom_scheduledPrompts'),
+    name: v.optional(v.string()),
+    prompt: v.optional(v.string()),
+    scheduleKind: v.optional(scheduleKindValidator),
+    intervalMinutes: v.optional(v.number()),
+    hourUTC: v.optional(v.number()),
+    minuteUTC: v.optional(v.number()),
+    runAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const row = await requireScheduledPromptAccess(ctx, args.sessionId, args.scheduledPromptId);
+    if (row.disabledReason === 'archive') {
+      throw new ConvexError({
+        code: 'LIFECYCLE_DISABLED',
+        message: 'Cannot update a prompt disabled by archive',
+      });
+    }
+    assertNotFinished(row);
     const now = Date.now();
-    const patch: Record<string, unknown> = { updatedAt: now };
-    if (args.name !== undefined) patch.name = args.name.trim() || undefined;
-    if (args.prompt !== undefined) {
-      const trimmed = args.prompt.trim();
-      if (!trimmed)
-        throw new ConvexError({ code: 'EMPTY_PROMPT', message: 'Prompt cannot be empty' });
-      if (trimmed.length > MAX_PROMPT_LENGTH)
-        throw new ConvexError({
-          code: 'CONTENT_TOO_LONG',
-          message: `Prompt must be ${MAX_PROMPT_LENGTH} chars or less`,
-        });
-      patch.prompt = trimmed;
-    }
-    let scheduleChanged = false;
-    const schedule: {
-      scheduleKind: 'interval' | 'daily';
-      intervalMinutes?: number | undefined;
-      hourUTC?: number | undefined;
-      minuteUTC?: number | undefined;
-    } = { scheduleKind: row.scheduleKind };
-    if (args.scheduleKind !== undefined) {
-      schedule.scheduleKind = args.scheduleKind;
-      scheduleChanged = true;
-    }
-    if (args.intervalMinutes !== undefined) {
-      schedule.intervalMinutes = args.intervalMinutes;
-      scheduleChanged = true;
-    }
-    if (args.hourUTC !== undefined) {
-      schedule.hourUTC = args.hourUTC;
-      scheduleChanged = true;
-    }
-    if (args.minuteUTC !== undefined) {
-      schedule.minuteUTC = args.minuteUTC;
-      scheduleChanged = true;
-    }
-    if (scheduleChanged) {
-      if (schedule.scheduleKind === 'interval') {
-        const fullSchedule = {
-          scheduleKind: 'interval' as const,
-          intervalMinutes: (args.intervalMinutes ?? row.intervalMinutes) as number,
-        };
-        validateSchedule(fullSchedule);
-        Object.assign(patch, fullSchedule);
-        if (row.isRunnable) {
-          patch.nextRunAt = computeNextRunAtForEnable(fullSchedule, now);
-        }
-      } else {
-        const fullSchedule = {
-          scheduleKind: 'daily' as const,
-          hourUTC: (args.hourUTC ?? row.hourUTC) as number,
-          minuteUTC: (args.minuteUTC ?? row.minuteUTC) as number,
-        };
-        validateSchedule(fullSchedule);
-        Object.assign(patch, fullSchedule);
-        if (row.isRunnable) {
-          patch.nextRunAt = computeNextRunAtForEnable(fullSchedule, now);
-        }
-      }
-    }
+    const patch: Record<string, unknown> = {
+      updatedAt: now,
+      ...buildContentPatch(args.name, args.prompt),
+      ...buildSchedulePatch(row, args, now),
+    };
     await ctx.db.patch('chatroom_scheduledPrompts', row._id, patch);
   },
 });
@@ -264,6 +422,7 @@ export const setEnabled = mutation({
         message: 'Cannot enable a prompt disabled by archive',
       });
     }
+    assertNotFinished(row);
     const now = Date.now();
     if (!args.enabled) {
       await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
@@ -275,6 +434,12 @@ export const setEnabled = mutation({
       return;
     }
     const schedule = toScheduleRow(row);
+    if (schedule.scheduleKind === 'once' && schedule.runAt <= now) {
+      throw new ConvexError({
+        code: 'INVALID_SCHEDULE',
+        message: 'Scheduled time has passed — edit the prompt to pick a new time',
+      });
+    }
     const anchor = schedule.scheduleKind === 'interval' ? row.lastRunAt : undefined;
     await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
       disabledReason: undefined,
@@ -318,6 +483,44 @@ export const runDue = internalMutation({
   },
 });
 
+/**
+ * Stop a prompt from firing. Recurring rows are left re-enableable; one-time
+ * rows can also be marked terminal (`failed`).
+ */
+async function disablePrompt(
+  ctx: MutationCtx,
+  row: Doc<'chatroom_scheduledPrompts'>,
+  failed: boolean
+): Promise<void> {
+  await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
+    isRunnable: false,
+    nextRunAt: undefined,
+    ...(failed ? { disabledReason: 'failed' as const } : {}),
+    updatedAt: Date.now(),
+  });
+}
+
+/** Record a successful fire: one-time rows complete; recurring rows re-arm. */
+async function recordFire(ctx: MutationCtx, row: Doc<'chatroom_scheduledPrompts'>): Promise<void> {
+  const now = Date.now();
+  const schedule = toScheduleRow(row);
+  if (schedule.scheduleKind === 'once') {
+    await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
+      lastRunAt: now,
+      nextRunAt: undefined,
+      isRunnable: false,
+      disabledReason: 'completed',
+      updatedAt: now,
+    });
+    return;
+  }
+  await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
+    lastRunAt: now,
+    nextRunAt: computeNextRunAt(schedule, now, row.nextRunAt),
+    updatedAt: now,
+  });
+}
+
 export const fireOne = internalMutation({
   args: { scheduledPromptId: v.id('chatroom_scheduledPrompts') },
   handler: async (ctx, args) => {
@@ -331,36 +534,34 @@ export const fireOne = internalMutation({
     ) {
       return;
     }
+    const isOnce = row.scheduleKind === 'once';
     const chatroom = await ctx.db.get('chatroom_rooms', row.chatroomId);
     if (!chatroom || chatroom.status !== 'active') {
-      await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
-        isRunnable: false,
-        nextRunAt: undefined,
-        updatedAt: Date.now(),
-      });
+      await disablePrompt(ctx, row, isOnce);
       return;
     }
+    const envelope = effectiveEnvelope(row);
     const result = await sendAutomatedUserMessage(ctx, {
       chatroomId: row.chatroomId,
       content: row.prompt,
       sourcePlatform: 'scheduled',
       scheduledPromptId: row._id,
-      startInNewSession: true,
+      startInNewSession: envelope.sessionPolicy === 'new',
+      taskEnvelope: envelope,
       ...(chatroom.ownerId ? { userId: chatroom.ownerId } : {}),
     });
-    if (!result.ok) return;
+    if (!result.ok) {
+      // A one-time row gets exactly one attempt: a failed send is terminal.
+      // Recurring rows stay live and retry on the next tick.
+      if (isOnce) await disablePrompt(ctx, row, true);
+      return;
+    }
 
     // Wake offline agents, matching the manual user-message path in messages.ts.
     await ctx.scheduler.runAfter(0, internal.agents.startNonRunningAgentsForChatroom, {
       chatroomId: row.chatroomId,
     });
 
-    const now = Date.now();
-    const schedule = toScheduleRow(row);
-    await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
-      lastRunAt: now,
-      nextRunAt: computeNextRunAt(schedule, now, row.nextRunAt),
-      updatedAt: now,
-    });
+    await recordFire(ctx, row);
   },
 });

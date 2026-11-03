@@ -39,14 +39,11 @@ export const TIMELINE_SCROLL_CONTAINER =
   '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-chatroom-border ' +
   '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-chatroom-bg-primary';
 
-/** Extra scroll classes only needed by the virtualized main feed. */
-export const TIMELINE_FEED_SCROLL_EXTRAS = 'overflow-x-auto [overflow-anchor:none]';
-
 export const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
 
 /**
- * Sticky-header message navigation (All tab): jump to first, previous,
+ * Sticky-header message navigation (conversation feed): jump to first, previous,
  * current, next, or last message row. `has*` flags drive disabled state.
  */
 export type TimelineMessageHeaderNavigation = {
@@ -72,14 +69,32 @@ export function getSenderClasses(role: string): string {
   return `${base} text-chatroom-status-info`;
 }
 
-export type MachineNameEntry = { hostname: string; alias?: string };
+/** Full-width disclosure bar for collapsible handoff rows. Identical padding in both states keeps the chevron fixed. */
+export const TIMELINE_HANDOFF_TOGGLE =
+  'group/handoff-toggle flex w-full items-start gap-2 px-4 py-2 text-left cursor-pointer ' +
+  'transition-[background-color,opacity] duration-100 hover:bg-chatroom-bg-hover active:opacity-80 ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent';
 
-export function formatMachineLabel(
-  machines: Map<string, MachineNameEntry> | undefined,
-  machineId: string | undefined
-): string | null {
-  if (!machines || !machineId) return null;
-  const entry = machines.get(machineId);
-  if (!entry) return null;
-  return entry.alias ?? entry.hostname;
-}
+/** Chevron: 14px icon centred on the first 20px text line; rotates 90° when expanded. */
+export const TIMELINE_HANDOFF_CHEVRON =
+  'mt-[3px] shrink-0 text-chatroom-text-muted transition-transform duration-150 motion-reduce:transition-none ' +
+  'group-hover/handoff-toggle:text-chatroom-text-primary';
+
+/** Collapsed preview text: the primary scan content of the row. */
+export const TIMELINE_HANDOFF_PREVIEW_TEXT =
+  'min-w-0 flex-1 line-clamp-2 [overflow-wrap:anywhere] text-sm leading-5 text-chatroom-text-secondary ' +
+  'group-hover/handoff-toggle:text-chatroom-text-primary';
+
+/** "Collapse" and empty-preview "Show full handoff" label. */
+export const TIMELINE_HANDOFF_TOGGLE_LABEL =
+  'min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide leading-5 text-chatroom-text-muted ' +
+  'group-hover/handoff-toggle:text-chatroom-text-primary';
+
+/** Right-aligned time column inside the collapsed bar. */
+export const TIMELINE_HANDOFF_META = 'flex shrink-0 items-center gap-1.5 leading-5';
+
+/**
+ * Collapsed-row attachment chips. 38px (2.375rem) = 16px bar padding (px-4) + 14px
+ * chevron + 8px gap-2, so the chips line up with the preview text above them.
+ */
+export const TIMELINE_HANDOFF_CHIPS = 'pl-[2.375rem]';

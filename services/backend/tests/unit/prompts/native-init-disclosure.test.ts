@@ -39,9 +39,13 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * package layout lives in the designer prompt and handoff template, not here),
  * then from 17200 to admit the generate-3d default model and rig rule
  * (references and bundle contents stay in the designer prompt and guide;
- * ~200 characters).
+ * ~200 characters), then from 17500 to admit the lighting-contract field and
+ * lighting gate in the game-assets-via-designer delegation rule (~400 characters),
+ * then from 18000 to admit the asset-in-rig render and verification-only lighting
+ * brief in the same rule (~560 characters),
+ * then from 18700 to admit the shared test-seam glossary term (~240 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 17500;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 19000;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

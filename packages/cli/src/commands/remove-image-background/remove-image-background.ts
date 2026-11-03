@@ -520,6 +520,7 @@ async function preflight(
   outputs: string[],
   tiles: InputTile[],
   force: boolean,
+  dryRun: boolean,
   deps: RemoveImageBackgroundDeps
 ): Promise<void> {
   const sourcePaths = new Set<string>();
@@ -531,7 +532,7 @@ async function preflight(
     sourceIdentities.push(await deps.fileIdentity(`${tile.path}.json`));
   }
   const conflicts = await findOutputConflicts(deps, outputs, sourcePaths, sourceIdentities, force);
-  if (conflicts.length > 0) throw new RemoveBackgroundError(formatConflicts(conflicts));
+  if (conflicts.length > 0) throw new RemoveBackgroundError(formatConflicts(conflicts, dryRun));
 }
 
 function encodeAsset(
@@ -723,6 +724,7 @@ export async function removeImageBackground(
     prepared.flatMap((asset) => [asset.path, asset.manifestPath]),
     tiles,
     opts.force === true,
+    opts.dryRun === true,
     deps
   );
 

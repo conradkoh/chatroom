@@ -31,6 +31,7 @@ const reportHeadings = [
   '## Asset manifest',
   '## Quality checklist results',
   '## Style consistency',
+  '## Lighting verification',
   '## Naming map',
   '## Created and edited paths',
   '## Commits',
@@ -67,16 +68,44 @@ describe('game asset designer handoff template snapshots', () => {
     expect(report).toContain('## Proof of Principles');
     expect(report).toContain('## Proof of Completion');
     expect(report).toContain('## Naming map');
-    expect(report).toContain('`--input-image`');
     expect(brief).toContain('## Model');
     expect(brief).toContain('## Model parameters');
     expect(brief).toContain('fal-ai/flux-2/flash');
     expect(brief).not.toContain('default model');
-    expect(brief).toContain('--dry-run');
-    expect(brief).toContain('Always pass `--trim` to `chatroom remove-image-background`');
-    expect(report).toContain('Always pass `--trim` to `chatroom remove-image-background`');
+    expect(brief).toContain('chatroom generate-3d --help');
+    expect(brief).toContain('(dry run first)');
+    expect(brief).toContain('procedural: <generator script path>');
+    expect(brief).toContain('Procedural 3D:');
+    expect(brief).toContain('gltf-transform inspect');
+    expect(brief).not.toContain('any other tools you explicitly allow');
+    expect(report).toContain('grid values when a sheet was generated');
+    expect(report).toContain('For an AI-generated 3D asset also record the preview inspection');
     expect(`${brief}\n${report}`).not.toMatch(/fal-ai\/flux-2(?!\/flash)/);
     expect(`${brief}\n${report}`).not.toMatch(/FLUX\.2|FLUX 2(?! Flash)/);
+  });
+
+  test('brief keeps one fixed tool line per domain and covers every skill tool', () => {
+    const brief = renderPair({
+      teamId: 'duo',
+      fromRole: 'planner',
+      toRole: 'game-asset-designer',
+    });
+
+    expect(brief).toContain('keep the fixed line for each domain the brief contains');
+    expect(brief).toContain(
+      'keep the line for each domain the brief contains and delete the others; `None.` for `spec only`'
+    );
+    expect(brief).toContain('For a mixed brief, give one line per domain prefixed');
+    expect(brief.split('For a mixed brief, give one line per domain prefixed')).toHaveLength(3);
+    expect(brief).toContain(
+      'AI 3D: `chatroom generate-3d --platform=fal --model <Model> (dry run first), gltf-transform inspect`'
+    );
+    expect(brief).toContain(
+      'Procedural 3D: `<generator script path> <run command>, git rev-parse HEAD, gltf-transform inspect`'
+    );
+    expect(brief).toContain(
+      '`Not applicable.` for a procedural asset (its parameters live in the config file named in `## Allowed edit paths`)'
+    );
   });
 
   test('planner delegation states the target, budgets, style reference, and deliverable mode', () => {
@@ -91,8 +120,13 @@ describe('game asset designer handoff template snapshots', () => {
     expect(template).toContain('## Assets requested');
     expect(template).toContain('## Budgets and conventions');
     expect(template).toContain('## Style reference');
+    expect(template).toContain('## Lighting contract');
+    expect(template).toContain('`Not specified.` is not allowed');
+    expect(template).toContain('Unknown: designer to read <path>');
+    expect(template).toContain(
+      'do not author prompts, material treatment, style, or lighting art direction'
+    );
     expect(template).toContain('## Perspective');
-    expect(template).toContain('no sheets');
     expect(template).toContain('## Spec consumer');
     expect(template).toContain('## Existing assets');
     expect(template).toContain('## Deliverable mode');
@@ -128,6 +162,12 @@ describe('game asset designer handoff template snapshots', () => {
     for (const position of positions) expect(position).toBeGreaterThan(-1);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(template.trimEnd().endsWith('```')).toBe(true);
+    expect(template).toContain('## Lighting verification');
+    expect(template).toContain('`Delivered, lighting not verified:`');
+    expect(template).toContain(
+      "Lighting verified under the brief's Lighting contract with an **asset-in-rig render**"
+    );
+    expect(template).toContain('otherwise the Summary starts `Delivered, lighting not verified:`.');
     expect(template).toContain('`None failed.`');
     expect(template).toContain('`None.`');
     expect(template).toContain('next-role="planner"');

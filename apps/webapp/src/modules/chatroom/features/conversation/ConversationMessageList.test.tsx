@@ -1,0 +1,615 @@
+import { fireEvent, render, within } from '@testing-library/react';
+import type React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { ConversationMessageList } from './ConversationMessageList';
+import { AttachmentsProvider } from '../../attachments';
+import type * as TimelineEventRowModule from '../../components/timeline/TimelineEventRow';
+import { getTimelineVirtualRowZIndex } from '../../components/timeline/timelineRowStyles';
+import { JUMP_TO_NEW_MESSAGES_Z_INDEX } from '../../components/timeline/timelineVirtualizerConfig';
+import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
+import type { Message } from '../../types/message';
+
+// matchMedia polyfill needed by useIsDesktop (used by MessageDownloadMenu in the real row).
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+/**
+ * Render-counting wrapper around the real `TimelineEventRow`.
+ *
+ * The wrapper is `memo`-ized like the real component, so a count is recorded
+ * exactly when the row's props changed — which is what the conversation list must
+ * keep minimal.
+ */
+const { rowRenderCounts } = vi.hoisted(() => ({
+  rowRenderCounts: new Map<string, number>(),
+}));
+
+/**
+ * Markdown render counter. Eager rows (user messages, user-facing handoffs) run
+ * the real markdown body, so counting its calls proves which rows re-ran the
+ * expensive render path after an append.
+ */
+const { markdownRenderMock } = vi.hoisted(() => ({ markdownRenderMock: vi.fn() }));
+
+vi.mock('../../components/timeline/TimelineMarkdownBody', () => ({
+  TimelineMarkdownBody: ({ content }: { content: string }) => {
+    markdownRenderMock(content);
+    return (
+      <div className="prose" data-testid="timeline-markdown-body">
+        {content
+          .split('\n')
+          .filter((line) => line.trim())
+          .map((line, index) => (
+            <p key={index}>{line}</p>
+          ))}
+      </div>
+    );
+  },
+}));
+
+vi.mock('../../components/timeline/TimelineEventRow', async (importOriginal) => {
+  const actual = await importOriginal<typeof TimelineEventRowModule>();
+  const { memo } = await import('react');
+  return {
+    TimelineEventRow: memo(function CountingTimelineEventRow(
+      props: Parameters<typeof actual.TimelineEventRow>[0]
+    ) {
+      rowRenderCounts.set(props.event.id, (rowRenderCounts.get(props.event.id) ?? 0) + 1);
+      return (
+        <div data-testid={`event-row-${props.event.id}`}>
+          <actual.TimelineEventRow {...props} />
+        </div>
+      );
+    }),
+  };
+});
+
+const makeEvent = (id: string) => ({
+  id,
+  kind: 'user_message' as const,
+  creationTime: 100,
+  message: {
+    _id: id,
+    content: id,
+    type: 'message' as const,
+    senderRole: 'user' as const,
+    _creationTime: 100,
+  },
+});
+
+function setScrollMetrics(
+  el: HTMLElement,
+  metrics: { clientHeight: number; scrollHeight: number; scrollTop: number }
+) {
+  Object.defineProperty(el, 'clientHeight', { value: metrics.clientHeight, configurable: true });
+  Object.defineProperty(el, 'scrollHeight', { value: metrics.scrollHeight, configurable: true });
+  Object.defineProperty(el, 'scrollTop', {
+    value: metrics.scrollTop,
+    writable: true,
+    configurable: true,
+  });
+}
+
+function scrollToBottom(el: HTMLElement) {
+  setScrollMetrics(el, { clientHeight: 400, scrollHeight: 1200, scrollTop: 1000 });
+  fireEvent.scroll(el);
+}
+
+/** The real row renders attachment chips / footer, which need the provider. */
+function renderList(ui: React.ReactElement) {
+  return render(ui, { wrapper: AttachmentsProvider });
+}
+
+type HeaderNavControl = 'first' | 'previous' | 'current' | 'next' | 'last';
+
+/** Scopes to one rendered row, since the real header nav reuses test ids per row. */
+function headerNav(messageId: string, control: HeaderNavControl): HTMLButtonElement {
+  const row = document.querySelector(`[data-testid="event-row-${messageId}"]`);
+  if (!row) throw new Error(`row ${messageId} is not rendered`);
+  return within(row as HTMLElement).getByTestId(
+    `timeline-header-nav-${control}`
+  ) as HTMLButtonElement;
+}
+
+describe('scroll pinning and jump chip', () => {
+  it('shows jump chip when scrolled away from bottom', () => {
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
+    fireEvent.scroll(list);
+
+    expect(
+      document.querySelector('[data-testid="conversation-jump-to-new-messages"]')
+    ).not.toBeNull();
+  });
+
+  it('positions jump chip above contained timeline rows with long feed', () => {
+    const events = Array.from({ length: 40 }, (_, index) => makeEvent(`msg-${index}`));
+    renderList(<ConversationMessageList events={events} anchorId="a1" />);
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    expect(list).toHaveClass('relative', 'z-0');
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
+    fireEvent.scroll(list);
+
+    const chip = document.querySelector(
+      '[data-testid="conversation-jump-to-new-messages"]'
+    ) as HTMLElement;
+    expect(chip).not.toBeNull();
+    expect(chip.style.zIndex).toBe(String(JUMP_TO_NEW_MESSAGES_Z_INDEX));
+    expect(JUMP_TO_NEW_MESSAGES_Z_INDEX).toBe(20);
+  });
+
+  it('hides jump chip when at bottom (pinned)', () => {
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    scrollToBottom(list);
+
+    expect(document.querySelector('[data-testid="conversation-jump-to-new-messages"]')).toBeNull();
+  });
+
+  it('clicking jump chip scrolls to bottom and hides chip', () => {
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
+    fireEvent.scroll(list);
+
+    const chip = document.querySelector('[data-testid="conversation-jump-to-new-messages"]');
+    expect(chip).not.toBeNull();
+
+    const scrollTo = vi.fn((opts?: ScrollToOptions | number) => {
+      if (opts && typeof opts === 'object' && typeof opts.top === 'number') {
+        Object.defineProperty(list, 'scrollTop', {
+          value: opts.top,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(chip as HTMLElement);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1200, behavior: 'smooth' });
+    expect(list.scrollTop).toBe(1200);
+    expect(document.querySelector('[data-testid="conversation-jump-to-new-messages"]')).toBeNull();
+  });
+
+  it('dispatches scroll on anchorId change to unpin', () => {
+    const events = [makeEvent('msg-1')];
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 800 });
+
+    rerender(<ConversationMessageList events={events} anchorId="a2" />);
+
+    expect(list.scrollTop).toBe(0);
+    expect(
+      document.querySelector('[data-testid="conversation-jump-to-new-messages"]')
+    ).not.toBeNull();
+  });
+});
+
+describe('ConversationMessageList', () => {
+  it('scrolls to top when anchorId changes', () => {
+    const events = [makeEvent('msg-1')];
+    const { rerender } = renderList(
+      <ConversationMessageList events={events} anchorId="anchor-1" />
+    );
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    list.scrollTop = 500;
+
+    rerender(<ConversationMessageList events={events} anchorId="anchor-2" />);
+
+    expect(list.scrollTop).toBe(0);
+  });
+
+  it('uses timeline scroll container with scrollbar width variable', () => {
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    expect(list.className).toContain('min-h-0');
+    expect(list.style.getPropertyValue('--timeline-scrollbar-width')).toBe('8px');
+  });
+
+  it('calls onLoadMore when scrolled near the bottom and canLoadMore is true', () => {
+    const onLoadMore = vi.fn();
+    renderList(
+      <ConversationMessageList
+        events={[makeEvent('msg-1'), makeEvent('msg-2')]}
+        anchorId="a1"
+        canLoadMore
+        isLoadingMore={false}
+        onLoadMore={onLoadMore}
+      />
+    );
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    onLoadMore.mockClear();
+    scrollToBottom(list);
+
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onLoadMore when canLoadMore is false', () => {
+    const onLoadMore = vi.fn();
+    renderList(
+      <ConversationMessageList
+        events={[makeEvent('msg-1')]}
+        anchorId="a1"
+        canLoadMore={false}
+        isLoadingMore={false}
+        onLoadMore={onLoadMore}
+      />
+    );
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    scrollToBottom(list);
+
+    expect(onLoadMore).not.toHaveBeenCalled();
+  });
+
+  it('does not call onLoadMore while already loading more', () => {
+    const onLoadMore = vi.fn();
+    renderList(
+      <ConversationMessageList
+        events={[makeEvent('msg-1')]}
+        anchorId="a1"
+        canLoadMore
+        isLoadingMore
+        onLoadMore={onLoadMore}
+      />
+    );
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    scrollToBottom(list);
+
+    expect(onLoadMore).not.toHaveBeenCalled();
+  });
+
+  it('applies ascending z-index to row wrappers for sticky header stacking', () => {
+    const events = [makeEvent('msg-1'), makeEvent('msg-2'), makeEvent('msg-3')];
+    renderList(<ConversationMessageList events={events} anchorId="a1" />);
+
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+    const rowWrappers = Array.from(list.querySelectorAll('div[style]'));
+    rowWrappers.forEach((wrapper, index) => {
+      expect((wrapper as HTMLElement).style.zIndex).toBe(
+        String(getTimelineVirtualRowZIndex(index))
+      );
+    });
+  });
+
+  it('renders the loading-more indicator when isLoadingMore is true', () => {
+    renderList(
+      <ConversationMessageList
+        events={[makeEvent('msg-1')]}
+        anchorId="a1"
+        isLoadingMore
+        onLoadMore={vi.fn()}
+      />
+    );
+
+    expect(document.querySelector('[data-testid="conversation-loading-more"]')).not.toBeNull();
+  });
+
+  it('does not render the loading-more indicator when not loading more', () => {
+    renderList(
+      <ConversationMessageList
+        events={[makeEvent('msg-1')]}
+        anchorId="a1"
+        isLoadingMore={false}
+        onLoadMore={vi.fn()}
+      />
+    );
+
+    expect(document.querySelector('[data-testid="conversation-loading-more"]')).toBeNull();
+  });
+});
+
+describe('sticky header message navigation', () => {
+  function renderTwoEvents() {
+    renderList(
+      <ConversationMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />
+    );
+    const list = document.querySelector(
+      '[data-testid="conversation-message-list"]'
+    ) as HTMLDivElement;
+
+    list.getBoundingClientRect = () =>
+      ({
+        top: 0,
+        bottom: 400,
+        left: 0,
+        right: 0,
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 400,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    const msg1Row = list.querySelector('[data-message-id="msg-1"]') as HTMLElement;
+    const msg2Row = list.querySelector('[data-message-id="msg-2"]') as HTMLElement;
+    msg1Row.getBoundingClientRect = () =>
+      ({
+        top: 320,
+        bottom: 400,
+        left: 0,
+        right: 0,
+        x: 0,
+        y: 320,
+        width: 100,
+        height: 80,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    msg2Row.getBoundingClientRect = () =>
+      ({
+        top: 480,
+        bottom: 560,
+        left: 0,
+        right: 0,
+        x: 0,
+        y: 480,
+        width: 100,
+        height: 80,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    Object.defineProperty(list, 'scrollTop', { value: 100, writable: true, configurable: true });
+
+    return list;
+  }
+
+  it('does not render per-row chevron jump buttons', () => {
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).toBeNull();
+  });
+
+  it('clicking nav-current scrolls that row to container top', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(headerNav('msg-1', 'current'));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('clicking nav-previous scrolls previous row', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(headerNav('msg-2', 'previous'));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('clicking nav-next scrolls next row', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(headerNav('msg-1', 'next'));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('clicking nav-first on last row scrolls to first row', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(headerNav('msg-2', 'first'));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('clicking nav-last on first row scrolls to last row', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(headerNav('msg-1', 'last'));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('disables previous and first on first message, next and last on last message', () => {
+    renderTwoEvents();
+
+    expect(headerNav('msg-1', 'previous').disabled).toBe(true);
+    expect(headerNav('msg-1', 'first').disabled).toBe(true);
+    expect(headerNav('msg-1', 'next').disabled).toBe(false);
+    expect(headerNav('msg-1', 'last').disabled).toBe(false);
+
+    expect(headerNav('msg-2', 'previous').disabled).toBe(false);
+    expect(headerNav('msg-2', 'first').disabled).toBe(false);
+    expect(headerNav('msg-2', 'next').disabled).toBe(true);
+    expect(headerNav('msg-2', 'last').disabled).toBe(true);
+  });
+});
+
+describe('handoff collapse behavior', () => {
+  const AGENT_HANDOFF_BODY = 'Preview line one.\nPreview line two.\n\nDeferred body sentence.';
+
+  const MESSAGES: Message[] = [
+    {
+      _id: 'user-1',
+      type: 'message',
+      senderRole: 'user',
+      content: 'User message body.',
+      _creationTime: 1,
+    },
+    {
+      _id: 'handoff-1',
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'planner',
+      content: AGENT_HANDOFF_BODY,
+      _creationTime: 2,
+    },
+    {
+      _id: 'handoff-user-1',
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Handoff to user body.',
+      _creationTime: 3,
+    },
+    {
+      _id: 'notice-1',
+      type: 'notice',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: 'Notice body.',
+      _creationTime: 4,
+    },
+  ];
+
+  function renderTimeline() {
+    const events = MESSAGES.map((message) => mapMessageToTimelineEvent(message));
+    return renderList(<ConversationMessageList events={events} anchorId="a1" />);
+  }
+
+  function row(messageId: string): HTMLElement {
+    const el = document.querySelector(`[data-testid="event-row-${messageId}"]`);
+    if (!el) throw new Error(`row ${messageId} is not rendered`);
+    return el as HTMLElement;
+  }
+
+  it('collapses agent-to-agent handoffs to a summary bar', () => {
+    renderTimeline();
+    const agentRow = row('handoff-1');
+    const toggle = within(agentRow).getByTestId('timeline-handoff-toggle');
+
+    expect(within(toggle).getByTestId('timeline-handoff-preview')).toHaveTextContent(
+      'Preview line one. Preview line two.'
+    );
+    expect(within(agentRow).queryByText('Deferred body sentence.')).not.toBeInTheDocument();
+    expect(agentRow.querySelector('.prose')).toBeNull();
+    // Header navigation and row identity survive; the footer does not render.
+    expect(within(agentRow).getByTestId('timeline-header-nav-current')).toBeInTheDocument();
+    expect(within(agentRow).queryByTestId('timeline-message-footer')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-message-id="handoff-1"]')).toHaveLength(1);
+  });
+
+  it('keeps user, agent-to-user handoffs, and notices expanded', () => {
+    renderTimeline();
+
+    for (const [messageId, text] of [
+      ['user-1', 'User message body.'],
+      ['handoff-user-1', 'Handoff to user body.'],
+      ['notice-1', 'Notice body.'],
+    ] as const) {
+      const eagerRow = row(messageId);
+      expect(within(eagerRow).getByText(text)).toBeInTheDocument();
+      expect(eagerRow.querySelector('.prose')).not.toBeNull();
+      expect(within(eagerRow).queryByTestId('timeline-handoff-preview')).not.toBeInTheDocument();
+      expect(within(eagerRow).queryByText('Show full handoff')).not.toBeInTheDocument();
+    }
+  });
+
+  it('reveals the full handoff body when Show full handoff is clicked', () => {
+    renderTimeline();
+    const agentRow = row('handoff-1');
+
+    fireEvent.click(within(agentRow).getByRole('button', { name: 'Show full handoff' }));
+
+    expect(within(row('handoff-1')).getByText('Deferred body sentence.')).toBeInTheDocument();
+    expect(within(row('handoff-1')).getByTestId('timeline-message-footer')).toBeInTheDocument();
+    expect(
+      within(row('handoff-1')).queryByTestId('timeline-handoff-preview')
+    ).not.toBeInTheDocument();
+    expect(row('handoff-1').querySelector('.prose')).not.toBeNull();
+    expect(document.querySelectorAll('[data-message-id="handoff-1"]')).toHaveLength(1);
+  });
+});
+
+describe('row re-render behavior', () => {
+  beforeEach(() => {
+    rowRenderCounts.clear();
+    markdownRenderMock.mockClear();
+  });
+
+  it('does not invoke TimelineEventRow when the events array identity changes only', () => {
+    const events = [makeEvent('msg-1'), makeEvent('msg-2')];
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    rowRenderCounts.clear();
+
+    rerender(<ConversationMessageList events={[...events]} anchorId="a1" />);
+
+    expect([...rowRenderCounts.keys()]).toEqual([]);
+  });
+
+  it('invokes TimelineEventRow only for the row whose event object changed', () => {
+    const events = [makeEvent('msg-1'), makeEvent('msg-2')];
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    rowRenderCounts.clear();
+
+    rerender(
+      <ConversationMessageList
+        events={[events[0], { ...events[1], creationTime: 200 }]}
+        anchorId="a1"
+      />
+    );
+
+    expect([...rowRenderCounts.keys()]).toEqual(['msg-2']);
+  });
+
+  it('re-renders only the previous last row and the appended row on append', () => {
+    const events = [makeEvent('a'), makeEvent('b'), makeEvent('c')];
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    rowRenderCounts.clear();
+    markdownRenderMock.mockClear();
+
+    rerender(<ConversationMessageList events={[...events, makeEvent('d')]} anchorId="a1" />);
+
+    // `c` re-renders only because its `isLast` flipped; `a`/`b` keep every prop.
+    expect([...rowRenderCounts.keys()]).toEqual(['c', 'd']);
+    expect(markdownRenderMock.mock.calls.map(([content]) => content)).toEqual(['c', 'd']);
+  });
+});

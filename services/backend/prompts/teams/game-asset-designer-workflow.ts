@@ -1,27 +1,25 @@
 /**
- * Shared workflow rules and proof blocks for the game asset designer.
+ * Shared, domain-neutral rules and proof blocks for the game asset designer.
  *
- * The role prompt and its handoff templates render the same rules so the brief,
- * the designer's checks, and the delivery report cannot drift apart.
+ * The role prompt and its handoff templates render this same generic block so
+ * the brief, the designer's checks, and the delivery report cannot drift
+ * apart. Domain-specific rules (generator commands, flags, package contents,
+ * sheet and tile steps, and the 3D/2D checklists) live in the matching skill,
+ * which defers to this block rather than rendering it again.
  */
 
 export const GAME_ASSET_RULES: readonly string[] = [
-  "Generate 2D assets only with `chatroom generate-image --platform=fal --model <Model>`, where <Model> is the brief's Model: `fal-ai/flux-2/flash` (FLUX 2 Flash), or `fal-ai/flux-2/flash/edit` with --input-image for reference edits. Generate a 3D model only with `chatroom generate-3d --platform=fal --model <Model>`, where <Model> is the brief's Model and is a fal 3D model id (`chatroom generate-3d --help` lists the known ids and their flags); the default is `fal-ai/trellis-2`, where a prompt generates a reference image first and that image ships in the zip. Pass --rig and --animation-action-id only for `meshy/v7.1` models, only when the brief asks for them, and only after the user confirms the priced dry run (a real run needs --confirm-cost). Pass --confirm-cost only when ## Cost confirmation quotes the user's approval; otherwise run --dry-run, return the priced plan, and do not pass --confirm-cost. A 3D run writes `<base>.zip` (`<stem>.glb`, `web/<stem>.web.glb`, `manifest.json`, the reference image when one was generated or supplied, and the rigged and animation GLBs with their web versions when rigging ran) and `<base>.html`, a separate preview of the web variant; `<base>` is the `--out` stem plus the run's UTC timestamp, and `--package-dir <dir>` (default: the master's directory) moves both.",
-  'Process images only with `chatroom slice-image` and `chatroom remove-image-background`; no other tool, script, or remote service.',
-  "A sheet is at most the brief's `Sheet grid` (default 2x2); a larger grid needs a user request quoted in the brief.",
-  'Names come from looking at each tile, never from cell order or prompt order.',
-  "Never pass `--names` to `slice-image` except P8's fallback when `remove-image-background --help` fails; assign names only with `remove-image-background --map` or `--out`.",
   'Write only under `Output location` and `Allowed edit paths`; never overwrite or delete unless the brief names the path.',
   'Mark `pass` or `fail` only with `measured` or `inspected` evidence (labels below).',
-  'Run `<command> --help` before first use of `slice-image`, `remove-image-background`, or `generate-3d`.',
-  'Always pass `--trim` to `chatroom remove-image-background`; use `--trim-padding` only when the brief names a padding.',
-  'If `generate-image` or `generate-3d` is missing, `FAL_API_KEY` is not set, or the generator fails, stop generation, deliver `spec only`, quote the exact error in Summary, and list it under Open questions. Do not retry in a loop.',
+  'If the generator is missing, `FAL_API_KEY` is not set, or generation fails, stop generation, deliver `spec only`, quote the exact error in Summary, and list it under Open questions. Do not retry in a loop.',
   'Do not install or run any remote tool, script, or skill, and do not fetch generator code.',
   'Never switch generators.',
   'Describe generated output as production-ready only when every checklist item for it passes with `measured` or `inspected` evidence.',
   'Commit only when the brief names the paths and the commit message.',
   'Generate only when the brief names an output location and allowed tools.',
-  'Before the first real call of each command shape (sheet, per-asset, reference edit, or 3D model), run the same command with --dry-run and apply every constraint it prints; take model-specific constraints only from the dry run, never from memory.',
+  "You own the lighting and palette anchor for the asset set: from the brief's `## Lighting contract` and `## Style reference`, define one shared anchor (palette, light direction, colour temperature, background, material treatment) and repeat it word for word in every prompt of the set. Write every prompt yourself; the brief states goals and constraints, not prompts.",
+  'Honour the `## Lighting contract`: no lighting may be baked into the base colour. If the generator\'s whole-surface metal warning (named in `game-asset-3d-ai`) remains after one regeneration, or any other material warning remains, report it under Open questions. The **rig reference render** is "the existing render of the target rig, attached by path under `## Lighting contract`, used as a style target before generation. It is input only and cannot support `pass`."',
+  "Verify lighting under the target conditions, not the generator's. A `pass` also needs an **asset-in-rig render**: \"a render of the generated asset loaded in the project's real scene after generation, attached by path under `## Lighting verification`. Only this render supports `pass`.\" Producing it is never your job. Without it the lighting checklist item is `not checked`, which blocks delivery (the Summary starts `Delivered, lighting not verified:`). The lighting item is `n/a` when the brief's `## Lighting contract` is `Not applicable.`",
 ];
 
 /** `- R1 <rule>` lines used inside the role prompt's RULES block. */

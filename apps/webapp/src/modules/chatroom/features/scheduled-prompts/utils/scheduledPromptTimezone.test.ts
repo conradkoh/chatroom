@@ -1,17 +1,26 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
 
 import {
   formatDailyScheduleLocal,
   formatTimezoneLabel,
   getBrowserTimezone,
   localDailyTimeToUtc,
+  localDateTimeInputToUtcMs,
   utcDailyTimeToLocal,
+  utcMsToLocalDateTimeInput,
 } from './scheduledPromptTimezone';
+
+// Pin the timezone so the parsed epoch literals are stable everywhere.
+beforeAll(() => {
+  vi.stubEnv('TZ', 'UTC');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('scheduledPromptTimezone', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
   });
 
   it('getBrowserTimezone returns IANA timezone', () => {
@@ -25,7 +34,6 @@ describe('scheduledPromptTimezone', () => {
   });
 
   it('localDailyTimeToUtc and utcDailyTimeToLocal round-trip in UTC', () => {
-    vi.stubEnv('TZ', 'UTC');
     const utc = localDailyTimeToUtc(9, 30);
     expect(utc).toEqual({ hourUTC: 9, minuteUTC: 30 });
     const local = utcDailyTimeToLocal(9, 30);
@@ -33,8 +41,24 @@ describe('scheduledPromptTimezone', () => {
   });
 
   it('formatDailyScheduleLocal shows local time without timezone suffix', () => {
-    vi.stubEnv('TZ', 'UTC');
     const result = formatDailyScheduleLocal(9, 0);
     expect(result).toBe('Daily at 09:00');
+  });
+
+  it('localDateTimeInputToUtcMs parses a datetime-local value in local time', () => {
+    expect(localDateTimeInputToUtcMs('2026-11-03T09:05')).toBe(1793696700000);
+  });
+
+  it('localDateTimeInputToUtcMs parses seconds and keeps them', () => {
+    expect(localDateTimeInputToUtcMs('2026-11-03T09:05:30')).toBe(1793696730000);
+  });
+
+  it('localDateTimeInputToUtcMs returns undefined for empty or invalid input', () => {
+    expect(localDateTimeInputToUtcMs('')).toBeUndefined();
+    expect(localDateTimeInputToUtcMs('garbage')).toBeUndefined();
+  });
+
+  it('utcMsToLocalDateTimeInput formats a fixed epoch as a datetime-local value', () => {
+    expect(utcMsToLocalDateTimeInput(1793696700000)).toBe('2026-11-03T09:05');
   });
 });

@@ -1,27 +1,50 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Clock, Loader2, Plus } from 'lucide-react';
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useEffect } from 'react';
 
 import { ScheduledPromptCard } from '../features/scheduled-prompts/components/ScheduledPromptCard';
+import type { ScheduledPromptPrefill } from '../features/scheduled-prompts/stores/scheduledPromptComposerStore';
+import {
+  buildScheduleFields,
+  type ScheduleFields,
+} from '../features/scheduled-prompts/utils/scheduledPromptFields';
 import {
   formatTimezoneLabel,
-  localDailyTimeToUtc,
   utcDailyTimeToLocal,
+  utcMsToLocalDateTimeInput,
 } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
+import { isModEnterKey } from '../utils/isModEnterKey';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 interface ScheduledPromptsTabProps {
   chatroomId: string;
+  /**
+   * Composer draft to schedule instead of send. When set, the one-time form
+   * opens prefilled; the dialog clears it when the form closes.
+   */
+  pendingPrefill?: ScheduledPromptPrefill | null;
+  /** Fired after a successful create, so the composer can clear its draft. */
+  onScheduled?: () => void;
+  /** Fired when the form closes, so the dialog can drop the pending prefill. */
+  onPendingPrefillCleared?: () => void;
 }
+
+export type ScheduledPromptFormData = ScheduleFields & {
+  name?: string;
+  prompt: string;
+};
 
 export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   chatroomId,
+  pendingPrefill,
+  onScheduled,
+  onPendingPrefillCleared,
 }: ScheduledPromptsTabProps) {
   const prompts = useSessionQuery(api.scheduledPrompts.list, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -37,6 +60,14 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   const hasPrompts = prompts && prompts.length > 0;
   const editingPrompt = editingId ? prompts?.find((p) => p._id === editingId) : null;
 
+  // A composer request opens a fresh create form (never an edit form), and the
+  // prefill only changes when a new request replaces the old one.
+  useEffect(() => {
+    if (!pendingPrefill) return;
+    setEditingId(null);
+    setShowForm(true);
+  }, [pendingPrefill]);
+
   const handleAdd = useCallback(() => {
     setEditingId(null);
     setShowForm(true);
@@ -50,25 +81,20 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   const handleFormClose = useCallback(() => {
     setShowForm(false);
     setEditingId(null);
-  }, []);
+    onPendingPrefillCleared?.();
+  }, [onPendingPrefillCleared]);
 
   const handleFormSave = useCallback(
-    async (data: {
-      name?: string;
-      prompt: string;
-      scheduleKind: 'interval' | 'daily';
-      intervalMinutes?: number;
-      hourUTC?: number;
-      minuteUTC?: number;
-    }) => {
+    async (data: ScheduledPromptFormData) => {
       if (editingId) {
         await updatePrompt({ scheduledPromptId: editingId, ...data });
       } else {
         await createPrompt({ chatroomId: chatroomId as Id<'chatroom_rooms'>, ...data });
+        onScheduled?.();
       }
       handleFormClose();
     },
-    [chatroomId, editingId, createPrompt, updatePrompt, handleFormClose]
+    [chatroomId, editingId, createPrompt, updatePrompt, handleFormClose, onScheduled]
   );
 
   return (
@@ -84,7 +110,8 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
 
       {showForm && (
         <ScheduledPromptForm
-          initial={editingPrompt}
+          initial={editingPrompt ?? undefined}
+          prefill={pendingPrefill ?? undefined}
           onSave={handleFormSave}
           onCancel={handleFormClose}
         />
@@ -123,7 +150,7 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
       </div>
       <h3 className="text-sm font-bold text-chatroom-text-primary mb-1">No scheduled prompts</h3>
       <p className="text-xs text-chatroom-text-muted mb-6 max-w-xs">
-        Create prompts that fire automatically on an interval or daily schedule.
+        Create prompts that fire automatically on an interval, daily, or once at a set time.
       </p>
       <Button variant="outline" size="sm" onClick={onAdd} className="text-xs gap-1.5">
         <Plus size={14} />
@@ -133,81 +160,120 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 });
 
+/** Convex errors carry the user-facing message under `data.message`. */
+function firstErrorMessage(err: unknown): string | undefined {
+  const e = (err ?? {}) as { data?: { message?: string }; message?: string };
+  const dataMessage = e.data && e.data.message;
+  return dataMessage || e.message;
+}
+
+function saveErrorMessage(err: unknown): string {
+  return firstErrorMessage(err) ?? 'Failed to save';
+}
+
+/** Prompt content validation shared by every schedule kind. */
+function validatePromptContent(prompt: string): string | undefined {
+  const trimmed = prompt.trim();
+  if (!trimmed) return 'Prompt cannot be empty';
+  if (trimmed.length > 10000) return 'Prompt must be 10000 characters or less';
+  return undefined;
+}
+
+/** The stored runAt to compare against when editing an existing once row. */
+function editedOnceRunAt(
+  initial: Doc<'chatroom_scheduledPrompts'> | undefined
+): number | undefined {
+  return initial?.scheduleKind === 'once' ? initial.runAt : undefined;
+}
+
+// One controlled form for three schedule kinds; the conditional field groups
+// share the same local state, so the branches are inherent to the form.
+// fallow-ignore-next-line complexity
 const ScheduledPromptForm = memo(function ScheduledPromptForm({
   initial,
+  prefill,
   onSave,
   onCancel,
 }: {
-  initial?: any;
-  onSave: (data: {
-    name?: string;
-    prompt: string;
-    scheduleKind: 'interval' | 'daily';
-    intervalMinutes?: number;
-    hourUTC?: number;
-    minuteUTC?: number;
-  }) => Promise<void>;
+  initial?: Doc<'chatroom_scheduledPrompts'>;
+  prefill?: ScheduledPromptPrefill;
+  onSave: (data: ScheduledPromptFormData) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [prompt, setPrompt] = useState(initial?.prompt ?? '');
-  const [scheduleKind, setScheduleKind] = useState<'interval' | 'daily'>(
-    initial?.scheduleKind ?? 'interval'
+  const [prompt, setPrompt] = useState(initial?.prompt ?? prefill?.prompt ?? '');
+  const [scheduleKind, setScheduleKind] = useState<ScheduleFields['scheduleKind']>(
+    initial?.scheduleKind ?? (prefill ? 'once' : 'interval')
   );
   const [intervalMinutes, setIntervalMinutes] = useState(initial?.intervalMinutes ?? 30);
   const localInit = utcDailyTimeToLocal(initial?.hourUTC ?? 9, initial?.minuteUTC ?? 0);
   const [hourLocal, setHourLocal] = useState(localInit.hour);
   const [minuteLocal, setMinuteLocal] = useState(localInit.minute);
+  const [runAtLocal, setRunAtLocal] = useState<string>(
+    initial?.runAt !== undefined
+      ? utcMsToLocalDateTimeInput(initial.runAt)
+      : utcMsToLocalDateTimeInput(Date.now() + 60 * 60_000)
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Prompt content is validated here; per-kind schedule validation lives in
+  // buildScheduleFields. The server stays authoritative for
+  // INVALID_SCHEDULE / SCHEDULE_FINISHED.
   const handleSave = useCallback(async () => {
-    if (!prompt.trim()) {
-      setError('Prompt cannot be empty');
+    const contentError = validatePromptContent(prompt);
+    if (contentError) {
+      setError(contentError);
       return;
     }
-    if (prompt.trim().length > 10000) {
-      setError('Prompt must be 10000 characters or less');
-      return;
-    }
-    if (scheduleKind === 'interval' && (!intervalMinutes || intervalMinutes < 1)) {
-      setError('Interval must be at least 1 minute');
-      return;
-    }
-    if (
-      scheduleKind === 'daily' &&
-      (hourLocal === undefined ||
-        minuteLocal === undefined ||
-        hourLocal < 0 ||
-        hourLocal > 23 ||
-        minuteLocal < 0 ||
-        minuteLocal > 59)
-    ) {
-      setError('Daily schedule requires valid hour (0-23) and minute (0-59)');
+    const schedule = buildScheduleFields(scheduleKind, {
+      runAtLocal,
+      intervalMinutes,
+      hour: hourLocal,
+      minute: minuteLocal,
+      now: Date.now(),
+      initialRunAt: editedOnceRunAt(initial),
+    });
+    if ('error' in schedule) {
+      setError(schedule.error);
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      const data: any = {
+      await onSave({
         name: name.trim() || undefined,
         prompt: prompt.trim(),
-        scheduleKind,
-      };
-      if (scheduleKind === 'interval') {
-        data.intervalMinutes = intervalMinutes;
-      } else {
-        const { hourUTC, minuteUTC } = localDailyTimeToUtc(hourLocal, minuteLocal);
-        data.hourUTC = hourUTC;
-        data.minuteUTC = minuteUTC;
-      }
-      await onSave(data);
+        ...schedule.data,
+      });
     } catch (err: any) {
-      setError(err?.data?.message ?? err?.message ?? 'Failed to save');
+      setError(saveErrorMessage(err));
     } finally {
       setSaving(false);
     }
-  }, [name, prompt, scheduleKind, intervalMinutes, hourLocal, minuteLocal, onSave]);
+  }, [
+    name,
+    prompt,
+    scheduleKind,
+    intervalMinutes,
+    hourLocal,
+    minuteLocal,
+    runAtLocal,
+    initial,
+    onSave,
+  ]);
+
+  // Cmd+Enter (macOS) or Ctrl+Enter (elsewhere) submits through the same
+  // handleSave path as the button; plain Enter keeps inserting newlines.
+  const handlePromptKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (!isModEnterKey(e)) return; // plain Enter inserts a newline
+      e.preventDefault();
+      if (saving) return;
+      void handleSave();
+    },
+    [handleSave, saving]
+  );
 
   return (
     <div className="border border-chatroom-border rounded-none bg-chatroom-bg-secondary overflow-hidden">
@@ -236,10 +302,16 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={handlePromptKeyDown}
             placeholder="What should the prompt say?"
             rows={3}
             className="w-full text-xs bg-chatroom-bg-primary border border-chatroom-border rounded-none p-2 text-chatroom-text-primary placeholder:text-chatroom-text-muted resize-none focus:outline-none focus:ring-1 focus:ring-chatroom-accent"
           />
+          {prefill?.hasAttachments && (
+            <p className="text-[10px] text-chatroom-text-muted">
+              Attachments are not included in scheduled prompts.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -267,10 +339,20 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
               />
               Daily
             </label>
+            <label className="flex items-center gap-2 text-xs text-chatroom-text-primary cursor-pointer">
+              <input
+                type="radio"
+                name="scheduleKind"
+                checked={scheduleKind === 'once'}
+                onChange={() => setScheduleKind('once')}
+                className="accent-chatroom-accent"
+              />
+              One time
+            </label>
           </div>
         </div>
 
-        {scheduleKind === 'interval' ? (
+        {scheduleKind === 'interval' && (
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
               Every N minutes
@@ -283,7 +365,9 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
               className="text-xs bg-chatroom-bg-primary border-chatroom-border w-24"
             />
           </div>
-        ) : (
+        )}
+
+        {scheduleKind === 'daily' && (
           <div className="space-y-2">
             <div className="flex gap-4">
               <div className="space-y-1.5">
@@ -319,13 +403,39 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
           </div>
         )}
 
+        {scheduleKind === 'once' && (
+          <div className="space-y-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
+                Date and time
+              </label>
+              <Input
+                type="datetime-local"
+                value={runAtLocal}
+                min={utcMsToLocalDateTimeInput(Date.now())}
+                onChange={(e) => setRunAtLocal(e.target.value)}
+                className="text-xs bg-chatroom-bg-primary border-chatroom-border w-64"
+              />
+            </div>
+            <p className="text-[10px] text-chatroom-text-muted">
+              Your timezone: {formatTimezoneLabel()}
+            </p>
+          </div>
+        )}
+
         {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onCancel} className="text-xs">
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving} className="text-xs gap-1.5">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+            title="Submit (⌘↵ or Ctrl+Enter)"
+            className="text-xs gap-1.5"
+          >
             {saving ? (
               <>
                 <Loader2 size={12} className="animate-spin" />

@@ -1,12 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AllTabAnchorNavigator } from './AllTabAnchorNavigator';
+import { ConversationAnchorNavigator } from './ConversationAnchorNavigator';
 
-describe('AllTabAnchorNavigator', () => {
+describe('ConversationAnchorNavigator', () => {
   it('renders jump to latest disabled when on latest anchor', () => {
     render(
-      <AllTabAnchorNavigator
+      <ConversationAnchorNavigator
         hasPrev={false}
         hasNext={false}
         isOnLatestAnchor
@@ -23,7 +23,7 @@ describe('AllTabAnchorNavigator', () => {
 
   it('renders jump to latest enabled with accent styling when not on latest', () => {
     render(
-      <AllTabAnchorNavigator
+      <ConversationAnchorNavigator
         hasPrev
         hasNext
         isOnLatestAnchor={false}
@@ -41,7 +41,7 @@ describe('AllTabAnchorNavigator', () => {
   it('calls onJumpToLatest when jump button is clicked', () => {
     const onJumpToLatest = vi.fn();
     render(
-      <AllTabAnchorNavigator
+      <ConversationAnchorNavigator
         hasPrev
         hasNext={false}
         isOnLatestAnchor={false}
@@ -57,7 +57,7 @@ describe('AllTabAnchorNavigator', () => {
 
   it('disables all buttons when isLoading is true', () => {
     render(
-      <AllTabAnchorNavigator
+      <ConversationAnchorNavigator
         hasPrev={true}
         hasNext={true}
         isOnLatestAnchor={false}
@@ -75,7 +75,7 @@ describe('AllTabAnchorNavigator', () => {
 
   it('uses compact mobile height classes on nav buttons', () => {
     render(
-      <AllTabAnchorNavigator
+      <ConversationAnchorNavigator
         hasPrev
         hasNext
         isOnLatestAnchor={false}

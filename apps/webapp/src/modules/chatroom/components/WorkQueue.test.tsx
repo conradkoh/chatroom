@@ -26,6 +26,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (functionName === getFunctionName(api.tasks.getTaskCounts)) return mocks.counts;
     if (functionName === getFunctionName(api.messages.listQueued)) return [];
     if (functionName === getFunctionName(api.backlog.listBacklogItems)) return [];
+    if (functionName === getFunctionName(api.scheduledPrompts.listUpcoming)) return [];
     throw new Error(`Unexpected WorkQueue query: ${functionName}`);
   },
   useSessionMutation: (mutation: unknown) =>

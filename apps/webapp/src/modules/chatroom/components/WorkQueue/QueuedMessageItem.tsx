@@ -1,7 +1,6 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
@@ -9,6 +8,8 @@ import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import { MessageAttachmentChips } from '../../attachments';
 import type { Message } from '../../types/message';
 import { QueuedMessageEnvelopeControls } from '../QueuedMessageEnvelopeControls';
+import { WorkQueueDeleteButton } from '../shared/WorkQueueDeleteButton';
+import { WorkQueueRow } from '../shared/WorkQueueRow';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -57,7 +58,6 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   onDelete,
 }: QueuedMessageItemProps) {
   const elapsed = useElapsedTime(message._creationTime);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const openModal = useCallback(() => {
@@ -68,18 +68,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
     setIsModalOpen(false);
   }, []);
 
-  const handleRowDelete = useCallback(async () => {
-    if (isDeleting) return;
-    setIsDeleting(true);
-    try {
-      await onDelete(message._id);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [message._id, onDelete, isDeleting]);
-
-  /** Stop the surrounding row click from firing when an action button is pressed. */
-  const stopRowClick = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
+  const handleRowDelete = useCallback(() => onDelete(message._id), [message._id, onDelete]);
 
   const hasAttachments =
     (message.attachedTasks?.length ?? 0) > 0 ||
@@ -89,43 +78,18 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
 
   return (
     <>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={openModal}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            openModal();
-          }
-        }}
-        className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors cursor-pointer text-left w-full"
-      >
-        <div className="flex-1 min-w-0">
-          <WorkQueuePreviewText content={message.content} />
-          <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
-          {/* Attachment chip strip — stopPropagation so clicks open chip preview, not the row modal */}
-          {hasAttachments && (
-            <div className="flex flex-wrap gap-1.5 mt-1" onClick={stopRowClick}>
-              <MessageAttachmentChips message={message} />
-            </div>
-          )}
-        </div>
-
-        {/* Inline quick actions — always visible. */}
-        <div className="flex items-center gap-1" onClick={stopRowClick}>
-          <QueuedMessageEnvelopeControls message={message} compact />
-          <button
-            type="button"
-            onClick={handleRowDelete}
-            disabled={isDeleting}
-            className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 disabled:opacity-50"
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      </div>
+      <WorkQueueRow
+        preview={<WorkQueuePreviewText content={message.content} />}
+        meta={elapsed}
+        attachments={hasAttachments ? <MessageAttachmentChips message={message} /> : undefined}
+        onOpen={openModal}
+        actions={
+          <>
+            <QueuedMessageEnvelopeControls message={message} compact />
+            <WorkQueueDeleteButton onDelete={handleRowDelete} />
+          </>
+        }
+      />
 
       <QueuedMessageDetailModal
         chatroomId={chatroomId}

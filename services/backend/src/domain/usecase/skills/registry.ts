@@ -13,6 +13,9 @@ import { codeReviewSkill } from './modules/code-review/index';
 import { customAgentsSkill } from './modules/custom-agents/index';
 import { dataDesignSkill } from './modules/data-design/index';
 import { defragmentationSkill } from './modules/defragmentation/index';
+import { gameAsset2dAiSkill } from './modules/game-asset-2d-ai/index';
+import { gameAsset3dAiSkill } from './modules/game-asset-3d-ai/index';
+import { gameAsset3dProceduralSkill } from './modules/game-asset-3d-procedural/index';
 import { userCentricitySkill } from './modules/user-centricity/index';
 import type { SkillId } from '../../types/skills';
 
@@ -30,6 +33,9 @@ export const SKILLS_REGISTRY: readonly SkillModule[] = [
   userCentricitySkill,
   dataDesignSkill,
   customAgentsSkill,
+  gameAsset3dAiSkill,
+  gameAsset2dAiSkill,
+  gameAsset3dProceduralSkill,
 ];
 
 /**

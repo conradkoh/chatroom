@@ -537,7 +537,7 @@ export default defineSchema({
      */
     enhancerJobId: v.optional(v.string()),
 
-    // When true, message appears only in the ALL timeline tab (not role-filtered views)
+    /** @deprecated Formerly set by the retired enhancer path; nothing reads or writes it now. Retained so existing documents still validate. */
     visibleInAllTabOnly: v.optional(v.boolean()),
 
     // Attached backlog tasks for context
@@ -2245,26 +2245,41 @@ export default defineSchema({
     .index('by_chatroom_platform', ['chatroomId', 'platform']),
 
   /**
-   * Scheduled prompts that fire as user messages on interval/daily schedules.
+   * Scheduled prompts that fire as user messages on interval/daily/one-time schedules.
+   *
+   * Trigger projection: `isRunnable` + `nextRunAt` (indexed). `nextRunAt` is the only
+   * field the cron queries. One-time rows transition to a terminal `disabledReason`
+   * (`completed` / `failed`) after firing and are never re-armed.
+   *
+   * `taskEnvelope` is the per-prompt delivery policy applied at fire time; it is
+   * edited only through `scheduledPrompts.updatePolicy`.
    */
   chatroom_scheduledPrompts: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     name: v.optional(v.string()),
     prompt: v.string(),
-    scheduleKind: v.union(v.literal('interval'), v.literal('daily')),
+    scheduleKind: v.union(v.literal('interval'), v.literal('daily'), v.literal('once')),
     intervalMinutes: v.optional(v.number()),
     hourUTC: v.optional(v.number()),
     minuteUTC: v.optional(v.number()),
-    disabledReason: v.optional(v.union(v.literal('user'), v.literal('archive'))),
+    /** once only: absolute UTC epoch ms chosen by the user. Configuration — never indexed; nextRunAt is the trigger projection. */
+    runAt: v.optional(v.number()),
+    /** undefined = live. 'completed' | 'failed' are terminal states of a once row (never re-armable). */
+    disabledReason: v.optional(
+      v.union(v.literal('user'), v.literal('archive'), v.literal('completed'), v.literal('failed'))
+    ),
     isRunnable: v.boolean(),
     nextRunAt: v.optional(v.number()),
     lastRunAt: v.optional(v.number()),
+    /** Delivery policy snapshot applied when the prompt fires. Absent on legacy rows = code + new session. Edited only via scheduledPrompts.updatePolicy. */
+    taskEnvelope: v.optional(taskEnvelopeV1Validator),
     createdBy: v.id('users'),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_isRunnable_nextRunAt', ['isRunnable', 'nextRunAt']),
+    .index('by_isRunnable_nextRunAt', ['isRunnable', 'nextRunAt'])
+    .index('by_chatroom_isRunnable_nextRunAt', ['chatroomId', 'isRunnable', 'nextRunAt']),
 
   // ─── Command Runner ─────────────────────────────────────────────────────────
   // Synced commands discovered from package.json scripts and turbo.json tasks.

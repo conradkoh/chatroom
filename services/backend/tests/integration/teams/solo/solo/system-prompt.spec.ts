@@ -144,6 +144,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       - \`structural-decisions\`
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
 
+      - \`test-seam\`
+          - The public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port); do not mock internal collaborators.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -156,6 +159,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       - **defragmentation**: Use for large or multi-surface system revisions: study surfaces, establish a golden path, migrate callers, and delete legacy implementations.
       - **user-centricity**: Use when a request involves UI changes: turn user intent into complete, accessible flows with explicit states and project-consistent interaction details.
       - **data-design**: Use when persistence or query patterns change: make schema, index, scan, timeout, and invalidation decisions explicit.
+      - **game-asset-3d-ai**: Use when a task needs a 3D model asset generated with \`chatroom generate-3d --platform=fal\`, including its PBR materials, rigging options, and package outputs. (game-asset-designer only)
+      - **game-asset-2d-ai**: Use when a task needs 2D sprite or UI art generated with \`chatroom generate-image --platform=fal\`, including sheets, slicing, background removal, and per-asset fallbacks. (game-asset-designer only)
+      - **game-asset-3d-procedural**: Use when a task needs a 3D asset produced by a parametric generator script committed to the repository, with versioned parameters, a fixed seed, and a measured glTF 2.0/GLB export. (game-asset-designer only)
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
 

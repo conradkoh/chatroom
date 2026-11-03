@@ -13,7 +13,9 @@ function getArchitectRequirements(): string {
 - Analyze concurrency and races: concurrent writers, idempotency, ordering and monotonicity, retries, transactions, and failure/recovery behavior.
 - Design read patterns first: primary read paths, indexes, projections/read models, query shapes, scan and transaction limits, and invalidation/subscription scope.
 - Account for Convex reactivity and bandwidth: query invalidation patterns, avoiding unnecessary reactive fanout, and separating high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields.
-- Specify concrete schema, query, and mutation changes; migration/backfill sequence; tests; and verification order.`;
+- Specify concrete schema, query, and mutation changes; migration/backfill sequence; tests; and verification order.
+- Make every new or changed interface complete: list each method or field with its callers, its inputs and outputs, and the failure modes it must signal to those callers. An interface with an unnamed caller or an unspecified failure mode is incomplete.
+- Apply the deletion test to every new module, class, or abstraction: name what complexity would reappear across its callers if it were deleted. A module that fails the test (its callers would be no more complex without it) must be removed from the design.`;
 }
 
 /** Body for the entry role delegating design work to the architect. */
@@ -24,7 +26,7 @@ export function getEntryPointToArchitectHandoffTemplate(query: HandoffTemplateQu
 
 Use this before any backend contract, API, or schema/persistence change.
 
-Provide the request, relevant constraints, and the files or product surfaces that need inspection. Ask for one evidence-backed design focused on ${getArchitectFocus()}.
+Provide the request, relevant constraints, and the files or product surfaces that need inspection. Name any prior decision in \`memory/\` or \`docs/\` the design must respect, and name the known test constraints (for example, an existing fake, or a rule that tests run against a real database). Ask for one evidence-backed design focused on ${getArchitectFocus()}.
 
 After completing the design, the \`architect\` must hand it back to \`${entryPoint}\` with the normal handoff command, then stop; it must not implement the design or delegate further work.
 
@@ -55,6 +57,8 @@ export function getArchitectToEntryPointHandoffTemplate(query: HandoffTemplateQu
 <cite the inspected repository patterns and complete the architect checklist below; do not provide a high-level essay>
 - Produce exactly one recommended design for ${getArchitectFocus()}.
 - Name concrete repository paths, existing abstractions, APIs/types, state/data flow, acceptance criteria, risks, and verification steps.
+- Name every seam the design introduces. A test seam is the public interface where a test observes behavior. Substitution in a test is allowed only at a port or adapter boundary (an external dependency injected through a port). Do not mock internal collaborators. Each seam must have a named consumer: a test that substitutes it, or a second real adapter. Do not introduce a seam with neither.
+- Check \`memory/\` and \`docs/\` for prior decisions about the area being designed. Cite each relevant decision by path and state whether the design preserves it or overturns it, with the reason. Verify each path exists with \`ls\` before citing it.
 ${getArchitectRequirements()}
 
 ## Force Multipliers

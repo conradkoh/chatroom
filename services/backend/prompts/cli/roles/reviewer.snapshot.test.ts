@@ -21,4 +21,12 @@ describe('reviewer guidance snapshots', () => {
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
     expect(guidance).not.toContain('{SESSION_CONTINUITY}');
   });
+
+  test('audits authentication and authorization for backend endpoints', () => {
+    const guidance = getReviewerGuidance({ nativeIntegration: false, recipientRole: 'planner' });
+
+    expect(guidance).toContain('Audit authentication and authorization for every backend endpoint');
+    expect(guidance).toContain('**Authorization:**');
+    expect(guidance).toContain('`defect` axis issue');
+  });
 });
