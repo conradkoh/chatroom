@@ -2,7 +2,6 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { nextConversationMode } from '@workspace/shared/domain/conversation-mode';
 import {
   normalizeTaskEnvelope,
@@ -11,10 +10,10 @@ import {
   type TaskEnvelopeV1,
 } from '@workspace/shared/domain/task-envelope';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Code2, MessageCircle, RotateCcw, Sparkles } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import type { Message } from '../types/message';
+import { ConversationModeButton, SessionPolicyButton } from './shared/EnvelopePolicyButtons';
 
 import { cn } from '@/lib/utils';
 
@@ -22,68 +21,6 @@ export interface QueuedMessageEnvelopeControlsProps {
   message: Message;
   compact?: boolean;
   className?: string;
-}
-
-type VisibleConversationMode = ConversationMode;
-
-function modeIcon(mode: VisibleConversationMode) {
-  switch (mode) {
-    case 'chat':
-      return <MessageCircle size={14} />;
-    case 'code':
-      return <Code2 size={14} />;
-    case 'code:enhanced':
-      return <Sparkles size={14} />;
-  }
-}
-
-function modeLabel(mode: VisibleConversationMode): string {
-  switch (mode) {
-    case 'chat':
-      return 'Chat';
-    case 'code':
-      return 'Code';
-    case 'code:enhanced':
-      return 'Enhance';
-  }
-}
-
-function modeTitle(mode: VisibleConversationMode): string {
-  switch (mode) {
-    case 'chat':
-      return 'Mode: Chat — click to switch to Code.';
-    case 'code':
-      return 'Mode: Code — click to switch to Enhance.';
-    case 'code:enhanced':
-      return 'Mode: Enhance — click to switch to Chat.';
-  }
-}
-
-function modeButtonClass(mode: VisibleConversationMode, compact: boolean): string {
-  void compact;
-  return cn(
-    'p-1.5 rounded transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50',
-    mode === 'code:enhanced'
-      ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
-      : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
-  );
-}
-
-function sessionButtonClass(isNew: boolean, compact: boolean): string {
-  return cn(
-    'p-1.5 rounded transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50',
-    isNew
-      ? 'text-yellow-500 dark:text-yellow-400'
-      : compact
-        ? 'text-muted-foreground'
-        : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
-  );
-}
-
-function sessionTitle(isNew: boolean): string {
-  return isNew
-    ? 'New session enabled — click to disable.'
-    : 'New session disabled — click to enable.';
 }
 
 /**
@@ -95,9 +32,9 @@ function sessionTitle(isNew: boolean): string {
  * re-render canonical server state; the component never holds optimistic
  * policy state.
  *
- * Event propagation (click / mousedown / keydown) is stopped so the controls
- * never activate an enclosing row (e.g. opening the detail modal) while
- * remaining fully keyboard accessible themselves (native buttons).
+ * The icon buttons come from `shared/EnvelopePolicyButtons`; event propagation
+ * (click / mousedown / keydown) is stopped here so they never activate an
+ * enclosing row (e.g. opening the detail modal).
  */
 export function QueuedMessageEnvelopeControls({
   message,
@@ -114,7 +51,6 @@ export function QueuedMessageEnvelopeControls({
     plannerEnhancerEnabled: message.plannerEnhancerEnabled,
     startInNewSession: message.startInNewSession,
   });
-  const visibleMode: VisibleConversationMode = current.conversationMode;
 
   const stopPropagation = useCallback((e: { stopPropagation: () => void }) => {
     e.stopPropagation();
@@ -151,8 +87,9 @@ export function QueuedMessageEnvelopeControls({
   const handleModeCycle = useCallback(() => {
     // withTaskEnvelopeConversationMode preserves session policy and resets the
     // workflow to the new mode's default preset + entry phase.
-    const next = nextConversationMode(current.conversationMode);
-    void applyEnvelope(withTaskEnvelopeConversationMode(current, next));
+    void applyEnvelope(
+      withTaskEnvelopeConversationMode(current, nextConversationMode(current.conversationMode))
+    );
   }, [applyEnvelope, current]);
 
   const handleSessionToggle = useCallback(() => {
@@ -161,8 +98,6 @@ export function QueuedMessageEnvelopeControls({
     void applyEnvelope(withTaskEnvelopeSessionPolicy(current, next));
   }, [applyEnvelope, current]);
 
-  const isNewSession = current.sessionPolicy === 'new';
-
   return (
     <div
       className={cn('flex items-center gap-1', className)}
@@ -170,31 +105,20 @@ export function QueuedMessageEnvelopeControls({
       onMouseDown={stopPropagation}
       onKeyDown={stopPropagation}
     >
-      <button
-        type="button"
-        data-testid="queued-message-session-toggle"
-        aria-pressed={isNewSession}
-        aria-busy={isUpdating || undefined}
-        disabled={isUpdating}
-        title={sessionTitle(isNewSession)}
-        onClick={handleSessionToggle}
-        className={sessionButtonClass(isNewSession, compact)}
-      >
-        <RotateCcw size={14} />
-      </button>
+      <SessionPolicyButton
+        testId="queued-message-session-toggle"
+        isNewSession={current.sessionPolicy === 'new'}
+        pending={isUpdating}
+        onToggle={handleSessionToggle}
+        compact={compact}
+      />
 
-      <button
-        type="button"
-        data-testid="queued-message-mode-toggle"
-        aria-label={`Mode: ${modeLabel(visibleMode)}`}
-        aria-busy={isUpdating || undefined}
-        disabled={isUpdating}
-        title={modeTitle(visibleMode)}
-        onClick={handleModeCycle}
-        className={modeButtonClass(visibleMode, compact)}
-      >
-        {modeIcon(visibleMode)}
-      </button>
+      <ConversationModeButton
+        testId="queued-message-mode-toggle"
+        mode={current.conversationMode}
+        pending={isUpdating}
+        onCycle={handleModeCycle}
+      />
 
       {error && (
         <span

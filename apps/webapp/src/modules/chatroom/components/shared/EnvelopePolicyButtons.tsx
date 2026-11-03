@@ -27,11 +27,28 @@ function ModeIcon({ mode }: { mode: ConversationMode }) {
 const BUTTON_BASE_CLASS =
   'p-1.5 rounded transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50';
 
+function sessionButtonTitle(isNewSession: boolean): string {
+  return isNewSession
+    ? 'New session enabled — click to disable.'
+    : 'New session disabled — click to enable.';
+}
+
+function sessionButtonClass(isNewSession: boolean, compact: boolean): string {
+  if (isNewSession) return cn(BUTTON_BASE_CLASS, 'text-yellow-500 dark:text-yellow-400');
+  if (compact) return cn(BUTTON_BASE_CLASS, 'text-muted-foreground');
+  return cn(BUTTON_BASE_CLASS, 'text-chatroom-text-muted hover:bg-chatroom-bg-hover');
+}
+
 export interface SessionPolicyButtonProps {
   isNewSession: boolean;
   pending: boolean;
   onToggle: () => void;
   testId: string;
+  /**
+   * Compact work-queue rows use a flatter muted icon (no hover fill) for the
+   * not-new state; the default keeps the hoverable chatroom muted style.
+   */
+  compact?: boolean;
 }
 
 export function SessionPolicyButton({
@@ -39,6 +56,7 @@ export function SessionPolicyButton({
   pending,
   onToggle,
   testId,
+  compact = false,
 }: SessionPolicyButtonProps) {
   return (
     <button
@@ -48,18 +66,9 @@ export function SessionPolicyButton({
       aria-label="Start in new session"
       aria-busy={pending || undefined}
       disabled={pending}
-      title={
-        isNewSession
-          ? 'New session enabled — click to disable.'
-          : 'New session disabled — click to enable.'
-      }
+      title={sessionButtonTitle(isNewSession)}
       onClick={onToggle}
-      className={cn(
-        BUTTON_BASE_CLASS,
-        isNewSession
-          ? 'text-yellow-500 dark:text-yellow-400'
-          : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
-      )}
+      className={sessionButtonClass(isNewSession, compact)}
     >
       <RotateCcw size={14} aria-hidden />
     </button>
