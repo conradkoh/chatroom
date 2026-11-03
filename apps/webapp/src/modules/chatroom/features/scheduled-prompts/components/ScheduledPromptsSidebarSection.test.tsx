@@ -150,6 +150,24 @@ describe('ScheduledPromptsSidebarSection', () => {
     expect(screen.getByText('Scheduled (20+)')).toBeDefined();
   });
 
+  it('shows an open-ended View more label when the list is capped', () => {
+    mocks.rows = Array.from({ length: 20 }, (_, index) =>
+      makePrompt(`sp-${index}`, `Prompt ${index}`)
+    );
+    renderSection();
+
+    const footer = screen.getByRole('button', { name: /view more/i });
+    expect(footer).toHaveTextContent('View more');
+    expect(footer.textContent).not.toMatch(/\d/);
+  });
+
+  it('keeps the count in View More for an uncapped list', () => {
+    mocks.rows = [ROW_A, ROW_B, ROW_C, ROW_D, makePrompt('sp-e', 'Epsilon')];
+    renderSection();
+
+    expect(screen.getByText('View More (2 more items)')).toBeDefined();
+  });
+
   it('offers View More for the hidden rows and opens the management dialog', async () => {
     mocks.rows = [ROW_A, ROW_B, ROW_C, ROW_D];
     renderSection();

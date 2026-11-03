@@ -47,6 +47,9 @@ function previewLabels(rows: Doc<'chatroom_scheduledPrompts'>[]) {
   const capped = rows.length === UPCOMING_LIMIT;
   return {
     countLabel: capped ? `${rows.length}+` : undefined,
+    // A capped list may hide more than the visible remainder, so its footer
+    // must not claim a definite number.
+    viewMoreLabel: capped ? 'View more' : undefined,
     viewMoreCount: Math.max(0, rows.length - SIDEBAR_PREVIEW_LIMIT),
   };
 }
@@ -66,7 +69,7 @@ export function ScheduledPromptsSidebarSection({
 
   if (rows === undefined || rows.length === 0) return null;
 
-  const { countLabel, viewMoreCount } = previewLabels(rows);
+  const { countLabel, viewMoreLabel, viewMoreCount } = previewLabels(rows);
 
   return (
     <div data-testid="scheduled-prompts-sidebar-section">
@@ -77,6 +80,7 @@ export function ScheduledPromptsSidebarSection({
         icon={CalendarClock}
         iconClassName="text-chatroom-status-info"
         viewMoreCount={viewMoreCount}
+        viewMoreLabel={viewMoreLabel}
         onViewMore={() => setManageOpen(true)}
       >
         {rows.slice(0, SIDEBAR_PREVIEW_LIMIT).map((row) => (

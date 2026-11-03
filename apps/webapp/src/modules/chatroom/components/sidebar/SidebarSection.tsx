@@ -19,6 +19,7 @@ function Root({
   action,
   emptyMessage,
   viewMoreCount = 0,
+  viewMoreLabel,
   onViewMore,
 }: {
   children: ReactNode;
@@ -32,6 +33,8 @@ function Root({
   action?: ReactNode;
   emptyMessage?: string;
   viewMoreCount?: number;
+  /** Replaces the footer's counted label (e.g. "View more" for a capped list). */
+  viewMoreLabel?: string;
   onViewMore?: () => void;
 }) {
   return (
@@ -47,7 +50,12 @@ function Root({
       <SectionBody title={title} count={count} emptyMessage={emptyMessage}>
         {children}
       </SectionBody>
-      <SectionViewMore title={title} viewMoreCount={viewMoreCount} onViewMore={onViewMore} />
+      <SectionViewMore
+        title={title}
+        viewMoreCount={viewMoreCount}
+        viewMoreLabel={viewMoreLabel}
+        onViewMore={onViewMore}
+      />
     </section>
   );
 }
@@ -98,15 +106,17 @@ function SectionBody({
 function SectionViewMore({
   title,
   viewMoreCount,
+  viewMoreLabel,
   onViewMore,
 }: {
   title?: string;
   viewMoreCount: number;
+  viewMoreLabel?: string;
   onViewMore?: () => void;
 }) {
   if (!title || !onViewMore) return null;
   if (viewMoreCount <= 0) return null;
-  return <ViewMore count={viewMoreCount} onClick={onViewMore} />;
+  return <ViewMore count={viewMoreCount} label={viewMoreLabel} onClick={onViewMore} />;
 }
 
 export interface SidebarSectionHeaderProps {
@@ -167,8 +177,16 @@ function Subheader({ children }: { children: ReactNode }) {
     </div>
   );
 }
-function ViewMore({ count, onClick }: { count: number; onClick: () => void }) {
-  return count > 0 ? <ViewMoreButton count={count} onClick={onClick} /> : null;
+function ViewMore({
+  count,
+  label,
+  onClick,
+}: {
+  count: number;
+  label?: string;
+  onClick: () => void;
+}) {
+  return count > 0 ? <ViewMoreButton count={count} label={label} onClick={onClick} /> : null;
 }
 
 export const SidebarSection = { Root, Header, Toolbar, Body, Empty, Loading, Subheader, ViewMore };
