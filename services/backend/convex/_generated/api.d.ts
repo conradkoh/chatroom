@@ -68,6 +68,7 @@ import type * as daemon_taskStatus from "../daemon/taskStatus.js";
 import type * as dev from "../dev.js";
 import type * as discussions from "../discussions.js";
 import type * as e2e from "../e2e.js";
+import type * as fileAttachments from "../fileAttachments.js";
 import type * as folderPickerRequests from "../folderPickerRequests.js";
 import type * as gitCloneRequests from "../gitCloneRequests.js";
 import type * as guidelines from "../guidelines.js";
@@ -219,6 +220,7 @@ declare const fullApi: ApiFromModules<{
   dev: typeof dev;
   discussions: typeof discussions;
   e2e: typeof e2e;
+  fileAttachments: typeof fileAttachments;
   folderPickerRequests: typeof folderPickerRequests;
   gitCloneRequests: typeof gitCloneRequests;
   guidelines: typeof guidelines;
