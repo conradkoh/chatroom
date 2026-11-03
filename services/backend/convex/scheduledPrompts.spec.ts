@@ -1483,7 +1483,7 @@ describe('scheduled prompts', () => {
         scheduledPromptId: completedId,
         sessionPolicy: 'continue',
       })
-    ).rejects.toThrow();
+    ).rejects.toThrow(/ACCESS_DENIED/);
   });
 
   test('fireOne applies the stored policy', async () => {
@@ -1642,7 +1642,7 @@ describe('scheduled prompts', () => {
         sessionId: otherSession,
         chatroomId,
       })
-    ).rejects.toThrow();
+    ).rejects.toThrow(/ACCESS_DENIED/);
 
     await t.mutation(api.scheduledPrompts.setEnabled, {
       sessionId,
