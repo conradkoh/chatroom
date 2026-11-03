@@ -1,7 +1,5 @@
 'use client';
 
-// fallow-ignore-file unused-file
-
 import { Progress as ProgressPrimitive } from '@base-ui/react/progress';
 
 import { formatFileSize } from '../lib/formatFileSize';
@@ -41,7 +39,6 @@ function resolveEffectiveLimit(limitBytes: number, effectiveLimitBytes?: number)
   return effectiveLimitBytes ?? limitBytes;
 }
 
-// fallow-ignore-next-line unused-export
 export function StorageUsageBar({
   usedBytes,
   fileCount,

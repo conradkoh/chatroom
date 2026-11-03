@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { LoginCodeGenerator } from '@/modules/auth/LoginCodeGenerator';
+import { FileStorageSettings } from '@/modules/profile/FileStorageSettings';
 import { NameEditForm } from '@/modules/profile/NameEditForm';
 import { ThemeSettings } from '@/modules/theme/ThemeSettings';
 
@@ -69,6 +70,8 @@ function ProfilePageContent() {
         </div>
 
         <ThemeSettings />
+
+        <FileStorageSettings />
 
         <RecoveryCodeSection />
       </div>

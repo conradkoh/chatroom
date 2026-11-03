@@ -1,7 +1,5 @@
 'use client';
 
-// fallow-ignore-file unused-file
-
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
