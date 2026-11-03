@@ -10,7 +10,6 @@ import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
 import { ScheduledPromptsDialog } from './ScheduledPromptsDialog';
 import { ScheduledPromptSidebarRow } from './ScheduledPromptSidebarRow';
 import { SIDEBAR_PREVIEW_LIMIT, SidebarSection } from '../../../components/sidebar/SidebarSection';
-import { useTwoTapConfirm } from '../../../hooks/useTwoTapConfirm';
 
 export interface ScheduledPromptsSidebarSectionProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -65,12 +64,6 @@ export function ScheduledPromptsSidebarSection({
   const [manageOpen, setManageOpen] = useState(false);
   const remove = useSessionMutation(api.scheduledPrompts.remove);
 
-  const { armedKey, request: requestDelete } = useTwoTapConfirm<Id<'chatroom_scheduledPrompts'>>(
-    async (id) => {
-      await remove({ scheduledPromptId: id });
-    }
-  );
-
   if (rows === undefined || rows.length === 0) return null;
 
   const { countLabel, viewMoreCount } = previewLabels(rows);
@@ -90,8 +83,7 @@ export function ScheduledPromptsSidebarSection({
           <ScheduledPromptSidebarRow
             key={row._id}
             prompt={row}
-            deleteArmed={armedKey === row._id}
-            onRequestDelete={requestDelete}
+            onDelete={(id) => remove({ scheduledPromptId: id })}
             onOpen={() => openDetail(row._id)}
           />
         ))}

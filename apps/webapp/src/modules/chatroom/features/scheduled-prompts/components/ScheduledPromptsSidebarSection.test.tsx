@@ -96,14 +96,16 @@ function renderSection() {
   return render(<ScheduledPromptsSidebarSection chatroomId={CHATROOM_ID} />);
 }
 
+function rowElements(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('div[role="button"]'));
+}
+
 function rowTitles(): (string | null)[] {
-  return screen
-    .getAllByTestId('scheduled-prompt-sidebar-row')
-    .map((row) => row.querySelector('p')?.textContent ?? null);
+  return rowElements().map((row) => row.querySelector('p')?.textContent ?? null);
 }
 
 function firstRow(): HTMLElement {
-  return screen.getAllByTestId('scheduled-prompt-sidebar-row')[0]!;
+  return rowElements()[0]!;
 }
 
 describe('ScheduledPromptsSidebarSection', () => {
@@ -157,18 +159,21 @@ describe('ScheduledPromptsSidebarSection', () => {
     expect(await screen.findByText('Automatically send messages on a schedule.')).toBeDefined();
   });
 
-  it('requires two taps to delete a row', () => {
-    mocks.rows = [ROW_A];
-    renderSection();
-    const deleteButton = within(firstRow()).getByTestId('scheduled-prompt-delete');
+  it('deletes a row on a single tap and drops it when the query updates', () => {
+    mocks.rows = [ROW_A, ROW_B];
+    const { rerender } = renderSection();
 
-    fireEvent.click(deleteButton);
-    expect(mocks.remove).not.toHaveBeenCalled();
-    expect(deleteButton).toHaveAttribute('title', 'Click again to delete');
+    fireEvent.click(within(firstRow()).getByRole('button', { name: 'Delete' }));
 
-    fireEvent.click(deleteButton);
     expect(mocks.remove).toHaveBeenCalledTimes(1);
     expect(mocks.remove).toHaveBeenCalledWith({ scheduledPromptId: 'sp-a' });
+    expect(screen.queryByText('Trigger history')).toBeNull();
+
+    mocks.rows = [ROW_B];
+    rerender(<ScheduledPromptsSidebarSection chatroomId={CHATROOM_ID} />);
+
+    expect(rowTitles()).toEqual(['Beta']);
+    expect(screen.queryByText('Click again to delete')).toBeNull();
   });
 
   it('unmounts when the last row disappears', () => {
@@ -210,7 +215,7 @@ describe('ScheduledPromptsSidebarSection', () => {
 
     fireEvent.click(within(row).getByRole('button', { name: 'Start in new session' }));
     fireEvent.click(within(row).getByRole('button', { name: 'Mode: Code' }));
-    fireEvent.click(within(row).getByTestId('scheduled-prompt-delete'));
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }));
 
     expect(screen.queryByText('Trigger history')).toBeNull();
   });

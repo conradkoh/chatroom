@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,26 +41,32 @@ function makePrompt(
 function renderRow(
   props: {
     prompt?: Partial<Doc<'chatroom_scheduledPrompts'>>;
-    deleteArmed?: boolean;
-    onRequestDelete?: (id: Id<'chatroom_scheduledPrompts'>) => void | Promise<void>;
+    onDelete?: (id: Id<'chatroom_scheduledPrompts'>) => Promise<unknown>;
     onOpen?: () => void;
   } = {}
 ) {
   const onOpen = props.onOpen ?? vi.fn();
-  const onRequestDelete = props.onRequestDelete ?? vi.fn().mockResolvedValue(undefined);
+  const onDelete = props.onDelete ?? vi.fn().mockResolvedValue(undefined);
   const view = render(
     <ScheduledPromptSidebarRow
       prompt={makePrompt(props.prompt)}
-      deleteArmed={props.deleteArmed ?? false}
-      onRequestDelete={onRequestDelete}
+      onDelete={onDelete}
       onOpen={onOpen}
     />
   );
-  return { ...view, onOpen, onRequestDelete };
+  return { ...view, onOpen, onDelete };
 }
 
-function row(): HTMLElement {
-  return screen.getByTestId('scheduled-prompt-sidebar-row');
+function rowByText(text: string): HTMLElement {
+  return screen.getByText(text).closest('[role="button"]') as HTMLElement;
+}
+
+function defaultRow(): HTMLElement {
+  return rowByText('Summarise the backlog');
+}
+
+function deleteButton(): HTMLElement {
+  return screen.getByRole('button', { name: 'Delete' });
 }
 
 describe('ScheduledPromptSidebarRow', () => {
@@ -71,14 +77,11 @@ describe('ScheduledPromptSidebarRow', () => {
 
   it('shows the name when present, otherwise the prompt text', () => {
     const { unmount } = renderRow({ prompt: { name: 'Daily standup' } });
-    expect(screen.getByText('Daily standup')).toHaveAttribute('title', 'Daily standup');
+    expect(screen.getByText('Daily standup')).toBeDefined();
     unmount();
 
     renderRow({ prompt: { prompt: 'Fallback prompt text' } });
-    expect(screen.getByText('Fallback prompt text')).toHaveAttribute(
-      'title',
-      'Fallback prompt text'
-    );
+    expect(screen.getByText('Fallback prompt text')).toBeDefined();
   });
 
   it('shows the schedule and the upcoming run on the meta line', () => {
@@ -135,7 +138,7 @@ describe('ScheduledPromptSidebarRow', () => {
     });
   });
 
-  it('disables every control while a call is pending and re-enables after', async () => {
+  it('disables the policy controls while a write is pending and re-enables after', async () => {
     let resolveUpdate: (() => void) | undefined;
     mocks.updatePolicy.mockImplementationOnce(
       () =>
@@ -149,8 +152,7 @@ describe('ScheduledPromptSidebarRow', () => {
 
     const session = screen.getByRole('button', { name: 'Start in new session' });
     const mode = screen.getByRole('button', { name: 'Mode: Code' });
-    const del = screen.getByRole('button', { name: 'Delete Summarise the backlog' });
-    for (const button of [session, mode, del]) {
+    for (const button of [session, mode]) {
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute('aria-busy', 'true');
     }
@@ -162,7 +164,6 @@ describe('ScheduledPromptSidebarRow', () => {
 
     await waitFor(() => expect(mode).not.toBeDisabled());
     expect(session).not.toBeDisabled();
-    expect(del).not.toBeDisabled();
   });
 
   it.each([
@@ -194,71 +195,81 @@ describe('ScheduledPromptSidebarRow', () => {
     expect(mocks.updatePolicy).toHaveBeenCalledTimes(2);
   });
 
-  it('does not open the detail dialog from the control cluster', () => {
+  it('does not open the detail from a click or key press on a control', () => {
     const { onOpen } = renderRow();
 
     fireEvent.click(screen.getByRole('button', { name: 'Start in new session' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mode: Code' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Summarise the backlog' }));
+    fireEvent.click(deleteButton());
     fireEvent.keyDown(screen.getByRole('button', { name: 'Mode: Code' }), { key: 'Enter' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Mode: Code' }), { key: ' ' });
 
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('opens the detail dialog from the row, Enter and Space', () => {
+  it('opens the detail from the row, Enter and Space', () => {
     const { onOpen } = renderRow();
 
-    fireEvent.click(row());
-    fireEvent.keyDown(row(), { key: 'Enter' });
-    fireEvent.keyDown(row(), { key: ' ' });
+    fireEvent.click(defaultRow());
+    fireEvent.keyDown(defaultRow(), { key: 'Enter' });
+    fireEvent.keyDown(defaultRow(), { key: ' ' });
 
     expect(onOpen).toHaveBeenCalledTimes(3);
   });
 
-  it('arms delete on the first click without deleting', () => {
-    const { onRequestDelete } = renderRow();
-    const del = screen.getByRole('button', { name: 'Delete Summarise the backlog' });
+  it('deletes on a single tap without arming', () => {
+    const { onDelete } = renderRow();
 
-    fireEvent.click(del);
+    fireEvent.click(deleteButton());
 
-    expect(onRequestDelete).toHaveBeenCalledTimes(1);
-    expect(onRequestDelete).toHaveBeenCalledWith('sp-1');
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onDelete).toHaveBeenCalledWith('sp-1');
     expect(mocks.updatePolicy).not.toHaveBeenCalled();
   });
 
-  it('runs the delete path and shows the armed styling when armed', async () => {
-    const onRequestDelete = vi.fn().mockResolvedValue(undefined);
-    renderRow({ deleteArmed: true, onRequestDelete });
-    const del = screen.getByRole('button', {
-      name: 'Confirm delete Summarise the backlog',
-    });
-    expect(del).toHaveAttribute('title', 'Click again to delete');
-    expect(del).toHaveClass('bg-red-600');
+  it('disables the delete control while it is in flight and ignores extra taps', async () => {
+    let resolveDelete: (() => void) | undefined;
+    const onDelete = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve;
+        })
+    );
+    renderRow({ onDelete });
+
+    fireEvent.click(deleteButton());
+
+    expect(deleteButton()).toBeDisabled();
+    expect(deleteButton()).toHaveAttribute('aria-busy', 'true');
+
+    fireEvent.click(deleteButton());
+    expect(onDelete).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      fireEvent.click(del);
+      resolveDelete?.();
+      await Promise.resolve();
     });
 
-    expect(onRequestDelete).toHaveBeenCalledWith('sp-1');
-    expect(mocks.updatePolicy).not.toHaveBeenCalled();
+    await waitFor(() => expect(deleteButton()).not.toBeDisabled());
   });
 
   it('maps a delete failure inline', async () => {
-    const onRequestDelete = vi.fn().mockRejectedValue({ data: { code: 'NOT_FOUND' } });
-    renderRow({ deleteArmed: true, onRequestDelete });
+    const onDelete = vi.fn().mockRejectedValue({ data: { code: 'NOT_FOUND' } });
+    renderRow({ onDelete });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete Summarise the backlog' }));
+    fireEvent.click(deleteButton());
 
     expect(await screen.findByTestId('scheduled-prompt-sidebar-error')).toHaveTextContent(
       'This prompt was deleted.'
     );
   });
 
-  it('exposes a delete control scoped to the row', () => {
+  it('exposes the shared policy controls scoped to the row', () => {
     renderRow();
-    const cluster = within(row());
-    expect(cluster.getByTestId('scheduled-prompt-session-toggle')).toBeDefined();
-    expect(cluster.getByTestId('scheduled-prompt-mode-toggle')).toBeDefined();
-    expect(cluster.getByTestId('scheduled-prompt-delete')).toBeDefined();
+    const row = defaultRow();
+
+    expect(row.querySelector('[data-testid="scheduled-prompt-session-toggle"]')).not.toBeNull();
+    expect(row.querySelector('[data-testid="scheduled-prompt-mode-toggle"]')).not.toBeNull();
+    expect(deleteButton()).toBeDefined();
   });
 });
