@@ -43,6 +43,47 @@ export function formatTime(ts: number): string {
   return formatTimestampLocal(ts);
 }
 
+/** Local calendar-day number (UTC-normalised) so DST and time never shift the day. */
+function localDayNumber(date: Date): number {
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/**
+ * Next-run label in local time: "Today 14:30", "Tomorrow 09:00", or
+ * "Nov 5 17:00". Days are compared on the local calendar, not by elapsed hours.
+ */
+export function formatUpcomingRun(ts: number, now: number = Date.now()): string {
+  const target = new Date(ts);
+  const dayDiff = Math.round(
+    (localDayNumber(target) - localDayNumber(new Date(now))) / (24 * 60 * 60 * 1000)
+  );
+  const time = formatTime(ts);
+  if (dayDiff === 0) return `Today ${time}`;
+  if (dayDiff === 1) return `Tomorrow ${time}`;
+  const date = target.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${date} ${time}`;
+}
+
+/** Reads the `code` a ConvexError carries under `data`. */
+function backendErrorCode(error: unknown): unknown {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const data = (error as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) return undefined;
+  return (data as { code?: unknown }).code;
+}
+
+const ACTION_ERROR_MESSAGE: Record<string, string> = {
+  SCHEDULE_FINISHED: 'This prompt has already run.',
+  LIFECYCLE_DISABLED: "This prompt is archived and can't be changed.",
+  NOT_FOUND: 'This prompt was deleted.',
+};
+
+/** User-facing text for a failed sidebar action; unknown failures use `fallback`. */
+export function scheduledPromptActionErrorMessage(error: unknown, fallback: string): string {
+  const code = backendErrorCode(error);
+  return typeof code === 'string' ? (ACTION_ERROR_MESSAGE[code] ?? fallback) : fallback;
+}
+
 /** The single mapping from `disabledReason` to a display status. */
 const STATUS_BY_DISABLED_REASON: Record<
   ScheduledPromptDisabledReason | 'none',
