@@ -57,6 +57,14 @@ describe('WorkQueueRow', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it('does not open from Enter on an action', () => {
+    const { onOpen } = renderRow();
+
+    fireEvent.keyDown(screen.getByTestId('row-action'), { key: 'Enter' });
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   it('does not open from a click on an attachment', () => {
     const { onOpen } = renderRow({
       attachments: (
@@ -67,6 +75,20 @@ describe('WorkQueueRow', () => {
     });
 
     fireEvent.click(screen.getByTestId('attachment'));
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('does not open from Space on an attachment', () => {
+    const { onOpen } = renderRow({
+      attachments: (
+        <button type="button" data-testid="attachment">
+          Attachment
+        </button>
+      ),
+    });
+
+    fireEvent.keyDown(screen.getByTestId('attachment'), { key: ' ' });
 
     expect(onOpen).not.toHaveBeenCalled();
   });

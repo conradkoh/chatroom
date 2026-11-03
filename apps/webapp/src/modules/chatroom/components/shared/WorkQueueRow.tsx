@@ -31,6 +31,9 @@ export function WorkQueueRow({ preview, meta, attachments, actions, onOpen }: Wo
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => {
+        // A key pressed on an action or attachment must activate that control,
+        // not the row.
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onOpen();
