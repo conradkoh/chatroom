@@ -338,6 +338,35 @@ describe('handoffEffect', () => {
     });
   });
 
+  test('rejects attachments for agent-to-agent handoffs before uploading', async () => {
+    const gateway = vi.fn(async (_args: Parameters<HandoffGatewayOps['handoff']>[0]) => ({
+      success: true,
+    }));
+    const { uploader, beginUpload } = createFakeUploader();
+    const testLayer = makeAttachmentLayer({ handoff: gateway });
+
+    await withTempAttachments(async (paths) => {
+      const exit = await Effect.runPromiseExit(
+        handoffEffect(
+          validChatroomId,
+          { ...validOptions, nextRole: 'builder', attachFiles: paths },
+          uploader
+        ).pipe(Effect.provide(testLayer))
+      );
+
+      expect(exit._tag).toBe('Failure');
+      if (exit._tag === 'Failure') {
+        const error = Cause.findErrorOption(exit.cause).pipe((option) =>
+          option._tag === 'Some' ? option.value : null
+        ) as HandoffError | null;
+        expect(error?._tag).toBe('AttachmentsRequireUserTarget');
+      }
+    });
+
+    expect(beginUpload).not.toHaveBeenCalled();
+    expect(gateway).not.toHaveBeenCalled();
+  });
+
   test('does not touch the uploader when there are no attachments', async () => {
     const gateway = vi.fn(async (_args: Parameters<HandoffGatewayOps['handoff']>[0]) => ({
       success: true,
