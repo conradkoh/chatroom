@@ -24,6 +24,7 @@ import { httpAction, internalMutation, internalQuery, mutation, query } from './
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { validateSession } from './auth/sessionValidation';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
+import { omitUndefined } from './lib/omitUndefined';
 import type { BackendErrorCode } from '../config/errorCodes';
 import { FILE_LIST_PAGE_MAX } from '../src/domain/entities/file-attachment';
 import {
@@ -490,6 +491,8 @@ async function attachedFileUrl(
 const fileListItemValidator = v.object({
   _id: v.id('chatroom_fileAttachments'),
   chatroomId: v.id('chatroom_rooms'),
+  /** True when the chatroom row is gone; lets the UI tell "deleted" from "unnamed". */
+  chatroomDeleted: v.boolean(),
   chatroomName: v.optional(v.string()),
   filename: v.string(),
   mimeType: v.string(),
@@ -538,30 +541,36 @@ async function toFileListPage(
   ctx: QueryCtx,
   rows: Doc<'chatroom_fileAttachments'>[]
 ): Promise<ReturnType<typeof toFileListItem>[]> {
-  const chatroomNames = new Map<Id<'chatroom_rooms'>, string | undefined>();
+  const chatrooms = new Map<Id<'chatroom_rooms'>, Doc<'chatroom_rooms'> | null>();
   const page = [];
   for (const row of rows) {
-    if (!chatroomNames.has(row.chatroomId)) {
-      const chatroom = await ctx.db.get('chatroom_rooms', row.chatroomId);
-      chatroomNames.set(row.chatroomId, chatroom?.name);
+    if (!chatrooms.has(row.chatroomId)) {
+      chatrooms.set(row.chatroomId, await ctx.db.get('chatroom_rooms', row.chatroomId));
     }
-    page.push(toFileListItem(row, chatroomNames.get(row.chatroomId)));
+    page.push(toFileListItem(row, chatrooms.get(row.chatroomId) ?? null));
   }
   return page;
 }
 
-/** Builds one list row, omitting absent optional fields. */
-function toFileListItem(row: Doc<'chatroom_fileAttachments'>, chatroomName: string | undefined) {
-  return {
+/**
+ * Builds one list row. `chatroomDeleted` is separate from `chatroomName` so the
+ * UI can label an unnamed live chatroom differently from a removed one.
+ */
+function toFileListItem(
+  row: Doc<'chatroom_fileAttachments'>,
+  chatroom: Doc<'chatroom_rooms'> | null
+) {
+  return omitUndefined({
     _id: row._id,
     chatroomId: row.chatroomId,
+    chatroomDeleted: chatroom === null,
     filename: row.filename,
     mimeType: row.mimeType,
     sizeBytes: row.sizeBytes,
-    ...(chatroomName === undefined ? {} : { chatroomName }),
-    ...(row.attachedAt === undefined ? {} : { attachedAt: row.attachedAt }),
-    ...(row.messageId === undefined ? {} : { messageId: row.messageId }),
-  };
+    chatroomName: chatroom?.name,
+    attachedAt: row.attachedAt,
+    messageId: row.messageId,
+  });
 }
 
 /** Paginates attached rows on the index that matches scope and sort order. */

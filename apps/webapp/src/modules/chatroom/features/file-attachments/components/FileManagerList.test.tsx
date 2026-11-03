@@ -7,6 +7,7 @@ import { FileManagerList } from './FileManagerList';
 type FileListTestItem = {
   _id: string;
   chatroomId: string;
+  chatroomDeleted: boolean;
   chatroomName?: string;
   filename: string;
   mimeType: string;
@@ -66,6 +67,7 @@ function makeFile(overrides: Partial<FileListTestItem> = {}): FileListTestItem {
   return {
     _id: FILE_ID,
     chatroomId: CHATROOM_ID,
+    chatroomDeleted: false,
     filename: 'a.png',
     mimeType: 'image/png',
     sizeBytes: 1048576,
@@ -241,5 +243,25 @@ describe('FileManagerList', () => {
     renderList();
 
     expect(screen.getByTestId('file-attachment-row').textContent).toContain('Design chat');
+  });
+
+  it('labels a live chatroom with no name as untitled, never deleted', () => {
+    mocks.paginated.mockReturnValue(paginationState([makeFile()], 'Exhausted'));
+
+    renderList();
+
+    const meta = screen.getByTestId('file-attachment-row').textContent;
+    expect(meta).toContain('Untitled chatroom');
+    expect(meta).not.toContain('Deleted chatroom');
+  });
+
+  it('labels a file whose chatroom no longer exists as deleted', () => {
+    mocks.paginated.mockReturnValue(
+      paginationState([makeFile({ chatroomDeleted: true })], 'Exhausted')
+    );
+
+    renderList();
+
+    expect(screen.getByTestId('file-attachment-row').textContent).toContain('Deleted chatroom');
   });
 });

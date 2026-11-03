@@ -1534,4 +1534,34 @@ describe('listFiles', () => {
     await assertUsageInvariant(user.userId);
     await assertUsageInvariant(other.userId);
   });
+
+  test('distinguishes an unnamed live chatroom from a deleted chatroom', async () => {
+    const user = await setupUser('list-chatroom-label');
+    await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 1,
+      sizeBytes: 1,
+    });
+
+    const live = await t.query(api.fileAttachments.listFiles, {
+      sessionId: user.sessionId,
+      sort: 'oldest',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(live.page[0]!.chatroomDeleted).toBe(false);
+    expect(live.page[0]!.chatroomName).toBeUndefined();
+
+    await t.run(async (ctx) => ctx.db.delete('chatroom_rooms', user.chatroomId));
+
+    const deleted = await t.query(api.fileAttachments.listFiles, {
+      sessionId: user.sessionId,
+      sort: 'oldest',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(deleted.page[0]!.chatroomDeleted).toBe(true);
+    expect(deleted.page[0]!.chatroomName).toBeUndefined();
+
+    await assertUsageInvariant(user.userId);
+  });
 });

@@ -38,6 +38,7 @@ const IDLE_DELETE = { variant: 'ghost', size: 'icon-xs' } as const;
 interface FileListItem {
   _id: Id<'chatroom_fileAttachments'>;
   chatroomId: Id<'chatroom_rooms'>;
+  chatroomDeleted: boolean;
   chatroomName?: string;
   filename: string;
   mimeType: string;
@@ -54,9 +55,15 @@ function previewable(kind: FileRowKind): boolean {
   return kind === 'image' || kind === 'text' || kind === 'markdown';
 }
 
+/** Distinguishes a removed chatroom from a live one that has no name. */
+function chatroomLabel(file: FileListItem): string {
+  if (file.chatroomDeleted) return 'Deleted chatroom';
+  return file.chatroomName ?? 'Untitled chatroom';
+}
+
 function rowMeta(file: FileListItem, showChatroom: boolean): string {
   const parts = [formatFileSize(file.sizeBytes), fileExtensionLabel(file.filename)];
-  if (showChatroom) parts.push(file.chatroomName ?? 'Deleted chatroom');
+  if (showChatroom) parts.push(chatroomLabel(file));
   if (file.attachedAt !== undefined) {
     parts.push(
       new Date(file.attachedAt).toLocaleDateString(undefined, {
