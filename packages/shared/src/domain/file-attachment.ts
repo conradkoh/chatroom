@@ -78,7 +78,7 @@ function basenameOf(path: string): string {
 
 /** Looks up registry metadata for an exact MIME type; null when not allowlisted. */
 function lookupByMimeType(mimeType: string): FileAttachmentTypeInfo | null {
-  return Object.hasOwn(FILE_ATTACHMENT_TYPES, mimeType)
+  return Object.prototype.hasOwnProperty.call(FILE_ATTACHMENT_TYPES, mimeType)
     ? FILE_ATTACHMENT_TYPES[mimeType as FileAttachmentMimeType]
     : null;
 }
