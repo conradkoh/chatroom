@@ -6,6 +6,7 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { AlertTriangle, RotateCw } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
+import { FileManagerList } from './FileManagerList';
 import { StorageQuotaForm } from './StorageQuotaForm';
 import { StorageUsageBar } from './StorageUsageBar';
 import { ErrorBoundary } from '../../../components/ErrorBoundary';
@@ -33,13 +34,17 @@ function sectionLabel(scope: FileStorageScope): string {
   return scope.kind === 'user' ? 'Account file storage' : 'Chatroom file storage';
 }
 
+function chatroomIdOf(scope: FileStorageScope): Id<'chatroom_rooms'> | undefined {
+  return scope.kind === 'chatroom' ? scope.chatroomId : undefined;
+}
+
 function overLimitCopy(usedBytes: number, effectiveLimitBytes: number): string {
   return `Over the limit by ${formatFileSize(usedBytes - effectiveLimitBytes)}. Removing the oldest files in the background…`;
 }
 
 /**
- * One storage scope. S7a renders the usage bar, eviction banner, and quota form;
- * S7b adds the purge row and the file list at the marked slot.
+ * One storage scope. Renders the usage bar, eviction banner, quota form, and
+ * the shared file manager list.
  */
 export function FileStoragePanel({ scope }: { scope: FileStorageScope }) {
   const [retryKey, setRetryKey] = useState(0);
@@ -141,6 +146,7 @@ function StoragePanelContent({ scope }: { scope: FileStorageScope }) {
   const storage = useNormalisedStorage(scope);
   const setUserQuota = useSessionMutation(api.fileStorageSettings.setUserFileStorageQuota);
   const setChatroomQuota = useSessionMutation(api.fileStorageSettings.setChatroomFileStorageQuota);
+  const chatroomId = chatroomIdOf(scope);
 
   const save = useCallback(
     async (quotaBytes: number) => {
@@ -180,7 +186,7 @@ function StoragePanelContent({ scope }: { scope: FileStorageScope }) {
         scopeLabel={scope.kind === 'user' ? 'your account' : 'this chatroom'}
         save={save}
       />
-      {/* S7b mounts the purge row and file list here. */}
+      <FileManagerList chatroomId={chatroomId} />
     </div>
   );
 }

@@ -9,19 +9,43 @@ const mocks = vi.hoisted(() => ({
   chatroomStorage: vi.fn(),
   setUserQuota: vi.fn(),
   setChatroomQuota: vi.fn(),
+  listFiles: vi.fn(),
+  getFileUrls: vi.fn(),
+  deleteFile: vi.fn(),
 }));
 
+vi.mock('convex/react', () => {
+  const emptyPage = () => ({
+    results: [],
+    status: 'Exhausted',
+    loadMore: vi.fn(),
+    isLoading: false,
+  });
+  return {
+    usePaginatedQuery: (query: unknown, args: unknown) => {
+      if (args === 'skip') return emptyPage();
+      const name = String(query).split('.').pop();
+      return name === 'listFiles' ? mocks.listFiles() : emptyPage();
+    },
+  };
+});
+
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionId: () => ['session-1', vi.fn()],
   useSessionQuery: (query: unknown, args: unknown) => {
     if (args === 'skip') return undefined;
     const name = String(query);
     if (name === 'fileStorageSettings.getUserFileStorage') return mocks.userStorage();
     if (name === 'fileStorageSettings.getChatroomFileStorage') return mocks.chatroomStorage();
+    if (name.endsWith('getFileUrls')) return mocks.getFileUrls();
     return undefined;
   },
   useSessionMutation: (mutation: unknown) => {
     const name = String(mutation).split('.').pop();
-    return name === 'setUserFileStorageQuota' ? mocks.setUserQuota : mocks.setChatroomQuota;
+    if (name === 'setUserFileStorageQuota') return mocks.setUserQuota;
+    if (name === 'setChatroomFileStorageQuota') return mocks.setChatroomQuota;
+    if (name === 'deleteFile') return mocks.deleteFile;
+    return vi.fn();
   },
 }));
 
@@ -32,6 +56,11 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getChatroomFileStorage: 'fileStorageSettings.getChatroomFileStorage',
       setUserFileStorageQuota: 'fileStorageSettings.setUserFileStorageQuota',
       setChatroomFileStorageQuota: 'fileStorageSettings.setChatroomFileStorageQuota',
+    },
+    fileAttachments: {
+      listFiles: 'fileAttachments.listFiles',
+      getFileUrls: 'fileAttachments.getFileUrls',
+      deleteFile: 'fileAttachments.deleteFile',
     },
   },
 }));
@@ -63,6 +92,31 @@ function userStorage(
   };
 }
 
+type FileListTestItem = {
+  _id: string;
+  chatroomId: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+function paginationState(
+  results: FileListTestItem[],
+  status: 'LoadingFirstPage' | 'LoadingMore' | 'CanLoadMore' | 'Exhausted'
+) {
+  return { results, status, loadMore: vi.fn(), isLoading: status === 'LoadingFirstPage' };
+}
+
+function makeFile(index: number, sizeBytes: number): FileListTestItem {
+  return {
+    _id: `jd7testfile${index}`,
+    chatroomId: 'jd7testchatroom0000000000000001',
+    filename: `file-${index}.png`,
+    mimeType: 'image/png',
+    sizeBytes,
+  };
+}
+
 function renderUserPanel() {
   return render(<FileStoragePanel scope={{ kind: 'user' }} />);
 }
@@ -80,6 +134,9 @@ describe('FileStoragePanel', () => {
     vi.clearAllMocks();
     mocks.userStorage.mockReturnValue(userStorage());
     mocks.setUserQuota.mockResolvedValue({ quotaBytes: 1 * GB, evictionScheduled: false });
+    mocks.listFiles.mockReturnValue(paginationState([], 'Exhausted'));
+    mocks.getFileUrls.mockReturnValue([]);
+    mocks.deleteFile.mockResolvedValue({ deleted: true });
   });
 
   it('shows skeletons while the user storage query is loading', () => {
@@ -260,5 +317,13 @@ describe('FileStoragePanel', () => {
     expect(await screen.findByTestId('storage-usage')).toBeInTheDocument();
     expect(mocks.userStorage).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+
+  it('renders the shared file list inside the panel', () => {
+    mocks.listFiles.mockReturnValue(paginationState([makeFile(1, 2 * MB)], 'Exhausted'));
+
+    renderUserPanel();
+
+    expect(screen.getByTestId('file-attachment-row').textContent).toContain('file-1.png');
   });
 });

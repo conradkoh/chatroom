@@ -46,7 +46,6 @@ const KIND_ICONS: Record<FileRowKind, LucideIcon> = {
   unavailable: FileX,
 };
 
-// fallow-ignore-next-line unused-export
 export function FileKindIcon({ kind, size = 14 }: { kind: FileRowKind; size?: number }) {
   const Icon = KIND_ICONS[kind];
   return <Icon size={size} aria-hidden="true" />;
