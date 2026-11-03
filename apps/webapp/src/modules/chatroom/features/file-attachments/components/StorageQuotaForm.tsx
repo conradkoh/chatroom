@@ -87,7 +87,8 @@ function confirmCopy(
   effectiveBytes: number
 ): string {
   const removedBytes = usedBytes - effectiveBytes;
-  return `This ${scopeLabel} uses ${formatFileSize(usedBytes)}. The new limit is ${formatFileSize(effectiveBytes)}, so at least ${formatFileSize(removedBytes)} of the oldest files will be removed in the background. Files still uploading are kept.`;
+  const subject = scopeLabel.charAt(0).toUpperCase() + scopeLabel.slice(1);
+  return `${subject} uses ${formatFileSize(usedBytes)}. The new limit is ${formatFileSize(effectiveBytes)}, so at least ${formatFileSize(removedBytes)} of the oldest files will be removed in the background. Files still uploading are kept.`;
 }
 
 interface RunSaveArgs {

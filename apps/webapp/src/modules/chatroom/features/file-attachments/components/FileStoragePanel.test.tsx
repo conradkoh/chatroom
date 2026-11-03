@@ -169,7 +169,7 @@ describe('FileStoragePanel', () => {
     expect(await screen.findByText('Lower the limit and remove files?')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'This your account uses 512 MB. The new limit is 100 MB, so at least 412 MB of the oldest files will be removed in the background. Files still uploading are kept.'
+        'Your account uses 512 MB. The new limit is 100 MB, so at least 412 MB of the oldest files will be removed in the background. Files still uploading are kept.'
       )
     ).toBeInTheDocument();
     expect(mocks.setUserQuota).not.toHaveBeenCalled();
