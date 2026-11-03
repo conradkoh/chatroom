@@ -1056,7 +1056,6 @@ export default defineSchema({
     sizeBytes: v.number(),
     status: fileAttachmentStatusValidator,
     storageId: v.optional(v.id('_storage')),
-    sha256: v.optional(v.string()),
     messageId: v.optional(v.id('chatroom_messages')),
     createdAt: v.number(),
     uploadedAt: v.optional(v.number()),

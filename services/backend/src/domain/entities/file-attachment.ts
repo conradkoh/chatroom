@@ -8,9 +8,9 @@
  * @see docs/conventions/domain-models.md
  */
 
-// These entity exports are the backend contract for later attachment slices
-// (upload, handoff binding, quota); consumers land separately, so suppress
-// unused-export noise for this intentional contract surface.
+// The status enum is the single source of truth for the validator below, and
+// its co-located drift test imports the schema. The dead-code scan does not
+// count that test as a consumer, so suppress the two false positives.
 // fallow-ignore-file unused-export unused-type
 
 import { v } from 'convex/values';

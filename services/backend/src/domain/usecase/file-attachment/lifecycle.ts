@@ -41,7 +41,13 @@ import { getTeamRolesFromChatroom } from '../chatroom/get-team-roles';
 
 /** Discriminated result shared by the authorize and complete steps. */
 export type AuthorizeUploadResult =
-  | { ok: true; sizeBytes: number; storedContentType: string }
+  | {
+      ok: true;
+      /** The authorized ticket row, so callers do not resolve it twice. */
+      row: Doc<'chatroom_fileAttachments'>;
+      sizeBytes: number;
+      storedContentType: string;
+    }
   | {
       ok: false;
       status: 400 | 401 | 403 | 404 | 409;
@@ -184,6 +190,7 @@ export async function authorizeFileUpload(
 
   return {
     ok: true,
+    row: resolved.row,
     sizeBytes: resolved.row.sizeBytes,
     storedContentType: getStoredBlobContentType(resolved.row.mimeType as FileAttachmentMimeType),
   };
@@ -259,9 +266,7 @@ export async function completeFileUpload(
   const auth = await authorizeFileUpload(ctx, args);
   if (!auth.ok) return auth;
 
-  const resolved = await resolveAuthorizedRow(ctx, args.sessionId, args.rawAttachmentId);
-  if (!resolved.ok) return resolved;
-  const row = resolved.row;
+  const row = auth.row;
 
   const blobError = await assertBlobMatchesReservation(ctx, args.storageId, row.sizeBytes);
   if (blobError) return blobError;
