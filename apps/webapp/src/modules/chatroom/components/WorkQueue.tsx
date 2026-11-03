@@ -31,13 +31,14 @@ import { TaskDetailModal } from './TaskDetailModal';
 import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
 import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
 import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
-import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
+import { ScheduledPromptsSidebarSection } from '../features/scheduled-prompts/components/ScheduledPromptsSidebarSection';
 import type { Message } from '../types/message';
 import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
 import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
 import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
+import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 
 import {
   DropdownMenu,
@@ -423,6 +424,8 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
             />
           ))}
         </SidebarSection.Root>
+
+        <ScheduledPromptsSidebarSection chatroomId={chatroomId} />
 
         <SidebarSection.Root
           title="Pending Review"
