@@ -14,6 +14,12 @@ export type HandoffResult = {
     | undefined;
   supportsNativeIntegration?: boolean | undefined;
   newTaskId?: string | null | undefined;
+  /**
+   * True when a replayed terminal handoff deleted the freshly uploaded files
+   * instead of binding them. The CLI warns because the files were never
+   * delivered to the user.
+   */
+  attachmentsDiscarded?: boolean | undefined;
 };
 
 export interface HandoffGatewayOps {

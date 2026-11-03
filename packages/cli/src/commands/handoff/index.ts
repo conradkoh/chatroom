@@ -251,6 +251,12 @@ export const handoffEffect = (
     const convexUrl = yield* session.getConvexUrl();
 
     yield* Effect.sync(() => {
+      if (result.attachmentsDiscarded) {
+        console.error(
+          'Warning: this handoff was already recorded for this message, so the attached files were not delivered. ' +
+            'Send the files in a new handoff to user after the current one is complete.'
+        );
+      }
       console.log(
         generateHandoffOutput({
           role,

@@ -980,6 +980,7 @@ describe('handoff replay cleanup', () => {
       attachedFileIds: [first, second],
     });
     expect(firstResult.success).toBe(true);
+    expect(firstResult.attachmentsDiscarded).toBe(false);
     const messageId = firstResult.messageId!;
 
     const storageAfterFirst = await countStorage();
@@ -1002,6 +1003,7 @@ describe('handoff replay cleanup', () => {
     });
 
     expect(replay.success).toBe(true);
+    expect(replay.attachmentsDiscarded).toBe(true);
     expect(replay.messageId).toBe(messageId);
     expect(replay.completedTaskIds).toEqual([]);
     expect(replay.newTaskId).toBeNull();
@@ -1036,6 +1038,30 @@ describe('handoff replay cleanup', () => {
     );
     expect(terminalHandoffs).toHaveLength(1);
     expect(terminalHandoffs[0]!._id).toBe(messageId);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('a retried handoff without files reports nothing discarded', async () => {
+    const user = await setupUser('handoff-replay-no-files');
+    await seedPlannerWork(user.chatroomId, 'Retry the same terminal handoff');
+
+    const request = {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Done — no files this time.',
+      targetRole: 'user',
+    };
+
+    const first = await t.mutation(api.messages.handoff, request);
+    expect(first.success).toBe(true);
+    expect(first.attachmentsDiscarded).toBe(false);
+
+    const replay = await t.mutation(api.messages.handoff, request);
+    expect(replay.success).toBe(true);
+    expect(replay.messageId).toBe(first.messageId);
+    expect(replay.attachmentsDiscarded).toBe(false);
 
     await assertUsageInvariant(user.userId);
   });

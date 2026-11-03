@@ -699,8 +699,12 @@ export async function runHandoffHandler(
     if (existing && !hasActiveSenderWork) {
       // Retried terminal handoff: the caller uploaded fresh files for a message
       // that already exists, so remove only those new uploads (row + blob +
-      // usage). The original message's bound rows are untouched.
-      await deleteFileAttachments(ctx, attachedFileRows);
+      // usage). The original message's bound rows are untouched. Report the
+      // discard so the CLI can warn that the files were never delivered.
+      const attachmentsDiscarded = attachedFileRows.length > 0;
+      if (attachmentsDiscarded) {
+        await deleteFileAttachments(ctx, attachedFileRows);
+      }
       return {
         success: true,
         error: null,
@@ -709,6 +713,7 @@ export async function runHandoffHandler(
         newTaskId: null,
         promotedTaskId: null,
         supportsNativeIntegration,
+        attachmentsDiscarded,
       };
     }
   }
@@ -867,6 +872,7 @@ export async function runHandoffHandler(
     newTaskId,
     promotedTaskId,
     supportsNativeIntegration,
+    attachmentsDiscarded: false,
   };
 }
 
