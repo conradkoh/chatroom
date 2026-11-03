@@ -1181,6 +1181,8 @@ describe('getFileUrls (scenario 8)', () => {
       }),
       'VALIDATION_ERROR'
     );
+
+    await assertUsageInvariant(user.userId);
   });
 });
 
@@ -1528,5 +1530,8 @@ describe('listFiles', () => {
       }),
       'ACCESS_DENIED'
     );
+
+    await assertUsageInvariant(user.userId);
+    await assertUsageInvariant(other.userId);
   });
 });
