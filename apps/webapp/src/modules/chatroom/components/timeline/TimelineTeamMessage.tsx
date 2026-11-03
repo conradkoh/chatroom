@@ -23,6 +23,7 @@ import {
 } from './timelineRowStyles';
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
 import { MessageAttachmentChips } from '../../attachments';
+import { MessageFileAttachments } from '../../features/file-attachments/components/MessageFileAttachments';
 import { getHandoffPreviewText } from '../../timeline/handoffPreview';
 import type { Message } from '../../types/message';
 
@@ -159,6 +160,24 @@ function getMessageTypeBadge(type: string) {
   return null;
 }
 
+/** File attachments for a handoff; the wrapper owns spacing and the null case. */
+function TimelineFileAttachments({
+  files,
+  showMedia,
+  className,
+}: {
+  files: Message['attachedFiles'];
+  showMedia: boolean;
+  className?: string;
+}) {
+  if (!files?.length) return null;
+  return (
+    <div className={className}>
+      <MessageFileAttachments files={files} showMedia={showMedia} />
+    </div>
+  );
+}
+
 /**
  * The single header row shared by expanded and collapsed states. Keeping one
  * component guarantees identical nav, identity attributes, and layout in both.
@@ -280,8 +299,11 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       {isCollapsed ? (
         <>
           <div id={bodyId} hidden />
-          <div className={cn(TIMELINE_HANDOFF_CHIPS, 'pr-4 pb-2 empty:hidden')}>
+          <div
+            className={cn(TIMELINE_HANDOFF_CHIPS, 'flex flex-col gap-1.5 pr-4 pb-2 empty:hidden')}
+          >
             <MessageAttachmentChips message={message} />
+            <TimelineFileAttachments files={message.attachedFiles} showMedia={false} />
           </div>
         </>
       ) : (
@@ -292,6 +314,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
           <div className="mt-2 empty:hidden">
             <MessageAttachmentChips message={message} />
           </div>
+          <TimelineFileAttachments files={message.attachedFiles} showMedia className="mt-2" />
           <TimelineMessageFooter
             message={message}
             displayContent={message.content}

@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file
 /**
  * User-facing copy for file attachment failures.
  *
@@ -31,12 +32,19 @@ function getErrorData(err: unknown): FileAttachmentErrorData | null {
   return err.data as FileAttachmentErrorData;
 }
 
+function codeMessage(code: string): string {
+  return CODE_MESSAGES[code] ?? CONNECTIVITY_MESSAGE;
+}
+
+function validationMessage(data: FileAttachmentErrorData): string {
+  return data.message ?? CONNECTIVITY_MESSAGE;
+}
+
 /** Maps a file attachment error to copy the user can act on. */
 export function getFileAttachmentErrorMessage(err: unknown): string {
   const data = getErrorData(err);
   if (!data?.code) return CONNECTIVITY_MESSAGE;
-  if (data.code === 'VALIDATION_ERROR') return data.message ?? CONNECTIVITY_MESSAGE;
-  return CODE_MESSAGES[data.code] ?? CONNECTIVITY_MESSAGE;
+  return data.code === 'VALIDATION_ERROR' ? validationMessage(data) : codeMessage(data.code);
 }
 
 /** True when a validation error is about the quota field specifically. */

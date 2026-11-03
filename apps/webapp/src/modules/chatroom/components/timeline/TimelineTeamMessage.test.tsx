@@ -74,6 +74,14 @@ vi.mock('../../attachments', async (importOriginal) => {
   };
 });
 
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: () => undefined,
+}));
+
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: { fileAttachments: { getFileUrls: 'fileAttachments.getFileUrls' } },
+}));
+
 vi.mock('./HandoffEnvelopeView', () => ({
   HandoffEnvelopeView: ({
     content,
@@ -100,6 +108,20 @@ const BASE_MESSAGE: Message = {
   senderRole: 'planner',
   content: 'Handoff content',
   _creationTime: 1000,
+};
+
+const FILE_ATTACHMENT_MESSAGE: Message = {
+  ...BASE_MESSAGE,
+  targetRole: 'user',
+  attachedFiles: [
+    {
+      _id: 'attachment-1',
+      status: 'available',
+      filename: 'shot.png',
+      mimeType: 'image/png',
+      sizeBytes: 1536,
+    },
+  ] as Message['attachedFiles'],
 };
 
 const scrollIntoViewMock = vi.fn();
@@ -132,6 +154,14 @@ describe('TimelineTeamMessage', () => {
     expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent('Handoff content');
     expect(screen.getByTestId('timeline-handoff-duration')).toHaveTextContent('1m 2s');
     expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
+  });
+
+  it('renders file attachment rows in the expanded state', () => {
+    render(<TimelineTeamMessage message={FILE_ATTACHMENT_MESSAGE} chatroomId="room-1" />);
+
+    expect(screen.getByTestId('message-file-attachments')).toBeInTheDocument();
+    expect(screen.getByText('shot.png')).toBeInTheDocument();
+    expect(screen.getByText('1.5 KB · PNG')).toBeInTheDocument();
   });
 
   it('hands inline-code HTML-like handoff markdown to the renderer unchanged', () => {
@@ -667,6 +697,16 @@ Edge case X
       expect(chipsWrapper).not.toBeNull();
       expect(chipsWrapper).toHaveTextContent('Attached task');
       expect(screen.queryByTestId('timeline-message-footer')).not.toBeInTheDocument();
+    });
+
+    it('renders file attachment rows under the bar when collapsed without media', () => {
+      render(
+        <TimelineTeamMessage message={FILE_ATTACHMENT_MESSAGE} chatroomId="room-1" collapsible />
+      );
+
+      expect(screen.getByTestId('message-file-attachments')).toBeInTheDocument();
+      expect(screen.getByText('shot.png')).toBeInTheDocument();
+      expect(screen.queryByAltText('shot.png')).not.toBeInTheDocument();
     });
 
     it('toggles with Enter and Space and keeps focus on the same button', async () => {

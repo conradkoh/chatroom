@@ -7,7 +7,7 @@ import { downloadAttachment } from './downloadAttachment';
 const ORIGINAL_BYTES = new Uint8Array([0, 1, 2, 3, 255]);
 
 describe('downloadAttachment', () => {
-  const createObjectURL = vi.fn(() => 'blob:download');
+  const createObjectURL = vi.fn((_blob: Blob) => 'blob:download');
   const revokeObjectURL = vi.fn();
 
   beforeEach(() => {

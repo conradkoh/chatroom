@@ -3,8 +3,8 @@
 import { getFilePreviewKind } from '@workspace/shared/domain/file-attachment';
 import { AlertTriangle, Download, FileX, Loader2, RotateCw } from 'lucide-react';
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import Markdown from 'react-markdown';
-
 
 import { FileAttachmentRow, type FileRowKind } from './FileAttachmentRow';
 import { chatroomRemarkPlugins } from '../../../components/chatroomRemarkPlugins';
@@ -116,110 +116,187 @@ function ImagePreview({
   );
 }
 
-function TextPreview({
-  url,
-  open,
-  sizeBytes,
+function FileLoadState({
+  status,
+  retry,
   onDownload,
 }: {
-  url: string;
-  open: boolean;
-  sizeBytes: number;
+  status: 'idle' | 'loading' | 'error';
+  retry: () => void;
   onDownload: () => void;
 }) {
-  const state = useFileTextContent(url, open);
-
-  if (state.status !== 'ready') {
-    if (state.status === 'error') {
-      return (
-        <PreviewMessage>
-          <AlertTriangle size={24} className="text-chatroom-status-error" />
-          <span>Couldn&apos;t load this file.</span>
-          <div className="mt-2 flex items-center gap-2">
-            <Button variant="outline" size="xs" onClick={state.retry}>
-              <RotateCw size={12} />
-              Retry
-            </Button>
-            <Button variant="outline" size="xs" onClick={onDownload}>
-              <Download size={12} />
-              Download
-            </Button>
-          </div>
-        </PreviewMessage>
-      );
-    }
-
+  if (status === 'error') {
     return (
       <PreviewMessage>
-        <Loader2 size={24} className="animate-spin" />
-        <span>Loading file…</span>
+        <AlertTriangle size={24} className="text-chatroom-status-error" />
+        <span>Couldn&apos;t load this file.</span>
+        <div className="mt-2 flex items-center gap-2">
+          <Button variant="outline" size="xs" onClick={retry}>
+            <RotateCw size={12} />
+            Retry
+          </Button>
+          <Button variant="outline" size="xs" onClick={onDownload}>
+            <Download size={12} />
+            Download
+          </Button>
+        </div>
       </PreviewMessage>
     );
   }
 
   return (
+    <PreviewMessage>
+      <Loader2 size={24} className="animate-spin" />
+      <span>Loading file…</span>
+    </PreviewMessage>
+  );
+}
+
+interface TextFileBodyProps {
+  url: string;
+  open: boolean;
+  sizeBytes: number;
+  onDownload: () => void;
+}
+
+function TextFileBody({
+  url,
+  open,
+  sizeBytes,
+  onDownload,
+  renderText,
+}: TextFileBodyProps & { renderText: (text: string) => ReactNode }) {
+  const state = useFileTextContent(url, open);
+
+  if (state.status !== 'ready') {
+    return <FileLoadState status={state.status} retry={state.retry} onDownload={onDownload} />;
+  }
+
+  return (
     <>
-      <pre
-        data-testid="file-preview-text"
-        className="m-0 max-h-[70vh] overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-xs text-chatroom-text-primary"
-      >
-        {state.text}
-      </pre>
+      {renderText(state.text)}
       {state.truncated && <TruncationNote sizeBytes={sizeBytes} />}
     </>
   );
 }
 
-function MarkdownPreview({
+function TextPreview(props: TextFileBodyProps) {
+  return (
+    <TextFileBody
+      {...props}
+      renderText={(text) => (
+        <pre
+          data-testid="file-preview-text"
+          className="m-0 max-h-[70vh] overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-xs text-chatroom-text-primary"
+        >
+          {text}
+        </pre>
+      )}
+    />
+  );
+}
+
+function MarkdownPreview(props: TextFileBodyProps) {
+  return (
+    <TextFileBody
+      {...props}
+      renderText={(text) => (
+        <div className={cn('min-w-0 overflow-x-hidden p-4', messageFeedProseClassNames)}>
+          <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
+            {text}
+          </Markdown>
+        </div>
+      )}
+    />
+  );
+}
+
+function GonePreview() {
+  return (
+    <PreviewMessage>
+      <FileX size={24} />
+      <span>{GONE_MESSAGE}</span>
+    </PreviewMessage>
+  );
+}
+
+function UnsupportedPreview() {
+  return (
+    <PreviewMessage>
+      <AlertTriangle size={24} />
+      <span>No preview available for this file type.</span>
+    </PreviewMessage>
+  );
+}
+
+/** Routes a resolved file to its kind-specific body. */
+function AvailablePreview({
+  kind,
   url,
   open,
-  sizeBytes,
+  file,
+  retryKey,
+  onRetry,
   onDownload,
 }: {
+  kind: FileRowKind;
   url: string;
   open: boolean;
-  sizeBytes: number;
+  file: FilePreviewDialogProps['file'];
+  retryKey: number;
+  onRetry: () => void;
   onDownload: () => void;
 }) {
-  const state = useFileTextContent(url, open);
-
-  if (state.status !== 'ready') {
-    if (state.status === 'error') {
-      return (
-        <PreviewMessage>
-          <AlertTriangle size={24} className="text-chatroom-status-error" />
-          <span>Couldn&apos;t load this file.</span>
-          <div className="mt-2 flex items-center gap-2">
-            <Button variant="outline" size="xs" onClick={state.retry}>
-              <RotateCw size={12} />
-              Retry
-            </Button>
-            <Button variant="outline" size="xs" onClick={onDownload}>
-              <Download size={12} />
-              Download
-            </Button>
-          </div>
-        </PreviewMessage>
-      );
-    }
-
+  if (kind === 'image') {
     return (
-      <PreviewMessage>
-        <Loader2 size={24} className="animate-spin" />
-        <span>Loading file…</span>
-      </PreviewMessage>
+      <ImagePreview
+        key={retryKey}
+        url={url}
+        filename={file.filename}
+        onRetry={onRetry}
+        onDownload={onDownload}
+      />
     );
   }
+  if (kind === 'text') {
+    return <TextPreview url={url} open={open} sizeBytes={file.sizeBytes} onDownload={onDownload} />;
+  }
+  if (kind === 'markdown') {
+    return (
+      <MarkdownPreview url={url} open={open} sizeBytes={file.sizeBytes} onDownload={onDownload} />
+    );
+  }
+  return <UnsupportedPreview />;
+}
 
+function PreviewBody({
+  kind,
+  url,
+  open,
+  file,
+  retryKey,
+  onRetry,
+  onDownload,
+}: {
+  kind: FileRowKind;
+  url: string | null;
+  open: boolean;
+  file: FilePreviewDialogProps['file'];
+  retryKey: number;
+  onRetry: () => void;
+  onDownload: () => void;
+}) {
+  if (!url) return <GonePreview />;
   return (
-    <>
-      <div className={cn('min-w-0 overflow-x-hidden p-4', messageFeedProseClassNames)}>
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
-          {state.text}
-        </Markdown>
-      </div>
-      {state.truncated && <TruncationNote sizeBytes={sizeBytes} />}
-    </>
+    <AvailablePreview
+      kind={kind}
+      url={url}
+      open={open}
+      file={file}
+      retryKey={retryKey}
+      onRetry={onRetry}
+      onDownload={onDownload}
+    />
   );
 }
 
@@ -269,39 +346,15 @@ export function FilePreviewDialog({ open, onClose, file, url }: FilePreviewDialo
           </div>
         </FixedModalHeader>
         <FixedModalBody className="p-0">
-          {!url ? (
-            <PreviewMessage>
-              <FileX size={24} />
-              <span>{GONE_MESSAGE}</span>
-            </PreviewMessage>
-          ) : kind === 'image' ? (
-            <ImagePreview
-              key={retryKey}
-              url={url}
-              filename={file.filename}
-              onRetry={retryImage}
-              onDownload={handleDownload}
-            />
-          ) : kind === 'text' ? (
-            <TextPreview
-              url={url}
-              open={open}
-              sizeBytes={file.sizeBytes}
-              onDownload={handleDownload}
-            />
-          ) : kind === 'markdown' ? (
-            <MarkdownPreview
-              url={url}
-              open={open}
-              sizeBytes={file.sizeBytes}
-              onDownload={handleDownload}
-            />
-          ) : (
-            <PreviewMessage>
-              <AlertTriangle size={24} />
-              <span>No preview available for this file type.</span>
-            </PreviewMessage>
-          )}
+          <PreviewBody
+            kind={kind}
+            url={url}
+            open={open}
+            file={file}
+            retryKey={retryKey}
+            onRetry={retryImage}
+            onDownload={handleDownload}
+          />
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

@@ -18,6 +18,19 @@ export type FileTextState =
 type FileTextSnapshot =
   { status: 'idle' | 'loading' | 'error' } | { status: 'ready'; text: string; truncated: boolean };
 
+async function loadTextPreview(url: string, signal: AbortSignal): Promise<FileTextSnapshot> {
+  try {
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const truncated = buf.byteLength > TEXT_PREVIEW_MAX_BYTES;
+    const text = new TextDecoder().decode(buf.slice(0, TEXT_PREVIEW_MAX_BYTES));
+    return { status: 'ready', text, truncated };
+  } catch {
+    return { status: 'error' };
+  }
+}
+
 export function useFileTextContent(url: string | null, enabled: boolean): FileTextState {
   const [retryCount, setRetryCount] = useState(0);
   const [state, setState] = useState<FileTextSnapshot>({ status: 'idle' });
@@ -31,19 +44,9 @@ export function useFileTextContent(url: string | null, enabled: boolean): FileTe
 
     const controller = new AbortController();
     setState({ status: 'loading' });
-
-    void (async () => {
-      try {
-        const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buf = await res.arrayBuffer();
-        const truncated = buf.byteLength > TEXT_PREVIEW_MAX_BYTES;
-        const text = new TextDecoder().decode(buf.slice(0, TEXT_PREVIEW_MAX_BYTES));
-        if (!controller.signal.aborted) setState({ status: 'ready', text, truncated });
-      } catch {
-        if (!controller.signal.aborted) setState({ status: 'error' });
-      }
-    })();
+    void loadTextPreview(url, controller.signal).then((next) => {
+      if (!controller.signal.aborted) setState(next);
+    });
 
     return () => controller.abort();
   }, [url, enabled, retryCount]);
