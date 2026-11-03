@@ -1,3 +1,10 @@
+import {
+  createTaskEnvelope,
+  normalizeTaskEnvelope,
+  withTaskEnvelopeConversationMode,
+  withTaskEnvelopeSessionPolicy,
+  type TaskEnvelopeV1,
+} from '@workspace/shared/domain/task-envelope';
 import { ConvexError, v, type Infer } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -7,6 +14,7 @@ import { internalMutation, mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { omitUndefined } from './lib/omitUndefined';
+import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import {
   computeNextRunAt,
   computeNextRunAtForEnable,
@@ -17,6 +25,8 @@ import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-au
 const MAX_PROMPT_LENGTH = 10_000;
 const MIN_INTERVAL_MINUTES = 1;
 const SCAN_BATCH_SIZE = 10;
+/** Sidebar section bound: only soonest upcoming prompts are exposed. */
+const MAX_UPCOMING = 20;
 
 // ─── Access helper ───
 
@@ -29,6 +39,14 @@ async function requireScheduledPromptAccess(
   if (!row) throw new ConvexError({ code: 'NOT_FOUND', message: 'Scheduled prompt not found' });
   await requireChatroomAccess(ctx, sessionId, row.chatroomId);
   return row;
+}
+
+/**
+ * Rows created before the policy field existed fire as code + new session,
+ * matching the historical behaviour.
+ */
+function effectiveEnvelope(row: Doc<'chatroom_scheduledPrompts'>): TaskEnvelopeV1 {
+  return normalizeTaskEnvelope({ taskEnvelope: row.taskEnvelope, startInNewSession: true });
 }
 
 // ─── Validation helpers ───
@@ -238,6 +256,20 @@ export const list = query({
   },
 });
 
+export const listUpcoming = query({
+  args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms') },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return await ctx.db
+      .query('chatroom_scheduledPrompts')
+      .withIndex('by_chatroom_isRunnable_nextRunAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('isRunnable', true)
+      )
+      .order('asc')
+      .take(MAX_UPCOMING);
+  },
+});
+
 export const get = query({
   args: { ...SessionIdArg, scheduledPromptId: v.id('chatroom_scheduledPrompts') },
   handler: async (ctx, args) => {
@@ -295,11 +327,53 @@ export const create = mutation({
         ...schedule,
         isRunnable: true,
         nextRunAt,
+        taskEnvelope: createTaskEnvelope({ sessionPolicy: 'new' }),
         createdBy: session.userId,
         createdAt: now,
         updatedAt: now,
       })
     );
+  },
+});
+
+/**
+ * Edit the delivery policy of an existing prompt. Field-level merge: an absent
+ * argument keeps the current value. Never touches scheduling state, so it can
+ * neither re-arm a paused row nor un-finish a terminal one.
+ */
+export const updatePolicy = mutation({
+  args: {
+    ...SessionIdArg,
+    scheduledPromptId: v.id('chatroom_scheduledPrompts'),
+    conversationMode: v.optional(taskEnvelopeV1Validator.fields.conversationMode),
+    sessionPolicy: v.optional(taskEnvelopeV1Validator.fields.sessionPolicy),
+  },
+  handler: async (ctx, args) => {
+    const row = await requireScheduledPromptAccess(ctx, args.sessionId, args.scheduledPromptId);
+    if (row.disabledReason === 'archive') {
+      throw new ConvexError({
+        code: 'LIFECYCLE_DISABLED',
+        message: 'Cannot update a prompt disabled by archive',
+      });
+    }
+    assertNotFinished(row);
+    if (args.conversationMode === undefined && args.sessionPolicy === undefined) {
+      throw new ConvexError({
+        code: 'NOTHING_TO_UPDATE',
+        message: 'Provide conversationMode or sessionPolicy',
+      });
+    }
+    let envelope = effectiveEnvelope(row);
+    if (args.conversationMode !== undefined) {
+      envelope = withTaskEnvelopeConversationMode(envelope, args.conversationMode);
+    }
+    if (args.sessionPolicy !== undefined) {
+      envelope = withTaskEnvelopeSessionPolicy(envelope, args.sessionPolicy);
+    }
+    await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
+      taskEnvelope: envelope,
+      updatedAt: Date.now(),
+    });
   },
 });
 
@@ -466,12 +540,14 @@ export const fireOne = internalMutation({
       await disablePrompt(ctx, row, isOnce);
       return;
     }
+    const envelope = effectiveEnvelope(row);
     const result = await sendAutomatedUserMessage(ctx, {
       chatroomId: row.chatroomId,
       content: row.prompt,
       sourcePlatform: 'scheduled',
       scheduledPromptId: row._id,
-      startInNewSession: true,
+      startInNewSession: envelope.sessionPolicy === 'new',
+      taskEnvelope: envelope,
       ...(chatroom.ownerId ? { userId: chatroom.ownerId } : {}),
     });
     if (!result.ok) {
