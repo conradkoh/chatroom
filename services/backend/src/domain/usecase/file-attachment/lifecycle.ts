@@ -5,10 +5,11 @@
  * Status lifecycle implemented here (monotonic):
  *   pending_upload (no blob, not counted, short TTL)
  *     → uploaded (blob present, counted, unattached TTL)
+ *     → attached (blob present, counted, bound to a handoff message)
  *
- * `attached` is written only by handoff binding (a later slice); this module
- * never writes it. Blobs are created only by the upload HTTP action after
- * authorization, never through a client-supplied `storageId` URL.
+ * Blobs are created only by the upload HTTP action after authorization, never
+ * through a client-supplied `storageId` URL. Binding is a status-only change:
+ * `uploaded` and `attached` rows both count toward usage (I3).
  *
  * Invariants:
  * - I1: `storageId` is set iff status is `uploaded` or `attached`.
@@ -19,6 +20,7 @@
 
 import {
   FILE_ATTACHMENT_MAX_BYTES,
+  FILE_ATTACHMENT_MAX_PER_HANDOFF,
   getStoredBlobContentType,
   isValidAttachmentFilename,
   resolveFileAttachmentType,
@@ -342,6 +344,111 @@ function errorResult(
   message: string
 ): AuthorizeUploadFailure {
   return { ok: false, status, code, message };
+}
+
+/** Outcome of pre-write handoff attachment validation. */
+export type ValidateHandoffAttachmentsResult =
+  | { ok: true; rows: Doc<'chatroom_fileAttachments'>[] }
+  | {
+      ok: false;
+      code: 'FILE_ATTACHMENT_LIMIT_EXCEEDED' | 'FILE_ATTACHMENT_INVALID';
+      message: string;
+    };
+
+/**
+ * Validates the uploaded files a handoff intends to bind, without writing.
+ *
+ * This must run before any handoff write so the mutation commits nothing when
+ * an attachment is invalid. Rows come back in the caller-supplied order; the
+ * message stores that order verbatim.
+ */
+// fallow-ignore-next-line complexity
+export async function validateHandoffAttachments(
+  ctx: QueryCtx,
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    senderRole: string;
+    attachmentIds: Id<'chatroom_fileAttachments'>[];
+    now: number;
+  }
+): Promise<ValidateHandoffAttachmentsResult> {
+  if (args.attachmentIds.length > FILE_ATTACHMENT_MAX_PER_HANDOFF) {
+    return invalid(
+      'FILE_ATTACHMENT_LIMIT_EXCEEDED',
+      `At most ${FILE_ATTACHMENT_MAX_PER_HANDOFF} files can be attached to one handoff`
+    );
+  }
+
+  const seen = new Set<string>();
+  for (const attachmentId of args.attachmentIds) {
+    if (seen.has(attachmentId)) {
+      return invalid('FILE_ATTACHMENT_INVALID', `Duplicate attachment id: ${attachmentId}`);
+    }
+    seen.add(attachmentId);
+  }
+
+  const normalizedSenderRole = args.senderRole.toLowerCase();
+  const rows: Doc<'chatroom_fileAttachments'>[] = [];
+  for (const attachmentId of args.attachmentIds) {
+    const row = await ctx.db.get('chatroom_fileAttachments', attachmentId);
+    if (!row) {
+      return invalid('FILE_ATTACHMENT_INVALID', `Attachment not found: ${attachmentId}`);
+    }
+    if (row.chatroomId !== args.chatroomId) {
+      return invalid(
+        'FILE_ATTACHMENT_INVALID',
+        `Attachment ${attachmentId} does not belong to this chatroom`
+      );
+    }
+    if (row.uploadedByRole !== normalizedSenderRole) {
+      return invalid(
+        'FILE_ATTACHMENT_INVALID',
+        `Attachment ${attachmentId} was not uploaded by role "${normalizedSenderRole}"`
+      );
+    }
+    if (row.status !== 'uploaded') {
+      return invalid(
+        'FILE_ATTACHMENT_INVALID',
+        `Attachment ${attachmentId} is not awaiting handoff`
+      );
+    }
+    if (row.expiresAt === undefined || row.expiresAt <= args.now) {
+      return invalid('FILE_ATTACHMENT_INVALID', `Attachment ${attachmentId} has expired`);
+    }
+
+    rows.push(row);
+  }
+
+  return { ok: true, rows };
+}
+
+/**
+ * Binds validated `uploaded` rows to a handoff message.
+ *
+ * Status-only change: `uploaded` → `attached` keeps the same bytes counted, so
+ * usage is untouched (I3). `expiresAt` is cleared because attached rows live
+ * with their message instead of expiring.
+ */
+export async function bindHandoffAttachments(
+  ctx: MutationCtx,
+  args: { rows: Doc<'chatroom_fileAttachments'>[]; messageId: Id<'chatroom_messages'>; now: number }
+): Promise<void> {
+  for (const row of args.rows) {
+    await ctx.db.patch('chatroom_fileAttachments', row._id, {
+      status: 'attached',
+      messageId: args.messageId,
+      attachedAt: args.now,
+      expiresAt: undefined,
+    });
+  }
+}
+
+/** Builds a failed handoff-attachment validation result. */
+function invalid(
+  code: Extract<ValidateHandoffAttachmentsResult, { ok: false }>['code'],
+  message: string
+): ValidateHandoffAttachmentsResult {
+  return { ok: false, code, message };
 }
 
 /**

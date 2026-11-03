@@ -688,3 +688,105 @@ describe('expireStaleUploads', () => {
     await assertUsageInvariant(user.userId);
   });
 });
+
+// ─── Handoff binding (S3) ───────────────────────────────────────────────────
+
+/** Uploads one file through the real HTTP action and returns its row id. */
+async function uploadFile(
+  user: TestUser,
+  options: { filename?: string; sizeBytes?: number; senderRole?: string } = {}
+): Promise<Id<'chatroom_fileAttachments'>> {
+  const sizeBytes = options.sizeBytes ?? 5;
+  const ticket = await beginUpload(user, { ...options, sizeBytes });
+  const response = await postUpload(user, ticket.attachmentId, {
+    body: new TextEncoder().encode('x'.repeat(sizeBytes)),
+  });
+  expect(response.status).toBe(200);
+  return ticket.attachmentId;
+}
+
+describe('handoff binding to user', () => {
+  test('binds two uploaded files in the requested order and exposes attachedFiles', async () => {
+    const user = await setupUser('handoff-bind');
+    const first = await uploadFile(user, { filename: 'notes.txt' });
+    const second = await uploadFile(user, { filename: 'report.pdf' });
+    const usageBefore = await getUsage(user.userId, undefined);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Here are the files.',
+      targetRole: 'user',
+      attachedFileIds: [second, first],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.error).toBeNull();
+    expect(result.messageId).toBeTruthy();
+
+    const message = await t.run(async (ctx) => ctx.db.get('chatroom_messages', result.messageId!));
+    expect(message?.attachedFileIds).toEqual([second, first]);
+
+    const firstRow = await getRow(first);
+    const secondRow = await getRow(second);
+    expect(firstRow?.status).toBe('attached');
+    expect(secondRow?.status).toBe('attached');
+    expect(firstRow?.messageId).toBe(result.messageId);
+    expect(secondRow?.messageId).toBe(result.messageId);
+    expect(firstRow?.attachedAt).toBeDefined();
+    expect(firstRow?.expiresAt).toBeUndefined();
+
+    // Binding is status-only: the counted bytes are unchanged.
+    const usageAfter = await getUsage(user.userId, undefined);
+    expect(usageAfter?.bytes).toBe(usageBefore?.bytes);
+    expect(usageAfter?.fileCount).toBe(usageBefore?.fileCount);
+
+    // A plain message inserted beside the handoff keeps the old read shape.
+    const plainMessageId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_messages', {
+        chatroomId: user.chatroomId,
+        senderRole: 'user',
+        content: 'No files here.',
+        type: 'message',
+      })
+    );
+
+    const feed = await t.query(api.messageList.getLatestMessages, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      limit: 20,
+    });
+    const enriched = feed.messages.find((entry) => entry._id === result.messageId);
+    expect(enriched?.attachedFiles).toEqual([
+      {
+        _id: second,
+        status: 'available',
+        filename: 'report.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 5,
+      },
+      {
+        _id: first,
+        status: 'available',
+        filename: 'notes.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 5,
+      },
+    ]);
+    expect(Object.keys(enriched!.attachedFiles![0]!).sort()).toEqual([
+      '_id',
+      'filename',
+      'mimeType',
+      'sizeBytes',
+      'status',
+    ]);
+    expect(enriched!.attachedFiles![0]).not.toHaveProperty('url');
+
+    const plain = feed.messages.find((entry) => entry._id === plainMessageId);
+    expect(plain).toBeDefined();
+    expect(plain).not.toHaveProperty('attachedFiles');
+
+    await assertUsageInvariant(user.userId);
+  });
+});

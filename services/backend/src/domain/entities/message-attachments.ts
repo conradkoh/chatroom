@@ -12,6 +12,7 @@ export type MessageAttachmentField =
   | 'attachedMessageIds'
   | 'attachedSnippets'
   | 'attachedArtifactIds'
+  | 'attachedFileIds'
   | 'attachedTaskIds';
 
 /** Resolved attachment payloads passed to renderers. */
@@ -75,8 +76,10 @@ export const DELIVERY_ATTACHMENT_FIELD_MAP = {
   attachedMessageIds: 'message',
   attachedSnippets: 'snippet',
   attachedArtifactIds: 'artifact', // reserved — no renderer yet
+  // reserved — user-facing files only (agent → user handoffs); no agent delivery renderer
+  attachedFileIds: 'file',
   attachedTaskIds: 'task',
-} as const satisfies Record<MessageAttachmentField, MessageAttachmentKind | 'artifact'>;
+} as const satisfies Record<MessageAttachmentField, MessageAttachmentKind | 'artifact' | 'file'>;
 
 export interface DeliveryAttachmentRenderContext {
   chatroomId: string;
