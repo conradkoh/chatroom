@@ -171,6 +171,8 @@ export type BackendErrorCode =
   | 'EMPTY_PROMPT'
   | 'INVALID_SCHEDULE'
   | 'LIFECYCLE_DISABLED'
+  | 'NOTHING_TO_UPDATE'
+  | 'SCHEDULE_FINISHED'
   | 'TITLE_REQUIRED'
   | 'TITLE_TOO_LONG'
 
@@ -446,6 +448,10 @@ export const BACKEND_ERROR_CODES = {
   INVALID_SCHEDULE: 'INVALID_SCHEDULE',
   /** The item was disabled by a lifecycle event (for example archive) and cannot be changed */
   LIFECYCLE_DISABLED: 'LIFECYCLE_DISABLED',
+  /** A field-level update was called without any fields to change */
+  NOTHING_TO_UPDATE: 'NOTHING_TO_UPDATE',
+  /** A one-time scheduled prompt already ran (completed or failed) and is terminal history */
+  SCHEDULE_FINISHED: 'SCHEDULE_FINISHED',
   /** A title is required */
   TITLE_REQUIRED: 'TITLE_REQUIRED',
   /** The title exceeds the maximum length */
@@ -629,6 +635,8 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.EMPTY_PROMPT,
   BACKEND_ERROR_CODES.INVALID_SCHEDULE,
   BACKEND_ERROR_CODES.LIFECYCLE_DISABLED,
+  BACKEND_ERROR_CODES.NOTHING_TO_UPDATE,
+  BACKEND_ERROR_CODES.SCHEDULE_FINISHED,
   BACKEND_ERROR_CODES.TITLE_REQUIRED,
   BACKEND_ERROR_CODES.TITLE_TOO_LONG,
 

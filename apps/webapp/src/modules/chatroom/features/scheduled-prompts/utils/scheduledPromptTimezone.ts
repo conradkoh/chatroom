@@ -44,6 +44,34 @@ export function formatTimestampLocal(ts: number): string {
   return `${h}:${m}`;
 }
 
+/**
+ * Parse an `<input type="datetime-local">` value ("YYYY-MM-DDTHH:mm" or
+ * "YYYY-MM-DDTHH:mm:ss") in browser local time. `undefined` if empty or invalid.
+ *
+ * datetime-local has no timezone, so the components are passed to the local
+ * `Date` constructor rather than parsed as a UTC string.
+ */
+export function localDateTimeInputToUtcMs(value: string): number | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (!m) return undefined;
+  const ms = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] ?? 0), 0).getTime();
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+/**
+ * Epoch ms -> `datetime-local` value in browser local time, minute precision
+ * ("YYYY-MM-DDTHH:mm"). Every local component is padded to 2 digits (year to 4).
+ */
+export function utcMsToLocalDateTimeInput(ms: number): string {
+  const d = new Date(ms);
+  const year = String(d.getFullYear()).padStart(4, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hour = String(d.getHours()).padStart(2, '0');
+  const minute = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
 /** Format daily schedule in browser local time. No TZ suffix — assumed local. */
 export function formatDailyScheduleLocal(hourUTC: number, minuteUTC: number): string {
   const { hour, minute } = utcDailyTimeToLocal(hourUTC, minuteUTC);

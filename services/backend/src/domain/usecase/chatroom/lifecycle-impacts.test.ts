@@ -151,4 +151,83 @@ describe('lifecycle impacts', () => {
     expect(userDisabled!.disabledReason).toBe('user');
     expect(userDisabled!.isRunnable).toBe(false);
   });
+
+  test('one-time rows count as active only while pending', async () => {
+    const { sessionId, userId } = await createTestSession('li-once-lifecycle');
+    const chatroomId = await createChatroom(sessionId);
+
+    const now = Date.now();
+    const runAt = Date.UTC(2030, 0, 1, 9, 0);
+    await t.run(async (ctx: any) => {
+      await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'pending once',
+        scheduleKind: 'once',
+        runAt,
+        disabledReason: undefined,
+        isRunnable: true,
+        nextRunAt: runAt,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'completed once',
+        scheduleKind: 'once',
+        runAt,
+        disabledReason: 'completed',
+        isRunnable: false,
+        lastRunAt: now - 1_000,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'failed once',
+        scheduleKind: 'once',
+        runAt,
+        disabledReason: 'failed',
+        isRunnable: false,
+        lastRunAt: now - 1_000,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const impacts = await t.query(api.chatrooms.getLifecycleImpacts, {
+      sessionId,
+      chatroomId,
+      action: 'archive',
+    });
+    expect(impacts.impacts).toEqual([{ kind: 'scheduled_prompt', count: 1 }]);
+
+    // Archive through the public mutation so the lifecycle wiring is covered.
+    await t.mutation(api.chatrooms.archive, {
+      sessionId,
+      chatroomId,
+    });
+
+    const prompts: Doc<'chatroom_scheduledPrompts'>[] = await t.run(async (ctx: any) => {
+      return await ctx.db
+        .query('chatroom_scheduledPrompts')
+        .withIndex('by_chatroom', (q: any) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+
+    const pending = prompts.find((p) => p.prompt === 'pending once');
+    expect(pending).toBeDefined();
+    expect(pending!.disabledReason).toBe('archive');
+    expect(pending!.isRunnable).toBe(false);
+
+    const completed = prompts.find((p) => p.prompt === 'completed once');
+    expect(completed).toBeDefined();
+    expect(completed!.disabledReason).toBe('completed');
+
+    const failed = prompts.find((p) => p.prompt === 'failed once');
+    expect(failed).toBeDefined();
+    expect(failed!.disabledReason).toBe('failed');
+  });
 });

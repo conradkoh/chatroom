@@ -7,7 +7,12 @@ import { Clock, Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
-import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
+import {
+  formatSchedule,
+  formatScheduledPromptStatus,
+  formatTime,
+  getScheduledPromptStatus,
+} from '../utils/scheduledPromptFormat';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -37,7 +42,8 @@ export function ScheduledPromptDetailDialog({
   const setEnabled = useSessionMutation(api.scheduledPrompts.setEnabled);
   const [disabling, setDisabling] = useState(false);
 
-  const isActive = prompt?.disabledReason === undefined;
+  const status = prompt !== undefined ? getScheduledPromptStatus(prompt) : undefined;
+  const isActive = status === 'active';
   const canDisable = prompt !== undefined && isActive;
 
   const handleClose = useCallback(() => onOpenChange(false), [onOpenChange]);
@@ -58,12 +64,7 @@ export function ScheduledPromptDetailDialog({
     prompt?.name ||
     (prompt?.prompt ? prompt.prompt.slice(0, 60) + (prompt.prompt.length > 60 ? '...' : '') : '');
 
-  const statusLabel =
-    prompt?.disabledReason === 'archive'
-      ? 'Disabled by archive'
-      : prompt?.disabledReason === 'user'
-        ? 'Disabled'
-        : 'Active';
+  const statusLabel = status !== undefined ? formatScheduledPromptStatus(status) : '';
 
   return (
     <FixedModal isOpen={open} onClose={handleClose} maxWidth="max-w-lg">
