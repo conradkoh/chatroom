@@ -28,8 +28,9 @@ import {
 } from '@workspace/shared/domain/file-attachment';
 import { ConvexError } from 'convex/values';
 
-import { applyFileUsageDelta, resolveFileQuotas } from './accounting';
+import { applyFileUsageDelta, getFileUsage, resolveFileQuotas } from './accounting';
 import type { BackendErrorCode } from '../../../../config/errorCodes';
+import { internal } from '../../../../convex/_generated/api';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { getChatroomAccess } from '../../../../convex/auth/chatroomAccess';
@@ -441,6 +442,39 @@ export async function bindHandoffAttachments(
       expiresAt: undefined,
     });
   }
+
+  const first = args.rows[0];
+  if (!first) return;
+  await scheduleQuotaEnforcementIfExceeded(ctx, {
+    userId: first.ownerUserId,
+    chatroomId: first.chatroomId,
+  });
+}
+
+/**
+ * Schedules oldest-first eviction when binding left either scope over quota.
+ *
+ * Binding itself never changes usage (I3), but a quota may have been lowered
+ * between upload and bind, so the check runs after every bind batch. Eviction
+ * is deferred to a bounded, self-rescheduling internal mutation.
+ */
+async function scheduleQuotaEnforcementIfExceeded(
+  ctx: MutationCtx,
+  args: { userId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> }
+): Promise<void> {
+  const quotas = await resolveFileQuotas(ctx, args);
+  const chatroomUsage = await getFileUsage(ctx, {
+    userId: args.userId,
+    chatroomId: args.chatroomId,
+  });
+  const userUsage = await getFileUsage(ctx, { userId: args.userId });
+
+  if (
+    chatroomUsage.bytes > quotas.effectiveChatroomQuotaBytes ||
+    userUsage.bytes > quotas.userQuotaBytes
+  ) {
+    await ctx.scheduler.runAfter(0, internal.fileAttachments.enforceQuota, args);
+  }
 }
 
 /** Builds a failed handoff-attachment validation result. */
@@ -454,30 +488,30 @@ function invalid(
 /**
  * Golden-path deletion for one attachment: row, blob (when present), then the
  * usage decrement for counted statuses.
+ *
+ * Delegates to the batch path so there is exactly one deletion implementation.
  */
-// fallow-ignore-next-line unused-export
 export async function deleteFileAttachment(
   ctx: MutationCtx,
   row: Doc<'chatroom_fileAttachments'>
-): Promise<void> {
-  await deleteRowAndBlob(ctx, row);
-  if (row.status === 'uploaded' || row.status === 'attached') {
-    await applyFileUsageDelta(ctx, {
-      userId: row.ownerUserId,
-      deltas: [{ chatroomId: row.chatroomId, bytes: -row.sizeBytes, files: -1 }],
-    });
-  }
+): Promise<number> {
+  return await deleteFileAttachments(ctx, [row]);
 }
 
 /**
  * Deletes many attachments while aggregating usage into one delta call per
  * owner. Each row still runs the same row+blob steps as the single-row path.
+ *
+ * Rows must be live documents (callers load or select them first); the batch is
+ * bounded by the caller's `take`, so a transaction never exceeds Convex limits.
+ *
+ * @returns the number of rows deleted.
  */
 export async function deleteFileAttachments(
   ctx: MutationCtx,
   rows: Doc<'chatroom_fileAttachments'>[]
-): Promise<void> {
-  if (rows.length === 0) return;
+): Promise<number> {
+  if (rows.length === 0) return 0;
 
   const deltasByOwner = collectUsageDeltas(rows);
   for (const row of rows) {
@@ -490,6 +524,8 @@ export async function deleteFileAttachments(
       deltas: [...perChatroom].map(([chatroomId, delta]) => ({ chatroomId, ...delta })),
     });
   }
+
+  return rows.length;
 }
 
 /**

@@ -22,15 +22,22 @@ import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import {
   FILE_EXPIRY_BATCH_SIZE,
+  FILE_LIST_PAGE_MAX,
   PENDING_UPLOAD_TTL_MS,
   UPLOADED_UNATTACHED_TTL_MS,
 } from '../src/domain/entities/file-attachment';
-import { createDuoTeamChatroom, createTestSession } from '../tests/helpers/integration';
+import {
+  assertUsageInvariant,
+  createCliSession,
+  getFileUsageRow as getUsage,
+  seedAttachedRows,
+  setupFileUser as setupUser,
+  type FileTestUser as TestUser,
+} from '../tests/helpers/fileAttachmentUsage';
+import { createDuoTeamChatroom } from '../tests/helpers/integration';
 
 const SITE_URL = 'https://test.site';
 const ATTACHMENT_HEADER = 'X-Chatroom-Attachment-Id';
-
-let sequence = 0;
 
 beforeEach(() => {
   vi.stubEnv('CONVEX_SITE_URL', SITE_URL);
@@ -43,36 +50,20 @@ afterEach(() => {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-interface TestUser {
-  sessionId: string;
-  userId: Id<'users'>;
-  chatroomId: Id<'chatroom_rooms'>;
-}
-
-async function setupUser(label: string): Promise<TestUser> {
-  const rawSessionId = `file-attachments-${label}-${++sequence}`;
-  const { sessionId } = await createTestSession(rawSessionId);
-  const chatroomId = await createDuoTeamChatroom(sessionId);
-  const userId = await t.run(async (ctx) => {
-    const session = await ctx.db
-      .query('sessions')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
-      .unique();
-    if (!session?.userId) throw new Error('missing session user');
-    return session.userId;
-  });
-  return { sessionId: sessionId as unknown as string, userId, chatroomId };
-}
-
 async function beginUpload(
   user: TestUser,
-  options: { filename?: string; sizeBytes?: number; senderRole?: string } = {}
+  options: {
+    filename?: string;
+    sizeBytes?: number;
+    senderRole?: string;
+    chatroomId?: Id<'chatroom_rooms'>;
+  } = {}
 ) {
   const filename = options.filename ?? 'notes.txt';
   const sizeBytes = options.sizeBytes ?? new TextEncoder().encode('hello').byteLength;
   return await t.mutation(api.fileAttachments.beginUpload, {
     sessionId: user.sessionId,
-    chatroomId: user.chatroomId,
+    chatroomId: options.chatroomId ?? user.chatroomId,
     senderRole: options.senderRole ?? 'planner',
     filename,
     sizeBytes,
@@ -138,15 +129,6 @@ async function getStorageDoc(storageId: Id<'_storage'>) {
   return await t.run(async (ctx) => ctx.db.system.get('_storage', storageId));
 }
 
-async function getUsage(userId: Id<'users'>, chatroomId: Id<'chatroom_rooms'> | undefined) {
-  return await t.run(async (ctx) =>
-    ctx.db
-      .query('chatroom_fileStorageUsage')
-      .withIndex('by_userId_chatroomId', (q) => q.eq('userId', userId).eq('chatroomId', chatroomId))
-      .unique()
-  );
-}
-
 async function setChatroomQuota(user: TestUser, quotaBytes: number): Promise<void> {
   await t.run(async (ctx) => {
     await ctx.db.insert('chatroom_fileStorageSettings', {
@@ -168,67 +150,9 @@ async function patchStatus(
 }
 
 /**
- * Invariant I3: for each scope, the usage counter equals the Σ sizeBytes and
- * count of that scope's `uploaded` + `attached` rows.
+ * Invariant I3 is asserted through the shared helper (see
+ * tests/helpers/fileAttachmentUsage.ts).
  */
-async function assertUsageInvariant(userId: Id<'users'>): Promise<void> {
-  const state = await t.run(async (ctx) => {
-    const counted = [
-      ...(await ctx.db
-        .query('chatroom_fileAttachments')
-        .withIndex('by_owner_status_attachedAt', (q) =>
-          q.eq('ownerUserId', userId).eq('status', 'uploaded')
-        )
-        .collect()),
-      ...(await ctx.db
-        .query('chatroom_fileAttachments')
-        .withIndex('by_owner_status_attachedAt', (q) =>
-          q.eq('ownerUserId', userId).eq('status', 'attached')
-        )
-        .collect()),
-    ];
-
-    const expectedByChatroom = new Map<string, { bytes: number; files: number }>();
-    let totalBytes = 0;
-    let totalFiles = 0;
-    for (const row of counted) {
-      totalBytes += row.sizeBytes;
-      totalFiles += 1;
-      const existing = expectedByChatroom.get(row.chatroomId) ?? { bytes: 0, files: 0 };
-      existing.bytes += row.sizeBytes;
-      existing.files += 1;
-      expectedByChatroom.set(row.chatroomId, existing);
-    }
-
-    const usageRows = await ctx.db
-      .query('chatroom_fileStorageUsage')
-      .withIndex('by_userId_chatroomId', (q) => q.eq('userId', userId))
-      .collect();
-
-    return {
-      expectedByChatroom: [...expectedByChatroom].map(([chatroomId, expected]) => ({
-        chatroomId,
-        ...expected,
-      })),
-      totalBytes,
-      totalFiles,
-      usageRows,
-    };
-  });
-
-  const totalRow = state.usageRows.find((row) => row.chatroomId === undefined);
-  expect(totalRow?.bytes ?? 0).toBe(state.totalBytes);
-  expect(totalRow?.fileCount ?? 0).toBe(state.totalFiles);
-
-  for (const usage of state.usageRows) {
-    if (usage.chatroomId === undefined) continue;
-    const expected = state.expectedByChatroom.find(
-      (entry) => entry.chatroomId === usage.chatroomId
-    ) ?? { bytes: 0, files: 0 };
-    expect(usage.bytes).toBe(expected.bytes);
-    expect(usage.fileCount).toBe(expected.files);
-  }
-}
 
 async function expectConvexErrorCode(promise: Promise<unknown>, code: string): Promise<void> {
   const error = await promise.then(
@@ -695,7 +619,12 @@ describe('expireStaleUploads', () => {
 /** Uploads one file through the real HTTP action and returns its row id. */
 async function uploadFile(
   user: TestUser,
-  options: { filename?: string; sizeBytes?: number; senderRole?: string } = {}
+  options: {
+    filename?: string;
+    sizeBytes?: number;
+    senderRole?: string;
+    chatroomId?: Id<'chatroom_rooms'>;
+  } = {}
 ): Promise<Id<'chatroom_fileAttachments'>> {
   const sizeBytes = options.sizeBytes ?? 5;
   const ticket = await beginUpload(user, { ...options, sizeBytes });
@@ -1109,5 +1038,495 @@ describe('handoff replay cleanup', () => {
     expect(terminalHandoffs[0]!._id).toBe(messageId);
 
     await assertUsageInvariant(user.userId);
+  });
+});
+
+// ─── Access and management (S5) ─────────────────────────────────────────────
+
+const MiB = 1024 * 1024;
+
+/** Binds files to a fresh user-addressed handoff in the given chatroom. */
+async function bindFiles(
+  user: TestUser,
+  attachmentIds: Id<'chatroom_fileAttachments'>[],
+  label = 'Files attached',
+  chatroomId: Id<'chatroom_rooms'> = user.chatroomId
+): Promise<Id<'chatroom_messages'>> {
+  await seedPlannerWork(chatroomId, label);
+  const result = await t.mutation(api.messages.handoff, {
+    sessionId: user.sessionId,
+    chatroomId,
+    senderRole: 'planner',
+    content: label,
+    targetRole: 'user',
+    attachedFileIds: attachmentIds,
+  });
+  expect(result.success).toBe(true);
+  return result.messageId!;
+}
+
+async function countAttachedRows(chatroomId: Id<'chatroom_rooms'>): Promise<number> {
+  return await t.run(async (ctx) => {
+    const rows = await ctx.db
+      .query('chatroom_fileAttachments')
+      .withIndex('by_chatroom_status_attachedAt', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', 'attached')
+      )
+      .collect();
+    return rows.length;
+  });
+}
+
+describe('getFileUrls (scenario 8)', () => {
+  test('returns a storage URL to the owner web session', async () => {
+    const user = await setupUser('urls-owner');
+    const attachmentId = await uploadFile(user);
+    await bindFiles(user, [attachmentId]);
+
+    const urls = await t.query(api.fileAttachments.getFileUrls, {
+      sessionId: user.sessionId,
+      attachmentIds: [attachmentId],
+    });
+
+    expect(urls).toHaveLength(1);
+    expect(urls[0]!.attachmentId).toBe(attachmentId);
+    expect(urls[0]!.url).toMatch(/\/api\/storage\//);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects a CLI session with WEB_SESSION_REQUIRED', async () => {
+    const user = await setupUser('urls-cli');
+    const attachmentId = await uploadFile(user);
+    await bindFiles(user, [attachmentId]);
+    const cliSessionId = await createCliSession(user);
+
+    await expectConvexErrorCode(
+      t.query(api.fileAttachments.getFileUrls, {
+        sessionId: cliSessionId,
+        attachmentIds: [attachmentId],
+      }),
+      'WEB_SESSION_REQUIRED'
+    );
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test("rejects another user's file with ACCESS_DENIED", async () => {
+    const owner = await setupUser('urls-owner-denied');
+    const other = await setupUser('urls-other-denied');
+    const attachmentId = await uploadFile(owner);
+    await bindFiles(owner, [attachmentId]);
+
+    await expectConvexErrorCode(
+      t.query(api.fileAttachments.getFileUrls, {
+        sessionId: other.sessionId,
+        attachmentIds: [attachmentId],
+      }),
+      'ACCESS_DENIED'
+    );
+
+    await assertUsageInvariant(owner.userId);
+    await assertUsageInvariant(other.userId);
+  });
+
+  test('returns null for a deleted row and for an uploaded (not attached) row', async () => {
+    const user = await setupUser('urls-null');
+    const deletedAttachmentId = await uploadFile(user);
+    await bindFiles(user, [deletedAttachmentId]);
+    await t.mutation(api.fileAttachments.deleteFile, {
+      sessionId: user.sessionId,
+      attachmentId: deletedAttachmentId,
+    });
+
+    const uploadedAttachmentId = await uploadFile(user);
+
+    const urls = await t.query(api.fileAttachments.getFileUrls, {
+      sessionId: user.sessionId,
+      attachmentIds: [deletedAttachmentId, uploadedAttachmentId],
+    });
+
+    expect(urls).toEqual([
+      { attachmentId: deletedAttachmentId, url: null },
+      { attachmentId: uploadedAttachmentId, url: null },
+    ]);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects more than ten ids', async () => {
+    const user = await setupUser('urls-too-many');
+    const ids = await t.run(async (ctx) =>
+      Promise.all(
+        Array.from({ length: 11 }, () =>
+          ctx.db.insert('chatroom_fileAttachments', {
+            chatroomId: user.chatroomId,
+            ownerUserId: user.userId,
+            uploadedByRole: 'planner',
+            filename: 'bulk.txt',
+            mimeType: 'text/plain',
+            sizeBytes: 1,
+            status: 'pending_upload' as const,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + PENDING_UPLOAD_TTL_MS,
+          })
+        )
+      )
+    );
+
+    await expectConvexErrorCode(
+      t.query(api.fileAttachments.getFileUrls, {
+        sessionId: user.sessionId,
+        attachmentIds: ids,
+      }),
+      'VALIDATION_ERROR'
+    );
+  });
+});
+
+describe('deleteFile (scenario 9)', () => {
+  test('deletes the row, blob and usage, and the message reads the file as removed', async () => {
+    const user = await setupUser('delete-file');
+    const attachmentId = await uploadFile(user);
+    const messageId = await bindFiles(user, [attachmentId]);
+    const storageBefore = await countStorage();
+    expect((await getUsage(user.userId, user.chatroomId))?.bytes).toBe(5);
+
+    const result = await t.mutation(api.fileAttachments.deleteFile, {
+      sessionId: user.sessionId,
+      attachmentId,
+    });
+
+    expect(result).toEqual({ deleted: true });
+    expect(await getRow(attachmentId)).toBeNull();
+    expect(await countStorage()).toBe(storageBefore - 1);
+    expect((await getUsage(user.userId, user.chatroomId))?.bytes).toBe(0);
+
+    const feed = await t.query(api.messageList.getLatestMessages, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      limit: 20,
+    });
+    const enriched = feed.messages.find((message) => message._id === messageId);
+    expect(enriched?.attachedFiles).toEqual([{ _id: attachmentId, status: 'removed' }]);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('a second delete returns deleted:false', async () => {
+    const user = await setupUser('delete-twice');
+    const attachmentId = await uploadFile(user);
+    await bindFiles(user, [attachmentId]);
+
+    const first = await t.mutation(api.fileAttachments.deleteFile, {
+      sessionId: user.sessionId,
+      attachmentId,
+    });
+    const second = await t.mutation(api.fileAttachments.deleteFile, {
+      sessionId: user.sessionId,
+      attachmentId,
+    });
+
+    expect(first).toEqual({ deleted: true });
+    expect(second).toEqual({ deleted: false });
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects a CLI session', async () => {
+    const user = await setupUser('delete-cli');
+    const attachmentId = await uploadFile(user);
+    const cliSessionId = await createCliSession(user);
+
+    await expectConvexErrorCode(
+      t.mutation(api.fileAttachments.deleteFile, {
+        sessionId: cliSessionId,
+        attachmentId,
+      }),
+      'WEB_SESSION_REQUIRED'
+    );
+
+    expect((await getRow(attachmentId))?.status).toBe('uploaded');
+    await assertUsageInvariant(user.userId);
+  });
+});
+
+describe('purgeFiles (scenario 10)', () => {
+  test('chatroom purge with minSizeBytes deletes only the large files', async () => {
+    const user = await setupUser('purge-chatroom');
+    const small = await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 2,
+      sizeBytes: 10,
+      filenamePrefix: 'small',
+    });
+    const large = await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 2,
+      sizeBytes: MiB,
+      filenamePrefix: 'large',
+    });
+
+    const result = await t.mutation(api.fileAttachments.purgeFiles, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      minSizeBytes: MiB,
+    });
+
+    expect(result).toEqual({ deleted: 2, continuing: false });
+    for (const id of large) expect(await getRow(id)).toBeNull();
+    for (const id of small) expect((await getRow(id))?.status).toBe('attached');
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('user purge covers every chatroom of the user', async () => {
+    const user = await setupUser('purge-user');
+    const secondChatroomId = await createDuoTeamChatroom(user.sessionId);
+    await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 2,
+      sizeBytes: 4,
+      filenamePrefix: 'first-room',
+    });
+    await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: secondChatroomId,
+      count: 2,
+      sizeBytes: 4,
+      filenamePrefix: 'second-room',
+    });
+
+    const result = await t.mutation(api.fileAttachments.purgeFiles, {
+      sessionId: user.sessionId,
+    });
+
+    expect(result).toEqual({ deleted: 4, continuing: false });
+    expect(await countAttachedRows(user.chatroomId)).toBe(0);
+    expect(await countAttachedRows(secondChatroomId)).toBe(0);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('purges 150 files through the continuation', async () => {
+    vi.useFakeTimers();
+    const user = await setupUser('purge-continuation');
+    await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 150,
+      sizeBytes: 1,
+    });
+
+    const first = await t.mutation(api.fileAttachments.purgeFiles, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+    });
+    expect(first).toEqual({ deleted: 100, continuing: true });
+
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+    expect(await countAttachedRows(user.chatroomId)).toBe(0);
+    await assertUsageInvariant(user.userId);
+  });
+});
+
+describe('quota eviction (scenario 11)', () => {
+  test('evicts the oldest attached file when the chatroom quota is lowered', async () => {
+    vi.useFakeTimers();
+    const base = 1_800_300_000_000;
+    const user = await setupUser('evict-chatroom');
+
+    const ids: Id<'chatroom_fileAttachments'>[] = [];
+    for (let i = 0; i < 4; i++) {
+      vi.setSystemTime(base + i * 1000);
+      ids.push(await uploadFile(user, { sizeBytes: MiB, filename: `file-${i}.txt` }));
+    }
+    for (let i = 0; i < ids.length; i++) {
+      vi.setSystemTime(base + 10_000 + i * 1000);
+      await bindFiles(user, [ids[i]!], `Attach file ${i}`);
+    }
+
+    vi.setSystemTime(base + 20_000);
+    const result = await t.mutation(api.fileStorageSettings.setChatroomFileStorageQuota, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      quotaBytes: 3 * MiB,
+    });
+    expect(result.evictionScheduled).toBe(true);
+
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+    expect(await getRow(ids[0]!)).toBeNull();
+    for (const id of ids.slice(1)) {
+      expect((await getRow(id))?.status).toBe('attached');
+    }
+    expect((await getUsage(user.userId, user.chatroomId))?.bytes).toBe(3 * MiB);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('evicts the oldest attached file across chatrooms when the user quota is lowered', async () => {
+    vi.useFakeTimers();
+    const base = 1_800_500_000_000;
+    const user = await setupUser('evict-user');
+    const secondChatroomId = await createDuoTeamChatroom(user.sessionId);
+
+    vi.setSystemTime(base);
+    const older = await uploadFile(user, {
+      sizeBytes: MiB,
+      filename: 'older.txt',
+      chatroomId: user.chatroomId,
+    });
+    vi.setSystemTime(base + 1000);
+    const newer = await uploadFile(user, {
+      sizeBytes: MiB,
+      filename: 'newer.txt',
+      chatroomId: secondChatroomId,
+    });
+
+    vi.setSystemTime(base + 2000);
+    await bindFiles(user, [older], 'older', user.chatroomId);
+    vi.setSystemTime(base + 3000);
+    await bindFiles(user, [newer], 'newer', secondChatroomId);
+
+    const result = await t.mutation(api.fileStorageSettings.setUserFileStorageQuota, {
+      sessionId: user.sessionId,
+      quotaBytes: MiB,
+    });
+    expect(result.evictionScheduled).toBe(true);
+
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+    expect(await getRow(older)).toBeNull();
+    expect((await getRow(newer))?.status).toBe('attached');
+    expect((await getUsage(user.userId, undefined))?.bytes).toBe(MiB);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('never evicts in-flight uploaded rows and triggers eviction on bind', async () => {
+    vi.useFakeTimers();
+    const base = 1_800_700_000_000;
+    vi.setSystemTime(base);
+    const user = await setupUser('evict-uploaded');
+
+    const inFlightA = await uploadFile(user, { sizeBytes: MiB, filename: 'a.txt' });
+    const inFlightB = await uploadFile(user, { sizeBytes: MiB, filename: 'b.txt' });
+    const toBind = await uploadFile(user, { sizeBytes: MiB, filename: 'c.txt' });
+
+    // Lower the quota directly so no setter schedules eviction; only the
+    // bind-time trigger can enforce it.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_fileStorageSettings', {
+        chatroomId: user.chatroomId,
+        quotaBytes: MiB,
+        updatedBy: user.userId,
+        updatedAt: Date.now(),
+      });
+    });
+
+    vi.setSystemTime(base + 1000);
+    await bindFiles(user, [toBind], 'bind over quota');
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+    expect(await getRow(toBind)).toBeNull();
+    expect((await getRow(inFlightA))?.status).toBe('uploaded');
+    expect((await getRow(inFlightB))?.status).toBe('uploaded');
+    expect((await getUsage(user.userId, user.chatroomId))?.bytes).toBe(2 * MiB);
+
+    await assertUsageInvariant(user.userId);
+  });
+});
+
+describe('listFiles', () => {
+  test('lists owner attached files largest-first and oldest-first', async () => {
+    vi.useFakeTimers();
+    const base = 1_800_900_000_000;
+    vi.setSystemTime(base);
+    const user = await setupUser('list-files');
+
+    const small = await uploadFile(user, { sizeBytes: 1, filename: 'small.txt' });
+    const large = await uploadFile(user, { sizeBytes: 3, filename: 'large.txt' });
+    const medium = await uploadFile(user, { sizeBytes: 2, filename: 'medium.txt' });
+
+    vi.setSystemTime(base + 1000);
+    await bindFiles(user, [small], 'small');
+    vi.setSystemTime(base + 2000);
+    await bindFiles(user, [large], 'large');
+    vi.setSystemTime(base + 3000);
+    await bindFiles(user, [medium], 'medium');
+
+    const largest = await t.query(api.fileAttachments.listFiles, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      sort: 'largest',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(largest.page.map((row) => row._id)).toEqual([large, medium, small]);
+    expect(largest.page.map((row) => row.sizeBytes)).toEqual([3, 2, 1]);
+    expect(largest.page[0]!.filename).toBe('large.txt');
+    expect(largest.page[0]!.chatroomId).toBe(user.chatroomId);
+
+    const oldest = await t.query(api.fileAttachments.listFiles, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      sort: 'oldest',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(oldest.page.map((row) => row._id)).toEqual([small, large, medium]);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('caps a page at FILE_LIST_PAGE_MAX rows', async () => {
+    const user = await setupUser('list-cap');
+    await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 30,
+      sizeBytes: 1,
+    });
+
+    const page = await t.query(api.fileAttachments.listFiles, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      sort: 'largest',
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+
+    expect(page.page).toHaveLength(FILE_LIST_PAGE_MAX);
+    expect(page.isDone).toBe(false);
+
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('rejects CLI sessions and non-owners', async () => {
+    const user = await setupUser('list-access');
+    const cliSessionId = await createCliSession(user);
+
+    await expectConvexErrorCode(
+      t.query(api.fileAttachments.listFiles, {
+        sessionId: cliSessionId,
+        chatroomId: user.chatroomId,
+        sort: 'oldest',
+        paginationOpts: { numItems: 10, cursor: null },
+      }),
+      'WEB_SESSION_REQUIRED'
+    );
+
+    const other = await setupUser('list-access-other');
+    await expectConvexErrorCode(
+      t.query(api.fileAttachments.listFiles, {
+        sessionId: other.sessionId,
+        chatroomId: user.chatroomId,
+        sort: 'oldest',
+        paginationOpts: { numItems: 10, cursor: null },
+      }),
+      'ACCESS_DENIED'
+    );
   });
 });

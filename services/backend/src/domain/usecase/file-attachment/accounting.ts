@@ -16,6 +16,7 @@ import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server
 import {
   DEFAULT_CHATROOM_FILE_QUOTA_BYTES,
   DEFAULT_USER_FILE_QUOTA_BYTES,
+  PLATFORM_MAX_FILE_QUOTA_BYTES,
 } from '../../entities/file-attachment';
 
 /** Chatroom scope for the user-total row. */
@@ -172,11 +173,54 @@ export async function resolveFileQuotas(
 }
 
 /** Reads the user's quota override, falling back to the platform default. */
-// fallow-ignore-next-line unused-export
 export async function getUserQuotaBytes(ctx: QueryCtx, userId: Id<'users'>): Promise<number> {
   const settings = await ctx.db
     .query('chatroom_userFileStorageSettings')
     .withIndex('by_userId', (q) => q.eq('userId', userId))
     .unique();
   return settings?.quotaBytes ?? DEFAULT_USER_FILE_QUOTA_BYTES;
+}
+
+/**
+ * Reads the stored usage counter for one scope.
+ *
+ * A missing row means nothing has been counted yet, so the result is zero. This
+ * never scans attachment rows: the counter is the single source of truth (I3).
+ */
+export async function getFileUsage(
+  ctx: QueryCtx,
+  args: { userId: Id<'users'>; chatroomId?: Id<'chatroom_rooms'> | undefined }
+): Promise<{ bytes: number; fileCount: number }> {
+  const row = await ctx.db
+    .query('chatroom_fileStorageUsage')
+    .withIndex('by_userId_chatroomId', (q) =>
+      q.eq('userId', args.userId).eq('chatroomId', args.chatroomId)
+    )
+    .unique();
+
+  return row ? { bytes: row.bytes, fileCount: row.fileCount } : { bytes: 0, fileCount: 0 };
+}
+
+/**
+ * Validates a quota value before it is stored.
+ *
+ * Quotas are whole bytes in `0..PLATFORM_MAX_FILE_QUOTA_BYTES`; zero is valid
+ * and disables uploads for that scope. Anything else is a caller error.
+ *
+ * @throws ConvexError `VALIDATION_ERROR` identifying the `quotaBytes` field.
+ */
+export function assertValidQuotaBytes(quotaBytes: number): void {
+  if (
+    Number.isInteger(quotaBytes) &&
+    quotaBytes >= 0 &&
+    quotaBytes <= PLATFORM_MAX_FILE_QUOTA_BYTES
+  ) {
+    return;
+  }
+
+  throw new ConvexError({
+    code: 'VALIDATION_ERROR',
+    message: `quotaBytes must be an integer between 0 and ${PLATFORM_MAX_FILE_QUOTA_BYTES}`,
+    fields: ['quotaBytes'],
+  });
 }

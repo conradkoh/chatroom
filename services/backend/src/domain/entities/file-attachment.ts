@@ -67,7 +67,7 @@ export const FILE_EVICTION_BATCH_SIZE = 50;
 export const FILE_EXPIRY_BATCH_SIZE = 100;
 
 /** Maximum page size for attachment listings. */
-export const FILE_LIST_PAGE_MAX = 50;
+export const FILE_LIST_PAGE_MAX = 25;
 
 // ─── Read model ─────────────────────────────────────────────────────────────
 

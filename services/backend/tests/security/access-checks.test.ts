@@ -54,6 +54,9 @@ const ACCESS_CHECK_PATTERNS = [
   'checkSession',
   'getAuthenticatedWebUser',
   'requireAuthenticatedWebUser',
+  // fileAttachments.ts — validates the session, then requires a web session
+  // (CLI sessions are user-scoped and must never read files or settings).
+  'requireWebCaller',
 ];
 
 /**
