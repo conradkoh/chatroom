@@ -1,33 +1,61 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { api } from '@workspace/backend/convex/_generated/api';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { FunctionReference } from 'convex/server';
+import { getFunctionName } from 'convex/server';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ScheduledPromptsSidebarSection } from './ScheduledPromptsSidebarSection';
+import { clearPendingScheduledPrompt } from '../stores/scheduledPromptComposerStore';
 
 const mocks = vi.hoisted(() => ({
   rows: undefined as Doc<'chatroom_scheduledPrompts'>[] | undefined,
   remove: vi.fn(),
+  otherMutation: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: () => mocks.rows,
-  useSessionMutation: () => mocks.remove,
+  useSessionQuery: (query: unknown, args: unknown) => {
+    if (args === 'skip') return undefined;
+    const name = getFunctionName(query as FunctionReference<'query'>);
+    if (name === getFunctionName(api.scheduledPrompts.listUpcoming)) return mocks.rows;
+    if (name === getFunctionName(api.scheduledPrompts.get)) {
+      const { scheduledPromptId } = args as { scheduledPromptId: string };
+      const row = mocks.rows?.find((candidate) => candidate._id === scheduledPromptId);
+      if (!row) {
+        throw Object.assign(new Error('Scheduled prompt not found'), {
+          data: { code: 'NOT_FOUND' },
+        });
+      }
+      return row;
+    }
+    if (name === getFunctionName(api.scheduledPrompts.listTriggeredMessages)) return [];
+    if (name === getFunctionName(api.scheduledPrompts.list)) return mocks.rows ?? [];
+    throw new Error(`Unexpected query: ${name}`);
+  },
+  useSessionMutation: (mutation: unknown) => {
+    const name = getFunctionName(mutation as FunctionReference<'mutation'>);
+    return name === getFunctionName(api.scheduledPrompts.remove)
+      ? mocks.remove
+      : mocks.otherMutation;
+  },
 }));
 
-vi.mock('./ScheduledPromptDetailDialog', () => ({
-  ScheduledPromptDetailDialog: ({
-    open,
-    scheduledPromptId,
-  }: {
-    open: boolean;
-    scheduledPromptId: string;
-  }) => (open ? <div data-testid="detail-dialog">{scheduledPromptId}</div> : null),
-}));
-
-vi.mock('./ScheduledPromptsDialog', () => ({
-  ScheduledPromptsDialog: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="manage-dialog">Manage scheduled prompts</div> : null,
-}));
+beforeAll(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+});
 
 const CHATROOM_ID = 'room-1' as Id<'chatroom_rooms'>;
 
@@ -74,11 +102,18 @@ function rowTitles(): (string | null)[] {
     .map((row) => row.querySelector('p')?.textContent ?? null);
 }
 
+function firstRow(): HTMLElement {
+  return screen.getAllByTestId('scheduled-prompt-sidebar-row')[0]!;
+}
+
 describe('ScheduledPromptsSidebarSection', () => {
   beforeEach(() => {
     mocks.rows = undefined;
     mocks.remove.mockReset();
     mocks.remove.mockResolvedValue(undefined);
+    mocks.otherMutation.mockReset();
+    mocks.otherMutation.mockResolvedValue(undefined);
+    clearPendingScheduledPrompt();
   });
 
   it('renders nothing while the query is loading', () => {
@@ -104,21 +139,28 @@ describe('ScheduledPromptsSidebarSection', () => {
     expect(rowTitles()).toEqual(['Alpha', 'Beta', 'Gamma']);
   });
 
-  it('offers View More for the hidden rows and opens the management dialog', () => {
+  it('labels a capped list as 20+', () => {
+    mocks.rows = Array.from({ length: 20 }, (_, index) =>
+      makePrompt(`sp-${index}`, `Prompt ${index}`)
+    );
+    renderSection();
+
+    expect(screen.getByText('Scheduled (20+)')).toBeDefined();
+  });
+
+  it('offers View More for the hidden rows and opens the management dialog', async () => {
     mocks.rows = [ROW_A, ROW_B, ROW_C, ROW_D];
     renderSection();
 
     fireEvent.click(screen.getByText('View More (1 more items)'));
 
-    expect(screen.getByTestId('manage-dialog')).toBeDefined();
+    expect(await screen.findByText('Automatically send messages on a schedule.')).toBeDefined();
   });
 
   it('requires two taps to delete a row', () => {
     mocks.rows = [ROW_A];
     renderSection();
-    const deleteButton = within(screen.getByTestId('scheduled-prompt-sidebar-row')).getByTestId(
-      'scheduled-prompt-delete'
-    );
+    const deleteButton = within(firstRow()).getByTestId('scheduled-prompt-delete');
 
     fireEvent.click(deleteButton);
     expect(mocks.remove).not.toHaveBeenCalled();
@@ -139,5 +181,52 @@ describe('ScheduledPromptsSidebarSection', () => {
 
     expect(container.querySelector('[data-testid="scheduled-prompts-sidebar-section"]')).toBeNull();
     expect(screen.queryByText(/Scheduled/)).toBeNull();
+  });
+
+  it('opens the detail dialog from a row click and shows the prompt', async () => {
+    mocks.rows = [ROW_A];
+    renderSection();
+    expect(screen.queryByText('Trigger history')).toBeNull();
+
+    fireEvent.click(firstRow());
+
+    expect(await screen.findByText('Trigger history')).toBeDefined();
+    expect(screen.getAllByText('Alpha')).toHaveLength(2);
+  });
+
+  it('opens the detail dialog from Enter on a row', async () => {
+    mocks.rows = [ROW_A];
+    renderSection();
+
+    fireEvent.keyDown(firstRow(), { key: 'Enter' });
+
+    expect(await screen.findByText('Trigger history')).toBeDefined();
+  });
+
+  it('does not open the detail dialog from a control click', () => {
+    mocks.rows = [ROW_A];
+    renderSection();
+    const row = firstRow();
+
+    fireEvent.click(within(row).getByRole('button', { name: 'Start in new session' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Mode: Code' }));
+    fireEvent.click(within(row).getByTestId('scheduled-prompt-delete'));
+
+    expect(screen.queryByText('Trigger history')).toBeNull();
+  });
+
+  it('closes the detail dialog when its row leaves the list', async () => {
+    mocks.rows = [ROW_A, ROW_B];
+    const { rerender } = renderSection();
+
+    fireEvent.click(firstRow());
+    expect(await screen.findByText('Trigger history')).toBeDefined();
+
+    mocks.rows = [ROW_B];
+    rerender(<ScheduledPromptsSidebarSection chatroomId={CHATROOM_ID} />);
+
+    await waitFor(() => expect(screen.queryByText('Trigger history')).toBeNull());
+    expect(screen.getByText('Scheduled (1)')).toBeDefined();
+    expect(rowTitles()).toEqual(['Beta']);
   });
 });
