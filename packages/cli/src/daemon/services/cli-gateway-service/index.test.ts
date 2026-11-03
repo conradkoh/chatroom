@@ -26,7 +26,7 @@ const nextTask: AssignedTaskWithContent = {
 
 function createService(result: Record<string, unknown>, events: string[]) {
   const listTasksForRole = vi.fn((): readonly AssignedTask[] => [inProgressTask]);
-  const mutation = vi.fn(async () => {
+  const mutation = vi.fn(async (_endpoint: unknown, _args: unknown) => {
     events.push('backend');
     return result;
   });
@@ -63,6 +63,18 @@ const args = {
 };
 
 describe('CLI gateway service', () => {
+  test('passes attachedFileIds through to the backend mutation unchanged', async () => {
+    const events: string[] = [];
+    const { service, mutation } = createService({ success: true, newTaskId: null }, events);
+
+    await service.handoff({ ...args, targetRole: 'user', attachedFileIds: ['file-a', 'file-b'] });
+
+    expect(mutation.mock.calls[0]?.[1]).toMatchObject({
+      targetRole: 'user',
+      attachedFileIds: ['file-a', 'file-b'],
+    });
+  });
+
   test('updates task service and adopts the next task before resolving', async () => {
     const events: string[] = [];
     const { service, loadAssignedTaskForAction, recordHandoffOutcome, logs } = createService(

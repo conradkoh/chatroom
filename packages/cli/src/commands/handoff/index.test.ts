@@ -51,6 +51,11 @@ function createMockDeps(overrides?: Partial<HandoffDeps>): HandoffDeps {
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
       getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
+    attachmentUploader: {
+      beginUpload: vi.fn(),
+      uploadBytes: vi.fn(),
+      discardUploads: vi.fn(),
+    },
     ...overrides,
   };
 }
