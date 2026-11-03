@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildScheduleFields } from '../features/scheduled-prompts/utils/scheduledPromptFields';
@@ -40,8 +40,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 }));
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, className }: any) => (
-    <button onClick={onClick} disabled={disabled} className={className}>
+  Button: ({ children, onClick, disabled, className, title }: any) => (
+    <button onClick={onClick} disabled={disabled} className={className} title={title}>
       {children}
     </button>
   ),
@@ -534,6 +534,135 @@ describe('ScheduledPromptsTab', () => {
     expect(onScheduled).not.toHaveBeenCalled();
     expect(onPendingPrefillCleared).toHaveBeenCalledTimes(1);
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('Cmd+Enter in the prompt field submits the form', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    fireEvent.change(screen.getByPlaceholderText('What should the prompt say?'), {
+      target: { value: 'Ping me' },
+    });
+
+    fireEvent.keyDown(screen.getByPlaceholderText('What should the prompt say?'), {
+      key: 'Enter',
+      metaKey: true,
+    });
+
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.create).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      name: undefined,
+      prompt: 'Ping me',
+      scheduleKind: 'interval',
+      intervalMinutes: 30,
+    });
+  });
+
+  it('Ctrl+Enter also submits', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    fireEvent.change(screen.getByPlaceholderText('What should the prompt say?'), {
+      target: { value: 'Ctrl shortcut' },
+    });
+
+    fireEvent.keyDown(screen.getByPlaceholderText('What should the prompt say?'), {
+      key: 'Enter',
+      ctrlKey: true,
+    });
+
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.create).toHaveBeenCalledWith({
+      chatroomId: 'room-1',
+      name: undefined,
+      prompt: 'Ctrl shortcut',
+      scheduleKind: 'interval',
+      intervalMinutes: 30,
+    });
+  });
+
+  it('plain Enter does not submit', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    const promptField = screen.getByPlaceholderText('What should the prompt say?');
+    fireEvent.change(promptField, { target: { value: 'No shortcut' } });
+
+    fireEvent.keyDown(promptField, { key: 'Enter' });
+
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect((promptField as HTMLTextAreaElement).value).toBe('No shortcut');
+  });
+
+  it('Cmd+Enter with an empty prompt shows the existing validation message', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    fireEvent.keyDown(screen.getByPlaceholderText('What should the prompt say?'), {
+      key: 'Enter',
+      metaKey: true,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Prompt cannot be empty')).toBeDefined();
+    });
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('Cmd+Enter while saving is ignored', async () => {
+    mocks.list.mockReturnValue([]);
+    let resolveCreate: (() => void) | undefined;
+    mocks.create.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCreate = resolve;
+        })
+    );
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    const promptField = screen.getByPlaceholderText('What should the prompt say?');
+    fireEvent.change(promptField, { target: { value: 'Only once' } });
+
+    fireEvent.keyDown(promptField, { key: 'Enter', metaKey: true });
+    fireEvent.keyDown(promptField, { key: 'Enter', metaKey: true });
+
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      resolveCreate?.();
+      await Promise.resolve();
+    });
+  });
+
+  it('the submit button advertises the shortcut', async () => {
+    mocks.list.mockReturnValue([]);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+    const submit = screen.getByRole('button', { name: /create prompt|save changes/i });
+
+    expect(submit.getAttribute('title')).toContain('⌘');
+    expect(submit.getAttribute('title')).toContain('Ctrl+Enter');
   });
 });
 

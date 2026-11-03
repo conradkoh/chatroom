@@ -262,6 +262,19 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
     onSave,
   ]);
 
+  // Cmd+Enter (macOS) or Ctrl+Enter (elsewhere) submits through the same
+  // handleSave path as the button; plain Enter keeps inserting newlines.
+  const handlePromptKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key !== 'Enter') return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      e.preventDefault();
+      if (saving) return;
+      void handleSave();
+    },
+    [handleSave, saving]
+  );
+
   return (
     <div className="border border-chatroom-border rounded-none bg-chatroom-bg-secondary overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-tertiary/50">
@@ -289,6 +302,7 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={handlePromptKeyDown}
             placeholder="What should the prompt say?"
             rows={3}
             className="w-full text-xs bg-chatroom-bg-primary border border-chatroom-border rounded-none p-2 text-chatroom-text-primary placeholder:text-chatroom-text-muted resize-none focus:outline-none focus:ring-1 focus:ring-chatroom-accent"
@@ -415,7 +429,13 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
           <Button variant="ghost" size="sm" onClick={onCancel} className="text-xs">
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving} className="text-xs gap-1.5">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+            title="Submit (⌘↵ or Ctrl+Enter)"
+            className="text-xs gap-1.5"
+          >
             {saving ? (
               <>
                 <Loader2 size={12} className="animate-spin" />
