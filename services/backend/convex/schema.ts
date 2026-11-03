@@ -2226,6 +2226,9 @@ export default defineSchema({
    * Trigger projection: `isRunnable` + `nextRunAt` (indexed). `nextRunAt` is the only
    * field the cron queries. One-time rows transition to a terminal `disabledReason`
    * (`completed` / `failed`) after firing and are never re-armed.
+   *
+   * `taskEnvelope` is the per-prompt delivery policy applied at fire time; it is
+   * edited only through `scheduledPrompts.updatePolicy`.
    */
   chatroom_scheduledPrompts: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -2244,12 +2247,15 @@ export default defineSchema({
     isRunnable: v.boolean(),
     nextRunAt: v.optional(v.number()),
     lastRunAt: v.optional(v.number()),
+    /** Delivery policy snapshot applied when the prompt fires. Absent on legacy rows = code + new session. Edited only via scheduledPrompts.updatePolicy. */
+    taskEnvelope: v.optional(taskEnvelopeV1Validator),
     createdBy: v.id('users'),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_isRunnable_nextRunAt', ['isRunnable', 'nextRunAt']),
+    .index('by_isRunnable_nextRunAt', ['isRunnable', 'nextRunAt'])
+    .index('by_chatroom_isRunnable_nextRunAt', ['chatroomId', 'isRunnable', 'nextRunAt']),
 
   // ─── Command Runner ─────────────────────────────────────────────────────────
   // Synced commands discovered from package.json scripts and turbo.json tasks.
