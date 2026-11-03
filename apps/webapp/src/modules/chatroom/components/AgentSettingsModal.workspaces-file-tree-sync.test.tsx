@@ -68,6 +68,20 @@ vi.mock('./CopyButton', () => ({ CopyButton: () => null }));
 vi.mock('./IntegrationsTab', () => ({ IntegrationsTab: () => null }));
 vi.mock('./LifecycleConfirmDialog', () => ({ LifecycleConfirmDialog: () => null }));
 vi.mock('./SkillsTab', () => ({ SkillsTab: () => null }));
+vi.mock('@/modules/chatroom/features/file-attachments/components/FileStoragePanel', () => ({
+  FileStoragePanel: ({ scope }: { scope: { kind: string; chatroomId?: string } }) => (
+    <div
+      data-testid="file-storage-panel"
+      data-scope={scope.kind}
+      data-chatroom-id={scope.chatroomId}
+    />
+  ),
+}));
+vi.mock('next/link', () => ({
+  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
 vi.mock('./picker', () => ({
   ResponsivePickerShell: () => null,
   PickerScrollBody: () => null,
@@ -300,5 +314,30 @@ describe('AgentSettingsModal workspaces file-tree sync', () => {
 
     expect(await screen.findByText('Disabling…')).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Sync file tree for host-a' })).toBeDisabled();
+  });
+
+  it('renders the Files tab after Integrations with the chatroom-scope panel', () => {
+    mockWorkspaces([]);
+
+    renderModal();
+
+    const integrationsTab = screen.getByRole('button', { name: 'Integrations' });
+    const filesTab = screen.getByRole('button', { name: 'Files' });
+    expect(
+      integrationsTab.compareDocumentPosition(filesTab) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+
+    fireEvent.click(filesTab);
+
+    const panel = screen.getByTestId('file-storage-panel');
+    expect(panel).toHaveAttribute('data-scope', 'chatroom');
+    expect(panel).toHaveAttribute('data-chatroom-id', CHATROOM_ID);
+    expect(
+      screen.getByText(/Files agents attached to handoffs in this chatroom/)
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Manage account storage →' })).toHaveAttribute(
+      'href',
+      '/app/profile'
+    );
   });
 });
