@@ -38,11 +38,13 @@ export function useFileTextContent(url: string | null, enabled: boolean): FileTe
 
   useEffect(() => {
     if (!enabled || !url) {
+      // eslint-disable-next-line react-you-might-not-need-an-effect/no-adjust-state-on-prop-change -- fetch lifecycle state, not derived props
       setState({ status: 'idle' });
       return undefined;
     }
 
     const controller = new AbortController();
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-adjust-state-on-prop-change -- fetch lifecycle state, not derived props
     setState({ status: 'loading' });
     void loadTextPreview(url, controller.signal).then((next) => {
       if (!controller.signal.aborted) setState(next);
