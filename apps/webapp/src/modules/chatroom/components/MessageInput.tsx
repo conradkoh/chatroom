@@ -33,6 +33,7 @@ import {
   MAX_TEXTAREA_HEIGHT_PX,
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
+import { SendScheduleMenu } from './SendScheduleMenu';
 import { ComposerAccessoryButton } from './shared/ComposerAccessoryButton';
 import { composerAccessoryRowClassName } from './shared/composerAccessoryButtonStyles';
 import { requestScheduledPrompt } from '../features/scheduled-prompts/stores/scheduledPromptComposerStore';
@@ -519,6 +520,9 @@ export function MessageInput({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressOriginRef = useRef<{ x: number; y: number } | null>(null);
   const suppressNextSendClickRef = useRef(false);
+  const sendButtonRef = useRef<HTMLButtonElement | null>(null);
+  const scheduleMenuRestoreFocusRef = useRef<HTMLElement | null>(null);
+  const [scheduleMenuOpen, setScheduleMenuOpen] = useState(false);
 
   const clearLongPress = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -539,6 +543,19 @@ export function MessageInput({
     });
   }, [canSend, message, hasAttachments]);
 
+  /** Open the one-item schedule menu, remembering where focus came from. */
+  const openScheduleMenu = useCallback(() => {
+    if (!canSend) return;
+    scheduleMenuRestoreFocusRef.current =
+      (document.activeElement as HTMLElement | null) ?? sendButtonRef.current;
+    setScheduleMenuOpen(true);
+  }, [canSend]);
+
+  // A disabled send button must never leave the menu open.
+  useEffect(() => {
+    if (!canSend) setScheduleMenuOpen(false);
+  }, [canSend]);
+
   const handleSendClick = useCallback(() => {
     // A long-press already opened the schedule form; the release's click must
     // not also send. Reset so the next click behaves normally.
@@ -551,10 +568,11 @@ export function MessageInput({
 
   const handleSendContextMenu = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
+      // Also reached by Shift+F10 / the Menu key on the focused button.
       e.preventDefault();
-      requestSchedule();
+      openScheduleMenu();
     },
-    [requestSchedule]
+    [openScheduleMenu]
   );
 
   const handleSendPointerDown = useCallback(
@@ -567,10 +585,10 @@ export function MessageInput({
         longPressTimerRef.current = null;
         longPressOriginRef.current = null;
         suppressNextSendClickRef.current = true;
-        requestSchedule();
+        openScheduleMenu();
       }, LONG_PRESS_MS);
     },
-    [canSend, clearLongPress, requestSchedule]
+    [canSend, clearLongPress, openScheduleMenu]
   );
 
   const handleSendPointerMove = useCallback(
@@ -728,7 +746,10 @@ export function MessageInput({
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {/* Send button: icon-only, circular */}
           <button
+            ref={sendButtonRef}
             type="button"
+            aria-haspopup="menu"
+            aria-expanded={scheduleMenuOpen}
             onClick={handleSendClick}
             onContextMenu={handleSendContextMenu}
             onPointerDown={handleSendPointerDown}
@@ -749,6 +770,14 @@ export function MessageInput({
           </button>
         </div>
       </div>
+
+      <SendScheduleMenu
+        open={scheduleMenuOpen}
+        onOpenChange={setScheduleMenuOpen}
+        anchorRef={sendButtonRef}
+        restoreFocusRef={scheduleMenuRestoreFocusRef}
+        onSchedule={requestSchedule}
+      />
     </div>
   );
 }

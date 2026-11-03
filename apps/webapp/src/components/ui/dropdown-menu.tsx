@@ -73,9 +73,13 @@ function DropdownMenuContent({
   sideOffset = 4,
   alignOffset = 0,
   side = 'bottom',
+  anchor,
   ...props
 }: DropdownMenuPrimitive.Popup.Props &
-  Pick<DropdownMenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+  Pick<
+    DropdownMenuPrimitive.Positioner.Props,
+    'align' | 'alignOffset' | 'side' | 'sideOffset' | 'anchor'
+  >) {
   const portalContainer = useOverlayPortalContainer();
   return (
     <DropdownMenuPrimitive.Portal container={portalContainer ?? undefined}>
@@ -84,6 +88,7 @@ function DropdownMenuContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
+        anchor={anchor}
         className="isolate z-50"
       >
         <DropdownMenuPrimitive.Popup
