@@ -17,6 +17,7 @@ import {
   utcDailyTimeToLocal,
   utcMsToLocalDateTimeInput,
 } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
+import { isModEnterKey } from '../utils/isModEnterKey';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -266,8 +267,7 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
   // handleSave path as the button; plain Enter keeps inserting newlines.
   const handlePromptKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key !== 'Enter') return;
-      if (!(e.metaKey || e.ctrlKey)) return;
+      if (!isModEnterKey(e)) return; // plain Enter inserts a newline
       e.preventDefault();
       if (saving) return;
       void handleSave();

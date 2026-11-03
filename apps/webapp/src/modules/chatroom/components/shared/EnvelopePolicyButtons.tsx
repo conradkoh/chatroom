@@ -80,8 +80,6 @@ export interface ConversationModeButtonProps {
   pending: boolean;
   onCycle: () => void;
   testId: string;
-  /** Accepted for parity with SessionPolicyButton; mode styling does not vary. */
-  compact?: boolean;
 }
 
 export function ConversationModeButton({
@@ -89,10 +87,7 @@ export function ConversationModeButton({
   pending,
   onCycle,
   testId,
-  compact = false,
 }: ConversationModeButtonProps) {
-  // Reserved so both shared buttons accept the same compact flag.
-  void compact;
   const label = MODE_LABEL[mode];
   const nextLabel = MODE_LABEL[nextConversationMode(mode)];
   return (

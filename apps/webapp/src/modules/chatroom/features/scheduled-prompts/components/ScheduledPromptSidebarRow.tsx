@@ -178,7 +178,6 @@ export function ScheduledPromptSidebarRow({
             onToggle={onToggleSession}
           />
           <ConversationModeButton
-            compact
             testId="scheduled-prompt-mode-toggle"
             mode={envelope.conversationMode}
             pending={pending}
