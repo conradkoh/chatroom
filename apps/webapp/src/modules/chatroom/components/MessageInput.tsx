@@ -546,8 +546,9 @@ export function MessageInput({
   /** Open the one-item schedule menu, remembering where focus came from. */
   const openScheduleMenu = useCallback(() => {
     if (!canSend) return;
+    const active = document.activeElement;
     scheduleMenuRestoreFocusRef.current =
-      (document.activeElement as HTMLElement | null) ?? sendButtonRef.current;
+      active instanceof HTMLElement && active !== document.body ? active : sendButtonRef.current;
     setScheduleMenuOpen(true);
   }, [canSend]);
 

@@ -291,6 +291,36 @@ describe('MessageInput schedule gestures', () => {
     expect(getPendingScheduledPrompt()).toBeNull();
   });
 
+  it('restores focus on a reopen after choosing Schedule message', async () => {
+    renderComposer();
+    typeMessage('first draft');
+    textarea().focus();
+
+    fireEvent.click(openMenuWithRightClick());
+    await waitFor(() => expect(getPendingScheduledPrompt()).not.toBeNull());
+
+    textarea().focus();
+    fireEvent.contextMenu(sendButton());
+    await waitFor(() => expect(scheduleItem()).toHaveFocus());
+    fireEvent.keyDown(scheduleItem()!, { key: 'Escape' });
+
+    await waitFor(() => expect(scheduleItem()).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(textarea()));
+  });
+
+  it('restores focus to the send button when nothing was focused before a right-click', async () => {
+    renderComposer();
+    typeMessage('no focus');
+    expect(document.activeElement).toBe(document.body);
+
+    fireEvent.contextMenu(sendButton());
+    await waitFor(() => expect(scheduleItem()).toHaveFocus());
+    fireEvent.keyDown(scheduleItem()!, { key: 'Escape' });
+
+    await waitFor(() => expect(scheduleItem()).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(sendButton()));
+  });
+
   it('clears the composer text only when the schedule request succeeds', async () => {
     renderComposer();
     typeMessage('draft to schedule');

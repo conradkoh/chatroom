@@ -34,21 +34,17 @@ export function SendScheduleMenu({
 
   // The menu has no trigger, so Base UI does not move focus into it on open.
   // Focus the only item after the menu's own focus settling, so keyboard
-  // navigation and Escape work.
+  // navigation and Escape work. Reset the choose flag here: the parent-driven
+  // reopen never reaches Base UI's onOpenChange.
   useEffect(() => {
     if (!open) return;
+    selectedRef.current = false;
     const timer = setTimeout(() => itemRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [open]);
 
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(next) => {
-        if (next) selectedRef.current = false;
-        onOpenChange(next);
-      }}
-    >
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuContent
         anchor={anchorRef}
         side="top"
