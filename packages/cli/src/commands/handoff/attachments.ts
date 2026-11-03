@@ -192,7 +192,13 @@ function uploadOneFile(
           bytes,
         }),
       catch: (cause) => uploadFailed(file.filename, cause),
-    });
+    }).pipe(
+      // The reservation exists even when the POST never completed, so release
+      // it now instead of leaving a pending row until the 15-minute expiry.
+      Effect.tapError(() =>
+        discardHandoffAttachments(uploader, args.sessionId, [begun.attachmentId])
+      )
+    );
 
     return begun.attachmentId;
   });

@@ -227,4 +227,34 @@ describe('uploadHandoffAttachments', () => {
       attachmentIds: ['attachment-1'],
     });
   });
+
+  test('discards the begun id when the upload request itself fails', async () => {
+    const path = await writeTempFile('only.png', 'only');
+    const uploadBytes = vi.fn().mockRejectedValue(
+      new FileAttachmentUploadError({
+        code: 'FILE_ATTACHMENT_INVALID',
+        message: 'rejected by backend',
+        httpStatus: 400,
+      })
+    );
+    const { uploader, discardUploads } = createFakeUploader({ uploadBytes });
+
+    const error = await failureOf(
+      uploadHandoffAttachments(uploader, {
+        sessionId: 'session-1',
+        chatroomId: 'room-1',
+        senderRole: 'builder',
+        files: [{ path, filename: 'only.png', sizeBytes: 4, mimeType: 'image/png' }],
+      })
+    );
+
+    expect(error._tag).toBe('AttachmentUploadFailed');
+    if (error._tag === 'AttachmentUploadFailed') {
+      expect(error.code).toBe('FILE_ATTACHMENT_INVALID');
+    }
+    expect(discardUploads).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      attachmentIds: ['attachment-1'],
+    });
+  });
 });
