@@ -17,7 +17,8 @@
     "./domain/chatroom-activity-status": "./src/domain/chatroom-activity-status.ts",
     "./domain/conversation-mode": "./src/domain/conversation-mode.ts",
     "./domain/task-envelope": "./src/domain/task-envelope.ts",
-    "./domain/git-clone": "./src/domain/git-clone.ts"
+    "./domain/git-clone": "./src/domain/git-clone.ts",
+    "./domain/file-attachment": "./src/domain/file-attachment.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
