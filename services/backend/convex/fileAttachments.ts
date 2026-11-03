@@ -663,6 +663,18 @@ export const purgeFiles = mutation({
   returns: v.object({ deleted: v.number(), continuing: v.boolean() }),
   handler: async (ctx, args) => {
     const session = await requireWebCaller(ctx, args.sessionId);
+    // `undefined` means "no minimum"; anything else must be a real byte count
+    // so a NaN or negative bound never reaches the size index.
+    if (
+      args.minSizeBytes !== undefined &&
+      (!Number.isFinite(args.minSizeBytes) || args.minSizeBytes < 0)
+    ) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: 'minSizeBytes must be a finite, non-negative number',
+        fields: ['minSizeBytes'],
+      });
+    }
     return await runPurgeFiles(ctx, {
       sessionId: args.sessionId,
       userId: session.userId,

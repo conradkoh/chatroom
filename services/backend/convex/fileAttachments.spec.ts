@@ -1280,6 +1280,31 @@ describe('deleteFile (scenario 9)', () => {
 });
 
 describe('purgeFiles (scenario 10)', () => {
+  test.each([
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['negative', -1],
+  ])('rejects a %s minSizeBytes', async (label, minSizeBytes) => {
+    const user = await setupUser(`purge-invalid-min-${label}`);
+    await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 1,
+      sizeBytes: 10,
+    });
+
+    await expectConvexErrorCode(
+      t.mutation(api.fileAttachments.purgeFiles, {
+        sessionId: user.sessionId,
+        minSizeBytes,
+      }),
+      'VALIDATION_ERROR'
+    );
+
+    expect(await countAttachedRows(user.chatroomId)).toBe(1);
+    await assertUsageInvariant(user.userId);
+  });
+
   test('chatroom purge with minSizeBytes deletes only the large files', async () => {
     const user = await setupUser('purge-chatroom');
     const small = await seedAttachedRows({
