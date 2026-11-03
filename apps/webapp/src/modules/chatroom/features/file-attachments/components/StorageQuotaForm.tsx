@@ -100,7 +100,13 @@ interface RunSaveArgs {
 }
 
 /** Runs the mutation and routes a quota validation error back to the field. */
-async function runSave({ bytes, maxMb, save, onSaved, onFieldError }: RunSaveArgs): Promise<void> {
+async function runSave({
+  bytes,
+  maxMb,
+  save,
+  onSaved,
+  onFieldError,
+}: RunSaveArgs): Promise<boolean> {
   try {
     const result = await save(bytes);
     if (result.evictionScheduled) {
@@ -109,12 +115,14 @@ async function runSave({ bytes, maxMb, save, onSaved, onFieldError }: RunSaveArg
       toast.success('Storage limit saved');
     }
     onSaved();
+    return true;
   } catch (err) {
     if (isQuotaFieldError(err)) {
       onFieldError(errorMessageOf(err, maxMb));
     } else {
       toast.error(getFileAttachmentErrorMessage(err));
     }
+    return false;
   }
 }
 
@@ -150,7 +158,14 @@ function useQuotaMutation({ save, maxMb, usedBytes, capBytes, onSaved }: QuotaMu
     setSaving(true);
     setServerError(null);
     try {
-      await runSave({ bytes, maxMb, save, onSaved, onFieldError: setServerError });
+      const saved = await runSave({
+        bytes,
+        maxMb,
+        save,
+        onSaved,
+        onFieldError: setServerError,
+      });
+      if (saved) setConfirmOpen(false);
     } finally {
       setSaving(false);
     }

@@ -195,6 +195,9 @@ describe('FileStoragePanel', () => {
     await waitFor(() => {
       expect(mocks.setUserQuota).toHaveBeenCalledWith({ quotaBytes: 100 * MB });
     });
+    await waitFor(() => {
+      expect(screen.queryByText('Lower the limit and remove files?')).not.toBeInTheDocument();
+    });
   });
 
   it('shows the eviction toast when the server schedules eviction', async () => {
