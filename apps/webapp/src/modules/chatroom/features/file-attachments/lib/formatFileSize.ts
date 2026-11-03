@@ -5,7 +5,6 @@
  * limits, so "10 MB" reads the same here and in the backend error copy.
  */
 
-// fallow-ignore-next-line unused-export
 export const BYTES_PER_MB = 1024 * 1024;
 
 const BYTES_PER_KB = 1024;
