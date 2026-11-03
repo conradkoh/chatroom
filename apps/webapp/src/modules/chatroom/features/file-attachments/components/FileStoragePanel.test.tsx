@@ -10,8 +10,10 @@ const mocks = vi.hoisted(() => ({
   setUserQuota: vi.fn(),
   setChatroomQuota: vi.fn(),
   listFiles: vi.fn(),
+  firstLargest: vi.fn(),
   getFileUrls: vi.fn(),
   deleteFile: vi.fn(),
+  purgeFiles: vi.fn(),
 }));
 
 vi.mock('convex/react', () => {
@@ -22,10 +24,11 @@ vi.mock('convex/react', () => {
     isLoading: false,
   });
   return {
-    usePaginatedQuery: (query: unknown, args: unknown) => {
+    usePaginatedQuery: (query: unknown, args: unknown, opts: { initialNumItems: number }) => {
       if (args === 'skip') return emptyPage();
       const name = String(query).split('.').pop();
-      return name === 'listFiles' ? mocks.listFiles() : emptyPage();
+      if (name !== 'listFiles') return emptyPage();
+      return opts.initialNumItems === 1 ? mocks.firstLargest() : mocks.listFiles();
     },
   };
 });
@@ -45,6 +48,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (name === 'setUserFileStorageQuota') return mocks.setUserQuota;
     if (name === 'setChatroomFileStorageQuota') return mocks.setChatroomQuota;
     if (name === 'deleteFile') return mocks.deleteFile;
+    if (name === 'purgeFiles') return mocks.purgeFiles;
     return vi.fn();
   },
 }));
@@ -61,6 +65,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       listFiles: 'fileAttachments.listFiles',
       getFileUrls: 'fileAttachments.getFileUrls',
       deleteFile: 'fileAttachments.deleteFile',
+      purgeFiles: 'fileAttachments.purgeFiles',
     },
   },
 }));
@@ -121,6 +126,10 @@ function renderUserPanel() {
   return render(<FileStoragePanel scope={{ kind: 'user' }} />);
 }
 
+function purgeButton(): HTMLButtonElement {
+  return screen.getByRole('button', { name: 'Purge files…' }) as HTMLButtonElement;
+}
+
 function quotaInput(): HTMLInputElement {
   return screen.getByLabelText('Storage limit (MB)') as HTMLInputElement;
 }
@@ -135,8 +144,10 @@ describe('FileStoragePanel', () => {
     mocks.userStorage.mockReturnValue(userStorage());
     mocks.setUserQuota.mockResolvedValue({ quotaBytes: 1 * GB, evictionScheduled: false });
     mocks.listFiles.mockReturnValue(paginationState([], 'Exhausted'));
+    mocks.firstLargest.mockReturnValue(paginationState([], 'Exhausted'));
     mocks.getFileUrls.mockReturnValue([]);
     mocks.deleteFile.mockResolvedValue({ deleted: true });
+    mocks.purgeFiles.mockResolvedValue({ deleted: 0, continuing: false });
   });
 
   it('shows skeletons while the user storage query is loading', () => {
@@ -319,11 +330,48 @@ describe('FileStoragePanel', () => {
     errorSpy.mockRestore();
   });
 
+  it('disables the purge button when the scope has no files', () => {
+    mocks.userStorage.mockReturnValue(userStorage({ usageBytes: 0, fileCount: 0 }));
+
+    renderUserPanel();
+
+    expect(purgeButton()).toBeDisabled();
+  });
+
   it('renders the shared file list inside the panel', () => {
     mocks.listFiles.mockReturnValue(paginationState([makeFile(1, 2 * MB)], 'Exhausted'));
 
     renderUserPanel();
 
     expect(screen.getByTestId('file-attachment-row').textContent).toContain('file-1.png');
+  });
+
+  it('shows the purge-in-progress banner and clears to a finished toast reactively', async () => {
+    mocks.listFiles.mockReturnValue(
+      paginationState([makeFile(1, 2 * MB), makeFile(2, 2 * MB), makeFile(3, 2 * MB)], 'Exhausted')
+    );
+    mocks.firstLargest.mockReturnValue(paginationState([makeFile(1, 5 * MB)], 'Exhausted'));
+    mocks.purgeFiles.mockResolvedValue({ deleted: 3, continuing: true });
+
+    const { rerender } = renderUserPanel();
+
+    fireEvent.click(purgeButton());
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete 3 files' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Purge in progress. 3 files deleted so far…'
+    );
+    expect(mocks.purgeFiles).toHaveBeenCalledWith({
+      chatroomId: undefined,
+      minSizeBytes: undefined,
+    });
+
+    mocks.firstLargest.mockReturnValue(paginationState([], 'Exhausted'));
+    rerender(<FileStoragePanel scope={{ kind: 'user' }} />);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Purge finished');
+    });
+    expect(screen.queryByText(/Purge in progress/)).not.toBeInTheDocument();
   });
 });
