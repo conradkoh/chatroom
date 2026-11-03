@@ -9,13 +9,14 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 
 ## 1. Attachment kinds
 
-| Kind     | Schema field             | Compose (webapp) | Primary delivery       | Task read |
-| -------- | ------------------------ | ---------------- | ---------------------- | --------- |
-| task     | `attachedTaskIds`        | ✅ chip          | ✅ `<attachments>` XML | ✅ XML    |
-| backlog  | `attachedBacklogItemIds` | ✅ chip          | ✅ `<attachments>` XML | ✅ XML    |
-| message  | `attachedMessageIds`     | ✅ chip          | ✅ `<attachments>` XML | ✅ XML    |
-| snippet  | `attachedSnippets`       | ✅ chip + Cmd+I  | ✅ `<attachments>` XML | ✅ XML    |
-| artifact | `attachedArtifactIds`    | ❌ reserved      | ❌ reserved            | ❌        |
+| Kind     | Schema field             | Compose (webapp)                            | Primary delivery       | Task read |
+| -------- | ------------------------ | ------------------------------------------- | ---------------------- | --------- |
+| task     | `attachedTaskIds`        | ✅ chip                                     | ✅ `<attachments>` XML | ✅ XML    |
+| backlog  | `attachedBacklogItemIds` | ✅ chip                                     | ✅ `<attachments>` XML | ✅ XML    |
+| message  | `attachedMessageIds`     | ✅ chip                                     | ✅ `<attachments>` XML | ✅ XML    |
+| snippet  | `attachedSnippets`       | ✅ chip + Cmd+I                             | ✅ `<attachments>` XML | ✅ XML    |
+| artifact | `attachedArtifactIds`    | ❌ reserved                                 | ❌ reserved            | ❌        |
+| file     | `attachedFileIds`        | ❌ (agent → user only; CLI `--attach-file`) | ❌ reserved            | ❌        |
 
 **Policy notes**
 
@@ -23,6 +24,13 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 - **Backlog** items appear in primary delivery and `task read`, using the shared `<attachments>` XML renderer.
 - **Attached messages** appear in primary delivery and `task read` as `<attachment type="message" message-id="...">` inside the shared `<attachments>` block (source message only).
 - **Tasks** appear in primary delivery and `task read` as `<attachment type="task">` inside the shared `<attachments>` block (source message only).
+
+### File attachments
+
+- **Upload lifecycle:** `pending_upload` (ticket reserved) → `uploaded` (blob stored, counted) → `attached` (bound to a handoff message, `expiresAt` cleared). Binding never changes usage counters; `uploaded` and `attached` rows both count.
+- **Agent → user only.** A handoff carrying `attachedFileIds` to any non-`user` target is rejected with `FILE_ATTACHMENTS_REQUIRE_USER_TARGET`. The CLI flag is `--attach-file`.
+- **Web-only reads.** Message reads expose `attachedFiles` metadata (`_id`, `status`, `filename`, `mimeType`, `sizeBytes`) and never a storage URL or `storageId`. Agents do not receive file attachments in primary delivery or `task read`.
+- **Active content rule.** SVG and HTML are stored as `application/octet-stream` and are never rendered as markup.
 
 ### Primary delivery `<task>` envelope
 
