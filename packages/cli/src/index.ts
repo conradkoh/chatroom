@@ -398,55 +398,69 @@ handoffCommandGroup
   .option('--chatroom-id <id>', 'Chatroom identifier')
   .option('--role <role>', 'Your role')
   .option('--next-role <nextRole>', 'Role to hand off to')
+  .option(
+    '--attach-file <path>',
+    'File to attach (only with --next-role=user; repeatable, max 10, 10 MiB each)',
+    collectMultiValueOption,
+    []
+  )
   // fallow-ignore-next-line complexity
-  .action(async (options: { chatroomId?: string; role?: string; nextRole?: string }) => {
-    const missing = [
-      ['--chatroom-id', options.chatroomId],
-      ['--role', options.role],
-      ['--next-role', options.nextRole],
-    ].filter(([, value]) => !value);
-    if (missing.length > 0) {
-      const [flag] = missing[0] as [string];
-      console.error(`error: required option '${flag} <...>' not specified`);
-      process.exit(1);
+  .action(
+    async (options: {
+      chatroomId?: string;
+      role?: string;
+      nextRole?: string;
+      attachFile?: string[] | undefined;
+    }) => {
+      const missing = [
+        ['--chatroom-id', options.chatroomId],
+        ['--role', options.role],
+        ['--next-role', options.nextRole],
+      ].filter(([, value]) => !value);
+      if (missing.length > 0) {
+        const [flag] = missing[0] as [string];
+        console.error(`error: required option '${flag} <...>' not specified`);
+        process.exit(1);
+      }
+      const { chatroomId, role, nextRole } = options as {
+        chatroomId: string;
+        role: string;
+        nextRole: string;
+      };
+
+      await maybeRequireAuth();
+
+      // Read message from stdin
+      const { decode } = await import('./utils/serialization/decode/index.js');
+      const stdinContent = await readStdin();
+
+      let message: string;
+      try {
+        const { HANDOFF_STDIN_DELIMITER, validateStdinHeredocBody } =
+          await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+        const result = decode(stdinContent, { singleParam: 'message' });
+        message = result.message;
+        validateStdinHeredocBody(message, HANDOFF_STDIN_DELIMITER);
+      } catch (err) {
+        console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+        process.exit(1);
+      }
+
+      // Validate that message is not empty
+      if (!message || message.trim().length === 0) {
+        console.error('❌ Message is empty');
+        process.exit(1);
+      }
+
+      const { handoff } = await import('./commands/handoff/index.js');
+      await handoff(chatroomId, {
+        role,
+        message,
+        nextRole,
+        attachFiles: options.attachFile ?? [],
+      });
     }
-    const { chatroomId, role, nextRole } = options as {
-      chatroomId: string;
-      role: string;
-      nextRole: string;
-    };
-
-    await maybeRequireAuth();
-
-    // Read message from stdin
-    const { decode } = await import('./utils/serialization/decode/index.js');
-    const stdinContent = await readStdin();
-
-    let message: string;
-    try {
-      const { HANDOFF_STDIN_DELIMITER, validateStdinHeredocBody } =
-        await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
-      const result = decode(stdinContent, { singleParam: 'message' });
-      message = result.message;
-      validateStdinHeredocBody(message, HANDOFF_STDIN_DELIMITER);
-    } catch (err) {
-      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
-      process.exit(1);
-    }
-
-    // Validate that message is not empty
-    if (!message || message.trim().length === 0) {
-      console.error('❌ Message is empty');
-      process.exit(1);
-    }
-
-    const { handoff } = await import('./commands/handoff/index.js');
-    await handoff(chatroomId, {
-      role,
-      message,
-      nextRole,
-    });
-  });
+  );
 
 program
   .command('notify-user')

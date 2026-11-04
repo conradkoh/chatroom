@@ -1,4 +1,5 @@
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
+import type { AttachedFileView } from '@workspace/backend/src/domain/entities/file-attachment';
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
@@ -58,6 +59,11 @@ export interface Message {
   attachedBacklogItems?: AttachedBacklogItem[];
   /** Attached artifacts */
   attachedArtifacts?: ArtifactMeta[];
+  /**
+   * Files attached to a user-addressed handoff (metadata only; URLs come from
+   * getFileUrls).
+   */
+  attachedFiles?: AttachedFileView[];
   /** Attached chatroom messages for context */
   attachedMessages?: AttachedMessage[];
   /** Explorer file snippets attached via Cmd+I */

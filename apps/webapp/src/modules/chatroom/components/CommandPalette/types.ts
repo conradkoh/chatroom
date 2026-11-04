@@ -41,4 +41,5 @@ export type SettingsTab =
   | 'custom-agents'
   | 'workspaces'
   | 'skills'
-  | 'integrations';
+  | 'integrations'
+  | 'files';

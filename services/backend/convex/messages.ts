@@ -22,7 +22,9 @@ import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
 import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
+import type { BackendErrorCode } from '../config/errorCodes';
 import { getConfig } from '../prompts/config/index';
+import type { AttachedFileView } from '../src/domain/entities/file-attachment';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -33,6 +35,11 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { readCustomAgentPromptContext } from '../src/domain/usecase/custom-agents/read-custom-agent-prompt-context';
+import {
+  bindHandoffAttachments,
+  deleteFileAttachments,
+  validateHandoffAttachments,
+} from '../src/domain/usecase/file-attachment/lifecycle';
 import {
   insertChatroomMessage,
   isMessageReadModelComplete,
@@ -76,6 +83,7 @@ async function enrichMessageAttachments(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
     attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
+    attachedFileIds?: Id<'chatroom_fileAttachments'>[] | undefined;
     attachedSnippets?:
       { reference: string; fileSource: string; selectedContent: string }[] | undefined;
     startInNewSession?: boolean | undefined;
@@ -143,10 +151,33 @@ async function enrichMessageAttachments(
       }));
   }
 
+  // Resolve attached files (uploaded files bound to a user handoff). Reads are
+  // metadata-only: never expose storage ids or URLs on the message.
+  let attachedFiles: AttachedFileView[] | undefined;
+  const attachedFileIds = msg.attachedFileIds;
+  if (attachedFileIds && attachedFileIds.length > 0) {
+    attachedFiles = [];
+    for (const fileId of attachedFileIds) {
+      const file = await ctx.db.get('chatroom_fileAttachments', fileId);
+      attachedFiles.push(
+        file && file.status === 'attached'
+          ? {
+              _id: file._id,
+              status: 'available',
+              filename: file.filename,
+              mimeType: file.mimeType,
+              sizeBytes: file.sizeBytes,
+            }
+          : { _id: fileId, status: 'removed' }
+      );
+    }
+  }
+
   return {
     ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
     ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
     ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
+    ...(attachedFiles && attachedFiles.length > 0 && { attachedFiles }),
     ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
     ...(msg.attachedSnippets?.length && { attachedSnippets: msg.attachedSnippets }),
   };
@@ -481,7 +512,51 @@ export const enqueueMessageAtFront = mutation({
   },
 });
 
-/** Internal handler for completing a task and handing off. */
+/**
+ * Result returned by `runHandoffHandler`.
+ *
+ * Every path — including early validation failures — carries the same fields so
+ * callers can read the attachment and native-integration outcomes without
+ * optional checks.
+ */
+type HandoffResult = {
+  success: boolean;
+  error: {
+    code: BackendErrorCode;
+    message: string;
+    suggestedTargets?: string[];
+  } | null;
+  messageId: Id<'chatroom_messages'> | null;
+  completedTaskIds: Id<'chatroom_tasks'>[];
+  newTaskId: Id<'chatroom_tasks'> | null;
+  promotedTaskId: Id<'chatroom_tasks'> | null;
+  supportsNativeIntegration: boolean;
+  attachmentsDiscarded: boolean;
+};
+
+/**
+ * Failure result for handoff rejections raised before any write. Mirrors the
+ * shape of the existing validation failures so callers need no special case.
+ */
+function handoffFailure(
+  code:
+    | 'FILE_ATTACHMENT_LIMIT_EXCEEDED'
+    | 'FILE_ATTACHMENT_INVALID'
+    | 'FILE_ATTACHMENTS_REQUIRE_USER_TARGET',
+  message: string
+): HandoffResult {
+  return {
+    success: false,
+    error: { code, message },
+    messageId: null,
+    completedTaskIds: [] as Id<'chatroom_tasks'>[],
+    newTaskId: null,
+    promotedTaskId: null,
+    supportsNativeIntegration: false,
+    attachmentsDiscarded: false,
+  };
+}
+
 /** @internal Shared handoff implementation for messages.handoff and legacy enqueueHandoff. */
 export async function runHandoffHandler(
   ctx: MutationCtx,
@@ -492,8 +567,9 @@ export async function runHandoffHandler(
     content: string;
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
+    attachedFileIds?: Id<'chatroom_fileAttachments'>[] | undefined;
   }
-) {
+): Promise<HandoffResult> {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
   let chatroom;
 
@@ -512,6 +588,8 @@ export async function runHandoffHandler(
       completedTaskIds: [],
       newTaskId: null,
       promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
     };
   }
 
@@ -549,6 +627,8 @@ export async function runHandoffHandler(
       completedTaskIds: [],
       newTaskId: null,
       promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
     };
   }
 
@@ -565,10 +645,35 @@ export async function runHandoffHandler(
       completedTaskIds: [],
       newTaskId: null,
       promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
     };
   }
 
   const now = Date.now();
+
+  // File attachments are user-facing only. Validate them before ANY write so a
+  // rejected handoff leaves tasks, messages, attachments, and usage untouched.
+  let attachedFileRows: Doc<'chatroom_fileAttachments'>[] = [];
+  if (args.attachedFileIds && args.attachedFileIds.length > 0) {
+    if (!isHandoffToUser) {
+      return handoffFailure(
+        'FILE_ATTACHMENTS_REQUIRE_USER_TARGET',
+        'Files can only be attached to a handoff addressed to user. Remove --attach-file or hand off to user.'
+      );
+    }
+    const validation = await validateHandoffAttachments(ctx, {
+      chatroomId: args.chatroomId,
+      chatroomOwnerId: chatroom.ownerId,
+      senderRole: args.senderRole,
+      attachmentIds: args.attachedFileIds,
+      now,
+    });
+    if (!validation.ok) {
+      return handoffFailure(validation.code, validation.message);
+    }
+    attachedFileRows = validation.rows;
+  }
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
   const tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
@@ -647,6 +752,14 @@ export async function runHandoffHandler(
       (task) => task.assignedTo?.toLowerCase() === normalizedSenderRole
     );
     if (existing && !hasActiveSenderWork) {
+      // Retried terminal handoff: the caller uploaded fresh files for a message
+      // that already exists, so remove only those new uploads (row + blob +
+      // usage). The original message's bound rows are untouched. Report the
+      // discard so the CLI can warn that the files were never delivered.
+      const attachmentsDiscarded = attachedFileRows.length > 0;
+      if (attachmentsDiscarded) {
+        await deleteFileAttachments(ctx, attachedFileRows);
+      }
       return {
         success: true,
         error: null,
@@ -655,6 +768,7 @@ export async function runHandoffHandler(
         newTaskId: null,
         promotedTaskId: null,
         supportsNativeIntegration,
+        attachmentsDiscarded,
       };
     }
   }
@@ -713,6 +827,17 @@ export async function runHandoffHandler(
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
     ...(taskOriginMessageId && { taskOriginMessageId }),
     ...(terminalHandoffKey ? { terminalHandoffKey } : {}),
+    ...(attachedFileRows.length > 0 && {
+      attachedFileIds: attachedFileRows.map((row) => row._id),
+    }),
+  });
+
+  // Bind the validated uploads to this message in the same transaction so the
+  // timeline never observes an attachedFileIds entry without its row bound.
+  await bindHandoffAttachments(ctx, {
+    rows: attachedFileRows,
+    messageId,
+    now,
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -802,6 +927,7 @@ export async function runHandoffHandler(
     newTaskId,
     promotedTaskId,
     supportsNativeIntegration,
+    attachmentsDiscarded: false,
   };
 }
 
@@ -822,6 +948,7 @@ export const handoff = mutation({
     content: v.string(),
     targetRole: v.string(),
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+    attachedFileIds: v.optional(v.array(v.id('chatroom_fileAttachments'))),
   },
   handler: async (ctx, args) => {
     return runHandoffHandler(ctx, args);

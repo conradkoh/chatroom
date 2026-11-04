@@ -18,7 +18,9 @@ import {
   Database,
   FileText,
   UserCog,
+  Paperclip,
 } from 'lucide-react';
+import Link from 'next/link';
 import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
 
@@ -58,6 +60,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { getDaemonStartCommand } from '@/lib/environment';
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
+import { FileStoragePanel } from '@/modules/chatroom/features/file-attachments/components/FileStoragePanel';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -83,6 +86,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
   { id: 'skills', label: 'Skills', icon: <FileText size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
+  { id: 'files', label: 'Files', icon: <Paperclip size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -1058,6 +1062,23 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           {activeTab === 'workspaces' && <WorkspacesContent />}
           {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
+          {activeTab === 'files' && (
+            <div className="space-y-6">
+              <p className="text-xs text-chatroom-text-muted">
+                Files agents attached to handoffs in this chatroom. This chatroom&apos;s limit
+                can&apos;t exceed your account limit.{' '}
+                <Link
+                  href="/app/profile"
+                  className="text-chatroom-accent underline-offset-4 hover:underline"
+                >
+                  Manage account storage →
+                </Link>
+              </p>
+              <FileStoragePanel
+                scope={{ kind: 'chatroom', chatroomId: chatroomId as Id<'chatroom_rooms'> }}
+              />
+            </div>
+          )}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

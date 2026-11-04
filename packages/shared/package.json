@@ -1,6 +1,6 @@
 {
   "name": "@workspace/shared",
-  "version": "1.138.2",
+  "version": "1.139.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -18,7 +18,8 @@
     "./domain/chatroom-activity-status": "./src/domain/chatroom-activity-status.ts",
     "./domain/conversation-mode": "./src/domain/conversation-mode.ts",
     "./domain/task-envelope": "./src/domain/task-envelope.ts",
-    "./domain/git-clone": "./src/domain/git-clone.ts"
+    "./domain/git-clone": "./src/domain/git-clone.ts",
+    "./domain/file-attachment": "./src/domain/file-attachment.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -320,6 +320,8 @@ describe('Duo Team > Builder > System Prompt', () => {
 
       Fill in the message using the \`<handoff-templates>\` block headed "### Handoff template \`builder\` → \`<recipient>\`" for the recipient you hand off to. Replace \`[Your message here]\` with that template's body. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).
 
+      Attach files only with \`--next-role=user\`: \`--attach-file=<path>\` (repeatable, up to 10 files, 10 MiB each, allowed types only).
+
       **Send the user an interim update (does not complete your task):**
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom notify-user --chatroom-id="000000000000010002chatroom_rooms" --role="builder" << 'CHATROOM_NOTIFY_END'

@@ -200,6 +200,20 @@ export type BackendErrorCode =
   | 'CUSTOM_AGENT_NOT_FOUND'
   | 'CUSTOM_AGENT_NO_WORKSPACE'
 
+  // ── File attachments ──────────────────────────────────────────────
+  | 'FILE_ATTACHMENT_NOT_FOUND'
+  | 'FILE_ATTACHMENT_INVALID_STATE'
+  | 'FILE_ATTACHMENT_INVALID'
+  | 'FILE_ATTACHMENT_TOO_LARGE'
+  | 'FILE_ATTACHMENT_TYPE_NOT_ALLOWED'
+  | 'FILE_ATTACHMENT_INVALID_FILENAME'
+  | 'FILE_ATTACHMENT_EXCEEDS_QUOTA'
+  | 'FILE_ATTACHMENT_LIMIT_EXCEEDED'
+  | 'FILE_ATTACHMENT_TOO_MANY_PENDING'
+  | 'FILE_ATTACHMENTS_REQUIRE_USER_TARGET'
+  | 'FILE_UPLOADS_UNAVAILABLE'
+  | 'WEB_SESSION_REQUIRED'
+
   // ── Conflict ──────────────────────────────────────────────────────
   | 'CONFLICT';
 
@@ -502,6 +516,32 @@ export const BACKEND_ERROR_CODES = {
   /** The chatroom has no active workspace, so no machine can handle the request */
   CUSTOM_AGENT_NO_WORKSPACE: 'CUSTOM_AGENT_NO_WORKSPACE',
 
+  // ── File attachments ──────────────────────────────────────────────
+  /** The referenced file attachment does not exist or is not visible to the caller */
+  FILE_ATTACHMENT_NOT_FOUND: 'FILE_ATTACHMENT_NOT_FOUND',
+  /** The attachment is not in the lifecycle state required by this action */
+  FILE_ATTACHMENT_INVALID_STATE: 'FILE_ATTACHMENT_INVALID_STATE',
+  /** The attachment metadata or payload is malformed */
+  FILE_ATTACHMENT_INVALID: 'FILE_ATTACHMENT_INVALID',
+  /** The file exceeds the per-file size limit */
+  FILE_ATTACHMENT_TOO_LARGE: 'FILE_ATTACHMENT_TOO_LARGE',
+  /** The file's MIME type is not on the attachment allowlist */
+  FILE_ATTACHMENT_TYPE_NOT_ALLOWED: 'FILE_ATTACHMENT_TYPE_NOT_ALLOWED',
+  /** The attachment filename is empty, too long, or contains unsafe characters */
+  FILE_ATTACHMENT_INVALID_FILENAME: 'FILE_ATTACHMENT_INVALID_FILENAME',
+  /** Uploading this file would exceed the user or chatroom storage quota */
+  FILE_ATTACHMENT_EXCEEDS_QUOTA: 'FILE_ATTACHMENT_EXCEEDS_QUOTA',
+  /** The handoff already carries the maximum number of attachments */
+  FILE_ATTACHMENT_LIMIT_EXCEEDED: 'FILE_ATTACHMENT_LIMIT_EXCEEDED',
+  /** The owner already holds the maximum number of unbound uploads */
+  FILE_ATTACHMENT_TOO_MANY_PENDING: 'FILE_ATTACHMENT_TOO_MANY_PENDING',
+  /** File attachments are only allowed on handoffs addressed to the user */
+  FILE_ATTACHMENTS_REQUIRE_USER_TARGET: 'FILE_ATTACHMENTS_REQUIRE_USER_TARGET',
+  /** File uploads are disabled on this deployment */
+  FILE_UPLOADS_UNAVAILABLE: 'FILE_UPLOADS_UNAVAILABLE',
+  /** The upload request must come from an authenticated web session */
+  WEB_SESSION_REQUIRED: 'WEB_SESSION_REQUIRED',
+
   // ── Conflict ────────────────────────────────────────────────────────
   /** Conflict (e.g. duplicate) */
   CONFLICT: 'CONFLICT',
@@ -700,6 +740,20 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.HARNESS_SESSION_INVALID_PROMPT,
   BACKEND_ERROR_CODES.HARNESS_SESSION_CLOSED,
   BACKEND_ERROR_CODES.HARNESS_SESSION_UNKNOWN_AGENT,
+
+  // File attachments
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_NOT_FOUND,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_INVALID_STATE,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_INVALID,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_TOO_LARGE,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_TYPE_NOT_ALLOWED,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_INVALID_FILENAME,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_EXCEEDS_QUOTA,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_LIMIT_EXCEEDED,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENT_TOO_MANY_PENDING,
+  BACKEND_ERROR_CODES.FILE_ATTACHMENTS_REQUIRE_USER_TARGET,
+  BACKEND_ERROR_CODES.FILE_UPLOADS_UNAVAILABLE,
+  BACKEND_ERROR_CODES.WEB_SESSION_REQUIRED,
 ] as const;
 
 /**
