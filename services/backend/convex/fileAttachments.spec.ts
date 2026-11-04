@@ -199,6 +199,15 @@ async function patchStatus(
   });
 }
 
+async function patchExpiresAt(
+  attachmentId: Id<'chatroom_fileAttachments'>,
+  expiresAt: number
+): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.patch('chatroom_fileAttachments', attachmentId, { expiresAt });
+  });
+}
+
 /**
  * Invariant I3 is asserted through the shared helper (see
  * tests/helpers/fileAttachmentUsage.ts).
@@ -358,6 +367,47 @@ describe('beginUpload validation', () => {
 
     await expectConvexErrorCode(
       beginUpload(user, { filename: 'over-cap.txt' }),
+      'FILE_ATTACHMENT_TOO_MANY_PENDING'
+    );
+  });
+
+  test('ignores expired uploaded rows but still caps live ones', async () => {
+    const user = await setupUser('begin-expired-uploaded-cap');
+    const now = Date.now();
+    const expiredPending = Math.floor(FILE_ATTACHMENT_MAX_PENDING_PER_USER / 2);
+    const expiredUploaded = FILE_ATTACHMENT_MAX_PENDING_PER_USER - expiredPending + 1;
+
+    // Expired pending rows plus expired uploaded rows exceed the raw total, but
+    // neither can still be bound, so the cap must not count them.
+    await seedPendingRows({
+      chatroomId: user.chatroomId,
+      ownerUserId: user.userId,
+      count: expiredPending,
+      expiresAt: now - 1,
+      filenamePrefix: 'expired-pending',
+    });
+    for (let i = 0; i < expiredUploaded; i++) {
+      const ticket = await beginUpload(user, { filename: `expired-uploaded-${i}.txt` });
+      const response = await postUpload(user, ticket.attachmentId);
+      expect(response.status).toBe(200);
+      await patchExpiresAt(ticket.attachmentId, now - 1);
+    }
+
+    await expect(
+      beginUpload(user, { filename: 'after-expired-uploaded.txt' })
+    ).resolves.toMatchObject({ attachmentId: expect.any(String) });
+
+    // Live uploaded rows do count, so a full set of them blocks the next
+    // reservation.
+    const liveUser = await setupUser('begin-live-uploaded-cap');
+    for (let i = 0; i < FILE_ATTACHMENT_MAX_PENDING_PER_USER; i++) {
+      const ticket = await beginUpload(liveUser, { filename: `live-uploaded-${i}.txt` });
+      const response = await postUpload(liveUser, ticket.attachmentId);
+      expect(response.status).toBe(200);
+    }
+
+    await expectConvexErrorCode(
+      beginUpload(liveUser, { filename: 'over-live-uploaded-cap.txt' }),
       'FILE_ATTACHMENT_TOO_MANY_PENDING'
     );
   });
