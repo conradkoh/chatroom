@@ -51,6 +51,21 @@ ${format3dModelChecklist({
 
 - Procedural output has no preview.
 
+## Procedural animation reference
+
+Reference knowledge for procedural (runtime) motion of creatures built from chains. Source: argonaut, "A simple procedural animation technique". Use it when a brief or builder slice needs such motion; the designer does not implement animation.
+
+### Distance-constraint chains
+
+- Procedural animation computes motion at runtime instead of playing pre-baked keyframes.
+- An anchor point and a distance constraint (a circle of radius r) make a secondary point follow the anchor.
+- Linking several distance constraints in a line gives a flexible spine or worm-like chain.
+
+### Spine bodies and outlines
+
+- Assign a body radius to each chain point and treat the chain as the spine.
+- Compute left and right skin coordinates per segment with circle parametric equations and ±90° (quarter-turn) offsets from the spine direction. This yields continuous outlines and features such as eyes or fins.
+
 ## Proof of Principles
 
 Append these lines to the report's Proof of Principles when this skill is used:
