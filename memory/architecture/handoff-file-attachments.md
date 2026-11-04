@@ -49,6 +49,13 @@ that shape the feature; the implementation lives in the S1–S8 slices.
    of 100.
 8. **Tests.** Backend specs use `convex-test` with the real schema; CLI tests
    substitute only the existing gateway port and the attachment-uploader port.
+9. **Storage URL capability (accepted risk).** `getFileUrls` authorizes the
+   caller and then mints a `ctx.storage.getUrl` URL. That URL is a bearer
+   capability: it works without a session until the blob is deleted. URLs are
+   minted per read and never persisted or returned to the CLI. Accepted because
+   the URL is unguessable and is shown only to the owner's web session. Open
+   verification items: Convex URL lifetime semantics and whether storage sets
+   `X-Content-Type-Options: nosniff`. Revisit if either is unacceptable.
 
 ## Known gaps
 
