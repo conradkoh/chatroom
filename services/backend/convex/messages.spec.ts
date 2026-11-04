@@ -1438,7 +1438,7 @@ describe('trio handoff graph and session policy', () => {
   });
 
   test('specifier→user is rejected with the contract targets and writes nothing', async () => {
-    const { sessionId } = await createTestSession('trio-graph-specifier-user');
+    const { sessionId, userId } = await createTestSession('trio-graph-specifier-user');
     const chatroomId = await createTrioChatroom(sessionId);
     const sourceTaskId = await seedTrioTask(chatroomId, {
       assignedTo: 'specifier',
@@ -1451,6 +1451,20 @@ describe('trio handoff graph and session policy', () => {
       ctx.db
         .query('chatroom_messages')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    const tasksBefore = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    const usageBefore = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_fileStorageUsage')
+        .withIndex('by_userId_chatroomId', (q) =>
+          q.eq('userId', userId).eq('chatroomId', chatroomId)
+        )
         .collect()
     );
 
@@ -1470,6 +1484,25 @@ describe('trio handoff graph and session policy', () => {
         .collect()
     );
     expect(messagesAfter).toHaveLength(messagesBefore.length);
+
+    const tasksAfter = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    expect(tasksAfter).toHaveLength(tasksBefore.length);
+
+    const usageAfter = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_fileStorageUsage')
+        .withIndex('by_userId_chatroomId', (q) =>
+          q.eq('userId', userId).eq('chatroomId', chatroomId)
+        )
+        .collect()
+    );
+    expect(usageAfter).toEqual(usageBefore);
+    expect(usageAfter).toHaveLength(0);
   });
 
   test('builder→coordinator is rejected with the builder contract target', async () => {
