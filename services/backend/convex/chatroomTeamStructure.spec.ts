@@ -110,4 +110,50 @@ describe('active team structure assignment', () => {
     expect(assignments[0]?.teamStructureId).toBe('solo@1');
     await expectStructure(sessionId, chatroomId, 'solo');
   });
+
+  test('switching team reassigns pending and in-progress tasks of removed roles to the new entry point', async () => {
+    const { sessionId } = await createSession('team-structure-reassign');
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamStructureId: 'duo',
+    });
+
+    const { pendingTaskId, inProgressTaskId } = await t.run(async (ctx) => {
+      const now = Date.now();
+      const pendingTaskId = await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'pending builder task',
+        status: 'pending',
+        assignedTo: 'builder',
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const inProgressTaskId = await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'in-progress planner task',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        queuePosition: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { pendingTaskId, inProgressTaskId };
+    });
+
+    await t.mutation(api.chatrooms.updateTeam, {
+      sessionId,
+      chatroomId,
+      teamStructureId: 'solo',
+    });
+
+    const tasks = await t.run(async (ctx) => ({
+      pending: await ctx.db.get('chatroom_tasks', pendingTaskId),
+      inProgress: await ctx.db.get('chatroom_tasks', inProgressTaskId),
+    }));
+    expect(tasks.pending?.assignedTo).toBe('solo');
+    expect(tasks.inProgress?.assignedTo).toBe('solo');
+  });
 });

@@ -309,14 +309,14 @@ export const updateTeam = mutation({
       );
     }
 
-    await updateTeamUseCase(ctx, {
-      chatroomId: args.chatroomId,
-      userId: session.userId,
-    });
     await upsertActiveTeamStructure(ctx, {
       chatroomId: args.chatroomId,
       teamStructureId: structure.teamStructureId,
       updatedBy: session.userId,
+    });
+    await updateTeamUseCase(ctx, {
+      chatroomId: args.chatroomId,
+      userId: session.userId,
     });
   },
 });
