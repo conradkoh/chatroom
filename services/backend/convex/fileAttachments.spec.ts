@@ -137,6 +137,18 @@ async function getRow(attachmentId: Id<'chatroom_fileAttachments'>) {
   return await t.run(async (ctx) => ctx.db.get('chatroom_fileAttachments', attachmentId));
 }
 
+async function countPendingRows(userId: Id<'users'>): Promise<number> {
+  return await t.run(async (ctx) => {
+    const rows = await ctx.db
+      .query('chatroom_fileAttachments')
+      .withIndex('by_owner_status_attachedAt', (q) =>
+        q.eq('ownerUserId', userId).eq('status', 'pending_upload')
+      )
+      .collect();
+    return rows.length;
+  });
+}
+
 async function getStorageDoc(storageId: Id<'_storage'>) {
   return await t.run(async (ctx) => ctx.db.system.get('_storage', storageId));
 }
@@ -289,6 +301,30 @@ describe('beginUpload validation', () => {
       beginUpload(user, { filename: 'over-cap.txt' }),
       'FILE_ATTACHMENT_TOO_MANY_PENDING'
     );
+  });
+});
+
+// ─── beginUpload authorization ──────────────────────────────────────────────
+
+describe('beginUpload authorization', () => {
+  test('rejects a chatroom the caller does not own with ACCESS_DENIED and writes no row', async () => {
+    const owner = await setupUser('begin-auth-owner');
+    const other = await setupUser('begin-auth-other');
+    const ownerPendingBefore = await countPendingRows(owner.userId);
+    const otherPendingBefore = await countPendingRows(other.userId);
+
+    await expectConvexErrorCode(
+      beginUpload(other, { chatroomId: owner.chatroomId }),
+      'ACCESS_DENIED'
+    );
+
+    expect(await countPendingRows(owner.userId)).toBe(ownerPendingBefore);
+    expect(await countPendingRows(other.userId)).toBe(otherPendingBefore);
+    expect(ownerPendingBefore).toBe(0);
+    expect(otherPendingBefore).toBe(0);
+
+    await assertUsageInvariant(owner.userId);
+    await assertUsageInvariant(other.userId);
   });
 });
 
@@ -1391,6 +1427,36 @@ describe('deleteFile (scenario 9)', () => {
     expect((await getRow(attachmentId))?.status).toBe('uploaded');
     await assertUsageInvariant(user.userId);
   });
+
+  test("rejects another user's file with ACCESS_DENIED and leaves the row, blob and usage intact", async () => {
+    const owner = await setupUser('delete-foreign-owner');
+    const other = await setupUser('delete-foreign-other');
+    const attachmentId = await uploadFile(owner);
+    await bindFiles(owner, [attachmentId]);
+
+    const rowBefore = await getRow(attachmentId);
+    const usageBefore = await getUsage(owner.userId, owner.chatroomId);
+    const storageBefore = await countStorage();
+    expect(rowBefore?.status).toBe('attached');
+    expect(rowBefore?.storageId).toBeDefined();
+    expect(usageBefore?.bytes).toBe(5);
+
+    await expectConvexErrorCode(
+      t.mutation(api.fileAttachments.deleteFile, {
+        sessionId: other.sessionId,
+        attachmentId,
+      }),
+      'ACCESS_DENIED'
+    );
+
+    expect(await getRow(attachmentId)).toEqual(rowBefore);
+    expect(await getStorageDoc(rowBefore!.storageId!)).not.toBeNull();
+    expect(await getUsage(owner.userId, owner.chatroomId)).toEqual(usageBefore);
+    expect(await countStorage()).toBe(storageBefore);
+
+    await assertUsageInvariant(owner.userId);
+    await assertUsageInvariant(other.userId);
+  });
 });
 
 describe('purgeFiles (scenario 10)', () => {
@@ -1563,6 +1629,77 @@ describe('purgeFiles (scenario 10)', () => {
     expect(await getRow(ownRow!)).toBeNull();
     for (const id of foreignRows) expect((await getRow(id))?.status).toBe('attached');
     expect(await getUsage(other.userId, owner.chatroomId)).toEqual(foreignUsageBefore);
+
+    await assertUsageInvariant(owner.userId);
+    await assertUsageInvariant(other.userId);
+  });
+
+  test("user purge by one user leaves another user's rows and usage untouched", async () => {
+    const user = await setupUser('purge-user-scope-owner');
+    const other = await setupUser('purge-user-scope-other');
+    const ownRows = await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 2,
+      sizeBytes: 3,
+      filenamePrefix: 'own',
+    });
+    const foreignRows = await seedAttachedRows({
+      userId: other.userId,
+      chatroomId: other.chatroomId,
+      count: 2,
+      sizeBytes: 7,
+      filenamePrefix: 'foreign',
+    });
+    const foreignUsageBefore = await getUsage(other.userId, other.chatroomId);
+    expect(foreignUsageBefore?.bytes).toBe(14);
+
+    const result = await t.mutation(api.fileAttachments.purgeFiles, {
+      sessionId: user.sessionId,
+    });
+
+    expect(result).toEqual({ deleted: 2, continuing: false });
+    for (const id of ownRows) expect(await getRow(id)).toBeNull();
+    for (const id of foreignRows) expect((await getRow(id))?.status).toBe('attached');
+    expect(await getUsage(other.userId, other.chatroomId)).toEqual(foreignUsageBefore);
+
+    await assertUsageInvariant(user.userId);
+    await assertUsageInvariant(other.userId);
+  });
+
+  test("chatroom purge with another user's chatroomId rejects with ACCESS_DENIED and deletes nothing", async () => {
+    const owner = await setupUser('purge-chatroom-auth-owner');
+    const other = await setupUser('purge-chatroom-auth-other');
+    const ownerRows = await seedAttachedRows({
+      userId: owner.userId,
+      chatroomId: owner.chatroomId,
+      count: 2,
+      sizeBytes: 4,
+      filenamePrefix: 'owner',
+    });
+    const otherRows = await seedAttachedRows({
+      userId: other.userId,
+      chatroomId: other.chatroomId,
+      count: 1,
+      sizeBytes: 6,
+      filenamePrefix: 'other',
+    });
+    const ownerUsageBefore = await getUsage(owner.userId, owner.chatroomId);
+    const otherUsageBefore = await getUsage(other.userId, other.chatroomId);
+    expect(ownerUsageBefore?.bytes).toBe(8);
+
+    await expectConvexErrorCode(
+      t.mutation(api.fileAttachments.purgeFiles, {
+        sessionId: other.sessionId,
+        chatroomId: owner.chatroomId,
+      }),
+      'ACCESS_DENIED'
+    );
+
+    for (const id of ownerRows) expect((await getRow(id))?.status).toBe('attached');
+    for (const id of otherRows) expect((await getRow(id))?.status).toBe('attached');
+    expect(await getUsage(owner.userId, owner.chatroomId)).toEqual(ownerUsageBefore);
+    expect(await getUsage(other.userId, other.chatroomId)).toEqual(otherUsageBefore);
 
     await assertUsageInvariant(owner.userId);
     await assertUsageInvariant(other.userId);
