@@ -110,8 +110,9 @@ function validateAttachmentEnvelope(
   paths: readonly string[],
   nextRole: string
 ): Effect.Effect<void, HandoffError> {
-  // Match the backend, which lowercases the target role before comparing.
-  const normalizedNextRole = nextRole.trim().toLowerCase();
+  // Match the backend's normalization exactly (lowercase only, no trim), as
+  // done in `services/backend/convex/messages.ts`.
+  const normalizedNextRole = nextRole.toLowerCase();
   if (normalizedNextRole !== 'user') {
     return Effect.fail({ _tag: 'AttachmentsRequireUserTarget' });
   }

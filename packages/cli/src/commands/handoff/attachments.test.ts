@@ -90,13 +90,25 @@ describe('prepareHandoffAttachments', () => {
     expect(error._tag).toBe('AttachmentsRequireUserTarget');
   });
 
-  test.each(['user', 'User', ' USER '])('accepts the user target %j', async (nextRole) => {
+  test.each(['user', 'User'])('accepts the user target %j', async (nextRole) => {
     const path = await writeTempFile('a.png', 'png');
 
     const prepared = await Effect.runPromise(prepareHandoffAttachments([path], nextRole));
 
     expect(prepared.map((file) => file.filename)).toEqual(['a.png']);
   });
+
+  // The backend lowercases the target role but does not trim it, so a
+  // whitespace-padded role reaches it as a mismatched string. Use a missing
+  // path to prove validation fails before any file work.
+  test.each([' user', 'user ', ' USER '])(
+    'rejects the whitespace-padded user target %j before any file work',
+    async (nextRole) => {
+      const error = await failureOf(prepareHandoffAttachments([tempPath('missing.png')], nextRole));
+
+      expect(error._tag).toBe('AttachmentsRequireUserTarget');
+    }
+  );
 
   test('rejects a non-user target even when cased like a team role', async () => {
     const error = await failureOf(
