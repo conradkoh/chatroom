@@ -1615,6 +1615,64 @@ describe('purgeFiles (scenario 10)', () => {
     await assertUsageInvariant(user.userId);
   });
 
+  test('user purge rejects a CLI session with WEB_SESSION_REQUIRED and leaves rows and usage unchanged', async () => {
+    const user = await setupUser('purge-cli-user');
+    const rows = await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 2,
+      sizeBytes: 5,
+    });
+    const cliSessionId = await createCliSession(user);
+    const chatroomUsageBefore = await getUsage(user.userId, user.chatroomId);
+    const userUsageBefore = await getUsage(user.userId, undefined);
+    expect(await countAttachedRows(user.chatroomId)).toBe(2);
+    expect(chatroomUsageBefore?.bytes).toBe(10);
+    expect(userUsageBefore?.bytes).toBe(10);
+
+    await expectConvexErrorCode(
+      t.mutation(api.fileAttachments.purgeFiles, {
+        sessionId: cliSessionId,
+      }),
+      'WEB_SESSION_REQUIRED'
+    );
+
+    expect(await countAttachedRows(user.chatroomId)).toBe(2);
+    for (const id of rows) expect((await getRow(id))?.status).toBe('attached');
+    expect(await getUsage(user.userId, user.chatroomId)).toEqual(chatroomUsageBefore);
+    expect(await getUsage(user.userId, undefined)).toEqual(userUsageBefore);
+    await assertUsageInvariant(user.userId);
+  });
+
+  test('chatroom purge rejects a CLI session with WEB_SESSION_REQUIRED and leaves the chatroom untouched', async () => {
+    const user = await setupUser('purge-cli-chatroom');
+    const rows = await seedAttachedRows({
+      userId: user.userId,
+      chatroomId: user.chatroomId,
+      count: 2,
+      sizeBytes: 5,
+    });
+    const cliSessionId = await createCliSession(user);
+    const chatroomUsageBefore = await getUsage(user.userId, user.chatroomId);
+    const userUsageBefore = await getUsage(user.userId, undefined);
+    expect(await countAttachedRows(user.chatroomId)).toBe(2);
+    expect(chatroomUsageBefore?.bytes).toBe(10);
+
+    await expectConvexErrorCode(
+      t.mutation(api.fileAttachments.purgeFiles, {
+        sessionId: cliSessionId,
+        chatroomId: user.chatroomId,
+      }),
+      'WEB_SESSION_REQUIRED'
+    );
+
+    expect(await countAttachedRows(user.chatroomId)).toBe(2);
+    for (const id of rows) expect((await getRow(id))?.status).toBe('attached');
+    expect(await getUsage(user.userId, user.chatroomId)).toEqual(chatroomUsageBefore);
+    expect(await getUsage(user.userId, undefined)).toEqual(userUsageBefore);
+    await assertUsageInvariant(user.userId);
+  });
+
   test('chatroom purge with minSizeBytes deletes only the large files', async () => {
     const user = await setupUser('purge-chatroom');
     const small = await seedAttachedRows({
