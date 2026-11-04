@@ -66,6 +66,16 @@ Reference knowledge for procedural (runtime) motion of creatures built from chai
 - Assign a body radius to each chain point and treat the chain as the spine.
 - Compute left and right skin coordinates per segment with circle parametric equations and ±90° (quarter-turn) offsets from the spine direction. This yields continuous outlines and features such as eyes or fins.
 
+### Angle constraints
+
+- Limit how sharply adjacent segments can bend relative to each other.
+- Without this a flexible chain can loop over itself or break shape. Choose thresholds that mirror real anatomy.
+
+### Fins and curvature
+
+- Attach fins by relative rotation to segments so they lag and lead the motion instead of staying rigid.
+- Sum the angular differences across body segments to get overall curvature; dorsal and tail fins then flex with how hard the creature turns.
+
 ## Proof of Principles
 
 Append these lines to the report's Proof of Principles when this skill is used:
