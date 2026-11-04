@@ -69,11 +69,25 @@ const EXTENSION_TO_MIME_TYPE = new Map<string, FileAttachmentMimeType>(
 
 /** Control characters (including NUL), DEL, and path separators. */
 const INVALID_FILENAME_CHARACTER_PATTERN = /[/\\\u0000-\u001f\u007f]/;
+/**
+ * Unicode bidirectional control characters. They can visually reorder a name
+ * (for example to disguise `photo\u202Etxt.exe`) without changing its bytes,
+ * so reject them outright.
+ */
+const BIDI_CONTROL_CHARACTER_PATTERN = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
 const PATH_SEPARATOR_PATTERN = /[/\\]/;
 const RESERVED_FILENAME_PATTERN = /^\.{1,2}$/;
 
 function basenameOf(path: string): string {
   return path.split(PATH_SEPARATOR_PATTERN).pop() ?? '';
+}
+
+/** True when the basename contains a control or bidi control character. */
+function hasForbiddenFilenameCharacter(filename: string): boolean {
+  return (
+    INVALID_FILENAME_CHARACTER_PATTERN.test(filename) ||
+    BIDI_CONTROL_CHARACTER_PATTERN.test(filename)
+  );
 }
 
 /** Looks up registry metadata for an exact MIME type; null when not allowlisted. */
@@ -120,13 +134,14 @@ export function getStoredBlobContentType(mimeType: FileAttachmentMimeType): stri
 
 /**
  * Validates a basename: non-empty, at most FILE_ATTACHMENT_MAX_FILENAME_LENGTH
- * characters, no path separators or control characters, and not '.' or '..'.
+ * characters, no path separators, control characters, or bidi control
+ * characters, and not '.' or '..'.
  */
 export function isValidAttachmentFilename(filename: string): boolean {
   return (
     filename.length > 0 &&
     filename.length <= FILE_ATTACHMENT_MAX_FILENAME_LENGTH &&
     !RESERVED_FILENAME_PATTERN.test(filename) &&
-    !INVALID_FILENAME_CHARACTER_PATTERN.test(filename)
+    !hasForbiddenFilenameCharacter(filename)
   );
 }

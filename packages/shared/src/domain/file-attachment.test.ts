@@ -69,6 +69,27 @@ describe('isValidAttachmentFilename', () => {
     }
   );
 
+  test.each([
+    `bad\u061cname.png`,
+    `bad\u200ename.png`,
+    `bad\u200fname.png`,
+    `bad\u202aname.png`,
+    `bad\u202bname.png`,
+    `bad\u202cname.png`,
+    `bad\u202dname.png`,
+    `bad\u202ename.png`,
+    `bad\u2066name.png`,
+    `bad\u2067name.png`,
+    `bad\u2068name.png`,
+    `bad\u2069name.png`,
+  ])('rejects bidi control character in %j', (filename) => {
+    expect(isValidAttachmentFilename(filename)).toBe(false);
+  });
+
+  test('accepts an ordinary allowlisted filename', () => {
+    expect(isValidAttachmentFilename('holiday-photo.png')).toBe(true);
+  });
+
   test('rejects names longer than 255 characters', () => {
     expect(isValidAttachmentFilename('a'.repeat(256))).toBe(false);
   });
