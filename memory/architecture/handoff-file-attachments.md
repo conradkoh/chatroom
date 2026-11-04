@@ -33,7 +33,14 @@ that shape the feature; the implementation lives in the S1–S8 slices.
 5. **Limits.** 10 MiB per file, 10 files per handoff, 255-character filenames.
    The MIME allowlist is resolved from the extension on the server: png,
    jpg/jpeg, gif, webp, svg, pdf, txt, log, md, csv, json, html/htm, zip.
-6. **Access.** Upload and attach accept any chatroom-access session. Reads
+   One owner may hold at most 20 live unbound rows in total across
+   `pending_upload` and `uploaded` (`FILE_ATTACHMENT_MAX_PENDING_PER_USER`);
+   expired rows are not counted. A new reservation is rejected at that cap.
+6. **Access.** Upload and attach accept any chatroom-access session. Upload
+   rows are owned by the chatroom owner, and attaching is restricted to that
+   owner: `beginUpload` and `runHandoffHandler` bind only rows whose
+   `ownerUserId` is the chatroom owner, and `checkAttachmentBinding` also
+   requires the row's `uploadedByRole` to match the handoff sender. Reads
    (`getFileUrls`), listing, delete, purge, and settings require a `web` session
    (`WEB_SESSION_REQUIRED` for CLI, `ACCESS_DENIED` for non-owners). URLs are
    never persisted or returned to the CLI. HTML and SVG are stored as
@@ -54,8 +61,31 @@ that shape the feature; the implementation lives in the S1–S8 slices.
    capability: it works without a session until the blob is deleted. URLs are
    minted per read and never persisted or returned to the CLI. Accepted because
    the URL is unguessable and is shown only to the owner's web session. Open
-   verification items: Convex URL lifetime semantics and whether storage sets
-   `X-Content-Type-Options: nosniff`. Revisit if either is unacceptable.
+   verification items: Convex URL lifetime semantics, whether storage sets
+   `X-Content-Type-Options: nosniff`, and whether the gateway passes
+   `Content-Length` through unchanged. Revisit if any is unacceptable.
+10. **Upload request framing.** The upload POST must declare `Content-Length`.
+    Missing, non-finite, or negative values are rejected with 411; a value above
+    the 10 MiB maximum is rejected with 413. Both checks run in preflight,
+    before the ticket is authorized and before the body is read. After
+    authorization, a declared length different from the reserved size is
+    rejected with 400 before the body read; `readUploadBody` then requires the
+    bytes actually read to equal the reserved size. Convex gateway pass-through
+    of `Content-Length` is covered only by `convex-test`; verify once against a
+    real deployment.
+11. **CLI upload origin.** The CLI attaches the session bearer only to: the
+    configured backend origin; a loopback upload host on the Convex local site
+    port (backend port + 1), where any two loopback hosts pair (`localhost`,
+    `127.0.0.1`, `[::1]`); or `https://<name>.convex.site` when the backend is
+    `https://<name>.convex.cloud` with no port. HTTPS is required except for
+    loopback. Any other origin is refused before a request is sent. Known
+    limitation: there is no environment-variable override or configurable
+    origin list, so self-hosted or custom-domain Convex deployments cannot
+    upload until a decision adds one.
+12. **Web-session helpers.** The file and storage-settings guards live in
+    `convex/auth/webSession.ts` (`requireWebSession`, `requireWebCaller`), not
+    inline in each endpoint. `discardUploads` accepts any session type because
+    it skips `attached` rows and only deletes the caller's own rows.
 
 ## Known gaps
 
@@ -67,3 +97,14 @@ that shape the feature; the implementation lives in the S1–S8 slices.
   chatroom whose optional name is unset. `listFiles` now returns
   `chatroomDeleted` alongside the optional `chatroomName`, and the list labels
   live unnamed rooms "Untitled chatroom".
+- **Symlinked attachments.** The CLI `stat`s each path, which follows symlinks,
+  so a symlink named `x.txt` uploads its target's bytes under an allow-listed
+  extension. Accepted: the destination is the user's own chatroom, the agent
+  could already read the target, and served content never executes on the app
+  origin. A `lstat` plus `realpath` allow-list is the stricter option.
+- **Missing vs. forbidden ids.** `getFileUrls` and `deleteFile` return `null` /
+  `deleted: false` for a missing row and throw `ACCESS_DENIED` for a foreign
+  row. Accepted: ids are unguessable and existence is revealed only to an
+  authenticated caller.
+- **Self-hosted upload origins.** See decision 11; self-hosted or custom-domain
+  Convex deployments have no allowed upload origin.
