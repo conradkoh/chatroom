@@ -6,8 +6,9 @@
  * in every conversation mode; its only condition is whether the task involved
  * code changes, which the entry point judges from the prompt text. The verdict
  * tokens are derived from `VERIFIER_VERDICTS` so they cannot drift from the
- * handoff templates. The rework step adapts to whether a `builder` is advertised,
- * so a solo entry point reworks its own work.
+ * handoff templates. The rework step adapts to the advertised rework role: a
+ * builder or specifier delegates rework, while a solo entry point reworks its
+ * own work.
  */
 
 import { VERIFIER_TEST_RULE, VERIFIER_VERDICTS } from '../teams/verifier-handoff-templates';
@@ -41,17 +42,20 @@ export function shouldIncludeVerifierGate(params: {
 /**
  * Appends the `<verifier-gate>` block to the task-delivery lines.
  *
- * `hasBuilder` selects the builder-dependent clauses: a team with a builder
- * delegates the rework and asks the builder for missing evidence, while a team
- * without one (solo) acts itself. Only those clauses differ between renderings.
+ * `reworkRole` selects the rework-dependent clauses: a team that advertises a
+ * builder or specifier delegates the rework and asks that role for missing
+ * evidence, while a team without one (solo) acts itself. Only those clauses
+ * differ between renderings.
  */
 export function appendVerifierGateGuidance(
   lines: string[],
-  options: { hasBuilder: boolean }
+  options: { reworkRole: string | null }
 ): void {
-  const reworkClause = options.hasBuilder ? ', delegate to `builder`' : ' and do it yourself';
-  const inconclusiveClause = options.hasBuilder
-    ? 'get the missing evidence from `builder` once'
+  const reworkClause = options.reworkRole
+    ? `, delegate to \`${options.reworkRole}\``
+    : ' and do it yourself';
+  const inconclusiveClause = options.reworkRole
+    ? `get the missing evidence from \`${options.reworkRole}\` once`
     : 'gather the missing evidence yourself once';
 
   lines.push(

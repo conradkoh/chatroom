@@ -76,4 +76,28 @@ describe('inferPrimaryHandoffTarget', () => {
       })
     ).toBe('enhancer');
   });
+
+  test('enforced-team specifier returns work to its upstream coordinator', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'builder',
+        role: 'specifier',
+        availableHandoffTargets: ['coordinator', 'builder'],
+        upstreamRole: 'coordinator',
+        isEntryPoint: false,
+      })
+    ).toBe('coordinator');
+  });
+
+  test('enforced-team builder returns work to its upstream specifier', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'specifier',
+        role: 'builder',
+        availableHandoffTargets: ['specifier'],
+        upstreamRole: 'specifier',
+        isEntryPoint: false,
+      })
+    ).toBe('specifier');
+  });
 });

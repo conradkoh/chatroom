@@ -15,6 +15,7 @@ import { appendVerifierGateGuidance, shouldIncludeVerifierGate } from './verifie
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
+import { getEnforcedHandoffTargets } from '../cli/handoff-templates';
 import { formatHandoffPairLabel } from '../cli/handoff-templates/pair';
 import {
   appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates,
@@ -112,11 +113,14 @@ function appendTaskDeliveryNextSteps(
   const { chatroomId, role, cliEnvPrefix, teamId, message, availableHandoffTargets, isEntryPoint } =
     params;
   const senderRole = getTaskSenderRole(message);
+  const enforcedTargets = getEnforcedHandoffTargets(teamId, role);
   const primaryTarget = inferPrimaryHandoffTarget({
     senderRole,
     role,
     availableHandoffTargets,
     isEntryPoint,
+    // Enforced teams return work upstream (`returnsTo[0]`); advisory teams omit it.
+    upstreamRole: enforcedTargets?.[0],
   });
 
   lines.push('', '<next-steps>', '1. Work on the task above.');
@@ -234,7 +238,10 @@ export function appendTaskDeliveryHandoffSections(
     })
   ) {
     appendVerifierGateGuidance(lines, {
-      hasBuilder: activeHandoffTargets.some((target) => target.trim().toLowerCase() === 'builder'),
+      reworkRole:
+        activeHandoffTargets.find((target) => target.trim().toLowerCase() === 'builder') ??
+        activeHandoffTargets.find((target) => target.trim().toLowerCase() === 'specifier') ??
+        null,
     });
   }
 
