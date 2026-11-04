@@ -19,6 +19,7 @@ import { fileExtensionLabel, formatFileSize } from '../lib/formatFileSize';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { fileOpenAction, performFileOpen, type FileOpenAction } from '@/lib/fileOpenAction';
 
 type AvailableFile = Extract<AttachedFileView, { status: 'available' }>;
 
@@ -77,15 +78,13 @@ function DownloadAction({
   );
 }
 
-function PdfOpenAction({ file, url }: { file: AvailableFile; url: string | null }) {
+function PdfOpenAction({ file, onOpen }: { file: AvailableFile; onOpen?: () => void }) {
   return (
     <Button
       variant="ghost"
       size="icon-xs"
-      onClick={() => {
-        if (url) window.open(url, '_blank', 'noopener,noreferrer');
-      }}
-      disabled={!url}
+      onClick={() => onOpen?.()}
+      disabled={!onOpen}
       title="Open in new tab"
       aria-label={`Open ${file.filename} in new tab`}
     >
@@ -218,7 +217,7 @@ function LoadingAttachmentRow({
       }
       actions={
         <>
-          {kind === 'pdf' && <PdfOpenAction file={file} url={null} />}
+          {kind === 'pdf' && <PdfOpenAction file={file} />}
           <DownloadAction
             file={file}
             url={null}
@@ -231,20 +230,9 @@ function LoadingAttachmentRow({
   );
 }
 
-function openFor(
-  kind: FileRowKind,
-  url: string,
-  onDownload: () => void,
-  onPreview: () => void
-): () => void {
-  if (kind === 'pdf') return () => window.open(url, '_blank', 'noopener,noreferrer');
-  if (kind === 'download') return onDownload;
-  return onPreview;
-}
-
-function openLabelFor(kind: FileRowKind, filename: string): string {
-  if (kind === 'pdf') return `Open ${filename} (new tab)`;
-  if (kind === 'download') return `Download ${filename}`;
+function openLabelFor(action: FileOpenAction, filename: string): string {
+  if (action === 'open-pdf') return `Open ${filename} (new tab)`;
+  if (action === 'download') return `Download ${filename}`;
   return `Preview ${filename}`;
 }
 
@@ -265,17 +253,20 @@ function ReadyAttachmentRow({
   onDownload: () => void;
   onPreview: () => void;
 }) {
+  const action = fileOpenAction(kind);
+  const handleOpen = performFileOpen(action, url, { download: onDownload, preview: onPreview });
+
   return (
     <FileAttachmentRow
       filename={file.filename}
       meta={fileMeta(file)}
       kind={kind}
-      onOpen={openFor(kind, url, onDownload, onPreview)}
-      openLabel={openLabelFor(kind, file.filename)}
+      onOpen={handleOpen}
+      openLabel={openLabelFor(action, file.filename)}
       media={media}
       actions={
         <>
-          {kind === 'pdf' && <PdfOpenAction file={file} url={url} />}
+          {kind === 'pdf' && <PdfOpenAction file={file} onOpen={handleOpen} />}
           <DownloadAction
             file={file}
             url={url}

@@ -29,6 +29,7 @@ import { fileExtensionLabel, formatFileSize } from '../lib/formatFileSize';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { fileOpenAction, performFileOpen, type FileOpenAction } from '@/lib/fileOpenAction';
 
 const PAGE_SIZE = 25;
 const ARMED_DELETE = { variant: 'destructive', size: 'xs' } as const;
@@ -76,33 +77,10 @@ function rowMeta(file: FileListItem, showChatroom: boolean): string {
   return parts.join(' · ');
 }
 
-function openLabelFor(kind: FileRowKind, filename: string): string {
-  if (kind === 'pdf') return `Open ${filename} (new tab)`;
-  if (kind === 'download') return `Download ${filename}`;
+function openLabelFor(action: FileOpenAction, filename: string): string {
+  if (action === 'open-pdf') return `Open ${filename} (new tab)`;
+  if (action === 'download') return `Download ${filename}`;
   return `Preview ${filename}`;
-}
-
-/** The row's primary click: pdf opens a tab, unknown kinds download, else preview. */
-function openAction(
-  kind: FileRowKind,
-  url: string | null,
-  onDownload: () => void,
-  onPreview: () => void
-): (() => void) | undefined {
-  if (!url) return undefined;
-  if (kind === 'pdf') return () => window.open(url, '_blank', 'noopener,noreferrer');
-  if (kind === 'download') return onDownload;
-  return onPreview;
-}
-
-function rowOpen(
-  missing: boolean,
-  kind: FileRowKind,
-  url: string | null,
-  onDownload: () => void,
-  onPreview: () => void
-): (() => void) | undefined {
-  return missing ? undefined : openAction(kind, url, onDownload, onPreview);
 }
 
 function resolveUrl(state: FileUrlState, id: AttachmentId): string | null {
@@ -120,10 +98,6 @@ function rowKind(missing: boolean, mimeType: string): FileRowKind {
 
 function downloadIfReady(url: string | null, file: FileListItem, download: DownloadFn): void {
   if (url) void download(file._id, url, file.filename);
-}
-
-function openPdf(url: string | null): void {
-  if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function listArgs(
@@ -214,9 +188,9 @@ function PreviewAction({
   );
 }
 
-function PdfAction({ filename, url }: { filename: string; url: string | null }) {
+function PdfAction({ filename, onOpen }: { filename: string; onOpen?: () => void }) {
   return (
-    <RowAction label={`Open ${filename} in new tab`} disabled={!url} onClick={() => openPdf(url)}>
+    <RowAction label={`Open ${filename} in new tab`} disabled={!onOpen} onClick={() => onOpen?.()}>
       <ExternalLink size={12} />
     </RowAction>
   );
@@ -280,6 +254,7 @@ function RowActions({
   armed,
   deleting,
   downloading,
+  onOpen,
   onPreview,
   onDownload,
   onDelete,
@@ -291,6 +266,7 @@ function RowActions({
   armed: boolean;
   deleting: boolean;
   downloading: boolean;
+  onOpen?: () => void;
   onPreview: () => void;
   onDownload: () => void;
   onDelete: () => void;
@@ -301,7 +277,7 @@ function RowActions({
       {previewable(kind) && (
         <PreviewAction filename={file.filename} disabled={!url} onPreview={onPreview} />
       )}
-      {kind === 'pdf' && <PdfAction filename={file.filename} url={url} />}
+      {kind === 'pdf' && <PdfAction filename={file.filename} onOpen={onOpen} />}
       <DownloadAction
         filename={file.filename}
         url={url}
@@ -339,9 +315,14 @@ function FileManagerRow({
   const url = resolveUrl(urlState, file._id);
   const missing = isMissing(urlState, url);
   const kind = rowKind(missing, file.mimeType);
+  const action = fileOpenAction(kind);
   const downloading = downloadingId === file._id;
   const handleDownload = () => downloadIfReady(url, file, download);
   const handlePreview = () => setPreviewOpen(true);
+  const handleOpen = performFileOpen(action, url, {
+    download: handleDownload,
+    preview: handlePreview,
+  });
 
   return (
     <>
@@ -350,8 +331,8 @@ function FileManagerRow({
         meta={rowMeta(file, showChatroom)}
         kind={kind}
         busy={deleting}
-        onOpen={rowOpen(missing, kind, url, handleDownload, handlePreview)}
-        openLabel={openLabelFor(kind, file.filename)}
+        onOpen={handleOpen}
+        openLabel={openLabelFor(action, file.filename)}
         actions={
           <RowActions
             file={file}
@@ -361,6 +342,7 @@ function FileManagerRow({
             armed={armed}
             deleting={deleting}
             downloading={downloading}
+            onOpen={handleOpen}
             onPreview={handlePreview}
             onDownload={handleDownload}
             onDelete={() => onDelete(file._id)}
