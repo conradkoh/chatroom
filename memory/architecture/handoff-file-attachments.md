@@ -36,11 +36,13 @@ that shape the feature; the implementation lives in the S1–S8 slices.
    One owner may hold at most 20 live unbound rows in total across
    `pending_upload` and `uploaded` (`FILE_ATTACHMENT_MAX_PENDING_PER_USER`);
    expired rows are not counted. A new reservation is rejected at that cap.
-6. **Access.** Upload and attach accept any chatroom-access session. Upload
-   rows are owned by the chatroom owner, and attaching is restricted to that
-   owner: `beginUpload` and `runHandoffHandler` bind only rows whose
-   `ownerUserId` is the chatroom owner, and `checkAttachmentBinding` also
-   requires the row's `uploadedByRole` to match the handoff sender. Reads
+6. **Access.** Upload and attach accept any chatroom-access session.
+   `beginUpload` creates rows whose `ownerUserId` is the chatroom owner (see
+   `services/backend/src/domain/usecase/file-attachment/lifecycle.ts`, around
+   lines 88–90). Only `runHandoffHandler` binds rows. It checks that each row's
+   `ownerUserId` equals the chatroom owner (`checkAttachmentBinding`,
+   `lifecycle.ts` around lines 564–572), and it checks chatroom, owner, role,
+   status and expiry in that order. Reads
    (`getFileUrls`), listing, delete, purge, and settings require a `web` session
    (`WEB_SESSION_REQUIRED` for CLI, `ACCESS_DENIED` for non-owners). URLs are
    never persisted or returned to the CLI. HTML and SVG are stored as
