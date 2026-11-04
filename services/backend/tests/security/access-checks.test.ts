@@ -54,10 +54,17 @@ const ACCESS_CHECK_PATTERNS = [
   'checkSession',
   'getAuthenticatedWebUser',
   'requireAuthenticatedWebUser',
-  // fileAttachments.ts — validates the session, then requires a web session
-  // (CLI sessions are user-scoped and must never read files or settings).
-  'requireWebCaller',
+  // NOTE: `requireWebCaller` is deliberately absent. It only validates the
+  // session and the web caller type; it never checks resource ownership. File
+  // endpoints therefore prove their boundaries in REQUIRED_CHECKS_BY_FILE.
 ];
+
+/**
+ * Files whose endpoints need resource-specific checks instead of the generic
+ * "any access check" scan. Every exported mutation/query must appear in
+ * REQUIRED_CHECKS_BY_FILE.
+ */
+const SCOPED_FILES = ['fileAttachments.ts', 'fileStorageSettings.ts'];
 
 /**
  * Allowlist for functions that intentionally skip access checks.
@@ -163,6 +170,37 @@ const ALLOWED_WITHOUT_ACCESS_CHECK: Record<string, string[]> = {
   'e2e.ts': ['promoteSessionToSystemAdmin'],
 };
 
+/**
+ * File-attachment endpoints must prove both the caller type and the resource
+ * boundary. `requireWebCaller` alone is not enough: it validates the session and
+ * never checks ownership.
+ *
+ * Each entry is a list of requirements; every requirement is a list of
+ * alternatives, and the function region must match at least one alternative in
+ * every requirement. The region is the exported function plus any local helpers
+ * defined directly beneath it, so guards that live in a helper still count.
+ */
+const REQUIRED_CHECKS_BY_FILE: Record<string, Record<string, string[][]>> = {
+  'fileAttachments.ts': {
+    // The chatroom helpers resolve the owner; no web-caller gate (CLI sessions
+    // reserve uploads on behalf of their chatroom).
+    beginUpload: [['requireChatroomAccess']],
+    // Session validation plus the owner check in collectDiscardableRows.
+    discardUploads: [['validateSession', 'requireSession'], ['ownerUserId']],
+    getFileUrls: [['requireWebCaller'], ['ownerUserId', 'requireChatroomAccess']],
+    listFiles: [['requireWebCaller'], ['ownerUserId', 'requireChatroomAccess']],
+    deleteFile: [['requireWebCaller'], ['ownerUserId']],
+    purgeFiles: [['requireWebCaller'], ['requireChatroomAccess', 'ownerUserId']],
+  },
+  'fileStorageSettings.ts': {
+    // User scope only reads/writes the caller's own row.
+    getUserFileStorage: [['requireWebCaller']],
+    setUserFileStorageQuota: [['requireWebCaller']],
+    getChatroomFileStorage: [['requireWebCaller'], ['requireChatroomAccess']],
+    setChatroomFileStorageQuota: [['requireWebCaller'], ['requireChatroomAccess']],
+  },
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 interface ExportedFunction {
@@ -220,6 +258,69 @@ function extractExportedFunctions(source: string): ExportedFunction[] {
 }
 
 /**
+ * Extract a function's "region": its export declaration through the line
+ * before the next `export const`. Regions include local helpers defined below
+ * the handler, so a boundary enforced in `runPurgeFiles` or `loadOwnedRows` is
+ * still part of the function's check surface.
+ *
+ * Only used by the scoped file-attachment table; the generic scan stays
+ * handler-only.
+ */
+function extractFunctionRegion(source: string, name: string): string | null {
+  const marker = `export const ${name}`;
+  const start = source.indexOf(marker);
+  if (start === -1) return null;
+
+  const afterMarker = source[start + marker.length];
+  if (afterMarker !== undefined && /\w/.test(afterMarker)) return null;
+
+  const nextExport = source.indexOf('export const ', start + marker.length);
+  return source.substring(start, nextExport === -1 ? source.length : nextExport);
+}
+
+/**
+ * Extract an `httpAction` callback body by balanced braces.
+ * Matches: `export const NAME = httpAction(async (ctx, request) => { ... })`.
+ */
+function extractHttpActionBody(source: string, name: string): string | null {
+  const marker = `export const ${name} = httpAction(`;
+  const start = source.indexOf(marker);
+  if (start === -1) return null;
+
+  const braceStart = source.indexOf('{', start + marker.length);
+  if (braceStart === -1) return null;
+
+  let depth = 0;
+  for (let i = braceStart; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    if (source[i] === '}') depth--;
+    if (depth === 0) return source.substring(braceStart, i + 1);
+  }
+  return null;
+}
+
+/**
+ * Extract a non-exported `function name(...) { ... }` body by balanced braces.
+ * Used to prove an upload helper really reads the request body.
+ */
+function extractDeclaredFunctionBody(source: string, name: string): string | null {
+  const marker = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
+  const match = marker.exec(source);
+  if (!match) return null;
+
+  const braceStart = source.indexOf('{', match.index + match[0].length);
+  if (braceStart === -1) return null;
+
+  let depth = 0;
+  for (let i = braceStart; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    if (source[i] === '}') depth--;
+    if (depth === 0) return source.substring(braceStart, i + 1);
+  }
+  return null;
+}
+
+/**
  * Check if a handler source contains at least one access check.
  */
 function hasAccessCheck(handlerSource: string): boolean {
@@ -257,7 +358,7 @@ describe('Security: Access Check Enforcement', () => {
   it('every exported mutation has an access check', () => {
     const unprotected: string[] = [];
 
-    for (const file of files) {
+    for (const file of files.filter((f) => !SCOPED_FILES.includes(f))) {
       const source = fs.readFileSync(path.join(convexDir, file), 'utf-8');
       const functions = extractExportedFunctions(source);
       const mutations = functions.filter((f) => f.type === 'mutation');
@@ -283,7 +384,7 @@ describe('Security: Access Check Enforcement', () => {
   it('every exported query has an access check', () => {
     const unprotected: string[] = [];
 
-    for (const file of files) {
+    for (const file of files.filter((f) => !SCOPED_FILES.includes(f))) {
       const source = fs.readFileSync(path.join(convexDir, file), 'utf-8');
       const functions = extractExportedFunctions(source);
       const queries = functions.filter((f) => f.type === 'query');
@@ -341,5 +442,97 @@ describe('Security: Access Check Enforcement', () => {
           '\n\nRemove from ALLOWED_WITHOUT_ACCESS_CHECK.'
       );
     }
+  });
+});
+
+describe('Security: File attachment access checks', () => {
+  const convexDir = path.resolve(__dirname, '../../convex');
+
+  it('every scoped endpoint matches its required checks', () => {
+    const violations: string[] = [];
+
+    for (const [file, functions] of Object.entries(REQUIRED_CHECKS_BY_FILE)) {
+      const source = fs.readFileSync(path.join(convexDir, file), 'utf-8');
+      const exported = extractExportedFunctions(source);
+      const exportedNames = new Set(exported.map((fn) => fn.name));
+
+      // A stale table entry would silently scan nothing.
+      for (const [fnName, requirements] of Object.entries(functions)) {
+        if (!exportedNames.has(fnName)) {
+          violations.push(`${file}:${fnName} — table entry does not match an export`);
+          continue;
+        }
+
+        const region = extractFunctionRegion(source, fnName);
+        if (region === null) {
+          violations.push(`${file}:${fnName} — could not extract source region`);
+          continue;
+        }
+
+        for (const alternatives of requirements) {
+          if (!alternatives.some((pattern) => region.includes(pattern))) {
+            violations.push(`${file}:${fnName} — missing ${alternatives.join(' or ')}`);
+          }
+        }
+      }
+
+      // Every user-facing export must be covered; a new endpoint must not
+      // silently escape the scoped scan.
+      for (const fn of exported) {
+        if (!(fn.name in functions)) {
+          violations.push(`${file}:${fn.line} — ${fn.name} has no scoped check entry`);
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      throw new Error(
+        `Found ${violations.length} file-attachment access violation(s):\n` +
+          violations.map((v) => `  • ${v}`).join('\n') +
+          '\n\nAdd the missing guard or update REQUIRED_CHECKS_BY_FILE.'
+      );
+    }
+  });
+
+  it('the upload HTTP action authorizes the ticket before reading the body', () => {
+    const source = fs.readFileSync(path.join(convexDir, 'fileAttachments.ts'), 'utf-8');
+    const body = extractHttpActionBody(source, 'uploadFileAttachmentHttp');
+
+    expect(body).not.toBeNull();
+    const authorizeIndex = body!.indexOf('authorizeUpload');
+
+    // The body may be read inline (`arrayBuffer(`) or through the local
+    // `readUploadBody` helper. Whichever call comes first in the action body
+    // must come after authorization.
+    const directReadIndex = body!.indexOf('arrayBuffer(');
+    const helperReadIndex = body!.indexOf('readUploadBody(');
+    const bodyReadIndex = [directReadIndex, helperReadIndex]
+      .filter((index) => index >= 0)
+      .sort((a, b) => a - b)[0];
+
+    expect(authorizeIndex).toBeGreaterThanOrEqual(0);
+    expect(bodyReadIndex).toBeDefined();
+    expect(authorizeIndex).toBeLessThan(bodyReadIndex);
+
+    // And the helper that the action delegates to must actually read bytes.
+    const helperBody = extractDeclaredFunctionBody(source, 'readUploadBody');
+    expect(helperBody).not.toBeNull();
+    expect(helperBody!).toContain('request.arrayBuffer()');
+  });
+
+  it('rejects a handler that only calls requireWebCaller', () => {
+    const fixture = [
+      'export const onlyWebCaller = mutation({',
+      '  args: {},',
+      '  handler: async (ctx, args) => {',
+      '    const session = await requireWebCaller(ctx, args.sessionId);',
+      '    return session;',
+      '  },',
+      '});',
+    ].join('\n');
+
+    const [fn] = extractExportedFunctions(fixture);
+    expect(fn).toBeDefined();
+    expect(hasAccessCheck(fn!.handlerSource)).toBe(false);
   });
 });
