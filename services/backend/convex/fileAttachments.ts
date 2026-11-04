@@ -227,8 +227,12 @@ function preflightUpload(request: Request): PreflightResult {
     );
   }
 
-  const contentLength = Number(request.headers.get('Content-Length'));
-  if (Number.isFinite(contentLength) && contentLength > FILE_ATTACHMENT_MAX_BYTES) {
+  const rawLength = request.headers.get('Content-Length');
+  const contentLength = rawLength === null ? Number.NaN : Number(rawLength);
+  if (!Number.isFinite(contentLength) || contentLength < 0) {
+    return preflightFailure(411, 'FILE_ATTACHMENT_INVALID', 'Content-Length header is required');
+  }
+  if (contentLength > FILE_ATTACHMENT_MAX_BYTES) {
     return preflightFailure(
       413,
       'FILE_ATTACHMENT_TOO_LARGE',

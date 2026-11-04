@@ -70,13 +70,23 @@ async function beginUpload(
   });
 }
 
+function bodyByteLength(body: Uint8Array | string): number {
+  return typeof body === 'string' ? new TextEncoder().encode(body).byteLength : body.byteLength;
+}
+
 function uploadInit(args: {
   sessionId?: string | null;
   attachmentId?: string | null;
   body?: Uint8Array | string;
   headers?: Record<string, string>;
 }): RequestInit {
-  const headers: Record<string, string> = { ...args.headers };
+  const body = args.body ?? new TextEncoder().encode('hello');
+  // The real CLI sends a known-length Buffer/Uint8Array, so the transport sets
+  // Content-Length. convex-test builds the Request directly, so mirror it here.
+  const headers: Record<string, string> = {
+    'Content-Length': String(bodyByteLength(body)),
+    ...args.headers,
+  };
   if (args.sessionId !== null) {
     headers.Authorization = `Bearer ${args.sessionId}`;
   }
@@ -86,7 +96,7 @@ function uploadInit(args: {
   return {
     method: 'POST',
     headers,
-    body: args.body ?? new TextEncoder().encode('hello'),
+    body,
   };
 }
 
@@ -373,6 +383,45 @@ describe('upload HTTP rejections', () => {
     expect(response.status).toBe(413);
     expect((await readJson(response)).code).toBe('FILE_ATTACHMENT_TOO_LARGE');
     expect(await countStorage()).toBe(storageBefore);
+  });
+
+  test('a missing Content-Length returns 411 before the ticket is authorized', async () => {
+    const user = await setupUser('upload-missing-content-length');
+    const ticket = await beginUpload(user);
+    const storageBefore = await countStorage();
+
+    // The attachment id is malformed on purpose: authorizeUpload would answer
+    // 400, so a 411 proves preflight ran before any ticket lookup.
+    const response = await t.fetch(FILE_ATTACHMENT_UPLOAD_PATH, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${user.sessionId}`,
+        [ATTACHMENT_HEADER]: 'not-an-attachment-id',
+      },
+      body: new TextEncoder().encode('hello'),
+    });
+
+    expect(response.status).toBe(411);
+    expect(await readJson(response)).toMatchObject({
+      ok: false,
+      code: 'FILE_ATTACHMENT_INVALID',
+      message: 'Content-Length header is required',
+    });
+    expect(await countStorage()).toBe(storageBefore);
+    expect((await getRow(ticket.attachmentId))?.status).toBe('pending_upload');
+  });
+
+  test('a non-numeric Content-Length returns 411', async () => {
+    const user = await setupUser('upload-invalid-content-length');
+    const ticket = await beginUpload(user);
+
+    const response = await postUpload(user, ticket.attachmentId, {
+      headers: { 'Content-Length': 'chunked' },
+    });
+
+    expect(response.status).toBe(411);
+    expect((await readJson(response)).code).toBe('FILE_ATTACHMENT_INVALID');
+    expect((await getRow(ticket.attachmentId))?.status).toBe('pending_upload');
   });
 
   test('a body size mismatch returns 400 with no blob', async () => {
