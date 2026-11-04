@@ -9,7 +9,12 @@ import type { TeamCompositionConfig } from './team-composition';
 
 type CmdHelper = (subcommand: string) => string;
 
-function buildCmdHelper(cliEnvPrefix: string, chatroomIdArg: string, roleArg: string): CmdHelper {
+/** Build a `chatroom <subcommand>` command string with the current room/role context. */
+export function buildCmdHelper(
+  cliEnvPrefix: string,
+  chatroomIdArg: string,
+  roleArg: string
+): CmdHelper {
   return (subcommand: string) =>
     `\`${cliEnvPrefix}chatroom ${subcommand} --chatroom-id=${chatroomIdArg} --role=${roleArg}\``;
 }
@@ -31,7 +36,6 @@ Break complex features into small, focused slices. For code review guidance, act
 }
 
 /** Slice heuristics block shared by delegation-guidelines renderers. */
-// fallow-ignore-next-line unused-export
 export function getSliceHeuristicsBlock(): string {
   return `**How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
 

@@ -86,4 +86,17 @@ describe('handoff list-templates', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo, trio.');
   });
+
+  it('lists the specifier pair commands for the trio team', () => {
+    printHandoffListTemplates({ legacyRole: 'specifier', teamId: 'trio' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = getErrorOutput();
+    expect(output).toContain(
+      '--from="specifier" --to="coordinator" --mode="<chat|code|code:enhanced>" --team-id="trio"'
+    );
+    expect(output).toContain(
+      '--from="specifier" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="trio"'
+    );
+  });
 });

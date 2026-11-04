@@ -24,6 +24,9 @@ describe('team commands', () => {
     expect(log.mock.calls.join('\n')).toContain(
       'solo — Solo (solo, architect, triage, uiux-engineer, verifier) entry: solo'
     );
+    expect(log.mock.calls.join('\n')).toContain(
+      'trio — Trio (coordinator, architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, specifier, builder) entry: coordinator'
+    );
     log.mockRestore();
   });
 
@@ -65,6 +68,21 @@ describe('team commands', () => {
         sessionId: 'session_1',
         chatroomId: 'room_1',
         teamStructureId: 'solo',
+      })
+    );
+    log.mockRestore();
+  });
+
+  test('sets the trio preset', async () => {
+    const d = deps();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await setTeam('room_1', 'trio', d);
+    expect(d.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sessionId: 'session_1',
+        chatroomId: 'room_1',
+        teamStructureId: 'trio',
       })
     );
     log.mockRestore();

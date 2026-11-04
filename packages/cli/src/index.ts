@@ -337,7 +337,7 @@ teamCommand
   .command('set')
   .description('Set the team preset for a chatroom')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--team <id>', 'Team preset (duo|solo)')
+  .requiredOption('--team <id>', 'Team preset (duo|solo|trio)')
   .action(async (options: { chatroomId: string; team: string }) => {
     await maybeRequireAuth();
     const { setTeam } = await import('./commands/team/index.js');
@@ -352,7 +352,7 @@ handoffCommandGroup
   .option('--from <role>', 'Sending role (the role that runs the handoff)')
   .option('--to <role>', 'Receiving role (the --next-role of the handoff)')
   .option('--mode <mode>', 'Conversation mode: chat | code | code:enhanced (required)')
-  .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
+  .option('--team-id <teamId>', 'Team id (solo, duo, trio); defaults to duo')
   // --role / --next-role stay declared on the handoff group: when present they
   // are forwarded as legacy flags so the backend can emit the rewritten command.
   // fallow-ignore-next-line complexity
@@ -377,7 +377,7 @@ handoffCommandGroup
   .option('--from <role>', 'Sending role (the role that runs the handoff)')
   .option('--to <role>', 'Receiving role (the --next-role of the handoff)')
   .option('--mode <mode>', 'Conversation mode: chat | code | code:enhanced (required)')
-  .option('--team-id <teamId>', 'Team id (solo, duo); defaults to duo')
+  .option('--team-id <teamId>', 'Team id (solo, duo, trio); defaults to duo')
   // --role / --next-role stay declared on the handoff group: when present they
   // are forwarded as legacy flags so the backend can emit the rewritten command.
   // fallow-ignore-next-line complexity

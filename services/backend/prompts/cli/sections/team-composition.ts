@@ -15,7 +15,6 @@ export interface TeamCompositionConfig {
   implementationRole?: string | undefined;
 }
 
-// fallow-ignore-next-line unused-export
 export const AGENT_PRESENCE_NOTE =
   '**Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.';
 

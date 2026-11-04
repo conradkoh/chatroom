@@ -10,12 +10,11 @@
 export { getCoreResponsibilitiesSection } from './core-responsibilities';
 export { getHandoffTemplateDiscoveryGuidance } from './handoff-template-discovery';
 export { getDelegationAndDecompositionSection } from './delegation-and-decomposition';
-// fallow-ignore-next-line unused-export
 export { getDelegationGuidelinesSection, getSliceHeuristicsBlock } from './delegation-guidelines';
+export { buildCmdHelper } from './delegation-guidelines';
 export { getHandoffRulesSection } from './handoff-rules';
 export { getInterRoleHandoffRule, getUserHandoffVisibilityNote } from './inter-role-handoff-rule';
 export { getWhenWorkComesBackSection } from './when-work-comes-back';
-// fallow-ignore-next-line unused-export
 export { getTeamCompositionSection, AGENT_PRESENCE_NOTE } from './team-composition';
 export { getProofOfVerificationSection } from './proof-of-verification';
 export {

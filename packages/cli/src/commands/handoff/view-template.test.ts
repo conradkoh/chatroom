@@ -79,4 +79,13 @@ describe('handoff view-template', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo, trio.');
   });
+
+  it('rejects coordinator → builder in the trio team and lists valid recipients', () => {
+    printHandoffViewTemplate({ from: 'coordinator', to: 'builder', mode: 'code', teamId: 'trio' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = getErrorOutput();
+    expect(output).toContain('No handoff template for "coordinator" → "builder" in team "trio"');
+    expect(output).toContain('Valid recipients for "coordinator"');
+  });
 });
