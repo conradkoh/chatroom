@@ -1108,7 +1108,57 @@ describe('handoff attachment validation', () => {
     vi.useRealTimers();
     await assertUsageInvariant(user.userId);
   });
+
+  test('rejects a file owned by another user without writing', async () => {
+    // Chatrooms are owner-only today, so a foreign-owned row in this chatroom
+    // can only exist through a direct seed. Binding must still never accept it.
+    const user = await setupUser('validation-foreign-owner');
+    const foreignOwner = await setupUser('validation-foreign-owner-other');
+    const attachmentId = await seedForeignUploadedRow({
+      chatroomId: user.chatroomId,
+      ownerUserId: foreignOwner.userId,
+    });
+    const before = await captureState(user.chatroomId);
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Foreign-owned file.',
+      targetRole: 'user',
+      attachedFileIds: [attachmentId],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('FILE_ATTACHMENT_INVALID');
+    expect(await captureState(user.chatroomId)).toEqual(before);
+    expect((await getRow(attachmentId))?.status).toBe('uploaded');
+
+    await assertUsageInvariant(user.userId);
+  });
 });
+
+/** Seeds a ready-to-bind `uploaded` row whose owner is not the chatroom owner. */
+async function seedForeignUploadedRow(args: {
+  chatroomId: Id<'chatroom_rooms'>;
+  ownerUserId: Id<'users'>;
+}): Promise<Id<'chatroom_fileAttachments'>> {
+  return await t.run(async (ctx) => {
+    const now = Date.now();
+    return await ctx.db.insert('chatroom_fileAttachments', {
+      chatroomId: args.chatroomId,
+      ownerUserId: args.ownerUserId,
+      uploadedByRole: 'planner',
+      filename: 'foreign.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 5,
+      status: 'uploaded',
+      createdAt: now,
+      uploadedAt: now,
+      expiresAt: now + UPLOADED_UNATTACHED_TTL_MS,
+    });
+  });
+}
 
 describe('handoff replay cleanup', () => {
   test('a retried handoff deletes only the new uploads and keeps the original binding', async () => {

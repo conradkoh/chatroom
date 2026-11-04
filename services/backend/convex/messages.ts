@@ -641,6 +641,7 @@ export async function runHandoffHandler(
     }
     const validation = await validateHandoffAttachments(ctx, {
       chatroomId: args.chatroomId,
+      chatroomOwnerId: chatroom.ownerId,
       senderRole: args.senderRole,
       attachmentIds: args.attachedFileIds,
       now,

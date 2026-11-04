@@ -433,6 +433,8 @@ export async function validateHandoffAttachments(
   ctx: QueryCtx,
   args: {
     chatroomId: Id<'chatroom_rooms'>;
+    /** Owner of the target chatroom; rows must belong to the same user. */
+    chatroomOwnerId: Id<'users'>;
     senderRole: string;
     attachmentIds: Id<'chatroom_fileAttachments'>[];
     now: number;
@@ -479,6 +481,7 @@ async function validateHandoffAttachmentRows(
   ctx: QueryCtx,
   args: {
     chatroomId: Id<'chatroom_rooms'>;
+    chatroomOwnerId: Id<'users'>;
     senderRole: string;
     attachmentIds: Id<'chatroom_fileAttachments'>[];
     now: number;
@@ -502,7 +505,7 @@ async function validateHandoffAttachmentRows(
 /** Resolves one attachment row or the first reason it cannot be bound. */
 async function resolveHandoffAttachmentRow(
   ctx: QueryCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; now: number },
+  args: { chatroomId: Id<'chatroom_rooms'>; chatroomOwnerId: Id<'users'>; now: number },
   normalizedSenderRole: string,
   attachmentId: Id<'chatroom_fileAttachments'>
 ): Promise<{ ok: true; row: Doc<'chatroom_fileAttachments'> } | HandoffAttachmentFailure> {
@@ -517,16 +520,17 @@ async function resolveHandoffAttachmentRow(
   return { ok: true, row };
 }
 
-/** Rejects a row bound to another chatroom, role, or lifecycle state. */
+/** Rejects a row bound to another chatroom, owner, role, or lifecycle state. */
 function checkHandoffAttachmentRow(
   row: Doc<'chatroom_fileAttachments'>,
-  args: { chatroomId: Id<'chatroom_rooms'>; now: number },
+  args: { chatroomId: Id<'chatroom_rooms'>; chatroomOwnerId: Id<'users'>; now: number },
   normalizedSenderRole: string,
   attachmentId: Id<'chatroom_fileAttachments'>
 ): HandoffAttachmentFailure | null {
   const bindingError = checkAttachmentBinding(
     row,
     args.chatroomId,
+    args.chatroomOwnerId,
     normalizedSenderRole,
     attachmentId
   );
@@ -534,10 +538,11 @@ function checkHandoffAttachmentRow(
   return checkAttachmentReadyForHandoff(row, attachmentId, args.now);
 }
 
-/** Rejects a row that belongs to another chatroom or uploader role. */
+/** Rejects a row owned by another user, or bound to another chatroom or role. */
 function checkAttachmentBinding(
   row: Doc<'chatroom_fileAttachments'>,
   chatroomId: Id<'chatroom_rooms'>,
+  chatroomOwnerId: Id<'users'>,
   normalizedSenderRole: string,
   attachmentId: Id<'chatroom_fileAttachments'>
 ): HandoffAttachmentFailure | null {
@@ -545,6 +550,14 @@ function checkAttachmentBinding(
     return invalid(
       'FILE_ATTACHMENT_INVALID',
       `Attachment ${attachmentId} does not belong to this chatroom`
+    );
+  }
+  // Chatrooms are owner-only today, but binding must not rely on that: a row
+  // owned by another user is never bindable, even if it shares the chatroom.
+  if (row.ownerUserId !== chatroomOwnerId) {
+    return invalid(
+      'FILE_ATTACHMENT_INVALID',
+      `Attachment ${attachmentId} is not owned by this chatroom's owner`
     );
   }
   if (row.uploadedByRole !== normalizedSenderRole) {
