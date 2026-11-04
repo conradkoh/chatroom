@@ -67,8 +67,7 @@ export type HandoffTemplateRenderOptions = Omit<
  * solo), unknown/custom team, or a role with no contract in that team. Order is
  * the contract's `returnsTo` order; index 0 is the role's upstream recipient.
  */
-// Consumed by the delivery-prompt, authorization, and role-list wiring in the next slice.
-// fallow-ignore-next-line unused-export complexity
+// fallow-ignore-next-line complexity
 export function getEnforcedHandoffTargets(
   teamId: string | undefined,
   role: string
