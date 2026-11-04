@@ -30,6 +30,7 @@ In the web app, click **+ New** and select a team:
 
 - **Duo** - planner, builder
 - **Solo** - solo agent
+- **Trio** - coordinator, specifier, builder
 
 ### 5. Initialize Agents
 
@@ -130,7 +131,7 @@ Messages are routed by priority (lower = higher priority):
 | 4        | tester            |
 | 100      | user              |
 
-**Note:** User messages always go to the team's designated entry point role (e.g., `planner` for duo, `solo` for solo).
+**Note:** User messages always go to the team's designated entry point role (e.g., `planner` for duo, `coordinator` for trio, `solo` for solo).
 
 ### Workflow
 

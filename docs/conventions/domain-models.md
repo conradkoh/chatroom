@@ -51,7 +51,7 @@ For the complete builtin-role ownership map and add-role verification checklist,
 
 ```ts
 // packages/shared/src/domain/team-kind.ts
-export const TEAM_PRESET_IDS = ['duo', 'solo'] as const;
+export const TEAM_PRESET_IDS = ['duo', 'solo', 'trio'] as const;
 export type TeamPresetId = (typeof TEAM_PRESET_IDS)[number];
 
 // services/backend/src/domain/entities/team-kind.ts
