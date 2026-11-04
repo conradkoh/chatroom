@@ -112,16 +112,39 @@ function isConvexLocalSiteUrl(upload: URL, backend: URL): boolean {
   );
 }
 
+const CONVEX_CLOUD_SUFFIX = '.convex.cloud';
+const CONVEX_SITE_SUFFIX = '.convex.site';
+
+/** Production Convex serves HTTP actions on `<name>.convex.site`, paired with `<name>.convex.cloud`. */
+function isConvexCloudSiteUrl(upload: URL, backend: URL): boolean {
+  if (backend.protocol !== 'https:' || backend.port !== '') return false;
+  if (!backend.hostname.endsWith(CONVEX_CLOUD_SUFFIX)) return false;
+
+  const siteOrigin = `https://${backend.hostname.slice(
+    0,
+    -CONVEX_CLOUD_SUFFIX.length
+  )}${CONVEX_SITE_SUFFIX}`;
+  return upload.origin === siteOrigin;
+}
+
 /**
  * The upload POST carries the session bearer token, so only send it to the
- * configured backend origin. A loopback backend also accepts Convex's local
- * site port (cloud port + 1), where local HTTP actions are served.
+ * configured backend origin. Two Convex conventions are also accepted: the
+ * production site origin paired with a `<name>.convex.cloud` backend
+ * (`<name>.convex.site`), and the local site port (cloud port + 1) next to a
+ * loopback backend, where local HTTP actions are served.
  */
 function assertUploadUrlAllowed(uploadUrl: string, backendUrl: string): void {
   const { upload, backend } = parseUploadUrl(uploadUrl, backendUrl);
 
   assertUploadProtocol(upload);
-  if (upload.origin === backend.origin || isConvexLocalSiteUrl(upload, backend)) return;
+  if (
+    upload.origin === backend.origin ||
+    isConvexLocalSiteUrl(upload, backend) ||
+    isConvexCloudSiteUrl(upload, backend)
+  ) {
+    return;
+  }
 
   throw rejectedUploadUrl(
     `Upload URL origin ${upload.origin} does not match the configured backend ${backend.origin}`

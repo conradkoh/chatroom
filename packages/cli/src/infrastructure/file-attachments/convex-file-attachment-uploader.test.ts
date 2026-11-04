@@ -177,6 +177,98 @@ describe('createConvexFileAttachmentUploader', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  test('allows the production Convex site origin paired with the cloud backend', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'https://wonderful-raven-192.convex.cloud');
+    const uploader = createUploader(backend, fetchFn);
+    const uploadUrl = 'https://wonderful-raven-192.convex.site/api/file-attachments/upload';
+
+    await uploader.uploadBytes({
+      sessionId: 'session-1',
+      attachmentId: ATTACHMENT_ID,
+      uploadUrl,
+      bytes: new Uint8Array([1]),
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [url] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(uploadUrl);
+  });
+
+  test('refuses a different production Convex site origin', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'https://wonderful-raven-192.convex.cloud');
+    const uploader = createUploader(backend, fetchFn);
+
+    await expect(
+      uploader.uploadBytes({
+        sessionId: 'session-1',
+        attachmentId: ATTACHMENT_ID,
+        uploadUrl: 'https://other-deployment.convex.site/api/file-attachments/upload',
+        bytes: new Uint8Array([1]),
+      })
+    ).rejects.toMatchObject({ code: 'FILE_ATTACHMENT_UPLOAD_URL_REJECTED' });
+
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  test('refuses a host that merely contains the cloud suffix', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'https://wonderful-raven-192.convex.cloud');
+    const uploader = createUploader(backend, fetchFn);
+
+    await expect(
+      uploader.uploadBytes({
+        sessionId: 'session-1',
+        attachmentId: ATTACHMENT_ID,
+        uploadUrl:
+          'https://wonderful-raven-192.convex.cloud.evil.example/api/file-attachments/upload',
+        bytes: new Uint8Array([1]),
+      })
+    ).rejects.toMatchObject({ code: 'FILE_ATTACHMENT_UPLOAD_URL_REJECTED' });
+
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  test('refuses a plaintext production Convex site upload', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'https://wonderful-raven-192.convex.cloud');
+    const uploader = createUploader(backend, fetchFn);
+
+    await expect(
+      uploader.uploadBytes({
+        sessionId: 'session-1',
+        attachmentId: ATTACHMENT_ID,
+        uploadUrl: 'http://wonderful-raven-192.convex.site/api/file-attachments/upload',
+        bytes: new Uint8Array([1]),
+      })
+    ).rejects.toMatchObject({ code: 'FILE_ATTACHMENT_UPLOAD_URL_REJECTED' });
+
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  test('refuses an explicit port on the production Convex site origin', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'https://wonderful-raven-192.convex.cloud');
+    const uploader = createUploader(backend, fetchFn);
+
+    await expect(
+      uploader.uploadBytes({
+        sessionId: 'session-1',
+        attachmentId: ATTACHMENT_ID,
+        uploadUrl: 'https://wonderful-raven-192.convex.site:8443/api/file-attachments/upload',
+        bytes: new Uint8Array([1]),
+      })
+    ).rejects.toMatchObject({ code: 'FILE_ATTACHMENT_UPLOAD_URL_REJECTED' });
+
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   test('refuses a loopback port that is not the Convex site port', async () => {
     const { backend } = createBackend();
     const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
