@@ -214,6 +214,6 @@ describe('listHandoffTemplatesCommand', () => {
     );
 
     expect(error.code).toBe('UNKNOWN_TEAM');
-    expect(error.message).toBe('Unknown team "tri". Known teams: duo, solo.');
+    expect(error.message).toBe('Unknown team "tri". Known teams: duo, solo, trio.');
   });
 });

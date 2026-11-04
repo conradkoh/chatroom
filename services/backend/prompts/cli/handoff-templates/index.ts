@@ -4,8 +4,8 @@
  * Handoff templates provide good structure for how a role hands work off to
  * the next role.
  *
- * The role-owned catalogs (`DUO_ROLE_HANDOFF_CATALOG`, `SOLO_ROLE_HANDOFF_CATALOG`)
- * are the single registry. Pairs are derived from each contract's `returnsTo`
+ * The role-owned catalogs (`DUO_ROLE_HANDOFF_CATALOG`, `SOLO_ROLE_HANDOFF_CATALOG`,
+ * `TRIO_ROLE_HANDOFF_CATALOG`) are the single registry. Pairs are derived from each contract's `returnsTo`
  * order and rendered through its `outboundTemplates` getter — there is no
  * separate flat pair registry. `getHandoffTemplate` remains a compatibility
  * facade over that resolver; the CLI commands resolve explicit pairs.
@@ -37,6 +37,7 @@ import {
 import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
 import { listDuoRoleHandoffContracts } from '../../teams/duo/handoff-templates';
 import { listSoloRoleHandoffContracts } from '../../teams/solo/handoff-templates';
+import { listTrioRoleHandoffContracts } from '../../teams/trio/handoff-templates';
 import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
 
 export type { HandoffTemplateQuery } from './contracts';
@@ -48,6 +49,7 @@ const BUILTIN_TEAM_HANDOFF_CONTRACTS: Readonly<
 > = {
   duo: listDuoRoleHandoffContracts(),
   solo: listSoloRoleHandoffContracts(),
+  trio: listTrioRoleHandoffContracts(),
 };
 
 /** Options passed through to a pair getter (everything but the pair key itself). */

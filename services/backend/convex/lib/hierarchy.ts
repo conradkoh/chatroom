@@ -6,6 +6,8 @@ export interface RoleHierarchy {
 
 /** Default priority map for built-in roles; unknown roles default to 100. */
 export const DEFAULT_ROLE_HIERARCHY: RoleHierarchy = {
+  coordinator: 0,
+  specifier: 1,
   planner: 0,
   builder: 1,
   user: 999,

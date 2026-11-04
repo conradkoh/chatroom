@@ -97,7 +97,7 @@ export function formatHandoffTemplateKey(selection: HandoffTemplateSelection): s
   return `${pair.teamId}:${pair.fromRole}->${pair.toRole}@${modeBucket(mode)}`;
 }
 
-/** Type guard for the builtin team presets (`duo`, `solo`). */
+/** Type guard for the builtin team presets (`duo`, `solo`, `trio`). */
 export function isTeamPresetId(value: string): value is TeamPresetId {
   return (TEAM_PRESET_IDS as readonly string[]).includes(value);
 }

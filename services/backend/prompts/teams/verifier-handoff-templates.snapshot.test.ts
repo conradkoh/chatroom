@@ -11,6 +11,7 @@ import {
 const verifierPairs = [
   ...listHandoffTemplatePairs('duo'),
   ...listHandoffTemplatePairs('solo'),
+  ...listHandoffTemplatePairs('trio'),
 ].filter((pair) => pair.fromRole === 'verifier' || pair.toRole === 'verifier');
 
 function renderPair(pair: HandoffTemplatePair): string {

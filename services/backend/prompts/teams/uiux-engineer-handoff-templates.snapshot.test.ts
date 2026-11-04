@@ -10,6 +10,7 @@ import {
 const uiuxEngineerPairs = [
   ...listHandoffTemplatePairs('duo'),
   ...listHandoffTemplatePairs('solo'),
+  ...listHandoffTemplatePairs('trio'),
 ].filter((pair) => pair.fromRole === 'uiux-engineer' || pair.toRole === 'uiux-engineer');
 
 function renderPair(pair: HandoffTemplatePair): string {

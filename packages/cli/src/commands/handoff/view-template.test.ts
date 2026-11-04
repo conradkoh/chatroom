@@ -77,6 +77,6 @@ describe('handoff view-template', () => {
     printHandoffViewTemplate({ from: 'planner', to: 'builder', mode: 'code', teamId: 'tri' });
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo.');
+    expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo, trio.');
   });
 });

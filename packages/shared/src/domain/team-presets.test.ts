@@ -19,8 +19,41 @@ import {
   listTeamPresetIds,
 } from './team-presets';
 
+const expectedStructures = {
+  duo: [
+    { role: 'planner', lifecycle: 'permanent', optional: false },
+    { role: 'architect', lifecycle: 'ephemeral', optional: true },
+    { role: 'researcher', lifecycle: 'ephemeral', optional: true },
+    { role: 'triage', lifecycle: 'ephemeral', optional: true },
+    { role: 'reviewer', lifecycle: 'ephemeral', optional: true },
+    { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
+    { role: 'game-asset-designer', lifecycle: 'ephemeral', optional: true },
+    { role: 'verifier', lifecycle: 'ephemeral', optional: true },
+    { role: 'builder', lifecycle: 'permanent', optional: false },
+  ],
+  solo: [
+    { role: 'solo', lifecycle: 'permanent', optional: false },
+    { role: 'architect', lifecycle: 'ephemeral', optional: true },
+    { role: 'triage', lifecycle: 'ephemeral', optional: true },
+    { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
+    { role: 'verifier', lifecycle: 'ephemeral', optional: true },
+  ],
+  trio: [
+    { role: 'coordinator', lifecycle: 'permanent', optional: false },
+    { role: 'architect', lifecycle: 'ephemeral', optional: true },
+    { role: 'researcher', lifecycle: 'ephemeral', optional: true },
+    { role: 'triage', lifecycle: 'ephemeral', optional: true },
+    { role: 'reviewer', lifecycle: 'ephemeral', optional: true },
+    { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
+    { role: 'game-asset-designer', lifecycle: 'ephemeral', optional: true },
+    { role: 'verifier', lifecycle: 'ephemeral', optional: true },
+    { role: 'specifier', lifecycle: 'permanent', optional: false },
+    { role: 'builder', lifecycle: 'permanent', optional: false },
+  ],
+} as const;
+
 describe('team presets', () => {
-  test('canonical duo and solo shapes include optional ephemeral support roles', () => {
+  test('canonical duo, solo, and trio shapes include optional ephemeral support roles', () => {
     expect(TEAM_PRESETS.duo).toMatchObject({
       name: 'Duo',
       structureId: 'duo@1',
@@ -47,9 +80,28 @@ describe('team presets', () => {
       roles: ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
       entryPoint: 'solo',
     });
+    expect(TEAM_PRESETS.trio).toMatchObject({
+      name: 'Trio',
+      structureId: 'trio@1',
+      description:
+        'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns plans into code-level builder briefs, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
+      roles: [
+        'coordinator',
+        'architect',
+        'researcher',
+        'triage',
+        'reviewer',
+        'uiux-engineer',
+        'game-asset-designer',
+        'verifier',
+        'specifier',
+        'builder',
+      ],
+      entryPoint: 'coordinator',
+    });
     expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');
     expect(PRESET_IDS).toBe(TEAM_PRESET_IDS);
-    expect(TEAM_STRUCTURE_IDS).toEqual({ duo: 'duo@1', solo: 'solo@1' });
+    expect(TEAM_STRUCTURE_IDS).toEqual({ duo: 'duo@1', solo: 'solo@1', trio: 'trio@1' });
   });
 
   test.each(TEAM_PRESET_IDS)(
@@ -71,44 +123,28 @@ describe('team presets', () => {
       );
       expect(preset.roles).toContain(preset.entryPoint);
       expect(getAgentRoleTags(preset.entryPoint)).toEqual([AgentRoleLifecycleTag.Permanent]);
-      expect(getTeamStructure({ teamId }).roles).toEqual(
-        teamId === 'duo'
-          ? [
-              { role: 'planner', lifecycle: 'permanent', optional: false },
-              { role: 'architect', lifecycle: 'ephemeral', optional: true },
-              { role: 'researcher', lifecycle: 'ephemeral', optional: true },
-              { role: 'triage', lifecycle: 'ephemeral', optional: true },
-              { role: 'reviewer', lifecycle: 'ephemeral', optional: true },
-              { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
-              { role: 'game-asset-designer', lifecycle: 'ephemeral', optional: true },
-              { role: 'verifier', lifecycle: 'ephemeral', optional: true },
-              { role: 'builder', lifecycle: 'permanent', optional: false },
-            ]
-          : [
-              { role: 'solo', lifecycle: 'permanent', optional: false },
-              { role: 'architect', lifecycle: 'ephemeral', optional: true },
-              { role: 'triage', lifecycle: 'ephemeral', optional: true },
-              { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
-              { role: 'verifier', lifecycle: 'ephemeral', optional: true },
-            ]
-      );
+      expect(getTeamStructure({ teamId }).roles).toEqual(expectedStructures[teamId]);
     }
   );
 
   test('lists and resolves known preset IDs', () => {
-    expect(listTeamPresetIds()).toEqual(['duo', 'solo']);
+    expect(listTeamPresetIds()).toEqual(['duo', 'solo', 'trio']);
     expect(getTeamPreset('duo')).toBe(TEAM_PRESETS.duo);
     expect(getTeamPreset('duo@1')).toBe(TEAM_PRESETS.duo);
     expect(getTeamPreset('solo')).toBe(TEAM_PRESETS.solo);
     expect(getTeamPreset('solo@1')).toBe(TEAM_PRESETS.solo);
+    expect(getTeamPreset('trio')).toBe(TEAM_PRESETS.trio);
+    expect(getTeamPreset('TRIO@1')).toBe(TEAM_PRESETS.trio);
     expect(getTeamStructureId('duo')).toBe('duo@1');
     expect(getTeamStructureId('solo')).toBe('solo@1');
+    expect(getTeamStructureId('trio')).toBe('trio@1');
     expect(getTeamPreset('unknown')).toBeUndefined();
   });
 
   test('permanent roles include only the permanent entry-point roles', () => {
     expect(getPermanentRolesForPreset('duo')).toEqual(['planner', 'builder']);
     expect(getPermanentRolesForPreset('solo')).toEqual(['solo']);
+    expect(getPermanentRolesForPreset('trio')).toEqual(['coordinator', 'specifier', 'builder']);
   });
 
   test('unknown teams retain caller-provided role strings and entry point', () => {

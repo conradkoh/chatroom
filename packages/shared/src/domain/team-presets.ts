@@ -40,6 +40,7 @@ export const DEFAULT_TEAM_PRESET_ID: TeamPresetId = 'duo';
 export const TEAM_STRUCTURE_IDS = {
   duo: 'duo@1',
   solo: 'solo@1',
+  trio: 'trio@1',
 } as const satisfies Record<TeamPresetId, string>;
 
 export type BuiltinTeamPreset<T extends TeamPresetId> = Omit<TeamPreset, 'roles' | 'entryPoint'> & {
@@ -64,14 +65,20 @@ export const TEAM_PRESETS = {
     roles: getBuiltinRolesForTeam('solo'),
     entryPoint: 'solo',
   },
+  trio: {
+    structureId: TEAM_STRUCTURE_IDS.trio,
+    name: 'Trio',
+    description:
+      'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns plans into code-level builder briefs, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
+    roles: getBuiltinRolesForTeam('trio'),
+    entryPoint: 'coordinator',
+  },
 } satisfies { [T in TeamPresetId]: BuiltinTeamPreset<T> };
 
 /** Resolves legacy and versioned identifiers to the canonical preset kind. */
 export function getTeamPresetId(teamId: string): TeamPresetId | undefined {
   const normalized = teamId.trim().toLowerCase();
-  if (normalized === 'duo' || normalized === TEAM_STRUCTURE_IDS.duo) return 'duo';
-  if (normalized === 'solo' || normalized === TEAM_STRUCTURE_IDS.solo) return 'solo';
-  return undefined;
+  return TEAM_PRESET_IDS.find((id) => normalized === id || normalized === TEAM_STRUCTURE_IDS[id]);
 }
 
 /** Returns the immutable structure identifier for a known preset. */

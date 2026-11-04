@@ -10,6 +10,7 @@ import {
 const gameAssetDesignerPairs = [
   ...listHandoffTemplatePairs('duo'),
   ...listHandoffTemplatePairs('solo'),
+  ...listHandoffTemplatePairs('trio'),
 ].filter(
   (pair) => pair.fromRole === 'game-asset-designer' || pair.toRole === 'game-asset-designer'
 );

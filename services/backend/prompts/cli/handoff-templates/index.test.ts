@@ -339,7 +339,7 @@ describe('resolveHandoffTemplateSelection — pair normalization and precedence'
         ),
       'UNKNOWN_TEAM'
     );
-    expect(unknownTeam.message).toBe('Unknown team "tri". Known teams: duo, solo.');
+    expect(unknownTeam.message).toBe('Unknown team "tri". Known teams: duo, solo, trio.');
 
     const unknownFrom = expectPairError(
       () =>
@@ -425,6 +425,64 @@ describe('resolveHandoffTemplateSelection', () => {
         ),
       'UNKNOWN_TEAM'
     );
+  });
+});
+
+describe('trio handoff graph', () => {
+  test('specifier and builder return only to their contract targets', () => {
+    expect(listHandoffTemplatePairs('trio', 'specifier').map((p) => p.toRole)).toEqual([
+      'coordinator',
+      'builder',
+    ]);
+    expect(listHandoffTemplatePairs('trio', 'builder').map((p) => p.toRole)).toEqual(['specifier']);
+  });
+
+  test('the coordinator never hands off to builder', () => {
+    expect(listHandoffTemplatePairs('trio', 'coordinator').map((p) => p.toRole)).not.toContain(
+      'builder'
+    );
+  });
+
+  test('rejects pairs outside the trio graph with UNKNOWN_PAIR', () => {
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'specifier', to: 'user', mode: 'code', teamId: 'trio' },
+          'view-template'
+        ),
+      'UNKNOWN_PAIR'
+    );
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'builder', to: 'coordinator', mode: 'code', teamId: 'trio' },
+          'view-template'
+        ),
+      'UNKNOWN_PAIR'
+    );
+  });
+
+  test('rejects a role that is not a trio member', () => {
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'planner', to: 'builder', mode: 'code', teamId: 'trio' },
+          'view-template'
+        ),
+      'UNKNOWN_FROM_ROLE'
+    );
+  });
+
+  test('rejects an unknown team and names every known team', () => {
+    const error = expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'coordinator', to: 'specifier', mode: 'code', teamId: 'quartet' },
+          'view-template'
+        ),
+      'UNKNOWN_TEAM'
+    );
+    expect(error.message).toContain('duo, solo, trio');
   });
 });
 

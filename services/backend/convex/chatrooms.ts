@@ -6,7 +6,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession, requireSession } from './auth/session';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
-import { getTeamStructure } from '../src/domain/entities/team-presets';
+import { getTeamPreset, getTeamStructure } from '../src/domain/entities/team-presets';
 import { insertChatroomWithTeam } from '../src/domain/usecase/chatroom/create-chatroom';
 import { createChatroomWithWorkspace } from '../src/domain/usecase/chatroom/create-chatroom-with-workspace';
 import {
@@ -47,7 +47,8 @@ export const create = mutation({
     const auth = await requireSession(ctx, args.sessionId);
 
     const structure = getTeamStructure({
-      teamId: args.teamStructureId ?? (args.teamId === 'solo' ? 'solo@1' : 'duo@1'),
+      teamId:
+        args.teamStructureId ?? (args.teamId && getTeamPreset(args.teamId) ? args.teamId : 'duo@1'),
     });
 
     return insertChatroomWithTeam(ctx, {

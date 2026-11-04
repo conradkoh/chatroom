@@ -243,7 +243,7 @@ describe('legacyRoleFlagsMessage', () => {
 
 describe('unknownTeamMessage', () => {
   test('names the known teams', () => {
-    expect(unknownTeamMessage('tri')).toBe('Unknown team "tri". Known teams: duo, solo.');
+    expect(unknownTeamMessage('tri')).toBe('Unknown team "tri". Known teams: duo, solo, trio.');
   });
 });
 

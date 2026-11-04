@@ -19,11 +19,13 @@ import {
 } from './cli/handoff-templates/contracts';
 import { listDuoRoleHandoffContracts } from './teams/duo/handoff-templates';
 import { listSoloRoleHandoffContracts } from './teams/solo/handoff-templates';
+import { listTrioRoleHandoffContracts } from './teams/trio/handoff-templates';
 import { BUILTIN_ROLE_TEMPLATES } from './templates';
 
 const contractLists: Record<TeamPresetId, () => readonly RoleHandoffContract[]> = {
   duo: listDuoRoleHandoffContracts,
   solo: listSoloRoleHandoffContracts,
+  trio: listTrioRoleHandoffContracts,
 };
 
 const cloneContracts = (contracts: readonly RoleHandoffContract[]): RoleHandoffContract[] =>
@@ -35,7 +37,7 @@ const cloneContracts = (contracts: readonly RoleHandoffContract[]): RoleHandoffC
   }));
 
 describe('builtin role capability contracts', () => {
-  test.each(['duo', 'solo'] as const)(
+  test.each(['duo', 'solo', 'trio'] as const)(
     '%s membership, prompt, and handoff catalogs agree',
     (teamId) => {
       const preset = TEAM_PRESETS[teamId];
@@ -122,7 +124,7 @@ describe('builtin role capability contracts', () => {
     }
   );
 
-  test.each(['duo', 'solo'] as const)(
+  test.each(['duo', 'solo', 'trio'] as const)(
     '%s validator rejects missing, extra, and incoherent contracts',
     (teamId) => {
       const original = contractLists[teamId]();

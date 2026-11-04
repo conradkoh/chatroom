@@ -13,7 +13,7 @@ import {
 } from './team-presets';
 
 describe('team presets', () => {
-  test('matches the supported duo and solo team shapes', () => {
+  test('matches the supported duo, solo, and trio team shapes', () => {
     expect(TEAM_PRESETS.duo).toMatchObject({
       name: 'Duo',
       roles: [
@@ -34,12 +34,29 @@ describe('team presets', () => {
       roles: ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
       entryPoint: 'solo',
     });
+    expect(TEAM_PRESETS.trio).toMatchObject({
+      name: 'Trio',
+      roles: [
+        'coordinator',
+        'architect',
+        'researcher',
+        'triage',
+        'reviewer',
+        'uiux-engineer',
+        'game-asset-designer',
+        'verifier',
+        'specifier',
+        'builder',
+      ],
+      entryPoint: 'coordinator',
+    });
     expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');
   });
 
   test('lists and resolves known preset IDs', () => {
-    expect(listTeamPresetIds()).toEqual(['duo', 'solo']);
+    expect(listTeamPresetIds()).toEqual(['duo', 'solo', 'trio']);
     expect(getTeamPreset('duo')).toBe(TEAM_PRESETS.duo);
+    expect(getTeamPreset('trio')).toBe(TEAM_PRESETS.trio);
     expect(getTeamPreset('unknown')).toBeUndefined();
   });
 
