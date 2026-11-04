@@ -192,30 +192,26 @@ export const uploadFileAttachmentHttp = httpAction(async (ctx, request) => {
   const preflight = preflightUpload(request);
   if (!preflight.ok) return preflight.response;
 
-  const auth = await ctx.runQuery(internal.fileAttachments.authorizeUpload, {
-    sessionId: preflight.sessionId,
-    attachmentId: preflight.attachmentId,
-  });
-  if (!auth.ok) {
-    return jsonResponse(auth.status, { ok: false, code: auth.code, message: auth.message });
-  }
+  const authorized = await authorizeUploadRequest(ctx, preflight);
+  if (!authorized.ok) return authorized.response;
 
-  const body = await readUploadBody(request, auth.sizeBytes);
+  const body = await readUploadBody(request, authorized.sizeBytes);
   if (!body.ok) return body.response;
 
   const storageId = await ctx.storage.store(
-    new Blob([body.bytes], { type: auth.storedContentType })
+    new Blob([body.bytes], { type: authorized.storedContentType })
   );
   return await bindStoredBlob(ctx, {
     sessionId: preflight.sessionId,
     attachmentId: preflight.attachmentId,
     storageId,
-    sizeBytes: auth.sizeBytes,
+    sizeBytes: authorized.sizeBytes,
   });
 });
 
 type PreflightFailure = { ok: false; response: Response };
-type PreflightResult = { ok: true; sessionId: string; attachmentId: string } | PreflightFailure;
+type PreflightResult =
+  { ok: true; sessionId: string; attachmentId: string; contentLength: number } | PreflightFailure;
 
 type PreflightHeaders = { sessionId: string; attachmentId: string; contentLength: number };
 type PreflightHeadersResult = ({ ok: true } & PreflightHeaders) | PreflightFailure;
@@ -228,7 +224,40 @@ function preflightUpload(request: Request): PreflightResult {
   const lengthError = assertContentLengthAllowed(headers.contentLength);
   if (lengthError) return lengthError;
 
-  return { ok: true, sessionId: headers.sessionId, attachmentId: headers.attachmentId };
+  return {
+    ok: true,
+    sessionId: headers.sessionId,
+    attachmentId: headers.attachmentId,
+    contentLength: headers.contentLength,
+  };
+}
+
+type AuthorizedUpload =
+  { ok: true; sizeBytes: number; storedContentType: string } | PreflightFailure;
+
+/**
+ * Authorizes the ticket and confirms the declared length matches the reserved
+ * size. The reservation is authoritative: a disagreement is rejected before
+ * the body is read, so no bytes are buffered for it.
+ */
+async function authorizeUploadRequest(
+  ctx: ActionCtx,
+  preflight: { sessionId: string; attachmentId: string; contentLength: number }
+): Promise<AuthorizedUpload> {
+  const auth = await ctx.runQuery(internal.fileAttachments.authorizeUpload, {
+    sessionId: preflight.sessionId,
+    attachmentId: preflight.attachmentId,
+  });
+  if (!auth.ok) return preflightFailure(auth.status, auth.code, auth.message);
+
+  const mismatch = assertContentLengthMatches(preflight.contentLength, auth.sizeBytes);
+  if (mismatch) return mismatch;
+
+  return {
+    ok: true,
+    sizeBytes: auth.sizeBytes,
+    storedContentType: auth.storedContentType,
+  };
 }
 
 /** Parses the required auth and attachment headers. */
@@ -269,6 +298,26 @@ function assertContentLengthAllowed(contentLength: number): PreflightFailure | n
     );
   }
   return null;
+}
+
+/**
+ * Rejects a declared length that differs from the size the ticket reserved.
+ *
+ * The size ceiling is checked earlier by `assertContentLengthAllowed`; this
+ * equality check runs after authorization because the reservation is only
+ * known then. It cannot protect against a gateway rewriting headers, but it
+ * does keep the body read and the stored blob consistent with the ticket.
+ */
+function assertContentLengthMatches(
+  contentLength: number,
+  reservedSize: number
+): PreflightFailure | null {
+  if (contentLength === reservedSize) return null;
+  return preflightFailure(
+    400,
+    'FILE_ATTACHMENT_INVALID',
+    'Content-Length does not match the reserved upload size'
+  );
 }
 
 function preflightFailure(status: number, code: string, message: string): PreflightFailure {

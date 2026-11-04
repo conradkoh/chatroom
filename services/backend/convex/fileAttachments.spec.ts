@@ -557,6 +557,27 @@ describe('upload HTTP rejections', () => {
     expect((await getRow(ticket.attachmentId))?.status).toBe('pending_upload');
   });
 
+  test('a Content-Length that disagrees with the reservation returns 400 before the body read', async () => {
+    const user = await setupUser('upload-content-length-mismatch');
+    const ticket = await beginUpload(user, { sizeBytes: 5 });
+    const storageBefore = await countStorage();
+
+    // Declared 4 bytes while the ticket reserved 5: preflight sizes are legal,
+    // so only the post-authorization equality check can reject this request.
+    const response = await postUpload(user, ticket.attachmentId, {
+      headers: { 'Content-Length': '4' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(await readJson(response)).toMatchObject({
+      ok: false,
+      code: 'FILE_ATTACHMENT_INVALID',
+      message: 'Content-Length does not match the reserved upload size',
+    });
+    expect(await countStorage()).toBe(storageBefore);
+    expect((await getRow(ticket.attachmentId))?.status).toBe('pending_upload');
+  });
+
   test('a body size mismatch returns 400 with no blob', async () => {
     const user = await setupUser('upload-mismatch');
     const ticket = await beginUpload(user, { sizeBytes: 5 });
