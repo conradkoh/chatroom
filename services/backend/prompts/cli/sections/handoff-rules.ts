@@ -7,11 +7,14 @@ import type { TeamCompositionConfig } from './team-composition';
 import { getHandoffContinuityRule } from '../../native/session-continuity';
 
 function buildHandoffRuleLines(config: TeamCompositionConfig): string {
+  const target = config.implementationRole ?? 'builder';
   const lines: string[] = [];
   if (config.hasBuilder) {
-    lines.push('- **To delegate implementation** → Hand off to `builder` with clear requirements');
     lines.push(
-      '- **For rework** → Hand off back to `builder` with specific feedback on what needs to change'
+      `- **To delegate implementation** → Hand off to \`${target}\` with clear requirements`
+    );
+    lines.push(
+      `- **For rework** → Hand off back to \`${target}\` with specific feedback on what needs to change`
     );
   } else {
     lines.push(
