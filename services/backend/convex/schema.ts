@@ -6,6 +6,7 @@ import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
 import { workspaceAgentConfigInboxEventValidator } from '../src/domain/entities/chatroom-workspace-agent-config-inbox';
 import { workspaceTaskInboxEventValidator } from '../src/domain/entities/chatroom-workspace-task-inbox';
+import { fileAttachmentStatusValidator } from '../src/domain/entities/file-attachment';
 import {
   gitCloneErrorCodeValidator,
   gitCloneStatusValidator,
@@ -527,6 +528,10 @@ export default defineSchema({
     // Agents can attach multiple artifacts to handoffs for reference
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
 
+    // Attached files for context
+    // Only handoffs addressed to the user may carry file attachments
+    attachedFileIds: v.optional(v.array(v.id('chatroom_fileAttachments'))),
+
     // Attached chatroom messages for context
     // User can attach existing messages as context for a new message
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
@@ -1032,6 +1037,65 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_group_latest', ['artifactGroupId', 'isLatest'])
     .index('by_chatroom_and_filename_latest', ['chatroomId', 'filename', 'isLatest']),
+
+  // ============================================================================
+  // FILE ATTACHMENT TABLES
+  // Binary files attached to user-addressed handoffs
+  // ============================================================================
+
+  /**
+   * Uploaded files bound to handoffs addressed to the user.
+   * Lifecycle: pending_upload → uploaded → attached.
+   */
+  chatroom_fileAttachments: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    ownerUserId: v.id('users'),
+    uploadedByRole: v.string(),
+    filename: v.string(),
+    mimeType: v.string(),
+    sizeBytes: v.number(),
+    status: fileAttachmentStatusValidator,
+    storageId: v.optional(v.id('_storage')),
+    messageId: v.optional(v.id('chatroom_messages')),
+    createdAt: v.number(),
+    uploadedAt: v.optional(v.number()),
+    attachedAt: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
+  })
+    .index('by_status_expiresAt', ['status', 'expiresAt'])
+    .index('by_owner_status_attachedAt', ['ownerUserId', 'status', 'attachedAt'])
+    // Supports the bounded live-row count behind the per-owner pending cap.
+    .index('by_owner_status_expiresAt', ['ownerUserId', 'status', 'expiresAt'])
+    .index('by_owner_status_sizeBytes', ['ownerUserId', 'status', 'sizeBytes'])
+    .index('by_chatroom_status_attachedAt', ['chatroomId', 'status', 'attachedAt'])
+    .index('by_chatroom_status_sizeBytes', ['chatroomId', 'status', 'sizeBytes']),
+
+  /**
+   * Materialized storage usage counters for quota enforcement.
+   * `chatroomId` undefined = the user's total across all chatrooms.
+   */
+  chatroom_fileStorageUsage: defineTable({
+    userId: v.id('users'),
+    chatroomId: v.optional(v.id('chatroom_rooms')),
+    bytes: v.number(),
+    fileCount: v.number(),
+    updatedAt: v.number(),
+  }).index('by_userId_chatroomId', ['userId', 'chatroomId']),
+
+  /** Per-user storage quota override; absent = DEFAULT_USER_FILE_QUOTA_BYTES. */
+  chatroom_userFileStorageSettings: defineTable({
+    userId: v.id('users'),
+    quotaBytes: v.number(),
+    updatedAt: v.number(),
+  }).index('by_userId', ['userId']),
+
+  /** Per-chatroom storage quota override; absent = DEFAULT_CHATROOM_FILE_QUOTA_BYTES. */
+  chatroom_fileStorageSettings: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    quotaBytes: v.number(),
+    updatedBy: v.id('users'),
+    updatedAt: v.number(),
+  }).index('by_chatroomId', ['chatroomId']),
 
   // ============================================================================
   // MACHINE MANAGEMENT TABLES

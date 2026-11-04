@@ -26,6 +26,7 @@ export function toMessage(m: any): Message {
     attachedTasks: m.attachedTasks,
     attachedBacklogItems: m.attachedBacklogItems,
     attachedArtifacts: m.attachedArtifacts,
+    attachedFiles: m.attachedFiles,
     attachedMessages: m.attachedMessages,
     attachedSnippets: m.attachedSnippets,
     isQueued: m.isQueued,

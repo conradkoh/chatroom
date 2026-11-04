@@ -6,11 +6,15 @@
  * testing process.exit behavior (which belongs in boundary tests).
  */
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Cause, Effect, Layer } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
-import type { HandoffResult } from './deps.js';
+import type { FileAttachmentUploaderOps, HandoffGatewayOps, HandoffResult } from './deps.js';
 import { handoffEffect, type HandoffError, type HandoffOptions } from './index.js';
 import {
   BackendService,
@@ -77,6 +81,47 @@ function makeTestSession(config: {
     getConvexUrl: () => Effect.succeed(config.convexUrl ?? 'https://test.convex.cloud'),
     getOtherSessionUrls: () => Effect.succeed(config.otherUrls ?? []),
   });
+}
+
+/** Layer for attachment tests: captures the gateway call and ignores the backend. */
+function makeAttachmentLayer(gateway: HandoffGatewayOps) {
+  return Layer.mergeAll(
+    Layer.succeed(BackendService, {
+      query: vi.fn(() => Effect.succeed(null) as any),
+      mutation: vi.fn(() => Effect.succeed(null) as any),
+      action: vi.fn(() => Effect.succeed(null) as any),
+    }),
+    CliGatewayServiceLive(gateway),
+    makeTestSession({ sessionId: 'test-session' })
+  );
+}
+
+function createFakeUploader(overrides: Partial<FileAttachmentUploaderOps> = {}) {
+  const beginUpload = vi.fn(async ({ filename }: { filename: string }) => ({
+    attachmentId: `id-${filename}`,
+    uploadUrl: `https://test.site/upload/${filename}`,
+  }));
+  const uploadBytes = vi.fn(async () => {});
+  const discardUploads = vi.fn(async () => {});
+  const uploader: FileAttachmentUploaderOps = {
+    beginUpload,
+    uploadBytes,
+    discardUploads,
+    ...overrides,
+  };
+  return { uploader, beginUpload, uploadBytes, discardUploads };
+}
+
+async function withTempAttachments<T>(run: (paths: string[]) => Promise<T>): Promise<T> {
+  const directory = await mkdtemp(join(tmpdir(), 'chatroom-handoff-attachments-'));
+  try {
+    const paths = [join(directory, 'a.png'), join(directory, 'b.pdf')];
+    await writeFile(paths[0]!, 'a');
+    await writeFile(paths[1]!, 'b');
+    return await run(paths);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -233,5 +278,110 @@ describe('handoffEffect', () => {
     );
 
     expect(exit._tag).toBe('Success');
+  });
+
+  test('passes attached file ids to the gateway in upload order', async () => {
+    const gateway = vi.fn(async (_args: Parameters<HandoffGatewayOps['handoff']>[0]) => ({
+      success: true,
+    }));
+    const { uploader, beginUpload, uploadBytes } = createFakeUploader();
+    const testLayer = makeAttachmentLayer({ handoff: gateway });
+
+    await withTempAttachments(async (paths) => {
+      const exit = await Effect.runPromiseExit(
+        handoffEffect(
+          validChatroomId,
+          { ...validOptions, nextRole: 'user', attachFiles: paths },
+          uploader
+        ).pipe(Effect.provide(testLayer))
+      );
+
+      expect(exit._tag).toBe('Success');
+    });
+
+    expect(beginUpload.mock.calls.map(([args]) => args.filename)).toEqual(['a.png', 'b.pdf']);
+    expect(uploadBytes).toHaveBeenCalledTimes(2);
+    expect(gateway).toHaveBeenCalledWith(
+      expect.objectContaining({ attachedFileIds: ['id-a.png', 'id-b.pdf'] })
+    );
+  });
+
+  test('discards uploaded ids when the handoff is rejected', async () => {
+    const gateway = vi.fn(async () => ({
+      success: false,
+      error: { message: 'rejected', code: 'FILE_ATTACHMENT_INVALID' },
+    }));
+    const { uploader, discardUploads } = createFakeUploader();
+    const testLayer = makeAttachmentLayer({ handoff: gateway });
+
+    await withTempAttachments(async (paths) => {
+      const exit = await Effect.runPromiseExit(
+        handoffEffect(
+          validChatroomId,
+          { ...validOptions, nextRole: 'user', attachFiles: paths },
+          uploader
+        ).pipe(Effect.provide(testLayer))
+      );
+
+      expect(exit._tag).toBe('Failure');
+      if (exit._tag === 'Failure') {
+        const error = Cause.findErrorOption(exit.cause).pipe((option) =>
+          option._tag === 'Some' ? option.value : null
+        ) as HandoffError | null;
+        expect(error?._tag).toBe('HandoffRejected');
+      }
+    });
+
+    expect(discardUploads).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      attachmentIds: ['id-a.png', 'id-b.pdf'],
+    });
+  });
+
+  test('rejects attachments for agent-to-agent handoffs before uploading', async () => {
+    const gateway = vi.fn(async (_args: Parameters<HandoffGatewayOps['handoff']>[0]) => ({
+      success: true,
+    }));
+    const { uploader, beginUpload } = createFakeUploader();
+    const testLayer = makeAttachmentLayer({ handoff: gateway });
+
+    await withTempAttachments(async (paths) => {
+      const exit = await Effect.runPromiseExit(
+        handoffEffect(
+          validChatroomId,
+          { ...validOptions, nextRole: 'builder', attachFiles: paths },
+          uploader
+        ).pipe(Effect.provide(testLayer))
+      );
+
+      expect(exit._tag).toBe('Failure');
+      if (exit._tag === 'Failure') {
+        const error = Cause.findErrorOption(exit.cause).pipe((option) =>
+          option._tag === 'Some' ? option.value : null
+        ) as HandoffError | null;
+        expect(error?._tag).toBe('AttachmentsRequireUserTarget');
+      }
+    });
+
+    expect(beginUpload).not.toHaveBeenCalled();
+    expect(gateway).not.toHaveBeenCalled();
+  });
+
+  test('does not touch the uploader when there are no attachments', async () => {
+    const gateway = vi.fn(async (_args: Parameters<HandoffGatewayOps['handoff']>[0]) => ({
+      success: true,
+    }));
+    const { uploader, beginUpload, uploadBytes, discardUploads } = createFakeUploader();
+    const testLayer = makeAttachmentLayer({ handoff: gateway });
+
+    const exit = await Effect.runPromiseExit(
+      handoffEffect(validChatroomId, validOptions, uploader).pipe(Effect.provide(testLayer))
+    );
+
+    expect(exit._tag).toBe('Success');
+    expect(beginUpload).not.toHaveBeenCalled();
+    expect(uploadBytes).not.toHaveBeenCalled();
+    expect(discardUploads).not.toHaveBeenCalled();
+    expect(gateway.mock.calls[0]?.[0]).not.toHaveProperty('attachedFileIds');
   });
 });

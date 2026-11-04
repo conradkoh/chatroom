@@ -110,6 +110,14 @@ crons.interval(
   internal.workspaceUploadCleanup.expireStaleWorkspaceUploadRequests
 );
 
+// File attachments — expire stale unbound uploads (pending and uploaded).
+crons.interval(
+  'expire stale file attachments',
+  { minutes: 15 },
+  internal.fileAttachments.expireStaleUploads,
+  {}
+);
+
 // Workspace file-tree watches — release daemon coordinators after lease expiry.
 crons.interval(
   'expire file tree watch leases',

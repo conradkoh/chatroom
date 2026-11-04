@@ -51,6 +51,11 @@ function createMockDeps(overrides?: Partial<HandoffDeps>): HandoffDeps {
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
       getOtherSessionUrls: vi.fn().mockResolvedValue([]),
     },
+    attachmentUploader: {
+      beginUpload: vi.fn(),
+      uploadBytes: vi.fn(),
+      discardUploads: vi.fn(),
+    },
     ...overrides,
   };
 }
@@ -147,6 +152,36 @@ describe('handoff', () => {
       expect(output).not.toContain('injected automatically');
       expect(output).toContain('Handoff complete. End your turn now — stop tool calls.');
       expect(output).toContain('When the harness supports native integration');
+    });
+  });
+
+  describe('discarded attachments', () => {
+    it('warns when a replayed handoff discarded the attached files', async () => {
+      const deps = createMockDeps();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        attachmentsDiscarded: true,
+      });
+
+      await handoff(TEST_CHATROOM_ID, defaultOptions({ nextRole: 'user' }), deps);
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(getAllErrorOutput()).toContain(
+        'Warning: this handoff was already recorded for this message, so the attached files were not delivered.'
+      );
+    });
+
+    it('prints no warning when nothing was discarded', async () => {
+      const deps = createMockDeps();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        attachmentsDiscarded: false,
+      });
+
+      await handoff(TEST_CHATROOM_ID, defaultOptions({ nextRole: 'user' }), deps);
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(getAllErrorOutput()).not.toContain('attached files were not delivered');
     });
   });
 
