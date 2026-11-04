@@ -1250,6 +1250,321 @@ describe('_handoffHandler — envelope propagation across agent handoffs', () =>
   });
 });
 
+describe('trio handoff graph and session policy', () => {
+  function sessionPolicyEnvelope(sessionPolicy: 'continue' | 'new'): TaskEnvelopeV1 {
+    return {
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy,
+      handoffWorkflow: { preset: 'team', phase: 'entry' },
+    };
+  }
+
+  async function createTrioChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamStructureId: 'trio',
+    });
+    await joinParticipants(sessionId, chatroomId, ['coordinator', 'specifier', 'builder']);
+    return chatroomId;
+  }
+
+  async function seedTrioTask(
+    chatroomId: Id<'chatroom_rooms'>,
+    opts: {
+      assignedTo: string;
+      createdBy: string;
+      content: string;
+      queuePosition: number;
+      sessionPolicy: 'continue' | 'new';
+    }
+  ): Promise<Id<'chatroom_tasks'>> {
+    return await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: opts.createdBy,
+        content: opts.content,
+        status: 'in_progress',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: opts.queuePosition,
+        assignedTo: opts.assignedTo,
+        startedAt: now,
+        acknowledgedAt: now,
+        taskEnvelope: sessionPolicyEnvelope(opts.sessionPolicy),
+      });
+    });
+  }
+
+  async function handoff(
+    sessionId: SessionId,
+    chatroomId: Id<'chatroom_rooms'>,
+    senderRole: string,
+    targetRole: string
+  ) {
+    return await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole,
+      content: `${senderRole} to ${targetRole}`,
+      targetRole,
+    });
+  }
+
+  test('coordinator→specifier forces a new session even when the source continues', async () => {
+    const { sessionId } = await createTestSession('trio-policy-coordinator-specifier');
+    const chatroomId = await createTrioChatroom(sessionId);
+    const sourceTaskId = await seedTrioTask(chatroomId, {
+      assignedTo: 'coordinator',
+      createdBy: 'user',
+      content: 'coordination work',
+      queuePosition: 0,
+      sessionPolicy: 'continue',
+    });
+
+    const result = await handoff(sessionId, chatroomId, 'coordinator', 'specifier');
+    expect(result.success).toBe(true);
+
+    const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(targetTask?.taskEnvelope?.sessionPolicy).toBe('new');
+    expect(targetTask?.startInNewSession).toBe(true);
+
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(sourceTaskId));
+    expect(sourceTask?.taskEnvelope).toEqual(sessionPolicyEnvelope('continue'));
+  });
+
+  test('specifier→builder forces a new session even when the source continues', async () => {
+    const { sessionId } = await createTestSession('trio-policy-specifier-builder');
+    const chatroomId = await createTrioChatroom(sessionId);
+    const sourceTaskId = await seedTrioTask(chatroomId, {
+      assignedTo: 'specifier',
+      createdBy: 'coordinator',
+      content: 'specifier brief',
+      queuePosition: 0,
+      sessionPolicy: 'continue',
+    });
+
+    const result = await handoff(sessionId, chatroomId, 'specifier', 'builder');
+    expect(result.success).toBe(true);
+
+    const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(targetTask?.taskEnvelope?.sessionPolicy).toBe('new');
+    expect(targetTask?.startInNewSession).toBe(true);
+
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(sourceTaskId));
+    expect(sourceTask?.taskEnvelope).toEqual(sessionPolicyEnvelope('continue'));
+  });
+
+  test('builder→specifier continues the session even when the source is new', async () => {
+    const { sessionId } = await createTestSession('trio-policy-builder-specifier');
+    const chatroomId = await createTrioChatroom(sessionId);
+    const sourceTaskId = await seedTrioTask(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'specifier',
+      content: 'build result',
+      queuePosition: 0,
+      sessionPolicy: 'new',
+    });
+
+    const result = await handoff(sessionId, chatroomId, 'builder', 'specifier');
+    expect(result.success).toBe(true);
+
+    const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(targetTask?.taskEnvelope?.sessionPolicy).toBe('continue');
+    expect(targetTask?.startInNewSession).toBe(false);
+
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(sourceTaskId));
+    expect(sourceTask?.taskEnvelope).toEqual(sessionPolicyEnvelope('new'));
+  });
+
+  test('specifier→coordinator continues the session even when the source is new', async () => {
+    const { sessionId } = await createTestSession('trio-policy-specifier-coordinator');
+    const chatroomId = await createTrioChatroom(sessionId);
+    const sourceTaskId = await seedTrioTask(chatroomId, {
+      assignedTo: 'specifier',
+      createdBy: 'coordinator',
+      content: 'specified work',
+      queuePosition: 0,
+      sessionPolicy: 'new',
+    });
+
+    const result = await handoff(sessionId, chatroomId, 'specifier', 'coordinator');
+    expect(result.success).toBe(true);
+
+    const targetTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(targetTask?.taskEnvelope?.sessionPolicy).toBe('continue');
+    expect(targetTask?.startInNewSession).toBe(false);
+
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(sourceTaskId));
+    expect(sourceTask?.taskEnvelope).toEqual(sessionPolicyEnvelope('new'));
+  });
+
+  test('coordinator→architect inherits the source session policy (no rule matches)', async () => {
+    const { sessionId } = await createTestSession('trio-policy-coordinator-architect');
+    const chatroomId = await createTrioChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['architect']);
+    const continueTaskId = await seedTrioTask(chatroomId, {
+      assignedTo: 'coordinator',
+      createdBy: 'user',
+      content: 'continue coordination',
+      queuePosition: 0,
+      sessionPolicy: 'continue',
+    });
+
+    const continued = await handoff(sessionId, chatroomId, 'coordinator', 'architect');
+    expect(continued.success).toBe(true);
+    const continuedTask = await t.run(async (ctx) => ctx.db.get(continued.newTaskId!));
+    expect(continuedTask?.taskEnvelope?.sessionPolicy).toBe('continue');
+    expect(continuedTask?.startInNewSession).toBe(false);
+
+    const freshTaskId = await seedTrioTask(chatroomId, {
+      assignedTo: 'coordinator',
+      createdBy: 'user',
+      content: 'fresh coordination',
+      queuePosition: 1,
+      sessionPolicy: 'new',
+    });
+
+    const fresh = await handoff(sessionId, chatroomId, 'coordinator', 'architect');
+    expect(fresh.success).toBe(true);
+    const freshTask = await t.run(async (ctx) => ctx.db.get(fresh.newTaskId!));
+    expect(freshTask?.taskEnvelope?.sessionPolicy).toBe('new');
+
+    const continueSource = await t.run(async (ctx) => ctx.db.get(continueTaskId));
+    expect(continueSource?.taskEnvelope).toEqual(sessionPolicyEnvelope('continue'));
+    const freshSource = await t.run(async (ctx) => ctx.db.get(freshTaskId));
+    expect(freshSource?.taskEnvelope).toEqual(sessionPolicyEnvelope('new'));
+  });
+
+  test('specifier→user is rejected with the contract targets and writes nothing', async () => {
+    const { sessionId } = await createTestSession('trio-graph-specifier-user');
+    const chatroomId = await createTrioChatroom(sessionId);
+    const sourceTaskId = await seedTrioTask(chatroomId, {
+      assignedTo: 'specifier',
+      createdBy: 'coordinator',
+      content: 'specifier work',
+      queuePosition: 0,
+      sessionPolicy: 'continue',
+    });
+    const messagesBefore = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const result = await handoff(sessionId, chatroomId, 'specifier', 'user');
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_TARGET_ROLE');
+    expect(result.error?.suggestedTargets).toEqual(['coordinator', 'builder']);
+    expect(result.newTaskId).toBeNull();
+
+    const sourceTask = await t.run(async (ctx) => ctx.db.get(sourceTaskId));
+    expect(sourceTask?.status).toBe('in_progress');
+
+    const messagesAfter = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    expect(messagesAfter).toHaveLength(messagesBefore.length);
+  });
+
+  test('builder→coordinator is rejected with the builder contract target', async () => {
+    const { sessionId } = await createTestSession('trio-graph-builder-coordinator');
+    const chatroomId = await createTrioChatroom(sessionId);
+    await seedTrioTask(chatroomId, {
+      assignedTo: 'builder',
+      createdBy: 'specifier',
+      content: 'builder work',
+      queuePosition: 0,
+      sessionPolicy: 'new',
+    });
+
+    const result = await handoff(sessionId, chatroomId, 'builder', 'coordinator');
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_TARGET_ROLE');
+    expect(result.error?.suggestedTargets).toEqual(['specifier']);
+    expect(result.newTaskId).toBeNull();
+  });
+
+  test('coordinator→builder is rejected because the coordinator contract omits builder', async () => {
+    const { sessionId } = await createTestSession('trio-graph-coordinator-builder');
+    const chatroomId = await createTrioChatroom(sessionId);
+    await seedTrioTask(chatroomId, {
+      assignedTo: 'coordinator',
+      createdBy: 'user',
+      content: 'coordination work',
+      queuePosition: 0,
+      sessionPolicy: 'continue',
+    });
+
+    const result = await handoff(sessionId, chatroomId, 'coordinator', 'builder');
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_TARGET_ROLE');
+    expect(result.newTaskId).toBeNull();
+  });
+
+  test('duo planner→builder keeps inheriting the source session policy', async () => {
+    const { sessionId } = await createTestSession('duo-policy-regression');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const freshSourceId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'fresh planner work',
+        status: 'in_progress',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+        assignedTo: 'planner',
+        startedAt: now,
+        acknowledgedAt: now,
+        taskEnvelope: sessionPolicyEnvelope('new'),
+      });
+    });
+
+    const fresh = await handoff(sessionId, chatroomId, 'planner', 'builder');
+    expect(fresh.success).toBe(true);
+    const freshTask = await t.run(async (ctx) => ctx.db.get(fresh.newTaskId!));
+    expect(freshTask?.taskEnvelope?.sessionPolicy).toBe('new');
+    expect(freshTask?.startInNewSession).toBe(true);
+
+    const continueSourceId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'continue planner work',
+        status: 'in_progress',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 1,
+        assignedTo: 'planner',
+        startedAt: now,
+        acknowledgedAt: now,
+        taskEnvelope: sessionPolicyEnvelope('continue'),
+      });
+    });
+
+    const continued = await handoff(sessionId, chatroomId, 'planner', 'builder');
+    expect(continued.success).toBe(true);
+    const continuedTask = await t.run(async (ctx) => ctx.db.get(continued.newTaskId!));
+    expect(continuedTask?.taskEnvelope?.sessionPolicy).toBe('continue');
+    expect(continuedTask?.startInNewSession).toBe(false);
+
+    const freshSource = await t.run(async (ctx) => ctx.db.get(freshSourceId));
+    expect(freshSource?.taskEnvelope).toEqual(sessionPolicyEnvelope('new'));
+    const continueSource = await t.run(async (ctx) => ctx.db.get(continueSourceId));
+    expect(continueSource?.taskEnvelope).toEqual(sessionPolicyEnvelope('continue'));
+  });
+});
+
 describe('deleteUserMessageOrTask and materialized counts', () => {
   test('delete by task removes task and linked user message', async () => {
     const { sessionId } = await createTestSession('del-pending-task-1');

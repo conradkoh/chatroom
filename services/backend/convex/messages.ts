@@ -6,6 +6,7 @@ import {
   withTaskEnvelopeSessionPolicy,
   type TaskEnvelopeV1,
 } from '@workspace/shared/domain/task-envelope';
+import { getHandoffSessionPolicy } from '@workspace/shared/domain/team-presets';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -22,6 +23,7 @@ import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
 import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
 import type { BackendErrorCode } from '../config/errorCodes';
+import { getEnforcedHandoffTargets } from '../prompts/cli/handoff-templates';
 import { getConfig } from '../prompts/config/index';
 import type { AttachedFileView } from '../src/domain/entities/file-attachment';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
@@ -627,6 +629,27 @@ export async function runHandoffHandler(
     };
   }
 
+  // Teams with an enforced handoff graph (trio) authorize only the targets their
+  // role contract lists, including the `user` target. Enforced before any write
+  // so a rejected handoff leaves tasks, messages, attachments, and usage untouched.
+  const enforcedTargets = getEnforcedHandoffTargets(chatroom.teamId, normalizedSenderRole);
+  if (enforcedTargets && !enforcedTargets.includes(normalizedTargetRole)) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_TARGET_ROLE',
+        message: `Cannot hand off from "${args.senderRole}" to "${args.targetRole}": the ${chatroom.teamName ?? chatroom.teamId} team routes coordination through its handoff contract. Allowed targets for "${normalizedSenderRole}": ${enforcedTargets.join(', ')}.`,
+        suggestedTargets: [...enforcedTargets],
+      },
+      messageId: null,
+      completedTaskIds: [],
+      newTaskId: null,
+      promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
+    };
+  }
+
   const now = Date.now();
 
   // File attachments are user-facing only. Validate them before ANY write so a
@@ -762,6 +785,20 @@ export async function runHandoffHandler(
     ? advanceTaskEnvelopeWorkflow(normalizeTaskEnvelope(sourceTask))
     : undefined;
 
+  // Per-edge session policy of the active team's handoff rules. `undefined`
+  // (duo, solo, or an edge with no rule) means the target inherits the source
+  // task's session policy unchanged. Applied to a fresh envelope only; the
+  // source task is never mutated.
+  const sessionPolicyOverride = getHandoffSessionPolicy(
+    chatroom.teamId ?? '',
+    normalizedSenderRole,
+    normalizedTargetRole
+  );
+  const targetTaskEnvelope =
+    inheritedTaskEnvelope && sessionPolicyOverride
+      ? withTaskEnvelopeSessionPolicy(inheritedTaskEnvelope, sessionPolicyOverride)
+      : inheritedTaskEnvelope;
+
   // TEMPORARY scalar compatibility projections for legacy readers, mirroring the
   // user-ingress recipe in send-automated-user-message.ts. The canonical envelope
   // is always inherited; the scalar projections (conversationMode / plannerEnhancerEnabled /
@@ -774,11 +811,11 @@ export async function runHandoffHandler(
       sourceTask.conversationMode !== undefined ||
       sourceTask.plannerEnhancerEnabled !== undefined ||
       sourceTask.startInNewSession !== undefined) &&
-    inheritedTaskEnvelope
+    targetTaskEnvelope
       ? {
-          conversationMode: inheritedTaskEnvelope.conversationMode,
-          plannerEnhancerEnabled: inheritedTaskEnvelope.conversationMode === 'code:enhanced',
-          startInNewSession: inheritedTaskEnvelope.sessionPolicy === 'new',
+          conversationMode: targetTaskEnvelope.conversationMode,
+          plannerEnhancerEnabled: targetTaskEnvelope.conversationMode === 'code:enhanced',
+          startInNewSession: targetTaskEnvelope.sessionPolicy === 'new',
         }
       : undefined;
 
@@ -844,11 +881,17 @@ export async function runHandoffHandler(
       assignedTo: args.targetRole,
       sourceMessageId: messageId,
       queuePosition,
-      // Inherited canonical envelope plus temporary scalar compatibility projections
-      // (see legacyScalarProjections above). These scalars are projections only;
-      // policy selection remains driven by the canonical envelope itself.
-      ...(inheritedTaskEnvelope ? { taskEnvelope: inheritedTaskEnvelope } : {}),
-      ...(legacyScalarProjections ? legacyScalarProjections : { startInNewSession: undefined }),
+      // Inherited canonical envelope (session policy adjusted per edge) plus
+      // temporary scalar compatibility projections (see legacyScalarProjections
+      // above). These scalars are projections only; policy selection remains
+      // driven by the canonical envelope itself.
+      ...(targetTaskEnvelope ? { taskEnvelope: targetTaskEnvelope } : {}),
+      ...(legacyScalarProjections
+        ? legacyScalarProjections
+        : {
+            startInNewSession:
+              sessionPolicyOverride === undefined ? undefined : sessionPolicyOverride === 'new',
+          }),
     });
     newTaskId = createdTaskId;
 
