@@ -187,10 +187,19 @@ const REQUIRED_CHECKS_BY_FILE: Record<string, Record<string, string[][]>> = {
     beginUpload: [['requireChatroomAccess']],
     // Session validation plus the owner check in collectDiscardableRows.
     discardUploads: [['validateSession', 'requireSession'], ['ownerUserId']],
-    getFileUrls: [['requireWebCaller'], ['ownerUserId', 'requireChatroomAccess']],
-    listFiles: [['requireWebCaller'], ['ownerUserId', 'requireChatroomAccess']],
+    // Web caller, ownership (loadOwnedRows), and chatroom access
+    // (assertRowsChatroomAccess) are independent guards — one cannot satisfy
+    // another.
+    getFileUrls: [['requireWebCaller'], ['ownerUserId'], ['requireChatroomAccess']],
+    // Web caller, chatroom access for chatroom scope, and ownership for both
+    // scopes: filterOwnedRows guards chatroom pages and paginateFiles uses the
+    // owner index for user pages.
+    listFiles: [['requireWebCaller'], ['requireChatroomAccess'], ['ownerUserId']],
     deleteFile: [['requireWebCaller'], ['ownerUserId']],
-    purgeFiles: [['requireWebCaller'], ['requireChatroomAccess', 'ownerUserId']],
+    // The endpoint validates the web caller and chatroom access. Ownership is
+    // enforced inside purgeFilesBatch, covered by
+    // REQUIRED_CHECKS_BY_USECASE_FILE.
+    purgeFiles: [['requireWebCaller'], ['requireChatroomAccess']],
   },
   'fileStorageSettings.ts': {
     // User scope only reads/writes the caller's own row.
@@ -198,6 +207,20 @@ const REQUIRED_CHECKS_BY_FILE: Record<string, Record<string, string[][]>> = {
     setUserFileStorageQuota: [['requireWebCaller']],
     getChatroomFileStorage: [['requireWebCaller'], ['requireChatroomAccess']],
     setChatroomFileStorageQuota: [['requireWebCaller'], ['requireChatroomAccess']],
+  },
+};
+
+/**
+ * Usecase-level access boundaries. Endpoints that delegate ownership to a
+ * usecase are covered here so deleting the owner constraint is still caught.
+ *
+ * Keys are paths relative to services/backend.
+ */
+const REQUIRED_CHECKS_BY_USECASE_FILE: Record<string, Record<string, string[][]>> = {
+  'src/domain/usecase/file-attachment/purge.ts': {
+    // Chatroom scope filters on ownerUserId before `take`; user scope reads the
+    // by_owner_status_sizeBytes index. Both branches reference the owner field.
+    purgeFilesBatch: [['ownerUserId']],
   },
 };
 
@@ -301,14 +324,35 @@ function extractHttpActionBody(source: string, name: string): string | null {
 
 /**
  * Extract a non-exported `function name(...) { ... }` body by balanced braces.
- * Used to prove an upload helper really reads the request body.
+ *
+ * The parameter list is skipped first, then the first `{` that opens a line is
+ * the body — this avoids mistaking object types in parameters or in a return
+ * type for the body. Used to prove a helper really performs its guard work.
  */
 function extractDeclaredFunctionBody(source: string, name: string): string | null {
   const marker = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
   const match = marker.exec(source);
   if (!match) return null;
 
-  const braceStart = source.indexOf('{', match.index + match[0].length);
+  // Walk the parameter list so braces inside parameter types are ignored.
+  const paramsStart = match.index + match[0].length - 1;
+  let paramsDepth = 0;
+  let cursor = paramsStart;
+  for (; cursor < source.length; cursor++) {
+    if (source[cursor] === '(') paramsDepth++;
+    if (source[cursor] === ')') paramsDepth--;
+    if (paramsDepth === 0) break;
+  }
+  if (cursor >= source.length) return null;
+
+  // Skip a return type: the body brace is the first `{` that ends its line.
+  let braceStart = source.indexOf('{', cursor + 1);
+  while (braceStart !== -1) {
+    const lineEnd = source.indexOf('\n', braceStart + 1);
+    const restOfLine = source.slice(braceStart + 1, lineEnd === -1 ? source.length : lineEnd);
+    if (restOfLine.trim() === '') break;
+    braceStart = source.indexOf('{', braceStart + 1);
+  }
   if (braceStart === -1) return null;
 
   let depth = 0;
@@ -321,10 +365,81 @@ function extractDeclaredFunctionBody(source: string, name: string): string | nul
 }
 
 /**
- * Check if a handler source contains at least one access check.
+ * Removes `//` line comments and block comments without touching comment
+ * markers inside string literals (for example URLs).
+ *
+ * A guard only counts when it survives stripping: text that appears solely in a
+ * comment must not satisfy a requirement.
+ */
+function stripComments(source: string): string {
+  let result = '';
+  let quote: '"' | "'" | '`' | null = null;
+  let i = 0;
+
+  while (i < source.length) {
+    const char = source[i]!;
+    const next = source[i + 1];
+
+    if (quote !== null) {
+      result += char;
+      if (char === '\\' && next !== undefined) {
+        // Preserve the escaped character so it cannot close the literal.
+        result += next;
+        i += 2;
+        continue;
+      }
+      if (char === quote) quote = null;
+      i += 1;
+      continue;
+    }
+
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      result += char;
+      i += 1;
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      // Drop to the end of the line, keeping the newline for line structure.
+      const lineEnd = source.indexOf('\n', i + 2);
+      i = lineEnd === -1 ? source.length : lineEnd;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      // Replace with a space so adjacent tokens do not merge.
+      const blockEnd = source.indexOf('*/', i + 2);
+      result += ' ';
+      i = blockEnd === -1 ? source.length : blockEnd + 2;
+      continue;
+    }
+
+    result += char;
+    i += 1;
+  }
+
+  return result;
+}
+
+/**
+ * Check if a handler source contains at least one access check in code.
+ * Commented-out guards never count.
  */
 function hasAccessCheck(handlerSource: string): boolean {
-  return ACCESS_CHECK_PATTERNS.some((pattern) => handlerSource.includes(pattern));
+  const code = stripComments(handlerSource);
+  return ACCESS_CHECK_PATTERNS.some((pattern) => code.includes(pattern));
+}
+
+/**
+ * Returns one message per unmet requirement. Each requirement is a list of
+ * alternatives; a requirement holds when at least one alternative appears in
+ * the (comment-stripped) code.
+ */
+function findMissingRequirements(code: string, requirements: string[][]): string[] {
+  return requirements
+    .filter((alternatives) => !alternatives.some((pattern) => code.includes(pattern)))
+    .map((alternatives) => `missing ${alternatives.join(' or ')}`);
 }
 
 /**
@@ -469,10 +584,9 @@ describe('Security: File attachment access checks', () => {
           continue;
         }
 
-        for (const alternatives of requirements) {
-          if (!alternatives.some((pattern) => region.includes(pattern))) {
-            violations.push(`${file}:${fnName} — missing ${alternatives.join(' or ')}`);
-          }
+        const code = stripComments(region);
+        for (const missing of findMissingRequirements(code, requirements)) {
+          violations.push(`${file}:${fnName} — ${missing}`);
         }
       }
 
@@ -494,30 +608,109 @@ describe('Security: File attachment access checks', () => {
     }
   });
 
-  it('the upload HTTP action authorizes the ticket before reading the body', () => {
-    const source = fs.readFileSync(path.join(convexDir, 'fileAttachments.ts'), 'utf-8');
+  it('every checked usecase matches its required checks', () => {
+    const violations: string[] = [];
+
+    for (const [file, functions] of Object.entries(REQUIRED_CHECKS_BY_USECASE_FILE)) {
+      const source = fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf-8');
+
+      for (const [fnName, requirements] of Object.entries(functions)) {
+        const body = extractDeclaredFunctionBody(source, fnName);
+        if (body === null) {
+          violations.push(`${file}:${fnName} — could not extract source region`);
+          continue;
+        }
+
+        const code = stripComments(body);
+        for (const missing of findMissingRequirements(code, requirements)) {
+          violations.push(`${file}:${fnName} — ${missing}`);
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      throw new Error(
+        `Found ${violations.length} usecase access violation(s):\n` +
+          violations.map((v) => `  • ${v}`).join('\n') +
+          '\n\nAdd the missing guard or update REQUIRED_CHECKS_BY_USECASE_FILE.'
+      );
+    }
+  });
+
+  /**
+   * Reports upload-order violations in an HTTP action source.
+   *
+   * Authorization is only meaningful when the action calls
+   * `authorizeUploadRequest(` before reading bytes, and that helper must run the
+   * ticket query and the reserved-size comparison.
+   */
+  function findUploadOrderViolations(source: string): string[] {
+    const violations: string[] = [];
     const body = extractHttpActionBody(source, 'uploadFileAttachmentHttp');
+    if (body === null) {
+      return ['uploadFileAttachmentHttp — could not extract action body'];
+    }
 
-    expect(body).not.toBeNull();
-    const authorizeIndex = body!.indexOf('authorizeUpload');
+    const authorizeIndex = body.indexOf('authorizeUploadRequest(');
+    if (authorizeIndex < 0) {
+      violations.push('uploadFileAttachmentHttp — missing authorizeUploadRequest( call');
+    }
 
-    // The body may be read inline (`arrayBuffer(`) or through the local
-    // `readUploadBody` helper. Whichever call comes first in the action body
-    // must come after authorization.
-    const directReadIndex = body!.indexOf('arrayBuffer(');
-    const helperReadIndex = body!.indexOf('readUploadBody(');
-    const bodyReadIndex = [directReadIndex, helperReadIndex]
+    const authorizeBody = extractDeclaredFunctionBody(source, 'authorizeUploadRequest');
+    if (authorizeBody === null) {
+      violations.push('authorizeUploadRequest — could not extract helper body');
+    } else {
+      if (!authorizeBody.includes('ctx.runQuery(internal.fileAttachments.authorizeUpload')) {
+        violations.push('authorizeUploadRequest — missing authorizeUpload ticket query');
+      }
+      if (!authorizeBody.includes('assertContentLengthMatches(')) {
+        violations.push('authorizeUploadRequest — missing assertContentLengthMatches comparison');
+      }
+    }
+
+    const bodyReadIndex = ['arrayBuffer(', 'readUploadBody(']
+      .map((needle) => body.indexOf(needle))
       .filter((index) => index >= 0)
       .sort((a, b) => a - b)[0];
 
-    expect(authorizeIndex).toBeGreaterThanOrEqual(0);
-    expect(bodyReadIndex).toBeDefined();
-    expect(authorizeIndex).toBeLessThan(bodyReadIndex);
+    if (bodyReadIndex === undefined) {
+      violations.push('uploadFileAttachmentHttp — missing body read');
+    } else if (authorizeIndex >= 0 && authorizeIndex > bodyReadIndex) {
+      violations.push('uploadFileAttachmentHttp — reads the body before authorizing');
+    }
+
+    return violations;
+  }
+
+  it('the upload HTTP action authorizes the ticket before reading the body', () => {
+    const source = fs.readFileSync(path.join(convexDir, 'fileAttachments.ts'), 'utf-8');
+
+    expect(findUploadOrderViolations(source)).toEqual([]);
 
     // And the helper that the action delegates to must actually read bytes.
     const helperBody = extractDeclaredFunctionBody(source, 'readUploadBody');
     expect(helperBody).not.toBeNull();
     expect(helperBody!).toContain('request.arrayBuffer()');
+  });
+
+  it('rejects an action that reads the body before authorizing', () => {
+    const fixture = [
+      'export const uploadFileAttachmentHttp = httpAction(async (ctx, request) => {',
+      '  const body = await readUploadBody(request, 5);',
+      '  const authorized = await authorizeUploadRequest(ctx, preflight);',
+      '  return authorized;',
+      '});',
+      '',
+      'async function authorizeUploadRequest(ctx, preflight) {',
+      '  const auth = await ctx.runQuery(internal.fileAttachments.authorizeUpload, {});',
+      '  assertContentLengthMatches(1, 1);',
+      '  return auth;',
+      '}',
+    ].join('\n');
+
+    expect(findUploadOrderViolations(fixture)).toEqual([
+      'uploadFileAttachmentHttp — reads the body before authorizing',
+    ]);
   });
 
   it('rejects a handler that only calls requireWebCaller', () => {
@@ -534,5 +727,41 @@ describe('Security: File attachment access checks', () => {
     const [fn] = extractExportedFunctions(fixture);
     expect(fn).toBeDefined();
     expect(hasAccessCheck(fn!.handlerSource)).toBe(false);
+  });
+
+  it('rejects a handler whose guard appears only in a comment', () => {
+    const fixture = [
+      'export const commentOnly = mutation({',
+      '  args: {},',
+      '  handler: async (ctx, args) => {',
+      '    // await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);',
+      '    /* requireChatroomAccess(ctx, args.sessionId, args.chatroomId); */',
+      '    return null;',
+      '  },',
+      '});',
+    ].join('\n');
+
+    const [fn] = extractExportedFunctions(fixture);
+    expect(fn).toBeDefined();
+    // The guard text is present, so comment stripping is what rejects it.
+    expect(fn!.handlerSource).toContain('requireChatroomAccess');
+    expect(stripComments(fn!.handlerSource)).not.toContain('requireChatroomAccess');
+    expect(hasAccessCheck(fn!.handlerSource)).toBe(false);
+  });
+
+  it('stripComments preserves URLs inside string literals', () => {
+    const source = [
+      "const single = 'https://example.com'; // trailing comment",
+      'const double = "http://example.com/path";',
+      '/* block comment */',
+      'const value = 1;',
+    ].join('\n');
+
+    const stripped = stripComments(source);
+    expect(stripped).toContain("'https://example.com'");
+    expect(stripped).toContain('"http://example.com/path"');
+    expect(stripped).not.toContain('trailing comment');
+    expect(stripped).not.toContain('block comment');
+    expect(stripped).toContain('const value = 1;');
   });
 });
