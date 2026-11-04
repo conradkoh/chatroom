@@ -16,7 +16,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { internal } from './_generated/api';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
-import { requireWebCaller } from './fileAttachments';
+import { requireWebCaller } from './auth/webSession';
 import {
   DEFAULT_USER_FILE_QUOTA_BYTES,
   PLATFORM_MAX_FILE_QUOTA_BYTES,

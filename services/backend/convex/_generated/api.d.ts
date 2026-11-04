@@ -26,6 +26,7 @@ import type * as auth_cli_workspaceAccess from "../auth/cli/workspaceAccess.js";
 import type * as auth_google from "../auth/google.js";
 import type * as auth_session from "../auth/session.js";
 import type * as auth_sessionValidation from "../auth/sessionValidation.js";
+import type * as auth_webSession from "../auth/webSession.js";
 import type * as backlog from "../backlog.js";
 import type * as capabilitiesRefreshCron from "../capabilitiesRefreshCron.js";
 import type * as chatroomCleanup from "../chatroomCleanup.js";
@@ -179,6 +180,7 @@ declare const fullApi: ApiFromModules<{
   "auth/google": typeof auth_google;
   "auth/session": typeof auth_session;
   "auth/sessionValidation": typeof auth_sessionValidation;
+  "auth/webSession": typeof auth_webSession;
   backlog: typeof backlog;
   capabilitiesRefreshCron: typeof capabilitiesRefreshCron;
   chatroomCleanup: typeof chatroomCleanup;

@@ -23,6 +23,7 @@ import type { ActionCtx, MutationCtx, QueryCtx } from './_generated/server';
 import { httpAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { validateSession } from './auth/sessionValidation';
+import { requireWebCaller } from './auth/webSession';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { omitUndefined } from './lib/omitUndefined';
 import type { BackendErrorCode } from '../config/errorCodes';
@@ -365,37 +366,6 @@ function statusForCode(code: BackendErrorCode): number {
 }
 
 // ─── Owner-only access (S5) ────────────────────────────────────────────────
-
-/**
- * Rejects non-web sessions before any chatroom or ownership check.
- *
- * CLI sessions are user-scoped, not chatroom-scoped, so an agent must never be
- * able to read another chatroom's bytes or settings through them.
- */
-export function requireWebSession(access: { session: { sessionType: string } }): void {
-  if (access.session.sessionType !== 'web') {
-    throw new ConvexError({
-      code: 'WEB_SESSION_REQUIRED',
-      message: 'Files can only be read or managed from the web app.',
-    });
-  }
-}
-
-/** Validates the session and requires the web app as the caller. */
-export async function requireWebCaller(
-  ctx: QueryCtx | MutationCtx,
-  sessionId: string
-): Promise<{ userId: Id<'users'>; sessionId: string }> {
-  const session = await validateSession(ctx, sessionId);
-  if (!session.ok) {
-    throw new ConvexError({
-      code: 'AUTH_FAILED',
-      message: `Authentication failed: ${session.reason}`,
-    });
-  }
-  requireWebSession({ session });
-  return { userId: session.userId, sessionId: session.sessionId };
-}
 
 /** Rejects a URL request for more than one handoff's worth of attachments. */
 function assertUrlBatchSize(count: number): void {
