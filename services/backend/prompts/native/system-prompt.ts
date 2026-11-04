@@ -1,3 +1,4 @@
+import { buildCustomAgentSections } from '../custom-agents/render-custom-agent-sections';
 import { getNativeCommandsReferenceSection } from '../sections/commands-reference';
 import { getGeneralKnowledgeSections } from '../sections/general-knowledge';
 import { getRoleGuidanceSection } from '../sections/role-guidance';
@@ -22,14 +23,17 @@ export function composeNativeSystemPrompt(input: InitPromptInput): string {
     nativeIntegration: true,
   });
 
+  const customSections = buildCustomAgentSections(input.customAgents);
   const sections = [
     getRoleTitleSection(selectorCtx),
     getRoleDescriptionSection(selectorCtx),
+    ...customSections.afterRoleDescription,
     ...getGeneralKnowledgeSections(
-      { convexUrl, chatroomId, role, nativeIntegration: true, compactSkills: true },
+      { convexUrl, chatroomId, role, nativeIntegration: true, compactSkills: true, teamId },
       { includeHistory: false }
     ),
     getRoleGuidanceSection(selectorCtx),
+    ...customSections.afterRoleGuidance,
     getNativeCommandsReferenceSection({ chatroomId, role, convexUrl }),
   ];
 

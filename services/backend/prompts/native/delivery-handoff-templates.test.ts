@@ -12,7 +12,6 @@ import { describe, expect, test } from 'vitest';
 
 import {
   appendNativeDeliveryHandoffTemplates,
-  formatDeliveredHandoffTemplateHeading,
   getDeliveredHandoffTemplatePair,
 } from './delivery-handoff-templates';
 import { DUO_ROLE_HANDOFF_CATALOG } from '../teams/duo/handoff-templates';
@@ -47,9 +46,7 @@ describe('appendNativeDeliveryHandoffTemplates — catalog coverage guard', () =
         expect(output).toContain('Use these structures when handing off.');
         expect(output).toContain('</handoff-templates>');
         for (const toRole of contract.returnsTo) {
-          expect(output).toContain(
-            formatDeliveredHandoffTemplateHeading({ teamId, fromRole: role, toRole })
-          );
+          expect(output).toContain(`### Handoff template \`${role}\` → \`${toRole}\``);
         }
       });
     }

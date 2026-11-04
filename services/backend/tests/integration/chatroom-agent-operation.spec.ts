@@ -176,6 +176,58 @@ describe('agents.requestChatroomAgentOperation', () => {
     expect(result.skipped.map(({ role }) => role)).not.toContain('architect');
   });
 
+  test('accepts an operation for a persisted role under a legacy team structure id', async () => {
+    const { sessionId } = await createTestSession('chatroom-agent-operation-legacy-team');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'machine-chatroom-agent-operation-legacy-team';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/workspace/legacy-team',
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    });
+
+    await t.run(async (ctx) => {
+      const active = await ctx.db
+        .query('chatroom_activeTeamStructures')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+      await ctx.db.patch('chatroom_activeTeamStructures', active!._id, {
+        teamStructureId: 'legacy-squad',
+      });
+      await ctx.db.patch('chatroom_rooms', chatroomId, {
+        teamRoles: ['planner', 'builder'],
+      });
+    });
+    // Save the configuration after the legacy patch so the machine binding is
+    // recorded against the structure id the operation path resolves.
+    await t.mutation(api.agents.saveConfig, {
+      sessionId,
+      chatroomId,
+      workspaceId,
+      role: 'builder',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'test-model',
+      workingDir: '/workspace/legacy-team',
+    });
+
+    const result = await t.mutation(api.agents.requestChatroomAgentOperation, {
+      sessionId,
+      chatroomId,
+      operation: 'start',
+    });
+
+    expect(result.requested).toEqual(
+      expect.arrayContaining([{ role: 'builder', workspaceId, machineId }])
+    );
+    expect(result.skipped.map(({ role }) => role)).not.toContain('builder');
+    expect(result.failed).toEqual([]);
+  });
+
   test('queues one workspace-scoped stop per active workspace', async () => {
     const { sessionId } = await createTestSession('chatroom-agent-operation');
     const chatroomId = await createDuoTeamChatroom(sessionId);

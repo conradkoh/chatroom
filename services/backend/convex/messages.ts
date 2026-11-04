@@ -1,4 +1,5 @@
 // fallow-ignore-file complexity code-duplication
+import { validateCustomAgentName } from '@workspace/shared/domain/custom-agent';
 import {
   advanceTaskEnvelopeWorkflow,
   normalizeTaskEnvelope,
@@ -33,6 +34,7 @@ import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueu
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import { readCustomAgentPromptContext } from '../src/domain/usecase/custom-agents/read-custom-agent-prompt-context';
 import {
   bindHandoffAttachments,
   deleteFileAttachments,
@@ -53,9 +55,11 @@ import {
 } from '../src/domain/usecase/task/complete-active-tasks';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { deleteUserMessageOrTask as deleteUserMessageOrTaskUsecase } from '../src/domain/usecase/task/delete-user-message-or-task';
+import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
 import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
+import { isEphemeralRoleInChatroom } from '../src/domain/usecase/team/resolve-chatroom-team';
 
 const config = getConfig();
 
@@ -593,7 +597,26 @@ export async function runHandoffHandler(
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const normalizedTargetRole = args.targetRole.toLowerCase();
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-  if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+  // A custom agent may still be executing when its definition file is removed
+  // or disabled, which drops it from the merged team. Let that sender hand back
+  // while it still owns an active task in this chatroom.
+  const senderInTeam = normalizedTeamRoles.includes(normalizedSenderRole);
+  // Only an ephemeral custom agent removed or disabled mid-task may hand back
+  // from outside the team. Builtin roles left over after a team switch are still
+  // rejected, and so is a legacy persisted custom-looking role that has no
+  // definition and no ephemeral projection.
+  const senderIsCustomAgentName = validateCustomAgentName(normalizedSenderRole) === null;
+  const senderHasActiveTask =
+    !senderInTeam &&
+    senderIsCustomAgentName &&
+    (await isEphemeralRoleInChatroom(ctx, args.chatroomId, normalizedSenderRole)) &&
+    (await findActiveAssignedTaskForRole(ctx, {
+      chatroomId: args.chatroomId,
+      // The same canonical role the ephemeral check used, so a mixed-case sender
+      // cannot pass one lookup and miss the other.
+      role: normalizedSenderRole,
+    })) !== null;
+  if (!senderInTeam && !senderHasActiveTask) {
     return {
       success: false,
       error: {
@@ -1516,6 +1539,12 @@ export const getRolePrompt = query({
 
     // Generate the role-specific prompt
     const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
+    // Custom-role context (undefined for builtins): the only reader of the
+    // custom-agent content and template tables on this path.
+    const customAgents = await readCustomAgentPromptContext(ctx, {
+      chatroom,
+      role: args.role,
+    });
     const prompt = generateRolePrompt({
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1526,6 +1555,7 @@ export const getRolePrompt = query({
       availableHandoffRoles,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
       activatedSkills,
+      customAgents,
     });
 
     return {
@@ -1558,6 +1588,10 @@ export const getInitPrompt = query({
     });
 
     const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
+    const customAgents = await readCustomAgentPromptContext(ctx, {
+      chatroom,
+      role: args.role,
+    });
     const promptInput = {
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1569,6 +1603,7 @@ export const getInitPrompt = query({
       agentType: (existingAgentRequest?.agentType ?? 'unset') as 'remote' | 'custom' | 'unset',
       agentHarness: existingAgentRequest?.agentHarness,
       activatedSkills,
+      customAgents,
     };
 
     // Compose init prompt (system prompt + init message + combined)

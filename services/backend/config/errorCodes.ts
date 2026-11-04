@@ -195,6 +195,11 @@ export type BackendErrorCode =
   | 'INVITE_EMAIL_MISMATCH'
   | 'SIGNUP_DISABLED'
 
+  // ── Custom agents ─────────────────────────────────────────────────
+  | 'INVALID_SCOPE'
+  | 'CUSTOM_AGENT_NOT_FOUND'
+  | 'CUSTOM_AGENT_NO_WORKSPACE'
+
   // ── File attachments ──────────────────────────────────────────────
   | 'FILE_ATTACHMENT_NOT_FOUND'
   | 'FILE_ATTACHMENT_INVALID_STATE'
@@ -503,6 +508,14 @@ export const BACKEND_ERROR_CODES = {
   /** Self-signup is not enabled */
   SIGNUP_DISABLED: 'SIGNUP_DISABLED',
 
+  // ── Custom agents ──────────────────────────────────────────────────
+  /** A custom-agent scope does not match its workingDir, or the push exceeds a limit */
+  INVALID_SCOPE: 'INVALID_SCOPE',
+  /** No stored custom-agent definition matches the requested role */
+  CUSTOM_AGENT_NOT_FOUND: 'CUSTOM_AGENT_NOT_FOUND',
+  /** The chatroom has no active workspace, so no machine can handle the request */
+  CUSTOM_AGENT_NO_WORKSPACE: 'CUSTOM_AGENT_NO_WORKSPACE',
+
   // ── File attachments ──────────────────────────────────────────────
   /** The referenced file attachment does not exist or is not visible to the caller */
   FILE_ATTACHMENT_NOT_FOUND: 'FILE_ATTACHMENT_NOT_FOUND',
@@ -646,6 +659,11 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.COMMAND_TYPE_IMMUTABLE,
   BACKEND_ERROR_CODES.NOT_AUTHORIZED_MACHINE,
   BACKEND_ERROR_CODES.ATTENDANCE_DELETE_UNAUTHORIZED,
+
+  // Custom agents
+  BACKEND_ERROR_CODES.INVALID_SCOPE,
+  BACKEND_ERROR_CODES.CUSTOM_AGENT_NOT_FOUND,
+  BACKEND_ERROR_CODES.CUSTOM_AGENT_NO_WORKSPACE,
 
   // Git clone & workspace
   BACKEND_ERROR_CODES.INVALID_REPO_URL,

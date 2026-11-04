@@ -17,6 +17,8 @@ export interface ActivateSkillArgs {
   skillId: string;
   role: string;
   cliEnvPrefix: string;
+  /** The chatroom's team kind, which decides whether the skill exists at all. */
+  teamId: string | undefined;
 }
 
 export interface ActivateSkillResult {
@@ -35,7 +37,7 @@ export async function activateSkill(
   _chatroom: Doc<'chatroom_rooms'>,
   args: ActivateSkillArgs
 ): Promise<ActivateSkillResult> {
-  const skill = getSkill(args.skillId, args.cliEnvPrefix);
+  const skill = getSkill(args.skillId, args.cliEnvPrefix, args.teamId);
 
   if (!skill) {
     throw new ConvexError(`Skill "${args.skillId}" not found or is disabled.`);

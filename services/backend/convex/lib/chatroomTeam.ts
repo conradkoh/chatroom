@@ -1,5 +1,9 @@
-import { getTeamStructure } from '../../src/domain/entities/team-presets';
-import { getActiveTeamStructure } from '../../src/domain/usecase/team/active-team-structure';
+import type { TeamRosterEntry } from '@workspace/shared/domain/custom-agent';
+
+import {
+  resolveChatroomTeam,
+  type ResolvedCustomAgent,
+} from '../../src/domain/usecase/team/resolve-chatroom-team';
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
@@ -10,27 +14,39 @@ export type ResolvedChatroom = Doc<'chatroom_rooms'> & {
   teamName?: string;
   teamRoles?: string[];
   teamEntryPoint?: string;
+  roster?: TeamRosterEntry[];
+  customAgents?: ResolvedCustomAgent[];
+  /**
+   * The workspace the resolver already read. Present (possibly null) when the
+   * chatroom came from `withActiveTeamStructure`, so custom-agent readers can
+   * reuse it instead of reading the workspace table again.
+   */
+  primaryWorkspace?: Doc<'chatroom_workspaces'> | null;
 };
 
 /**
  * Resolves the active immutable team definition into the legacy-shaped view
  * expected by older domain helpers. The assignment table remains the only
  * source used to populate these fields; callers must not persist them.
+ *
+ * Custom agents and machine-local disabled flags are merged through
+ * `resolveChatroomTeam`, so every consumer sees the same team. With no customs
+ * and no disabled roles the result matches the static structure exactly.
  */
 export async function withActiveTeamStructure(
   ctx: DbCtx,
   chatroom: Doc<'chatroom_rooms'>
-): Promise<
-  ResolvedChatroom
-> {
-  const active = await getActiveTeamStructure(ctx, chatroom._id);
-  if (!active) return chatroom;
-  const structure = getTeamStructure({ teamId: active.teamStructureId });
+): Promise<ResolvedChatroom> {
+  const resolved = await resolveChatroomTeam(ctx, chatroom._id);
+  if (!resolved) return chatroom;
   return {
     ...chatroom,
-    teamId: structure.teamId,
-    teamName: structure.teamName,
-    teamRoles: structure.roles.map(({ role }) => role),
-    teamEntryPoint: structure.entryPoint,
+    teamId: resolved.structure.teamId,
+    teamName: resolved.structure.teamName,
+    teamRoles: resolved.structure.roles.map(({ role }) => role),
+    teamEntryPoint: resolved.structure.entryPoint,
+    roster: resolved.roster,
+    customAgents: resolved.enabledCustomAgents,
+    primaryWorkspace: resolved.primaryWorkspace,
   };
 }

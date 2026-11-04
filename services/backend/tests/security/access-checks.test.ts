@@ -37,6 +37,8 @@ const ACCESS_CHECK_PATTERNS = [
   'requireMachineOwner',
   'requireMachineWriteAccess',
   'getMachineOwner',
+  // customAgents.ts — module-local machine-owner check, wraps checkAccess('owner')
+  'assertMachineOwner',
   // workspaceAccess.ts helpers
   'requireWorkspaceOwner',
   'requireWorkspaceWriteAccess',

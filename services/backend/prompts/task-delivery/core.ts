@@ -16,9 +16,10 @@ import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/messa
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
 import { formatHandoffPairLabel } from '../cli/handoff-templates/pair';
+import type { CustomAgentPromptContext } from '../custom-agents/types';
 import {
   appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates,
-  formatDeliveredHandoffTemplateHeading,
+  getCustomDeliveredHandoffPairLabel,
   getDeliveredHandoffTemplatePair,
 } from '../native/delivery-handoff-templates.js';
 
@@ -34,6 +35,11 @@ export interface TaskDeliveryParams {
   sourceAttachments?: PrimaryDeliveryAttachments | undefined;
   standingInstructions?: string | null | undefined;
   conversationMode?: ConversationMode | undefined;
+  /**
+   * Custom-agent context for the delivered role, or `undefined` for a builtin
+   * role. Absent/undefined keeps the delivery output byte-identical.
+   */
+  customAgents?: CustomAgentPromptContext | undefined;
 }
 
 const SINGLE_HANDOFF_NOTE =
@@ -48,6 +54,7 @@ function appendPrimaryHandoffInstructions(
     teamId?: string | undefined;
     primaryTarget: string;
     senderRole?: string | undefined;
+    customAgents?: CustomAgentPromptContext | undefined;
   }
 ): void {
   const senderNote = params.senderRole ? ` (task from \`${params.senderRole}\`)` : '';
@@ -80,15 +87,33 @@ function buildPrimaryHandoffBodyGuidance(params: {
   role: string;
   teamId?: string | undefined;
   primaryTarget: string;
+  customAgents?: CustomAgentPromptContext | undefined;
 }): string {
-  const pair = getDeliveredHandoffTemplatePair(params.teamId, params.role, params.primaryTarget);
-  if (!pair) {
+  const pairLabel = deliveredPairLabel(params);
+  if (pairLabel === null) {
     return `No handoff template is defined for \`${params.role}\` → \`${params.primaryTarget}\`; write a complete free-form message. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). ${LAST_TOOL_CALL_SENTENCE}`;
   }
 
-  const pairLabel = formatHandoffPairLabel(pair);
-  const heading = formatDeliveredHandoffTemplateHeading(pair);
+  const heading = `### Handoff template ${pairLabel}`;
   return `Fill in the message using the ${pairLabel} template (the "${heading}" block in \`<handoff-templates>\` below); do not use a template addressed to a different recipient. Replace \`[Your message here]\` with the message body only: start at the first \`## \` section heading of the template and stop at the last body section. Do not include the template notice, any \`### Handoff template\` heading, the template title line, or any section after the body (the command instructions). The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`). ${LAST_TOOL_CALL_SENTENCE}`;
+}
+
+/**
+ * The delivered pair's `from → to` label. A custom pair (the role's return
+ * template, or the entry point's inbound template for a delegate) wins over the
+ * builtin catalog, which never contains custom roles.
+ */
+function deliveredPairLabel(params: {
+  role: string;
+  teamId?: string | undefined;
+  primaryTarget: string;
+  customAgents?: CustomAgentPromptContext | undefined;
+}): string | null {
+  const customLabel = getCustomDeliveredHandoffPairLabel(params.customAgents, params.primaryTarget);
+  if (customLabel !== null) return customLabel;
+
+  const pair = getDeliveredHandoffTemplatePair(params.teamId, params.role, params.primaryTarget);
+  return pair === null ? null : formatHandoffPairLabel(pair);
 }
 
 function getTaskSenderRole(message: { senderRole: string } | null | undefined): string | undefined {
@@ -107,10 +132,19 @@ function appendTaskDeliveryNextSteps(
     | 'message'
     | 'availableHandoffTargets'
     | 'isEntryPoint'
+    | 'customAgents'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, teamId, message, availableHandoffTargets, isEntryPoint } =
-    params;
+  const {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    teamId,
+    message,
+    availableHandoffTargets,
+    isEntryPoint,
+    customAgents,
+  } = params;
   const senderRole = getTaskSenderRole(message);
   const primaryTarget = inferPrimaryHandoffTarget({
     senderRole,
@@ -129,6 +163,7 @@ function appendTaskDeliveryNextSteps(
       teamId,
       primaryTarget,
       senderRole,
+      customAgents,
     });
     lines.push('', '</next-steps>');
     return;
@@ -147,10 +182,10 @@ function appendTaskDeliveryHandoffTargets(
   lines: string[],
   params: Pick<
     TaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'teamId' | 'availableHandoffTargets'
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'teamId' | 'availableHandoffTargets' | 'customAgents'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, teamId, availableHandoffTargets } = params;
+  const { chatroomId, role, cliEnvPrefix, teamId, availableHandoffTargets, customAgents } = params;
   if (availableHandoffTargets.length === 0) return;
 
   lines.push('');
@@ -159,10 +194,10 @@ function appendTaskDeliveryHandoffTargets(
   lines.push('');
 
   for (const target of availableHandoffTargets) {
-    const pair = getDeliveredHandoffTemplatePair(teamId, role, target);
+    const pairLabel = deliveredPairLabel({ role, teamId, primaryTarget: target, customAgents });
     lines.push(
-      pair
-        ? `**${target}** — template: ${formatHandoffPairLabel(pair)}`
+      pairLabel !== null
+        ? `**${target}** — template: ${pairLabel}`
         : `**${target}** — no template (free-form)`
     );
     lines.push('```bash');
@@ -186,6 +221,7 @@ export function appendTaskDeliveryHandoffSections(
     | 'availableHandoffTargets'
     | 'isEntryPoint'
     | 'conversationMode'
+    | 'customAgents'
   >
 ): void {
   const activeHandoffTargets = params.availableHandoffTargets.filter(
@@ -245,6 +281,7 @@ export function appendTaskDeliveryHandoffSections(
     chatroomId: params.chatroomId,
     cliEnvPrefix: params.cliEnvPrefix,
     conversationMode: params.conversationMode,
+    customAgents: params.customAgents,
   });
   appendTaskDeliveryHandoffTargets(lines, activeParams);
 }

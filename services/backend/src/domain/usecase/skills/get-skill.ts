@@ -1,11 +1,14 @@
 /**
  * get-skill use case
  *
- * Pure function — looks up a skill by ID from SKILLS_REGISTRY.
- * Returns the full skill shape (including prompt) or null.
+ * Pure function — looks up a skill by ID among the skills the chatroom's team may
+ * use. Returns the full skill shape (including prompt) or null.
+ *
+ * Team gating lives in `skillsForTeam`, the same filter `list` applies: a skill
+ * the team cannot list is unknown to `get` and `activate`.
  */
 
-import { SKILLS_REGISTRY } from './registry';
+import { skillsForTeam } from './registry';
 
 export interface SkillDetail {
   skillId: string;
@@ -16,8 +19,12 @@ export interface SkillDetail {
   prompt: string;
 }
 
-export function getSkill(skillId: string, cliEnvPrefix: string): SkillDetail | null {
-  const skill = SKILLS_REGISTRY.find((s) => s.skillId === skillId);
+export function getSkill(
+  skillId: string,
+  cliEnvPrefix: string,
+  teamId: string | undefined
+): SkillDetail | null {
+  const skill = skillsForTeam(teamId).find((s) => s.skillId === skillId);
   if (!skill) return null;
 
   return {

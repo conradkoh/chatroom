@@ -73,15 +73,15 @@ describe('ensureChatroomDir', () => {
 });
 
 describe('ensureGitignore', () => {
-  it('creates .gitignore with .chatroom entry if file does not exist', async () => {
+  it('creates .gitignore with the chatroom pair if the file does not exist', async () => {
     const { store, deps } = createFakeFs();
     await ensureGitignore(deps, '/project');
 
     const content = store.get('/project/.gitignore');
-    expect(content).toBe('.chatroom\n');
+    expect(content).toBe('.chatroom/*\n!.chatroom/agents/\n');
   });
 
-  it('appends .chatroom entry if file exists without it', async () => {
+  it('appends the chatroom pair if file exists without it', async () => {
     const { store, deps } = createFakeFs({
       '/project/.gitignore': 'node_modules\n.env\n',
     });
@@ -89,7 +89,8 @@ describe('ensureGitignore', () => {
     await ensureGitignore(deps, '/project');
 
     const content = store.get('/project/.gitignore');
-    expect(content).toContain('.chatroom\n');
+    expect(content).toContain('.chatroom/*\n');
+    expect(content).toContain('!.chatroom/agents/\n');
     expect(content).toContain('node_modules');
   });
 
@@ -101,10 +102,21 @@ describe('ensureGitignore', () => {
     await ensureGitignore(deps, '/project');
 
     const content = store.get('/project/.gitignore');
-    expect(content).toBe('node_modules\n.chatroom\n');
+    expect(content).toBe('node_modules\n.chatroom/*\n!.chatroom/agents/\n');
   });
 
-  it('skips if .chatroom is already in .gitignore', async () => {
+  it('skips if the current chatroom pair is already in .gitignore', async () => {
+    const original = 'node_modules\n.chatroom/*\n!.chatroom/agents/\n.env\n';
+    const { store, deps } = createFakeFs({
+      '/project/.gitignore': original,
+    });
+
+    await ensureGitignore(deps, '/project');
+
+    expect(store.get('/project/.gitignore')).toBe(original);
+  });
+
+  it('leaves a legacy bare .chatroom line unchanged', async () => {
     const original = 'node_modules\n.chatroom\n.env\n';
     const { store, deps } = createFakeFs({
       '/project/.gitignore': original,
@@ -116,7 +128,7 @@ describe('ensureGitignore', () => {
     expect(store.get('/project/.gitignore')).toBe(original);
   });
 
-  it('skips if .chatroom/ (with trailing slash) is in .gitignore', async () => {
+  it('leaves a legacy .chatroom/ (trailing slash) line unchanged', async () => {
     const original = 'node_modules\n.chatroom/\n.env\n';
     const { store, deps } = createFakeFs({
       '/project/.gitignore': original,

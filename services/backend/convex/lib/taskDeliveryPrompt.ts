@@ -26,6 +26,7 @@ import { getActiveStandingInstructions } from '../../src/domain/entities/standin
 import { getTeamEntryPoint } from '../../src/domain/entities/team';
 import { getLastSentLaunchRequestForRole } from '../../src/domain/usecase/agent/get-last-sent-launch-request';
 import { getTeamRolesFromChatroom } from '../../src/domain/usecase/chatroom/get-team-roles';
+import { readCustomAgentPromptContext } from '../../src/domain/usecase/custom-agents/read-custom-agent-prompt-context';
 import type { TaskStatus } from '../../src/domain/usecase/task/transition-task';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
@@ -291,6 +292,12 @@ export async function buildTaskDeliveryPrompt(
   const { isEntryPoint } = resolveEntryPointStatus(chatroom, args.role, args.entryPointRole);
   const nativeIntegration = await isNativeIntegrationDelivery(ctx, args.chatroomId, args.role);
   const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
+  // Custom-agent context for the delivered role; the only body-table reader on
+  // this path, and `undefined` for builtin roles.
+  const customAgents = await readCustomAgentPromptContext(ctx, {
+    chatroom,
+    role: args.role,
+  });
 
   // Generate the complete CLI output (backend-generated, CLI just prints it)
   const fullCliOutput = generateFullCliOutput({
@@ -306,6 +313,7 @@ export async function buildTaskDeliveryPrompt(
     sourceAttachments,
     standingInstructions: getActiveStandingInstructions(chatroom),
     conversationMode: modePolicy.conversationMode,
+    customAgents,
   });
   return { fullCliOutput };
 }

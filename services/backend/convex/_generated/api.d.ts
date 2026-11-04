@@ -51,6 +51,7 @@ import type * as contexts from "../contexts.js";
 import type * as conversation from "../conversation.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
+import type * as customAgents from "../customAgents.js";
 import type * as daemon_agentConfigInbox from "../daemon/agentConfigInbox.js";
 import type * as daemon_agentEvents from "../daemon/agentEvents.js";
 import type * as daemon_agenticQuery_index from "../daemon/agenticQuery/index.js";
@@ -205,6 +206,7 @@ declare const fullApi: ApiFromModules<{
   conversation: typeof conversation;
   crons: typeof crons;
   crypto: typeof crypto;
+  customAgents: typeof customAgents;
   "daemon/agentConfigInbox": typeof daemon_agentConfigInbox;
   "daemon/agentEvents": typeof daemon_agentEvents;
   "daemon/agenticQuery/index": typeof daemon_agenticQuery_index;

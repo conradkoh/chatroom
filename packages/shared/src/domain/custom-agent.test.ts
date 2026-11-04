@@ -1,0 +1,599 @@
+import { describe, expect, test, vi } from 'vitest';
+
+import { AgentRoleLifecycleTag, AGENT_ROLE_DEFINITIONS } from './agent-role';
+import {
+  CUSTOM_AGENT_FORBIDDEN_FRONTMATTER_KEYS,
+  CUSTOM_AGENT_LIMITS,
+  CUSTOM_AGENT_NAME_PATTERN,
+  CUSTOM_AGENT_RULES_REVISION,
+  CUSTOM_AGENT_RULES_VERSION,
+  RESERVED_DELIMITER_LINES,
+  type CustomAgentDefinitionPayload,
+  type CustomAgentIdentity,
+  type CustomAgentRulesVersionInput,
+  computeCustomAgentContentHash,
+  computeCustomAgentRulesVersion,
+  isDisableableTeamRole,
+  mergeTeamStructureWithCustomAgents,
+  neutralizeChatroomBlockTags,
+  sanitizeCustomAgentSummary,
+  supportsCustomAgents,
+  validateCustomAgentName,
+  validateCustomAgentPayload,
+} from './custom-agent';
+import { getTeamStructure, TEAM_PRESETS } from './team-presets';
+
+function customAgent(
+  name: string,
+  description = `Does ${name} things.`,
+  scope: CustomAgentIdentity['scope'] = 'workspace'
+): CustomAgentIdentity {
+  return { name, description, scope };
+}
+
+function validPayload(
+  overrides: Partial<CustomAgentDefinitionPayload> = {}
+): CustomAgentDefinitionPayload {
+  return {
+    name: 'release-checker',
+    description: 'Checks release readiness.',
+    systemPrompt: 'You check releases.',
+    contentHash: 'hash',
+    disabled: false,
+    ...overrides,
+  };
+}
+
+describe('custom agent names', () => {
+  test('the pattern accepts lowercase kebab-case segments', () => {
+    for (const name of ['a', 'agent', 'agent-2', 'release-checker', '123']) {
+      expect(CUSTOM_AGENT_NAME_PATTERN.test(name)).toBe(true);
+      expect(validateCustomAgentName(name)).toBeNull();
+    }
+  });
+
+  test.each(['', 'Agent', 'agent_2', 'agent--2', '-agent', 'agent-', 'agent two', 'ågent'])(
+    'rejects %s as invalid',
+    (name) => {
+      expect(validateCustomAgentName(name)).toBe('invalid-name');
+    }
+  );
+
+  test('enforces the 48 character name cap', () => {
+    const atLimit = 'a'.repeat(CUSTOM_AGENT_LIMITS.nameMaxLength);
+    const overLimit = 'a'.repeat(CUSTOM_AGENT_LIMITS.nameMaxLength + 1);
+    expect(validateCustomAgentName(atLimit)).toBeNull();
+    expect(validateCustomAgentName(overLimit)).toBe('invalid-name');
+  });
+
+  test('rejects builtin, user, and retired names as reserved', () => {
+    for (const name of ['planner', 'builder', 'solo', 'architect', 'user', 'enhancer']) {
+      expect(validateCustomAgentName(name)).toBe('reserved-name');
+    }
+  });
+});
+
+describe('custom agent payload validation', () => {
+  test('accepts a valid payload', () => {
+    expect(validateCustomAgentPayload(validPayload())).toEqual({ ok: true });
+  });
+
+  test('rejects an invalid name before anything else', () => {
+    expect(validateCustomAgentPayload(validPayload({ name: 'Bad Name' }))).toEqual({
+      ok: false,
+      reason: 'invalid-name',
+    });
+    expect(validateCustomAgentPayload(validPayload({ name: 'planner' }))).toEqual({
+      ok: false,
+      reason: 'reserved-name',
+    });
+  });
+
+  test('rejects a description that sanitizes to nothing', () => {
+    expect(validateCustomAgentPayload(validPayload({ description: '' }))).toEqual({
+      ok: false,
+      reason: 'invalid-description',
+    });
+    expect(validateCustomAgentPayload(validPayload({ description: '   \n\t ' }))).toEqual({
+      ok: false,
+      reason: 'invalid-description',
+    });
+  });
+
+  test('accepts a description at the limit and truncates beyond it', () => {
+    const atLimit = 'd'.repeat(CUSTOM_AGENT_LIMITS.descriptionMaxLength);
+    const overLimit = 'd'.repeat(CUSTOM_AGENT_LIMITS.descriptionMaxLength + 1);
+    expect(validateCustomAgentPayload(validPayload({ description: atLimit }))).toEqual({
+      ok: true,
+    });
+    expect(validateCustomAgentPayload(validPayload({ description: overLimit }))).toEqual({
+      ok: true,
+    });
+    expect(sanitizeCustomAgentSummary(overLimit)).toHaveLength(
+      CUSTOM_AGENT_LIMITS.descriptionMaxLength
+    );
+  });
+
+  test('enforces the system prompt byte cap', () => {
+    const atLimit = 'p'.repeat(CUSTOM_AGENT_LIMITS.systemPromptMaxBytes);
+    const overLimit = 'p'.repeat(CUSTOM_AGENT_LIMITS.systemPromptMaxBytes + 1);
+    expect(validateCustomAgentPayload(validPayload({ systemPrompt: atLimit }))).toEqual({
+      ok: true,
+    });
+    expect(validateCustomAgentPayload(validPayload({ systemPrompt: overLimit }))).toEqual({
+      ok: false,
+      reason: 'too-large',
+      detail: 'systemPrompt',
+    });
+  });
+
+  test('counts multi-byte UTF-8 characters as bytes, not code units', () => {
+    // Each "é" is two UTF-8 bytes, so 16k characters exceed the 24 KiB cap.
+    const multiByte = 'é'.repeat(CUSTOM_AGENT_LIMITS.systemPromptMaxBytes / 2);
+    expect(validateCustomAgentPayload(validPayload({ systemPrompt: multiByte }))).toEqual({
+      ok: true,
+    });
+    expect(validateCustomAgentPayload(validPayload({ systemPrompt: `${multiByte}é` }))).toEqual({
+      ok: false,
+      reason: 'too-large',
+      detail: 'systemPrompt',
+    });
+  });
+
+  test('enforces the handoff template byte caps independently', () => {
+    const atLimit = 't'.repeat(CUSTOM_AGENT_LIMITS.handoffTemplateMaxBytes);
+    const overLimit = 't'.repeat(CUSTOM_AGENT_LIMITS.handoffTemplateMaxBytes + 1);
+    expect(
+      validateCustomAgentPayload(
+        validPayload({ inboundHandoffTemplate: atLimit, returnHandoffTemplate: atLimit })
+      )
+    ).toEqual({ ok: true });
+    expect(validateCustomAgentPayload(validPayload({ inboundHandoffTemplate: overLimit }))).toEqual(
+      { ok: false, reason: 'too-large', detail: 'inboundHandoffTemplate' }
+    );
+    expect(validateCustomAgentPayload(validPayload({ returnHandoffTemplate: overLimit }))).toEqual({
+      ok: false,
+      reason: 'too-large',
+      detail: 'returnHandoffTemplate',
+    });
+  });
+
+  test('rejects reserved handoff delimiters on their own line in any body', () => {
+    expect(
+      validateCustomAgentPayload(
+        validPayload({ systemPrompt: 'Prompt\nCHATROOM_HANDOFF_END\nmore' })
+      )
+    ).toEqual({ ok: false, reason: 'reserved-delimiter' });
+    expect(
+      validateCustomAgentPayload(
+        validPayload({ inboundHandoffTemplate: 'CHATROOM_NOTIFY_END\nTemplate' })
+      )
+    ).toEqual({ ok: false, reason: 'reserved-delimiter' });
+    expect(
+      validateCustomAgentPayload(
+        validPayload({ returnHandoffTemplate: 'Template\nCHATROOM_HANDOFF_END' })
+      )
+    ).toEqual({ ok: false, reason: 'reserved-delimiter' });
+  });
+
+  test('allows a reserved delimiter that is not alone on its line', () => {
+    expect(
+      validateCustomAgentPayload(
+        validPayload({ systemPrompt: 'Never write CHATROOM_HANDOFF_END inline.' })
+      )
+    ).toEqual({ ok: true });
+  });
+});
+
+describe('custom agent summary sanitization', () => {
+  test('flattens newlines and collapses whitespace', () => {
+    expect(sanitizeCustomAgentSummary('  Handles\n\trelease   checks  ')).toBe(
+      'Handles release checks'
+    );
+  });
+
+  test('removes angle brackets, backticks, and control characters', () => {
+    expect(sanitizeCustomAgentSummary('a <b> `c`\u0000d\u0007')).toBe('a b c d');
+  });
+
+  test('truncates to the description limit', () => {
+    const result = sanitizeCustomAgentSummary(
+      'x'.repeat(CUSTOM_AGENT_LIMITS.descriptionMaxLength + 50)
+    );
+    expect(result).toHaveLength(CUSTOM_AGENT_LIMITS.descriptionMaxLength);
+  });
+});
+
+describe('chatroom block tag neutralization', () => {
+  test.each([
+    'task',
+    'task-intake',
+    'message',
+    'message-content',
+    'instruction',
+    'next-steps',
+    'handoffs',
+    'handoff-templates',
+    'chat-mode',
+    'team-roster',
+    'custom-agent-instructions',
+    'attachments',
+    'system-reminder',
+  ])('neutralizes %s blocks in open and close form', (tag) => {
+    expect(neutralizeChatroomBlockTags(`<${tag}>`)).toBe(`&lt;${tag}>`);
+    expect(neutralizeChatroomBlockTags(`</${tag}>`)).toBe(`&lt;/${tag}>`);
+  });
+
+  test('matches reserved tags case-insensitively', () => {
+    expect(neutralizeChatroomBlockTags('<TASK>')).toBe('&lt;TASK>');
+    expect(neutralizeChatroomBlockTags('</SyStEm-ReMiNdEr>')).toBe('&lt;/SyStEm-ReMiNdEr>');
+  });
+
+  test('leaves non-reserved tags unchanged', () => {
+    expect(neutralizeChatroomBlockTags('<section>text</section>')).toBe('<section>text</section>');
+    expect(neutralizeChatroomBlockTags('<custom-agent>')).toBe('<custom-agent>');
+    expect(neutralizeChatroomBlockTags('<taskish>')).toBe('<taskish>');
+  });
+});
+
+describe('mergeTeamStructureWithCustomAgents', () => {
+  test.each(['duo', 'solo'] as const)(
+    'returns the base structure unchanged with no customs and no disabled roles (%s)',
+    (teamId) => {
+      const base = getTeamStructure({ teamId });
+      const merged = mergeTeamStructureWithCustomAgents({
+        base,
+        workspaceAgents: [],
+        machineAgents: [],
+        disabledRoles: new Set(),
+      });
+
+      expect(merged.structure).toEqual(base);
+      expect(merged.enabledCustomAgents).toEqual([]);
+      expect(merged.issues).toEqual([]);
+      expect(merged.roster.map((entry) => entry.role)).toEqual(TEAM_PRESETS[teamId].roles);
+      expect(merged.roster.every((entry) => entry.disabled === false)).toBe(true);
+    }
+  );
+
+  test('keeps builtin order and appends customs workspace-first, sorted by name per scope', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [customAgent('zeta'), customAgent('alpha')],
+      machineAgents: [customAgent('middle', 'Middle role.', 'machine')],
+      disabledRoles: new Set(),
+    });
+
+    expect(merged.structure.roles.map((entry) => entry.role)).toEqual([
+      ...TEAM_PRESETS.duo.roles,
+      'alpha',
+      'zeta',
+      'middle',
+    ]);
+    expect(merged.structure.roles.slice(TEAM_PRESETS.duo.roles.length)).toEqual([
+      { role: 'alpha', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+      { role: 'zeta', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+      { role: 'middle', lifecycle: AgentRoleLifecycleTag.Ephemeral, optional: true },
+    ]);
+    expect(merged.enabledCustomAgents.map((agent) => agent.name)).toEqual([
+      'alpha',
+      'zeta',
+      'middle',
+    ]);
+  });
+
+  test('workspace agents win name clashes and the machine agent is shadowed', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [customAgent('alpha', 'Workspace alpha.')],
+      machineAgents: [customAgent('alpha', 'Machine alpha.', 'machine')],
+      disabledRoles: new Set(),
+    });
+
+    expect(merged.enabledCustomAgents).toEqual([
+      { name: 'alpha', description: 'Workspace alpha.', scope: 'workspace' },
+    ]);
+    expect(merged.issues).toEqual([{ path: 'alpha', reason: 'shadowed' }]);
+    expect(merged.structure.roles.filter((entry) => entry.role === 'alpha')).toHaveLength(1);
+  });
+
+  test('drops reserved names with an issue', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [customAgent('planner'), customAgent('user'), customAgent('enhancer')],
+      machineAgents: [],
+      disabledRoles: new Set(),
+    });
+
+    expect(merged.enabledCustomAgents).toEqual([]);
+    expect(merged.issues).toEqual([
+      { path: 'enhancer', reason: 'reserved-name' },
+      { path: 'planner', reason: 'reserved-name' },
+      { path: 'user', reason: 'reserved-name' },
+    ]);
+    expect(merged.structure).toEqual(base);
+  });
+
+  test('caps customs at the per-chatroom limit and reports one issue per extra', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const names = Array.from(
+      { length: CUSTOM_AGENT_LIMITS.agentsPerChatroom + 1 },
+      (_, index) => `agent-${String(index).padStart(2, '0')}`
+    );
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: names.map((name) => customAgent(name)),
+      machineAgents: [],
+      disabledRoles: new Set(),
+    });
+
+    expect(merged.enabledCustomAgents).toHaveLength(CUSTOM_AGENT_LIMITS.agentsPerChatroom);
+    expect(merged.issues).toEqual([{ path: 'agent-16', reason: 'over-limit' }]);
+    expect(merged.structure.roles).toHaveLength(
+      TEAM_PRESETS.duo.roles.length + CUSTOM_AGENT_LIMITS.agentsPerChatroom
+    );
+  });
+
+  test('ignores disabled builtin names, even ephemeral ones', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [],
+      machineAgents: [],
+      disabledRoles: new Set(['architect', 'researcher', 'planner']),
+    });
+
+    expect(merged.structure).toEqual(base);
+    expect(merged.structure.roles.map((entry) => entry.role)).toContain('architect');
+    expect(merged.roster.find((entry) => entry.role === 'architect')).toEqual({
+      role: 'architect',
+      lifecycle: AgentRoleLifecycleTag.Ephemeral,
+      source: 'builtin',
+      summary: 'Designs one evidence-backed implementation plan for complex changes.',
+      disabled: false,
+      disableable: false,
+    });
+    expect(merged.roster.find((entry) => entry.role === 'planner')?.disabled).toBe(false);
+  });
+
+  test('a disabled custom does not consume a cap slot', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const enabledNames = Array.from(
+      { length: CUSTOM_AGENT_LIMITS.agentsPerChatroom },
+      (_, index) => `enabled-${String(index).padStart(2, '0')}`
+    );
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [
+        ...enabledNames.map((name) => customAgent(name)),
+        customAgent('disabled-agent'),
+      ],
+      machineAgents: [],
+      disabledRoles: new Set(['disabled-agent']),
+    });
+
+    expect(merged.issues).toEqual([]);
+    expect(merged.enabledCustomAgents).toHaveLength(CUSTOM_AGENT_LIMITS.agentsPerChatroom);
+    expect(merged.structure.roles.map((entry) => entry.role)).not.toContain('disabled-agent');
+    expect(merged.roster.find((entry) => entry.role === 'disabled-agent')).toEqual({
+      role: 'disabled-agent',
+      lifecycle: AgentRoleLifecycleTag.Ephemeral,
+      source: 'custom',
+      summary: 'Does disabled-agent things.',
+      disabled: true,
+      disableable: true,
+      scope: 'workspace',
+    });
+  });
+
+  test('fills the cap workspace-first without re-sorting across scopes', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const names = Array.from(
+      { length: 20 },
+      (_, index) => `agent-${String(index).padStart(2, '0')}`
+    );
+    const workspaceNames = names.filter((_, index) => index % 2 === 0);
+    const machineNames = names.filter((_, index) => index % 2 === 1);
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [...workspaceNames].reverse().map((name) => customAgent(name)),
+      machineAgents: [...machineNames]
+        .reverse()
+        .map((name) => customAgent(name, `Does ${name} things.`, 'machine')),
+      disabledRoles: new Set(),
+    });
+
+    const enabledNames = merged.enabledCustomAgents.map((agent) => agent.name);
+    expect(enabledNames).toEqual([
+      ...workspaceNames,
+      ...machineNames.slice(0, CUSTOM_AGENT_LIMITS.agentsPerChatroom - workspaceNames.length),
+    ]);
+    expect(merged.enabledCustomAgents.filter((agent) => agent.scope === 'workspace')).toHaveLength(
+      workspaceNames.length
+    );
+    expect(merged.issues).toEqual(
+      machineNames
+        .slice(CUSTOM_AGENT_LIMITS.agentsPerChatroom - workspaceNames.length)
+        .map((name) => ({ path: name, reason: 'over-limit' }))
+    );
+  });
+
+  test('ignores disabled rows for permanent roles and the entry point', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [],
+      machineAgents: [],
+      disabledRoles: new Set(['planner', 'builder']),
+    });
+
+    expect(merged.structure.roles.map((entry) => entry.role)).toEqual([...TEAM_PRESETS.duo.roles]);
+    expect(merged.roster.find((entry) => entry.role === 'planner')).toMatchObject({
+      disabled: false,
+      disableable: false,
+    });
+    expect(merged.roster.find((entry) => entry.role === 'builder')).toMatchObject({
+      disabled: false,
+      disableable: false,
+    });
+  });
+
+  test('marks custom agents disableable and can disable them', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const enabled = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [customAgent('alpha', 'Handles <releases>.')],
+      machineAgents: [],
+      disabledRoles: new Set(),
+    });
+
+    expect(enabled.roster.find((entry) => entry.role === 'alpha')).toEqual({
+      role: 'alpha',
+      lifecycle: AgentRoleLifecycleTag.Ephemeral,
+      source: 'custom',
+      summary: 'Handles releases.',
+      disabled: false,
+      disableable: true,
+      scope: 'workspace',
+    });
+
+    const disabled = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [customAgent('alpha')],
+      machineAgents: [],
+      disabledRoles: new Set(['alpha']),
+    });
+    expect(disabled.structure.roles.map((entry) => entry.role)).not.toContain('alpha');
+    expect(disabled.roster.find((entry) => entry.role === 'alpha')?.disabled).toBe(true);
+  });
+
+  test('copies team identity and entry point unchanged', () => {
+    const base = getTeamStructure({ teamId: 'solo', teamName: 'Renamed Solo' });
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [customAgent('alpha')],
+      machineAgents: [],
+      disabledRoles: new Set(['triage']),
+    });
+
+    expect(merged.structure.teamId).toBe(base.teamId);
+    expect(merged.structure.teamStructureId).toBe(base.teamStructureId);
+    expect(merged.structure.teamName).toBe('Renamed Solo');
+    expect(merged.structure.entryPoint).toBe('solo');
+  });
+});
+
+describe('isDisableableTeamRole', () => {
+  test('only ephemeral, non-builtin, non-entry-point roles are disableable', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    expect(isDisableableTeamRole(base, 'planner')).toBe(false);
+    expect(isDisableableTeamRole(base, 'builder')).toBe(false);
+    expect(isDisableableTeamRole(base, 'architect')).toBe(false);
+    expect(isDisableableTeamRole(base, 'researcher')).toBe(false);
+    expect(isDisableableTeamRole(base, 'unknown-role')).toBe(false);
+  });
+
+  test('treats ephemeral custom roles as disableable', () => {
+    const base = getTeamStructure({ teamId: 'duo' });
+    const merged = mergeTeamStructureWithCustomAgents({
+      base,
+      workspaceAgents: [customAgent('alpha')],
+      machineAgents: [],
+      disabledRoles: new Set(),
+    });
+
+    expect(isDisableableTeamRole(merged.structure, 'alpha')).toBe(true);
+  });
+});
+
+describe('supportsCustomAgents', () => {
+  test('supports duo only, tolerating case and whitespace', () => {
+    expect(supportsCustomAgents('duo')).toBe(true);
+    expect(supportsCustomAgents(' DUO ')).toBe(true);
+    expect(supportsCustomAgents('solo')).toBe(false);
+    expect(supportsCustomAgents('unknown')).toBe(false);
+  });
+});
+
+describe('computeCustomAgentContentHash', () => {
+  test('is deterministic and ignores key order', () => {
+    const left = computeCustomAgentContentHash({
+      name: 'alpha',
+      description: 'Alpha role.',
+      systemPrompt: 'You are alpha.',
+      inboundHandoffTemplate: 'inbound',
+    });
+    const right = computeCustomAgentContentHash({
+      inboundHandoffTemplate: 'inbound',
+      systemPrompt: 'You are alpha.',
+      description: 'Alpha role.',
+      name: 'alpha',
+    });
+    expect(left).toBe(right);
+    expect(left).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  test('covers every stored field except disabled', () => {
+    const base = {
+      name: 'alpha',
+      description: 'Alpha role.',
+      systemPrompt: 'You are alpha.',
+    };
+    const hash = computeCustomAgentContentHash(base);
+    expect(computeCustomAgentContentHash({ ...base, name: 'beta' })).not.toBe(hash);
+    expect(computeCustomAgentContentHash({ ...base, description: 'Other.' })).not.toBe(hash);
+    expect(computeCustomAgentContentHash({ ...base, systemPrompt: 'Be alpha.' })).not.toBe(hash);
+    expect(computeCustomAgentContentHash({ ...base, returnHandoffTemplate: 'ret' })).not.toBe(hash);
+  });
+});
+
+describe('CUSTOM_AGENT_RULES_VERSION', () => {
+  test('is a stable r1 fingerprint', async () => {
+    expect(CUSTOM_AGENT_RULES_VERSION).toMatch(/^r1-[0-9a-f]{8}$/);
+    // Changing this value forces a rewrite of every stored source on next push; update deliberately.
+    expect(CUSTOM_AGENT_RULES_VERSION).toBe('r1-89411377');
+
+    vi.resetModules();
+    const reloaded = await import('./custom-agent');
+    expect(reloaded.CUSTOM_AGENT_RULES_VERSION).toBe(CUSTOM_AGENT_RULES_VERSION);
+  });
+
+  const liveInputs = (): CustomAgentRulesVersionInput => ({
+    revision: CUSTOM_AGENT_RULES_REVISION,
+    limits: CUSTOM_AGENT_LIMITS,
+    forbiddenFrontmatterKeys: CUSTOM_AGENT_FORBIDDEN_FRONTMATTER_KEYS,
+    builtinRoleNames: Object.keys(AGENT_ROLE_DEFINITIONS),
+    reservedDelimiterLines: RESERVED_DELIMITER_LINES,
+  });
+
+  test('recomputes to the shipped value from its live inputs', () => {
+    expect(computeCustomAgentRulesVersion(liveInputs())).toBe(CUSTOM_AGENT_RULES_VERSION);
+  });
+
+  test.each<[string, (i: CustomAgentRulesVersionInput) => CustomAgentRulesVersionInput]>([
+    [
+      'a limit',
+      (i) => ({
+        ...i,
+        limits: { ...i.limits, systemPromptMaxBytes: i.limits.systemPromptMaxBytes + 1 },
+      }),
+    ],
+    [
+      'a forbidden key',
+      (i) => ({ ...i, forbiddenFrontmatterKeys: [...i.forbiddenFrontmatterKeys, 'temperature'] }),
+    ],
+    ['a builtin role', (i) => ({ ...i, builtinRoleNames: [...i.builtinRoleNames, 'new-builtin'] })],
+    [
+      'a reserved delimiter',
+      (i) => ({ ...i, reservedDelimiterLines: [...i.reservedDelimiterLines, 'EXTRA_END'] }),
+    ],
+    ['the revision', (i) => ({ ...i, revision: i.revision + 1 })],
+  ])('changes when %s changes', (_label, mutate) => {
+    expect(computeCustomAgentRulesVersion(mutate(liveInputs()))).not.toBe(
+      CUSTOM_AGENT_RULES_VERSION
+    );
+  });
+});

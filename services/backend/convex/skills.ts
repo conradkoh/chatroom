@@ -10,6 +10,7 @@ import { getSkill } from '../src/domain/usecase/skills/get-skill';
 import { listActivatedSkills } from '../src/domain/usecase/skills/list-activated-skills';
 import { listSkills } from '../src/domain/usecase/skills/list-skills';
 import { SKILLS_REGISTRY } from '../src/domain/usecase/skills/registry';
+import { resolveChatroomTeamStructure } from '../src/domain/usecase/team/resolve-chatroom-team';
 
 const config = getConfig();
 
@@ -18,8 +19,8 @@ const config = getConfig();
 // ---------------------------------------------------------------------------
 
 /**
- * List all built-in skills.
- * Delegates to the list-skills use case — no DB access.
+ * List the built-in skills this chatroom's team can use. The team id decides
+ * whether the duo-only custom-agent skill is listed, matching the glossary.
  */
 export const list = query({
   args: {
@@ -28,7 +29,8 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return listSkills();
+    const structure = await resolveChatroomTeamStructure(ctx, args.chatroomId);
+    return listSkills(structure?.teamId);
   },
 });
 
@@ -59,8 +61,9 @@ export const getDefaultSkillContent = query({
 });
 
 /**
- * Fetch a single skill by skillId.
- * Delegates to the get-skill use case — no DB access.
+ * Fetch a single skill by skillId, among the skills this chatroom's team may
+ * use. A skill the team cannot list (the duo-only custom-agent skill in solo)
+ * is unknown here and in `activate`.
  */
 export const get = query({
   args: {
@@ -71,8 +74,9 @@ export const get = query({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const structure = await resolveChatroomTeamStructure(ctx, args.chatroomId);
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
-    return getSkill(args.skillId, cliEnvPrefix);
+    return getSkill(args.skillId, cliEnvPrefix, structure?.teamId);
   },
 });
 
@@ -82,7 +86,8 @@ export const get = query({
 
 /**
  * Activate a skill for a chatroom.
- * Delegates to the activate-skill use case.
+ * Delegates to the activate-skill use case with the team kind, so a skill the
+ * team cannot list is rejected as unknown.
  */
 export const activate = mutation({
   args: {
@@ -94,12 +99,14 @@ export const activate = mutation({
   },
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const structure = await resolveChatroomTeamStructure(ctx, args.chatroomId);
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
     return activateSkill(ctx, chatroom, {
       chatroomId: args.chatroomId,
       skillId: args.skillId,
       role: args.role,
       cliEnvPrefix,
+      teamId: structure?.teamId,
     });
   },
 });

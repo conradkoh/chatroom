@@ -52,6 +52,7 @@ export interface DedupTracker {
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
   gitCloneIds: Map<string, number>;
+  customAgentsIds: Map<string, number>;
 }
 
 /** Union of services required to dispatch any command event. */
@@ -76,6 +77,7 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
   evictStaleEntries(tracker.gitCloneIds, evictBefore);
+  evictStaleEntries(tracker.customAgentsIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 
@@ -88,6 +90,7 @@ export function createDedupTracker(): DedupTracker {
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
     gitCloneIds: new Map<string, number>(),
+    customAgentsIds: new Map<string, number>(),
   };
 }
 
@@ -320,6 +323,65 @@ function handleRefreshCapabilitiesEffect(
   });
 }
 
+/**
+ * Runs one custom-agent command. A missing service (construction failed) and any
+ * service error are logged; the command never fails the daemon.
+ */
+function runCustomAgentsCommand(
+  session: DaemonSessionServiceShape,
+  task: (service: NonNullable<DaemonSessionServiceShape['customAgentsService']>) => Promise<void>,
+  failureLabel: string
+): Effect.Effect<void> {
+  return Effect.promise(async () => {
+    const service = session.customAgentsService;
+    if (!service) return;
+    try {
+      await task(service);
+    } catch (error) {
+      console.warn(`[${formatTimestamp()}] ⚠️  ${failureLabel} failed: ${getErrorMessage(error)}`);
+    }
+  });
+}
+
+function handleCustomAgentsSetDisabledEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.customAgentsIds.has(eventId)) return;
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.customAgentsSetDisabled' }>;
+    console.log(
+      `[${formatTimestamp()}] 🧩 Custom agent ${typedEvent.name} disabled=${String(typedEvent.disabled)}`
+    );
+    const session = yield* DaemonSessionService;
+    yield* runCustomAgentsCommand(
+      session,
+      (service) => service.setDisabled(typedEvent.name, typedEvent.disabled),
+      `Custom agent ${typedEvent.name} disable`
+    );
+    tracker.customAgentsIds.set(eventId, Date.now());
+  });
+}
+
+function handleCustomAgentsRefreshEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.customAgentsIds.has(eventId)) return;
+    console.log(`[${formatTimestamp()}] 🔄 Custom agent refresh requested`);
+    const session = yield* DaemonSessionService;
+    yield* runCustomAgentsCommand(
+      session,
+      (service) => Promise.resolve(service.refresh('command')),
+      'Custom agent refresh'
+    );
+    tracker.customAgentsIds.set(eventId, Date.now());
+  });
+}
+
 const commandEventHandlers: {
   [K in DaemonCommandEventType]?: (
     event: CommandEvent,
@@ -338,6 +400,8 @@ const commandEventHandlers: {
   'daemon.pickFolder': handlePickFolderCommandEffect,
   'daemon.gitClone': handleGitCloneCommandEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
+  'daemon.customAgentsSetDisabled': handleCustomAgentsSetDisabledEffect,
+  'daemon.customAgentsRefresh': handleCustomAgentsRefreshEffect,
 };
 
 export const dispatchCommandEventEffect = (

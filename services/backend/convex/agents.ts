@@ -18,7 +18,6 @@ import { getSession } from './auth/session';
 import { agentHarnessValidator } from './schema';
 import { validateWorkingDir } from './workspacePathSecurity';
 import { AgentStartReasonCode } from '../src/domain/entities/agent';
-import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import {
@@ -45,6 +44,7 @@ import {
 } from '../src/domain/usecase/agent/workspace-match';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
+import { resolveChatroomTeamStructure } from '../src/domain/usecase/team/resolve-chatroom-team';
 import { getPrimaryWorkspaceForChatroom } from '../src/domain/usecase/workspace/get-primary-workspace-for-chatroom';
 
 /** Canonical one-time start command from the webapp. */
@@ -192,18 +192,17 @@ export const startNonRunningAgentsForChatroom = internalMutation({
     const empty: StartAgentsResult = { started: [], skipped: [], failed: [] };
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom?.ownerId) return empty;
-    const structure = await getActiveTeamStructure(ctx, args.chatroomId);
+    const structure = await resolveChatroomTeamStructure(ctx, args.chatroomId, {
+      legacyRoom: chatroom,
+    });
     if (!structure) return empty;
     const workspace = await getPrimaryWorkspaceForChatroom(ctx, args.chatroomId, {
       fallbackToNewest: false,
     });
     if (!workspace) return empty;
-    const team = getTeamStructure({
-      teamId: structure.teamStructureId,
-      persistedRoles: chatroom.teamRoles ?? null,
-      persistedEntryPoint: chatroom.teamEntryPoint ?? null,
-    });
-    const configuredRoles = team.roles.map(({ role }) => role).filter((role) => role !== 'user');
+    const configuredRoles = structure.roles
+      .map(({ role }) => role)
+      .filter((role) => role !== 'user');
     const statusRows = await ctx.db
       .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -362,8 +361,7 @@ export const saveConfig = mutation({
 });
 
 async function resolveTeamStructure(ctx: QueryCtx, chatroom: Doc<'chatroom_rooms'>) {
-  const active = await getActiveTeamStructure(ctx, chatroom._id);
-  return active ? getTeamStructure({ teamId: active.teamStructureId }) : null;
+  return resolveChatroomTeamStructure(ctx, chatroom._id);
 }
 
 export const getLastSentLaunchRequest = query({

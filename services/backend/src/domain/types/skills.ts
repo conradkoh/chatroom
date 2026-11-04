@@ -23,6 +23,7 @@ const SKILLS = {
   defragmentation: { customizationType: null },
   'user-centricity': { customizationType: null },
   'data-design': { customizationType: null },
+  'custom-agents': { customizationType: null },
   'game-asset-3d-ai': { customizationType: null },
   'game-asset-2d-ai': { customizationType: null },
   'game-asset-3d-procedural': { customizationType: null },

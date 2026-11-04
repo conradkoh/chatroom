@@ -15,18 +15,27 @@ import {
 
 // Each expected error exercises a production type constraint used by projections.
 // @ts-expect-error Every builtin role must declare at least one team.
-const missingTeams: AgentRoleMetadata = { tags: [AgentRoleLifecycleTag.Permanent] };
-// @ts-expect-error Membership must be a nonempty tuple.
-const emptyTeams: AgentRoleMetadata = { tags: [AgentRoleLifecycleTag.Permanent], teams: [] };
+const missingTeams: AgentRoleMetadata = {
+  tags: [AgentRoleLifecycleTag.Permanent],
+  summary: 'Coordinates the team.',
+};
+const emptyTeams: AgentRoleMetadata = {
+  tags: [AgentRoleLifecycleTag.Permanent],
+  // @ts-expect-error Membership must be a nonempty tuple.
+  teams: [],
+  summary: 'Coordinates the team.',
+};
 const twoLifecycles: AgentRoleMetadata = {
   // @ts-expect-error Builtin role metadata declares exactly one lifecycle.
   tags: [AgentRoleLifecycleTag.Permanent, AgentRoleLifecycleTag.Ephemeral],
   teams: [{ teamId: 'duo', order: 10 }],
+  summary: 'Coordinates the team.',
 };
 const invalidTeam: AgentRoleMetadata = {
   tags: [AgentRoleLifecycleTag.Permanent],
   // @ts-expect-error Membership team IDs come from the shared team-kind tuple.
   teams: [{ teamId: 'other', order: 10 }],
+  summary: 'Coordinates the team.',
 };
 const mismatchedIdentity: typeof AGENT_ROLE_DEFINITIONS.planner = {
   ...AGENT_ROLE_DEFINITIONS.planner,

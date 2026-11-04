@@ -111,7 +111,7 @@ When adding flags:
 
 ### Builtin Agent Roles
 
-Builtin role lifecycle and team membership belong in shared role metadata; prompts and handoff contracts are exhaustive capabilities. Verify a role on the actual chatroom sidebar before claiming it is visible. Follow [the builtin agent-role guide](docs/conventions/agent-role-contracts.md) when adding or changing a role.
+Builtin role lifecycle and team membership belong in shared role metadata; prompts and handoff contracts are exhaustive capabilities. Verify a role on the actual chatroom sidebar before claiming it is visible. Follow [the builtin agent-role guide](docs/conventions/agent-role-contracts.md) when adding or changing a role. Custom agents (user-authored roles) follow [the custom agents guide](docs/conventions/custom-agents.md).
 
 ### Code Approach
 

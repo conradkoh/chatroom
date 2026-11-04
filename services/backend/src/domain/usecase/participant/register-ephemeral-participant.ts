@@ -1,7 +1,8 @@
-import { isEphemeralAgentRole, normalizeAgentRole } from '@workspace/shared/domain/agent-role';
+import { normalizeAgentRole } from '@workspace/shared/domain/agent-role';
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { isEphemeralRoleInChatroom } from '../team/resolve-chatroom-team';
 
 export type RegisterEphemeralParticipantInput = {
   chatroomId: Id<'chatroom_rooms'>;
@@ -17,7 +18,7 @@ export async function registerEphemeralParticipant(
   input: RegisterEphemeralParticipantInput
 ): Promise<void> {
   const role = normalizeAgentRole(input.role);
-  if (!isEphemeralAgentRole(role)) return;
+  if (!(await isEphemeralRoleInChatroom(ctx, input.chatroomId, role))) return;
 
   const existing = await ctx.db
     .query('chatroom_participants')

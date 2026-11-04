@@ -847,6 +847,72 @@ skillCommand
   });
 
 // ============================================================================
+// CUSTOM AGENT COMMANDS (validate is offline; the roster commands need auth)
+// ============================================================================
+
+const customAgentsCommand = program
+  .command('custom-agents')
+  .description('Inspect on-disk custom agents and manage the chatroom roster');
+
+customAgentsCommand
+  .command('validate')
+  .description('Load custom agents and report every issue (offline)')
+  .option(
+    '--workspace <dir>',
+    'Workspace directory to validate (defaults to the current directory)'
+  )
+  .option('--machine', 'Validate the machine source (~/.chatroom/agents)')
+  .action(async (options: { workspace?: string | undefined; machine?: boolean | undefined }) => {
+    const { validateCustomAgents } = await import('./commands/custom-agents/index.js');
+    await validateCustomAgents({
+      ...(options.workspace !== undefined ? { workspaceDir: options.workspace } : {}),
+      machine: options.machine === true,
+    });
+  });
+
+customAgentsCommand
+  .command('list')
+  .description('List custom agents, sources, and issues from the chatroom roster')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .action(async (options: { chatroomId: string }) => {
+    await maybeRequireAuth();
+    const { listCustomAgentsCommand } = await import('./commands/custom-agents/index.js');
+    await listCustomAgentsCommand(options.chatroomId);
+  });
+
+customAgentsCommand
+  .command('enable')
+  .description('Enable one custom agent and wait for the daemon to confirm')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--name <name>', 'Custom agent name')
+  .action(async (options: { chatroomId: string; name: string }) => {
+    await maybeRequireAuth();
+    const { setCustomAgentDisabledCommand } = await import('./commands/custom-agents/index.js');
+    await setCustomAgentDisabledCommand(options.chatroomId, options.name, false);
+  });
+
+customAgentsCommand
+  .command('disable')
+  .description('Disable one custom agent and wait for the daemon to confirm')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--name <name>', 'Custom agent name')
+  .action(async (options: { chatroomId: string; name: string }) => {
+    await maybeRequireAuth();
+    const { setCustomAgentDisabledCommand } = await import('./commands/custom-agents/index.js');
+    await setCustomAgentDisabledCommand(options.chatroomId, options.name, true);
+  });
+
+customAgentsCommand
+  .command('refresh')
+  .description('Ask the daemon to rescan custom agents and push again')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .action(async (options: { chatroomId: string }) => {
+    await maybeRequireAuth();
+    const { refreshCustomAgentsCommand } = await import('./commands/custom-agents/index.js');
+    await refreshCustomAgentsCommand(options.chatroomId);
+  });
+
+// ============================================================================
 // WORKSPACE COMMANDS (auth required)
 // ============================================================================
 

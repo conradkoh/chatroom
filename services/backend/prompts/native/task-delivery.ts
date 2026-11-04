@@ -103,6 +103,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     sourceAttachments,
     standingInstructions,
     conversationMode,
+    customAgents,
   } = params;
 
   const lines: string[] = [];
@@ -134,6 +135,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     availableHandoffTargets,
     isEntryPoint,
     conversationMode,
+    customAgents,
   });
 
   return lines.join('\n').trim();

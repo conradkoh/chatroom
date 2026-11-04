@@ -1,8 +1,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentType } from '../../entities/agent';
-import { getTeamStructure } from '../../entities/team-presets';
-import { getActiveTeamStructure } from '../team/active-team-structure';
+import { resolveChatroomTeamStructure } from '../team/resolve-chatroom-team';
 
 type OperationalState = 'starting' | 'running' | 'stopped' | 'circuit_open';
 
@@ -39,7 +38,7 @@ function toViewState(status: string | undefined): OperationalState {
 }
 
 /**
- * Compatibility-shaped agent overview backed by the active static team
+ * Compatibility-shaped agent overview backed by the resolved chatroom team
  * structure and the daemon-fed role status model. It intentionally does not
  * require a launch request, desired-config row, or runtime row for a role to
  * appear.
@@ -51,8 +50,7 @@ export async function getAgentViewStatus(
   const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
   if (!chatroom || chatroom.ownerId !== input.userId) return null;
 
-  const active = await getActiveTeamStructure(ctx, input.chatroomId);
-  const structure = active ? getTeamStructure({ teamId: active.teamStructureId }) : null;
+  const structure = await resolveChatroomTeamStructure(ctx, input.chatroomId);
   if (!structure) return null;
 
   const rows = await ctx.db

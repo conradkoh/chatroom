@@ -1,0 +1,19 @@
+{
+  "sessionId": "fixture-session",
+  "machineId": "fixture-machine",
+  "contentHash": "3ab0750bf6986a225da572db33e5375bd1afeb8898decf6c8b4d6ac4b99cc411",
+  "agents": [
+    {
+      "name": "x",
+      "description": "X role.",
+      "systemPrompt": "You are x.\n\nHand off to the planner when the review is complete.",
+      "inboundHandoffTemplate": "## Task\n\nHand this to x.\n",
+      "returnHandoffTemplate": "## Summary\n\nX reports back.\n",
+      "contentHash": "95dfb8c7",
+      "disabled": false
+    }
+  ],
+  "issues": [],
+  "scope": "workspace",
+  "workingDir": "/test/custom-agent-daemon"
+}

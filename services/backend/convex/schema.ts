@@ -1,3 +1,7 @@
+import {
+  CUSTOM_AGENT_ISSUE_REASONS,
+  CUSTOM_AGENT_SCOPES,
+} from '@workspace/shared/domain/custom-agent';
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -24,6 +28,26 @@ const attachedSnippetValidator = v.object({
   reference: v.string(),
   fileSource: v.string(),
   selectedContent: v.string(),
+});
+
+/**
+ * Custom agent definitions are authored on a machine and pushed to Convex.
+ * Keep the issue reasons in `@workspace/shared/domain/custom-agent` so writers,
+ * readers, and validators agree on one closed list.
+ */
+export const customAgentScopeValidator = v.union(
+  ...CUSTOM_AGENT_SCOPES.map((scope) => v.literal(scope))
+);
+
+export const customAgentHandoffDirectionValidator = v.union(
+  v.literal('inbound'),
+  v.literal('return')
+);
+
+export const customAgentIssueValidator = v.object({
+  path: v.string(),
+  reason: v.union(...CUSTOM_AGENT_ISSUE_REASONS.map((reason) => v.literal(reason))),
+  detail: v.optional(v.string()),
 });
 
 // agentHarnessValidator re-exported for backward compatibility
@@ -2354,6 +2378,71 @@ export default defineSchema({
     ),
     syncedAt: v.number(),
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  // ─── Custom Agents ──────────────────────────────────────────────────────────
+  // Definitions pushed by the daemon from workspace and machine agent directories.
+  // Machine-scope rows omit `workingDir`; the resolver queries them with
+  // `q.eq('workingDir', undefined)`.
+
+  /**
+   * One push snapshot per source. `rulesVersion`, `issues`, and the per-agent
+   * server hashes are the change detection boundary. `contentHash` is the
+   * advisory client hash, stored for diagnostics only; it is not used to decide
+   * whether to write. It may lag the client build: it is refreshed only when the
+   * snapshot is rewritten.
+   */
+  chatroom_customAgentSources: defineTable({
+    machineId: v.string(),
+    scope: customAgentScopeValidator,
+    workingDir: v.optional(v.string()),
+    contentHash: v.string(),
+    /** CUSTOM_AGENT_RULES_VERSION at write time; mismatch forces revalidation. */
+    rulesVersion: v.string(),
+    agentCount: v.number(),
+    issues: v.array(customAgentIssueValidator),
+    updatedAt: v.number(),
+  }).index('by_machine_scope_workingDir', ['machineId', 'scope', 'workingDir']),
+
+  /**
+   * Custom agent identity, keyed by source and name. Descriptions are sanitized
+   * display summaries; prompts live in `chatroom_customAgentContents`.
+   */
+  chatroom_customAgents: defineTable({
+    sourceId: v.id('chatroom_customAgentSources'),
+    machineId: v.string(),
+    scope: customAgentScopeValidator,
+    workingDir: v.optional(v.string()),
+    name: v.string(),
+    description: v.string(),
+    contentHash: v.string(),
+    /**
+     * Machine-local disable flag projected from the daemon push. Stored per row,
+     * so the same definition can be disabled on one machine and enabled on
+     * another.
+     */
+    disabled: v.boolean(),
+    hasInboundHandoffTemplate: v.boolean(),
+    hasReturnHandoffTemplate: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_scope_workingDir_name', ['machineId', 'scope', 'workingDir', 'name'])
+    .index('by_source', ['sourceId']),
+
+  /**
+   * System prompt only; read solely when composing the custom role's own system
+   * prompt.
+   */
+  chatroom_customAgentContents: defineTable({
+    customAgentId: v.id('chatroom_customAgents'),
+    systemPrompt: v.string(),
+  }).index('by_customAgent', ['customAgentId']),
+
+  /** Authored handoff templates; absent row = generated default. */
+  chatroom_customAgentHandoffTemplates: defineTable({
+    customAgentId: v.id('chatroom_customAgents'),
+    direction: customAgentHandoffDirectionValidator,
+    body: v.string(),
+  }).index('by_customAgent_direction', ['customAgentId', 'direction']),
 
   /**
    * V2 command execution runs — metadata only. Live tail in chatroom_commandRunTailsV2.

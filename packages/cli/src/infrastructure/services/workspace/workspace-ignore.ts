@@ -120,6 +120,25 @@ export function isPathIgnoredByRules(ig: Ignore, relativePath: string): boolean 
 }
 
 /**
+ * Load the git ignore rules for one repository root: the root `.gitignore`, the
+ * git extra excludes (`.git/info/exclude` and the configured global excludes
+ * file). `.cursorignore` is editor configuration, not a git rule, so it is not
+ * consulted here.
+ *
+ * Used to answer "would git track this path?" for advisory loader issues.
+ */
+export async function loadGitIgnoreMatcher(rootDir: string): Promise<Ignore> {
+  const matcher = ignore();
+  for (const filePath of await resolveGitExtraExcludeFilePaths(rootDir)) {
+    const content = await readIgnoreFile(filePath);
+    if (content !== null) matcher.add(content);
+  }
+  const rootRules = await readIgnoreFile(path.join(rootDir, '.gitignore'));
+  if (rootRules !== null) matcher.add(rootRules);
+  return matcher;
+}
+
+/**
  * Load ignore rules declared in one workspace directory.
  *
  * Nested directories contribute their own `.gitignore`. `.cursorignore` is

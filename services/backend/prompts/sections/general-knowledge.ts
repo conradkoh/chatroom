@@ -16,6 +16,7 @@ export interface GeneralKnowledgeParams {
   compactSkills?: boolean | undefined;
   nativeIntegration?: boolean | undefined;
   activatedSkills?: ActivatedSkillSnapshot[] | undefined;
+  teamId?: string | undefined;
 }
 export function getGeneralCommandsReferenceContent(params: GeneralKnowledgeParams): string {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
@@ -52,6 +53,7 @@ export function getGeneralKnowledgeSections(
       role: params.role,
       nativeIntegration: params.nativeIntegration,
       compactSkills: params.compactSkills,
+      teamId: params.teamId,
     }),
   ];
   const activated = getActivatedSkillsSection(params.activatedSkills ?? []);

@@ -88,30 +88,46 @@ export function validateDirPath(dirPath: string): void {
   if (dirPath.includes('\0')) throw new Error('Invalid directory path');
 }
 
-// fallow-ignore-next-line complexity
+/**
+ * Throws unless some registration for (machine, workingDir) is still active.
+ *
+ * `chatroom_workspaces` holds one row per (machine, workingDir, chatroom), so a
+ * removed row from one chatroom can precede an active row from another. The
+ * check therefore looks at every row for the directory and accepts the
+ * directory when any of them is active; only an all-removed (or absent)
+ * directory is rejected.
+ */
 export async function requireRegisteredWorkspaceForMachine(
   ctx: QueryCtx | MutationCtx,
   machineId: string,
   workingDir: string
 ): Promise<void> {
-  const normalizedWorkingDir = normalizeWorkingDir(workingDir);
-  let workspace = await ctx.db
-    .query('chatroom_workspaces')
-    .withIndex('by_machine_workingDir', (q) =>
-      q.eq('machineId', machineId).eq('workingDir', normalizedWorkingDir)
-    )
-    .first();
+  if (await hasActiveWorkspaceRegistration(ctx, machineId, workingDir)) return;
+  throw new Error('Workspace not registered for this machine');
+}
 
-  if (!workspace && normalizedWorkingDir !== workingDir.trim()) {
-    workspace = await ctx.db
+async function hasActiveWorkspaceRegistration(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  workingDir: string
+): Promise<boolean> {
+  for (const candidate of candidateWorkingDirs(workingDir)) {
+    // Stops at the first active row; removed rows before it are still scanned.
+    const active = await ctx.db
       .query('chatroom_workspaces')
       .withIndex('by_machine_workingDir', (q) =>
-        q.eq('machineId', machineId).eq('workingDir', workingDir.trim())
+        q.eq('machineId', machineId).eq('workingDir', candidate)
       )
+      .filter((q) => q.eq(q.field('removedAt'), undefined))
       .first();
+    if (active !== null) return true;
   }
+  return false;
+}
 
-  if (!workspace || workspace.removedAt !== undefined) {
-    throw new Error('Workspace not registered for this machine');
-  }
+/** The normalised path first, plus the trimmed input when the two differ. */
+function candidateWorkingDirs(workingDir: string): string[] {
+  const normalized = normalizeWorkingDir(workingDir);
+  const trimmed = workingDir.trim();
+  return normalized === trimmed ? [normalized] : [normalized, trimmed];
 }
