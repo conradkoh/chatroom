@@ -120,10 +120,18 @@ function assertUploadSenderRole(chatroom: ResolvedChatroom, senderRole: string):
 }
 
 /** Validates filename, type, and size, returning the resolved registry entry. */
-// fallow-ignore-next-line complexity
 function assertUploadRequest(
   filename: string,
   sizeBytes: number
+): NonNullable<ReturnType<typeof resolveFileAttachmentType>> {
+  const type = assertAllowedFilename(filename);
+  assertValidUploadSize(sizeBytes);
+  return type;
+}
+
+/** Rejects a filename that is malformed or not an allowlisted type. */
+function assertAllowedFilename(
+  filename: string
 ): NonNullable<ReturnType<typeof resolveFileAttachmentType>> {
   if (!isValidAttachmentFilename(filename)) {
     throw new ConvexError({
@@ -140,6 +148,11 @@ function assertUploadRequest(
     });
   }
 
+  return type;
+}
+
+/** Rejects a size that is not a positive integer within the hard limit. */
+function assertValidUploadSize(sizeBytes: number): void {
   if (!Number.isInteger(sizeBytes) || sizeBytes <= 0) {
     throw new ConvexError({
       code: 'FILE_ATTACHMENT_INVALID',
@@ -153,8 +166,6 @@ function assertUploadRequest(
       message: `Attachment exceeds the maximum size of ${FILE_ATTACHMENT_MAX_BYTES} bytes`,
     });
   }
-
-  return type;
 }
 
 /**
@@ -233,7 +244,6 @@ export async function authorizeFileUpload(
  * Loads the ticket and enforces session, chatroom, and ownership access.
  * This is the full access gate used by both authorize and complete.
  */
-// fallow-ignore-next-line complexity
 async function resolveAuthorizedRow(
   ctx: QueryCtx,
   sessionId: string,
@@ -243,7 +253,15 @@ async function resolveAuthorizedRow(
   if (!attachmentId) {
     return errorResult(400, 'FILE_ATTACHMENT_INVALID', 'Attachment id is malformed');
   }
+  return await resolveAuthorizedAttachment(ctx, sessionId, attachmentId);
+}
 
+/** Validates the session and requires the caller to own the attachment. */
+async function resolveAuthorizedAttachment(
+  ctx: QueryCtx,
+  sessionId: string,
+  attachmentId: Id<'chatroom_fileAttachments'>
+): Promise<{ ok: true; row: Doc<'chatroom_fileAttachments'> } | AuthorizeUploadFailure> {
   const session = await validateSession(ctx, sessionId);
   if (!session.ok) {
     return errorResult(401, 'AUTH_FAILED', `Authentication failed: ${session.reason}`);
@@ -255,11 +273,20 @@ async function resolveAuthorizedRow(
   }
 
   const access = await getChatroomAccess(ctx, sessionId, row.chatroomId);
-  if (!access || access.userId !== session.userId || row.ownerUserId !== session.userId) {
+  if (!ownsAttachment(access, session.userId, row)) {
     return errorResult(403, 'ACCESS_DENIED', 'You do not have access to this attachment');
   }
 
   return { ok: true, row };
+}
+
+/** True when the caller has chatroom access and owns the attachment row. */
+function ownsAttachment(
+  access: Awaited<ReturnType<typeof getChatroomAccess>>,
+  userId: Id<'users'>,
+  row: Doc<'chatroom_fileAttachments'>
+): boolean {
+  return access !== null && access.userId === userId && row.ownerUserId === userId;
 }
 
 /** Rejects tickets that are no longer a live `pending_upload`. */
@@ -286,7 +313,6 @@ function assertTicketState(
  *
  * On `FILE_ATTACHMENT_EXCEEDS_QUOTA` the caller (HTTP action) deletes the blob.
  */
-// fallow-ignore-next-line complexity
 export async function completeFileUpload(
   ctx: MutationCtx,
   args: {
@@ -394,6 +420,8 @@ export type ValidateHandoffAttachmentsResult =
       message: string;
     };
 
+type HandoffAttachmentFailure = Extract<ValidateHandoffAttachmentsResult, { ok: false }>;
+
 /**
  * Validates the uploaded files a handoff intends to bind, without writing.
  *
@@ -401,7 +429,6 @@ export type ValidateHandoffAttachmentsResult =
  * an attachment is invalid. Rows come back in the caller-supplied order; the
  * message stores that order verbatim.
  */
-// fallow-ignore-next-line complexity
 export async function validateHandoffAttachments(
   ctx: QueryCtx,
   args: {
@@ -411,54 +438,137 @@ export async function validateHandoffAttachments(
     now: number;
   }
 ): Promise<ValidateHandoffAttachmentsResult> {
-  if (args.attachmentIds.length > FILE_ATTACHMENT_MAX_PER_HANDOFF) {
+  const countError = checkHandoffAttachmentCount(args.attachmentIds);
+  if (countError) return countError;
+
+  const duplicateError = checkDuplicateAttachmentId(args.attachmentIds);
+  if (duplicateError) return duplicateError;
+
+  return await validateHandoffAttachmentRows(ctx, args);
+}
+
+/** Rejects a batch larger than one handoff may carry. */
+function checkHandoffAttachmentCount(
+  attachmentIds: Id<'chatroom_fileAttachments'>[]
+): HandoffAttachmentFailure | null {
+  if (attachmentIds.length > FILE_ATTACHMENT_MAX_PER_HANDOFF) {
     return invalid(
       'FILE_ATTACHMENT_LIMIT_EXCEEDED',
       `At most ${FILE_ATTACHMENT_MAX_PER_HANDOFF} files can be attached to one handoff`
     );
   }
+  return null;
+}
 
+/** Rejects the first attachment id that appears twice. */
+function checkDuplicateAttachmentId(
+  attachmentIds: Id<'chatroom_fileAttachments'>[]
+): HandoffAttachmentFailure | null {
   const seen = new Set<string>();
-  for (const attachmentId of args.attachmentIds) {
+  for (const attachmentId of attachmentIds) {
     if (seen.has(attachmentId)) {
       return invalid('FILE_ATTACHMENT_INVALID', `Duplicate attachment id: ${attachmentId}`);
     }
     seen.add(attachmentId);
   }
+  return null;
+}
 
+/** Loads and validates every row in caller-supplied order. */
+async function validateHandoffAttachmentRows(
+  ctx: QueryCtx,
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    senderRole: string;
+    attachmentIds: Id<'chatroom_fileAttachments'>[];
+    now: number;
+  }
+): Promise<ValidateHandoffAttachmentsResult> {
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const rows: Doc<'chatroom_fileAttachments'>[] = [];
   for (const attachmentId of args.attachmentIds) {
-    const row = await ctx.db.get('chatroom_fileAttachments', attachmentId);
-    if (!row) {
-      return invalid('FILE_ATTACHMENT_INVALID', `Attachment not found: ${attachmentId}`);
-    }
-    if (row.chatroomId !== args.chatroomId) {
-      return invalid(
-        'FILE_ATTACHMENT_INVALID',
-        `Attachment ${attachmentId} does not belong to this chatroom`
-      );
-    }
-    if (row.uploadedByRole !== normalizedSenderRole) {
-      return invalid(
-        'FILE_ATTACHMENT_INVALID',
-        `Attachment ${attachmentId} was not uploaded by role "${normalizedSenderRole}"`
-      );
-    }
-    if (row.status !== 'uploaded') {
-      return invalid(
-        'FILE_ATTACHMENT_INVALID',
-        `Attachment ${attachmentId} is not awaiting handoff`
-      );
-    }
-    if (row.expiresAt === undefined || row.expiresAt <= args.now) {
-      return invalid('FILE_ATTACHMENT_INVALID', `Attachment ${attachmentId} has expired`);
-    }
+    const resolved = await resolveHandoffAttachmentRow(
+      ctx,
+      args,
+      normalizedSenderRole,
+      attachmentId
+    );
+    if (!resolved.ok) return resolved;
+    rows.push(resolved.row);
+  }
+  return { ok: true, rows };
+}
 
-    rows.push(row);
+/** Resolves one attachment row or the first reason it cannot be bound. */
+async function resolveHandoffAttachmentRow(
+  ctx: QueryCtx,
+  args: { chatroomId: Id<'chatroom_rooms'>; now: number },
+  normalizedSenderRole: string,
+  attachmentId: Id<'chatroom_fileAttachments'>
+): Promise<{ ok: true; row: Doc<'chatroom_fileAttachments'> } | HandoffAttachmentFailure> {
+  const row = await ctx.db.get('chatroom_fileAttachments', attachmentId);
+  if (!row) {
+    return invalid('FILE_ATTACHMENT_INVALID', `Attachment not found: ${attachmentId}`);
   }
 
-  return { ok: true, rows };
+  const rowError = checkHandoffAttachmentRow(row, args, normalizedSenderRole, attachmentId);
+  if (rowError) return rowError;
+
+  return { ok: true, row };
+}
+
+/** Rejects a row bound to another chatroom, role, or lifecycle state. */
+function checkHandoffAttachmentRow(
+  row: Doc<'chatroom_fileAttachments'>,
+  args: { chatroomId: Id<'chatroom_rooms'>; now: number },
+  normalizedSenderRole: string,
+  attachmentId: Id<'chatroom_fileAttachments'>
+): HandoffAttachmentFailure | null {
+  const bindingError = checkAttachmentBinding(
+    row,
+    args.chatroomId,
+    normalizedSenderRole,
+    attachmentId
+  );
+  if (bindingError) return bindingError;
+  return checkAttachmentReadyForHandoff(row, attachmentId, args.now);
+}
+
+/** Rejects a row that belongs to another chatroom or uploader role. */
+function checkAttachmentBinding(
+  row: Doc<'chatroom_fileAttachments'>,
+  chatroomId: Id<'chatroom_rooms'>,
+  normalizedSenderRole: string,
+  attachmentId: Id<'chatroom_fileAttachments'>
+): HandoffAttachmentFailure | null {
+  if (row.chatroomId !== chatroomId) {
+    return invalid(
+      'FILE_ATTACHMENT_INVALID',
+      `Attachment ${attachmentId} does not belong to this chatroom`
+    );
+  }
+  if (row.uploadedByRole !== normalizedSenderRole) {
+    return invalid(
+      'FILE_ATTACHMENT_INVALID',
+      `Attachment ${attachmentId} was not uploaded by role "${normalizedSenderRole}"`
+    );
+  }
+  return null;
+}
+
+/** Rejects a row that is not an uploaded, unexpired ticket. */
+function checkAttachmentReadyForHandoff(
+  row: Doc<'chatroom_fileAttachments'>,
+  attachmentId: Id<'chatroom_fileAttachments'>,
+  now: number
+): HandoffAttachmentFailure | null {
+  if (row.status !== 'uploaded') {
+    return invalid('FILE_ATTACHMENT_INVALID', `Attachment ${attachmentId} is not awaiting handoff`);
+  }
+  if (row.expiresAt === undefined || row.expiresAt <= now) {
+    return invalid('FILE_ATTACHMENT_INVALID', `Attachment ${attachmentId} has expired`);
+  }
+  return null;
 }
 
 /**
@@ -517,9 +627,9 @@ async function scheduleQuotaEnforcementIfExceeded(
 
 /** Builds a failed handoff-attachment validation result. */
 function invalid(
-  code: Extract<ValidateHandoffAttachmentsResult, { ok: false }>['code'],
+  code: HandoffAttachmentFailure['code'],
   message: string
-): ValidateHandoffAttachmentsResult {
+): HandoffAttachmentFailure {
   return { ok: false, code, message };
 }
 
@@ -570,7 +680,6 @@ export async function deleteFileAttachments(
  * Aggregates the negative usage deltas of deleted rows per owner and chatroom.
  * Non-counted statuses contribute nothing.
  */
-// fallow-ignore-next-line complexity
 function collectUsageDeltas(
   rows: Doc<'chatroom_fileAttachments'>[]
 ): Map<Id<'users'>, Map<Id<'chatroom_rooms'>, { bytes: number; files: number }>> {
@@ -580,17 +689,29 @@ function collectUsageDeltas(
   >();
 
   for (const row of rows) {
-    if (row.status !== 'uploaded' && row.status !== 'attached') continue;
-
-    const perChatroom = deltasByOwner.get(row.ownerUserId) ?? new Map();
-    const existing = perChatroom.get(row.chatroomId) ?? { bytes: 0, files: 0 };
-    existing.bytes -= row.sizeBytes;
-    existing.files -= 1;
-    perChatroom.set(row.chatroomId, existing);
-    deltasByOwner.set(row.ownerUserId, perChatroom);
+    if (!countsTowardUsage(row)) continue;
+    addUsageDelta(deltasByOwner, row);
   }
 
   return deltasByOwner;
+}
+
+/** Uploaded and attached rows are the only statuses counted toward usage. */
+function countsTowardUsage(row: Doc<'chatroom_fileAttachments'>): boolean {
+  return row.status === 'uploaded' || row.status === 'attached';
+}
+
+/** Subtracts one deleted row from its owner and chatroom totals. */
+function addUsageDelta(
+  deltasByOwner: Map<Id<'users'>, Map<Id<'chatroom_rooms'>, { bytes: number; files: number }>>,
+  row: Doc<'chatroom_fileAttachments'>
+): void {
+  const perChatroom = deltasByOwner.get(row.ownerUserId) ?? new Map();
+  const existing = perChatroom.get(row.chatroomId) ?? { bytes: 0, files: 0 };
+  existing.bytes -= row.sizeBytes;
+  existing.files -= 1;
+  perChatroom.set(row.chatroomId, existing);
+  deltasByOwner.set(row.ownerUserId, perChatroom);
 }
 
 /** Removes the row and its blob, tolerating an already-deleted blob. */

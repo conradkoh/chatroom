@@ -115,7 +115,6 @@ function assertDiscardBatchSize(count: number): void {
 }
 
 /** Collects the caller's rows that are still discardable. */
-// fallow-ignore-next-line complexity
 async function collectDiscardableRows(
   ctx: MutationCtx,
   userId: Id<'users'>,
@@ -124,10 +123,17 @@ async function collectDiscardableRows(
   const rows: Doc<'chatroom_fileAttachments'>[] = [];
   for (const attachmentId of attachmentIds) {
     const row = await ctx.db.get('chatroom_fileAttachments', attachmentId);
-    if (!row || row.ownerUserId !== userId || row.status === 'attached') continue;
-    rows.push(row);
+    if (isDiscardableRow(row, userId)) rows.push(row);
   }
   return rows;
+}
+
+/** A row is discardable when it belongs to the caller and is not attached. */
+function isDiscardableRow(
+  row: Doc<'chatroom_fileAttachments'> | null,
+  userId: Id<'users'>
+): row is Doc<'chatroom_fileAttachments'> {
+  return row !== null && row.ownerUserId === userId && row.status !== 'attached';
 }
 
 /** Validates an upload ticket before the HTTP action reads any bytes. */
@@ -208,12 +214,25 @@ export const uploadFileAttachmentHttp = httpAction(async (ctx, request) => {
   });
 });
 
-type PreflightResult =
-  { ok: true; sessionId: string; attachmentId: string } | { ok: false; response: Response };
+type PreflightFailure = { ok: false; response: Response };
+type PreflightResult = { ok: true; sessionId: string; attachmentId: string } | PreflightFailure;
+
+type PreflightHeaders = { sessionId: string; attachmentId: string; contentLength: number };
+type PreflightHeadersResult = ({ ok: true } & PreflightHeaders) | PreflightFailure;
 
 /** Validates headers and rejects oversized bodies before reading them. */
-// fallow-ignore-next-line complexity
 function preflightUpload(request: Request): PreflightResult {
+  const headers = parsePreflightHeaders(request);
+  if (!headers.ok) return headers;
+
+  const lengthError = assertContentLengthAllowed(headers.contentLength);
+  if (lengthError) return lengthError;
+
+  return { ok: true, sessionId: headers.sessionId, attachmentId: headers.attachmentId };
+}
+
+/** Parses the required auth and attachment headers. */
+function parsePreflightHeaders(request: Request): PreflightHeadersResult {
   const sessionId = parseBearerToken(request.headers.get('Authorization'));
   if (!sessionId) {
     return preflightFailure(401, 'UNAUTHORIZED', 'Missing or malformed Authorization bearer token');
@@ -229,7 +248,16 @@ function preflightUpload(request: Request): PreflightResult {
   }
 
   const rawLength = request.headers.get('Content-Length');
-  const contentLength = rawLength === null ? Number.NaN : Number(rawLength);
+  return {
+    ok: true,
+    sessionId,
+    attachmentId,
+    contentLength: rawLength === null ? Number.NaN : Number(rawLength),
+  };
+}
+
+/** Rejects a missing, malformed, or oversized Content-Length. */
+function assertContentLengthAllowed(contentLength: number): PreflightFailure | null {
   if (!Number.isFinite(contentLength) || contentLength < 0) {
     return preflightFailure(411, 'FILE_ATTACHMENT_INVALID', 'Content-Length header is required');
   }
@@ -240,11 +268,10 @@ function preflightUpload(request: Request): PreflightResult {
       `Attachment exceeds the maximum size of ${FILE_ATTACHMENT_MAX_BYTES} bytes`
     );
   }
-
-  return { ok: true, sessionId, attachmentId };
+  return null;
 }
 
-function preflightFailure(status: number, code: string, message: string): PreflightResult {
+function preflightFailure(status: number, code: string, message: string): PreflightFailure {
   return { ok: false, response: jsonResponse(status, { ok: false, code, message }) };
 }
 
