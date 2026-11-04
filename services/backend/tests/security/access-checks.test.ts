@@ -340,42 +340,47 @@ function extractHttpActionBody(source: string, name: string): string | null {
 }
 
 /**
- * Extract a non-exported `function name(...) { ... }` body by balanced braces.
+ * Extract a non-exported `function name(...) { ... }` body by brace matching.
  *
- * The parameter list is skipped first, then the first `{` that opens a line is
- * the body — this avoids mistaking object types in parameters or in a return
- * type for the body. Used to prove a helper really performs its guard work.
+ * Matching runs over code-only source (comments and string contents blanked),
+ * so braces inside comments or strings cannot end the body and a one-line body
+ * is still found. Blanking preserves offsets, so the returned body is the
+ * original source text between the matched braces.
  */
 function extractDeclaredFunctionBody(source: string, name: string): string | null {
+  const code = toCodeOnly(source);
   const marker = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
-  const match = marker.exec(source);
+  const match = marker.exec(code);
   if (!match) return null;
 
   // Walk the parameter list so braces inside parameter types are ignored.
   const paramsStart = match.index + match[0].length - 1;
   let paramsDepth = 0;
   let cursor = paramsStart;
-  for (; cursor < source.length; cursor++) {
-    if (source[cursor] === '(') paramsDepth++;
-    if (source[cursor] === ')') paramsDepth--;
+  for (; cursor < code.length; cursor++) {
+    if (code[cursor] === '(') paramsDepth++;
+    if (code[cursor] === ')') paramsDepth--;
     if (paramsDepth === 0) break;
   }
-  if (cursor >= source.length) return null;
+  if (cursor >= code.length) return null;
 
-  // Skip a return type: the body brace is the first `{` that ends its line.
-  let braceStart = source.indexOf('{', cursor + 1);
-  while (braceStart !== -1) {
-    const lineEnd = source.indexOf('\n', braceStart + 1);
-    const restOfLine = source.slice(braceStart + 1, lineEnd === -1 ? source.length : lineEnd);
-    if (restOfLine.trim() === '') break;
-    braceStart = source.indexOf('{', braceStart + 1);
+  // The first `{` after the signature opens the body, unless a return type
+  // starts with an object type (`: {…}` or `Promise<{…}>`); then the body brace
+  // follows the type itself.
+  let braceStart = cursor + 1;
+  for (;;) {
+    braceStart = code.indexOf('{', braceStart);
+    if (braceStart === -1) return null;
+    let previous = braceStart - 1;
+    while (previous >= 0 && /\s/.test(code[previous]!)) previous -= 1;
+    if (!':<,|&(='.includes(code[previous] ?? '')) break;
+    braceStart += 1;
   }
-  if (braceStart === -1) return null;
 
   let depth = 0;
-  for (let i = braceStart; i < source.length; i++) {
-    if (source[i] === '{') depth++;
-    if (source[i] === '}') depth--;
+  for (let i = braceStart; i < code.length; i++) {
+    if (code[i] === '{') depth++;
+    if (code[i] === '}') depth--;
     if (depth === 0) return source.substring(braceStart, i + 1);
   }
   return null;
@@ -404,8 +409,9 @@ function extractChatroomScopeQuery(source: string): string | null {
  * Removes `//` line comments and block comments without touching comment
  * markers inside string literals (for example URLs).
  *
- * A guard only counts when it survives stripping: text that appears solely in a
- * comment must not satisfy a requirement.
+ * Comments are blanked in place, so offsets and newlines survive. A guard only
+ * counts when it survives stripping: text that appears solely in a comment must
+ * not satisfy a requirement.
  */
 function stripComments(source: string): string {
   let result = '';
@@ -437,17 +443,24 @@ function stripComments(source: string): string {
     }
 
     if (char === '/' && next === '/') {
-      // Drop to the end of the line, keeping the newline for line structure.
-      const lineEnd = source.indexOf('\n', i + 2);
-      i = lineEnd === -1 ? source.length : lineEnd;
+      // Blank to the end of the line, preserving length and the newline.
+      result += '  ';
+      i += 2;
+      while (i < source.length && source[i] !== '\n') {
+        result += ' ';
+        i += 1;
+      }
       continue;
     }
 
     if (char === '/' && next === '*') {
-      // Replace with a space so adjacent tokens do not merge.
+      // Blank the comment in place so offsets and newlines survive.
       const blockEnd = source.indexOf('*/', i + 2);
-      result += ' ';
-      i = blockEnd === -1 ? source.length : blockEnd + 2;
+      const end = blockEnd === -1 ? source.length : blockEnd + 2;
+      while (i < end) {
+        result += source[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
       continue;
     }
 
@@ -821,6 +834,41 @@ describe('Security: File attachment access checks', () => {
     expect(findUsecaseViolations(file, fixture, REQUIRED_CHECKS_BY_USECASE_FILE[file]!)).toEqual([
       `${file}:purgeFilesBatch — missing ownerUserId`,
     ]);
+  });
+
+  it('extracts declared function bodies by brace matching', () => {
+    const source = [
+      'async function multiLineSignature(',
+      '  ctx: Ctx,',
+      '  args: { id: string }',
+      '): Promise<Result>',
+      '{',
+      '  return ctx.run(args.id);',
+      '}',
+      '',
+      'function bracesInStrings() {',
+      '  const open = "{";',
+      '  const close = "}";',
+      '  return open + close;',
+      '}',
+      '',
+      'function oneLine() { return 1; }',
+      '',
+      'function objectReturn(): { ok: boolean } {',
+      '  return { ok: true };',
+      '}',
+    ].join('\n');
+
+    expect(extractDeclaredFunctionBody(source, 'multiLineSignature')).toBe(
+      '{\n  return ctx.run(args.id);\n}'
+    );
+    expect(extractDeclaredFunctionBody(source, 'bracesInStrings')).toBe(
+      '{\n  const open = "{";\n  const close = "}";\n  return open + close;\n}'
+    );
+    expect(extractDeclaredFunctionBody(source, 'oneLine')).toBe('{ return 1; }');
+    expect(extractDeclaredFunctionBody(source, 'objectReturn')).toBe(
+      '{\n  return { ok: true };\n}'
+    );
   });
 
   /**
