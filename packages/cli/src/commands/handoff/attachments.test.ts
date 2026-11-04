@@ -5,7 +5,7 @@
  * `FileAttachmentUploaderOps` port for the upload loop.
  */
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -203,6 +203,70 @@ describe('uploadHandoffAttachments', () => {
     expect(Array.from(uploadBytes.mock.calls[0]![0].bytes)).toEqual(
       Array.from(new TextEncoder().encode('first'))
     );
+  });
+
+  test('reserves the upload size from the bytes actually read', async () => {
+    const path = await writeTempFile('notes.png', 'png-bytes');
+    const files = await Effect.runPromise(prepareHandoffAttachments([path], 'user'));
+    const { uploader, beginUpload } = createFakeUploader();
+
+    await Effect.runPromise(
+      uploadHandoffAttachments(uploader, {
+        sessionId: 'session-1',
+        chatroomId: 'room-1',
+        senderRole: 'builder',
+        files,
+      })
+    );
+
+    expect(beginUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ filename: 'notes.png', sizeBytes: 9 })
+    );
+  });
+
+  test('fails before reserving when the file changes between stat and read', async () => {
+    const path = await writeTempFile('changing.png', 'abc');
+    const files = await Effect.runPromise(prepareHandoffAttachments([path], 'user'));
+    await appendFile(path, 'def');
+    const { uploader, beginUpload, uploadBytes } = createFakeUploader();
+
+    const error = await failureOf(
+      uploadHandoffAttachments(uploader, {
+        sessionId: 'session-1',
+        chatroomId: 'room-1',
+        senderRole: 'builder',
+        files,
+      })
+    );
+
+    expect(error).toMatchObject({
+      _tag: 'AttachmentInvalid',
+      path,
+      reason: 'file changed while it was being read',
+    });
+    expect(beginUpload).not.toHaveBeenCalled();
+    expect(uploadBytes).not.toHaveBeenCalled();
+  });
+
+  test('rejects a file that grew past the limit before reserving it', async () => {
+    const path = await writeTempFile('too-big.png', new Uint8Array(FILE_ATTACHMENT_MAX_BYTES + 1));
+    const { uploader, beginUpload } = createFakeUploader();
+
+    const error = await failureOf(
+      uploadHandoffAttachments(uploader, {
+        sessionId: 'session-1',
+        chatroomId: 'room-1',
+        senderRole: 'builder',
+        files: [{ path, filename: 'too-big.png', sizeBytes: 1, mimeType: 'image/png' }],
+      })
+    );
+
+    expect(error).toMatchObject({
+      _tag: 'AttachmentInvalid',
+      path,
+      reason: `file exceeds the ${FILE_ATTACHMENT_MAX_BYTES}-byte limit`,
+    });
+    expect(beginUpload).not.toHaveBeenCalled();
   });
 
   test('discards already-uploaded ids when a later upload fails', async () => {

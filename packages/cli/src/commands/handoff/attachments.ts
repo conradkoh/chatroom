@@ -26,6 +26,7 @@ import type { HandoffError } from './index.js';
 export type PreparedAttachment = {
   path: string;
   filename: string;
+  /** Size recorded by `stat` during preparation; compared with the bytes read. */
   sizeBytes: number;
   mimeType: FileAttachmentMimeType;
 };
@@ -173,6 +174,20 @@ function uploadOneFile(
       catch: (cause) => uploadFailed(file.filename, cause),
     });
 
+    // The reservation and the upload must describe the same bytes. Re-check the
+    // limit against the read length so a file that grew after `stat` is still
+    // rejected, and refuse the reservation when the two sizes disagree.
+    if (bytes.length > FILE_ATTACHMENT_MAX_BYTES) {
+      return yield* Effect.fail(
+        attachmentInvalid(file.path, `file exceeds the ${FILE_ATTACHMENT_MAX_BYTES}-byte limit`)
+      );
+    }
+    if (bytes.length !== file.sizeBytes) {
+      return yield* Effect.fail(
+        attachmentInvalid(file.path, 'file changed while it was being read')
+      );
+    }
+
     const begun = yield* Effect.tryPromise({
       try: () =>
         uploader.beginUpload({
@@ -180,7 +195,7 @@ function uploadOneFile(
           chatroomId: args.chatroomId,
           senderRole: args.senderRole,
           filename: file.filename,
-          sizeBytes: file.sizeBytes,
+          sizeBytes: bytes.length,
         }),
       catch: (cause) => uploadFailed(file.filename, cause),
     });
