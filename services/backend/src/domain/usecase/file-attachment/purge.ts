@@ -150,9 +150,11 @@ function selectEvictionCandidates(
  * Purges attached rows for one chatroom (when given) or the whole user.
  *
  * `minSizeBytes` keeps the purge targeted at large files; `0`/absent matches
- * every attached row. Foreign rows are filtered out inside the chatroom query,
- * so they are never fetched and never count toward `hasMore`. `hasMore` is true
- * only when a full batch of the caller's owned rows was consumed.
+ * every attached row. Foreign rows are excluded by a query filter that runs
+ * before the batch limit, so they never use the batch budget and never count
+ * toward `hasMore`. The filter is evaluated server-side, so foreign rows are
+ * still read by the query. `hasMore` is true only when a full batch of the
+ * caller's owned rows was consumed.
  */
 export async function purgeFilesBatch(
   ctx: MutationCtx,

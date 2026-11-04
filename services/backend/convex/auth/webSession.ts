@@ -15,12 +15,7 @@ import { validateSession } from './sessionValidation';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
-/**
- * Rejects non-web sessions before any chatroom or ownership check.
- *
- * CLI sessions are user-scoped, not chatroom-scoped, so an agent must never be
- * able to read another chatroom's bytes or settings through them.
- */
+/** Rejects non-web sessions before any chatroom or ownership check. */
 export function requireWebSession(access: { session: { sessionType: string } }): void {
   if (access.session.sessionType !== 'web') {
     throw new ConvexError({
