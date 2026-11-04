@@ -24,6 +24,7 @@
 
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
+import { getEnforcedHandoffTargets } from './cli/handoff-templates';
 import {
   getHandoffTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
@@ -189,7 +190,12 @@ function buildInitPromptSections(
 ): PromptSection[] {
   const { chatroomId, role, teamRoles, convexUrl } = input;
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
-  const handoffTargets = [...new Set([...otherRoles, 'user'])];
+  // Enforced teams (trio) advertise exactly their contract targets; advisory
+  // teams keep the configured-membership plus `user` list.
+  const enforcedTargets = getEnforcedHandoffTargets(input.teamId, role);
+  const handoffTargets = enforcedTargets
+    ? [...enforcedTargets]
+    : [...new Set([...otherRoles, 'user'])];
 
   const sections: PromptSection[] = [
     getTeamHeaderSection(input.teamName),

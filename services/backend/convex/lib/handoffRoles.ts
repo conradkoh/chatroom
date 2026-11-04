@@ -10,6 +10,8 @@
 
 import { isRetiredAgentRole } from '@workspace/shared/domain/agent-role';
 
+import { getEnforcedHandoffTargets } from '../../prompts/cli/handoff-templates';
+
 export interface BuildAvailableHandoffRolesOptions {
   /** Persisted team membership; authoritative when non-empty. */
   teamRoles: string[];
@@ -17,10 +19,15 @@ export interface BuildAvailableHandoffRolesOptions {
   currentRole: string;
   /** Active waiting participant roles used only for legacy empty-membership rooms. */
   fallbackParticipantRoles: string[];
+  /** Active team id; enforced teams advertise contract targets only. */
+  teamId?: string | undefined;
 }
 
 // fallow-ignore-next-line complexity
 export function buildAvailableHandoffRoles(options: BuildAvailableHandoffRolesOptions): string[] {
+  const enforced = getEnforcedHandoffTargets(options.teamId, options.currentRole);
+  if (enforced) return [...enforced];
+
   const sourceRoles =
     options.teamRoles.length > 0 ? options.teamRoles : options.fallbackParticipantRoles;
   const currentRole = options.currentRole.toLowerCase();

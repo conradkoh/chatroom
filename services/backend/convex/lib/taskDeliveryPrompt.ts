@@ -220,6 +220,7 @@ async function resolveAvailableHandoffRoles(
 
   const { teamRoles } = getTeamRolesFromChatroom(chatroom);
   return buildAvailableHandoffRoles({
+    teamId: chatroom.teamId,
     teamRoles,
     currentRole: role,
     fallbackParticipantRoles: waitingParticipantRoles,

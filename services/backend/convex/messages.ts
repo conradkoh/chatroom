@@ -1552,6 +1552,7 @@ export const getRolePrompt = query({
     // participants remain a legacy fallback for empty-membership rooms.
     const { teamRoles } = getTeamRolesFromChatroom(chatroom);
     const availableHandoffRoles = buildAvailableHandoffRoles({
+      teamId: chatroom.teamId,
       teamRoles,
       currentRole: args.role,
       fallbackParticipantRoles: availableRoles,
