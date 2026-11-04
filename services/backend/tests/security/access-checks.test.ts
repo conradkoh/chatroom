@@ -44,6 +44,9 @@ const ACCESS_CHECK_PATTERNS = [
   'requireChatroomAccess',
   'getChatroomAccess',
   'authorizeUserMessageOrTaskAccess',
+  // agentWorkspaces.ts — local wrapper that resolves the workspace's chatroom,
+  // then delegates to requireChatroomAccess
+  'requireChatroomAccessForWorkspace',
   // convex/backlog.ts — requireBacklogItemForChatroom → requireChatroomAccess
   'requireBacklogItemForChatroom',
   // savedCommandsAuth.ts — scope-aware access for saved commands
@@ -216,11 +219,25 @@ const REQUIRED_CHECKS_BY_FILE: Record<string, Record<string, string[][]>> = {
  *
  * Keys are paths relative to services/backend.
  */
-const REQUIRED_CHECKS_BY_USECASE_FILE: Record<string, Record<string, string[][]>> = {
+interface UsecaseCheck {
+  requirements: string[][];
+  /**
+   * Narrow the scanned text to one region. `purgeFilesBatch` needs this: its
+   * user-scope branch also names `ownerUserId`, so a whole-function match would
+   * pass even when the chatroom-scope query lost its owner filter.
+   */
+  region?: (source: string) => string | null;
+}
+
+const REQUIRED_CHECKS_BY_USECASE_FILE: Record<string, Record<string, UsecaseCheck>> = {
   'src/domain/usecase/file-attachment/purge.ts': {
     // Chatroom scope filters on ownerUserId before `take`; user scope reads the
-    // by_owner_status_sizeBytes index. Both branches reference the owner field.
-    purgeFilesBatch: [['ownerUserId']],
+    // by_owner_status_sizeBytes index. Only the chatroom branch proves the
+    // filter, because the user branch owns by index.
+    purgeFilesBatch: {
+      requirements: [['ownerUserId']],
+      region: extractChatroomScopeQuery,
+    },
   },
 };
 
@@ -365,6 +382,25 @@ function extractDeclaredFunctionBody(source: string, name: string): string | nul
 }
 
 /**
+ * Returns the chatroom-scope branch of `purgeFilesBatch`'s ternary: from the
+ * `chatroomId !== undefined` test through the first `: await` that starts the
+ * user-scope branch. Returns null when the branch cannot be found.
+ *
+ * Callers pass comment-stripped source rather than string-blanked source,
+ * because the owner field only appears as a query-field string
+ * (`q.field('ownerUserId')`) in this branch.
+ */
+function extractChatroomScopeQuery(source: string): string | null {
+  const branchStart = source.search(/chatroomId\s*!==\s*undefined/);
+  if (branchStart === -1) return null;
+
+  const elseIndex = source.indexOf(': await', branchStart);
+  if (elseIndex === -1) return null;
+
+  return source.slice(branchStart, elseIndex);
+}
+
+/**
  * Removes `//` line comments and block comments without touching comment
  * markers inside string literals (for example URLs).
  *
@@ -423,23 +459,158 @@ function stripComments(source: string): string {
 }
 
 /**
- * Check if a handler source contains at least one access check in code.
- * Commented-out guards never count.
+ * Replaces the contents of string literals with spaces, keeping quotes and
+ * newlines so line numbers survive. Template-literal `${…}` expressions stay
+ * code, so a guard invoked inside an interpolation still counts.
+ *
+ * Runs after `stripComments`: comment markers inside strings must not be treated
+ * as comments, so comments are handled first and string contents are blanked
+ * afterwards.
+ */
+function stripStringContents(source: string): string {
+  const result: string[] = [];
+  // One entry per open `${…}`: the number of unmatched `{` inside it.
+  const expressionDepths: number[] = [];
+  let quote: '"' | "'" | '`' | null = null;
+  let i = 0;
+
+  while (i < source.length) {
+    const char = source[i]!;
+
+    if (quote !== null) {
+      if (char === '\\' && i + 1 < source.length) {
+        result.push(' ', source[i + 1] === '\n' ? '\n' : ' ');
+        i += 2;
+        continue;
+      }
+      if (quote === '`' && char === '$' && source[i + 1] === '{') {
+        result.push('$', '{');
+        expressionDepths.push(0);
+        quote = null;
+        i += 2;
+        continue;
+      }
+      if (char === quote) {
+        result.push(char);
+        quote = null;
+        i += 1;
+        continue;
+      }
+      result.push(char === '\n' ? '\n' : ' ');
+      i += 1;
+      continue;
+    }
+
+    const expressionDepth = expressionDepths.at(-1);
+    if (expressionDepth !== undefined) {
+      if (char === '{') {
+        expressionDepths[expressionDepths.length - 1] = expressionDepth + 1;
+        result.push(char);
+        i += 1;
+        continue;
+      }
+      if (char === '}') {
+        if (expressionDepth === 0) {
+          expressionDepths.pop();
+          result.push(char);
+          quote = '`';
+        } else {
+          expressionDepths[expressionDepths.length - 1] = expressionDepth - 1;
+          result.push(char);
+        }
+        i += 1;
+        continue;
+      }
+    }
+
+    if (char === '"' || char === "'" || char === '`') {
+      result.push(char);
+      quote = char;
+      i += 1;
+      continue;
+    }
+
+    result.push(char);
+    i += 1;
+  }
+
+  return result.join('');
+}
+
+/** Comment-free, string-free source used for guard matching. */
+function toCodeOnly(source: string): string {
+  return stripStringContents(stripComments(source));
+}
+
+/**
+ * Requirements that name a field rather than a function. Everything else is a
+ * guard and must be invoked, so its exact name is followed by `(`.
+ */
+const IDENTIFIER_REQUIREMENTS = new Set(['ownerUserId']);
+
+/** Matches one requirement alternative against code-only source. */
+function matchesRequirement(code: string, pattern: string): boolean {
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (IDENTIFIER_REQUIREMENTS.has(pattern)) {
+    return new RegExp(`\\b${escaped}\\b`).test(code);
+  }
+  return new RegExp(`\\b${escaped}\\s*\\(`).test(code);
+}
+
+/**
+ * Check if a handler source calls at least one access check. Commented-out
+ * guards and guard names that only appear inside strings never count, and a
+ * call to a longer name (for example `requireChatroomAccessLegacy(`) does not
+ * satisfy the guard it merely prefixes.
  */
 function hasAccessCheck(handlerSource: string): boolean {
-  const code = stripComments(handlerSource);
-  return ACCESS_CHECK_PATTERNS.some((pattern) => code.includes(pattern));
+  const code = toCodeOnly(handlerSource);
+  return ACCESS_CHECK_PATTERNS.some((pattern) => matchesRequirement(code, pattern));
 }
 
 /**
  * Returns one message per unmet requirement. Each requirement is a list of
- * alternatives; a requirement holds when at least one alternative appears in
- * the (comment-stripped) code.
+ * alternatives; a requirement holds when at least one alternative matches the
+ * (comment- and string-stripped) code.
  */
 function findMissingRequirements(code: string, requirements: string[][]): string[] {
   return requirements
-    .filter((alternatives) => !alternatives.some((pattern) => code.includes(pattern)))
+    .filter((alternatives) => !alternatives.some((pattern) => matchesRequirement(code, pattern)))
     .map((alternatives) => `missing ${alternatives.join(' or ')}`);
+}
+
+/**
+ * Collects unmet requirements for one usecase file's checked functions.
+ *
+ * Kept separate from the test body so fixtures can exercise the same scan.
+ */
+function findUsecaseViolations(
+  file: string,
+  source: string,
+  checks: Record<string, UsecaseCheck>
+): string[] {
+  const violations: string[] = [];
+  for (const [fnName, check] of Object.entries(checks)) {
+    const body = extractDeclaredFunctionBody(source, fnName);
+    if (body === null) {
+      violations.push(`${file}:${fnName} — could not extract source region`);
+      continue;
+    }
+
+    // Comments are stripped; strings stay because the owner field is named in a
+    // query-field string.
+    const code = stripComments(body);
+    const region = check.region ? check.region(code) : code;
+    if (region === null) {
+      violations.push(`${file}:${fnName} — could not extract scoped region`);
+      continue;
+    }
+
+    for (const missing of findMissingRequirements(region, check.requirements)) {
+      violations.push(`${file}:${fnName} — ${missing}`);
+    }
+  }
+  return violations;
 }
 
 /**
@@ -584,7 +755,7 @@ describe('Security: File attachment access checks', () => {
           continue;
         }
 
-        const code = stripComments(region);
+        const code = toCodeOnly(region);
         for (const missing of findMissingRequirements(code, requirements)) {
           violations.push(`${file}:${fnName} — ${missing}`);
         }
@@ -613,19 +784,7 @@ describe('Security: File attachment access checks', () => {
 
     for (const [file, functions] of Object.entries(REQUIRED_CHECKS_BY_USECASE_FILE)) {
       const source = fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf-8');
-
-      for (const [fnName, requirements] of Object.entries(functions)) {
-        const body = extractDeclaredFunctionBody(source, fnName);
-        if (body === null) {
-          violations.push(`${file}:${fnName} — could not extract source region`);
-          continue;
-        }
-
-        const code = stripComments(body);
-        for (const missing of findMissingRequirements(code, requirements)) {
-          violations.push(`${file}:${fnName} — ${missing}`);
-        }
-      }
+      violations.push(...findUsecaseViolations(file, source, functions));
     }
 
     if (violations.length > 0) {
@@ -635,6 +794,33 @@ describe('Security: File attachment access checks', () => {
           '\n\nAdd the missing guard or update REQUIRED_CHECKS_BY_USECASE_FILE.'
       );
     }
+  });
+
+  it('rejects a purge batch whose owner filter is missing from the chatroom-scope query', () => {
+    const file = 'src/domain/usecase/file-attachment/purge.ts';
+    const fixture = [
+      'async function purgeFilesBatch(ctx, args) {',
+      '  const rows =',
+      '    args.chatroomId !== undefined',
+      "      ? await ctx.db.query('chatroom_fileAttachments')",
+      "          .withIndex('by_chatroom_status_sizeBytes', (q) =>",
+      "            q.eq('chatroomId', args.chatroomId).eq('status', 'attached')",
+      '          )',
+      '          .take(FILE_PURGE_BATCH_SIZE)',
+      '      : await ctx.db',
+      "          .query('chatroom_fileAttachments')",
+      "          .withIndex('by_owner_status_sizeBytes', (q) =>",
+      "            q.eq('ownerUserId', args.userId).eq('status', 'attached')",
+      '          )',
+      '          .take(FILE_PURGE_BATCH_SIZE);',
+      '  await deleteFileAttachments(ctx, rows);',
+      '  return { deleted: rows.length, hasMore: rows.length === FILE_PURGE_BATCH_SIZE };',
+      '}',
+    ].join('\n');
+
+    expect(findUsecaseViolations(file, fixture, REQUIRED_CHECKS_BY_USECASE_FILE[file]!)).toEqual([
+      `${file}:purgeFilesBatch — missing ownerUserId`,
+    ]);
   });
 
   /**
@@ -749,6 +935,40 @@ describe('Security: File attachment access checks', () => {
     expect(hasAccessCheck(fn!.handlerSource)).toBe(false);
   });
 
+  it('rejects a handler whose guard appears only in a string literal', () => {
+    const fixture = [
+      'export const stringOnly = mutation({',
+      '  args: {},',
+      '  handler: async (ctx, args) => {',
+      "    const guardName = 'requireChatroomAccess';",
+      '    return guardName;',
+      '  },',
+      '});',
+    ].join('\n');
+
+    const [fn] = extractExportedFunctions(fixture);
+    expect(fn).toBeDefined();
+    expect(fn!.handlerSource).toContain('requireChatroomAccess');
+    expect(hasAccessCheck(fn!.handlerSource)).toBe(false);
+  });
+
+  it('rejects a handler that only calls a guard name prefix', () => {
+    const fixture = [
+      'export const prefixedGuard = mutation({',
+      '  args: {},',
+      '  handler: async (ctx, args) => {',
+      '    const chatroom = await requireChatroomAccessLegacy(ctx, args.sessionId, args.chatroomId);',
+      '    return chatroom;',
+      '  },',
+      '});',
+    ].join('\n');
+
+    const [fn] = extractExportedFunctions(fixture);
+    expect(fn).toBeDefined();
+    expect(fn!.handlerSource).toContain('requireChatroomAccessLegacy(');
+    expect(hasAccessCheck(fn!.handlerSource)).toBe(false);
+  });
+
   it('stripComments preserves URLs inside string literals', () => {
     const source = [
       "const single = 'https://example.com'; // trailing comment",
@@ -763,5 +983,26 @@ describe('Security: File attachment access checks', () => {
     expect(stripped).not.toContain('trailing comment');
     expect(stripped).not.toContain('block comment');
     expect(stripped).toContain('const value = 1;');
+  });
+
+  it('blanks string contents but keeps quotes and line structure', () => {
+    const source = [
+      'const url = "http://example.com";',
+      'const guard = `requireChatroomAccess`;',
+      'const value = 1;',
+    ].join('\n');
+
+    const code = toCodeOnly(source);
+    expect(code).not.toContain('example.com');
+    expect(code).not.toContain('requireChatroomAccess');
+    expect(code).toContain('const url = "');
+    expect(code).toContain('const value = 1;');
+    expect(code.split('\n')).toHaveLength(3);
+  });
+
+  it('keeps template-literal interpolations as code', () => {
+    const source = 'const value = `prefix ${requireChatroomAccess(ctx, id)} suffix`;';
+
+    expect(toCodeOnly(source)).toContain('requireChatroomAccess(ctx, id)');
   });
 });
