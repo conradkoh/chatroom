@@ -24,6 +24,7 @@ import type { Id } from './_generated/dataModel';
 import {
   FILE_EXPIRY_BATCH_SIZE,
   FILE_LIST_PAGE_MAX,
+  FILE_PURGE_BATCH_SIZE,
   PENDING_UPLOAD_TTL_MS,
   UPLOADED_UNATTACHED_TTL_MS,
 } from '../src/domain/entities/file-attachment';
@@ -1526,6 +1527,41 @@ describe('purgeFiles (scenario 10)', () => {
     expect(result).toEqual({ deleted: 2, continuing: false });
     for (const id of ownRows) expect(await getRow(id)).toBeNull();
     expect((await getRow(foreignRow!))?.status).toBe('attached');
+    expect(await getUsage(other.userId, owner.chatroomId)).toEqual(foreignUsageBefore);
+
+    await assertUsageInvariant(owner.userId);
+    await assertUsageInvariant(other.userId);
+  });
+
+  test("chatroom purge terminates and deletes the caller's rows when foreign-owned rows fill the first batch", async () => {
+    const owner = await setupUser('purge-foreign-batch-owner');
+    const other = await setupUser('purge-foreign-batch-other');
+    // Foreign rows are smaller, so they sort ahead of the caller's row in the
+    // sizeBytes index and fill the entire first batch.
+    const foreignRows = await seedAttachedRows({
+      userId: other.userId,
+      chatroomId: owner.chatroomId,
+      count: FILE_PURGE_BATCH_SIZE,
+      sizeBytes: 1,
+      filenamePrefix: 'foreign',
+    });
+    const [ownRow] = await seedAttachedRows({
+      userId: owner.userId,
+      chatroomId: owner.chatroomId,
+      count: 1,
+      sizeBytes: 2,
+      filenamePrefix: 'own',
+    });
+    const foreignUsageBefore = await getUsage(other.userId, owner.chatroomId);
+
+    const result = await t.mutation(api.fileAttachments.purgeFiles, {
+      sessionId: owner.sessionId,
+      chatroomId: owner.chatroomId,
+    });
+
+    expect(result).toEqual({ deleted: 1, continuing: false });
+    expect(await getRow(ownRow!)).toBeNull();
+    for (const id of foreignRows) expect((await getRow(id))?.status).toBe('attached');
     expect(await getUsage(other.userId, owner.chatroomId)).toEqual(foreignUsageBefore);
 
     await assertUsageInvariant(owner.userId);

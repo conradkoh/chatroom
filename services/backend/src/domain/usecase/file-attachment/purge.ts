@@ -150,7 +150,9 @@ function selectEvictionCandidates(
  * Purges attached rows for one chatroom (when given) or the whole user.
  *
  * `minSizeBytes` keeps the purge targeted at large files; `0`/absent matches
- * every attached row. `hasMore` is true when a full batch was consumed.
+ * every attached row. Foreign rows are filtered out inside the chatroom query,
+ * so they are never fetched and never count toward `hasMore`. `hasMore` is true
+ * only when a full batch of the caller's owned rows was consumed.
  */
 export async function purgeFilesBatch(
   ctx: MutationCtx,
@@ -163,13 +165,17 @@ export async function purgeFilesBatch(
   const minSizeBytes = args.minSizeBytes ?? 0;
   const { chatroomId } = args;
 
-  const candidates =
+  // The chatroom index does not constrain ownership, so filter before `take`:
+  // the batch budget is spent on owned rows only, and a full foreign block can
+  // never stall the continuation loop.
+  const rows =
     chatroomId !== undefined
       ? await ctx.db
           .query('chatroom_fileAttachments')
           .withIndex('by_chatroom_status_sizeBytes', (q) =>
             q.eq('chatroomId', chatroomId).eq('status', 'attached').gte('sizeBytes', minSizeBytes)
           )
+          .filter((q) => q.eq(q.field('ownerUserId'), args.userId))
           .take(FILE_PURGE_BATCH_SIZE)
       : await ctx.db
           .query('chatroom_fileAttachments')
@@ -178,14 +184,7 @@ export async function purgeFilesBatch(
           )
           .take(FILE_PURGE_BATCH_SIZE);
 
-  // The chatroom index does not constrain ownership. Skip foreign rows so a
-  // diverged owner can never be deleted or charged to the caller.
-  const rows =
-    chatroomId === undefined
-      ? candidates
-      : candidates.filter((row) => row.ownerUserId === args.userId);
-
   await deleteFileAttachments(ctx, rows);
 
-  return { deleted: rows.length, hasMore: candidates.length === FILE_PURGE_BATCH_SIZE };
+  return { deleted: rows.length, hasMore: rows.length === FILE_PURGE_BATCH_SIZE };
 }
