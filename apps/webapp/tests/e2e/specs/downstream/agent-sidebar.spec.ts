@@ -55,6 +55,32 @@ const CANONICAL_TEAMS = [
     permanentRoles: ['solo'],
     ephemeralRoles: ['architect', 'triage', 'uiux-engineer', 'verifier'],
   },
+  {
+    teamId: 'trio',
+    teamStructureId: 'trio@1',
+    roles: [
+      'coordinator',
+      'architect',
+      'researcher',
+      'triage',
+      'reviewer',
+      'uiux-engineer',
+      'game-asset-designer',
+      'verifier',
+      'specifier',
+      'builder',
+    ],
+    permanentRoles: ['coordinator', 'specifier', 'builder'],
+    ephemeralRoles: [
+      'architect',
+      'researcher',
+      'triage',
+      'reviewer',
+      'uiux-engineer',
+      'game-asset-designer',
+      'verifier',
+    ],
+  },
 ] as const;
 
 type CanonicalTeam = (typeof CANONICAL_TEAMS)[number];
