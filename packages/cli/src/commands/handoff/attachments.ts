@@ -109,7 +109,9 @@ function validateAttachmentEnvelope(
   paths: readonly string[],
   nextRole: string
 ): Effect.Effect<void, HandoffError> {
-  if (nextRole !== 'user') {
+  // Match the backend, which lowercases the target role before comparing.
+  const normalizedNextRole = nextRole.trim().toLowerCase();
+  if (normalizedNextRole !== 'user') {
     return Effect.fail({ _tag: 'AttachmentsRequireUserTarget' });
   }
   if (paths.length > FILE_ATTACHMENT_MAX_PER_HANDOFF) {

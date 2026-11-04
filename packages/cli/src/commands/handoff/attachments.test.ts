@@ -90,6 +90,22 @@ describe('prepareHandoffAttachments', () => {
     expect(error._tag).toBe('AttachmentsRequireUserTarget');
   });
 
+  test.each(['user', 'User', ' USER '])('accepts the user target %j', async (nextRole) => {
+    const path = await writeTempFile('a.png', 'png');
+
+    const prepared = await Effect.runPromise(prepareHandoffAttachments([path], nextRole));
+
+    expect(prepared.map((file) => file.filename)).toEqual(['a.png']);
+  });
+
+  test('rejects a non-user target even when cased like a team role', async () => {
+    const error = await failureOf(
+      prepareHandoffAttachments([await writeTempFile('a.png', 'png')], 'Planner')
+    );
+
+    expect(error._tag).toBe('AttachmentsRequireUserTarget');
+  });
+
   test('rejects more than the per-handoff limit', async () => {
     const paths = await Promise.all(
       Array.from({ length: FILE_ATTACHMENT_MAX_PER_HANDOFF + 1 }, (_, index) =>
