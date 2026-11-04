@@ -847,7 +847,7 @@ describe('Security: File attachment access checks', () => {
       '}',
       '',
       'function bracesInStrings() {',
-      '  const open = "{";',
+      '  const open = "{{";',
       '  const close = "}";',
       '  return open + close;',
       '}',
@@ -863,7 +863,7 @@ describe('Security: File attachment access checks', () => {
       '{\n  return ctx.run(args.id);\n}'
     );
     expect(extractDeclaredFunctionBody(source, 'bracesInStrings')).toBe(
-      '{\n  const open = "{";\n  const close = "}";\n  return open + close;\n}'
+      '{\n  const open = "{{";\n  const close = "}";\n  return open + close;\n}'
     );
     expect(extractDeclaredFunctionBody(source, 'oneLine')).toBe('{ return 1; }');
     expect(extractDeclaredFunctionBody(source, 'objectReturn')).toBe(
