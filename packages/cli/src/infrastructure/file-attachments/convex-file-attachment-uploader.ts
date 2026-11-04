@@ -102,12 +102,15 @@ function assertUploadProtocol(upload: URL): void {
   }
 }
 
-/** Convex local dev serves HTTP actions on the port after the cloud port. */
+/**
+ * Convex local dev serves HTTP actions on the port after the cloud port. Any
+ * two loopback hosts qualify (for example localhost and 127.0.0.1), because
+ * the port pairing identifies the same local deployment.
+ */
 function isConvexLocalSiteUrl(upload: URL, backend: URL): boolean {
   return (
     isLoopbackHostname(upload.hostname) &&
     isLoopbackHostname(backend.hostname) &&
-    upload.hostname === backend.hostname &&
     isConvexLocalSitePort(upload.port, backend.port)
   );
 }

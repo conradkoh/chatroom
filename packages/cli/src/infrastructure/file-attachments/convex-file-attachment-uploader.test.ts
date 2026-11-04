@@ -177,6 +177,74 @@ describe('createConvexFileAttachmentUploader', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  test('accepts the Convex local site port across mixed loopback hosts', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'http://localhost:3210');
+    const uploader = createUploader(backend, fetchFn);
+
+    await uploader.uploadBytes({
+      sessionId: 'session-1',
+      attachmentId: ATTACHMENT_ID,
+      uploadUrl: 'http://127.0.0.1:3211/chatroom/file-attachments/upload',
+      bytes: new Uint8Array([1]),
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  test('accepts the Convex local site port with the paired loopback hosts reversed', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'http://127.0.0.1:3210');
+    const uploader = createUploader(backend, fetchFn);
+
+    await uploader.uploadBytes({
+      sessionId: 'session-1',
+      attachmentId: ATTACHMENT_ID,
+      uploadUrl: 'http://localhost:3211/chatroom/file-attachments/upload',
+      bytes: new Uint8Array([1]),
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  test('refuses a non-loopback host on the Convex local site port', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'http://localhost:3210');
+    const uploader = createUploader(backend, fetchFn);
+
+    await expect(
+      uploader.uploadBytes({
+        sessionId: 'session-1',
+        attachmentId: ATTACHMENT_ID,
+        uploadUrl: 'http://evil.example:3211/chatroom/file-attachments/upload',
+        bytes: new Uint8Array([1]),
+      })
+    ).rejects.toMatchObject({ code: 'FILE_ATTACHMENT_UPLOAD_URL_REJECTED' });
+
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  test('refuses the wrong port across mixed loopback hosts', async () => {
+    const { backend } = createBackend();
+    const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubEnv('CHATROOM_CONVEX_URL', 'http://localhost:3210');
+    const uploader = createUploader(backend, fetchFn);
+
+    await expect(
+      uploader.uploadBytes({
+        sessionId: 'session-1',
+        attachmentId: ATTACHMENT_ID,
+        uploadUrl: 'http://127.0.0.1:3212/chatroom/file-attachments/upload',
+        bytes: new Uint8Array([1]),
+      })
+    ).rejects.toMatchObject({ code: 'FILE_ATTACHMENT_UPLOAD_URL_REJECTED' });
+
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   test('allows the production Convex site origin paired with the cloud backend', async () => {
     const { backend } = createBackend();
     const fetchFn = vi.fn(async () => new Response(null, { status: 200 }));
