@@ -2,14 +2,31 @@ import {
   getAgentRoleTags,
   getBuiltinRolesForTeam,
   getPermanentRoleNames,
+  normalizeAgentRole,
   type AgentRoleLifecycleTag,
   type BuiltinTeamRole,
   type PermanentBuiltinTeamRole,
 } from './agent-role';
+import type { TaskSessionPolicy } from './task-envelope';
 import { TEAM_PRESET_IDS, type TeamPresetId } from './team-kind';
 
 export { TEAM_PRESET_IDS } from './team-kind';
 export type { TeamPresetId } from './team-kind';
+
+/** Whether handoffs must follow the role handoff contracts. */
+export type TeamHandoffGraphPolicy = 'advisory' | 'enforced';
+
+/**
+ * Session policy a handoff edge imposes on the task it creates.
+ *
+ * First matching rule wins; `from: '*'` matches any sender. Unmatched edges
+ * inherit the sender task's envelope policy.
+ */
+export interface TeamHandoffSessionRule {
+  readonly from: string;
+  readonly to: string;
+  readonly sessionPolicy: TaskSessionPolicy;
+}
 
 export interface TeamPreset {
   /** Immutable identifier for this structural definition. */
@@ -18,6 +35,10 @@ export interface TeamPreset {
   description: string;
   roles: readonly string[];
   entryPoint: string;
+  /** 'enforced': the backend rejects handoffs outside the role contracts and prompts advertise only contract targets. */
+  handoffGraph: TeamHandoffGraphPolicy;
+  /** Per-edge session policy overrides, in first-match-wins order. */
+  handoffSessionRules: readonly TeamHandoffSessionRule[];
 }
 
 export interface TeamStructureRole {
@@ -43,9 +64,17 @@ export const TEAM_STRUCTURE_IDS = {
   trio: 'trio@1',
 } as const satisfies Record<TeamPresetId, string>;
 
-export type BuiltinTeamPreset<T extends TeamPresetId> = Omit<TeamPreset, 'roles' | 'entryPoint'> & {
+export type BuiltinTeamPreset<T extends TeamPresetId> = Omit<
+  TeamPreset,
+  'roles' | 'entryPoint' | 'handoffSessionRules'
+> & {
   roles: readonly BuiltinTeamRole<T>[];
   entryPoint: PermanentBuiltinTeamRole<T>;
+  handoffSessionRules: readonly {
+    from: BuiltinTeamRole<T> | '*';
+    to: BuiltinTeamRole<T>;
+    sessionPolicy: TaskSessionPolicy;
+  }[];
 };
 
 export const TEAM_PRESETS = {
@@ -56,6 +85,8 @@ export const TEAM_PRESETS = {
       'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
     roles: getBuiltinRolesForTeam('duo'),
     entryPoint: 'planner',
+    handoffGraph: 'advisory',
+    handoffSessionRules: [],
   },
   solo: {
     structureId: TEAM_STRUCTURE_IDS.solo,
@@ -64,6 +95,8 @@ export const TEAM_PRESETS = {
       'A single agent working independently, with optional ephemeral architect, triage, uiux-engineer, and verifier roles',
     roles: getBuiltinRolesForTeam('solo'),
     entryPoint: 'solo',
+    handoffGraph: 'advisory',
+    handoffSessionRules: [],
   },
   trio: {
     structureId: TEAM_STRUCTURE_IDS.trio,
@@ -72,6 +105,13 @@ export const TEAM_PRESETS = {
       'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns plans into code-level builder briefs, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
     roles: getBuiltinRolesForTeam('trio'),
     entryPoint: 'coordinator',
+    handoffGraph: 'enforced',
+    handoffSessionRules: [
+      { from: 'coordinator', to: 'specifier', sessionPolicy: 'new' },
+      { from: 'builder', to: 'specifier', sessionPolicy: 'continue' },
+      { from: 'specifier', to: 'builder', sessionPolicy: 'new' },
+      { from: '*', to: 'coordinator', sessionPolicy: 'continue' },
+    ],
   },
 } satisfies { [T in TeamPresetId]: BuiltinTeamPreset<T> };
 
@@ -90,6 +130,27 @@ export function getTeamStructureId(teamId: string): string {
 export function getTeamPreset(teamId: string): TeamPreset | undefined {
   const presetId = getTeamPresetId(teamId);
   return presetId ? TEAM_PRESETS[presetId] : undefined;
+}
+
+/**
+ * Session policy a handoff imposes on the task it creates.
+ *
+ * Returns `undefined` when the team is unknown or no rule matches, meaning the
+ * new task inherits the sender task's envelope policy. Matches roles
+ * case-insensitively; alias/versioned team ids such as `trio@1` resolve.
+ */
+export function getHandoffSessionPolicy(
+  teamId: string,
+  fromRole: string,
+  toRole: string
+): TaskSessionPolicy | undefined {
+  const preset = getTeamPreset(teamId);
+  if (!preset) return undefined;
+  const from = normalizeAgentRole(fromRole);
+  const to = normalizeAgentRole(toRole);
+  return preset.handoffSessionRules.find(
+    (rule) => rule.to === to && (rule.from === from || rule.from === '*')
+  )?.sessionPolicy;
 }
 
 export function listTeamPresetIds(): TeamPresetId[] {

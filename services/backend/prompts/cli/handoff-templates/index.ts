@@ -13,6 +13,7 @@
 // fallow-ignore-file unused-type
 
 import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
+import { getTeamPreset, getTeamPresetId } from '@workspace/shared/domain/team-presets';
 
 import type { HandoffTemplateQuery, RoleHandoffContract } from './contracts';
 import {
@@ -57,6 +58,30 @@ export type HandoffTemplateRenderOptions = Omit<
   HandoffTemplateQuery,
   'fromRole' | 'toRole' | 'teamId' | 'role'
 >;
+
+/**
+ * Contract handoff targets for `role` when its builtin team enforces its
+ * handoff graph (trio).
+ *
+ * `null` means the caller keeps its existing behaviour: advisory team (duo or
+ * solo), unknown/custom team, or a role with no contract in that team. Order is
+ * the contract's `returnsTo` order; index 0 is the role's upstream recipient.
+ */
+// Consumed by the delivery-prompt, authorization, and role-list wiring in the next slice.
+// fallow-ignore-next-line unused-export complexity
+export function getEnforcedHandoffTargets(
+  teamId: string | undefined,
+  role: string
+): readonly string[] | null {
+  const raw = (teamId ?? DEFAULT_HANDOFF_TEAM_ID).trim();
+  const team = getTeamPresetId(raw) ?? raw.toLowerCase();
+  if (!isTeamPresetId(team) || getTeamPreset(team)?.handoffGraph !== 'enforced') return null;
+  const normalized = role.trim().toLowerCase();
+  const contract = BUILTIN_TEAM_HANDOFF_CONTRACTS[team].find(
+    (candidate) => candidate.role === normalized
+  );
+  return contract ? contract.returnsTo : null;
+}
 
 /**
  * Pairs in contract `returnsTo` order. `fromRole` omitted → every pair for the

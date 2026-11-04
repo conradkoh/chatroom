@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest';
 import { validateRoleHandoffContracts } from './contracts';
 import type { RoleHandoffContract } from './contracts';
 import {
+  getEnforcedHandoffTargets,
   getHandoffTemplate,
   getReplyHandoffTemplatePair,
   listHandoffTemplatePairs,
@@ -483,6 +484,19 @@ describe('trio handoff graph', () => {
       'UNKNOWN_TEAM'
     );
     expect(error.message).toContain('duo, solo, trio');
+  });
+});
+
+describe('getEnforcedHandoffTargets', () => {
+  test('returns contract targets in returnsTo order for enforced teams', () => {
+    expect(getEnforcedHandoffTargets('trio', 'specifier')).toEqual(['coordinator', 'builder']);
+    expect(getEnforcedHandoffTargets('trio@1', 'Builder')).toEqual(['specifier']);
+  });
+
+  test('returns null for advisory teams, non-members, and unknown teams', () => {
+    expect(getEnforcedHandoffTargets('duo', 'builder')).toBeNull();
+    expect(getEnforcedHandoffTargets('trio', 'planner')).toBeNull();
+    expect(getEnforcedHandoffTargets('custom', 'x')).toBeNull();
   });
 });
 

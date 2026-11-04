@@ -14,6 +14,7 @@ import {
   TEAM_PRESETS,
   getTeamStructure,
   getPermanentRolesForPreset,
+  getHandoffSessionPolicy,
   getTeamPreset,
   getTeamStructureId,
   listTeamPresetIds,
@@ -268,6 +269,43 @@ describe('team presets', () => {
       expect(
         getTeamStructure({ teamId: 'duo' }).roles.some(({ role }) => role === 'enhancer')
       ).toBe(false);
+    }
+  );
+});
+
+describe('handoff graph policy', () => {
+  test('duo and solo are advisory while trio is enforced', () => {
+    expect(TEAM_PRESETS.duo.handoffGraph).toBe('advisory');
+    expect(TEAM_PRESETS.solo.handoffGraph).toBe('advisory');
+    expect(TEAM_PRESETS.trio.handoffGraph).toBe('enforced');
+    expect(TEAM_PRESETS.duo.handoffSessionRules).toEqual([]);
+    expect(TEAM_PRESETS.solo.handoffSessionRules).toEqual([]);
+  });
+
+  test.each(TEAM_PRESET_IDS)('%s session rules name only team members', (teamId) => {
+    const preset = TEAM_PRESETS[teamId];
+    for (const rule of preset.handoffSessionRules) {
+      if (rule.from !== '*') expect(preset.roles).toContain(rule.from);
+      expect(preset.roles).toContain(rule.to);
+    }
+  });
+
+  test.each([
+    ['trio', 'coordinator', 'specifier', 'new'],
+    ['trio', 'builder', 'specifier', 'continue'],
+    ['trio', 'specifier', 'builder', 'new'],
+    ['trio', 'specifier', 'coordinator', 'continue'],
+    ['trio', 'architect', 'coordinator', 'continue'],
+    ['trio', 'Reviewer', 'COORDINATOR', 'continue'],
+    ['trio', 'coordinator', 'architect', undefined],
+    ['duo', 'planner', 'builder', undefined],
+    ['solo', 'solo', 'architect', undefined],
+    ['quartet', 'coordinator', 'specifier', undefined],
+    ['trio@1', 'coordinator', 'specifier', 'new'],
+  ] as const)(
+    'getHandoffSessionPolicy(%s, %s, %s) resolves to %s',
+    (teamId, fromRole, toRole, expected) => {
+      expect(getHandoffSessionPolicy(teamId, fromRole, toRole)).toBe(expected);
     }
   );
 });
