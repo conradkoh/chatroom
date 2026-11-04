@@ -76,6 +76,13 @@ Reference knowledge for procedural (runtime) motion of creatures built from chai
 - Attach fins by relative rotation to segments so they lag and lead the motion instead of staying rigid.
 - Sum the angular differences across body segments to get overall curvature; dorsal and tail fins then flex with how hard the creature turns.
 
+### Kinematics, FABRIC, and legs
+
+- Forward kinematics computes an end position from known angles; inverse kinematics (IK) computes the joint angles that reach a target.
+- FABRIC (Forward And Backward Reaching Inverse Kinematics) repeatedly pulls a chain back and forth between the root anchor and a target until it converges.
+- Legs: pair a FABRIC chain with a "next step" distance threshold. The foot stays planted until the body moves beyond the threshold, then steps forward. This suits multi-legged creatures such as lizards.
+- The designer does not implement animation; a builder does, so animation content in a brief goes to \`builder\` via the normal path.
+
 ## Proof of Principles
 
 Append these lines to the report's Proof of Principles when this skill is used:
