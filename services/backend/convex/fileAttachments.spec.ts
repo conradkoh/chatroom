@@ -149,6 +149,32 @@ async function countPendingRows(userId: Id<'users'>): Promise<number> {
   });
 }
 
+/** Seeds `count` unbound pending rows directly, bypassing the cap under test. */
+async function seedPendingRows(args: {
+  chatroomId: Id<'chatroom_rooms'>;
+  ownerUserId: Id<'users'>;
+  count: number;
+  expiresAt: number;
+  filenamePrefix: string;
+}): Promise<void> {
+  await t.run(async (ctx) => {
+    const now = Date.now();
+    for (let i = 0; i < args.count; i++) {
+      await ctx.db.insert('chatroom_fileAttachments', {
+        chatroomId: args.chatroomId,
+        ownerUserId: args.ownerUserId,
+        uploadedByRole: 'planner',
+        filename: `${args.filenamePrefix}-${i}.txt`,
+        mimeType: 'text/plain',
+        sizeBytes: 5,
+        status: 'pending_upload',
+        createdAt: now,
+        expiresAt: args.expiresAt,
+      });
+    }
+  });
+}
+
 async function getStorageDoc(storageId: Id<'_storage'>) {
   return await t.run(async (ctx) => ctx.db.system.get('_storage', storageId));
 }
@@ -283,6 +309,39 @@ describe('beginUpload validation', () => {
       attachmentId: expect.any(String),
       uploadUrl: `${SITE_URL}${FILE_ATTACHMENT_UPLOAD_PATH}`,
     });
+  });
+
+  test('ignores expired pending rows but still caps live ones', async () => {
+    const user = await setupUser('begin-expired-cap');
+    const now = Date.now();
+    // Expired rows are swept by cron, but until then they must not block a new
+    // upload: the cap counts only rows that can still be bound.
+    await seedPendingRows({
+      chatroomId: user.chatroomId,
+      ownerUserId: user.userId,
+      count: FILE_ATTACHMENT_MAX_PENDING_PER_USER,
+      expiresAt: now - 1,
+      filenamePrefix: 'expired',
+    });
+
+    await expect(beginUpload(user, { filename: 'after-expired.txt' })).resolves.toMatchObject({
+      attachmentId: expect.any(String),
+    });
+
+    const liveUser = await setupUser('begin-live-cap');
+    const liveNow = Date.now();
+    await seedPendingRows({
+      chatroomId: liveUser.chatroomId,
+      ownerUserId: liveUser.userId,
+      count: FILE_ATTACHMENT_MAX_PENDING_PER_USER,
+      expiresAt: liveNow + PENDING_UPLOAD_TTL_MS,
+      filenamePrefix: 'live',
+    });
+
+    await expectConvexErrorCode(
+      beginUpload(liveUser, { filename: 'over-live-cap.txt' }),
+      'FILE_ATTACHMENT_TOO_MANY_PENDING'
+    );
   });
 
   test('counts uploaded but unbound rows toward the pending cap', async () => {

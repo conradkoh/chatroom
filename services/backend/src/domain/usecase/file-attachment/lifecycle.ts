@@ -80,7 +80,7 @@ export async function beginFileUpload(
 ): Promise<{ attachmentId: Id<'chatroom_fileAttachments'>; expiresAt: number }> {
   assertUploadSenderRole(args.chatroom, args.senderRole);
   const type = assertUploadRequest(args.filename, args.sizeBytes);
-  await assertPendingUploadCapacity(ctx, args.chatroom.ownerId);
+  await assertPendingUploadCapacity(ctx, args.chatroom.ownerId, args.now);
   await assertUploadFitsQuota(ctx, args.chatroom, args.sizeBytes);
 
   const expiresAt = args.now + PENDING_UPLOAD_TTL_MS;
@@ -170,32 +170,43 @@ function assertValidUploadSize(sizeBytes: number): void {
 
 /**
  * Rejects a new reservation when the owner already holds the maximum number of
- * unbound uploads. The count is bounded by the limit itself, so the scan never
- * reads more than `2 * FILE_ATTACHMENT_MAX_PENDING_PER_USER` rows.
+ * live unbound uploads.
+ *
+ * Expired rows still wait for the 15-minute sweep, so counting them would let a
+ * stale backlog block every new upload. The count therefore ranges over
+ * `expiresAt > now` on the owner/status/expiry index, which keeps the scan
+ * bounded by the limit itself instead of by the number of expired rows.
  */
 async function assertPendingUploadCapacity(
   ctx: MutationCtx,
-  ownerUserId: Id<'users'>
+  ownerUserId: Id<'users'>,
+  now: number
 ): Promise<void> {
-  const pending = await ctx.db
-    .query('chatroom_fileAttachments')
-    .withIndex('by_owner_status_attachedAt', (q) =>
-      q.eq('ownerUserId', ownerUserId).eq('status', 'pending_upload')
-    )
-    .take(FILE_ATTACHMENT_MAX_PENDING_PER_USER);
-  const uploaded = await ctx.db
-    .query('chatroom_fileAttachments')
-    .withIndex('by_owner_status_attachedAt', (q) =>
-      q.eq('ownerUserId', ownerUserId).eq('status', 'uploaded')
-    )
-    .take(FILE_ATTACHMENT_MAX_PENDING_PER_USER);
+  const pending = await countLiveUnboundRows(ctx, ownerUserId, 'pending_upload', now);
+  const uploaded = await countLiveUnboundRows(ctx, ownerUserId, 'uploaded', now);
 
-  if (pending.length + uploaded.length < FILE_ATTACHMENT_MAX_PENDING_PER_USER) return;
+  if (pending + uploaded < FILE_ATTACHMENT_MAX_PENDING_PER_USER) return;
 
   throw new ConvexError({
     code: 'FILE_ATTACHMENT_TOO_MANY_PENDING',
     message: `At most ${FILE_ATTACHMENT_MAX_PENDING_PER_USER} pending uploads are allowed per user`,
   });
+}
+
+/** Counts one owner's unexpired rows of a status, capped by the limit itself. */
+async function countLiveUnboundRows(
+  ctx: MutationCtx,
+  ownerUserId: Id<'users'>,
+  status: 'pending_upload' | 'uploaded',
+  now: number
+): Promise<number> {
+  const rows = await ctx.db
+    .query('chatroom_fileAttachments')
+    .withIndex('by_owner_status_expiresAt', (q) =>
+      q.eq('ownerUserId', ownerUserId).eq('status', status).gt('expiresAt', now)
+    )
+    .take(FILE_ATTACHMENT_MAX_PENDING_PER_USER);
+  return rows.length;
 }
 
 /** Rejects a reservation whose size cannot fit in either quota. */

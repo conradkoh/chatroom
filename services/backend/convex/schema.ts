@@ -1064,6 +1064,8 @@ export default defineSchema({
   })
     .index('by_status_expiresAt', ['status', 'expiresAt'])
     .index('by_owner_status_attachedAt', ['ownerUserId', 'status', 'attachedAt'])
+    // Supports the bounded live-row count behind the per-owner pending cap.
+    .index('by_owner_status_expiresAt', ['ownerUserId', 'status', 'expiresAt'])
     .index('by_owner_status_sizeBytes', ['ownerUserId', 'status', 'sizeBytes'])
     .index('by_chatroom_status_attachedAt', ['chatroomId', 'status', 'attachedAt'])
     .index('by_chatroom_status_sizeBytes', ['chatroomId', 'status', 'sizeBytes']),
