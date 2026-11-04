@@ -508,8 +508,9 @@ const fileListItemValidator = v.object({
 /**
  * Lists the caller's attached files, newest/oldest or largest-first.
  *
- * Chatroom scope requires ownership of that chatroom; user scope only ever
- * returns rows the caller owns. Pages are capped at `FILE_LIST_PAGE_MAX`.
+ * Chatroom scope requires ownership of that chatroom and only returns rows the
+ * caller owns; user scope only ever returns rows the caller owns. Pages are
+ * capped at `FILE_LIST_PAGE_MAX`.
  */
 export const listFiles = query({
   args: {
@@ -531,14 +532,29 @@ export const listFiles = query({
 
     const numItems = Math.min(Math.max(1, args.paginationOpts.numItems), FILE_LIST_PAGE_MAX);
     const result = await paginateFiles(ctx, args, session.userId, numItems);
+    const rows = filterOwnedRows(result.page, args.chatroomId, session.userId);
 
     return {
-      page: await toFileListPage(ctx, result.page),
+      page: await toFileListPage(ctx, rows),
       isDone: result.isDone,
       continueCursor: result.continueCursor,
     };
   },
 });
+
+/**
+ * Chatroom-scoped pages use a chatroom index, so it does not constrain the
+ * owner. Skip foreign rows as defence in depth even though chatroom access is
+ * currently owner-only.
+ */
+function filterOwnedRows(
+  rows: Doc<'chatroom_fileAttachments'>[],
+  chatroomId: Id<'chatroom_rooms'> | undefined,
+  userId: Id<'users'>
+): Doc<'chatroom_fileAttachments'>[] {
+  if (chatroomId === undefined) return rows;
+  return rows.filter((row) => row.ownerUserId === userId);
+}
 
 /** Maps attachment rows to the list read model, resolving chatroom names once. */
 async function toFileListPage(

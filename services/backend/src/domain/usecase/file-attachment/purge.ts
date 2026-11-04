@@ -163,7 +163,7 @@ export async function purgeFilesBatch(
   const minSizeBytes = args.minSizeBytes ?? 0;
   const { chatroomId } = args;
 
-  const rows =
+  const candidates =
     chatroomId !== undefined
       ? await ctx.db
           .query('chatroom_fileAttachments')
@@ -178,7 +178,14 @@ export async function purgeFilesBatch(
           )
           .take(FILE_PURGE_BATCH_SIZE);
 
+  // The chatroom index does not constrain ownership. Skip foreign rows so a
+  // diverged owner can never be deleted or charged to the caller.
+  const rows =
+    chatroomId === undefined
+      ? candidates
+      : candidates.filter((row) => row.ownerUserId === args.userId);
+
   await deleteFileAttachments(ctx, rows);
 
-  return { deleted: rows.length, hasMore: rows.length === FILE_PURGE_BATCH_SIZE };
+  return { deleted: rows.length, hasMore: candidates.length === FILE_PURGE_BATCH_SIZE };
 }

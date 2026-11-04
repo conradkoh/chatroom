@@ -1471,6 +1471,39 @@ describe('purgeFiles (scenario 10)', () => {
     expect(await countAttachedRows(user.chatroomId)).toBe(0);
     await assertUsageInvariant(user.userId);
   });
+
+  test("chatroom purge leaves another owner's rows and usage untouched", async () => {
+    const owner = await setupUser('purge-foreign-owner');
+    const other = await setupUser('purge-foreign-other');
+    const ownRows = await seedAttachedRows({
+      userId: owner.userId,
+      chatroomId: owner.chatroomId,
+      count: 2,
+      sizeBytes: 3,
+      filenamePrefix: 'own',
+    });
+    const [foreignRow] = await seedAttachedRows({
+      userId: other.userId,
+      chatroomId: owner.chatroomId,
+      count: 1,
+      sizeBytes: 7,
+      filenamePrefix: 'foreign',
+    });
+    const foreignUsageBefore = await getUsage(other.userId, owner.chatroomId);
+
+    const result = await t.mutation(api.fileAttachments.purgeFiles, {
+      sessionId: owner.sessionId,
+      chatroomId: owner.chatroomId,
+    });
+
+    expect(result).toEqual({ deleted: 2, continuing: false });
+    for (const id of ownRows) expect(await getRow(id)).toBeNull();
+    expect((await getRow(foreignRow!))?.status).toBe('attached');
+    expect(await getUsage(other.userId, owner.chatroomId)).toEqual(foreignUsageBefore);
+
+    await assertUsageInvariant(owner.userId);
+    await assertUsageInvariant(other.userId);
+  });
 });
 
 describe('quota eviction (scenario 11)', () => {
@@ -1641,6 +1674,38 @@ describe('listFiles', () => {
     expect(page.isDone).toBe(false);
 
     await assertUsageInvariant(user.userId);
+  });
+
+  test('chatroom scope skips rows owned by another user', async () => {
+    const owner = await setupUser('list-foreign-owner');
+    const other = await setupUser('list-foreign-other');
+    const [ownRow] = await seedAttachedRows({
+      userId: owner.userId,
+      chatroomId: owner.chatroomId,
+      count: 1,
+      sizeBytes: 1,
+      filenamePrefix: 'own',
+    });
+    const [foreignRow] = await seedAttachedRows({
+      userId: other.userId,
+      chatroomId: owner.chatroomId,
+      count: 1,
+      sizeBytes: 2,
+      filenamePrefix: 'foreign',
+    });
+
+    const page = await t.query(api.fileAttachments.listFiles, {
+      sessionId: owner.sessionId,
+      chatroomId: owner.chatroomId,
+      sort: 'oldest',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(page.page.map((row) => row._id)).toEqual([ownRow]);
+    expect(page.page.some((row) => row._id === foreignRow)).toBe(false);
+
+    await assertUsageInvariant(owner.userId);
+    await assertUsageInvariant(other.userId);
   });
 
   test('rejects CLI sessions and non-owners', async () => {
