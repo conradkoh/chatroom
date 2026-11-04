@@ -21,6 +21,7 @@ import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
 import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
+import type { BackendErrorCode } from '../config/errorCodes';
 import { getConfig } from '../prompts/config/index';
 import type { AttachedFileView } from '../src/domain/entities/file-attachment';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
@@ -508,6 +509,28 @@ export const enqueueMessageAtFront = mutation({
 });
 
 /**
+ * Result returned by `runHandoffHandler`.
+ *
+ * Every path — including early validation failures — carries the same fields so
+ * callers can read the attachment and native-integration outcomes without
+ * optional checks.
+ */
+type HandoffResult = {
+  success: boolean;
+  error: {
+    code: BackendErrorCode;
+    message: string;
+    suggestedTargets?: string[];
+  } | null;
+  messageId: Id<'chatroom_messages'> | null;
+  completedTaskIds: Id<'chatroom_tasks'>[];
+  newTaskId: Id<'chatroom_tasks'> | null;
+  promotedTaskId: Id<'chatroom_tasks'> | null;
+  supportsNativeIntegration: boolean;
+  attachmentsDiscarded: boolean;
+};
+
+/**
  * Failure result for handoff rejections raised before any write. Mirrors the
  * shape of the existing validation failures so callers need no special case.
  */
@@ -517,7 +540,7 @@ function handoffFailure(
     | 'FILE_ATTACHMENT_INVALID'
     | 'FILE_ATTACHMENTS_REQUIRE_USER_TARGET',
   message: string
-) {
+): HandoffResult {
   return {
     success: false,
     error: { code, message },
@@ -525,6 +548,8 @@ function handoffFailure(
     completedTaskIds: [] as Id<'chatroom_tasks'>[],
     newTaskId: null,
     promotedTaskId: null,
+    supportsNativeIntegration: false,
+    attachmentsDiscarded: false,
   };
 }
 
@@ -540,7 +565,7 @@ export async function runHandoffHandler(
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
     attachedFileIds?: Id<'chatroom_fileAttachments'>[] | undefined;
   }
-) {
+): Promise<HandoffResult> {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
   let chatroom;
 
@@ -559,6 +584,8 @@ export async function runHandoffHandler(
       completedTaskIds: [],
       newTaskId: null,
       promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
     };
   }
 
@@ -577,6 +604,8 @@ export async function runHandoffHandler(
       completedTaskIds: [],
       newTaskId: null,
       promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
     };
   }
 
@@ -593,6 +622,8 @@ export async function runHandoffHandler(
       completedTaskIds: [],
       newTaskId: null,
       promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
     };
   }
 

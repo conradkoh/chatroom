@@ -859,6 +859,33 @@ describe('handoff binding to user', () => {
     await assertUsageInvariant(user.userId);
   });
 
+  test('failure and success results both carry the handoff result fields', async () => {
+    const user = await setupUser('handoff-result-fields');
+
+    const failed = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Bad target.',
+      targetRole: 'nobody',
+    });
+    expect(failed.success).toBe(false);
+    expect(failed.error?.code).toBe('INVALID_TARGET_ROLE');
+    expect(failed.attachmentsDiscarded).toBe(false);
+    expect(failed.supportsNativeIntegration).toBe(false);
+
+    const succeeded = await t.mutation(api.messages.handoff, {
+      sessionId: user.sessionId,
+      chatroomId: user.chatroomId,
+      senderRole: 'planner',
+      content: 'Done.',
+      targetRole: 'user',
+    });
+    expect(succeeded.success).toBe(true);
+    expect(succeeded.attachmentsDiscarded).toBe(false);
+    expect(succeeded.supportsNativeIntegration).toBe(false);
+  });
+
   test('rejects file attachments on an agent-to-agent handoff without writing', async () => {
     const user = await setupUser('handoff-agent-target');
     const attachmentId = await uploadFile(user);
