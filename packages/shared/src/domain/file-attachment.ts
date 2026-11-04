@@ -15,6 +15,13 @@ export const FILE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 /** Maximum number of files attached to one handoff. */
 export const FILE_ATTACHMENT_MAX_PER_HANDOFF = 10;
 
+/**
+ * Maximum number of unbound uploads (status `pending_upload` or `uploaded`) one
+ * user may hold at once. Pending rows are not counted in usage, so without this
+ * cap a caller could accumulate unbounded reservation rows.
+ */
+export const FILE_ATTACHMENT_MAX_PENDING_PER_USER = 20;
+
 /** Maximum length of an attachment basename, in characters. */
 export const FILE_ATTACHMENT_MAX_FILENAME_LENGTH = 255;
 

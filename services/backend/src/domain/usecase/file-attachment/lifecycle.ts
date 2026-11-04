@@ -20,6 +20,7 @@
 
 import {
   FILE_ATTACHMENT_MAX_BYTES,
+  FILE_ATTACHMENT_MAX_PENDING_PER_USER,
   FILE_ATTACHMENT_MAX_PER_HANDOFF,
   getStoredBlobContentType,
   isValidAttachmentFilename,
@@ -61,7 +62,8 @@ type AuthorizeUploadFailure = Extract<AuthorizeUploadResult, { ok: false }>;
  * Reserves an attachment row for an upload.
  *
  * Rejects non-team senders, `user`, invalid filenames, disallowed types,
- * invalid or oversized sizes, and requests that cannot fit in either quota.
+ * invalid or oversized sizes, owners already holding the maximum number of
+ * unbound uploads, and requests that cannot fit in either quota.
  * Inserts a `pending_upload` row with no blob and a short expiry.
  *
  * @throws ConvexError with a stable code on every rejection.
@@ -78,6 +80,7 @@ export async function beginFileUpload(
 ): Promise<{ attachmentId: Id<'chatroom_fileAttachments'>; expiresAt: number }> {
   assertUploadSenderRole(args.chatroom, args.senderRole);
   const type = assertUploadRequest(args.filename, args.sizeBytes);
+  await assertPendingUploadCapacity(ctx, args.chatroom.ownerId);
   await assertUploadFitsQuota(ctx, args.chatroom, args.sizeBytes);
 
   const expiresAt = args.now + PENDING_UPLOAD_TTL_MS;
@@ -152,6 +155,36 @@ function assertUploadRequest(
   }
 
   return type;
+}
+
+/**
+ * Rejects a new reservation when the owner already holds the maximum number of
+ * unbound uploads. The count is bounded by the limit itself, so the scan never
+ * reads more than `2 * FILE_ATTACHMENT_MAX_PENDING_PER_USER` rows.
+ */
+async function assertPendingUploadCapacity(
+  ctx: MutationCtx,
+  ownerUserId: Id<'users'>
+): Promise<void> {
+  const pending = await ctx.db
+    .query('chatroom_fileAttachments')
+    .withIndex('by_owner_status_attachedAt', (q) =>
+      q.eq('ownerUserId', ownerUserId).eq('status', 'pending_upload')
+    )
+    .take(FILE_ATTACHMENT_MAX_PENDING_PER_USER);
+  const uploaded = await ctx.db
+    .query('chatroom_fileAttachments')
+    .withIndex('by_owner_status_attachedAt', (q) =>
+      q.eq('ownerUserId', ownerUserId).eq('status', 'uploaded')
+    )
+    .take(FILE_ATTACHMENT_MAX_PENDING_PER_USER);
+
+  if (pending.length + uploaded.length < FILE_ATTACHMENT_MAX_PENDING_PER_USER) return;
+
+  throw new ConvexError({
+    code: 'FILE_ATTACHMENT_TOO_MANY_PENDING',
+    message: `At most ${FILE_ATTACHMENT_MAX_PENDING_PER_USER} pending uploads are allowed per user`,
+  });
 }
 
 /** Rejects a reservation whose size cannot fit in either quota. */

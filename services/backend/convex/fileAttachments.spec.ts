@@ -11,6 +11,7 @@
 
 import {
   FILE_ATTACHMENT_MAX_BYTES,
+  FILE_ATTACHMENT_MAX_PENDING_PER_USER,
   FILE_ATTACHMENT_MAX_PER_HANDOFF,
   FILE_ATTACHMENT_UPLOAD_PATH,
 } from '@workspace/shared/domain/file-attachment';
@@ -251,6 +252,42 @@ describe('beginUpload validation', () => {
     expect(row?.uploadedByRole).toBe('planner');
     expect(row?.sizeBytes).toBe(5);
     expect(row?.storageId).toBeUndefined();
+  });
+
+  test('caps pending uploads per owner without affecting another owner', async () => {
+    const user = await setupUser('begin-pending-cap');
+    for (let i = 0; i < FILE_ATTACHMENT_MAX_PENDING_PER_USER; i++) {
+      await beginUpload(user, { filename: `pending-${i}.txt` });
+    }
+
+    await expectConvexErrorCode(
+      beginUpload(user, { filename: 'over-cap.txt' }),
+      'FILE_ATTACHMENT_TOO_MANY_PENDING'
+    );
+
+    const other = await setupUser('begin-pending-cap-other');
+    await expect(beginUpload(other)).resolves.toMatchObject({
+      attachmentId: expect.any(String),
+      uploadUrl: `${SITE_URL}${FILE_ATTACHMENT_UPLOAD_PATH}`,
+    });
+  });
+
+  test('counts uploaded but unbound rows toward the pending cap', async () => {
+    const user = await setupUser('begin-uploaded-cap');
+    const uploaded = FILE_ATTACHMENT_MAX_PENDING_PER_USER / 2;
+    for (let i = 0; i < uploaded; i++) {
+      const ticket = await beginUpload(user, { filename: `uploaded-${i}.txt` });
+      const response = await postUpload(user, ticket.attachmentId);
+      expect(response.status).toBe(200);
+    }
+    for (let i = 0; i < uploaded; i++) {
+      await beginUpload(user, { filename: `pending-${i}.txt` });
+    }
+
+    await expectConvexErrorCode(
+      beginUpload(user, { filename: 'over-cap.txt' }),
+      'FILE_ATTACHMENT_TOO_MANY_PENDING'
+    );
   });
 });
 
