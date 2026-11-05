@@ -380,4 +380,49 @@ describe('Native task delivery prompt (integration)', () => {
     );
     expect(fullCliOutput).not.toContain('<enhance-mode>');
   });
+
+  test('explicit Chat envelope on a non-entry-point builder task includes the code-template instruction', async () => {
+    const { sessionId } = await createTestSession('test-chat-env-builder');
+    const chatroomId = await createTeamChatroom(sessionId, 'duo');
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+    await saveNativeAgentConfig(sessionId, chatroomId, 'builder', 'opencode-sdk');
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      content: 'Implement it in Chat mode',
+      targetRole: 'builder',
+      type: 'message',
+    });
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'Implement it in Chat mode',
+      createdBy: 'planner',
+      sourceMessageId: messageId,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskId, {
+        taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
+      });
+    });
+
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+      messageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(fullCliOutput).toContain(
+      'read the code-mode handoff template and use it in place of the Chat-mode template'
+    );
+    expect(fullCliOutput).toContain('--from="builder"');
+    expect(fullCliOutput).toContain('--mode="code"');
+    expect(fullCliOutput).toContain('--team-id="duo"');
+  });
 });

@@ -141,7 +141,7 @@ describe('appendTaskDeliveryHandoffSections — chat→code template instruction
     expect(output).not.toContain('<enhance-mode>');
   });
 
-  test('chat non-entry-point tasks keep the sentence out', () => {
+  test('chat non-entry-point builder tasks also get the sentence with the builder role', () => {
     const output = renderHandoffSections({
       conversationMode: 'chat',
       isEntryPoint: false,
@@ -150,7 +150,23 @@ describe('appendTaskDeliveryHandoffSections — chat→code template instruction
       availableHandoffTargets: ['planner', 'user'],
     });
 
-    expect(output).not.toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain(
+      'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff view-template --from="builder" --to="<recipient-role>" --mode="code" --team-id="duo"'
+    );
+  });
+
+  test('chat tasks from any non-entry-point role get the sentence', () => {
+    const output = renderHandoffSections({
+      conversationMode: 'chat',
+      isEntryPoint: false,
+      role: 'architect',
+      message: { _id: 'builder-msg', senderRole: 'builder' },
+      availableHandoffTargets: ['planner', 'user'],
+    });
+
+    expect(output).toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain('--from="architect"');
   });
 
   test('custom teams with no catalog pairs keep the sentence out', () => {
