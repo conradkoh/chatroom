@@ -26,8 +26,8 @@ const [ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE] = VERIFIER_VERDICTS;
  *
  * True for an entry-point role (planner in duo, solo in solo) whose advertised
  * handoff targets include the `verifier` role, in every conversation mode.
- * Deliberately independent of the message sender and of the legacy
- * `plannerEnhancerEnabled` flag.
+ * Deliberately independent of the message sender and of any legacy enhancer
+ * state.
  */
 export function shouldIncludeVerifierGate(params: {
   isEntryPoint?: boolean | undefined;

@@ -26,9 +26,7 @@ export function getHandoffTemplateDiscoveryGuidance(
   const teamId = params.teamId ?? DEFAULT_HANDOFF_TEAM_ID;
   const pairs = listHandoffTemplatePairs(teamId, params.role);
   const commands = pairs.length
-    ? pairs.map((pair) =>
-        formatHandoffTemplateCommand('view-template', pair, '', '<chat|code|code:enhanced>')
-      )
+    ? pairs.map((pair) => formatHandoffTemplateCommand('view-template', pair, '', '<chat|code>'))
     : [
         // Custom team/role: no catalog pairs, so show the placeholder command.
         formatHandoffTemplateCommand(
@@ -39,7 +37,7 @@ export function getHandoffTemplateDiscoveryGuidance(
             toRole: '<recipient-role>',
           },
           '',
-          '<chat|code|code:enhanced>'
+          '<chat|code>'
         ),
       ];
 

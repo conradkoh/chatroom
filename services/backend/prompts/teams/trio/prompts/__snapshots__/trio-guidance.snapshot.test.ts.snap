@@ -36,7 +36,7 @@ flowchart TD
 
 **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
 \`\`\`bash
-chatroom handoff view-template --from="builder" --to="specifier" --mode="<chat|code|code:enhanced>" --team-id="trio"
+chatroom handoff view-template --from="builder" --to="specifier" --mode="<chat|code>" --team-id="trio"
 \`\`\`
 All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
@@ -155,15 +155,15 @@ flowchart TD
 
 **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
 \`\`\`bash
-chatroom handoff view-template --from="coordinator" --to="user" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="coordinator" --to="specifier" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="coordinator" --to="architect" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="coordinator" --to="uiux-engineer" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="coordinator" --to="triage" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="coordinator" --to="researcher" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="coordinator" --to="reviewer" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="coordinator" --to="game-asset-designer" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="coordinator" --to="verifier" --mode="<chat|code|code:enhanced>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="user" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="specifier" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="architect" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="uiux-engineer" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="triage" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="researcher" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="reviewer" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="game-asset-designer" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="coordinator" --to="verifier" --mode="<chat|code>" --team-id="trio"
 \`\`\`
 All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
@@ -326,8 +326,8 @@ flowchart TD
 
 **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
 \`\`\`bash
-chatroom handoff view-template --from="specifier" --to="coordinator" --mode="<chat|code|code:enhanced>" --team-id="trio"
-chatroom handoff view-template --from="specifier" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="trio"
+chatroom handoff view-template --from="specifier" --to="coordinator" --mode="<chat|code>" --team-id="trio"
+chatroom handoff view-template --from="specifier" --to="builder" --mode="<chat|code>" --team-id="trio"
 \`\`\`
 All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 

@@ -30,7 +30,7 @@ export type HandoffTemplateCommandName = 'view-template' | 'list-templates';
 export interface HandoffTemplatePairInput {
   from?: string | undefined;
   to?: string | undefined;
-  /** Conversation mode: `chat` | `code` | `code:enhanced`. Required by view-template and list-templates. */
+  /** Conversation mode: `chat` | `code`. Required by view-template and list-templates. */
   mode?: string | undefined;
   teamId?: string | undefined;
   /** Deprecated parent-group `--role`. */
@@ -48,7 +48,7 @@ export type HandoffTemplatePairErrorCode =
   | 'UNKNOWN_FROM_ROLE'
   | 'UNKNOWN_PAIR';
 
-/** Key segment for a template body: `chat`, or `code` (covers `code` and `code:enhanced`). */
+/** Key segment for a template body: `chat` or `code`. */
 export type HandoffTemplateModeBucket = 'chat' | 'code';
 
 /** A pair plus the conversation mode it is rendered for. */
@@ -127,8 +127,8 @@ export interface HandoffTemplateCommandTarget {
 /**
  * Copy/paste-ready command that addresses a pair.
  *
- * `modeArg` is written verbatim, so pass `<chat|code|code:enhanced>` for
- * placeholders. When omitted, no `--mode` flag is emitted.
+ * `modeArg` is written verbatim, so pass `<chat|code>` for placeholders. When
+ * omitted, no `--mode` flag is emitted.
  */
 export function formatHandoffTemplateCommand(
   command: HandoffTemplateCommandName,
@@ -183,7 +183,7 @@ export function legacyRoleFlagsMessage(
   input: LegacyRoleFlagsMessageInput
 ): string {
   const header = `handoff ${command} no longer accepts --role/--next-role. Handoff templates are keyed by the (sender, recipient) pair.`;
-  const modeArg = input.mode ?? '<chat|code|code:enhanced>';
+  const modeArg = input.mode ?? '<chat|code>';
 
   if (input.legacyRole !== undefined && input.legacyNextRole !== undefined) {
     return [

@@ -163,7 +163,7 @@ describe('listHandoffTemplatesCommand', () => {
       'verifier',
     ]) {
       expect(error.message).toContain(
-        `chatroom handoff list-templates --from="planner" --to="${to}" --mode="<chat|code|code:enhanced>" --team-id="duo"`
+        `chatroom handoff list-templates --from="planner" --to="${to}" --mode="<chat|code>" --team-id="duo"`
       );
     }
     expect(error.message.match(/chatroom handoff list-templates --from="planner"/g)).toHaveLength(

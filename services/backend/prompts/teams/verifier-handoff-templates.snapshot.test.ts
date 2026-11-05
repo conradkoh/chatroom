@@ -59,7 +59,7 @@ describe('verifier handoff template snapshots', () => {
       'only when the task involved code changes, in any conversation mode'
     );
     expect(template).not.toContain('never in `chat` mode');
-    expect(template).toContain('<chat | code | code:enhanced>');
+    expect(template).toContain('<chat | code>');
     expect(template).toContain('The verdict returns to `planner`');
     expect(template).toContain('next-role="verifier"');
   });

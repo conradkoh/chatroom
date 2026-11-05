@@ -326,7 +326,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Pair-keyed handoff templates:** Every handoff template is keyed by sender → recipient; a template written for one recipient must not be reused for another. Before work that may require a handoff, view the template for the exact pair you will send:
       \`\`\`bash
-      chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code|code:enhanced>" --team-id="duo"
+      chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code>" --team-id="duo"
       \`\`\`
       All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 

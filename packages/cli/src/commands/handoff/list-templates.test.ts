@@ -76,7 +76,7 @@ describe('handoff list-templates', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('no longer accepts --role/--next-role');
     expect(getErrorOutput()).toContain(
-      '--from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+      '--from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"'
     );
   });
 
@@ -93,10 +93,10 @@ describe('handoff list-templates', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     const output = getErrorOutput();
     expect(output).toContain(
-      '--from="specifier" --to="coordinator" --mode="<chat|code|code:enhanced>" --team-id="trio"'
+      '--from="specifier" --to="coordinator" --mode="<chat|code>" --team-id="trio"'
     );
     expect(output).toContain(
-      '--from="specifier" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="trio"'
+      '--from="specifier" --to="builder" --mode="<chat|code>" --team-id="trio"'
     );
   });
 });

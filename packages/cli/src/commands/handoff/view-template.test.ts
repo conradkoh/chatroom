@@ -69,7 +69,7 @@ describe('handoff view-template', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('no longer accepts --role/--next-role');
     expect(getErrorOutput()).toContain(
-      '--from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+      '--from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"'
     );
   });
 

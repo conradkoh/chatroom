@@ -89,7 +89,7 @@ describe('appendVerifierGateGuidance', () => {
 
     expect(output).toContain('If this task involved code changes');
     expect(output).not.toContain('This does not apply to Chat mode');
-    expect(output).not.toContain('required in code and code:enhanced');
+    expect(output).not.toContain('code:enhanced');
   });
 
   test('names every verdict token from VERIFIER_VERDICTS', () => {

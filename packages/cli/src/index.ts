@@ -351,7 +351,7 @@ handoffCommandGroup
   )
   .option('--from <role>', 'Sending role (the role that runs the handoff)')
   .option('--to <role>', 'Receiving role (the --next-role of the handoff)')
-  .option('--mode <mode>', 'Conversation mode: chat | code | code:enhanced (required)')
+  .option('--mode <mode>', 'Conversation mode: chat | code (required)')
   .option('--team-id <teamId>', 'Team id (solo, duo, trio); defaults to duo')
   // --role / --next-role stay declared on the handoff group: when present they
   // are forwarded as legacy flags so the backend can emit the rewritten command.
@@ -376,7 +376,7 @@ handoffCommandGroup
   )
   .option('--from <role>', 'Sending role (the role that runs the handoff)')
   .option('--to <role>', 'Receiving role (the --next-role of the handoff)')
-  .option('--mode <mode>', 'Conversation mode: chat | code | code:enhanced (required)')
+  .option('--mode <mode>', 'Conversation mode: chat | code (required)')
   .option('--team-id <teamId>', 'Team id (solo, duo, trio); defaults to duo')
   // --role / --next-role stay declared on the handoff group: when present they
   // are forwarded as legacy flags so the backend can emit the rewritten command.

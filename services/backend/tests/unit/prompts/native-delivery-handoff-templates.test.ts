@@ -56,7 +56,7 @@ describe('handoff view-template command (recovery / CLI)', () => {
       expect(error).toBeInstanceOf(HandoffTemplatePairError);
       expect((error as HandoffTemplatePairError).code).toBe('LEGACY_ROLE_FLAGS');
       expect((error as Error).message).toContain(
-        'Use: chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+        'Use: chatroom handoff view-template --from="builder" --to="planner" --mode="<chat|code>" --team-id="duo"'
       );
     }
   });

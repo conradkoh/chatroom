@@ -112,10 +112,8 @@ describe('formatHandoffTemplateCommand', () => {
     expect(formatHandoffTemplateCommand('view-template', pair, '', 'chat')).toBe(
       'chatroom handoff view-template --from="planner" --to="builder" --mode="chat" --team-id="duo"'
     );
-    expect(
-      formatHandoffTemplateCommand('view-template', pair, '', '<chat|code|code:enhanced>')
-    ).toBe(
-      'chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+    expect(formatHandoffTemplateCommand('view-template', pair, '', '<chat|code>')).toBe(
+      'chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"'
     );
   });
 });
@@ -169,7 +167,7 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -205,8 +203,8 @@ describe('legacyRoleFlagsMessage', () => {
       [
         header,
         'Pairs from "planner" in team "duo":',
-        '  chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code|code:enhanced>" --team-id="duo"',
-        '  chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        '  chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code>" --team-id="duo"',
+        '  chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -221,7 +219,7 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="<your-role>" --to="<recipient-role>" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="<your-role>" --to="<recipient-role>" --mode="<chat|code>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -235,7 +233,7 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="<your-role>" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="<your-role>" --to="builder" --mode="<chat|code>" --team-id="duo"',
       ].join('\n')
     );
   });

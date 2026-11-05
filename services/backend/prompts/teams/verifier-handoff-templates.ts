@@ -33,7 +33,7 @@ export function getEntryPointToVerifierHandoffTemplate(query: HandoffTemplateQue
 <1 or 2; for 2, cite the round-1 verdict message id>
 
 ## Mode
-<chat | code | code:enhanced>
+<chat | code>
 
 ## User message id
 <id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>

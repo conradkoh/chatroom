@@ -202,7 +202,7 @@ describe('generateFullCliOutput — conversation mode', () => {
     }
   });
 
-  test('Enhance mode includes planner design guidance in CLI and native delivery', () => {
+  test('code:enhanced mode adds no enhance-mode guidance in CLI or native delivery', () => {
     for (const nativeIntegration of [false, true]) {
       const output = generateFullCliOutput({
         ...plannerUserParams,
@@ -211,8 +211,8 @@ describe('generateFullCliOutput — conversation mode', () => {
       });
 
       expect(output).not.toContain('<chat-mode>');
-      expect(output).toContain('<enhance-mode>');
-      expect(output).toContain('exactly one recommended design');
+      expect(output).not.toContain('<enhance-mode>');
+      expect(output).not.toContain('exactly one recommended design');
       expect(output).toContain('--next-role="user"');
       expect(output).toContain('**architect**');
       expect(output).toContain('**uiux-engineer**');
