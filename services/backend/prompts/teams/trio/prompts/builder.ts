@@ -16,13 +16,11 @@ export function getTrioBuilderGuidance(
 ): string {
   const { chatroomId, ...builderParams } = ctx;
 
-  return `
- **Trio Team Context:**
- - You work with a specifier who writes your briefs and reviews your work; the coordinator owns the user conversation and all other coordination
- - Your only handoff target is \`specifier\` — never hand off to \`coordinator\`, \`user\`, or any specialist
- - Each brief starts you in a fresh session: rely on the brief, and read the thread when it references earlier messages
- ${getTrioSharedThreadLine({ chatroomId, role: ctx.role, cliEnvPrefix: getCliEnvPrefix(ctx.convexUrl) })}
+  return `**Trio Team Context:**
+- You work with a specifier who writes your briefs and reviews your work; the coordinator owns the user conversation and all other coordination
+- Your only handoff target is \`specifier\` — never hand off to \`coordinator\`, \`user\`, or any specialist
+- Each brief starts you in a fresh session: rely on the brief, and read the thread when it references earlier messages
+${getTrioSharedThreadLine({ chatroomId, role: ctx.role, cliEnvPrefix: getCliEnvPrefix(ctx.convexUrl) })}
 
- ${getBaseBuilderGuidance({ ...builderParams, teamId: 'trio', questionTarget: 'specifier', codeChangesTarget: 'specifier' })}
- `;
+${getBaseBuilderGuidance({ ...builderParams, teamId: 'trio', questionTarget: 'specifier', codeChangesTarget: 'specifier' })}`;
 }

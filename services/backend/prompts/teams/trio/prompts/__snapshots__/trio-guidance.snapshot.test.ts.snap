@@ -1,14 +1,13 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`trio role guidance > builder guidance (cli) > cli 1`] = `
-"
- **Trio Team Context:**
- - You work with a specifier who writes your briefs and reviews your work; the coordinator owns the user conversation and all other coordination
- - Your only handoff target is \`specifier\` — never hand off to \`coordinator\`, \`user\`, or any specialist
- - Each brief starts you in a fresh session: rely on the brief, and read the thread when it references earlier messages
- - **Shared thread knowledge:** every role can read the whole thread. When a brief references earlier messages, or you need decisions made before this task, run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="builder" --format=linear --limit=10\` (add \`--since-message-id=<id>\` to start from a referenced message) and read the files at the printed path, instead of asking for a restatement.
+"**Trio Team Context:**
+- You work with a specifier who writes your briefs and reviews your work; the coordinator owns the user conversation and all other coordination
+- Your only handoff target is \`specifier\` — never hand off to \`coordinator\`, \`user\`, or any specialist
+- Each brief starts you in a fresh session: rely on the brief, and read the thread when it references earlier messages
+- **Shared thread knowledge:** every role can read the whole thread. When a brief references earlier messages, or you need decisions made before this task, run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="builder" --format=linear --limit=10\` (add \`--since-message-id=<id>\` to start from a referenced message) and read the files at the printed path, instead of asking for a restatement.
 
- 
+
 ## Builder Operating Model
 
 Completing a **chatroom task** does NOT end your **session**. After every handoff, run \`get-next-task\` to continue.
@@ -50,19 +49,17 @@ All of --from, --to, and --mode are required; use the mode of your current task.
 **Completion gates (before PR or handoff):**
 - All **(Required)** files done; **verified end-to-end** (user-facing feature works: CLI command runnable, API reachable, or UI action functional)
 - If blocked → ## Blockers / questions to specifier. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
-
- "
+"
 `;
 
 exports[`trio role guidance > builder guidance (native) > native 1`] = `
-"
- **Trio Team Context:**
- - You work with a specifier who writes your briefs and reviews your work; the coordinator owns the user conversation and all other coordination
- - Your only handoff target is \`specifier\` — never hand off to \`coordinator\`, \`user\`, or any specialist
- - Each brief starts you in a fresh session: rely on the brief, and read the thread when it references earlier messages
- - **Shared thread knowledge:** every role can read the whole thread. When a brief references earlier messages, or you need decisions made before this task, run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="builder" --format=linear --limit=10\` (add \`--since-message-id=<id>\` to start from a referenced message) and read the files at the printed path, instead of asking for a restatement.
+"**Trio Team Context:**
+- You work with a specifier who writes your briefs and reviews your work; the coordinator owns the user conversation and all other coordination
+- Your only handoff target is \`specifier\` — never hand off to \`coordinator\`, \`user\`, or any specialist
+- Each brief starts you in a fresh session: rely on the brief, and read the thread when it references earlier messages
+- **Shared thread knowledge:** every role can read the whole thread. When a brief references earlier messages, or you need decisions made before this task, run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="builder" --format=linear --limit=10\` (add \`--since-message-id=<id>\` to start from a referenced message) and read the files at the printed path, instead of asking for a restatement.
 
- 
+
 ## Builder Operating Model
 
 
@@ -98,8 +95,7 @@ flowchart TD
 **Completion gates (before PR or handoff):**
 - All **(Required)** files done; **verified end-to-end** (user-facing feature works: CLI command runnable, API reachable, or UI action functional)
 - If blocked → ## Blockers / questions to specifier. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
-
- "
+"
 `;
 
 exports[`trio role guidance > coordinator guidance (cli) > cli 1`] = `

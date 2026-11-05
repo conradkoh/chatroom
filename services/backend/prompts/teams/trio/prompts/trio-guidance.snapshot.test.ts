@@ -68,6 +68,8 @@ describe('trio role guidance', () => {
     expect(guidance).toMatchSnapshot(variant);
     expect(guidance).toContain(`chatroom messages download --chatroom-id="${CHATROOM_ID}"`);
     expect(guidance).toContain('Your only handoff target is `specifier`');
+    expect(guidance.startsWith(' ')).toBe(false);
+    expect(guidance.startsWith('\n')).toBe(false);
   });
 });
 

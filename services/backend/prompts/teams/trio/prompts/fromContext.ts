@@ -29,7 +29,7 @@ function toTrioBuilderParams(
   };
 }
 
-function toTrioPlannerParams(ctx: SelectorContext): PlannerGuidanceParams {
+function toTrioRoleParams(ctx: SelectorContext): PlannerGuidanceParams {
   return {
     role: ctx.role,
     teamRoles: ctx.teamRoles,
@@ -54,10 +54,10 @@ export function getTrioRoleGuidanceFromContext(ctx: SelectorContext): string | n
   const normalizedRole = ctx.role.toLowerCase();
 
   if (normalizedRole === 'coordinator') {
-    return getCoordinatorGuidance(toTrioPlannerParams(ctx));
+    return getCoordinatorGuidance(toTrioRoleParams(ctx));
   }
   if (normalizedRole === 'specifier') {
-    return getSpecifierGuidance(toTrioPlannerParams(ctx));
+    return getSpecifierGuidance(toTrioRoleParams(ctx));
   }
   if (normalizedRole === 'builder') {
     return getTrioBuilderGuidance(toTrioBuilderParams(ctx));
