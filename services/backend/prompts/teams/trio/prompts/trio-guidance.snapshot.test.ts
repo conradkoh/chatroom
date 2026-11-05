@@ -45,6 +45,7 @@ describe('trio role guidance', () => {
     expect(guidance).toContain(`chatroom messages download --chatroom-id="${CHATROOM_ID}"`);
     expect(guidance).toContain('**Never hand off to `builder`.**');
     expect(guidance).toContain('**Only you can hand off to `user`**');
+    expect(guidance).toContain('`coordinator` → `specifier` is always a new session');
   });
 
   test.each(GUIDANCE_VARIANTS)('specifier guidance (%s)', (variant, nativeIntegration) => {
