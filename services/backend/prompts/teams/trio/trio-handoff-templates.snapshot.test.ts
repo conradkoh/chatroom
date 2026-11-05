@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import { trioSpecifierHandoffContract } from './handoff-templates/specifier';
 import { listHandoffTemplatePairs, renderHandoffTemplate } from '../../cli/handoff-templates';
 
 /** Permanent trio roles plus the user target; specialist pairs are snapshotted per role. */
@@ -20,10 +21,64 @@ function render(pair: (typeof trioPairs)[number], conversationMode: 'code' | 'ch
   return template;
 }
 
+/** Renders the specifier→coordinator body through the contract getter itself. */
+function renderSpecifierToCoordinator(conversationMode: 'code' | 'chat'): string {
+  const getter = trioSpecifierHandoffContract.outboundTemplates.coordinator;
+  const body = getter?.({
+    fromRole: 'specifier',
+    toRole: 'coordinator',
+    teamId: 'trio',
+    role: 'specifier',
+    chatroomId: 'test-chatroom-id',
+    conversationMode,
+  });
+  if (!body) {
+    throw new Error('no specifier->coordinator handoff template');
+  }
+  return body;
+}
+
 describe('trio handoff template snapshots', () => {
   test.each(['code', 'chat'] as const)('trio non-specialist pairs (%s)', (mode) => {
     for (const pair of trioPairs) {
       expect(render(pair, mode)).toMatchSnapshot(`${pair.fromRole}->${pair.toRole}`);
+    }
+  });
+
+  test('specifier → coordinator code report carries the work-package standards', () => {
+    const body = renderSpecifierToCoordinator('code');
+
+    const headings = [
+      '## Summary',
+      '## Template Disclosure Confirmation',
+      '## What exists today',
+      '## Slices delivered',
+      '## Proof of Principles',
+      '## Proof of Completion',
+      '## Code Change Verification',
+      '## Key Technical Decisions',
+      '## Key Tradeoffs',
+      '## Deviations from the work package',
+      '## Tech Debt Observed',
+      '## Unresolved Decisions',
+      '## Manual steps',
+      '## Notes for review',
+    ];
+    for (const heading of headings) {
+      expect(body).toContain(heading);
+    }
+    const positions = headings.map((heading) => body.indexOf(heading));
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+
+    for (const absent of [
+      '## Blockers / questions',
+      'messages anchor',
+      'messages download',
+      '**Proof of verification (verifier review):**',
+      '## Backlog Pending User Review Confirmation',
+      'I confirm that I read the current chatroom task context',
+    ]) {
+      expect(body).not.toContain(absent);
     }
   });
 

@@ -215,10 +215,42 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 
 \`\`\`markdown
 ## Summary
-<what this work package delivered, or why it stopped>
+<what this work package delivered, or why it stopped, in plain terms>
+
+## Template Disclosure Confirmation
+- [ ] I confirm that I have seen this template at the start of this work package, before driving the builder
+- [ ] I confirm that I've read and followed the role guidance before starting any work
+<!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`chatroom get-role-guidance --chatroom-id="test-chatroom-id" --role="specifier"\`. You do not need to re-read it on every task if you have already read it once. -->
+
+## What exists today
+<!-- REQUIRED. Describe current state after this work package, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<current state after this work package: what the user can now do, what is in place, how the system behaves>
 
 ## Slices delivered
 <one entry per builder slice: builder handoff message id, commits, files changed, rework rounds>
+
+## Proof of Principles
+<!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+- **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
+<!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+- **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
+<!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+- **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
+<!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+- **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
+<!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+- **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
+<!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+- **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
+<!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+- **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+<!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
 
 ## Proof of Completion
 <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
@@ -228,13 +260,38 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 ## Code Change Verification
 - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
+## Key Technical Decisions
+<!-- REQUIRED. List decisions, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <schema design, modules, interfaces, domain entities: what you chose and why>
+
+## Key Tradeoffs
+<!-- REQUIRED. List tradeoffs, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <what was weighed against what, and why you chose this path>
+
 ## Deviations from the work package
 <!-- REQUIRED. List deviations, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
 <each place the implementation differs from the package, and why>
 
-## Blockers / questions
-<!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-<decisions the coordinator must make, or specialists the coordinator must consult, each with a recommended default>
+## Tech Debt Observed
+<!-- REQUIRED. List tech debt, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+- [high] <critical issue — blocks correctness, security, or release>
+- [medium] <meaningful debt — should address soon>
+- [low] <minor cleanup — nice to have>
+- <issues noticed but intentionally left out of scope of this work package>
+
+## Unresolved Decisions
+<!-- REQUIRED. List open decisions needing user input if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+- [high] <critical issue — blocks correctness, security, or release>
+- [medium] <meaningful debt — should address soon>
+- [low] <minor cleanup — nice to have>
+- <decision or question — options considered, recommendation if any>
+<Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
+
+## Manual steps
+<!-- REQUIRED. List manual steps outside the system, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<steps the user must take outside the system: deploy, configure credentials, run commands, verify in production>
 
 ## Notes for review
 <!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
@@ -586,10 +643,42 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 
 \`\`\`markdown
 ## Summary
-<what this work package delivered, or why it stopped>
+<what this work package delivered, or why it stopped, in plain terms>
+
+## Template Disclosure Confirmation
+- [ ] I confirm that I have seen this template at the start of this work package, before driving the builder
+- [ ] I confirm that I've read and followed the role guidance before starting any work
+<!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`chatroom get-role-guidance --chatroom-id="test-chatroom-id" --role="specifier"\`. You do not need to re-read it on every task if you have already read it once. -->
+
+## What exists today
+<!-- REQUIRED. Describe current state after this work package, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<current state after this work package: what the user can now do, what is in place, how the system behaves>
 
 ## Slices delivered
 <one entry per builder slice: builder handoff message id, commits, files changed, rework rounds>
+
+## Proof of Principles
+<!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+- **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
+<!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+- **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
+<!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+- **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
+<!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+- **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
+<!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+- **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
+<!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+- **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
+<!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+- **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+<!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
 
 ## Proof of Completion
 <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
@@ -599,13 +688,38 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 ## Code Change Verification
 - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
+## Key Technical Decisions
+<!-- REQUIRED. List decisions, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <schema design, modules, interfaces, domain entities: what you chose and why>
+
+## Key Tradeoffs
+<!-- REQUIRED. List tradeoffs, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <what was weighed against what, and why you chose this path>
+
 ## Deviations from the work package
 <!-- REQUIRED. List deviations, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
 <each place the implementation differs from the package, and why>
 
-## Blockers / questions
-<!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-<decisions the coordinator must make, or specialists the coordinator must consult, each with a recommended default>
+## Tech Debt Observed
+<!-- REQUIRED. List tech debt, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+- [high] <critical issue — blocks correctness, security, or release>
+- [medium] <meaningful debt — should address soon>
+- [low] <minor cleanup — nice to have>
+- <issues noticed but intentionally left out of scope of this work package>
+
+## Unresolved Decisions
+<!-- REQUIRED. List open decisions needing user input if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+- [high] <critical issue — blocks correctness, security, or release>
+- [medium] <meaningful debt — should address soon>
+- [low] <minor cleanup — nice to have>
+- <decision or question — options considered, recommendation if any>
+<Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
+
+## Manual steps
+<!-- REQUIRED. List manual steps outside the system, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<steps the user must take outside the system: deploy, configure credentials, run commands, verify in production>
 
 ## Notes for review
 <!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
