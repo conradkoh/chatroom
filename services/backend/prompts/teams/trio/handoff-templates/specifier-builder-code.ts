@@ -1,5 +1,5 @@
 /**
- * Key: `trio:specifier->builder@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `trio:specifier->builder@code` (bucket `code`).
  * Specifier → builder delegation brief. Body only: the pair resolver prepends the
  * recipient callout and the title line.
  */

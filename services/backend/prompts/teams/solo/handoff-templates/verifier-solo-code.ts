@@ -1,5 +1,5 @@
 /**
- * Key: `solo:verifier->solo@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `solo:verifier->solo@code` (bucket `code`).
  * Solo verifier → solo code-bucket body. Delegates to the shared body getter; the chat file re-exports this.
  */
 import type { HandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';

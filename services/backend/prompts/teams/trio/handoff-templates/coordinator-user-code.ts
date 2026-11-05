@@ -1,5 +1,5 @@
 /**
- * Key: `trio:coordinator->user@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `trio:coordinator->user@code` (bucket `code`).
  * Coordinator → user final report. Body only: the pair resolver prepends the recipient callout and the title line.
  */
 

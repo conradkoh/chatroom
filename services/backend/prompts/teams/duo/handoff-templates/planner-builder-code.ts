@@ -1,5 +1,5 @@
 /**
- * Key: `duo:planner->builder@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `duo:planner->builder@code` (bucket `code`).
  * Planner → builder delegation brief. Body only: the pair resolver prepends the
  * recipient callout and the title line. Fields that do not apply may be omitted.
  */

@@ -1,5 +1,5 @@
 /**
- * Key: `duo:builder->planner@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `duo:builder->planner@code` (bucket `code`).
  * Builder → planner work-complete/blocked handback. Body only: the pair resolver
  * prepends the recipient callout and the title line.
  */

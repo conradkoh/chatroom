@@ -1,5 +1,5 @@
 /**
- * Key: `trio:coordinator->architect@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `trio:coordinator->architect@code` (bucket `code`).
  * Trio coordinator → architect code-bucket body. Delegates to the shared body getter; the chat file re-exports this.
  */
 import type { HandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';

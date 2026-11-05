@@ -1,5 +1,5 @@
 /**
- * Key: `trio:builder->specifier@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `trio:builder->specifier@code` (bucket `code`).
  * Builder → specifier work-complete/blocked handback. Body only: the pair resolver
  * prepends the recipient callout and the title line.
  */

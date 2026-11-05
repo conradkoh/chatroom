@@ -1,5 +1,5 @@
 /**
- * Key: `trio:specifier->coordinator@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `trio:specifier->coordinator@code` (bucket `code`).
  * Specifier → coordinator package report. Body only: the pair resolver prepends the
  * recipient callout and the title line.
  */
