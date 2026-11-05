@@ -53,6 +53,12 @@ describe('trio role guidance', () => {
     expect(guidance).toMatchSnapshot(variant);
     expect(guidance).toContain(`chatroom messages download --chatroom-id="${CHATROOM_ID}"`);
     expect(guidance).toContain('never hand off to `user`');
+    expect(guidance).toContain('Your handoff targets are `builder` and `coordinator` only');
+    expect(guidance).not.toContain('Run `chatroom handoff --next-role=<role>`');
+    expect(guidance).not.toContain('the architect designs first and you delegate');
+    expect(guidance).toContain(
+      'Every handoff from `coordinator` starts you in a fresh session, including rework'
+    );
   });
 
   test.each(GUIDANCE_VARIANTS)('builder guidance (%s)', (variant, nativeIntegration) => {

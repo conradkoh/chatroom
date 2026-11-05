@@ -9,11 +9,7 @@
 
 import { getTrioSharedThreadLine } from './shared-thread';
 import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
-import {
-  getHandoffTemplateDiscoveryGuidance,
-  getInterRoleHandoffRule,
-  getSliceHeuristicsBlock,
-} from '../../../cli/sections';
+import { getHandoffTemplateDiscoveryGuidance } from '../../../cli/sections';
 import {
   getHandoffContinuityRule,
   getSessionContinuityLine,
@@ -21,7 +17,7 @@ import {
 import type { PlannerGuidanceParams } from '../../../types/cli';
 
 function getSpecifierOperatingModel(): string {
-  return `**Operating model:**
+  return `**Operating model: Specifier + Builder**
 
 \`\`\`mermaid
 flowchart TD
@@ -48,7 +44,26 @@ function getSpecifierHandoffRules(nativeIntegration?: boolean): string {
 ${continuityBlock}- **To implement a slice** → Hand off to \`builder\` with the \`specifier\` → \`builder\` brief
 - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
 - **When the package is complete, or blocked on a decision you cannot make** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report
-${getInterRoleHandoffRule()}`;
+- **Your handoff targets are \`builder\` and \`coordinator\` only.** To reach any other role, including \`user\` and every specialist, hand back to \`coordinator\` with the request. Never run \`chatroom handoff --next-role=<other role>\`.
+- **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.`;
+}
+
+/**
+ * Trio-local slicing heuristics. Mirrors the shared block minus the duo-era
+ * architect and UI/UX delegation bullets, which the specifier cannot perform:
+ * the coordinator clears those gates and passes their decisions in the package.
+ */
+function getSpecifierSlicingGuidelines(): string {
+  return `**How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
+
+- **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
+- **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
+- **Specialist work is sequenced by the coordinator.** Architect, researcher, triage, UI/UX, and asset designs arrive in the work package with their message ids. Do not request those roles yourself; if a slice depends on a missing design, hand back to \`coordinator\` with the open question.
+- **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
+- **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
+- **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
+- **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
+- **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).`;
 }
 
 export function getSpecifierGuidance(ctx: PlannerGuidanceParams): string {
@@ -62,7 +77,7 @@ You are the specifier: you turn the coordinator's work package into detailed, co
 
 **Trio Team Context:**
 - You receive work packages only from \`coordinator\` and report only to \`coordinator\`; you hand off directly to \`builder\` to implement. Those are your only handoff targets — never hand off to \`user\` or to a specialist (architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier). If you need one, hand back to \`coordinator\` with the question.
-- **Memory:** your session continues across build passes with the builder. Each new work package from the coordinator starts you in a fresh session, so rebuild context from the package and the thread.
+- **Memory:** your session continues across build passes with the builder. Every handoff from \`coordinator\` starts you in a fresh session, including rework the coordinator sends back, so rebuild context from the package and the thread.
 - Every brief you send starts the builder in a fresh session: each brief must stand alone.
 ${getTrioSharedThreadLine({ chatroomId, role, cliEnvPrefix })}
 
@@ -74,7 +89,7 @@ ${getHandoffTemplateDiscoveryGuidance({ teamId: 'trio', role, nativeIntegration 
 
 **Slicing Guidelines:**
 
-${getSliceHeuristicsBlock()}
+${getSpecifierSlicingGuidelines()}
 
 **Code review:** Review each builder slice with the code-review skill before the next slice.
 
