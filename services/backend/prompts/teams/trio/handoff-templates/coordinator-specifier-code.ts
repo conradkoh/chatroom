@@ -14,9 +14,9 @@ import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance
  * decision and message id it needs.
  */
 export function getCoordinatorSpecifierCodeTemplate(_query: HandoffTemplateQuery): string {
-  return `${getDelegationBriefIntro()}
+  return `Instructions (not part of the message): Delegate ONE work package to the \`specifier\`. The specifier turns it into file-level builder slices, drives the builder through every build pass, and hands one consolidated report back to you. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Do not write file-level code instructions yourself; state outcomes, constraints, and acceptance criteria. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
 
-Instructions (not part of the message): Delegate ONE work package to the \`specifier\`. The specifier turns it into file-level builder slices, drives the builder through every build pass, and hands one consolidated report back to you. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Do not write file-level code instructions yourself; state outcomes, constraints, and acceptance criteria. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
+${getDelegationBriefIntro()}
 
 \`\`\`markdown
 ## Summary
