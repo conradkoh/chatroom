@@ -319,6 +319,11 @@ describe('Native task delivery prompt (integration)', () => {
     // Direct Chat recommendation is primary
     expect(fullCliOutput).toContain('<chat-mode>');
     expect(fullCliOutput).toContain('Answer the user directly and concisely by default');
+    expect(fullCliOutput).toContain(
+      'read the code-mode handoff template and use it in place of the Chat-mode template'
+    );
+    expect(fullCliOutput).toContain('--mode="code"');
+    expect(fullCliOutput).toContain('--team-id="duo"');
     expect(fullCliOutput).toContain('--next-role="user"');
 
     // Builder capability remains advertised (handoff block + eager template)
@@ -331,5 +336,49 @@ describe('Native task delivery prompt (integration)', () => {
     expect(fullCliOutput).not.toContain('### Handoff template `planner` → `enhancer`');
     expect(fullCliOutput).not.toContain('delegate to another agent');
     expect(fullCliOutput).toContain('you may hand off to any advertised team target');
+  });
+
+  test('explicit Code envelope omits the Chat-mode code-template instruction', async () => {
+    const { sessionId } = await createTestSession('test-code-env-planner');
+    const chatroomId = await createTeamChatroom(sessionId, 'duo');
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+    await saveNativeAgentConfig(sessionId, chatroomId, 'planner', 'opencode-sdk');
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Implement it in Code mode',
+      targetRole: 'planner',
+      type: 'message',
+    });
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'Implement it in Code mode',
+      createdBy: 'user',
+      sourceMessageId: messageId,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskId, {
+        taskEnvelope: createTaskEnvelope({ conversationMode: 'code', sessionPolicy: 'continue' }),
+      });
+    });
+
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
+      messageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(fullCliOutput).not.toContain('<chat-mode>');
+    expect(fullCliOutput).not.toContain(
+      'read the code-mode handoff template and use it in place of the Chat-mode template'
+    );
+    expect(fullCliOutput).not.toContain('<enhance-mode>');
   });
 });

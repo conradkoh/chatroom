@@ -147,6 +147,60 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
   });
 });
 
+describe('appendTaskDeliveryHandoffSections — chat→code template instruction', () => {
+  const CHAT_TO_CODE_SENTENCE =
+    'Before you start writing or changing code in this Chat-mode task, read the code-mode handoff template and use it in place of the Chat-mode template';
+
+  test('duo planner chat entry-point user task names the code-mode template command', () => {
+    const output = renderHandoffSections({ conversationMode: 'chat' });
+
+    expect(output).toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain('--from="planner"');
+    expect(output).toContain('--mode="code"');
+    expect(output).toContain('--team-id="duo"');
+  });
+
+  test('solo chat entry-point user task honors the CLI env prefix and solo team id', () => {
+    const output = renderHandoffSections({
+      role: 'solo',
+      teamId: 'solo',
+      cliEnvPrefix: 'SOLO_PREFIX ',
+      conversationMode: 'chat',
+      availableHandoffTargets: ['user'],
+    });
+
+    expect(output).toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain(
+      'SOLO_PREFIX chatroom handoff view-template --from="solo" --to="<recipient-role>" --mode="code" --team-id="solo"'
+    );
+  });
+
+  test('code mode has neither the chat→code sentence nor an <enhance-mode> block', () => {
+    const output = renderHandoffSections({ conversationMode: 'code' });
+
+    expect(output).not.toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).not.toContain('<enhance-mode>');
+  });
+
+  test('chat non-entry-point tasks keep the sentence out', () => {
+    const output = renderHandoffSections({
+      conversationMode: 'chat',
+      isEntryPoint: false,
+      role: 'builder',
+      message: { _id: 'planner-msg', senderRole: 'planner' },
+      availableHandoffTargets: ['planner', 'user'],
+    });
+
+    expect(output).not.toContain(CHAT_TO_CODE_SENTENCE);
+  });
+
+  test('custom teams with no catalog pairs keep the sentence out', () => {
+    const output = renderHandoffSections({ conversationMode: 'chat', teamId: 'tri' });
+
+    expect(output).not.toContain(CHAT_TO_CODE_SENTENCE);
+  });
+});
+
 describe('appendTaskDeliveryHandoffSections — verifier gate', () => {
   const VERIFIER_TARGETS = ['architect', 'verifier', 'builder', 'user'];
 

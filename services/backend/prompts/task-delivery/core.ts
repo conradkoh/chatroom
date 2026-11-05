@@ -15,8 +15,12 @@ import { appendVerifierGateGuidance, shouldIncludeVerifierGate } from './verifie
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
-import { getEnforcedHandoffTargets } from '../cli/handoff-templates';
-import { formatHandoffPairLabel } from '../cli/handoff-templates/pair';
+import { getEnforcedHandoffTargets, listHandoffTemplatePairs } from '../cli/handoff-templates';
+import {
+  DEFAULT_HANDOFF_TEAM_ID,
+  formatHandoffPairLabel,
+  formatHandoffTemplateCommand,
+} from '../cli/handoff-templates/pair';
 import {
   appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates,
   formatDeliveredHandoffTemplateHeading,
@@ -214,6 +218,22 @@ export function appendTaskDeliveryHandoffSections(
     lines.push(
       '**Do not run `chatroom context read` or `chatroom context new` for this Chat-mode task.**'
     );
+    const hasCatalogPairs = listHandoffTemplatePairs(params.teamId, params.role).length > 0;
+    if (hasCatalogPairs) {
+      const viewCodeTemplate = formatHandoffTemplateCommand(
+        'view-template',
+        {
+          teamId: params.teamId ?? DEFAULT_HANDOFF_TEAM_ID,
+          fromRole: params.role,
+          toRole: '<recipient-role>',
+        },
+        params.cliEnvPrefix,
+        'code'
+      );
+      lines.push(
+        `**Before you start writing or changing code in this Chat-mode task, read the code-mode handoff template and use it in place of the Chat-mode template: run \`${viewCodeTemplate}\` for the recipient you will hand off to. Do not keep using the Chat-mode handoff template once you begin coding.**`
+      );
+    }
     lines.push(
       'When your response is ready, run the final handoff command below to deliver it to the user.'
     );
