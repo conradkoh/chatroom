@@ -63,7 +63,7 @@ describe('generic task delivery compatibility', () => {
       content: 'Use compatibility planning',
       targetRole: 'planner',
       type: 'message',
-      conversationMode: 'code:enhanced',
+      conversationMode: 'code',
     });
     const messageIdTyped = messageId as Id<'chatroom_messages'>;
     const task = await getTaskForMessage(chatroomId, messageIdTyped);

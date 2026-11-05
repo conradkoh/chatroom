@@ -22,23 +22,14 @@
  * boundary.
  */
 
-import {
-  CONVERSATION_MODES,
-  legacyConversationMode,
-  type ConversationMode,
-} from './conversation-mode';
+import { CONVERSATION_MODES, type ConversationMode } from './conversation-mode';
 
 export const TASK_ENVELOPE_VERSION = 1 as const;
 
-export const HANDOFF_WORKFLOW_PRESETS = ['direct', 'team', 'enhanced-team'] as const;
+export const HANDOFF_WORKFLOW_PRESETS = ['direct', 'team'] as const;
 export type HandoffWorkflowPreset = (typeof HANDOFF_WORKFLOW_PRESETS)[number];
 
-export const HANDOFF_WORKFLOW_PHASES = [
-  'entry',
-  'enhancement',
-  'implementation',
-  'delivery',
-] as const;
+export const HANDOFF_WORKFLOW_PHASES = ['entry', 'implementation', 'delivery'] as const;
 export type HandoffWorkflowPhase = (typeof HANDOFF_WORKFLOW_PHASES)[number];
 
 /** Request intent for whether a task should start a fresh session. */
@@ -59,7 +50,6 @@ export interface TaskEnvelopeV1 {
 export interface LegacyTaskDeliverySettings {
   readonly taskEnvelope?: unknown;
   readonly conversationMode?: ConversationMode | undefined;
-  readonly plannerEnhancerEnabled?: boolean | undefined;
   readonly startInNewSession?: boolean | undefined;
 }
 
@@ -72,7 +62,6 @@ export interface CreateTaskEnvelopeOptions {
 const MODE_DEFAULT_PRESET: Record<ConversationMode, HandoffWorkflowPreset> = {
   chat: 'direct',
   code: 'team',
-  'code:enhanced': 'enhanced-team',
 };
 
 /**
@@ -84,19 +73,11 @@ const NEXT_PHASE_BY_PRESET_AND_PHASE: Readonly<
 > = {
   direct: {
     entry: 'delivery',
-    enhancement: 'delivery',
     implementation: 'delivery',
     delivery: 'delivery',
   },
   team: {
     entry: 'implementation',
-    enhancement: 'implementation',
-    implementation: 'delivery',
-    delivery: 'delivery',
-  },
-  'enhanced-team': {
-    entry: 'enhancement',
-    enhancement: 'implementation',
     implementation: 'delivery',
     delivery: 'delivery',
   },
@@ -217,7 +198,7 @@ function deriveLegacyMode(input: LegacyTaskDeliverySettings): ConversationMode {
     assertConversationMode(rawMode, 'normalizeTaskEnvelope');
     return rawMode;
   }
-  return legacyConversationMode(input.plannerEnhancerEnabled);
+  return 'code';
 }
 
 function deriveLegacySession(startInNewSession?: boolean): TaskSessionPolicy {
@@ -232,10 +213,9 @@ function deriveLegacySession(startInNewSession?: boolean): TaskSessionPolicy {
  *   a fresh structure.
  * - A malformed/unknown explicit envelope throws a TypeError; it is never
  *   silently coerced.
- * - Without an envelope, an explicit conversation mode wins over the enhancer
- *   boolean; otherwise `plannerEnhancerEnabled: true` maps to `code:enhanced`
- *   and `false`/`undefined` maps to historical `code`. `startInNewSession: true`
- *   maps to `new`; `false`/`undefined` maps to `continue`.
+ * - Without an envelope, an explicit conversation mode wins; otherwise the
+ *   historical `code` default applies. `startInNewSession: true` maps to `new`;
+ *   `false`/`undefined` maps to `continue`.
  */
 export function normalizeTaskEnvelope(input: LegacyTaskDeliverySettings): TaskEnvelopeV1 {
   if (input.taskEnvelope !== undefined) {

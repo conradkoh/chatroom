@@ -4,11 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from '../_generated/server';
 import { requireChatroomAccess } from '../auth/chatroomAccess';
 
-const conversationModeValidator = v.union(
-  v.literal('chat'),
-  v.literal('code'),
-  v.literal('code:enhanced')
-);
+const conversationModeValidator = v.union(v.literal('chat'), v.literal('code'));
 
 export const get = query({
   args: {

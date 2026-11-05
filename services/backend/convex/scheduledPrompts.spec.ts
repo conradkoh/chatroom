@@ -1323,15 +1323,15 @@ describe('scheduled prompts', () => {
     await t.mutation(api.scheduledPrompts.updatePolicy, {
       sessionId,
       scheduledPromptId: id,
-      conversationMode: 'code:enhanced',
+      conversationMode: 'chat',
     });
 
     row = await readScheduledPrompt(id);
     expect(row!.taskEnvelope).toEqual({
       version: 1,
-      conversationMode: 'code:enhanced',
+      conversationMode: 'chat',
       sessionPolicy: 'continue',
-      handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
+      handoffWorkflow: { preset: 'direct', phase: 'entry' },
     });
     expect(row!.nextRunAt).toBe(nextRunAtBefore);
     expect(row!.isRunnable).toBe(isRunnableBefore);
@@ -1525,7 +1525,7 @@ describe('scheduled prompts', () => {
       await t.mutation(api.scheduledPrompts.updatePolicy, {
         sessionId,
         scheduledPromptId: secondId,
-        conversationMode: 'code:enhanced',
+        conversationMode: 'chat',
       });
 
       await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: secondId });
@@ -1541,9 +1541,9 @@ describe('scheduled prompts', () => {
       expect(queued[0]!.scheduledPromptId).toBe(secondId);
       expect(queued[0]!.taskEnvelope).toEqual({
         version: 1,
-        conversationMode: 'code:enhanced',
+        conversationMode: 'chat',
         sessionPolicy: 'new',
-        handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
+        handoffWorkflow: { preset: 'direct', phase: 'entry' },
       });
     } finally {
       vi.useRealTimers();

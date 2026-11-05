@@ -104,25 +104,6 @@ describe('listHandoffTemplatesCommand', () => {
     expect(chat).not.toBe(code);
   });
 
-  test('code:enhanced shares the code bucket key and body', () => {
-    const code = listHandoffTemplatesCommand({
-      from: 'planner',
-      to: 'user',
-      mode: 'code',
-      teamId: 'duo',
-    });
-    const enhanced = listHandoffTemplatesCommand({
-      from: 'planner',
-      to: 'user',
-      mode: 'code:enhanced',
-      teamId: 'duo',
-    });
-
-    expect(enhanced).toContain('key: `duo:planner->user@code`');
-    // Same body: only the informational mode label differs.
-    expect(enhanced.replace('mode: `code:enhanced`', 'mode: `code`')).toBe(code);
-  });
-
   test('a mode-agnostic pair renders the same body for chat and code', () => {
     const chat = listHandoffTemplatesCommand({
       from: 'planner',
@@ -205,7 +186,7 @@ describe('listHandoffTemplatesCommand', () => {
     );
 
     expect(error.code).toBe('UNKNOWN_MODE');
-    expect(error.message).toBe('Unknown mode "bogus". Valid modes: chat, code, code:enhanced.');
+    expect(error.message).toBe('Unknown mode "bogus". Valid modes: chat, code.');
   });
 
   test('unknown team fails with the exact UNKNOWN_TEAM text', () => {

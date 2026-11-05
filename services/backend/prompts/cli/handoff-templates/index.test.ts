@@ -402,7 +402,7 @@ describe('resolveHandoffTemplateSelection', () => {
           ),
         'UNKNOWN_MODE'
       ).message
-    ).toBe('Unknown mode "bogus". Valid modes: chat, code, code:enhanced.');
+    ).toBe('Unknown mode "bogus". Valid modes: chat, code.');
   });
 
   test('pair errors keep precedence over a missing or unknown mode', () => {

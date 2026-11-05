@@ -63,7 +63,7 @@ async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
 // ---------------------------------------------------------------------------
 
 describe('sendAutomatedUserMessage — explicit conversationMode', () => {
-  test('direct send with mode=chat persists conversationMode and plannerEnhancerEnabled=false', async () => {
+  test('direct send with mode=chat persists conversationMode', async () => {
     const { sessionId } = await createTestSession('auto-chat-direct');
     const chatroomId = await createChatroom(sessionId);
 
@@ -91,10 +91,9 @@ describe('sendAutomatedUserMessage — explicit conversationMode', () => {
         .first();
     });
     expect(task?.conversationMode).toBe('chat');
-    expect(task?.plannerEnhancerEnabled).toBe(false);
   });
 
-  test('direct send with mode=code persists conversationMode and plannerEnhancerEnabled=false', async () => {
+  test('direct send with mode=code persists conversationMode', async () => {
     const { sessionId } = await createTestSession('auto-code-direct');
     const chatroomId = await createChatroom(sessionId);
 
@@ -119,35 +118,6 @@ describe('sendAutomatedUserMessage — explicit conversationMode', () => {
         .first();
     });
     expect(task?.conversationMode).toBe('code');
-    expect(task?.plannerEnhancerEnabled).toBe(false);
-  });
-
-  test('direct send with mode=code:enhanced persists conversationMode and plannerEnhancerEnabled=true', async () => {
-    const { sessionId } = await createTestSession('auto-enhanced-direct');
-    const chatroomId = await createChatroom(sessionId);
-
-    const messageId = await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      senderRole: 'user',
-      content: 'enhanced mode message',
-      type: 'message',
-      conversationMode: 'code:enhanced',
-    });
-
-    const message = await t.run(async (ctx) => {
-      return await ctx.db.get('chatroom_messages', messageId as Id<'chatroom_messages'>);
-    });
-    expect(message).toBeDefined();
-
-    const task = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .first();
-    });
-    expect(task?.conversationMode).toBe('code:enhanced');
-    expect(task?.plannerEnhancerEnabled).toBe(true);
   });
 
   test('queued send with explicit mode persists conversationMode on queue row', async () => {
@@ -170,7 +140,6 @@ describe('sendAutomatedUserMessage — explicit conversationMode', () => {
     });
     expect(queuedMsg).toBeDefined();
     expect(queuedMsg?.conversationMode).toBe('chat');
-    expect(queuedMsg?.plannerEnhancerEnabled).toBe(false);
   });
 
   test('legacy send without mode uses the persisted code-mode default', async () => {
@@ -192,8 +161,7 @@ describe('sendAutomatedUserMessage — explicit conversationMode', () => {
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .first();
     });
-    // Without a user enhancer config, plannerEnhancerEnabled defaults to false
-    // and canonical persistence stores the derived code-mode projection.
+    // Canonical persistence stores the derived code-mode projection.
     expect(task?.conversationMode).toBe('code');
   });
 });
@@ -250,33 +218,6 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
       conversationMode: 'code',
       sessionPolicy: 'continue',
       handoffWorkflow: { preset: 'team', phase: 'entry' },
-    });
-  });
-
-  test('direct send with mode=code:enhanced persists a complete envelope on the created task', async () => {
-    const { sessionId } = await createTestSession('auto-env-enhanced-direct');
-    const chatroomId = await createChatroom(sessionId);
-
-    await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      senderRole: 'user',
-      content: 'enhanced envelope',
-      type: 'message',
-      conversationMode: 'code:enhanced',
-    });
-
-    const task = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .first();
-    });
-    expect(task?.taskEnvelope).toEqual({
-      version: 1,
-      conversationMode: 'code:enhanced',
-      sessionPolicy: 'continue',
-      handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
     });
   });
 
@@ -389,7 +330,7 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
       senderRole: 'user',
       content: 'explicit envelope wins',
       type: 'message',
-      conversationMode: 'code:enhanced', // stale — envelope wins
+      conversationMode: 'code', // stale — envelope wins
       startInNewSession: false, // stale for the envelope — sessionPolicy stays new
       taskEnvelope: explicitEnvelope,
     });
@@ -403,7 +344,6 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
     expect(task?.taskEnvelope).toEqual(explicitEnvelope);
     // Derived compatibility projections follow the envelope mode.
     expect(task?.conversationMode).toBe('chat');
-    expect(task?.plannerEnhancerEnabled).toBe(false);
     // The session projection follows the envelope (new), not the stale scalar false.
     expect(task?.startInNewSession).toBe(true);
   });
@@ -421,7 +361,6 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
         type: 'message' as const,
         queuePosition: 1,
         conversationMode: 'chat',
-        plannerEnhancerEnabled: false,
         startInNewSession: true,
       });
       // New envelope queue row.
@@ -433,9 +372,9 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
         queuePosition: 2,
         taskEnvelope: {
           version: 1,
-          conversationMode: 'code:enhanced',
+          conversationMode: 'code',
           sessionPolicy: 'continue',
-          handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
+          handoffWorkflow: { preset: 'team', phase: 'entry' },
         },
       });
     });
@@ -453,9 +392,9 @@ describe('sendAutomatedUserMessage — persisted taskEnvelope', () => {
     // New envelope row is returned as a complete, intact envelope.
     expect(queued[1]?.taskEnvelope).toEqual({
       version: 1,
-      conversationMode: 'code:enhanced',
+      conversationMode: 'code',
       sessionPolicy: 'continue',
-      handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
+      handoffWorkflow: { preset: 'team', phase: 'entry' },
     });
   });
 });

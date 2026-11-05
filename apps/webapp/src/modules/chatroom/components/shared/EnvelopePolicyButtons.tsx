@@ -2,7 +2,7 @@
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { nextConversationMode } from '@workspace/shared/domain/conversation-mode';
-import { Code2, MessageCircle, RotateCcw, Sparkles } from 'lucide-react';
+import { Code2, MessageCircle, RotateCcw } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -15,13 +15,11 @@ import { cn } from '@/lib/utils';
 const MODE_LABEL: Record<ConversationMode, string> = {
   chat: 'Chat',
   code: 'Code',
-  'code:enhanced': 'Enhance',
 };
 
 function ModeIcon({ mode }: { mode: ConversationMode }) {
   if (mode === 'chat') return <MessageCircle size={14} aria-hidden />;
-  if (mode === 'code') return <Code2 size={14} aria-hidden />;
-  return <Sparkles size={14} aria-hidden />;
+  return <Code2 size={14} aria-hidden />;
 }
 
 const BUTTON_BASE_CLASS =
@@ -99,12 +97,7 @@ export function ConversationModeButton({
       disabled={pending}
       title={`Mode: ${label} — click to switch to ${nextLabel}.`}
       onClick={onCycle}
-      className={cn(
-        BUTTON_BASE_CLASS,
-        mode === 'code:enhanced'
-          ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
-          : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
-      )}
+      className={cn(BUTTON_BASE_CLASS, 'text-chatroom-text-muted hover:bg-chatroom-bg-hover')}
     >
       <ModeIcon mode={mode} />
     </button>

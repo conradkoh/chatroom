@@ -56,18 +56,7 @@ describe('ConversationModeButton', () => {
     render(<ConversationModeButton mode="code" pending={false} onCycle={vi.fn()} testId="m" />);
 
     const button = screen.getByRole('button', { name: 'Mode: Code' });
-    expect(button).toHaveAttribute('title', 'Mode: Code — click to switch to Enhance.');
-  });
-
-  it('labels the enhance mode with the blue tint', () => {
-    render(
-      <ConversationModeButton mode="code:enhanced" pending={false} onCycle={vi.fn()} testId="m" />
-    );
-
-    const button = screen.getByRole('button', { name: 'Mode: Enhance' });
-    expect(button).toHaveAttribute('title', 'Mode: Enhance — click to switch to Chat.');
-    expect(button).toHaveClass('text-blue-500');
-    expect(button).toHaveClass('bg-blue-500/10');
+    expect(button).toHaveAttribute('title', 'Mode: Code — click to switch to Chat.');
   });
 
   it('calls onCycle once per click', () => {

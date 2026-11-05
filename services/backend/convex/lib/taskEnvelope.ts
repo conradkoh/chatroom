@@ -12,16 +12,11 @@ import { v } from 'convex/values';
 
 export const taskEnvelopeV1Validator = v.object({
   version: v.literal(1),
-  conversationMode: v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced')),
+  conversationMode: v.union(v.literal('chat'), v.literal('code')),
   sessionPolicy: v.union(v.literal('continue'), v.literal('new')),
   handoffWorkflow: v.object({
-    preset: v.union(v.literal('direct'), v.literal('team'), v.literal('enhanced-team')),
-    phase: v.union(
-      v.literal('entry'),
-      v.literal('enhancement'),
-      v.literal('implementation'),
-      v.literal('delivery')
-    ),
+    preset: v.union(v.literal('direct'), v.literal('team')),
+    phase: v.union(v.literal('entry'), v.literal('implementation'), v.literal('delivery')),
   }),
 });
 

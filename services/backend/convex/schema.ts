@@ -657,12 +657,10 @@ export default defineSchema({
     queuePosition: v.number(),
     // Scheduled prompt ID that triggered this queued message
     scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
-    // Snapshot of enhancer enabled at enqueue time (undefined = legacy code fallback)
+    /** @deprecated Retired with code:enhanced; nothing reads or writes it. Retained so existing documents still validate. */
     plannerEnhancerEnabled: v.optional(v.boolean()),
     // Per-message conversation mode snapshot (undefined = legacy code fallback)
-    conversationMode: v.optional(
-      v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
-    ),
+    conversationMode: v.optional(v.union(v.literal('chat'), v.literal('code'))),
     startInNewSession: v.optional(v.boolean()),
     // Optional canonical TaskEnvelopeV1 snapshot (undefined = legacy scalars below)
     taskEnvelope: v.optional(taskEnvelopeV1Validator),
@@ -738,15 +736,13 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
-    // Snapshot of enhancer enabled at task creation (user-tasks only; undefined = legacy code fallback)
+    /** @deprecated Retired with code:enhanced; nothing reads or writes it. Retained so existing documents still validate. */
     plannerEnhancerEnabled: v.optional(v.boolean()),
     // Per-message conversation mode snapshot (undefined = legacy code fallback)
-    conversationMode: v.optional(
-      v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced'))
-    ),
+    conversationMode: v.optional(v.union(v.literal('chat'), v.literal('code'))),
     /** Originating user message for request-first enhancer enforcement. */
     originUserMessageId: v.optional(v.id('chatroom_messages')),
-    /** Enhancer-enabled snapshot captured when the task was enqueued. */
+    /** @deprecated Retired with code:enhanced; nothing reads or writes it. Retained so existing documents still validate. */
     enhancerEnabledAtEnqueue: v.optional(v.boolean()),
     startInNewSession: v.optional(v.boolean()),
     // Optional canonical TaskEnvelopeV1 snapshot (undefined = legacy scalars below)
@@ -2949,7 +2945,7 @@ export default defineSchema({
   chatroom_conversationModePreferences: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     userId: v.id('users'),
-    mode: v.union(v.literal('chat'), v.literal('code'), v.literal('code:enhanced')),
+    mode: v.union(v.literal('chat'), v.literal('code')),
     updatedAt: v.number(),
   }).index('by_chatroom_user', ['chatroomId', 'userId']),
 

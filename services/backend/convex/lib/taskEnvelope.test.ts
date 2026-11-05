@@ -14,10 +14,10 @@ import { describe, expect, test } from 'vitest';
 
 import { taskEnvelopeV1Validator, type PersistedTaskEnvelopeV1 } from './taskEnvelope';
 
-const CANONICAL_CONVERSATION_MODES = ['chat', 'code', 'code:enhanced'];
+const CANONICAL_CONVERSATION_MODES = ['chat', 'code'];
 const CANONICAL_SESSION_POLICIES = ['continue', 'new'];
-const CANONICAL_PRESETS = ['direct', 'team', 'enhanced-team'];
-const CANONICAL_PHASES = ['entry', 'enhancement', 'implementation', 'delivery'];
+const CANONICAL_PRESETS = ['direct', 'team'];
+const CANONICAL_PHASES = ['entry', 'implementation', 'delivery'];
 
 function literalValues(validator: { members: readonly { value: string }[] }): string[] {
   return validator.members.map((member) => member.value);

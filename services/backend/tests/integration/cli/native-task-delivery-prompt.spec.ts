@@ -297,13 +297,12 @@ describe('Native task delivery prompt (integration)', () => {
       sourceMessageId: messageId,
     });
 
-    // Seed a valid explicit Chat envelope plus deliberately stale legacy
-    // mode/enhancer scalars so the envelope precedence is observable.
+    // Seed a valid explicit Chat envelope plus a deliberately stale legacy
+    // mode scalar so the envelope precedence is observable.
     await t.run(async (ctx) => {
       await ctx.db.patch('chatroom_tasks', taskId, {
         taskEnvelope: createTaskEnvelope({ conversationMode: 'chat', sessionPolicy: 'continue' }),
-        conversationMode: 'code:enhanced',
-        plannerEnhancerEnabled: true,
+        conversationMode: 'code',
       });
     });
 

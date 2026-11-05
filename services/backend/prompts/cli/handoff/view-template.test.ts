@@ -2,8 +2,8 @@
  * Tests for the pair- and mode-keyed view-template renderer.
  *
  * The mode selects the body: `chat` renders the chat response, while `code`
- * and `code:enhanced` share the proof-rich report. Mode is required; the pair
- * resolves first so pair errors keep precedence.
+ * renders the proof-rich report. Mode is required; the pair resolves first so
+ * pair errors keep precedence.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -45,23 +45,6 @@ describe('viewHandoffTemplate — conversation mode', () => {
     expect(code).toContain('Proof of Completion');
   });
 
-  test('code:enhanced renders byte-identical output to code', () => {
-    const code = viewHandoffTemplate({
-      from: 'planner',
-      to: 'user',
-      mode: 'code',
-      teamId: 'duo',
-    });
-    const enhanced = viewHandoffTemplate({
-      from: 'planner',
-      to: 'user',
-      mode: 'code:enhanced',
-      teamId: 'duo',
-    });
-
-    expect(enhanced).toBe(code);
-  });
-
   test('a mode-agnostic pair renders the same body for chat and code', () => {
     const chat = viewHandoffTemplate({
       from: 'planner',
@@ -94,6 +77,6 @@ describe('viewHandoffTemplate — conversation mode', () => {
         () => viewHandoffTemplate({ from: 'planner', to: 'user', mode: 'bogus', teamId: 'duo' }),
         'UNKNOWN_MODE'
       ).message
-    ).toBe('Unknown mode "bogus". Valid modes: chat, code, code:enhanced.');
+    ).toBe('Unknown mode "bogus". Valid modes: chat, code.');
   });
 });

@@ -846,17 +846,6 @@ describe('handoff-templates > conversation mode chat', () => {
     expect(template).toContain('<handoff-proofs>');
   });
 
-  test('code:enhanced mode user templates retain proof-rich historical output (duo)', () => {
-    const template = getHandoffTemplate({
-      teamId: 'duo',
-      fromRole: 'planner',
-      toRole: 'user',
-      conversationMode: 'code:enhanced',
-    });
-    expect(template).toContain('Handoff template `planner` → `user`');
-    expect(template).toContain('<handoff-proofs>');
-  });
-
   test('undefined mode user templates retain proof-rich historical output (duo)', () => {
     const template = getHandoffTemplate({
       teamId: 'duo',
@@ -873,17 +862,6 @@ describe('handoff-templates > conversation mode chat', () => {
       fromRole: 'solo',
       toRole: 'user',
       conversationMode: 'code',
-    });
-    expect(template).toContain('Handoff template `solo` → `user`');
-    expect(template).toContain('<handoff-proofs>');
-  });
-
-  test('code:enhanced mode user templates retain proof-rich historical output (solo)', () => {
-    const template = getHandoffTemplate({
-      teamId: 'solo',
-      fromRole: 'solo',
-      toRole: 'user',
-      conversationMode: 'code:enhanced',
     });
     expect(template).toContain('Handoff template `solo` → `user`');
     expect(template).toContain('<handoff-proofs>');

@@ -39,7 +39,7 @@ describe('normalizeHandoffMode', () => {
     expect(normalizeHandoffMode('')).toBeUndefined();
     expect(normalizeHandoffMode('   ')).toBeUndefined();
     expect(normalizeHandoffMode(' CODE ')).toBe('code');
-    expect(normalizeHandoffMode('Code:Enhanced')).toBe('code:enhanced');
+    expect(normalizeHandoffMode('Chat')).toBe('chat');
   });
 });
 
@@ -47,7 +47,6 @@ describe('isConversationMode', () => {
   test('accepts the canonical modes and rejects everything else', () => {
     expect(isConversationMode('chat')).toBe(true);
     expect(isConversationMode('code')).toBe(true);
-    expect(isConversationMode('code:enhanced')).toBe(true);
     expect(isConversationMode('bogus')).toBe(false);
     expect(isConversationMode('')).toBe(false);
   });
@@ -67,12 +66,6 @@ describe('formatHandoffTemplateKey', () => {
         mode: 'code',
       })
     ).toBe('duo:planner->builder@code');
-    expect(
-      formatHandoffTemplateKey({
-        pair: { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
-        mode: 'code:enhanced',
-      })
-    ).toBe('duo:planner->user@code');
   });
 });
 
@@ -147,9 +140,7 @@ describe('missingModeMessage', () => {
 
 describe('unknownModeMessage', () => {
   test('names the valid modes', () => {
-    expect(unknownModeMessage('bogus')).toBe(
-      'Unknown mode "bogus". Valid modes: chat, code, code:enhanced.'
-    );
+    expect(unknownModeMessage('bogus')).toBe('Unknown mode "bogus". Valid modes: chat, code.');
   });
 });
 

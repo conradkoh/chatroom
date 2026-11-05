@@ -45,7 +45,7 @@ async function createEntryPointTaskFromUserMessage(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   content: string,
-  conversationMode: 'chat' | 'code' | 'code:enhanced',
+  conversationMode: 'chat' | 'code',
   targetRole: 'planner' | 'solo'
 ): Promise<{ messageId: Id<'chatroom_messages'>; taskId: Id<'chatroom_tasks'> }> {
   const messageId = await t.mutation(api.messages.sendMessage, {
@@ -89,7 +89,7 @@ async function getDeliveryPrompt(
 }
 
 describe('getTaskDeliveryPrompt — duo planner verifier gate', () => {
-  test.each([['code' as const], ['code:enhanced' as const]])(
+  test.each([['code' as const]])(
     'entry-point planner in %s mode is told to obtain a verifier review',
     async (conversationMode) => {
       const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession(
@@ -188,7 +188,7 @@ describe('getTaskDeliveryPrompt — duo planner verifier gate', () => {
 });
 
 describe('getTaskDeliveryPrompt — solo entry-point verifier gate', () => {
-  test.each([['code' as const], ['code:enhanced' as const]])(
+  test.each([['code' as const]])(
     'solo entry point in %s mode is told to obtain a verifier review and rework itself',
     async (conversationMode) => {
       const { sessionId, chatroomId } = await setupSoloWorkspaceForSession(

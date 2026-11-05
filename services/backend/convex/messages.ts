@@ -1,4 +1,5 @@
 // fallow-ignore-file complexity code-duplication
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import {
   advanceTaskEnvelopeWorkflow,
   normalizeTaskEnvelope,
@@ -224,7 +225,7 @@ async function _sendMessageHandler(
     attachedSnippets?:
       { reference: string; fileSource: string; selectedContent: string }[] | undefined;
     startInNewSession?: boolean | undefined;
-    conversationMode?: 'chat' | 'code' | 'code:enhanced' | undefined;
+    conversationMode?: ConversationMode | undefined;
     taskEnvelope?: TaskEnvelopeV1 | undefined;
   }
 ) {
@@ -442,11 +443,7 @@ const attachedSnippetArgsValidator = v.object({
   selectedContent: v.string(),
 });
 
-const conversationModeValidator = v.union(
-  v.literal('chat'),
-  v.literal('code'),
-  v.literal('code:enhanced')
-);
+const conversationModeValidator = v.union(v.literal('chat'), v.literal('code'));
 
 const sendMessageMutationArgs = {
   ...SessionIdArg,
@@ -801,7 +798,7 @@ export async function runHandoffHandler(
 
   // TEMPORARY scalar compatibility projections for legacy readers, mirroring the
   // user-ingress recipe in send-automated-user-message.ts. The canonical envelope
-  // is always inherited; the scalar projections (conversationMode / plannerEnhancerEnabled /
+  // is always inherited; the scalar projections (conversationMode /
   // startInNewSession) are only written when the source task itself carries explicit
   // policy data (explicit envelope or legacy scalars). Fully legacy-allocated chains
   // keep the projections undefined until those readers migrate to taskEnvelope.
@@ -809,12 +806,10 @@ export async function runHandoffHandler(
     sourceTask &&
     (sourceTask.taskEnvelope !== undefined ||
       sourceTask.conversationMode !== undefined ||
-      sourceTask.plannerEnhancerEnabled !== undefined ||
       sourceTask.startInNewSession !== undefined) &&
     targetTaskEnvelope
       ? {
           conversationMode: targetTaskEnvelope.conversationMode,
-          plannerEnhancerEnabled: targetTaskEnvelope.conversationMode === 'code:enhanced',
           startInNewSession: targetTaskEnvelope.sessionPolicy === 'new',
         }
       : undefined;
@@ -1206,7 +1201,6 @@ export const listQueued = query({
       // Add queue-specific flags
       isQueued: true as const,
       queuePosition: qMsg.queuePosition,
-      plannerEnhancerEnabled: qMsg.plannerEnhancerEnabled,
       conversationMode: qMsg.conversationMode,
       startInNewSession: qMsg.startInNewSession,
       // Normalized canonical snapshot: complete for both legacy rows (derived)
@@ -1230,13 +1224,12 @@ export const listQueued = query({
  * TEMPORARY compatibility projection for legacy scalar readers. The canonical
  * TaskEnvelopeV1 is the only policy source; these scalar columns are derived
  * from it and are NOT independent inputs. Remove together with the
- * plannerEnhancerEnabled/conversationMode/startInNewSession columns after all
- * readers migrate to taskEnvelope.
+ * conversationMode/startInNewSession columns after all readers migrate to
+ * taskEnvelope.
  */
 function taskEnvelopeLegacyProjection(envelope: TaskEnvelopeV1) {
   return {
     taskEnvelope: envelope,
-    plannerEnhancerEnabled: envelope.conversationMode === 'code:enhanced',
     conversationMode: envelope.conversationMode,
     startInNewSession: envelope.sessionPolicy === 'new',
   };
@@ -1274,36 +1267,6 @@ export const updateQueuedMessageEnvelope = mutation({
       'chatroom_messageQueue',
       args.queuedMessageId,
       taskEnvelopeLegacyProjection(envelope)
-    );
-  },
-});
-
-/** Legacy adapter: derives the code mode from the boolean and rewrites the envelope. */
-export const updateQueuedMessagePlannerEnhancer = mutation({
-  args: {
-    ...SessionIdArg,
-    queuedMessageId: v.id('chatroom_messageQueue'),
-    plannerEnhancerEnabled: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
-    if (!record) {
-      throw new ConvexError({
-        code: 'QUEUED_MESSAGE_NOT_FOUND',
-        message: 'Queued message not found',
-      });
-    }
-    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    // Historical behavior: false maps to code (never chat).
-    const current = normalizeTaskEnvelope(record);
-    const next = withTaskEnvelopeConversationMode(
-      current,
-      args.plannerEnhancerEnabled ? 'code:enhanced' : 'code'
-    );
-    await ctx.db.patch(
-      'chatroom_messageQueue',
-      args.queuedMessageId,
-      taskEnvelopeLegacyProjection(next)
     );
   },
 });

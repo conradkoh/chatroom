@@ -129,38 +129,11 @@ describe('promoteQueuedMessage', () => {
     expect(task?.content).toBe('queued message content');
   });
 
-  test('promotes plannerEnhancerEnabled from queue record to task', async () => {
-    const { sessionId } = await createTestSession('promote-enh-flag');
-    const chatroomId = await createChatroom(sessionId);
-
-    const queuedMessageId = await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_messageQueue', {
-        chatroomId,
-        senderRole: 'user',
-        targetRole: 'planner',
-        content: 'enhanced task',
-        type: 'message',
-        queuePosition: 5,
-        plannerEnhancerEnabled: true,
-      });
-    });
-
-    const result = await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, queuedMessageId);
-    });
-
-    expect(result).toBeDefined();
-    const task = await t.run(async (ctx) => {
-      return await ctx.db.get('chatroom_tasks', result!.taskId);
-    });
-    expect(task?.plannerEnhancerEnabled).toBe(true);
-  });
-
   test('promotes conversationMode from queue record to task for each explicit mode', async () => {
     const { sessionId } = await createTestSession('promote-conv-mode');
     const chatroomId = await createChatroom(sessionId);
 
-    const modes = ['chat', 'code', 'code:enhanced'] as const;
+    const modes = ['chat', 'code'] as const;
     for (const mode of modes) {
       const queuedMessageId = await t.run(async (ctx) => {
         return await ctx.db.insert('chatroom_messageQueue', {
@@ -171,7 +144,6 @@ describe('promoteQueuedMessage', () => {
           type: 'message',
           queuePosition: 10,
           conversationMode: mode,
-          plannerEnhancerEnabled: mode === 'code:enhanced',
         });
       });
 
@@ -184,7 +156,7 @@ describe('promoteQueuedMessage', () => {
         return await ctx.db.get('chatroom_tasks', result!.taskId);
       });
       expect(task?.conversationMode).toBe(mode);
-      expect(task?.plannerEnhancerEnabled).toBe(mode === 'code:enhanced');
+      expect(task?.taskEnvelope?.conversationMode).toBe(mode);
     }
   });
 
@@ -200,7 +172,6 @@ describe('promoteQueuedMessage', () => {
         content: 'legacy task',
         type: 'message',
         queuePosition: 11,
-        plannerEnhancerEnabled: true,
         // No conversationMode — simulates legacy row
       });
     });
@@ -213,10 +184,9 @@ describe('promoteQueuedMessage', () => {
     const task = await t.run(async (ctx) => {
       return await ctx.db.get('chatroom_tasks', result!.taskId);
     });
-    // Canonical persistence derives the mode projection from the normalized
-    // envelope (legacy enhancer boolean true → code:enhanced).
-    expect(task?.conversationMode).toBe('code:enhanced');
-    expect(task?.plannerEnhancerEnabled).toBe(true);
+    // Canonical persistence derives the historical default mode for a legacy row.
+    expect(task?.conversationMode).toBe('code');
+    expect(task?.taskEnvelope?.conversationMode).toBe('code');
   });
 
   test('promotes startInNewSession from queue record to task', async () => {
@@ -432,7 +402,6 @@ describe('promoteQueuedMessage — TaskEnvelopeV1', () => {
         type: 'message',
         queuePosition: 21,
         conversationMode: 'chat',
-        plannerEnhancerEnabled: false,
       });
     });
 
@@ -450,43 +419,5 @@ describe('promoteQueuedMessage — TaskEnvelopeV1', () => {
     });
     // Temporary scalar projections are preserved for existing readers.
     expect(task?.conversationMode).toBe('chat');
-    expect(task?.plannerEnhancerEnabled).toBe(false);
-  });
-
-  test('legacy enhancer-scalar rows keep scalar expectations alongside the complete envelope', async () => {
-    const { sessionId } = await createTestSession('promote-env-enh-scalar');
-    const chatroomId = await createChatroom(sessionId);
-
-    const queuedMessageId = await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_messageQueue', {
-        chatroomId,
-        senderRole: 'user',
-        targetRole: 'planner',
-        content: 'enh scalar task',
-        type: 'message',
-        queuePosition: 22,
-        plannerEnhancerEnabled: true,
-        startInNewSession: true,
-      });
-    });
-
-    const result = await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, queuedMessageId);
-    });
-
-    expect(result).toBeDefined();
-    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result!.taskId));
-    // Normalized from the enhancer boolean → code:enhanced; session from the flag.
-    expect(task?.taskEnvelope).toEqual({
-      version: 1,
-      conversationMode: 'code:enhanced',
-      sessionPolicy: 'new',
-      handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
-    });
-    // Existing scalar expectations stay canonical: all projections derive from
-    // the complete envelope (code:enhanced/new).
-    expect(task?.plannerEnhancerEnabled).toBe(true);
-    expect(task?.startInNewSession).toBe(true);
-    expect(task?.conversationMode).toBe('code:enhanced');
   });
 });

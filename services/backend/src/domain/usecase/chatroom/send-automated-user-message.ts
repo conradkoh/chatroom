@@ -1,5 +1,4 @@
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
-import { plannerEnhancerEnabledForMode } from '@workspace/shared/domain/conversation-mode';
 import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
 import { reserveFrontQueuePosition } from './reserve-front-queue-position';
@@ -59,16 +58,12 @@ export async function sendAutomatedUserMessage(
 
   // TEMPORARY backwards-compatible scalar projections for legacy readers.
   // These fields are derived from the envelope only and are NOT sources of
-  // truth. Remove together with the
-  // plannerEnhancerEnabled/conversationMode/startInNewSession columns after
-  // all readers migrate to taskEnvelope.
+  // truth. Remove together with the conversationMode/startInNewSession columns
+  // after all readers migrate to taskEnvelope.
   const modeExplicitlySelected =
     args.taskEnvelope !== undefined || args.conversationMode !== undefined;
   const legacyConversationModeProjection = modeExplicitlySelected
     ? envelope.conversationMode
-    : undefined;
-  const legacyPlannerEnhancerProjection = modeExplicitlySelected
-    ? plannerEnhancerEnabledForMode(envelope.conversationMode)
     : undefined;
 
   if (enqueue) {
@@ -88,9 +83,6 @@ export async function sendAutomatedUserMessage(
       ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
       ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
       // TEMPORARY scalar projections (see legacy recipe above).
-      ...(legacyPlannerEnhancerProjection !== undefined
-        ? { plannerEnhancerEnabled: legacyPlannerEnhancerProjection }
-        : {}),
       ...(legacyConversationModeProjection !== undefined
         ? { conversationMode: legacyConversationModeProjection }
         : {}),
@@ -132,9 +124,6 @@ export async function sendAutomatedUserMessage(
     queuePosition,
     startInNewSession: args.startInNewSession,
     // TEMPORARY scalar projections (see legacy recipe above).
-    ...(legacyPlannerEnhancerProjection !== undefined
-      ? { plannerEnhancerEnabled: legacyPlannerEnhancerProjection }
-      : {}),
     ...(legacyConversationModeProjection !== undefined
       ? { conversationMode: legacyConversationModeProjection }
       : {}),

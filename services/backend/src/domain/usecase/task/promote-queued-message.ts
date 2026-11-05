@@ -88,9 +88,6 @@ export async function promoteQueuedMessage(
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
     // TEMPORARY legacy scalar projections for existing readers; derived from the
     // queue row and NOT independent policy inputs. Remove after reader migration.
-    ...(queueRecord.plannerEnhancerEnabled !== undefined
-      ? { plannerEnhancerEnabled: queueRecord.plannerEnhancerEnabled }
-      : {}),
     ...(queueRecord.conversationMode !== undefined
       ? { conversationMode: queueRecord.conversationMode }
       : {}),

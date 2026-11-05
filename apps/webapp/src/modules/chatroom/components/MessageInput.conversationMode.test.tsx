@@ -36,7 +36,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 
 vi.mock('../hooks/useConversationMode', () => ({
   useConversationMode: () => ({
-    mode: 'code:enhanced',
+    mode: 'code',
     setMode: vi.fn(),
     hasUserSelected: false,
   }),
@@ -131,9 +131,9 @@ describe('MessageInput conversationMode', () => {
     expect(args).not.toHaveProperty('startInNewSession');
     expect(args.taskEnvelope).toEqual({
       version: 1,
-      conversationMode: 'code:enhanced',
+      conversationMode: 'code',
       sessionPolicy: 'continue',
-      handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
+      handoffWorkflow: { preset: 'team', phase: 'entry' },
     });
   });
 
@@ -149,10 +149,10 @@ describe('MessageInput conversationMode', () => {
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
     });
 
-    // Mode should still be code:enhanced for the next send
+    // Mode should still be code for the next send
     const currentFirst = mockSendMessage.mock.calls[0][0] as Record<string, unknown>;
     expect((currentFirst.taskEnvelope as { conversationMode: string }).conversationMode).toBe(
-      'code:enhanced'
+      'code'
     );
 
     fireEvent.change(textarea, { target: { value: 'second message' } });
@@ -163,7 +163,7 @@ describe('MessageInput conversationMode', () => {
     });
     const currentSecond = mockSendMessage.mock.calls[1][0] as Record<string, unknown>;
     expect((currentSecond.taskEnvelope as { conversationMode: string }).conversationMode).toBe(
-      'code:enhanced'
+      'code'
     );
   });
 
@@ -188,8 +188,6 @@ describe('MessageInput conversationMode', () => {
 
     // The failed-send call still carried the correct complete envelope.
     const args = mockSendMessage.mock.calls[0][0] as Record<string, unknown>;
-    expect((args.taskEnvelope as { conversationMode: string }).conversationMode).toBe(
-      'code:enhanced'
-    );
+    expect((args.taskEnvelope as { conversationMode: string }).conversationMode).toBe('code');
   });
 });

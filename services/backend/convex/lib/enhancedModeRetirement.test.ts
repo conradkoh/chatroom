@@ -6,12 +6,16 @@
  * expectations from the helper itself.
  */
 
-import { isTaskEnvelopeV1, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
+import { isTaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 import { describe, expect, test } from 'vitest';
 
 import { retireEnhancedScalarMode, retireEnhancedTaskEnvelope } from './enhancedModeRetirement';
 
-const ENHANCED_ENVELOPE: TaskEnvelopeV1 = {
+/**
+ * A stored envelope from before the narrowing. Typed as a plain record because
+ * the shared `TaskEnvelopeV1` no longer accepts the retired literals.
+ */
+const ENHANCED_ENVELOPE = {
   version: 1,
   conversationMode: 'code:enhanced',
   sessionPolicy: 'new',

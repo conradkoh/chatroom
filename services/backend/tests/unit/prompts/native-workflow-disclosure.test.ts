@@ -244,25 +244,6 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
   });
 
-  test('duo planner code:enhanced entry-point user task adds no enhance-mode guidance', () => {
-    const output = generateNativeTaskDeliveryOutput({
-      chatroomId: CHATROOM_ID,
-      role: 'planner',
-      teamId: 'duo',
-      cliEnvPrefix: CLI_ENV,
-      task: { _id: 'task-id', content: 'Design the feature' },
-      message: { _id: 'msg-id', senderRole: 'user' },
-      availableHandoffTargets: ['builder', 'architect', 'uiux-engineer', 'user'],
-      isEntryPoint: true,
-      conversationMode: 'code:enhanced',
-    });
-
-    expect(output).not.toContain('<enhance-mode>');
-    expect(output).not.toContain('exactly one recommended design');
-    expect(output).not.toContain('<handoff-enhancer>');
-    expect(output).not.toContain('<chat-mode>');
-  });
-
   test('solo chat entry-point user keeps base templates and advertises architect and UI/UX engineer roles', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: CHATROOM_ID,

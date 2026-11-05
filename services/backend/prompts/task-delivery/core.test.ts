@@ -81,20 +81,6 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
     expectNoEnhancerCeremony(output);
   });
 
-  test('code:enhanced mode adds no enhance-mode guidance', () => {
-    const output = renderHandoffSections({
-      role: 'planner',
-      isEntryPoint: true,
-      message: { _id: 'user-msg', senderRole: 'user' },
-      availableHandoffTargets: ['architect', 'builder', 'user'],
-      conversationMode: 'code:enhanced',
-    });
-
-    expect(output).not.toContain('<enhance-mode>');
-    expect(output).not.toContain('exactly one recommended design');
-    expect(output).toContain('--next-role="user"');
-  });
-
   test('a task from the configured ephemeral role follows standard intake recommendations', () => {
     const output = renderHandoffSections({
       message: { _id: 'ephemeral-msg', senderRole: 'enhancer' },
@@ -189,8 +175,6 @@ describe('appendTaskDeliveryHandoffSections — verifier gate', () => {
   test.each([
     ['code mode, user-origin task', 'code' as const, 'user' as const],
     ['code mode, builder-return task', 'code' as const, 'builder' as const],
-    ['code:enhanced mode, user-origin task', 'code:enhanced' as const, 'user' as const],
-    ['code:enhanced mode, builder-return task', 'code:enhanced' as const, 'builder' as const],
   ])(
     'entry-point planner task in %s includes the verifier gate',
     (_label, conversationMode, senderRole) => {
@@ -260,7 +244,7 @@ describe('appendTaskDeliveryHandoffSections — solo verifier gate', () => {
     });
   }
 
-  test.each([['code' as const], ['code:enhanced' as const]])(
+  test.each([['code' as const]])(
     'solo entry point in %s includes the gate with self-rework',
     (conversationMode) => {
       const output = renderSolo({
