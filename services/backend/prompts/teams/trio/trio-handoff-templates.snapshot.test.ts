@@ -82,6 +82,15 @@ describe('trio handoff template snapshots', () => {
     }
   });
 
+  test('specifier → coordinator chat reply is a short body, not the report', () => {
+    const body = renderSpecifierToCoordinator('chat');
+
+    expect(body).not.toContain('## ');
+    expect(body).not.toContain('Proof of Principles');
+    expect(body).not.toContain('handoff-proofs');
+    expect(body).not.toContain('Template Disclosure Confirmation');
+  });
+
   test('specifier → builder brief defers open questions to the coordinator', () => {
     const specifierToBuilder = trioPairs.find(
       (pair) => pair.fromRole === 'specifier' && pair.toRole === 'builder'
