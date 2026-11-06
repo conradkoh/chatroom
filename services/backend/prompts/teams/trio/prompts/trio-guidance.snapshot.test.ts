@@ -9,6 +9,7 @@
 import { TEAM_PRESETS } from '@workspace/shared/domain/team-presets';
 import { describe, expect, test } from 'vitest';
 
+import { getHandoffContinuityRule } from '../../../native/session-continuity';
 import { buildSelectorContext, getRoleGuidanceFromContext } from '../../../selector-context';
 
 const CHATROOM_ID = 'test-chatroom-id';
@@ -69,6 +70,7 @@ describe('trio role guidance', () => {
     expect(guidance).not.toContain('(including to `user`)');
     if (!nativeIntegration) {
       expect(guidance).toContain('after any handoff, run `get-next-task`');
+      expect(guidance).toContain(getHandoffContinuityRule(false, { includeUser: false }));
     }
     expect(guidance).toContain(
       `chatroom skill activate code-review --chatroom-id="${CHATROOM_ID}" --role="specifier"`

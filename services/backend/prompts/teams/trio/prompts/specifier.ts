@@ -10,7 +10,10 @@
 import { getTrioSharedThreadLine } from './shared-thread';
 import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
 import { buildCmdHelper, getHandoffTemplateDiscoveryGuidance } from '../../../cli/sections';
-import { getSessionContinuityLine } from '../../../native/session-continuity';
+import {
+  getSessionContinuityLine,
+  getHandoffContinuityRule,
+} from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 
 function getSpecifierOperatingModel(): string {
@@ -33,9 +36,7 @@ flowchart TD
 }
 
 function getSpecifierHandoffRules(nativeIntegration?: boolean): string {
-  const continuityRule = nativeIntegration
-    ? ''
-    : '⚠️ When the harness does not support native integration: after any handoff, run `get-next-task` to stay in the session.';
+  const continuityRule = getHandoffContinuityRule(nativeIntegration, { includeUser: false });
   const continuityBlock = continuityRule ? `${continuityRule}\n\n` : '';
 
   return `**Handoff Rules:**
