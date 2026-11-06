@@ -46,6 +46,8 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('**Never hand off to `builder`.**');
     expect(guidance).toContain('**Only you can hand off to `user`**');
     expect(guidance).toContain('`coordinator` → `specifier` is always a new session');
+    expect(guidance).toContain('before any specifier delegation');
+    expect(guidance).not.toContain('before any builder delegation');
   });
 
   test.each(GUIDANCE_VARIANTS)('specifier guidance (%s)', (variant, nativeIntegration) => {
