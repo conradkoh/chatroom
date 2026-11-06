@@ -30,8 +30,19 @@ export const taskEnvelopeV1Validator = v.object({
   ),
   sessionPolicy: v.union(v.literal('continue'), v.literal('new')),
   handoffWorkflow: v.object({
-    preset: v.union(v.literal('direct'), v.literal('team')),
-    phase: v.union(v.literal('entry'), v.literal('implementation'), v.literal('delivery')),
+    preset: v.union(
+      v.literal('direct'),
+      v.literal('team'),
+      // @deprecated Retired preset. Kept so historical rows validate; reads remap it to 'team'. Never write it.
+      v.literal('enhanced-team')
+    ),
+    phase: v.union(
+      v.literal('entry'),
+      // @deprecated Retired phase. Kept so historical rows validate; reads remap it to 'implementation'. Never write it.
+      v.literal('enhancement'),
+      v.literal('implementation'),
+      v.literal('delivery')
+    ),
   }),
 });
 

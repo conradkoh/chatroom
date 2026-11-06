@@ -16,8 +16,8 @@ import { taskEnvelopeV1Validator, type PersistedTaskEnvelopeV1 } from './taskEnv
 
 const ACCEPTED_CONVERSATION_MODES = ['chat', 'code', 'code:enhanced'];
 const CANONICAL_SESSION_POLICIES = ['continue', 'new'];
-const CANONICAL_PRESETS = ['direct', 'team'];
-const CANONICAL_PHASES = ['entry', 'implementation', 'delivery'];
+const ACCEPTED_PRESETS = ['direct', 'team', 'enhanced-team'];
+const ACCEPTED_PHASES = ['entry', 'enhancement', 'implementation', 'delivery'];
 
 function literalValues(validator: { members: readonly { value: string }[] }): string[] {
   return validator.members.map((member) => member.value);
@@ -53,13 +53,13 @@ describe('taskEnvelopeV1Validator shape', () => {
     expect(version.value).toBe(1);
   });
 
-  test('literal member sets match the accepted values, including the deprecated mode', () => {
+  test('literal member sets match the accepted values, including the deprecated literals', () => {
     // `code:enhanced` is retired but stays accepted so historical rows still validate.
     expect(literalValues(envelopeFields().conversationMode)).toEqual(ACCEPTED_CONVERSATION_MODES);
     expect(literalValues(envelopeFields().sessionPolicy)).toEqual(CANONICAL_SESSION_POLICIES);
     const workflowFields = envelopeFields().handoffWorkflow.fields;
-    expect(literalValues(workflowFields.preset)).toEqual(CANONICAL_PRESETS);
-    expect(literalValues(workflowFields.phase)).toEqual(CANONICAL_PHASES);
+    expect(literalValues(workflowFields.preset)).toEqual(ACCEPTED_PRESETS);
+    expect(literalValues(workflowFields.phase)).toEqual(ACCEPTED_PHASES);
   });
 
   test('unknown conversation modes are not accepted', () => {
