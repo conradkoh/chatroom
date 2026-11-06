@@ -91,6 +91,7 @@ import type * as integrations_types from "../integrations/types.js";
 import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
 import type * as lib_chatroomTeam from "../lib/chatroomTeam.js";
 import type * as lib_chatroomUtils from "../lib/chatroomUtils.js";
+import type * as lib_enhancedModeRetirement from "../lib/enhancedModeRetirement.js";
 import type * as lib_fileTreeDeltaOps from "../lib/fileTreeDeltaOps.js";
 import type * as lib_handoffRoles from "../lib/handoffRoles.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
@@ -245,6 +246,7 @@ declare const fullApi: ApiFromModules<{
   "lib/backlogStateMachine": typeof lib_backlogStateMachine;
   "lib/chatroomTeam": typeof lib_chatroomTeam;
   "lib/chatroomUtils": typeof lib_chatroomUtils;
+  "lib/enhancedModeRetirement": typeof lib_enhancedModeRetirement;
   "lib/fileTreeDeltaOps": typeof lib_fileTreeDeltaOps;
   "lib/handoffRoles": typeof lib_handoffRoles;
   "lib/hierarchy": typeof lib_hierarchy;

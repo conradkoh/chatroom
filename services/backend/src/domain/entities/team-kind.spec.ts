@@ -23,7 +23,7 @@ describe('TeamKind', () => {
   });
 
   test('WELL_KNOWN_TEAM_KINDS contains expected values', () => {
-    expect(WELL_KNOWN_TEAM_KINDS).toEqual(['duo', 'solo']);
+    expect(WELL_KNOWN_TEAM_KINDS).toEqual(['duo', 'solo', 'trio']);
   });
 
   test('TeamKindEnum has entries for each kind', () => {

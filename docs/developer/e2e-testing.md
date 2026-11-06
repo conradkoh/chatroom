@@ -44,7 +44,7 @@ Pull requests targeting `master` use `github.repository` in `.github/workflows/e
 
 ## Builtin agent sidebar regression
 
-`specs/downstream/agent-sidebar.spec.ts` exercises the authenticated chatroom route for separate Duo and Solo rooms. It reads each room's real team structure and status APIs, then checks every declared role appears once under its expected sidebar group with an offline label and no saved workspace configuration, machine, or launch request. It also reloads the room and rechecks its persisted assignment. Readiness waits target the Welcome heading, Setup Workspace dialog, and actual role rows; the test does not wait for `networkidle`.
+`specs/downstream/agent-sidebar.spec.ts` exercises the authenticated chatroom route for separate Duo, Solo, and Trio rooms. It reads each room's real team structure and status APIs, then checks every declared role appears once under its expected sidebar group with an offline label and no saved workspace configuration, machine, or launch request. It also reloads the room and rechecks its persisted assignment. Readiness waits target the Welcome heading, Setup Workspace dialog, and actual role rows; the test does not wait for `networkidle`.
 
 Run the focused Chromium cases with:
 

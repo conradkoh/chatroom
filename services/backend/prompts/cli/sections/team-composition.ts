@@ -11,7 +11,12 @@
 
 export interface TeamCompositionConfig {
   hasBuilder: boolean;
+  /** Role that receives implementation delegations; default 'builder'. */
+  implementationRole?: string | undefined;
 }
+
+export const AGENT_PRESENCE_NOTE =
+  '**Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.';
 
 /**
  * Generate the team composition section for planner prompts.
@@ -30,5 +35,5 @@ export function getTeamCompositionSection(teamMembers: string[]): string {
 
   return `**Team composition:** Duo team — you coordinate with ${roleList} for implementation.
 
-**Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.`;
+${AGENT_PRESENCE_NOTE}`;
 }

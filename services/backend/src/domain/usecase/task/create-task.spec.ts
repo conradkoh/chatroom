@@ -368,7 +368,6 @@ describe('createTask — TaskEnvelopeV1', () => {
     });
     // Scalar columns equal the projection derived from the stored envelope.
     expect(task?.conversationMode).toBe('code');
-    expect(task?.plannerEnhancerEnabled).toBe(false);
     expect(task?.startInNewSession).toBe(true);
   });
 
@@ -389,7 +388,6 @@ describe('createTask — TaskEnvelopeV1', () => {
         createdBy: 'user',
         content: 'explicit envelope task',
         queuePosition: 0,
-        plannerEnhancerEnabled: true,
         conversationMode: 'code',
         startInNewSession: false,
         taskEnvelope: suppliedEnvelope,
@@ -402,7 +400,6 @@ describe('createTask — TaskEnvelopeV1', () => {
     expect(task?.taskEnvelope).toEqual(suppliedEnvelope);
     // Scalar columns are projections of the envelope, not the stale inputs.
     expect(task?.conversationMode).toBe('chat');
-    expect(task?.plannerEnhancerEnabled).toBe(false);
     expect(task?.startInNewSession).toBe(true);
   });
 
@@ -412,9 +409,9 @@ describe('createTask — TaskEnvelopeV1', () => {
 
     const suppliedEnvelope = {
       version: 1 as const,
-      conversationMode: 'code:enhanced' as const,
+      conversationMode: 'code' as const,
       sessionPolicy: 'continue' as const,
-      handoffWorkflow: { preset: 'enhanced-team' as const, phase: 'entry' as const },
+      handoffWorkflow: { preset: 'team' as const, phase: 'entry' as const },
     };
 
     const { taskId } = await t.run(async (ctx) => {

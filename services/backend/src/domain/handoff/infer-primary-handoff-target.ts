@@ -9,6 +9,10 @@
  *
  * Default: return work to the task sender. Entry point receiving team-member
  * work delivers to `user` (rework to builder remains in `<handoffs>`).
+ *
+ * Enforced-team override: when the active team declares an upstream role
+ * (`returnsTo[0]`, passed as `upstreamRole`) and that role is an advertised
+ * target, non-entry-point work returns upstream regardless of the sender.
  */
 
 export interface InferPrimaryHandoffTargetParams {
@@ -17,6 +21,8 @@ export interface InferPrimaryHandoffTargetParams {
   availableHandoffTargets: string[];
   /** True when this role is the team entry point (e.g. duo planner). */
   isEntryPoint?: boolean | undefined;
+  /** Enforced-team contract upstream (`returnsTo[0]`); omitted for advisory teams. */
+  upstreamRole?: string | undefined;
 }
 
 // fallow-ignore-next-line complexity
@@ -24,6 +30,7 @@ export function inferPrimaryHandoffTarget(
   params: InferPrimaryHandoffTargetParams
 ): string | undefined {
   const { senderRole, role, availableHandoffTargets, isEntryPoint } = params;
+  const upstreamRole = params.upstreamRole;
 
   if (availableHandoffTargets.length === 0) {
     return undefined;
@@ -46,6 +53,14 @@ export function inferPrimaryHandoffTarget(
     availableHandoffTargets.some((target) => target.toLowerCase() === 'user')
   ) {
     return 'user';
+  }
+
+  if (
+    !isEntryPoint &&
+    upstreamRole &&
+    availableHandoffTargets.some((target) => target.toLowerCase() === upstreamRole.toLowerCase())
+  ) {
+    return upstreamRole;
   }
 
   return senderRole;

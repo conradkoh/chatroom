@@ -1,5 +1,5 @@
 /**
- * Key: `duo:planner->reviewer@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `duo:planner->reviewer@code` (bucket `code`).
  * Duo planner → reviewer code-bucket body. Delegates to the shared body getter; the chat file re-exports this.
  */
 import type { HandoffTemplateQuery } from '../../../cli/handoff-templates/contracts';

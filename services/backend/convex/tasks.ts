@@ -1,8 +1,5 @@
 import { needsManualQueuePromotion } from '@workspace/shared/domain/entities/work-queue';
-import {
-  normalizeTaskEnvelope,
-  withTaskEnvelopeSessionPolicy,
-} from '@workspace/shared/domain/task-envelope';
+import { withTaskEnvelopeSessionPolicy } from '@workspace/shared/domain/task-envelope';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -18,6 +15,7 @@ import { getSession } from './auth/session';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
+import { normalizePersistedTaskEnvelope } from './lib/taskEnvelope';
 import { WorkspaceTaskInboxEventType } from '../src/domain/entities/chatroom-workspace-task-inbox';
 import {
   normalizeMarkdownContent,
@@ -140,7 +138,7 @@ export const updateTaskStartInNewSession = mutation({
     // envelope read/transform/write. Mode, preset, and phase are preserved; only
     // the session policy changes. The scalar columns are projections of the new
     // envelope, never independent policy.
-    const current = normalizeTaskEnvelope(task);
+    const current = normalizePersistedTaskEnvelope(task);
     const next = withTaskEnvelopeSessionPolicy(
       current,
       args.startInNewSession ? 'new' : 'continue'

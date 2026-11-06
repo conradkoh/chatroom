@@ -76,7 +76,7 @@ describe('handoff list-templates', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('no longer accepts --role/--next-role');
     expect(getErrorOutput()).toContain(
-      '--from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+      '--from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"'
     );
   });
 
@@ -84,6 +84,19 @@ describe('handoff list-templates', () => {
     printHandoffListTemplates({ from: 'planner', to: 'builder', mode: 'code', teamId: 'tri' });
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo.');
+    expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo, trio.');
+  });
+
+  it('lists the specifier pair commands for the trio team', () => {
+    printHandoffListTemplates({ legacyRole: 'specifier', teamId: 'trio' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = getErrorOutput();
+    expect(output).toContain(
+      '--from="specifier" --to="coordinator" --mode="<chat|code>" --team-id="trio"'
+    );
+    expect(output).toContain(
+      '--from="specifier" --to="builder" --mode="<chat|code>" --team-id="trio"'
+    );
   });
 });

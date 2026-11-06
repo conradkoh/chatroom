@@ -3,6 +3,7 @@ import { Migrations, type MigrationFunctionReference } from '@convex-dev/migrati
 import { components, internal } from './_generated/api';
 import type { DataModel, Doc } from './_generated/dataModel';
 import { query } from './_generated/server';
+import { retireEnhancedScalarMode, retireEnhancedTaskEnvelope } from './lib/enhancedModeRetirement';
 import {
   compactFileTreeDeltaOperation,
   expandFileTreeDeltaOperations,
@@ -444,6 +445,89 @@ export const migrateTaskEnhancerEnabledSnapshot = migrations.define({
     if (task.enhancerEnabledAtEnqueue !== undefined || task.plannerEnhancerEnabled === undefined)
       return;
     return { enhancerEnabledAtEnqueue: task.plannerEnhancerEnabled };
+  },
+});
+
+// --- Conversation mode retirement ---
+
+/**
+ * Migration: retire the `code:enhanced` conversation mode from tasks.
+ *
+ * Rewrites `conversationMode: 'code:enhanced'` to `'code'` and remaps the
+ * stored task envelope (`enhanced-team` → `team`, `enhancement` →
+ * `implementation`). Must run before the schema narrows, because the narrowed
+ * validator rejects the old values.
+ *
+ * Run via: pnpm migrate (included in migrations:runAll).
+ * Idempotent: rows with no old value are skipped (`migrateOne` returns
+ * `undefined`), so a second run patches zero rows.
+ */
+export const retireEnhancedModeTasks = migrations.define({
+  table: 'chatroom_tasks',
+  migrateOne: async (_ctx, task) => {
+    const raw = task as Record<string, unknown>;
+    const patch: Record<string, unknown> = {};
+    if (retireEnhancedScalarMode(raw.conversationMode)) patch.conversationMode = 'code';
+    const envelope = retireEnhancedTaskEnvelope(raw.taskEnvelope);
+    if (envelope) patch.taskEnvelope = envelope;
+    if (Object.keys(patch).length > 0) return migrationPatch<Doc<'chatroom_tasks'>>(patch);
+  },
+});
+
+/**
+ * Migration: retire the `code:enhanced` conversation mode from queued messages.
+ *
+ * Same remap as {@link retireEnhancedModeTasks}, applied to the message queue's
+ * scalar mode and task envelope. Must run before the schema narrows.
+ *
+ * Run via: pnpm migrate (included in migrations:runAll). Idempotent.
+ */
+export const retireEnhancedModeQueuedMessages = migrations.define({
+  table: 'chatroom_messageQueue',
+  migrateOne: async (_ctx, row) => {
+    const raw = row as Record<string, unknown>;
+    const patch: Record<string, unknown> = {};
+    if (retireEnhancedScalarMode(raw.conversationMode)) patch.conversationMode = 'code';
+    const envelope = retireEnhancedTaskEnvelope(raw.taskEnvelope);
+    if (envelope) patch.taskEnvelope = envelope;
+    if (Object.keys(patch).length > 0) return migrationPatch<Doc<'chatroom_messageQueue'>>(patch);
+  },
+});
+
+/**
+ * Migration: retire the `code:enhanced` conversation mode from scheduled prompts.
+ *
+ * Scheduled prompts store only a task envelope, so remap the envelope fields
+ * (`code:enhanced` → `code`, `enhanced-team` → `team`, `enhancement` →
+ * `implementation`). Must run before the schema narrows.
+ *
+ * Run via: pnpm migrate (included in migrations:runAll). Idempotent.
+ */
+export const retireEnhancedModeScheduledPrompts = migrations.define({
+  table: 'chatroom_scheduledPrompts',
+  migrateOne: async (_ctx, prompt) => {
+    const raw = prompt as Record<string, unknown>;
+    const envelope = retireEnhancedTaskEnvelope(raw.taskEnvelope);
+    if (envelope)
+      return migrationPatch<Doc<'chatroom_scheduledPrompts'>>({ taskEnvelope: envelope });
+  },
+});
+
+/**
+ * Migration: retire the `code:enhanced` conversation mode from chatroom preferences.
+ *
+ * Rewrites the stored preference mode `'code:enhanced'` to `'code'`. Must run
+ * before the schema narrows.
+ *
+ * Run via: pnpm migrate (included in migrations:runAll). Idempotent.
+ */
+export const retireEnhancedModePreferences = migrations.define({
+  table: 'chatroom_conversationModePreferences',
+  migrateOne: async (_ctx, preference) => {
+    const raw = preference as Record<string, unknown>;
+    if (retireEnhancedScalarMode(raw.mode)) {
+      return migrationPatch<Doc<'chatroom_conversationModePreferences'>>({ mode: 'code' });
+    }
   },
 });
 
@@ -964,6 +1048,11 @@ const allMigrationReferences = [
   // Saved Commands
   internal.migrations.backfillSavedCommandScope,
   internal.migrations.migrateTaskEnhancerEnabledSnapshot,
+  // Conversation mode retirement (run before the schema narrowing ships)
+  internal.migrations.retireEnhancedModeTasks,
+  internal.migrations.retireEnhancedModeQueuedMessages,
+  internal.migrations.retireEnhancedModeScheduledPrompts,
+  internal.migrations.retireEnhancedModePreferences,
   // Machine Config Favorites
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
   internal.migrations.migrateMachineConfigFavoriteModelPrefixes,

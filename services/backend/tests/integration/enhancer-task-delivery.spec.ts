@@ -35,7 +35,7 @@ async function createPlannerTaskFromUserMessage(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   content: string,
-  opts?: { conversationMode?: 'chat' | 'code' | 'code:enhanced' }
+  opts?: { conversationMode?: 'chat' | 'code' }
 ): Promise<{ messageId: Id<'chatroom_messages'>; taskId: Id<'chatroom_tasks'> }> {
   const messageId = await t.mutation(api.messages.sendMessage, {
     sessionId,
@@ -77,7 +77,7 @@ async function getPlannerDeliveryPrompt(
 }
 
 describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
-  test('planner user task uses ordinary user handoff despite enhanced compatibility mode', async () => {
+  test('planner user task uses ordinary user handoff with an explicit code mode', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-delivery-enabled');
     await setPlannerAsEntryPoint(chatroomId);
@@ -88,7 +88,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
       sessionId,
       chatroomId,
       'Add dark mode to settings',
-      { conversationMode: 'code:enhanced' }
+      { conversationMode: 'code' }
     );
 
     const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
@@ -111,7 +111,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
       content: 'Add request-first planning to solo',
       targetRole: 'solo',
       type: 'message',
-      conversationMode: 'code:enhanced',
+      conversationMode: 'code',
     });
     const soloTask = await t.run(async (ctx) => {
       return await ctx.db
@@ -147,7 +147,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
     expect(prompt).not.toContain('forward the request before planning');
   });
 
-  test('planner user task ignores a stale enhancer snapshot for prompt ceremony', async () => {
+  test('planner user task ignores a stale scalar mode for prompt ceremony', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession(
       'enh-delivery-snapshot-noconfig'
     );
@@ -160,7 +160,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
     );
 
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_tasks', taskId, { plannerEnhancerEnabled: true });
+      await ctx.db.patch('chatroom_tasks', taskId, { conversationMode: 'chat' });
     });
 
     const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
@@ -211,7 +211,6 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
         status: 'in_progress',
         assignedTo: 'planner',
         sourceMessageId: msgId,
-        plannerEnhancerEnabled: true,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         queuePosition: 1,
@@ -229,7 +228,6 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
         assignedTo: 'architect',
         originUserMessageId,
         sourceMessageId: originUserMessageId,
-        plannerEnhancerEnabled: true,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         queuePosition: 1,

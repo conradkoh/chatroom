@@ -10,6 +10,7 @@ import {
 const architectPairs = [
   ...listHandoffTemplatePairs('duo'),
   ...listHandoffTemplatePairs('solo'),
+  ...listHandoffTemplatePairs('trio'),
 ].filter((pair) => pair.fromRole === 'architect' || pair.toRole === 'architect');
 
 function renderPair(pair: HandoffTemplatePair): string {

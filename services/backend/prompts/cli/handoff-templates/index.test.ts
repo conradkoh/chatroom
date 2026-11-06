@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest';
 import { validateRoleHandoffContracts } from './contracts';
 import type { RoleHandoffContract } from './contracts';
 import {
+  getEnforcedHandoffTargets,
   getHandoffTemplate,
   getReplyHandoffTemplatePair,
   listHandoffTemplatePairs,
@@ -339,7 +340,7 @@ describe('resolveHandoffTemplateSelection — pair normalization and precedence'
         ),
       'UNKNOWN_TEAM'
     );
-    expect(unknownTeam.message).toBe('Unknown team "tri". Known teams: duo, solo.');
+    expect(unknownTeam.message).toBe('Unknown team "tri". Known teams: duo, solo, trio.');
 
     const unknownFrom = expectPairError(
       () =>
@@ -401,7 +402,7 @@ describe('resolveHandoffTemplateSelection', () => {
           ),
         'UNKNOWN_MODE'
       ).message
-    ).toBe('Unknown mode "bogus". Valid modes: chat, code, code:enhanced.');
+    ).toBe('Unknown mode "bogus". Valid modes: chat, code.');
   });
 
   test('pair errors keep precedence over a missing or unknown mode', () => {
@@ -425,6 +426,77 @@ describe('resolveHandoffTemplateSelection', () => {
         ),
       'UNKNOWN_TEAM'
     );
+  });
+});
+
+describe('trio handoff graph', () => {
+  test('specifier and builder return only to their contract targets', () => {
+    expect(listHandoffTemplatePairs('trio', 'specifier').map((p) => p.toRole)).toEqual([
+      'coordinator',
+      'builder',
+    ]);
+    expect(listHandoffTemplatePairs('trio', 'builder').map((p) => p.toRole)).toEqual(['specifier']);
+  });
+
+  test('the coordinator never hands off to builder', () => {
+    expect(listHandoffTemplatePairs('trio', 'coordinator').map((p) => p.toRole)).not.toContain(
+      'builder'
+    );
+  });
+
+  test('rejects pairs outside the trio graph with UNKNOWN_PAIR', () => {
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'specifier', to: 'user', mode: 'code', teamId: 'trio' },
+          'view-template'
+        ),
+      'UNKNOWN_PAIR'
+    );
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'builder', to: 'coordinator', mode: 'code', teamId: 'trio' },
+          'view-template'
+        ),
+      'UNKNOWN_PAIR'
+    );
+  });
+
+  test('rejects a role that is not a trio member', () => {
+    expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'planner', to: 'builder', mode: 'code', teamId: 'trio' },
+          'view-template'
+        ),
+      'UNKNOWN_FROM_ROLE'
+    );
+  });
+
+  test('rejects an unknown team and names every known team', () => {
+    const error = expectPairError(
+      () =>
+        resolveHandoffTemplateSelection(
+          { from: 'coordinator', to: 'specifier', mode: 'code', teamId: 'quartet' },
+          'view-template'
+        ),
+      'UNKNOWN_TEAM'
+    );
+    expect(error.message).toContain('duo, solo, trio');
+  });
+});
+
+describe('getEnforcedHandoffTargets', () => {
+  test('returns contract targets in returnsTo order for enforced teams', () => {
+    expect(getEnforcedHandoffTargets('trio', 'specifier')).toEqual(['coordinator', 'builder']);
+    expect(getEnforcedHandoffTargets('trio@1', 'Builder')).toEqual(['specifier']);
+  });
+
+  test('returns null for advisory teams, non-members, and unknown teams', () => {
+    expect(getEnforcedHandoffTargets('duo', 'builder')).toBeNull();
+    expect(getEnforcedHandoffTargets('trio', 'planner')).toBeNull();
+    expect(getEnforcedHandoffTargets('custom', 'x')).toBeNull();
   });
 });
 

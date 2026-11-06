@@ -51,7 +51,7 @@ export function getResearcherToEntryPointHandoffTemplate(query: HandoffTemplateQ
 <one line per source: URL, the version or date checked, whether it is primary (official documentation, source code, changelog, release notes) or secondary, and the specific claim it supports; write exactly \`None consulted.\` if no external source was needed, and say why>
 
 ## Grounded facts for the plan
-<the facts the planner can rely on when decomposing and delegating, each tagged confirmed or inferred>
+<the facts the ${entryPoint} can rely on when decomposing and delegating, each tagged confirmed or inferred>
 
 ## Remaining ambiguity
 <each open decision, who must decide it, and a recommended default; write exactly \`None observed.\` if none remain>

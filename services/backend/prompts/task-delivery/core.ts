@@ -7,15 +7,16 @@ import { isRetiredAgentRole } from '@workspace/shared/domain/agent-role';
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
 import { isChatModeEntryPointUserTask } from './chat-mode-policy.js';
-import {
-  appendEnhanceModeGuidance,
-  shouldIncludeEnhanceModeGuidance,
-} from './enhance-mode-guidance.js';
 import { appendVerifierGateGuidance, shouldIncludeVerifierGate } from './verifier-gate-guidance.js';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
-import { formatHandoffPairLabel } from '../cli/handoff-templates/pair';
+import { getEnforcedHandoffTargets, listHandoffTemplatePairs } from '../cli/handoff-templates';
+import {
+  DEFAULT_HANDOFF_TEAM_ID,
+  formatHandoffPairLabel,
+  formatHandoffTemplateCommand,
+} from '../cli/handoff-templates/pair';
 import {
   appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates,
   formatDeliveredHandoffTemplateHeading,
@@ -112,11 +113,14 @@ function appendTaskDeliveryNextSteps(
   const { chatroomId, role, cliEnvPrefix, teamId, message, availableHandoffTargets, isEntryPoint } =
     params;
   const senderRole = getTaskSenderRole(message);
+  const enforcedTargets = getEnforcedHandoffTargets(teamId, role);
   const primaryTarget = inferPrimaryHandoffTarget({
     senderRole,
     role,
     availableHandoffTargets,
     isEntryPoint,
+    // Enforced teams return work upstream (`returnsTo[0]`); advisory teams omit it.
+    upstreamRole: enforcedTargets?.[0],
   });
 
   lines.push('', '<next-steps>', '1. Work on the task above.');
@@ -193,6 +197,29 @@ export function appendTaskDeliveryHandoffSections(
   );
   const activeParams = { ...params, availableHandoffTargets: activeHandoffTargets };
 
+  // Every chat-mode task gets the code-template instruction, regardless of the
+  // sender, role, or entry-point status. Custom teams without catalog pairs
+  // skip it because there is no template command to run.
+  if (params.conversationMode === 'chat') {
+    const hasCatalogPairs = listHandoffTemplatePairs(params.teamId, params.role).length > 0;
+    if (hasCatalogPairs) {
+      const viewCodeTemplate = formatHandoffTemplateCommand(
+        'view-template',
+        {
+          teamId: params.teamId ?? DEFAULT_HANDOFF_TEAM_ID,
+          fromRole: params.role,
+          toRole: '<recipient-role>',
+        },
+        params.cliEnvPrefix,
+        'code'
+      );
+      lines.push(
+        '',
+        `**Before you start writing or changing code in this Chat-mode task, read the code-mode handoff template and use it in place of the Chat-mode template: run \`${viewCodeTemplate}\` for the recipient you will hand off to. Do not keep using the Chat-mode handoff template once you begin coding.**`
+      );
+    }
+  }
+
   if (
     isChatModeEntryPointUserTask({
       conversationMode: params.conversationMode,
@@ -217,24 +244,16 @@ export function appendTaskDeliveryHandoffSections(
   }
 
   if (
-    shouldIncludeEnhanceModeGuidance({
-      role: params.role,
-      isEntryPoint: params.isEntryPoint,
-      senderRole: params.message?.senderRole,
-      conversationMode: params.conversationMode,
-    })
-  ) {
-    appendEnhanceModeGuidance(lines);
-  }
-
-  if (
     shouldIncludeVerifierGate({
       isEntryPoint: params.isEntryPoint,
       availableHandoffTargets: activeHandoffTargets,
     })
   ) {
     appendVerifierGateGuidance(lines, {
-      hasBuilder: activeHandoffTargets.some((target) => target.trim().toLowerCase() === 'builder'),
+      reworkRole:
+        activeHandoffTargets.find((target) => target.trim().toLowerCase() === 'builder') ??
+        activeHandoffTargets.find((target) => target.trim().toLowerCase() === 'specifier') ??
+        null,
     });
   }
 

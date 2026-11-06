@@ -96,6 +96,28 @@ describe('agent-role lifecycle tags', () => {
     expect(getBuiltinRolesForTeam('solo')).not.toContain('game-asset-designer');
   });
 
+  test('trio has coordinator, specifier, and builder with duo-mirrored ordering', () => {
+    expect(getBuiltinRolesForTeam('trio')).toEqual([
+      'coordinator',
+      'architect',
+      'researcher',
+      'triage',
+      'reviewer',
+      'uiux-engineer',
+      'game-asset-designer',
+      'verifier',
+      'specifier',
+      'builder',
+    ]);
+    expect(getAgentRoleTags('coordinator')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getAgentRoleTags('specifier')).toEqual([AgentRoleLifecycleTag.Permanent]);
+    expect(getBuiltinRolesForTeam('duo')).not.toContain('coordinator');
+    expect(getBuiltinRolesForTeam('solo')).not.toContain('coordinator');
+    expect(getBuiltinRolesForTeam('duo')).not.toContain('specifier');
+    expect(getBuiltinRolesForTeam('solo')).not.toContain('specifier');
+    expect(getBuiltinRolesForTeam('trio')).not.toContain('planner');
+  });
+
   test('authored definitions have one lifecycle and nonempty unique valid team memberships', () => {
     const definitions = Object.values(AGENT_ROLE_DEFINITIONS);
     expect(() => validateAgentRoleDefinitions(definitions)).not.toThrow();

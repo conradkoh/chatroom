@@ -1,11 +1,10 @@
-import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
-
 import { createTask } from './create-task';
 import { adjustTaskCount } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { withActiveTeamStructure } from '../../../../convex/lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
+import { normalizePersistedTaskEnvelope } from '../../../../convex/lib/taskEnvelope';
 import { getTeamEntryPoint } from '../../entities/team';
 import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 
@@ -39,7 +38,7 @@ export async function promoteQueuedMessage(
   // The canonical envelope is the atomic policy snapshot copied from the queue
   // row to the promoted task. Legacy rows (no taskEnvelope stored) are
   // normalized once from their scalar policy fields into a complete envelope.
-  const taskEnvelope = normalizeTaskEnvelope(queueRecord);
+  const taskEnvelope = normalizePersistedTaskEnvelope(queueRecord);
 
   // Copy from staging → messages
   const messageId = await insertChatroomMessage(ctx, {
@@ -88,12 +87,7 @@ export async function promoteQueuedMessage(
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
     // TEMPORARY legacy scalar projections for existing readers; derived from the
     // queue row and NOT independent policy inputs. Remove after reader migration.
-    ...(queueRecord.plannerEnhancerEnabled !== undefined
-      ? { plannerEnhancerEnabled: queueRecord.plannerEnhancerEnabled }
-      : {}),
-    ...(queueRecord.conversationMode !== undefined
-      ? { conversationMode: queueRecord.conversationMode }
-      : {}),
+    conversationMode: taskEnvelope.conversationMode,
     taskEnvelope,
   });
 

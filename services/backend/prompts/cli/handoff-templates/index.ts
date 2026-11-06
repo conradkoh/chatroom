@@ -4,8 +4,8 @@
  * Handoff templates provide good structure for how a role hands work off to
  * the next role.
  *
- * The role-owned catalogs (`DUO_ROLE_HANDOFF_CATALOG`, `SOLO_ROLE_HANDOFF_CATALOG`)
- * are the single registry. Pairs are derived from each contract's `returnsTo`
+ * The role-owned catalogs (`DUO_ROLE_HANDOFF_CATALOG`, `SOLO_ROLE_HANDOFF_CATALOG`,
+ * `TRIO_ROLE_HANDOFF_CATALOG`) are the single registry. Pairs are derived from each contract's `returnsTo`
  * order and rendered through its `outboundTemplates` getter — there is no
  * separate flat pair registry. `getHandoffTemplate` remains a compatibility
  * facade over that resolver; the CLI commands resolve explicit pairs.
@@ -13,6 +13,7 @@
 // fallow-ignore-file unused-type
 
 import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
+import { getTeamPreset, getTeamPresetId } from '@workspace/shared/domain/team-presets';
 
 import type { HandoffTemplateQuery, RoleHandoffContract } from './contracts';
 import {
@@ -37,6 +38,7 @@ import {
 import { getHandoffRecipientVisibilityCallout } from '../../native/handoff-visibility';
 import { listDuoRoleHandoffContracts } from '../../teams/duo/handoff-templates';
 import { listSoloRoleHandoffContracts } from '../../teams/solo/handoff-templates';
+import { listTrioRoleHandoffContracts } from '../../teams/trio/handoff-templates';
 import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
 
 export type { HandoffTemplateQuery } from './contracts';
@@ -48,6 +50,7 @@ const BUILTIN_TEAM_HANDOFF_CONTRACTS: Readonly<
 > = {
   duo: listDuoRoleHandoffContracts(),
   solo: listSoloRoleHandoffContracts(),
+  trio: listTrioRoleHandoffContracts(),
 };
 
 /** Options passed through to a pair getter (everything but the pair key itself). */
@@ -55,6 +58,29 @@ export type HandoffTemplateRenderOptions = Omit<
   HandoffTemplateQuery,
   'fromRole' | 'toRole' | 'teamId' | 'role'
 >;
+
+/**
+ * Contract handoff targets for `role` when its builtin team enforces its
+ * handoff graph (trio).
+ *
+ * `null` means the caller keeps its existing behaviour: advisory team (duo or
+ * solo), unknown/custom team, or a role with no contract in that team. Order is
+ * the contract's `returnsTo` order; index 0 is the role's upstream recipient.
+ */
+// fallow-ignore-next-line complexity
+export function getEnforcedHandoffTargets(
+  teamId: string | undefined,
+  role: string
+): readonly string[] | null {
+  const raw = (teamId ?? DEFAULT_HANDOFF_TEAM_ID).trim();
+  const team = getTeamPresetId(raw) ?? raw.toLowerCase();
+  if (!isTeamPresetId(team) || getTeamPreset(team)?.handoffGraph !== 'enforced') return null;
+  const normalized = role.trim().toLowerCase();
+  const contract = BUILTIN_TEAM_HANDOFF_CONTRACTS[team].find(
+    (candidate) => candidate.role === normalized
+  );
+  return contract ? contract.returnsTo : null;
+}
 
 /**
  * Pairs in contract `returnsTo` order. `fromRole` omitted → every pair for the

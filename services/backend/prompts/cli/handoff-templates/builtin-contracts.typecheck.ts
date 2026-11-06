@@ -8,6 +8,7 @@ import type {
 } from './contracts';
 import { DUO_ROLE_HANDOFF_CATALOG } from '../../teams/duo/handoff-templates';
 import { SOLO_ROLE_HANDOFF_CATALOG } from '../../teams/solo/handoff-templates';
+import { TRIO_ROLE_HANDOFF_CATALOG } from '../../teams/trio/handoff-templates';
 import { BUILTIN_ROLE_TEMPLATES } from '../../templates';
 import type { BuiltinRoleTemplateCatalog } from '../../templates';
 
@@ -15,6 +16,8 @@ import type { BuiltinRoleTemplateCatalog } from '../../templates';
 const missingPrompt: BuiltinRoleTemplateCatalog = {
   planner: BUILTIN_ROLE_TEMPLATES.planner,
   builder: BUILTIN_ROLE_TEMPLATES.builder,
+  coordinator: BUILTIN_ROLE_TEMPLATES.coordinator,
+  specifier: BUILTIN_ROLE_TEMPLATES.specifier,
   solo: BUILTIN_ROLE_TEMPLATES.solo,
   researcher: BUILTIN_ROLE_TEMPLATES.researcher,
   reviewer: BUILTIN_ROLE_TEMPLATES.reviewer,
@@ -44,6 +47,27 @@ const missingDuoContract: BuiltinTeamHandoffCatalog<'duo'> = {
   'uiux-engineer': DUO_ROLE_HANDOFF_CATALOG['uiux-engineer'],
 };
 void missingDuoContract;
+
+// @ts-expect-error builtin trio contract catalogs require every trio role
+const missingTrioContract: BuiltinTeamHandoffCatalog<'trio'> = {
+  coordinator: TRIO_ROLE_HANDOFF_CATALOG.coordinator,
+  builder: TRIO_ROLE_HANDOFF_CATALOG.builder,
+  architect: TRIO_ROLE_HANDOFF_CATALOG.architect,
+  researcher: TRIO_ROLE_HANDOFF_CATALOG.researcher,
+  reviewer: TRIO_ROLE_HANDOFF_CATALOG.reviewer,
+  'game-asset-designer': TRIO_ROLE_HANDOFF_CATALOG['game-asset-designer'],
+  verifier: TRIO_ROLE_HANDOFF_CATALOG.verifier,
+  triage: TRIO_ROLE_HANDOFF_CATALOG.triage,
+  'uiux-engineer': TRIO_ROLE_HANDOFF_CATALOG['uiux-engineer'],
+};
+void missingTrioContract;
+
+const extraTrioContract = {
+  ...TRIO_ROLE_HANDOFF_CATALOG,
+  // @ts-expect-error planner is not a builtin trio member
+  planner: TRIO_ROLE_HANDOFF_CATALOG.coordinator,
+} satisfies BuiltinTeamHandoffCatalog<'trio'>;
+void extraTrioContract;
 
 const extraDuoContract = {
   ...DUO_ROLE_HANDOFF_CATALOG,

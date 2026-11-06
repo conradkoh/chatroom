@@ -10,6 +10,7 @@ import {
 const researcherPairs = [
   ...listHandoffTemplatePairs('duo'),
   ...listHandoffTemplatePairs('solo'),
+  ...listHandoffTemplatePairs('trio'),
 ].filter((pair) => pair.fromRole === 'researcher' || pair.toRole === 'researcher');
 
 function renderPair(pair: HandoffTemplatePair): string {

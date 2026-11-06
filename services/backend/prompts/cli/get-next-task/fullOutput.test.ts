@@ -189,26 +189,10 @@ describe('generateFullCliOutput — conversation mode', () => {
 
       expect(output).toContain('<chat-mode>');
       expect(output).toContain('Answer the user directly and concisely');
-      expect(output).toContain('--next-role="user"');
-      expect(output).toContain('**architect**');
-      expect(output).toContain('**uiux-engineer**');
-      expectNoEnhancerCeremony(output);
-      if (nativeIntegration) expect(output).not.toContain('get-next-task');
-      else expect(output).toContain('get-next-task');
-    }
-  });
-
-  test('Enhance mode includes planner design guidance in CLI and native delivery', () => {
-    for (const nativeIntegration of [false, true]) {
-      const output = generateFullCliOutput({
-        ...plannerUserParams,
-        conversationMode: 'code:enhanced',
-        nativeIntegration,
-      });
-
-      expect(output).not.toContain('<chat-mode>');
-      expect(output).toContain('<enhance-mode>');
-      expect(output).toContain('exactly one recommended design');
+      expect(output).toContain(
+        'read the code-mode handoff template and use it in place of the Chat-mode template'
+      );
+      expect(output).toContain('--mode="code"');
       expect(output).toContain('--next-role="user"');
       expect(output).toContain('**architect**');
       expect(output).toContain('**uiux-engineer**');

@@ -28,6 +28,12 @@ const SCAN_BATCH_SIZE = 10;
 /** Sidebar section bound: only soonest upcoming prompts are exposed. */
 const MAX_UPCOMING = 20;
 
+/**
+ * Write-side conversation modes. The stored envelope may still hold the retired
+ * `code:enhanced` mode, but an update must never write it.
+ */
+const writableConversationModeValidator = v.union(v.literal('chat'), v.literal('code'));
+
 // ─── Access helper ───
 
 async function requireScheduledPromptAccess(
@@ -345,7 +351,7 @@ export const updatePolicy = mutation({
   args: {
     ...SessionIdArg,
     scheduledPromptId: v.id('chatroom_scheduledPrompts'),
-    conversationMode: v.optional(taskEnvelopeV1Validator.fields.conversationMode),
+    conversationMode: v.optional(writableConversationModeValidator),
     sessionPolicy: v.optional(taskEnvelopeV1Validator.fields.sessionPolicy),
   },
   handler: async (ctx, args) => {

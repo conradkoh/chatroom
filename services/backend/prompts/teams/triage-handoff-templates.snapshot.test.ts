@@ -10,6 +10,7 @@ import {
 const triagePairs = [
   ...listHandoffTemplatePairs('duo'),
   ...listHandoffTemplatePairs('solo'),
+  ...listHandoffTemplatePairs('trio'),
 ].filter((pair) => pair.fromRole === 'triage' || pair.toRole === 'triage');
 
 function renderPair(pair: HandoffTemplatePair): string {

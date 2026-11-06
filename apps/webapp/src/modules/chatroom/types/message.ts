@@ -74,15 +74,13 @@ export interface Message {
   contextCreatedBy?: string;
   /** Scheduled prompt ID that triggered this message */
   scheduledPromptId?: string;
-  /** Snapshot of enhancer enabled at enqueue time (queued messages only) */
-  plannerEnhancerEnabled?: boolean;
   /** Per-message conversation mode snapshot (queued messages only) */
   conversationMode?: ConversationMode;
   /**
    * Complete canonical policy snapshot for queued messages; legacy scalar
-   * fields (`conversationMode`, `plannerEnhancerEnabled`, `startInNewSession`)
-   * remain compatibility-only and are normalized as a fallback when this field
-   * is absent on older responses/fixtures.
+   * fields (`conversationMode`, `startInNewSession`) remain compatibility-only
+   * and are normalized as a fallback when this field is absent on older
+   * responses/fixtures.
    */
   taskEnvelope?: TaskEnvelopeV1;
 }

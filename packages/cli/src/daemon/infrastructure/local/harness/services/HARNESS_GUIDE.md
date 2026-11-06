@@ -79,6 +79,8 @@ Regression coverage: unit tests titled `native multi-turn invariant: two resumeT
 
 Builder role **always** starts a new session per delegation regardless of handoff body content. The planner→builder brief no longer carries a `## Session Augmentation` section. Non-builder roles (planner, enhancer, reviewer) continue to run in their existing session (`none` mode — `wantResume=true`).
 
+Trio sets the task envelope sessionPolicy per handoff edge (see memory/architecture/trio-team-coordination.md); the daemon behaviour is unchanged.
+
 | Role     | Resolved mode | Behavior                                      |
 | -------- | ------------- | --------------------------------------------- |
 | builder  | `new_session` | Fresh session; new-session preamble injected  |

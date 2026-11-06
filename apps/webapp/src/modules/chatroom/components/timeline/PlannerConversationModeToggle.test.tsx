@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlannerConversationModeToggle } from './PlannerConversationModeToggle';
 import { ConversationModeProvider } from '../../hooks/useConversationMode';
 
-let persistedMode: 'chat' | 'code' | 'code:enhanced' | null | undefined;
+let persistedMode: 'chat' | 'code' | null | undefined;
 const setPersistedMode = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -26,7 +26,7 @@ describe('PlannerConversationModeToggle', () => {
     return onRequestComposerFocus;
   }
 
-  it('cycles provider state through Chat, Code, Enhance, then Chat', () => {
+  it('cycles provider state through Chat, Code, then Chat', () => {
     renderToggle();
 
     const button = screen.getByTestId('planner-conversation-mode-toggle');
@@ -34,15 +34,9 @@ describe('PlannerConversationModeToggle', () => {
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-label', 'Mode: Code');
     fireEvent.click(button);
-    expect(button).toHaveAttribute('aria-label', 'Mode: Enhance');
-    fireEvent.click(button);
     expect(button).toHaveAttribute('aria-label', 'Mode: Chat');
     expect(setPersistedMode).toHaveBeenNthCalledWith(1, { chatroomId: 'room-1', mode: 'code' });
-    expect(setPersistedMode).toHaveBeenNthCalledWith(2, {
-      chatroomId: 'room-1',
-      mode: 'code:enhanced',
-    });
-    expect(setPersistedMode).toHaveBeenNthCalledWith(3, { chatroomId: 'room-1', mode: 'chat' });
+    expect(setPersistedMode).toHaveBeenNthCalledWith(2, { chatroomId: 'room-1', mode: 'chat' });
   });
 
   it('registers Ctrl/Alt+M and focuses after a shortcut cycle', () => {

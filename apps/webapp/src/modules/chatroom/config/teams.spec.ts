@@ -23,6 +23,7 @@ describe('TEAMS_CONFIG canonical picker projection', () => {
   test('shows only permanent roles in the picker and retains pinned builtin assignments', () => {
     expect(TEAMS_CONFIG.teams.duo.roles).toEqual(['planner', 'builder']);
     expect(TEAMS_CONFIG.teams.solo.roles).toEqual(['solo']);
+    expect(TEAMS_CONFIG.teams.trio.roles).toEqual(['coordinator', 'specifier', 'builder']);
     for (const teamId of TEAM_PRESET_IDS) {
       expect(TEAMS_CONFIG.teams[teamId].roles).toEqual(getPermanentRolesForPreset(teamId));
     }
@@ -33,5 +34,8 @@ describe('TEAMS_CONFIG canonical picker projection', () => {
       'A planner and builder working as a pair, planner as coordinator'
     );
     expect(TEAMS_CONFIG.teams.solo.description).toBe('A single agent working independently');
+    expect(TEAMS_CONFIG.teams.trio.description).toBe(
+      'A coordinator, specifier, and builder — the coordinator routes all work'
+    );
   });
 });

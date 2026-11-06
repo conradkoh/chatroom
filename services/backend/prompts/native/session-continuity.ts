@@ -7,11 +7,18 @@ export function getSessionContinuityLine(nativeIntegration?: boolean): string {
   return 'Completing a **chatroom task** does NOT end your **session**. After every handoff, run `get-next-task` to continue.';
 }
 
-export function getHandoffContinuityRule(nativeIntegration?: boolean): string {
+export function getHandoffContinuityRule(
+  nativeIntegration?: boolean,
+  options?: { includeUser?: boolean }
+): string {
   if (nativeIntegration) {
     return '';
   }
-  return '⚠️ When the harness does not support native integration: after any handoff (including to `user`), run `get-next-task` to stay in the session.';
+  const handoffScope =
+    options?.includeUser === false
+      ? 'after any handoff'
+      : 'after any handoff (including to `user`)';
+  return `⚠️ When the harness does not support native integration: ${handoffScope}, run \`get-next-task\` to stay in the session.`;
 }
 
 export function getOperatingModelLoopFooter(nativeIntegration?: boolean): string {

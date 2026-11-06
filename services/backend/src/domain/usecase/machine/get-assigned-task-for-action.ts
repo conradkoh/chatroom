@@ -5,9 +5,11 @@
  */
 
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 
 import type { AssignedTaskView, GetAssignedTaskForActionInput } from './assigned-tasks-types';
 import type { QueryCtx } from '../../../../convex/_generated/server';
+import { retireEnhancedTaskEnvelope } from '../../../../convex/lib/enhancedModeRetirement';
 import { WorkspaceTaskAssigneeType } from '../../entities/chatroom-workspace-task-inbox';
 import { getLastSentLaunchRequestForRole } from '../agent/get-last-sent-launch-request';
 
@@ -48,6 +50,15 @@ export async function getAssignedTaskForAction(
     : undefined;
   if (ephemeral === null) return null;
 
+  // Persisted envelopes may still hold the retired `code:enhanced` mode. Remap
+  // through the shared retirement helper before exposing the typed envelope.
+  const taskEnvelope =
+    task.taskEnvelope === undefined
+      ? undefined
+      : normalizeTaskEnvelope({
+          taskEnvelope: retireEnhancedTaskEnvelope(task.taskEnvelope) ?? task.taskEnvelope,
+        });
+
   return {
     taskId: task._id,
     chatroomId: task.chatroomId,
@@ -63,7 +74,7 @@ export async function getAssignedTaskForAction(
       ? { type: WorkspaceTaskAssigneeType.Ephemeral, ephemeral }
       : { type: WorkspaceTaskAssigneeType.Permanent },
     taskContent: task.content,
-    taskEnvelope: task.taskEnvelope,
+    taskEnvelope,
     startInNewSession: task.startInNewSession,
   };
 }

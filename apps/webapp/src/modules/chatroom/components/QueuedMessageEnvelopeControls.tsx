@@ -54,7 +54,6 @@ export function QueuedMessageEnvelopeControls({
   const current = normalizeTaskEnvelope({
     taskEnvelope: message.taskEnvelope,
     conversationMode: message.conversationMode,
-    plannerEnhancerEnabled: message.plannerEnhancerEnabled,
     startInNewSession: message.startInNewSession,
   });
 

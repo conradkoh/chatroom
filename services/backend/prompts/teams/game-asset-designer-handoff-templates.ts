@@ -87,7 +87,7 @@ ${formatProofOfPrinciples()}
 ## Proof of Completion
 - [ ] <one checkbox per acceptance criterion; state the evidence label required (measured or inspected)>
 
-Instructions after the body (not part of the message): the planner may append extra Proof of Principles lines if needed. Run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Proof of Completion\`.
+Instructions after the body (not part of the message): the ${entryPoint} may append extra Proof of Principles lines if needed. Run the normal handoff command to \`game-asset-designer\` with the complete body above, then stop. Use this template only under the conditions below; the body above ends at \`## Proof of Completion\`.
 
 ### When to use the game asset designer
 - the request creates or changes any asset file: game art or audio (models, textures, sprites, UI art, sound effects), or non-game UI icons and illustrations;
@@ -117,7 +117,7 @@ export function getGameAssetDesignerToEntryPointHandoffTemplate(
 ): string {
   const entryPoint = query.toRole;
 
-  return `Instructions (not part of the message): Return a complete asset delivery report for the request the planner named. Label every checked property with one evidence label: ${GAME_ASSET_EVIDENCE_LABEL_LIST}. Definitions: ${GAME_ASSET_EVIDENCE_DEFINITIONS} ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE} Write only under the named output location and the named edit paths. In \`spec only\` you write no files. If you are blocked, send the same sections with Summary starting \`Blocked:\` and every section you could not reach written as \`Not started.\`
+  return `Instructions (not part of the message): Return a complete asset delivery report for the request the ${entryPoint} named. Label every checked property with one evidence label: ${GAME_ASSET_EVIDENCE_LABEL_LIST}. Definitions: ${GAME_ASSET_EVIDENCE_DEFINITIONS} ${GAME_ASSET_NEVER_CLAIM_RULE} ${GAME_ASSET_RESULT_RULE} Write only under the named output location and the named edit paths. In \`spec only\` you write no files. If you are blocked, send the same sections with Summary starting \`Blocked:\` and every section you could not reach written as \`Not started.\`
 
 ## Summary
 <one to three sentences: what was delivered, whether it is spec only or includes files, and the count of \`fail\` and \`not checked\` items>
@@ -135,13 +135,13 @@ ${PROOF_OF_PRINCIPLES_REPORT}
 - [ ] Every candidate in the brief has a decision with its licence and file sizes labelled \`inspected\`.
 
 ## Target and assumptions
-<each assumption you made and why; each deviation from the planner's target or budgets; or \`None.\`>
+<each assumption you made and why; each deviation from the ${entryPoint}'s target or budgets; or \`None.\`>
 
 ## Free asset decisions
 <one entry per candidate in the brief: pack name, licence quoted from the pack's own licence file, file sizes checked, decision (\`use\`, \`adapt\`, or \`reject\`), asset IDs covered, and the reason; for \`adapt\`, the edits made; write exactly \`None.\` if the brief named no candidates>
 
 ## Asset manifest
-<one entry per asset, keyed by the planner's stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the command line the matching skill requires (model, seed, parameters, and any generator-specific flags), the sheet and tile manifests, and the isolated asset manifest path>
+<one entry per asset, keyed by the ${entryPoint}'s stable ID (\`A01\`…): name, category, file format, path (or \`Specified only.\`), dimensions/units/scale, pivot, naming, LOD list with triangle budgets, texture set with resolution, color space and channel packing, atlas/pixel grid/frame data, audio format and loudness target, import settings, dependencies and variants; for each budget, the acceptance check (exact command and expected value); for each generated file, the command line the matching skill requires (model, seed, parameters, and any generator-specific flags), the sheet and tile manifests, and the isolated asset manifest path>
 
 ## Quality checklist results
 <per asset: each applicable checklist item as \`pass\`, \`fail\`, \`n/a\`, or \`not checked\`, with its evidence label and, for \`measured\`, the command and value; write exactly \`None failed.\` after the list if no item failed>
@@ -168,13 +168,13 @@ Write exactly \`None.\` if no sheet was used.
 <URLs for engine or platform rules relied on, with version or date checked>
 
 ## Open questions
-<each clarification needed from the planner with a recommended default; write exactly \`None.\` if none>
+<each clarification needed from the ${entryPoint} with a recommended default; write exactly \`None.\` if none>
 
 ## Not verified
 <every property you could not measure or inspect; write exactly \`None.\` if none>
 
 ## Recommended next step
-<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (application logic outside the allowed edit paths), \`uiux-engineer\` (layout, component, or styling changes only, never asset files), or \`planner\` (decision needed on an open question); then the affected asset IDs>
+<exactly one target: \`game-asset-designer\` (re-run with the listed asset IDs), \`builder\` (application logic outside the allowed edit paths), \`uiux-engineer\` (layout, component, or styling changes only, never asset files), or \`${entryPoint}\` (decision needed on an open question); then the affected asset IDs>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 

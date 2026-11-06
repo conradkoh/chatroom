@@ -26,9 +26,16 @@ const roleMetadata = {
     tags: [AgentRoleLifecycleTag.Permanent],
     teams: [{ teamId: 'duo', order: 10 }],
   },
+  coordinator: {
+    tags: [AgentRoleLifecycleTag.Permanent],
+    teams: [{ teamId: 'trio', order: 10 }],
+  },
   builder: {
     tags: [AgentRoleLifecycleTag.Permanent],
-    teams: [{ teamId: 'duo', order: 50 }],
+    teams: [
+      { teamId: 'duo', order: 50 },
+      { teamId: 'trio', order: 50 },
+    ],
   },
   solo: {
     tags: [AgentRoleLifecycleTag.Permanent],
@@ -39,6 +46,7 @@ const roleMetadata = {
     teams: [
       { teamId: 'duo', order: 20 },
       { teamId: 'solo', order: 20 },
+      { teamId: 'trio', order: 20 },
     ],
   },
   triage: {
@@ -46,6 +54,7 @@ const roleMetadata = {
     teams: [
       { teamId: 'duo', order: 30 },
       { teamId: 'solo', order: 30 },
+      { teamId: 'trio', order: 30 },
     ],
   },
   'uiux-engineer': {
@@ -53,26 +62,41 @@ const roleMetadata = {
     teams: [
       { teamId: 'duo', order: 40 },
       { teamId: 'solo', order: 40 },
+      { teamId: 'trio', order: 40 },
     ],
   },
   researcher: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
-    teams: [{ teamId: 'duo', order: 25 }],
+    teams: [
+      { teamId: 'duo', order: 25 },
+      { teamId: 'trio', order: 25 },
+    ],
   },
   verifier: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
     teams: [
       { teamId: 'duo', order: 45 },
       { teamId: 'solo', order: 45 },
+      { teamId: 'trio', order: 45 },
     ],
   },
   reviewer: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
-    teams: [{ teamId: 'duo', order: 35 }],
+    teams: [
+      { teamId: 'duo', order: 35 },
+      { teamId: 'trio', order: 35 },
+    ],
   },
   'game-asset-designer': {
     tags: [AgentRoleLifecycleTag.Ephemeral],
-    teams: [{ teamId: 'duo', order: 42 }],
+    teams: [
+      { teamId: 'duo', order: 42 },
+      { teamId: 'trio', order: 42 },
+    ],
+  },
+  specifier: {
+    tags: [AgentRoleLifecycleTag.Permanent],
+    teams: [{ teamId: 'trio', order: 48 }],
   },
 } as const satisfies Record<string, AgentRoleMetadata>;
 

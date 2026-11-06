@@ -69,7 +69,7 @@ describe('handoff view-template', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getErrorOutput()).toContain('no longer accepts --role/--next-role');
     expect(getErrorOutput()).toContain(
-      '--from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+      '--from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"'
     );
   });
 
@@ -77,6 +77,15 @@ describe('handoff view-template', () => {
     printHandoffViewTemplate({ from: 'planner', to: 'builder', mode: 'code', teamId: 'tri' });
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo.');
+    expect(getErrorOutput()).toContain('Unknown team "tri". Known teams: duo, solo, trio.');
+  });
+
+  it('rejects coordinator → builder in the trio team and lists valid recipients', () => {
+    printHandoffViewTemplate({ from: 'coordinator', to: 'builder', mode: 'code', teamId: 'trio' });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = getErrorOutput();
+    expect(output).toContain('No handoff template for "coordinator" → "builder" in team "trio"');
+    expect(output).toContain('Valid recipients for "coordinator"');
   });
 });

@@ -81,47 +81,6 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
     expectNoEnhancerCeremony(output);
   });
 
-  test('Enhance mode adds planner-owned design guidance for an entry-point user task', () => {
-    const output = renderHandoffSections({
-      role: 'planner',
-      isEntryPoint: true,
-      message: { _id: 'user-msg', senderRole: 'user' },
-      availableHandoffTargets: ['architect', 'builder', 'user'],
-      conversationMode: 'code:enhanced',
-    });
-
-    expect(output).not.toContain('<chat-mode>');
-    expect(output).toContain('<enhance-mode>');
-    expect(output).toContain('exactly one recommended design');
-    expect(output).toContain('architect');
-    expect(output).toContain('uiux-engineer');
-    expect(output).toContain('--next-role="user"');
-    expect(output).not.toContain('<handoff-enhancer>');
-  });
-
-  test.each([
-    ['chat mode', { conversationMode: 'chat' as const }],
-    ['ordinary code', { conversationMode: 'code' as const }],
-    ['builder', { role: 'builder', conversationMode: 'code:enhanced' as const }],
-    ['non-entry-point', { isEntryPoint: false, conversationMode: 'code:enhanced' as const }],
-    [
-      'non-user sender',
-      {
-        message: { _id: 'builder-msg', senderRole: 'builder' },
-        conversationMode: 'code:enhanced' as const,
-      },
-    ],
-    ['solo', { role: 'solo', conversationMode: 'code:enhanced' as const }],
-  ])('does not add Enhance guidance for %s', (_label, overrides) => {
-    const output = renderHandoffSections({
-      role: 'planner',
-      isEntryPoint: true,
-      message: { _id: 'user-msg', senderRole: 'user' },
-      ...overrides,
-    });
-    expect(output).not.toContain('<enhance-mode>');
-  });
-
   test('a task from the configured ephemeral role follows standard intake recommendations', () => {
     const output = renderHandoffSections({
       message: { _id: 'ephemeral-msg', senderRole: 'enhancer' },
@@ -147,6 +106,76 @@ describe('appendTaskDeliveryHandoffSections — generic workflow', () => {
   });
 });
 
+describe('appendTaskDeliveryHandoffSections — chat→code template instruction', () => {
+  const CHAT_TO_CODE_SENTENCE =
+    'Before you start writing or changing code in this Chat-mode task, read the code-mode handoff template and use it in place of the Chat-mode template';
+
+  test('duo planner chat entry-point user task names the code-mode template command', () => {
+    const output = renderHandoffSections({ conversationMode: 'chat' });
+
+    expect(output).toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain('--from="planner"');
+    expect(output).toContain('--mode="code"');
+    expect(output).toContain('--team-id="duo"');
+  });
+
+  test('solo chat entry-point user task honors the CLI env prefix and solo team id', () => {
+    const output = renderHandoffSections({
+      role: 'solo',
+      teamId: 'solo',
+      cliEnvPrefix: 'SOLO_PREFIX ',
+      conversationMode: 'chat',
+      availableHandoffTargets: ['user'],
+    });
+
+    expect(output).toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain(
+      'SOLO_PREFIX chatroom handoff view-template --from="solo" --to="<recipient-role>" --mode="code" --team-id="solo"'
+    );
+  });
+
+  test('code mode has neither the chat→code sentence nor an <enhance-mode> block', () => {
+    const output = renderHandoffSections({ conversationMode: 'code' });
+
+    expect(output).not.toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).not.toContain('<enhance-mode>');
+  });
+
+  test('chat non-entry-point builder tasks also get the sentence with the builder role', () => {
+    const output = renderHandoffSections({
+      conversationMode: 'chat',
+      isEntryPoint: false,
+      role: 'builder',
+      message: { _id: 'planner-msg', senderRole: 'planner' },
+      availableHandoffTargets: ['planner', 'user'],
+    });
+
+    expect(output).toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain(
+      'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff view-template --from="builder" --to="<recipient-role>" --mode="code" --team-id="duo"'
+    );
+  });
+
+  test('chat tasks from any non-entry-point role get the sentence', () => {
+    const output = renderHandoffSections({
+      conversationMode: 'chat',
+      isEntryPoint: false,
+      role: 'architect',
+      message: { _id: 'builder-msg', senderRole: 'builder' },
+      availableHandoffTargets: ['planner', 'user'],
+    });
+
+    expect(output).toContain(CHAT_TO_CODE_SENTENCE);
+    expect(output).toContain('--from="architect"');
+  });
+
+  test('custom teams with no catalog pairs keep the sentence out', () => {
+    const output = renderHandoffSections({ conversationMode: 'chat', teamId: 'tri' });
+
+    expect(output).not.toContain(CHAT_TO_CODE_SENTENCE);
+  });
+});
+
 describe('appendTaskDeliveryHandoffSections — verifier gate', () => {
   const VERIFIER_TARGETS = ['architect', 'verifier', 'builder', 'user'];
 
@@ -162,8 +191,6 @@ describe('appendTaskDeliveryHandoffSections — verifier gate', () => {
   test.each([
     ['code mode, user-origin task', 'code' as const, 'user' as const],
     ['code mode, builder-return task', 'code' as const, 'builder' as const],
-    ['code:enhanced mode, user-origin task', 'code:enhanced' as const, 'user' as const],
-    ['code:enhanced mode, builder-return task', 'code:enhanced' as const, 'builder' as const],
   ])(
     'entry-point planner task in %s includes the verifier gate',
     (_label, conversationMode, senderRole) => {
@@ -233,7 +260,7 @@ describe('appendTaskDeliveryHandoffSections — solo verifier gate', () => {
     });
   }
 
-  test.each([['code' as const], ['code:enhanced' as const]])(
+  test.each([['code' as const]])(
     'solo entry point in %s includes the gate with self-rework',
     (conversationMode) => {
       const output = renderSolo({

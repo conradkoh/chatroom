@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConversationModeProvider, useConversationMode } from './useConversationMode';
 
-let mockPersistedMode: 'chat' | 'code' | 'code:enhanced' | null | undefined;
+let mockPersistedMode: 'chat' | 'code' | null | undefined;
 const mockSetPersistedMode = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -20,7 +20,6 @@ function ModeDisplay() {
       <span data-testid="has-user-selected">{String(hasUserSelected)}</span>
       <button data-testid="set-chat" onClick={() => setMode('chat')} />
       <button data-testid="set-code" onClick={() => setMode('code')} />
-      <button data-testid="set-enhanced" onClick={() => setMode('code:enhanced')} />
     </div>
   );
 }
@@ -87,7 +86,7 @@ describe('ConversationModeProvider', () => {
         <ModeDisplay />
       </ConversationModeProvider>
     );
-    act(() => screen.getByTestId('set-enhanced').click());
+    act(() => screen.getByTestId('set-code').click());
 
     mockPersistedMode = null;
     rerender(

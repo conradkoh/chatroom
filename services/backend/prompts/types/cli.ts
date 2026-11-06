@@ -5,6 +5,8 @@
  * When a value is not provided, a placeholder like <chatroom-id> is used.
  */
 
+import type { TeamPresetId } from '@workspace/shared/domain/team-kind';
+
 /**
  * Base interface for all prompt parameters that involve CLI command generation.
  * Ensures convexUrl is always provided for proper environment variable prefix handling.
@@ -78,6 +80,8 @@ export interface BuilderGuidanceParams extends BasePromptParams {
   codeChangesTarget: string;
   /** True when harness uses native task injection instead of get-next-task */
   nativeIntegration?: boolean | undefined;
+  /** Handoff-template discovery team; default 'duo'. */
+  teamId?: TeamPresetId | undefined;
 }
 
 /**

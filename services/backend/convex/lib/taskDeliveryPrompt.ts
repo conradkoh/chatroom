@@ -7,11 +7,11 @@
  * receive exactly the same delivery prompt as permanent agents.
  */
 
-import { legacyConversationMode } from '@workspace/shared/domain/conversation-mode';
-import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 
 import { withActiveTeamStructure } from './chatroomTeam';
 import { buildAvailableHandoffRoles } from './handoffRoles';
+import { normalizePersistedTaskEnvelope } from './taskEnvelope';
 import { generateFullCliOutput } from '../../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../../prompts/config/index';
 import { getCliEnvPrefix } from '../../prompts/utils/index';
@@ -140,7 +140,7 @@ interface DeliveryMessage extends SourceMessageAttachmentFields {
 }
 
 interface DeliveryModePolicy {
-  conversationMode: ReturnType<typeof legacyConversationMode>;
+  conversationMode: ConversationMode;
 }
 
 async function getChatroomMessageOrNull(
@@ -184,18 +184,15 @@ async function resolveDeliverySourceMessage(
 
 /**
  * Effective conversation mode: the explicit task envelope is the
- * authoritative per-message policy. Legacy rows without an envelope use
- * their persisted scalar snapshot and default to code mode.
+ * authoritative per-message policy. Legacy rows without an envelope default to
+ * code mode.
  */
 function resolveDeliveryModePolicy(task: Doc<'chatroom_tasks'>): DeliveryModePolicy {
-  if (task.taskEnvelope === undefined) {
-    return {
-      conversationMode: legacyConversationMode(task.plannerEnhancerEnabled),
-    };
-  }
-  const envelope = normalizeTaskEnvelope(task);
   return {
-    conversationMode: envelope.conversationMode,
+    conversationMode:
+      task.taskEnvelope === undefined
+        ? 'code'
+        : normalizePersistedTaskEnvelope(task).conversationMode,
   };
 }
 
@@ -220,6 +217,7 @@ async function resolveAvailableHandoffRoles(
 
   const { teamRoles } = getTeamRolesFromChatroom(chatroom);
   return buildAvailableHandoffRoles({
+    teamId: chatroom.teamId,
     teamRoles,
     currentRole: role,
     fallbackParticipantRoles: waitingParticipantRoles,

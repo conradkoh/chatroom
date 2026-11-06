@@ -56,6 +56,37 @@ export const BUILTIN_ROLE_TEMPLATES = {
     defaultHandoffTarget: 'builder',
   },
 
+  coordinator: {
+    role: 'coordinator',
+    title: 'Coordinator',
+    description:
+      'You are the team coordinator responsible for understanding what the user wants, owning the plan for the whole task, and routing all work between team roles.',
+    responsibilities: [
+      'Communicate with the user as the single point of contact',
+      'Keep the plan and decisions across the whole task',
+      'Clear research, triage, architecture, UI/UX, and asset gates with the specialists',
+      'Delegate implementation to the specifier as work packages',
+      'Review returned work against the user request',
+      'Deliver the final result to the user',
+    ],
+    defaultHandoffTarget: 'specifier',
+  },
+
+  specifier: {
+    role: 'specifier',
+    title: 'Specifier',
+    description:
+      "You are the specifier responsible for turning the coordinator's work package into detailed, code-level builder briefs and driving the builder through every build pass; you do not implement code.",
+    responsibilities: [
+      'Inspect the repository to ground the work package',
+      'Split the package into file-level builder slices',
+      'Review each builder slice against the brief and acceptance criteria',
+      'Send rework to the builder with specific feedback',
+      'Report the completed package or blockers to the coordinator',
+    ],
+    defaultHandoffTarget: 'builder',
+  },
+
   architect: {
     role: 'architect',
     title: 'Architect',

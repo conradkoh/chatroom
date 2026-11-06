@@ -1,0 +1,650 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (chat) > builder->specifier 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`specifier\` agent receives only the text inside your \`handoff --next-role="specifier"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`builder\` → \`specifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): complete every section below. Do not omit sections, principles, or XML wrappers.
+
+When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
+
+\`\`\`markdown
+## Summary
+<what was implemented or attempted, in plain terms>
+
+## Template Disclosure Confirmation
+- [ ] I confirm that I have seen this template at the start of this task, before implementing or modifying any code
+- [ ] I confirm that I've read and followed the role guidance before starting any work
+<!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`chatroom get-role-guidance --chatroom-id="test-chatroom-id" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
+
+## Proof of Principles
+<!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+- **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
+<!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+- **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
+<!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+- **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
+<!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+- **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
+<!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+- **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
+<!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+- **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
+<!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+- **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+<!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
+
+## Proof of Completion
+- [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
+<!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the specifier handoff you received. State the delegation goal and confirm it was achieved. -->
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+- \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+<evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
+
+## Code Change Verification
+- [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
+
+## Blockers / questions
+<!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<anything needing specifier decision>
+
+## Notes for review
+<!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<specific areas for specifier to check; any test written at a seam other than the one the brief's \`## Test seams\` section named, and why>
+\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (chat) > coordinator->specifier 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`specifier\` agent receives only the text inside your \`handoff --next-role="specifier"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`coordinator\` → \`specifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Delegate ONE work package to the \`specifier\`. The specifier turns it into file-level builder slices, drives the builder through every build pass, and hands one consolidated report back to you. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Do not write file-level code instructions yourself; state outcomes, constraints, and acceptance criteria. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
+
+**Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
+
+\`\`\`markdown
+## Summary
+<the user's intent in plain terms and where this package fits in the larger task>
+
+## Goal
+<one sentence: the outcome this work package delivers>
+
+## User requirements
+<the user's requirements and constraints, quoted or paraphrased, each with its source message id>
+
+## Inputs from specialists
+<for each architect / researcher / triage / uiux-engineer / game-asset-designer brief this package depends on: message id and the decisions to adopt; or \`None.\`>
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+
+## Scope
+- In scope: <surfaces and behaviors>
+- Out of scope: <surfaces the specifier and builder must not touch>
+
+## Rework findings (prior round)
+<message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or \`None.\`>
+
+## Acceptance criteria
+- <verifiable outcome; include at least one end-to-end check>
+
+## Delivery expectations
+<commit, branch, push, and PR expectations from the user; or \`None stated.\`>
+
+## History pointers
+<message ids or a \`--since-message-id\` anchor the specifier should download for context; or \`None.\`>
+\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (chat) > coordinator->user 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`coordinator\` → \`user\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): chat response — 
+\`\`\`markdown
+<write only the concise response the user should see; do not add handoff XML sections, proofs, context evidence, or placeholder text>
+\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (chat) > specifier->builder 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`builder\` agent receives only the text inside your \`handoff --next-role="builder"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`specifier\` → \`builder\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+**Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
+
+**Before you delegate:** the \`coordinator\` clears research, triage, architecture, UI/UX, and asset gates before work reaches you. If a slice depends on a fact, design decision, or bug diagnosis that the work package does not settle, hand back to \`coordinator\` with the open question instead of guessing. Do not hand off to \`researcher\`, \`triage\`, \`architect\`, or any other specialist yourself.
+
+**Division of labor:** You (specifier) own turning the work package into file-level builder slices and sequencing them. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.
+
+**Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
+
+**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
+
+Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+
+\`\`\`\`markdown
+## Summary
+<brief context for this delegation slice — what problem it solves and where it fits in the larger task>
+
+## Goal
+<one sentence: the outcome this slice delivers>
+
+## Key Knowledge for High Quality Bar
+<details that would move the implementation from good to excellent and delightful — domain context, user expectations, edge cases, naming, UX polish, invariants the builder must preserve>
+
+## Force Multipliers
+<choices that greatly simplify the solution while preserving long-term maintainability — reuse existing abstractions, avoid unnecessary layers, leverage platform conventions>
+- Each builder delegation starts a fresh session automatically — the builder does not continue prior context.
+
+## Files to implement (exhaustive, file-level)
+List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+
+### \`apps/webapp/src/path/to/file.ts\`
+**Change:** <precisely what to add, modify, or remove in this file>
+
+\`\`\`typescript
+// Target code: exports, types, function bodies, component skeleton, query/mutation shape, etc.
+// Enough that the builder can implement this file without inventing structure
+\`\`\`
+
+### \`apps/webapp/src/path/to/other-file.ts\`
+**Change:** <...>
+
+\`\`\`typescript
+// ...
+\`\`\`
+
+(Add one ### block per file. If this slice touches only one file, still use the ### header.)
+
+## Shared contracts (specifier-owned)
+Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
+
+### Interfaces & types
+\`\`\`typescript
+// Shared signatures, schemas, props, or DB shapes
+\`\`\`
+
+### Reference snippets
+\`\`\`typescript
+// Canonical call patterns, hook usage, imports, or wiring between files
+\`\`\`
+
+## Requirements (acceptance criteria)
+- <verifiable outcome the builder can self-check>
+- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+
+## Test seams
+- <behavior>: seam <public interface or port>; catches <what>; misses <what>
+- or: no test seam — <reason>
+- For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+## What to avoid
+- <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+- Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
+- Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.
+- <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
+
+## Skills to activate
+- e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
+
+## Out of scope
+- <files or areas the builder must NOT touch in this slice>
+
+\`\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (chat) > specifier->coordinator 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`coordinator\` agent receives only the text inside your \`handoff --next-role="coordinator"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`specifier\` → \`coordinator\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): chat response for the coordinator —
+\`\`\`markdown
+<write only the concise status the coordinator needs: what was delivered, blockers, and decisions it must make; do not add handoff XML sections, proofs, or report headings>
+\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (code) > builder->specifier 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`specifier\` agent receives only the text inside your \`handoff --next-role="specifier"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`builder\` → \`specifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): complete every section below. Do not omit sections, principles, or XML wrappers.
+
+When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
+
+\`\`\`markdown
+## Summary
+<what was implemented or attempted, in plain terms>
+
+## Template Disclosure Confirmation
+- [ ] I confirm that I have seen this template at the start of this task, before implementing or modifying any code
+- [ ] I confirm that I've read and followed the role guidance before starting any work
+<!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`chatroom get-role-guidance --chatroom-id="test-chatroom-id" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
+
+## Proof of Principles
+<!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+- **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
+<!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+- **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
+<!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+- **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
+<!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+- **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
+<!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+- **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
+<!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+- **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
+<!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+- **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+<!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
+
+## Proof of Completion
+- [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
+<!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the specifier handoff you received. State the delegation goal and confirm it was achieved. -->
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+- \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+<evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
+
+## Code Change Verification
+- [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
+
+## Blockers / questions
+<!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<anything needing specifier decision>
+
+## Notes for review
+<!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<specific areas for specifier to check; any test written at a seam other than the one the brief's \`## Test seams\` section named, and why>
+\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (code) > coordinator->specifier 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`specifier\` agent receives only the text inside your \`handoff --next-role="specifier"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`coordinator\` → \`specifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Delegate ONE work package to the \`specifier\`. The specifier turns it into file-level builder slices, drives the builder through every build pass, and hands one consolidated report back to you. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Do not write file-level code instructions yourself; state outcomes, constraints, and acceptance criteria. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
+
+**Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
+
+\`\`\`markdown
+## Summary
+<the user's intent in plain terms and where this package fits in the larger task>
+
+## Goal
+<one sentence: the outcome this work package delivers>
+
+## User requirements
+<the user's requirements and constraints, quoted or paraphrased, each with its source message id>
+
+## Inputs from specialists
+<for each architect / researcher / triage / uiux-engineer / game-asset-designer brief this package depends on: message id and the decisions to adopt; or \`None.\`>
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+
+## Scope
+- In scope: <surfaces and behaviors>
+- Out of scope: <surfaces the specifier and builder must not touch>
+
+## Rework findings (prior round)
+<message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or \`None.\`>
+
+## Acceptance criteria
+- <verifiable outcome; include at least one end-to-end check>
+
+## Delivery expectations
+<commit, branch, push, and PR expectations from the user; or \`None stated.\`>
+
+## History pointers
+<message ids or a \`--since-message-id\` anchor the specifier should download for context; or \`None.\`>
+\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (code) > coordinator->user 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the user receives only the text inside your \`handoff --next-role="user"\` command, plus any \`notify-user\` notices you sent earlier in this task. It cannot see anything you write in this agent session (including direct replies), or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`coordinator\` → \`user\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): complete every section below. Do not omit sections, principles, or XML wrappers.
+
+When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
+
+\`\`\`markdown
+<handoff-overview>
+<!-- When the task is informational (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed. Do not rely on earlier \`notify-user\` notices or session text. -->
+## Summary
+<what was accomplished, in plain terms — no references to prior messages>
+
+## What changed
+<high-level view of what changed since the user's message>
+</handoff-overview>
+
+<!-- UI collapses proofs and direction by default; overview and action required are expanded -->
+
+<handoff-proofs>
+## Template Disclosure Confirmation
+- [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
+- [ ] I confirm that I've read and followed the role guidance before starting any work
+<!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`chatroom get-role-guidance --chatroom-id="test-chatroom-id" --role="coordinator"\`. You do not need to re-read it on every task if you have already read it once. -->
+
+## Proof of Planning
+<!-- REQUIRED. List planning steps for trivial single-step tasks, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <step 1: concrete artifact or outcome>
+- <step 2: concrete artifact or outcome>
+
+## Proof of Principles
+<!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+- **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
+<!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+- **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
+<!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+- **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
+<!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+- **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
+<!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+- **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
+<!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+- **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
+<!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+- **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+<!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
+
+## Proof of Completion
+<!-- Entry-point proof-of-completion workflow — run before filling this section:
+1. \`chatroom messages anchor --chatroom-id="test-chatroom-id" --role="coordinator"\` — locate the user's last message (and prior user messages for context)
+2. \`chatroom messages download --chatroom-id="test-chatroom-id" --role="coordinator" --since-message-id="<from-anchor>" --limit=100\` — download grep-friendly history since anchor; read handoffs and goals
+3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
+4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
+Then: \`chatroom messages anchor --chatroom-id="test-chatroom-id" --role="coordinator"\` → \`chatroom messages download --chatroom-id="test-chatroom-id" --role="coordinator" --since-message-id="<from-anchor>" --limit=100\` (use the message ID from anchor output as --since-message-id) -->
+- [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff
+**Proof of verification (verifier review):**
+- [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is \`ACHIEVED\` — or every unmet item is listed under Unresolved / action required
+- Verifier review: <ACHIEVED | NOT_ACHIEVED | INCONCLUSIVE | UNAVAILABLE (<reason>) | not required (no code changes)>
+- Verifier request command (disclose the command you sent): \`chatroom handoff --chatroom-id="test-chatroom-id" --role="coordinator" --next-role="verifier"\`
+- Verifier request message id: <id of your verifier handoff> · Round: <1 | 2>
+- Verdict message id: <id of the verifier's verdict handoff> · Verdict user message id: <id> (must equal the current last user message)
+- Verdict gaps (only if not ACHIEVED): <each unmet item, or \`None.\`>
+- [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
+<!-- Read context before handoff if not already done this task: \`chatroom context read --chatroom-id="test-chatroom-id" --role="coordinator"\`. State the context goal and confirm it was achieved. -->
+- Context goal: <state the context goal and confirm it was achieved>
+- Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
+  - <requirement> — <PR URL, commit hash, or file evidence>
+- Files changed (code tasks — list every file modified):
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+- \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+  - <additional files as needed>
+## Backlog Tasks Implemented
+<!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
+
+## Backlog Pending User Review Confirmation
+<!-- REQUIRED. Complete the attestation if no backlog items apply, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` after the feature was verified end-to-end and a PR was raised for user review
+- PR URL(s): <link to PR(s)>
+
+## Code Change Verification
+- [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
+</handoff-proofs>
+
+<handoff-direction>
+## What exists today
+<!-- REQUIRED. Describe current state after this work, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<current state after this work — what the user can now do, what is in place, how the system behaves>
+
+## Key Technical Decisions
+<!-- REQUIRED. List decisions, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <schema design, modules, interfaces, domain entities — what you chose and why>
+
+## Key Tradeoffs
+<!-- REQUIRED. List tradeoffs, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <what was weighed against what, and why you chose this path>
+
+## System Design
+<!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Mermaid formatting: wrap the diagram in a fenced code block that begins with \`\`\`mermaid and ends with \`\`\`. Never write a bare "mermaid" line — it will not render. -->
+
+\`\`\`mermaid
+flowchart TD
+    A[Component] --> B[Component]
+\`\`\`
+</handoff-direction>
+
+<handoff-action>
+## Tech Debt Observed
+<!-- REQUIRED. List tech debt, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+- [high] <critical issue — blocks correctness, security, or release>
+- [medium] <meaningful debt — should address soon>
+- [low] <minor cleanup — nice to have>
+- <issues noticed but intentionally left out of scope of this change>
+
+## Unresolved Decisions
+<!-- REQUIRED. List open decisions needing user input if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+- [high] <critical issue — blocks correctness, security, or release>
+- [medium] <meaningful debt — should address soon>
+- [low] <minor cleanup — nice to have>
+- <decision or question — options considered, recommendation if any>
+<Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
+
+## Manual steps
+<!-- REQUIRED. List manual steps outside the system, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc.>
+</handoff-action>
+\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (code) > specifier->builder 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`builder\` agent receives only the text inside your \`handoff --next-role="builder"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`specifier\` → \`builder\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+**Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
+
+**Before you delegate:** the \`coordinator\` clears research, triage, architecture, UI/UX, and asset gates before work reaches you. If a slice depends on a fact, design decision, or bug diagnosis that the work package does not settle, hand back to \`coordinator\` with the open question instead of guessing. Do not hand off to \`researcher\`, \`triage\`, \`architect\`, or any other specialist yourself.
+
+**Division of labor:** You (specifier) own turning the work package into file-level builder slices and sequencing them. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.
+
+**Detail bar:** Specify down to **every file** the builder will create or modify (full repo paths). Include code snippets — types, signatures, stubs, or target implementations — until a competent builder **cannot misinterpret** what to write. Vague layers ("update the backend", "fix the component") are not acceptable.
+
+**Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
+
+Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+
+\`\`\`\`markdown
+## Summary
+<brief context for this delegation slice — what problem it solves and where it fits in the larger task>
+
+## Goal
+<one sentence: the outcome this slice delivers>
+
+## Key Knowledge for High Quality Bar
+<details that would move the implementation from good to excellent and delightful — domain context, user expectations, edge cases, naming, UX polish, invariants the builder must preserve>
+
+## Force Multipliers
+<choices that greatly simplify the solution while preserving long-term maintainability — reuse existing abstractions, avoid unnecessary layers, leverage platform conventions>
+- Each builder delegation starts a fresh session automatically — the builder does not continue prior context.
+
+## Files to implement (exhaustive, file-level)
+List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+
+### \`apps/webapp/src/path/to/file.ts\`
+**Change:** <precisely what to add, modify, or remove in this file>
+
+\`\`\`typescript
+// Target code: exports, types, function bodies, component skeleton, query/mutation shape, etc.
+// Enough that the builder can implement this file without inventing structure
+\`\`\`
+
+### \`apps/webapp/src/path/to/other-file.ts\`
+**Change:** <...>
+
+\`\`\`typescript
+// ...
+\`\`\`
+
+(Add one ### block per file. If this slice touches only one file, still use the ### header.)
+
+## Shared contracts (specifier-owned)
+Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
+
+### Interfaces & types
+\`\`\`typescript
+// Shared signatures, schemas, props, or DB shapes
+\`\`\`
+
+### Reference snippets
+\`\`\`typescript
+// Canonical call patterns, hook usage, imports, or wiring between files
+\`\`\`
+
+## Requirements (acceptance criteria)
+- <verifiable outcome the builder can self-check>
+- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+
+## Test seams
+- <behavior>: seam <public interface or port>; catches <what>; misses <what>
+- or: no test seam — <reason>
+- For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+## What to avoid
+- <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
+- Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
+- Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.
+- <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
+
+## Skills to activate
+- e.g. \`chatroom skill activate code-review --chatroom-id=<id> --role=builder\`
+
+## Out of scope
+- <files or areas the builder must NOT touch in this slice>
+
+\`\`\`\`"
+`;
+
+exports[`trio handoff template snapshots > trio non-specialist pairs (code) > specifier->coordinator 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`coordinator\` agent receives only the text inside your \`handoff --next-role="coordinator"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`specifier\` → \`coordinator\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): complete every section below. Do not omit sections, principles, or XML wrappers.
+
+When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
+
+\`\`\`markdown
+## Summary
+<what this work package delivered, or why it stopped, in plain terms>
+
+## Template Disclosure Confirmation
+- [ ] I confirm that I have seen this template at the start of this work package, before driving the builder
+- [ ] I confirm that I've read and followed the role guidance before starting any work
+<!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`chatroom get-role-guidance --chatroom-id="test-chatroom-id" --role="specifier"\`. You do not need to re-read it on every task if you have already read it once. -->
+
+## What exists today
+<!-- REQUIRED. Describe current state after this work package, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<current state after this work package: what the user can now do, what is in place, how the system behaves>
+
+## Slices delivered
+<one entry per builder slice: builder handoff message id, commits, files changed, rework rounds>
+
+## Proof of Principles
+<!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+- **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
+<!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+- **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
+<!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+- **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
+<!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+- **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
+<!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+- **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
+<!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+- **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
+<!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+- **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+<!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
+
+## Proof of Completion
+<!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
+- \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
+<for each acceptance criterion in the work package: met / not met, with evidence (test names and output, commands run, commits)>
+
+## Code Change Verification
+- [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
+
+## Key Technical Decisions
+<!-- REQUIRED. List decisions, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <schema design, modules, interfaces, domain entities: what you chose and why>
+
+## Key Tradeoffs
+<!-- REQUIRED. List tradeoffs, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <what was weighed against what, and why you chose this path>
+
+## Deviations from the work package
+<!-- REQUIRED. List deviations, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<each place the implementation differs from the package, and why>
+
+## Tech Debt Observed
+<!-- REQUIRED. List tech debt, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+- [high] <critical issue — blocks correctness, security, or release>
+- [medium] <meaningful debt — should address soon>
+- [low] <minor cleanup — nice to have>
+- <issues noticed but intentionally left out of scope of this work package>
+
+## Unresolved Decisions
+<!-- REQUIRED. List open decisions needing user input if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+- [high] <critical issue — blocks correctness, security, or release>
+- [medium] <meaningful debt — should address soon>
+- [low] <minor cleanup — nice to have>
+- <decision or question — options considered, recommendation if any>
+<Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
+
+## Manual steps
+<!-- REQUIRED. List manual steps outside the system, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<steps the user must take outside the system: deploy, configure credentials, run commands, verify in production>
+
+## Notes for review
+<!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<areas for the coordinator or reviewer to inspect>
+\`\`\`"
+`;

@@ -66,9 +66,9 @@ describe('shouldIncludeVerifierGate', () => {
 });
 
 describe('appendVerifierGateGuidance', () => {
-  function renderGate(hasBuilder = true): string {
+  function renderGate(reworkRole: string | null = 'builder'): string {
     const lines: string[] = ['existing line'];
-    appendVerifierGateGuidance(lines, { hasBuilder });
+    appendVerifierGateGuidance(lines, { reworkRole });
     return lines.join('\n');
   }
 
@@ -89,7 +89,6 @@ describe('appendVerifierGateGuidance', () => {
 
     expect(output).toContain('If this task involved code changes');
     expect(output).not.toContain('This does not apply to Chat mode');
-    expect(output).not.toContain('required in code and code:enhanced');
   });
 
   test('names every verdict token from VERIFIER_VERDICTS', () => {
@@ -131,19 +130,27 @@ describe('appendVerifierGateGuidance', () => {
   });
 
   test('delegates rework to the builder when a builder is advertised', () => {
-    const output = renderGate(true);
+    const output = renderGate('builder');
 
     expect(output).toContain('delegate to `builder`, then request round 2');
     expect(output).not.toContain('do it yourself');
     expect(output).toContain('get the missing evidence from `builder` once');
   });
 
-  test('does the rework and evidence gathering itself when no builder is advertised', () => {
-    const output = renderGate(false);
+  test('does the rework and evidence gathering itself when no rework role is advertised', () => {
+    const output = renderGate(null);
 
     expect(output).toContain('do it yourself, then request round 2');
     expect(output).not.toContain('delegate to `builder`');
     expect(output).toContain('gather the missing evidence yourself once');
     expect(output).not.toContain('from `builder`');
+  });
+
+  test('delegates rework to the specifier when the specifier is the advertised rework role', () => {
+    const output = renderGate('specifier');
+
+    expect(output).toContain('delegate to `specifier`, then request round 2');
+    expect(output).toContain('get the missing evidence from `specifier` once');
+    expect(output).not.toContain('do it yourself');
   });
 });

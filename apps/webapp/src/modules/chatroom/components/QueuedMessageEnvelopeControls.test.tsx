@@ -125,7 +125,6 @@ describe('QueuedMessageEnvelopeControls', () => {
       makeMessage({
         taskEnvelope: undefined,
         conversationMode: 'chat',
-        plannerEnhancerEnabled: false,
         startInNewSession: true,
       })
     );
@@ -149,33 +148,7 @@ describe('QueuedMessageEnvelopeControls', () => {
     });
   });
 
-  it('renders legacy enhanced envelopes as Enhance and cycles them to Chat', async () => {
-    const envelope = createTaskEnvelope({
-      conversationMode: 'code:enhanced',
-      sessionPolicy: 'continue',
-    });
-    renderControls(makeMessage({ taskEnvelope: envelope }));
-
-    expect(modeToggle()).toHaveAttribute('aria-label', 'Mode: Enhance');
-    expect(modeToggle()).toHaveAttribute('title', 'Mode: Enhance — click to switch to Chat.');
-
-    fireEvent.click(modeToggle());
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledTimes(1);
-    });
-    expect(mockUpdate).toHaveBeenCalledWith({
-      queuedMessageId: 'msg-1' as Id<'chatroom_messageQueue'>,
-      taskEnvelope: {
-        version: 1,
-        conversationMode: 'chat',
-        sessionPolicy: 'continue',
-        handoffWorkflow: { preset: 'direct', phase: 'entry' },
-      },
-    });
-  });
-
-  it('cycles Code → Enhance and preserves the complete envelope', async () => {
+  it('cycles Code → Chat and preserves the complete envelope', async () => {
     const envelope = createTaskEnvelope({
       conversationMode: 'code',
       sessionPolicy: 'continue',
@@ -189,8 +162,8 @@ describe('QueuedMessageEnvelopeControls', () => {
       queuedMessageId: 'msg-1' as Id<'chatroom_messageQueue'>,
       taskEnvelope: {
         ...envelope,
-        conversationMode: 'code:enhanced',
-        handoffWorkflow: { preset: 'enhanced-team', phase: 'entry' },
+        conversationMode: 'chat',
+        handoffWorkflow: { preset: 'direct', phase: 'entry' },
       },
     });
   });

@@ -45,6 +45,17 @@ const soloPreset: BuiltinTeamPreset<'solo'> = { ...TEAM_PRESETS.solo };
 // @ts-expect-error Entry points must belong to their preset's team.
 const outOfTeamEntry: BuiltinTeamPreset<'solo'> = { ...soloPreset, entryPoint: 'planner' };
 
+const trioPreset: BuiltinTeamPreset<'trio'> = { ...TEAM_PRESETS.trio };
+const trioSessionRule: BuiltinTeamPreset<'trio'> = {
+  ...TEAM_PRESETS.trio,
+  // @ts-expect-error session rules may only name team members
+  handoffSessionRules: [{ from: 'planner', to: 'builder', sessionPolicy: 'new' }],
+};
+// @ts-expect-error planner is not a Trio builtin member.
+const trioPlanner: BuiltinTeamRole<'trio'> = 'planner';
+// @ts-expect-error specifier is not a Duo builtin member.
+const duoSpecifier: BuiltinTeamRole<'duo'> = 'specifier';
+
 const customStructure: TeamStructure = {
   teamId: 'custom',
   teamStructureId: 'custom',
@@ -68,6 +79,10 @@ void [
   duoSoloRole,
   ephemeralEntry,
   outOfTeamEntry,
+  trioPreset,
+  trioSessionRule,
+  trioPlanner,
+  duoSpecifier,
   customStructure,
   customResolvedStructure,
 ];

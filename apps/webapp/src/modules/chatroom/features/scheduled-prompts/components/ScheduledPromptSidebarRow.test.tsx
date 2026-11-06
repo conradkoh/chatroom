@@ -134,7 +134,7 @@ describe('ScheduledPromptSidebarRow', () => {
     expect(mocks.updatePolicy).toHaveBeenCalledTimes(1);
     expect(mocks.updatePolicy).toHaveBeenCalledWith({
       scheduledPromptId: 'sp-1',
-      conversationMode: 'code:enhanced',
+      conversationMode: 'chat',
     });
   });
 

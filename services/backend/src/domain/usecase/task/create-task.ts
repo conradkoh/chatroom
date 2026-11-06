@@ -59,10 +59,8 @@ export interface CreateTaskArgs {
   sourceMessageId?: Id<'chatroom_messages'> | undefined;
   attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
   queuePosition: number;
-  plannerEnhancerEnabled?: boolean | undefined;
   conversationMode?: ConversationMode | undefined;
   originUserMessageId?: Id<'chatroom_messages'> | undefined;
-  enhancerEnabledAtEnqueue?: boolean | undefined;
   startInNewSession: boolean | undefined;
   /**
    * Optional canonical TaskEnvelopeV1 snapshot. The legacy scalar arguments
@@ -89,7 +87,6 @@ export function deriveTaskPolicyProjection(envelope: TaskEnvelopeV1) {
       },
     },
     conversationMode: envelope.conversationMode,
-    plannerEnhancerEnabled: envelope.conversationMode === 'code:enhanced',
     startInNewSession: envelope.sessionPolicy === 'new',
   };
 }
@@ -158,7 +155,6 @@ export async function createTask(
   const taskEnvelope = normalizeTaskEnvelope({
     taskEnvelope: args.taskEnvelope,
     conversationMode: args.conversationMode,
-    plannerEnhancerEnabled: args.plannerEnhancerEnabled,
     startInNewSession: args.startInNewSession,
   });
   const policyProjection = deriveTaskPolicyProjection(taskEnvelope);
@@ -178,9 +174,6 @@ export async function createTask(
         attachedTaskIds: args.attachedTaskIds,
       }),
     ...(args.originUserMessageId ? { originUserMessageId: args.originUserMessageId } : {}),
-    ...(args.enhancerEnabledAtEnqueue !== undefined
-      ? { enhancerEnabledAtEnqueue: args.enhancerEnabledAtEnqueue }
-      : {}),
     // Complete canonical snapshot plus derived scalar projections.
     ...policyProjection,
   });

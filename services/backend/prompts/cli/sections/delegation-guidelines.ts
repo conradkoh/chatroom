@@ -9,7 +9,12 @@ import type { TeamCompositionConfig } from './team-composition';
 
 type CmdHelper = (subcommand: string) => string;
 
-function buildCmdHelper(cliEnvPrefix: string, chatroomIdArg: string, roleArg: string): CmdHelper {
+/** Build a `chatroom <subcommand>` command string with the current room/role context. */
+export function buildCmdHelper(
+  cliEnvPrefix: string,
+  chatroomIdArg: string,
+  roleArg: string
+): CmdHelper {
   return (subcommand: string) =>
     `\`${cliEnvPrefix}chatroom ${subcommand} --chatroom-id=${chatroomIdArg} --role=${roleArg}\``;
 }
@@ -28,6 +33,20 @@ Break complex features into small, focused slices. For code review guidance, act
 - Implement one slice at a time; each slice ≈ one focused review surface.
 - Review your own work before moving on; re-validate after rework.
 - ${feedingNote}.`;
+}
+
+/** Slice heuristics block shared by delegation-guidelines renderers. */
+export function getSliceHeuristicsBlock(): string {
+  return `**How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
+
+- **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
+- **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
+- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design.
+- **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
+- **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
+- **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
+- **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
+- **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).`;
 }
 
 function getBuilderDelegationGuidelines(cmd: CmdHelper, delegationBriefRef: string): string {
@@ -56,16 +75,7 @@ flowchart TD
 
 **Default: delegate with a Delegation Brief.** ${delegationBriefRef}
 
-**How to slice the work** — think about the phases a human engineer would actually go through to ship the work, then make each phase a slice. Some heuristics:
-
-- **Each slice should name a concrete artifact** ("the X schema", "the Y entity", "the Z endpoint") — not a vague layer ("backend work", "implementation"). Weak builders fail when scope is unbounded.
-- **File-level detail, zero ambiguity.** List every file (full paths) and paste snippets until the builder cannot guess wrong — not vague layers ("backend work", "the component").
-- **Architecture:** for backend contract, API, or schema/persistence changes, the architect designs first and you delegate only after its design returns. You own slicing and sequencing of builder work, using the architect's proposed sequence as input; the UI/UX engineer owns UI/UX design.
-- **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
-- **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
-- **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
-- **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
-- **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
+${getSliceHeuristicsBlock()}
 
 **Code review:** Review each builder slice yourself with the code-review skill (${cmd('skill activate code-review')}); hand off to \`reviewer\` before delivery when the \`reviewer\` template's criteria apply.
 

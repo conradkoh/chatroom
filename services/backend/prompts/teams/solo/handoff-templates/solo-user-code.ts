@@ -1,5 +1,5 @@
 /**
- * Key: `solo:solo->user@code` (bucket `code`; covers `code` and `code:enhanced`).
+ * Key: `solo:solo->user@code` (bucket `code`).
  * Solo → user final report. Body only: the pair resolver prepends the recipient callout and the title line.
  */
 

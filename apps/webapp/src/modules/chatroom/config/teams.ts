@@ -20,6 +20,7 @@ export interface TeamsConfig {
 const TEAM_PICKER_DESCRIPTIONS = {
   duo: 'A planner and builder working as a pair, planner as coordinator',
   solo: 'A single agent working independently',
+  trio: 'A coordinator, specifier, and builder — the coordinator routes all work',
 } satisfies Record<TeamPresetId, string>;
 
 export const TEAMS_CONFIG = {

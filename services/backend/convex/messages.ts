@@ -1,4 +1,5 @@
 // fallow-ignore-file complexity code-duplication
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import {
   advanceTaskEnvelopeWorkflow,
   normalizeTaskEnvelope,
@@ -6,6 +7,7 @@ import {
   withTaskEnvelopeSessionPolicy,
   type TaskEnvelopeV1,
 } from '@workspace/shared/domain/task-envelope';
+import { getHandoffSessionPolicy } from '@workspace/shared/domain/team-presets';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -17,11 +19,17 @@ import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
+import { retireEnhancedTaskEnvelope } from './lib/enhancedModeRetirement';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
-import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
+import {
+  normalizePersistedTaskEnvelope,
+  taskEnvelopeV1Validator,
+  type PersistedTaskEnvelopeV1,
+} from './lib/taskEnvelope';
 import type { BackendErrorCode } from '../config/errorCodes';
+import { getEnforcedHandoffTargets } from '../prompts/cli/handoff-templates';
 import { getConfig } from '../prompts/config/index';
 import type { AttachedFileView } from '../src/domain/entities/file-attachment';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
@@ -222,7 +230,7 @@ async function _sendMessageHandler(
     attachedSnippets?:
       { reference: string; fileSource: string; selectedContent: string }[] | undefined;
     startInNewSession?: boolean | undefined;
-    conversationMode?: 'chat' | 'code' | 'code:enhanced' | undefined;
+    conversationMode?: ConversationMode | undefined;
     taskEnvelope?: TaskEnvelopeV1 | undefined;
   }
 ) {
@@ -440,11 +448,20 @@ const attachedSnippetArgsValidator = v.object({
   selectedContent: v.string(),
 });
 
-const conversationModeValidator = v.union(
-  v.literal('chat'),
-  v.literal('code'),
-  v.literal('code:enhanced')
-);
+const conversationModeValidator = v.union(v.literal('chat'), v.literal('code'));
+
+/**
+ * Client-supplied envelopes may still carry the retired `code:enhanced` mode.
+ * Remap and normalize at the boundary so a write never persists the literal.
+ */
+function toWritableTaskEnvelope(
+  envelope: PersistedTaskEnvelopeV1 | undefined
+): TaskEnvelopeV1 | undefined {
+  if (envelope === undefined) return undefined;
+  return normalizeTaskEnvelope({
+    taskEnvelope: retireEnhancedTaskEnvelope(envelope) ?? envelope,
+  });
+}
 
 const sendMessageMutationArgs = {
   ...SessionIdArg,
@@ -466,7 +483,10 @@ const sendMessageMutationArgs = {
 export const send = mutation({
   args: sendMessageMutationArgs,
   handler: async (ctx, args) => {
-    return _sendMessageHandler(ctx, args);
+    return _sendMessageHandler(ctx, {
+      ...args,
+      taskEnvelope: toWritableTaskEnvelope(args.taskEnvelope),
+    });
   },
 });
 
@@ -485,6 +505,7 @@ export const enqueueMessageAtFront = mutation({
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const taskEnvelope = toWritableTaskEnvelope(args.taskEnvelope);
     const result = await enqueueUserMessageAtFront(ctx, {
       chatroomId: args.chatroomId,
       content: args.content,
@@ -497,7 +518,7 @@ export const enqueueMessageAtFront = mutation({
       ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
       ...(args.conversationMode !== undefined ? { conversationMode: args.conversationMode } : {}),
-      ...(args.taskEnvelope !== undefined ? { taskEnvelope: args.taskEnvelope } : {}),
+      ...(taskEnvelope !== undefined ? { taskEnvelope } : {}),
     });
     if (!result.ok)
       throw new ConvexError({
@@ -617,6 +638,27 @@ export async function runHandoffHandler(
         code: 'INVALID_TARGET_ROLE',
         message: `Cannot hand off to "${args.targetRole}": this role is not part of the current team. Available targets: ${['user', ...teamRoles].join(', ')}.`,
         suggestedTargets: ['user', ...teamRoles],
+      },
+      messageId: null,
+      completedTaskIds: [],
+      newTaskId: null,
+      promotedTaskId: null,
+      supportsNativeIntegration: false,
+      attachmentsDiscarded: false,
+    };
+  }
+
+  // Teams with an enforced handoff graph (trio) authorize only the targets their
+  // role contract lists, including the `user` target. Enforced before any write
+  // so a rejected handoff leaves tasks, messages, attachments, and usage untouched.
+  const enforcedTargets = getEnforcedHandoffTargets(chatroom.teamId, normalizedSenderRole);
+  if (enforcedTargets && !enforcedTargets.includes(normalizedTargetRole)) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_TARGET_ROLE',
+        message: `Cannot hand off from "${args.senderRole}" to "${args.targetRole}": the ${chatroom.teamName ?? chatroom.teamId} team routes coordination through its handoff contract. Allowed targets for "${normalizedSenderRole}": ${enforcedTargets.join(', ')}.`,
+        suggestedTargets: [...enforcedTargets],
       },
       messageId: null,
       completedTaskIds: [],
@@ -759,12 +801,26 @@ export async function runHandoffHandler(
     .filter((task) => task.assignedTo?.toLowerCase() === normalizedSenderRole)
     .sort((a, b) => a.queuePosition - b.queuePosition)[0];
   const inheritedTaskEnvelope: TaskEnvelopeV1 | undefined = sourceTask
-    ? advanceTaskEnvelopeWorkflow(normalizeTaskEnvelope(sourceTask))
+    ? advanceTaskEnvelopeWorkflow(normalizePersistedTaskEnvelope(sourceTask))
     : undefined;
+
+  // Per-edge session policy of the active team's handoff rules. `undefined`
+  // (duo, solo, or an edge with no rule) means the target inherits the source
+  // task's session policy unchanged. Applied to a fresh envelope only; the
+  // source task is never mutated.
+  const sessionPolicyOverride = getHandoffSessionPolicy(
+    chatroom.teamId ?? '',
+    normalizedSenderRole,
+    normalizedTargetRole
+  );
+  const targetTaskEnvelope =
+    inheritedTaskEnvelope && sessionPolicyOverride
+      ? withTaskEnvelopeSessionPolicy(inheritedTaskEnvelope, sessionPolicyOverride)
+      : inheritedTaskEnvelope;
 
   // TEMPORARY scalar compatibility projections for legacy readers, mirroring the
   // user-ingress recipe in send-automated-user-message.ts. The canonical envelope
-  // is always inherited; the scalar projections (conversationMode / plannerEnhancerEnabled /
+  // is always inherited; the scalar projections (conversationMode /
   // startInNewSession) are only written when the source task itself carries explicit
   // policy data (explicit envelope or legacy scalars). Fully legacy-allocated chains
   // keep the projections undefined until those readers migrate to taskEnvelope.
@@ -772,13 +828,11 @@ export async function runHandoffHandler(
     sourceTask &&
     (sourceTask.taskEnvelope !== undefined ||
       sourceTask.conversationMode !== undefined ||
-      sourceTask.plannerEnhancerEnabled !== undefined ||
       sourceTask.startInNewSession !== undefined) &&
-    inheritedTaskEnvelope
+    targetTaskEnvelope
       ? {
-          conversationMode: inheritedTaskEnvelope.conversationMode,
-          plannerEnhancerEnabled: inheritedTaskEnvelope.conversationMode === 'code:enhanced',
-          startInNewSession: inheritedTaskEnvelope.sessionPolicy === 'new',
+          conversationMode: targetTaskEnvelope.conversationMode,
+          startInNewSession: targetTaskEnvelope.sessionPolicy === 'new',
         }
       : undefined;
 
@@ -844,11 +898,17 @@ export async function runHandoffHandler(
       assignedTo: args.targetRole,
       sourceMessageId: messageId,
       queuePosition,
-      // Inherited canonical envelope plus temporary scalar compatibility projections
-      // (see legacyScalarProjections above). These scalars are projections only;
-      // policy selection remains driven by the canonical envelope itself.
-      ...(inheritedTaskEnvelope ? { taskEnvelope: inheritedTaskEnvelope } : {}),
-      ...(legacyScalarProjections ? legacyScalarProjections : { startInNewSession: undefined }),
+      // Inherited canonical envelope (session policy adjusted per edge) plus
+      // temporary scalar compatibility projections (see legacyScalarProjections
+      // above). These scalars are projections only; policy selection remains
+      // driven by the canonical envelope itself.
+      ...(targetTaskEnvelope ? { taskEnvelope: targetTaskEnvelope } : {}),
+      ...(legacyScalarProjections
+        ? legacyScalarProjections
+        : {
+            startInNewSession:
+              sessionPolicyOverride === undefined ? undefined : sessionPolicyOverride === 'new',
+          }),
     });
     newTaskId = createdTaskId;
 
@@ -912,7 +972,10 @@ export async function runHandoffHandler(
 export const sendMessage = mutation({
   args: sendMessageMutationArgs,
   handler: async (ctx, args) => {
-    return _sendMessageHandler(ctx, args);
+    return _sendMessageHandler(ctx, {
+      ...args,
+      taskEnvelope: toWritableTaskEnvelope(args.taskEnvelope),
+    });
   },
 });
 
@@ -1163,12 +1226,11 @@ export const listQueued = query({
       // Add queue-specific flags
       isQueued: true as const,
       queuePosition: qMsg.queuePosition,
-      plannerEnhancerEnabled: qMsg.plannerEnhancerEnabled,
       conversationMode: qMsg.conversationMode,
       startInNewSession: qMsg.startInNewSession,
       // Normalized canonical snapshot: complete for both legacy rows (derived)
       // and rows that already persist an explicit envelope.
-      taskEnvelope: normalizeTaskEnvelope(qMsg),
+      taskEnvelope: normalizePersistedTaskEnvelope(qMsg),
     }));
 
     // Enrich queued messages with attachment details (shared helper)
@@ -1187,13 +1249,12 @@ export const listQueued = query({
  * TEMPORARY compatibility projection for legacy scalar readers. The canonical
  * TaskEnvelopeV1 is the only policy source; these scalar columns are derived
  * from it and are NOT independent inputs. Remove together with the
- * plannerEnhancerEnabled/conversationMode/startInNewSession columns after all
- * readers migrate to taskEnvelope.
+ * conversationMode/startInNewSession columns after all readers migrate to
+ * taskEnvelope.
  */
 function taskEnvelopeLegacyProjection(envelope: TaskEnvelopeV1) {
   return {
     taskEnvelope: envelope,
-    plannerEnhancerEnabled: envelope.conversationMode === 'code:enhanced',
     conversationMode: envelope.conversationMode,
     startInNewSession: envelope.sessionPolicy === 'new',
   };
@@ -1235,36 +1296,6 @@ export const updateQueuedMessageEnvelope = mutation({
   },
 });
 
-/** Legacy adapter: derives the code mode from the boolean and rewrites the envelope. */
-export const updateQueuedMessagePlannerEnhancer = mutation({
-  args: {
-    ...SessionIdArg,
-    queuedMessageId: v.id('chatroom_messageQueue'),
-    plannerEnhancerEnabled: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
-    if (!record) {
-      throw new ConvexError({
-        code: 'QUEUED_MESSAGE_NOT_FOUND',
-        message: 'Queued message not found',
-      });
-    }
-    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    // Historical behavior: false maps to code (never chat).
-    const current = normalizeTaskEnvelope(record);
-    const next = withTaskEnvelopeConversationMode(
-      current,
-      args.plannerEnhancerEnabled ? 'code:enhanced' : 'code'
-    );
-    await ctx.db.patch(
-      'chatroom_messageQueue',
-      args.queuedMessageId,
-      taskEnvelopeLegacyProjection(next)
-    );
-  },
-});
-
 /** Legacy adapter: rewrites the envelope for the requested conversation mode. */
 export const updateQueuedMessageConversationMode = mutation({
   args: {
@@ -1281,7 +1312,7 @@ export const updateQueuedMessageConversationMode = mutation({
       });
     }
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    const current = normalizeTaskEnvelope(record);
+    const current = normalizePersistedTaskEnvelope(record);
     const next = withTaskEnvelopeConversationMode(current, args.conversationMode);
     await ctx.db.patch(
       'chatroom_messageQueue',
@@ -1306,7 +1337,7 @@ export const updateQueuedMessageStartInNewSession = mutation({
         message: 'Queued message not found',
       });
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    const current = normalizeTaskEnvelope(record);
+    const current = normalizePersistedTaskEnvelope(record);
     const next = withTaskEnvelopeSessionPolicy(
       current,
       args.startInNewSession ? 'new' : 'continue'
@@ -1509,6 +1540,7 @@ export const getRolePrompt = query({
     // participants remain a legacy fallback for empty-membership rooms.
     const { teamRoles } = getTeamRolesFromChatroom(chatroom);
     const availableHandoffRoles = buildAvailableHandoffRoles({
+      teamId: chatroom.teamId,
       teamRoles,
       currentRole: args.role,
       fallbackParticipantRoles: availableRoles,

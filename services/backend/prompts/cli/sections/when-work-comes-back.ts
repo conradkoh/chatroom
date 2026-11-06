@@ -12,10 +12,10 @@ import type { TeamCompositionConfig } from './team-composition';
  * Generate the "When you receive work back" section.
  */
 export function getWhenWorkComesBackSection(
-  config: Pick<TeamCompositionConfig, 'hasBuilder'>
+  config: Pick<TeamCompositionConfig, 'hasBuilder' | 'implementationRole'>
 ): string {
   const reworkLine = config.hasBuilder
-    ? '3. If requirements are NOT met (including partial work) → hand back to `builder` for rework'
+    ? `3. If requirements are NOT met (including partial work) → hand back to \`${config.implementationRole ?? 'builder'}\` for rework`
     : '3. If requirements are NOT met (including partial work) → revise and re-validate';
 
   return `**When you receive work back from team members:**

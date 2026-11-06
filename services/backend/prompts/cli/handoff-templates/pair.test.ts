@@ -39,7 +39,7 @@ describe('normalizeHandoffMode', () => {
     expect(normalizeHandoffMode('')).toBeUndefined();
     expect(normalizeHandoffMode('   ')).toBeUndefined();
     expect(normalizeHandoffMode(' CODE ')).toBe('code');
-    expect(normalizeHandoffMode('Code:Enhanced')).toBe('code:enhanced');
+    expect(normalizeHandoffMode('Chat')).toBe('chat');
   });
 });
 
@@ -47,7 +47,6 @@ describe('isConversationMode', () => {
   test('accepts the canonical modes and rejects everything else', () => {
     expect(isConversationMode('chat')).toBe(true);
     expect(isConversationMode('code')).toBe(true);
-    expect(isConversationMode('code:enhanced')).toBe(true);
     expect(isConversationMode('bogus')).toBe(false);
     expect(isConversationMode('')).toBe(false);
   });
@@ -67,12 +66,6 @@ describe('formatHandoffTemplateKey', () => {
         mode: 'code',
       })
     ).toBe('duo:planner->builder@code');
-    expect(
-      formatHandoffTemplateKey({
-        pair: { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
-        mode: 'code:enhanced',
-      })
-    ).toBe('duo:planner->user@code');
   });
 });
 
@@ -112,10 +105,8 @@ describe('formatHandoffTemplateCommand', () => {
     expect(formatHandoffTemplateCommand('view-template', pair, '', 'chat')).toBe(
       'chatroom handoff view-template --from="planner" --to="builder" --mode="chat" --team-id="duo"'
     );
-    expect(
-      formatHandoffTemplateCommand('view-template', pair, '', '<chat|code|code:enhanced>')
-    ).toBe(
-      'chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"'
+    expect(formatHandoffTemplateCommand('view-template', pair, '', '<chat|code>')).toBe(
+      'chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"'
     );
   });
 });
@@ -149,9 +140,7 @@ describe('missingModeMessage', () => {
 
 describe('unknownModeMessage', () => {
   test('names the valid modes', () => {
-    expect(unknownModeMessage('bogus')).toBe(
-      'Unknown mode "bogus". Valid modes: chat, code, code:enhanced.'
-    );
+    expect(unknownModeMessage('bogus')).toBe('Unknown mode "bogus". Valid modes: chat, code.');
   });
 });
 
@@ -169,7 +158,7 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -205,8 +194,8 @@ describe('legacyRoleFlagsMessage', () => {
       [
         header,
         'Pairs from "planner" in team "duo":',
-        '  chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code|code:enhanced>" --team-id="duo"',
-        '  chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        '  chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code>" --team-id="duo"',
+        '  chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -221,7 +210,7 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="<your-role>" --to="<recipient-role>" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="<your-role>" --to="<recipient-role>" --mode="<chat|code>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -235,7 +224,7 @@ describe('legacyRoleFlagsMessage', () => {
     ).toBe(
       [
         header,
-        'Use: chatroom handoff view-template --from="<your-role>" --to="builder" --mode="<chat|code|code:enhanced>" --team-id="duo"',
+        'Use: chatroom handoff view-template --from="<your-role>" --to="builder" --mode="<chat|code>" --team-id="duo"',
       ].join('\n')
     );
   });
@@ -243,7 +232,7 @@ describe('legacyRoleFlagsMessage', () => {
 
 describe('unknownTeamMessage', () => {
   test('names the known teams', () => {
-    expect(unknownTeamMessage('tri')).toBe('Unknown team "tri". Known teams: duo, solo.');
+    expect(unknownTeamMessage('tri')).toBe('Unknown team "tri". Known teams: duo, solo, trio.');
   });
 });
 
