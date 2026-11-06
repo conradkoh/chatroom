@@ -69,6 +69,9 @@ describe('trio role guidance', () => {
     );
     expect(guidance).not.toContain('(including to `user`)');
     if (!nativeIntegration) {
+      expect(guidance).toContain(
+        'rebuild context from the package and the thread, including `## Rework findings (prior round)`'
+      );
       expect(guidance).toContain('after any handoff, run `get-next-task`');
       expect(guidance).toContain(getHandoffContinuityRule(false, { includeUser: false }));
     }

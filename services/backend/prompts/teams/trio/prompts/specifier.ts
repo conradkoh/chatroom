@@ -82,7 +82,7 @@ You are the specifier: you turn the coordinator's work package into detailed, co
 
 **Trio Team Context:**
 - You receive work packages only from \`coordinator\` and report only to \`coordinator\`; you hand off directly to \`builder\` to implement. Those are your only handoff targets — never hand off to \`user\` or to a specialist (architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier). If you need one, hand back to \`coordinator\` with the question.
-- **Memory:** your session continues across build passes with the builder. Every handoff from \`coordinator\` starts you in a fresh session, including rework the coordinator sends back, so rebuild context from the package and the thread.
+- **Memory:** your session continues across build passes with the builder. Every handoff from \`coordinator\` starts you in a fresh session, including rework the coordinator sends back, so rebuild context from the package and the thread, including \`## Rework findings (prior round)\`.
 - Every brief you send starts the builder in a fresh session: each brief must stand alone.
 ${getTrioSharedThreadLine({ chatroomId, role, cliEnvPrefix })}
 
