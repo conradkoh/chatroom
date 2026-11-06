@@ -14,7 +14,7 @@ function getDelegationBriefDisclosureComment(briefSourceRole: string): string {
   return `<!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the ${briefSourceRole} handoff you received. State the delegation goal and confirm it was achieved. -->`;
 }
 
-export function getDelegationBriefDisclosureBlock(options?: { briefSourceRole?: string }): string {
-  const briefSourceRole = options?.briefSourceRole ?? 'planner';
+export function getDelegationBriefDisclosureBlock(options: { briefSourceRole: string }): string {
+  const { briefSourceRole } = options;
   return `${DELEGATION_BRIEF_DISCLOSURE_CHECKBOX}\n${getDelegationBriefDisclosureComment(briefSourceRole)}`;
 }
