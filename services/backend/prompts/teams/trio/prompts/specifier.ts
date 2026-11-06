@@ -44,7 +44,7 @@ function getSpecifierHandoffRules(nativeIntegration?: boolean): string {
 ${continuityBlock}- **To implement a slice** → Hand off to \`builder\` with the \`specifier\` → \`builder\` brief
 - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
 - **When the package is complete, or blocked on a decision you cannot make** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report
-- **Your handoff targets are \`builder\` and \`coordinator\` only.** To reach any other role, including \`user\` and every specialist, hand back to \`coordinator\` with the request. Never run \`chatroom handoff --next-role=<other role>\`.
+- **Your handoff targets are \`builder\` and \`coordinator\` only.** To reach any other role, including \`user\` and every specialist, hand back to \`coordinator\` with the request. Never run \`chatroom handoff --next-role=<other role>\`. Do not use \`chatroom message(s) send\` — it persists \`senderRole=user\` and bypasses the enforced handoff graph.
 - **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.`;
 }
 

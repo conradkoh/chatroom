@@ -57,6 +57,9 @@ describe('trio role guidance', () => {
     expect(guidance).toContain(`chatroom messages download --chatroom-id="${CHATROOM_ID}"`);
     expect(guidance).toContain('never hand off to `user`');
     expect(guidance).toContain('Your handoff targets are `builder` and `coordinator` only');
+    expect(guidance).toContain(
+      'Do not use `chatroom message(s) send` — it persists `senderRole=user` and bypasses the enforced handoff graph.'
+    );
     expect(guidance).not.toContain('Run `chatroom handoff --next-role=<role>`');
     expect(guidance).not.toContain('the architect designs first and you delegate');
     expect(guidance).toContain(
