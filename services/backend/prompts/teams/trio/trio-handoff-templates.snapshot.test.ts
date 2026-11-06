@@ -107,6 +107,14 @@ describe('trio handoff template snapshots', () => {
     const body = render(coordinatorToSpecifier, 'code');
     expect(body).toContain('## Inputs from specialists');
     expect(body).toContain('chatroom messages download');
+    expect(body).toContain('## Rework findings (prior round)');
+    expect(body).toContain(
+      'message id of the specifier report and the blocking findings to fix; or `None.`'
+    );
+    expect(body.indexOf('## Scope')).toBeLessThan(body.indexOf('## Rework findings (prior round)'));
+    expect(body.indexOf('## Rework findings (prior round)')).toBeLessThan(
+      body.indexOf('## Acceptance criteria')
+    );
   });
 
   test('builder → specifier handback addresses the specifier', () => {

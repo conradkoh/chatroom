@@ -90,6 +90,9 @@ Instructions (not part of the message): Delegate ONE work package to the \`speci
 - In scope: <surfaces and behaviors>
 - Out of scope: <surfaces the specifier and builder must not touch>
 
+## Rework findings (prior round)
+<message id of the specifier report and the blocking findings to fix; or \`None.\`>
+
 ## Acceptance criteria
 - <verifiable outcome; include at least one end-to-end check>
 
@@ -304,6 +307,9 @@ Instructions (not part of the message): Delegate ONE work package to the \`speci
 ## Scope
 - In scope: <surfaces and behaviors>
 - Out of scope: <surfaces the specifier and builder must not touch>
+
+## Rework findings (prior round)
+<message id of the specifier report and the blocking findings to fix; or \`None.\`>
 
 ## Acceptance criteria
 - <verifiable outcome; include at least one end-to-end check>

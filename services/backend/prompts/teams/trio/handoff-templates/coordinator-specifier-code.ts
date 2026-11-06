@@ -36,6 +36,9 @@ ${getFileReferenceGuidanceComment()}
 - In scope: <surfaces and behaviors>
 - Out of scope: <surfaces the specifier and builder must not touch>
 
+## Rework findings (prior round)
+<message id of the specifier report and the blocking findings to fix; or \`None.\`>
+
 ## Acceptance criteria
 - <verifiable outcome; include at least one end-to-end check>
 
