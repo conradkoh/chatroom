@@ -342,7 +342,7 @@ All of --from, --to, and --mode are required; use the mode of your current task.
 
 **Code review:** Review each builder slice with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-chatroom-id" --role="specifier"\`) before the next slice.
 
-**Rework feedback:** Rework feedback to the builder must name the file, the line, and the failing requirement.
+**Rework feedback:** Rework feedback to the builder must name the file, the line where known, and the failing requirement.
 
 **If stuck:** After 2 failed rework attempts on a slice → hand back to \`coordinator\` with the blocker. No partial delivery presented as complete."
 `;
@@ -402,7 +402,7 @@ flowchart TD
 
 **Code review:** Review each builder slice with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-chatroom-id" --role="specifier"\`) before the next slice.
 
-**Rework feedback:** Rework feedback to the builder must name the file, the line, and the failing requirement.
+**Rework feedback:** Rework feedback to the builder must name the file, the line where known, and the failing requirement.
 
 **If stuck:** After 2 failed rework attempts on a slice → hand back to \`coordinator\` with the blocker. No partial delivery presented as complete."
 `;

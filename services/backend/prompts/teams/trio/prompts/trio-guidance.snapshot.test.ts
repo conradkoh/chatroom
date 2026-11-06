@@ -79,7 +79,7 @@ describe('trio role guidance', () => {
       `chatroom skill activate code-review --chatroom-id="${CHATROOM_ID}" --role="specifier"`
     );
     expect(guidance).toContain(
-      'Rework feedback to the builder must name the file, the line, and the failing requirement.'
+      'Rework feedback to the builder must name the file, the line where known, and the failing requirement.'
     );
   });
 

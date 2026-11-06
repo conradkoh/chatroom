@@ -98,7 +98,7 @@ ${getSpecifierSlicingGuidelines()}
 
 **Code review:** Review each builder slice with the code-review skill (${cmd('skill activate code-review')}) before the next slice.
 
-**Rework feedback:** Rework feedback to the builder must name the file, the line, and the failing requirement.
+**Rework feedback:** Rework feedback to the builder must name the file, the line where known, and the failing requirement.
 
 **If stuck:** After 2 failed rework attempts on a slice → hand back to \`coordinator\` with the blocker. No partial delivery presented as complete.`;
 }
