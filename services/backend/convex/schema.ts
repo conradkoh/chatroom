@@ -660,7 +660,14 @@ export default defineSchema({
     /** @deprecated Retired with code:enhanced; nothing reads or writes it. Retained so existing documents still validate. */
     plannerEnhancerEnabled: v.optional(v.boolean()),
     // Per-message conversation mode snapshot (undefined = legacy code fallback)
-    conversationMode: v.optional(v.union(v.literal('chat'), v.literal('code'))),
+    conversationMode: v.optional(
+      v.union(
+        v.literal('chat'),
+        v.literal('code'),
+        // @deprecated Retired mode. Kept so historical rows validate; reads remap it to 'code'. Never write it.
+        v.literal('code:enhanced')
+      )
+    ),
     startInNewSession: v.optional(v.boolean()),
     // Optional canonical TaskEnvelopeV1 snapshot (undefined = legacy scalars below)
     taskEnvelope: v.optional(taskEnvelopeV1Validator),
@@ -739,7 +746,14 @@ export default defineSchema({
     /** @deprecated Retired with code:enhanced; nothing reads or writes it. Retained so existing documents still validate. */
     plannerEnhancerEnabled: v.optional(v.boolean()),
     // Per-message conversation mode snapshot (undefined = legacy code fallback)
-    conversationMode: v.optional(v.union(v.literal('chat'), v.literal('code'))),
+    conversationMode: v.optional(
+      v.union(
+        v.literal('chat'),
+        v.literal('code'),
+        // @deprecated Retired mode. Kept so historical rows validate; reads remap it to 'code'. Never write it.
+        v.literal('code:enhanced')
+      )
+    ),
     /** Originating user message for request-first enhancer enforcement. */
     originUserMessageId: v.optional(v.id('chatroom_messages')),
     /** @deprecated Retired with code:enhanced; nothing reads or writes it. Retained so existing documents still validate. */

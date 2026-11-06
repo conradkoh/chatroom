@@ -8,10 +8,10 @@
  */
 
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
-import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 
 import { withActiveTeamStructure } from './chatroomTeam';
 import { buildAvailableHandoffRoles } from './handoffRoles';
+import { normalizePersistedTaskEnvelope } from './taskEnvelope';
 import { generateFullCliOutput } from '../../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../../prompts/config/index';
 import { getCliEnvPrefix } from '../../prompts/utils/index';
@@ -190,7 +190,9 @@ async function resolveDeliverySourceMessage(
 function resolveDeliveryModePolicy(task: Doc<'chatroom_tasks'>): DeliveryModePolicy {
   return {
     conversationMode:
-      task.taskEnvelope === undefined ? 'code' : normalizeTaskEnvelope(task).conversationMode,
+      task.taskEnvelope === undefined
+        ? 'code'
+        : normalizePersistedTaskEnvelope(task).conversationMode,
   };
 }
 

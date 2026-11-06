@@ -23,7 +23,11 @@ import { retireEnhancedTaskEnvelope } from './lib/enhancedModeRetirement';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
-import { taskEnvelopeV1Validator, type PersistedTaskEnvelopeV1 } from './lib/taskEnvelope';
+import {
+  normalizePersistedTaskEnvelope,
+  taskEnvelopeV1Validator,
+  type PersistedTaskEnvelopeV1,
+} from './lib/taskEnvelope';
 import type { BackendErrorCode } from '../config/errorCodes';
 import { getEnforcedHandoffTargets } from '../prompts/cli/handoff-templates';
 import { getConfig } from '../prompts/config/index';
@@ -797,7 +801,7 @@ export async function runHandoffHandler(
     .filter((task) => task.assignedTo?.toLowerCase() === normalizedSenderRole)
     .sort((a, b) => a.queuePosition - b.queuePosition)[0];
   const inheritedTaskEnvelope: TaskEnvelopeV1 | undefined = sourceTask
-    ? advanceTaskEnvelopeWorkflow(normalizeTaskEnvelope(sourceTask))
+    ? advanceTaskEnvelopeWorkflow(normalizePersistedTaskEnvelope(sourceTask))
     : undefined;
 
   // Per-edge session policy of the active team's handoff rules. `undefined`
@@ -1226,7 +1230,7 @@ export const listQueued = query({
       startInNewSession: qMsg.startInNewSession,
       // Normalized canonical snapshot: complete for both legacy rows (derived)
       // and rows that already persist an explicit envelope.
-      taskEnvelope: normalizeTaskEnvelope(qMsg),
+      taskEnvelope: normalizePersistedTaskEnvelope(qMsg),
     }));
 
     // Enrich queued messages with attachment details (shared helper)
@@ -1308,7 +1312,7 @@ export const updateQueuedMessageConversationMode = mutation({
       });
     }
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    const current = normalizeTaskEnvelope(record);
+    const current = normalizePersistedTaskEnvelope(record);
     const next = withTaskEnvelopeConversationMode(current, args.conversationMode);
     await ctx.db.patch(
       'chatroom_messageQueue',
@@ -1333,7 +1337,7 @@ export const updateQueuedMessageStartInNewSession = mutation({
         message: 'Queued message not found',
       });
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    const current = normalizeTaskEnvelope(record);
+    const current = normalizePersistedTaskEnvelope(record);
     const next = withTaskEnvelopeSessionPolicy(
       current,
       args.startInNewSession ? 'new' : 'continue'

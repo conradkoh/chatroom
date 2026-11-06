@@ -8,7 +8,11 @@
  * (@workspace/shared/domain/task-envelope).
  */
 
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
+import { normalizeTaskEnvelope, type TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 import { v } from 'convex/values';
+
+import { retireEnhancedScalarMode, retireEnhancedTaskEnvelope } from './enhancedModeRetirement';
 
 export const taskEnvelopeV1Validator = v.object({
   version: v.literal(1),
@@ -32,3 +36,32 @@ export const taskEnvelopeV1Validator = v.object({
 });
 
 export type PersistedTaskEnvelopeV1 = typeof taskEnvelopeV1Validator.type;
+
+/** The policy fields a persisted task/queue row carries. */
+export interface PersistedTaskPolicyFields {
+  readonly taskEnvelope?: unknown;
+  readonly conversationMode?: unknown;
+  readonly startInNewSession?: boolean | undefined;
+}
+
+/** Narrows a stored scalar mode, remapping the retired `code:enhanced` value. */
+function toConversationModeInput(mode: unknown): ConversationMode | undefined {
+  if (mode === 'chat' || mode === 'code') return mode;
+  return retireEnhancedScalarMode(mode) ?? undefined;
+}
+
+/**
+ * Normalizes a persisted row's envelope for readers, remapping the retired
+ * `code:enhanced` mode and the retired workflow preset/phase first.
+ *
+ * The Convex validator still accepts those literals so historical rows validate.
+ * Read paths must normalize through this helper so the retired values never
+ * surface as policy.
+ */
+export function normalizePersistedTaskEnvelope(row: PersistedTaskPolicyFields): TaskEnvelopeV1 {
+  return normalizeTaskEnvelope({
+    taskEnvelope: retireEnhancedTaskEnvelope(row.taskEnvelope) ?? row.taskEnvelope,
+    conversationMode: toConversationModeInput(row.conversationMode),
+    startInNewSession: row.startInNewSession,
+  });
+}

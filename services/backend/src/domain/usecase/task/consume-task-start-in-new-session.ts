@@ -1,9 +1,8 @@
 // fallow-ignore-file complexity
 
-import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
-
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { normalizePersistedTaskEnvelope } from '../../../../convex/lib/taskEnvelope';
 import { WorkspaceTaskInboxEventType } from '../../entities/chatroom-workspace-task-inbox';
 import { writeWorkspaceTaskInboxEvent } from '../machine/write-workspace-task-inbox-event';
 
@@ -25,7 +24,7 @@ export async function consumeTaskStartInNewSession(
 
   // An explicit envelope wins over stale legacy scalars. A missing envelope is
   // normalized from the legacy `startInNewSession` scalar (default: continue).
-  const envelope = normalizeTaskEnvelope(task);
+  const envelope = normalizePersistedTaskEnvelope(task);
   if (envelope.sessionPolicy !== 'new' || task.sessionPolicyConsumedAt !== undefined) {
     return false;
   }
