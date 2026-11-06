@@ -12,7 +12,18 @@ import { v } from 'convex/values';
 
 export const taskEnvelopeV1Validator = v.object({
   version: v.literal(1),
-  conversationMode: v.union(v.literal('chat'), v.literal('code')),
+  /**
+   * @deprecated `code:enhanced` is retired. It stays accepted so historical rows
+   * still validate; read paths remap it to `code` (see lib/enhancedModeRetirement.ts).
+   * Never write it.
+   */
+  conversationMode: v.union(
+    v.literal('chat'),
+    v.literal('code'),
+    // @deprecated Retired mode. Kept so historical rows still validate. Read paths remap it to 'code'
+    // (see lib/enhancedModeRetirement.ts). Never write it.
+    v.literal('code:enhanced')
+  ),
   sessionPolicy: v.union(v.literal('continue'), v.literal('new')),
   handoffWorkflow: v.object({
     preset: v.union(v.literal('direct'), v.literal('team')),

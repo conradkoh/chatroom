@@ -14,7 +14,7 @@ import { describe, expect, test } from 'vitest';
 
 import { taskEnvelopeV1Validator, type PersistedTaskEnvelopeV1 } from './taskEnvelope';
 
-const CANONICAL_CONVERSATION_MODES = ['chat', 'code'];
+const ACCEPTED_CONVERSATION_MODES = ['chat', 'code', 'code:enhanced'];
 const CANONICAL_SESSION_POLICIES = ['continue', 'new'];
 const CANONICAL_PRESETS = ['direct', 'team'];
 const CANONICAL_PHASES = ['entry', 'implementation', 'delivery'];
@@ -53,12 +53,18 @@ describe('taskEnvelopeV1Validator shape', () => {
     expect(version.value).toBe(1);
   });
 
-  test('literal member sets match the canonical values', () => {
-    expect(literalValues(envelopeFields().conversationMode)).toEqual(CANONICAL_CONVERSATION_MODES);
+  test('literal member sets match the accepted values, including the deprecated mode', () => {
+    // `code:enhanced` is retired but stays accepted so historical rows still validate.
+    expect(literalValues(envelopeFields().conversationMode)).toEqual(ACCEPTED_CONVERSATION_MODES);
     expect(literalValues(envelopeFields().sessionPolicy)).toEqual(CANONICAL_SESSION_POLICIES);
     const workflowFields = envelopeFields().handoffWorkflow.fields;
     expect(literalValues(workflowFields.preset)).toEqual(CANONICAL_PRESETS);
     expect(literalValues(workflowFields.phase)).toEqual(CANONICAL_PHASES);
+  });
+
+  test('unknown conversation modes are not accepted', () => {
+    // The union is exact: an unknown value such as `team` cannot pass validation.
+    expect(literalValues(envelopeFields().conversationMode)).not.toContain('team');
   });
 
   test('no optionality exists inside the envelope itself', () => {

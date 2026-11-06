@@ -19,10 +19,11 @@ import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
+import { retireEnhancedTaskEnvelope } from './lib/enhancedModeRetirement';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
-import { taskEnvelopeV1Validator } from './lib/taskEnvelope';
+import { taskEnvelopeV1Validator, type PersistedTaskEnvelopeV1 } from './lib/taskEnvelope';
 import type { BackendErrorCode } from '../config/errorCodes';
 import { getEnforcedHandoffTargets } from '../prompts/cli/handoff-templates';
 import { getConfig } from '../prompts/config/index';
@@ -445,6 +446,19 @@ const attachedSnippetArgsValidator = v.object({
 
 const conversationModeValidator = v.union(v.literal('chat'), v.literal('code'));
 
+/**
+ * Client-supplied envelopes may still carry the retired `code:enhanced` mode.
+ * Remap and normalize at the boundary so a write never persists the literal.
+ */
+function toWritableTaskEnvelope(
+  envelope: PersistedTaskEnvelopeV1 | undefined
+): TaskEnvelopeV1 | undefined {
+  if (envelope === undefined) return undefined;
+  return normalizeTaskEnvelope({
+    taskEnvelope: retireEnhancedTaskEnvelope(envelope) ?? envelope,
+  });
+}
+
 const sendMessageMutationArgs = {
   ...SessionIdArg,
   chatroomId: v.id('chatroom_rooms'),
@@ -465,7 +479,10 @@ const sendMessageMutationArgs = {
 export const send = mutation({
   args: sendMessageMutationArgs,
   handler: async (ctx, args) => {
-    return _sendMessageHandler(ctx, args);
+    return _sendMessageHandler(ctx, {
+      ...args,
+      taskEnvelope: toWritableTaskEnvelope(args.taskEnvelope),
+    });
   },
 });
 
@@ -484,6 +501,7 @@ export const enqueueMessageAtFront = mutation({
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const taskEnvelope = toWritableTaskEnvelope(args.taskEnvelope);
     const result = await enqueueUserMessageAtFront(ctx, {
       chatroomId: args.chatroomId,
       content: args.content,
@@ -496,7 +514,7 @@ export const enqueueMessageAtFront = mutation({
       ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
       ...(args.conversationMode !== undefined ? { conversationMode: args.conversationMode } : {}),
-      ...(args.taskEnvelope !== undefined ? { taskEnvelope: args.taskEnvelope } : {}),
+      ...(taskEnvelope !== undefined ? { taskEnvelope } : {}),
     });
     if (!result.ok)
       throw new ConvexError({
@@ -950,7 +968,10 @@ export async function runHandoffHandler(
 export const sendMessage = mutation({
   args: sendMessageMutationArgs,
   handler: async (ctx, args) => {
-    return _sendMessageHandler(ctx, args);
+    return _sendMessageHandler(ctx, {
+      ...args,
+      taskEnvelope: toWritableTaskEnvelope(args.taskEnvelope),
+    });
   },
 });
 
