@@ -109,7 +109,7 @@ describe('trio handoff template snapshots', () => {
     expect(body).toContain('chatroom messages download');
     expect(body).toContain('## Rework findings (prior round)');
     expect(body).toContain(
-      'message id of the specifier report and the blocking findings to fix; or `None.`'
+      'message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or `None.`'
     );
     expect(body.indexOf('## Scope')).toBeLessThan(body.indexOf('## Rework findings (prior round)'));
     expect(body.indexOf('## Rework findings (prior round)')).toBeLessThan(

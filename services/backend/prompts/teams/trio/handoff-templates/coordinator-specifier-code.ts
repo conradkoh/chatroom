@@ -37,7 +37,7 @@ ${getFileReferenceGuidanceComment()}
 - Out of scope: <surfaces the specifier and builder must not touch>
 
 ## Rework findings (prior round)
-<message id of the specifier report and the blocking findings to fix; or \`None.\`>
+<message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or \`None.\`>
 
 ## Acceptance criteria
 - <verifiable outcome; include at least one end-to-end check>
