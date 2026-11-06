@@ -9,7 +9,7 @@
 
 import { getTrioSharedThreadLine } from './shared-thread';
 import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
-import { getHandoffTemplateDiscoveryGuidance } from '../../../cli/sections';
+import { buildCmdHelper, getHandoffTemplateDiscoveryGuidance } from '../../../cli/sections';
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 
@@ -67,6 +67,11 @@ function getSpecifierSlicingGuidelines(): string {
 
 export function getSpecifierGuidance(ctx: PlannerGuidanceParams): string {
   const { nativeIntegration, cliEnvPrefix, chatroomId, role } = getPlannerGuidanceContext(ctx);
+  const cmd = buildCmdHelper(
+    cliEnvPrefix,
+    chatroomId ? `"${chatroomId}"` : '<id>',
+    role ? `"${role}"` : '<role>'
+  );
 
   return `## Specifier Operating Model
 
@@ -90,7 +95,9 @@ ${getHandoffTemplateDiscoveryGuidance({ teamId: 'trio', role, nativeIntegration 
 
 ${getSpecifierSlicingGuidelines()}
 
-**Code review:** Review each builder slice with the code-review skill before the next slice.
+**Code review:** Review each builder slice with the code-review skill (${cmd('skill activate code-review')}) before the next slice.
+
+**Rework feedback:** Rework feedback to the builder must name the file, the line, and the failing requirement.
 
 **If stuck:** After 2 failed rework attempts on a slice → hand back to \`coordinator\` with the blocker. No partial delivery presented as complete.`;
 }

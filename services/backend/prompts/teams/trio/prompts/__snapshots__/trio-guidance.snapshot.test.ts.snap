@@ -340,7 +340,9 @@ All of --from, --to, and --mode are required; use the mode of your current task.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-**Code review:** Review each builder slice with the code-review skill before the next slice.
+**Code review:** Review each builder slice with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-chatroom-id" --role="specifier"\`) before the next slice.
+
+**Rework feedback:** Rework feedback to the builder must name the file, the line, and the failing requirement.
 
 **If stuck:** After 2 failed rework attempts on a slice → hand back to \`coordinator\` with the blocker. No partial delivery presented as complete."
 `;
@@ -398,7 +400,9 @@ flowchart TD
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
-**Code review:** Review each builder slice with the code-review skill before the next slice.
+**Code review:** Review each builder slice with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="test-chatroom-id" --role="specifier"\`) before the next slice.
+
+**Rework feedback:** Rework feedback to the builder must name the file, the line, and the failing requirement.
 
 **If stuck:** After 2 failed rework attempts on a slice → hand back to \`coordinator\` with the blocker. No partial delivery presented as complete."
 `;

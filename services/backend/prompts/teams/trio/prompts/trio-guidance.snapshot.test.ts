@@ -70,6 +70,12 @@ describe('trio role guidance', () => {
     if (!nativeIntegration) {
       expect(guidance).toContain('after any handoff, run `get-next-task`');
     }
+    expect(guidance).toContain(
+      `chatroom skill activate code-review --chatroom-id="${CHATROOM_ID}" --role="specifier"`
+    );
+    expect(guidance).toContain(
+      'Rework feedback to the builder must name the file, the line, and the failing requirement.'
+    );
   });
 
   test.each(GUIDANCE_VARIANTS)('builder guidance (%s)', (variant, nativeIntegration) => {
