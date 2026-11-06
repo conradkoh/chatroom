@@ -115,5 +115,7 @@ describe('trio handoff template snapshots', () => {
     )!;
     const body = render(builderToSpecifier, 'code');
     expect(body).toContain('<anything needing specifier decision>');
+    expect(body).toContain('from the specifier handoff you received');
+    expect(body).not.toContain('planner handoff');
   });
 });

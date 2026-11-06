@@ -42,7 +42,7 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 ${getHandoffQualityPrinciplesSectionBlock()}
 
 ## Proof of Completion
-${getDelegationBriefDisclosureBlock()}
+${getDelegationBriefDisclosureBlock({ briefSourceRole: recipientRole })}
 ${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
