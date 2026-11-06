@@ -65,6 +65,10 @@ describe('trio role guidance', () => {
     expect(guidance).toContain(
       'Every handoff from `coordinator` starts you in a fresh session, including rework'
     );
+    expect(guidance).not.toContain('(including to `user`)');
+    if (!nativeIntegration) {
+      expect(guidance).toContain('after any handoff, run `get-next-task`');
+    }
   });
 
   test.each(GUIDANCE_VARIANTS)('builder guidance (%s)', (variant, nativeIntegration) => {
@@ -75,6 +79,7 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('Your only handoff target is `specifier`');
     expect(guidance.startsWith(' ')).toBe(false);
     expect(guidance.startsWith('\n')).toBe(false);
+    expect(guidance).not.toContain('(including to `user`)');
   });
 });
 

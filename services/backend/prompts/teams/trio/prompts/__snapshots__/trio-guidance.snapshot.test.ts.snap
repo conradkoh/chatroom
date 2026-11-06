@@ -312,7 +312,7 @@ flowchart TD
 
 **Handoff Rules:**
 
-⚠️ When the harness does not support native integration: after any handoff (including to \`user\`), run \`get-next-task\` to stay in the session.
+⚠️ When the harness does not support native integration: after any handoff, run \`get-next-task\` to stay in the session.
 
 - **To implement a slice** → Hand off to \`builder\` with the \`specifier\` → \`builder\` brief
 - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
