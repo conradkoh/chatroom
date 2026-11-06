@@ -2959,7 +2959,12 @@ export default defineSchema({
   chatroom_conversationModePreferences: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     userId: v.id('users'),
-    mode: v.union(v.literal('chat'), v.literal('code')),
+    mode: v.union(
+      v.literal('chat'),
+      v.literal('code'),
+      // @deprecated Retired mode. Kept so historical rows validate; reads remap it to 'code'. Never write it.
+      v.literal('code:enhanced')
+    ),
     updatedAt: v.number(),
   }).index('by_chatroom_user', ['chatroomId', 'userId']),
 

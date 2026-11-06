@@ -3,6 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from '../_generated/server';
 import { requireChatroomAccess } from '../auth/chatroomAccess';
+import { retireEnhancedScalarMode } from '../lib/enhancedModeRetirement';
 
 const conversationModeValidator = v.union(v.literal('chat'), v.literal('code'));
 
@@ -19,7 +20,11 @@ export const get = query({
         q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
       )
       .unique();
-    return preference?.mode ?? null;
+    // Historical rows may still hold the retired mode; reads expose only chat/code.
+    if (!preference) return null;
+    return (
+      retireEnhancedScalarMode(preference.mode) ?? (preference.mode === 'chat' ? 'chat' : 'code')
+    );
   },
 });
 
