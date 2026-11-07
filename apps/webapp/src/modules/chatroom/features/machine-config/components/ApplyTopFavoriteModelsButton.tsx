@@ -1,8 +1,5 @@
 'use client';
 
-// fallow-ignore-file unused-file
-// Wired into the UI in the follow-up slice; remove this suppression once the button is placed.
-
 import { Loader2, Star } from 'lucide-react';
 import { useMemo } from 'react';
 import { toast } from 'sonner';

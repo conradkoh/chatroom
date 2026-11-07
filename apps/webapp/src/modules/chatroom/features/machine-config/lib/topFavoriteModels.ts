@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-file
-// Wired into the UI in the follow-up slice; remove this suppression once the button is placed.
 import type { MachineConfigEntry } from '../types/machineConfig';
 
 /** One role and the favourite that would be applied to it. */
@@ -22,7 +20,6 @@ export interface ApplyTopFavoritesFeedback {
  * Top favourite (index 0) for each role, in `roles` order. Roles with no favourites are omitted.
  * Pure: no React or Convex imports.
  */
-// fallow-ignore-next-line unused-export
 export function resolveTopFavoritePerRole(
   roles: readonly string[],
   favoritesByRole: ReadonlyMap<string, readonly MachineConfigEntry[]>
@@ -34,7 +31,6 @@ export function resolveTopFavoritePerRole(
 }
 
 /** User-facing toast for an apply result. */
-// fallow-ignore-next-line unused-export
 export function describeApplyTopFavoritesResult(
   result: ApplyTopFavoritesResult
 ): ApplyTopFavoritesFeedback {

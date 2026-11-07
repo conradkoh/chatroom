@@ -7,6 +7,7 @@ import { useMemo, memo } from 'react';
 
 import { CommandQueuePanel } from './AgentPanel/CommandQueuePanel';
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
+import { ApplyTopFavoriteModelsButton } from '../features/machine-config/components/ApplyTopFavoriteModelsButton';
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import type { AgentRoleStatusReadModel } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
@@ -260,16 +261,22 @@ export const AgentPanel = memo(function AgentPanel({
             />
           </div>
           {teamStructure && (
-            <RemoteAgentQuickActions
-              hasRunningAgents={hasRunningRemoteAgents}
-              canStop={canStopRemoteAgents}
-              isStopping={isStoppingAgents}
-              onStart={onStartAllRemoteAgents}
-              onStop={onStopAllRemoteAgents}
-              onRestart={onRestartAllRemoteAgents}
-              disabled={isStartingAllAgents}
-              isStarting={isStartingAllAgents}
-            />
+            <div
+              className="flex items-center gap-1.5 flex-shrink-0"
+              data-testid="agent-team-actions"
+            >
+              <RemoteAgentQuickActions
+                hasRunningAgents={hasRunningRemoteAgents}
+                canStop={canStopRemoteAgents}
+                isStopping={isStoppingAgents}
+                onStart={onStartAllRemoteAgents}
+                onStop={onStopAllRemoteAgents}
+                onRestart={onRestartAllRemoteAgents}
+                disabled={isStartingAllAgents}
+                isStarting={isStartingAllAgents}
+              />
+              <ApplyTopFavoriteModelsButton variant="icon" />
+            </div>
           )}
         </SidebarSection.Toolbar>
       )}

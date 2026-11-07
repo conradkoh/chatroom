@@ -10,6 +10,9 @@ import { AgentPanel } from '../AgentPanel';
 vi.mock('./RemoteAgentQuickActions', () => ({
   RemoteAgentQuickActions: () => <div data-testid="quick-actions" />,
 }));
+vi.mock('../../features/machine-config/components/ApplyTopFavoriteModelsButton', () => ({
+  ApplyTopFavoriteModelsButton: () => <div data-testid="apply-top-favorites" />,
+}));
 vi.mock('./CommandQueuePanel', () => ({
   CommandQueuePanel: () => <div data-testid="command-queue-panel" />,
 }));
@@ -103,6 +106,34 @@ describe('AgentPanel', () => {
 
     expect(screen.getByTestId('team-selector')).toBeInTheDocument();
     expect(screen.getByText('No team configured')).toBeInTheDocument();
+  });
+
+  it('groups the apply-top-favourites button with the quick actions in the team toolbar', () => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        lifecycle={null}
+        teamStructure={duoStructure}
+        defaultTeamId="duo"
+        teams={[
+          {
+            id: 'duo',
+            name: 'Duo',
+            description: '',
+            roles: ['planner', 'builder'],
+            entryPoint: 'planner',
+          },
+        ]}
+        onTeamChange={async () => {}}
+      />
+    );
+
+    expect(
+      within(screen.getByTestId('agent-team-actions')).getByTestId('quick-actions')
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('agent-team-actions')).getByTestId('apply-top-favorites')
+    ).toBeInTheDocument();
   });
 
   it.each(pinnedTeamFacts)(

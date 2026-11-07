@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-file
-// Wired into the UI in the follow-up slice; remove this suppression once the button is placed.
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -30,7 +28,7 @@ export interface ApplyTopFavoritesTarget {
 }
 
 /** Loads each role's favourites for the target team and applies each role's top favourite. */
-// fallow-ignore-next-line unused-export, complexity
+// fallow-ignore-next-line complexity
 export function useApplyTopFavoriteModels(target: ApplyTopFavoritesTarget | null) {
   const [sessionId] = useSessionId();
   const machineId = target?.machineId;
