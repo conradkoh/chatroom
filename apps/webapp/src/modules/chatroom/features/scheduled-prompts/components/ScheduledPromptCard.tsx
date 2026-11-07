@@ -285,7 +285,7 @@ export function ScheduledPromptCard({
           <PopoverContent
             side="bottom"
             align="end"
-            className="w-56 p-2 rounded-none border-chatroom-border bg-chatroom-bg-secondary"
+            className="w-56 p-2"
             anchor={cardRef as React.RefObject<HTMLElement | null>}
           >
             <div className="space-y-2">{menuContent}</div>
