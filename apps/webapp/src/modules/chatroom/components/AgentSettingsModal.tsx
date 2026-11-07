@@ -24,6 +24,7 @@ import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from '
 import { toast } from 'sonner';
 
 import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
+import { ApplyTopFavoriteModelsButton } from '../features/machine-config/components/ApplyTopFavoriteModelsButton';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { WorkspaceInlineAgentListPanel } from './AgentPanel/WorkspaceInlineAgentListPanel';
 import { useWorkspaceAgentDirectory } from '../hooks/useWorkspaceAgentQueries';
@@ -930,17 +931,20 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
   const { agents, isLoading } = useWorkspaceAgentDirectory();
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary mb-1">
-          Agents
-        </h3>
-        <p className="text-xs text-chatroom-text-muted">
-          This is the single configuration surface for all permanent and ephemeral agents. Ephemeral
-          agents start on demand.{' '}
-          {isLoading
-            ? 'Loading agents...'
-            : `${agents.length} agents available for this workspace.`}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary mb-1">
+            Agents
+          </h3>
+          <p className="text-xs text-chatroom-text-muted">
+            This is the single configuration surface for all permanent and ephemeral agents.
+            Ephemeral agents start on demand.{' '}
+            {isLoading
+              ? 'Loading agents...'
+              : `${agents.length} agents available for this workspace.`}
+          </p>
+        </div>
+        <ApplyTopFavoriteModelsButton variant="labelled" />
       </div>
       <WorkspaceInlineAgentListPanel
         chatroomId={chatroomId}
