@@ -31,6 +31,7 @@ vi.mock('@/modules/chatroom/components/ChatroomSidebar', () => ({
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionId: () => ['test-session'],
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
   useSessionQuery: (query: unknown, args: unknown) => {
     mockUseSessionQuery(query, args);
@@ -152,6 +153,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     agents: {
       requestStop: 'agents:requestStop',
       requestStopAll: 'agents:requestStopAll',
+      saveConfig: 'agents:saveConfig',
       listLastSentLaunchRequests: 'agents:listLastSentLaunchRequests',
       getStatus: 'agents:getStatus',
       getLastSentLaunchRequest: 'agents:getLastSentLaunchRequest',
@@ -179,6 +181,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       setPrimaryWorkspaceForChatroom: 'workspaces:setPrimaryWorkspaceForChatroom',
     },
   },
+}));
+
+vi.mock('convex/react', () => ({
+  useQueries: () => ({}),
 }));
 
 vi.mock('@/hooks/useMachineModels', () => ({
