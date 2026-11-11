@@ -537,11 +537,19 @@ export function MessageInput({
 
   const requestSchedule = useCallback(() => {
     if (!canSend) return;
-    requestScheduledPrompt({ prompt: message.trim(), hasAttachments }, () => {
-      setMessage('');
-      setSendError(null);
-    });
-  }, [canSend, message, hasAttachments]);
+    requestScheduledPrompt(
+      {
+        prompt: message.trim(),
+        hasAttachments,
+        // Schedule with the same toggles a plain Send would use right now.
+        policy: { conversationMode, sessionPolicy: startInNewSession ? 'new' : 'continue' },
+      },
+      () => {
+        setMessage('');
+        setSendError(null);
+      }
+    );
+  }, [canSend, message, hasAttachments, conversationMode, startInNewSession]);
 
   /** Open the one-item schedule menu, remembering where focus came from. */
   const openScheduleMenu = useCallback(() => {

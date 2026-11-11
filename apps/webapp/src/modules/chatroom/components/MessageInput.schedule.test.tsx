@@ -19,6 +19,10 @@ import {
   clearPendingScheduledPrompt,
   getPendingScheduledPrompt,
 } from '../features/scheduled-prompts/stores/scheduledPromptComposerStore';
+import {
+  StartInNewSessionPreferenceProvider,
+  useStartInNewSessionPreference,
+} from '../hooks/useStartInNewSessionPreference';
 
 const mockSendMessage = vi.fn().mockResolvedValue('msg-id');
 let uploadJobs: {
@@ -192,6 +196,7 @@ describe('MessageInput schedule gestures', () => {
     expect(getPendingScheduledPrompt()?.prefill).toEqual({
       prompt: 'hello world',
       hasAttachments: false,
+      policy: { conversationMode: 'chat', sessionPolicy: 'continue' },
     });
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
@@ -382,6 +387,7 @@ describe('MessageInput schedule gestures', () => {
     expect(getPendingScheduledPrompt()?.prefill).toEqual({
       prompt: 'with an attachment',
       hasAttachments: true,
+      policy: { conversationMode: 'chat', sessionPolicy: 'continue' },
     });
   });
 
@@ -394,5 +400,32 @@ describe('MessageInput schedule gestures', () => {
 
     openMenuWithRightClick();
     expect(sendButton()).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('captures the composer new-session toggle in the schedule request', async () => {
+    function NewSessionSeed() {
+      const { setStartInNewSession } = useStartInNewSessionPreference();
+      React.useEffect(() => {
+        setStartInNewSession(true);
+      }, [setStartInNewSession]);
+      return null;
+    }
+    render(
+      <AttachmentsProvider>
+        <StartInNewSessionPreferenceProvider>
+          <NewSessionSeed />
+          <MessageInput chatroomId="chatroom-1" />
+        </StartInNewSessionPreferenceProvider>
+      </AttachmentsProvider>
+    );
+    typeMessage('new session draft');
+
+    fireEvent.click(openMenuWithRightClick());
+
+    await waitFor(() => expect(getPendingScheduledPrompt()).not.toBeNull());
+    expect(getPendingScheduledPrompt()?.prefill.policy).toEqual({
+      conversationMode: 'chat',
+      sessionPolicy: 'new',
+    });
   });
 });

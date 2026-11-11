@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
+import { nextConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Clock, Loader2, Plus } from 'lucide-react';
 import React, { useState, useCallback, memo, useEffect } from 'react';
@@ -13,11 +14,19 @@ import {
   type ScheduleFields,
 } from '../features/scheduled-prompts/utils/scheduledPromptFields';
 import {
+  changedPolicyFields,
+  DEFAULT_SCHEDULED_PROMPT_POLICY,
+  formatScheduledPromptPolicy,
+  scheduledPromptPolicy,
+  type ScheduledPromptPolicy,
+} from '../features/scheduled-prompts/utils/scheduledPromptPolicy';
+import {
   formatTimezoneLabel,
   utcDailyTimeToLocal,
   utcMsToLocalDateTimeInput,
 } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
 import { isModEnterKey } from '../utils/isModEnterKey';
+import { ConversationModeButton, SessionPolicyButton } from './shared/EnvelopePolicyButtons';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,10 +44,11 @@ interface ScheduledPromptsTabProps {
   onPendingPrefillCleared?: () => void;
 }
 
-export type ScheduledPromptFormData = ScheduleFields & {
-  name?: string;
-  prompt: string;
-};
+export type ScheduledPromptFormData = ScheduleFields &
+  Partial<ScheduledPromptPolicy> & {
+    name?: string;
+    prompt: string;
+  };
 
 export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   chatroomId,
@@ -186,6 +196,52 @@ function editedOnceRunAt(
   return initial?.scheduleKind === 'once' ? initial.runAt : undefined;
 }
 
+/** Session + mode toggles for the schedule form, using the same buttons as the sidebar row. */
+const ScheduledPromptPolicyFields = memo(function ScheduledPromptPolicyFields({
+  policy,
+  onChange,
+  disabled,
+}: {
+  policy: ScheduledPromptPolicy;
+  onChange: (next: ScheduledPromptPolicy) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
+        Session &amp; mode
+      </label>
+      <div className="flex items-center gap-1">
+        <SessionPolicyButton
+          testId="scheduled-prompt-form-session-toggle"
+          isNewSession={policy.sessionPolicy === 'new'}
+          pending={disabled}
+          onToggle={() =>
+            onChange({
+              ...policy,
+              sessionPolicy: policy.sessionPolicy === 'new' ? 'continue' : 'new',
+            })
+          }
+        />
+        <ConversationModeButton
+          testId="scheduled-prompt-form-mode-toggle"
+          mode={policy.conversationMode}
+          pending={disabled}
+          onCycle={() =>
+            onChange({ ...policy, conversationMode: nextConversationMode(policy.conversationMode) })
+          }
+        />
+        <span
+          data-testid="scheduled-prompt-form-policy"
+          className="ml-1 text-xs text-chatroom-text-muted"
+        >
+          {formatScheduledPromptPolicy(policy)}
+        </span>
+      </div>
+    </div>
+  );
+});
+
 // One controlled form for three schedule kinds; the conditional field groups
 // share the same local state, so the branches are inherent to the form.
 // fallow-ignore-next-line complexity
@@ -216,6 +272,12 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The policy the form opened with: the row's (edit), the composer's (prefill),
+  // or the create default. Edits diff against this, not the live row.
+  const [openedPolicy] = useState<ScheduledPromptPolicy>(() =>
+    initial ? scheduledPromptPolicy(initial) : (prefill?.policy ?? DEFAULT_SCHEDULED_PROMPT_POLICY)
+  );
+  const [policy, setPolicy] = useState<ScheduledPromptPolicy>(openedPolicy);
 
   // Prompt content is validated here; per-kind schedule validation lives in
   // buildScheduleFields. The server stays authoritative for
@@ -245,6 +307,8 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
         name: name.trim() || undefined,
         prompt: prompt.trim(),
         ...schedule.data,
+        // Create sends the full policy; an edit sends only what the user changed.
+        ...(initial ? changedPolicyFields(openedPolicy, policy) : policy),
       });
     } catch (err: any) {
       setError(saveErrorMessage(err));
@@ -260,6 +324,8 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
     minuteLocal,
     runAtLocal,
     initial,
+    policy,
+    openedPolicy,
     onSave,
   ]);
 
@@ -313,6 +379,8 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
             </p>
           )}
         </div>
+
+        <ScheduledPromptPolicyFields policy={policy} onChange={setPolicy} disabled={saving} />
 
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">

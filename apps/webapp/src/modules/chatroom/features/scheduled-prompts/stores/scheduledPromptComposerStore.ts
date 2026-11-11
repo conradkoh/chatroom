@@ -8,12 +8,16 @@
  * closes. No window events or React context are involved.
  */
 
+import type { ScheduledPromptPolicy } from '../utils/scheduledPromptPolicy';
+
 type Listener = () => void;
 
-/** Text and attachment flag captured from the composer draft. */
+/** Text, attachment flag, and send toggles captured from the composer draft. */
 export interface ScheduledPromptPrefill {
   prompt: string;
   hasAttachments: boolean;
+  /** The session/mode a plain Send would have used, so scheduling matches it. */
+  policy: ScheduledPromptPolicy;
 }
 
 export interface PendingScheduledPrompt {
