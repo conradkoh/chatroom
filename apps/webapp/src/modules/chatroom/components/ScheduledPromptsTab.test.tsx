@@ -318,6 +318,8 @@ describe('ScheduledPromptsTab', () => {
         prompt: 'Ping me',
         scheduleKind: 'once',
         runAt: futureRunAt,
+        conversationMode: 'code',
+        sessionPolicy: 'new',
       });
     });
   });
@@ -458,7 +460,11 @@ describe('ScheduledPromptsTab', () => {
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
-        pendingPrefill={{ prompt: '  Draft from composer  ', hasAttachments: true }}
+        pendingPrefill={{
+          prompt: '  Draft from composer  ',
+          hasAttachments: true,
+          policy: { conversationMode: 'chat', sessionPolicy: 'continue' },
+        }}
       />
     );
 
@@ -476,7 +482,11 @@ describe('ScheduledPromptsTab', () => {
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
-        pendingPrefill={{ prompt: 'No attachments', hasAttachments: false }}
+        pendingPrefill={{
+          prompt: 'No attachments',
+          hasAttachments: false,
+          policy: { conversationMode: 'chat', sessionPolicy: 'continue' },
+        }}
       />
     );
 
@@ -493,7 +503,11 @@ describe('ScheduledPromptsTab', () => {
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
-        pendingPrefill={{ prompt: '  Draft from composer  ', hasAttachments: false }}
+        pendingPrefill={{
+          prompt: '  Draft from composer  ',
+          hasAttachments: false,
+          policy: { conversationMode: 'chat', sessionPolicy: 'continue' },
+        }}
         onScheduled={onScheduled}
         onPendingPrefillCleared={onPendingPrefillCleared}
       />
@@ -523,7 +537,11 @@ describe('ScheduledPromptsTab', () => {
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
-        pendingPrefill={{ prompt: 'Keep me', hasAttachments: false }}
+        pendingPrefill={{
+          prompt: 'Keep me',
+          hasAttachments: false,
+          policy: { conversationMode: 'chat', sessionPolicy: 'continue' },
+        }}
         onScheduled={onScheduled}
         onPendingPrefillCleared={onPendingPrefillCleared}
       />
@@ -561,6 +579,8 @@ describe('ScheduledPromptsTab', () => {
       prompt: 'Ping me',
       scheduleKind: 'interval',
       intervalMinutes: 30,
+      conversationMode: 'code',
+      sessionPolicy: 'new',
     });
   });
 
@@ -589,6 +609,8 @@ describe('ScheduledPromptsTab', () => {
       prompt: 'Ctrl shortcut',
       scheduleKind: 'interval',
       intervalMinutes: 30,
+      conversationMode: 'code',
+      sessionPolicy: 'new',
     });
   });
 
@@ -663,6 +685,94 @@ describe('ScheduledPromptsTab', () => {
 
     expect(submit.getAttribute('title')).toContain('⌘');
     expect(submit.getAttribute('title')).toContain('Ctrl+Enter');
+  });
+
+  it('a fresh create form defaults to code + new session and sends the toggled policy', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
+
+    expect(screen.getByTestId('scheduled-prompt-form-policy')).toHaveTextContent(
+      'New session · Code'
+    );
+
+    fireEvent.click(screen.getByTestId('scheduled-prompt-form-session-toggle'));
+    fireEvent.click(screen.getByTestId('scheduled-prompt-form-mode-toggle'));
+
+    expect(screen.getByTestId('scheduled-prompt-form-policy')).toHaveTextContent(
+      'Existing session · Chat'
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('What should the prompt say?'), {
+      target: { value: 'Toggled policy' },
+    });
+    fireEvent.click(screen.getByText('Create Prompt'));
+
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.create.mock.calls[0]?.[0]).toMatchObject({
+      conversationMode: 'chat',
+      sessionPolicy: 'continue',
+    });
+  });
+
+  it('a composer request seeds the toggles from the composer policy', async () => {
+    mocks.list.mockReturnValue([]);
+    mocks.create.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(
+      <ScheduledPromptsTab
+        chatroomId="room-1"
+        pendingPrefill={{
+          prompt: 'Seeded draft',
+          hasAttachments: false,
+          policy: { conversationMode: 'chat', sessionPolicy: 'new' },
+        }}
+      />
+    );
+
+    expect(await screen.findByTestId('scheduled-prompt-form-policy')).toHaveTextContent(
+      'New session · Chat'
+    );
+
+    fireEvent.click(screen.getByText('Create Prompt'));
+
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.create.mock.calls[0]?.[0]).toMatchObject({
+      conversationMode: 'chat',
+      sessionPolicy: 'new',
+    });
+  });
+
+  it('editing a legacy row starts at code + new session and sends only the changed field', async () => {
+    desktopMock.value = true;
+    mocks.list.mockReturnValue([PROMPT_ACTIVE]);
+    mocks.update.mockResolvedValue(undefined);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByTestId('scheduled-prompt-card'));
+    fireEvent.click(await screen.findByText('Edit'));
+
+    expect(await screen.findByTestId('scheduled-prompt-form-policy')).toHaveTextContent(
+      'New session · Code'
+    );
+
+    fireEvent.click(screen.getByTestId('scheduled-prompt-form-session-toggle'));
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => {
+      expect(mocks.update).toHaveBeenCalledTimes(1);
+    });
+    const payload = mocks.update.mock.calls[0]?.[0];
+    expect(payload).toMatchObject({ sessionPolicy: 'continue' });
+    expect(payload).not.toHaveProperty('conversationMode');
   });
 });
 

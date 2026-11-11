@@ -3,7 +3,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { nextConversationMode } from '@workspace/shared/domain/conversation-mode';
-import { normalizeTaskEnvelope } from '@workspace/shared/domain/task-envelope';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
@@ -21,6 +20,7 @@ import {
   formatUpcomingRun,
   scheduledPromptActionErrorMessage,
 } from '../utils/scheduledPromptFormat';
+import { scheduledPromptPolicy } from '../utils/scheduledPromptPolicy';
 
 const UPDATE_FALLBACK = 'Could not update the schedule. Try again.';
 const DELETE_FALLBACK = 'Could not delete. Try again.';
@@ -65,10 +65,7 @@ function usePolicyWrites(prompt: Doc<'chatroom_scheduledPrompts'>) {
     []
   );
   const { pending, error, setError, run } = useGuardedWrite(mapError);
-  const envelope = normalizeTaskEnvelope({
-    taskEnvelope: prompt.taskEnvelope,
-    startInNewSession: true,
-  });
+  const envelope = scheduledPromptPolicy(prompt);
 
   const onToggleSession = useCallback(() => {
     const sessionPolicy = envelope.sessionPolicy === 'new' ? 'continue' : 'new';

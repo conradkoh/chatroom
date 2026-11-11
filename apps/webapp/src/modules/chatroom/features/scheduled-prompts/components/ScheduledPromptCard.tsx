@@ -17,6 +17,7 @@ import {
   isFinishedScheduledPromptStatus,
   type ScheduledPromptStatus,
 } from '../utils/scheduledPromptFormat';
+import { formatScheduledPromptPolicy, scheduledPromptPolicy } from '../utils/scheduledPromptPolicy';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -45,6 +46,7 @@ interface ScheduledPromptCardProps {
     | 'disabledReason'
     | 'lastRunAt'
     | 'nextRunAt'
+    | 'taskEnvelope'
   >;
   onEdit: (id: Id<'chatroom_scheduledPrompts'>) => void;
   setEnabled: (args: {
@@ -239,6 +241,12 @@ export function ScheduledPromptCard({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 min-w-0">
           <span className="text-[11px] text-chatroom-text-muted break-words">
             {formatSchedule(prompt)}
+          </span>
+          <span
+            data-testid="scheduled-prompt-card-policy"
+            className="text-[11px] text-chatroom-text-muted break-words"
+          >
+            {formatScheduledPromptPolicy(scheduledPromptPolicy(prompt))}
           </span>
           {prompt.lastRunAt && (
             <span className="text-[11px] text-chatroom-text-muted break-words">

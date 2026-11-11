@@ -1273,6 +1273,128 @@ describe('scheduled prompts', () => {
     });
   });
 
+  test('create stores the chosen policy and fireOne delivers with it', async () => {
+    const { sessionId } = await createTestSession('sp-policy-create-chosen');
+    const chatroomId = await createChatroom(sessionId);
+    const id = (await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'chosen policy prompt',
+      scheduleKind: 'interval',
+      intervalMinutes: 30,
+      conversationMode: 'chat',
+      sessionPolicy: 'continue',
+    })) as Id<'chatroom_scheduledPrompts'>;
+
+    const expected = {
+      version: 1,
+      conversationMode: 'chat',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'direct', phase: 'entry' },
+    };
+    expect((await readScheduledPrompt(id))!.taskEnvelope).toEqual(expected);
+
+    // Make it due, then fire through the public internal mutation.
+    await t.run(async (ctx) =>
+      ctx.db.patch('chatroom_scheduledPrompts', id, { nextRunAt: Date.now() - 1000 })
+    );
+    await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+
+    const task = await firedTaskFor(id);
+    expect(task?.startInNewSession).toBe(false);
+    expect(task?.conversationMode).toBe('chat');
+    expect(task?.taskEnvelope).toEqual(expected);
+  });
+
+  test('create with only a session policy keeps the code default', async () => {
+    const { sessionId } = await createTestSession('sp-policy-create-session-only');
+    const chatroomId = await createChatroom(sessionId);
+    const id = (await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'session only policy prompt',
+      scheduleKind: 'interval',
+      intervalMinutes: 30,
+      sessionPolicy: 'continue',
+    })) as Id<'chatroom_scheduledPrompts'>;
+
+    expect((await readScheduledPrompt(id))!.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'team', phase: 'entry' },
+    });
+  });
+
+  test('update applies only the policy fields it is sent and leaves scheduling untouched', async () => {
+    const { sessionId } = await createTestSession('sp-policy-update-merge');
+    const chatroomId = await createChatroom(sessionId);
+    const id = (await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'update policy prompt',
+      scheduleKind: 'interval',
+      intervalMinutes: 30,
+    })) as Id<'chatroom_scheduledPrompts'>;
+
+    const before = await readScheduledPrompt(id);
+    const nextRunAtBefore = before!.nextRunAt;
+    const isRunnableBefore = before!.isRunnable;
+
+    await t.mutation(api.scheduledPrompts.update, {
+      sessionId,
+      scheduledPromptId: id,
+      name: 'renamed',
+      sessionPolicy: 'continue',
+    });
+
+    let row = await readScheduledPrompt(id);
+    expect(row!.name).toBe('renamed');
+    expect(row!.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'code',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'team', phase: 'entry' },
+    });
+    expect(row!.nextRunAt).toBe(nextRunAtBefore);
+    expect(row!.isRunnable).toBe(isRunnableBefore);
+
+    await t.mutation(api.scheduledPrompts.update, {
+      sessionId,
+      scheduledPromptId: id,
+      conversationMode: 'chat',
+    });
+
+    row = await readScheduledPrompt(id);
+    expect(row!.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'chat',
+      sessionPolicy: 'continue',
+      handoffWorkflow: { preset: 'direct', phase: 'entry' },
+    });
+    expect(row!.nextRunAt).toBe(nextRunAtBefore);
+    expect(row!.isRunnable).toBe(isRunnableBefore);
+  });
+
+  test('update with a policy field on a legacy row starts from code + new session', async () => {
+    const { sessionId, userId } = await createTestSession('sp-policy-update-legacy');
+    const chatroomId = await createChatroom(sessionId);
+    const id = await seedOverduePrompt(chatroomId, userId);
+
+    await t.mutation(api.scheduledPrompts.update, {
+      sessionId,
+      scheduledPromptId: id,
+      conversationMode: 'chat',
+    });
+
+    expect((await readScheduledPrompt(id))!.taskEnvelope).toEqual({
+      version: 1,
+      conversationMode: 'chat',
+      sessionPolicy: 'new',
+      handoffWorkflow: { preset: 'direct', phase: 'entry' },
+    });
+  });
+
   test('updatePolicy changes mode and session independently and leaves scheduling untouched', async () => {
     const { sessionId } = await createTestSession('sp-policy-merge');
     const chatroomId = await createChatroom(sessionId);
