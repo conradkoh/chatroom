@@ -252,6 +252,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'haiku',
       'claude-opus-5',
       'claude-sonnet-5',
+      'claude-fable-5-2',
       'claude-fable-5-1',
       'claude-fable-5',
       'claude-mythos-5-1',
@@ -287,6 +288,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
       // Versioned ids are present.
       expect(baseIds).toContain('anthropic/claude-opus-5');
       expect(baseIds).toContain('anthropic/claude-sonnet-5');
+      expect(baseIds).toContain('anthropic/claude-fable-5-2');
       expect(baseIds).toContain('anthropic/claude-sonnet-4-6');
       expect(baseIds).toContain('anthropic/claude-haiku-4-5');
       for (const model of [

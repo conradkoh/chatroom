@@ -37,6 +37,10 @@ describe('decodeClaudeVariant', () => {
     });
   });
   it('accepts current exact Claude catalog model ids with provider prefixes', () => {
+    expect(decodeClaudeVariant('anthropic/claude-fable-5-2[effort=high]')).toEqual({
+      model: 'claude-fable-5-2',
+      effort: 'high',
+    });
     expect(decodeClaudeVariant('claude-fable-5-1[effort=high]')).toEqual({
       model: 'claude-fable-5-1',
       effort: 'high',
