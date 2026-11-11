@@ -100,7 +100,7 @@ describe('team presets', () => {
       ],
       entryPoint: 'coordinator',
     });
-    expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');
+    expect(DEFAULT_TEAM_PRESET_ID).toBe('trio');
     expect(PRESET_IDS).toBe(TEAM_PRESET_IDS);
     expect(TEAM_STRUCTURE_IDS).toEqual({ duo: 'duo@1', solo: 'solo@1', trio: 'trio@1' });
   });

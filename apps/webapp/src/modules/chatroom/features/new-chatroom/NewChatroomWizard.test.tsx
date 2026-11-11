@@ -203,7 +203,7 @@ describe('NewChatroomWizard existing-folder path', () => {
     await waitFor(() => expect(screen.getByTestId('agents-step')).toBeTruthy());
     expect(mocks.createWithWorkspace).toHaveBeenCalledTimes(1);
     expect(mocks.createWithWorkspace).toHaveBeenCalledWith({
-      teamStructureId: 'duo',
+      teamStructureId: 'trio',
       machineId: 'machine-a',
       workingDir: FOLDER,
     });

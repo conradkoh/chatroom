@@ -56,7 +56,7 @@ export interface TeamStructure {
   roles: TeamStructureRole[];
 }
 
-export const DEFAULT_TEAM_PRESET_ID: TeamPresetId = 'duo';
+export const DEFAULT_TEAM_PRESET_ID: TeamPresetId = 'trio';
 
 export const TEAM_STRUCTURE_IDS = {
   duo: 'duo@1',
