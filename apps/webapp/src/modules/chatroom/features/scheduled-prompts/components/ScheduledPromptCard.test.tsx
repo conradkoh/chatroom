@@ -147,4 +147,40 @@ describe('ScheduledPromptCard', () => {
       expect(mocks.toastError).toHaveBeenCalledWith(message);
     });
   });
+
+  it('shows the session and mode', () => {
+    const { rerender } = render(
+      <ScheduledPromptCard
+        prompt={BASE_PROMPT}
+        onEdit={vi.fn()}
+        setEnabled={vi.fn()}
+        removePrompt={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('scheduled-prompt-card-policy')).toHaveTextContent(
+      'New session · Code'
+    );
+
+    rerender(
+      <ScheduledPromptCard
+        prompt={{
+          ...BASE_PROMPT,
+          taskEnvelope: {
+            version: 1,
+            conversationMode: 'chat',
+            sessionPolicy: 'continue',
+            handoffWorkflow: { preset: 'direct', phase: 'entry' },
+          },
+        }}
+        onEdit={vi.fn()}
+        setEnabled={vi.fn()}
+        removePrompt={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('scheduled-prompt-card-policy')).toHaveTextContent(
+      'Existing session · Chat'
+    );
+  });
 });
