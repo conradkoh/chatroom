@@ -202,7 +202,7 @@ describe('ClaudeSdkHarness', () => {
     const catalog = HARNESS_MODEL_CATALOG['claude-sdk'];
     expect(ids).toEqual(catalog.map((id) => stripProviderPrefix('anthropic', id)));
     const bases = ids.map((id) => decodeModelVariant(id).model);
-    expect(new Set(bases).size).toBe(20);
+    expect(new Set(bases).size).toBe(21);
     expect(bases).toEqual(
       expect.arrayContaining([
         'opus',
@@ -210,6 +210,7 @@ describe('ClaudeSdkHarness', () => {
         'haiku',
         'claude-opus-5',
         'claude-sonnet-5',
+        'claude-fable-5-2',
         'claude-fable-5-1',
         'claude-mythos-5-1',
         'claude-mythos-5',

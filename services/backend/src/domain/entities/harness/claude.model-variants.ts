@@ -27,6 +27,7 @@ export const CLAUDE_CATALOG_BASE_MODEL_IDS = [
   // Versioned / pinned model ids.
   'claude-opus-5',
   'claude-sonnet-5',
+  'claude-fable-5-2',
   'claude-fable-5-1',
   'claude-fable-5',
   // Mythos models require an organization verified through Anthropic's access programs.
