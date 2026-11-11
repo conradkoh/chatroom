@@ -4,6 +4,7 @@ import {
   withTaskEnvelopeConversationMode,
   withTaskEnvelopeSessionPolicy,
   type TaskEnvelopeV1,
+  type TaskSessionPolicy,
 } from '@workspace/shared/domain/task-envelope';
 import { ConvexError, v, type Infer } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
@@ -33,6 +34,40 @@ const MAX_UPCOMING = 20;
  * `code:enhanced` mode, but an update must never write it.
  */
 const writableConversationModeValidator = v.union(v.literal('chat'), v.literal('code'));
+
+/**
+ * Optional delivery-policy fields shared by create / update / updatePolicy.
+ * Absent means "use the default" on create and "keep the current value" on edits.
+ */
+const policyArgs = {
+  conversationMode: v.optional(writableConversationModeValidator),
+  sessionPolicy: v.optional(taskEnvelopeV1Validator.fields.sessionPolicy),
+};
+
+type PolicyInput = {
+  conversationMode?: Infer<typeof writableConversationModeValidator> | undefined;
+  sessionPolicy?: TaskSessionPolicy | undefined;
+};
+
+function hasPolicyInput(args: PolicyInput): boolean {
+  return args.conversationMode !== undefined || args.sessionPolicy !== undefined;
+}
+
+/**
+ * Field-level merge of policy input onto an envelope. A mode change resets the
+ * workflow to that mode's default preset (entry phase) and keeps the session;
+ * a session change keeps the mode and workflow. Never mutates the input.
+ */
+function applyPolicyInput(envelope: TaskEnvelopeV1, args: PolicyInput): TaskEnvelopeV1 {
+  let next = envelope;
+  if (args.conversationMode !== undefined) {
+    next = withTaskEnvelopeConversationMode(next, args.conversationMode);
+  }
+  if (args.sessionPolicy !== undefined) {
+    next = withTaskEnvelopeSessionPolicy(next, args.sessionPolicy);
+  }
+  return next;
+}
 
 // ─── Access helper ───
 
@@ -229,6 +264,15 @@ function buildContentPatch(
   return patch;
 }
 
+/** Policy patch for `update`: empty when no policy field was sent, so schedule-only edits never rewrite the envelope. */
+function buildPolicyPatch(
+  row: Doc<'chatroom_scheduledPrompts'>,
+  args: PolicyInput
+): Record<string, unknown> {
+  if (!hasPolicyInput(args)) return {};
+  return { taskEnvelope: applyPolicyInput(effectiveEnvelope(row), args) };
+}
+
 function isRecurringScheduleChanged(args: ScheduleUpdateInput): boolean {
   return (
     args.scheduleKind !== undefined ||
@@ -313,6 +357,7 @@ export const create = mutation({
     hourUTC: v.optional(v.number()),
     minuteUTC: v.optional(v.number()),
     runAt: v.optional(v.number()),
+    ...policyArgs,
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -333,7 +378,11 @@ export const create = mutation({
         ...schedule,
         isRunnable: true,
         nextRunAt,
-        taskEnvelope: createTaskEnvelope({ sessionPolicy: 'new' }),
+        // Absent policy args keep the historical scheduled default: code + new session.
+        taskEnvelope: createTaskEnvelope({
+          conversationMode: args.conversationMode ?? 'code',
+          sessionPolicy: args.sessionPolicy ?? 'new',
+        }),
         createdBy: session.userId,
         createdAt: now,
         updatedAt: now,
@@ -346,13 +395,13 @@ export const create = mutation({
  * Edit the delivery policy of an existing prompt. Field-level merge: an absent
  * argument keeps the current value. Never touches scheduling state, so it can
  * neither re-arm a paused row nor un-finish a terminal one.
+ * `update` accepts the same fields alongside content/schedule edits.
  */
 export const updatePolicy = mutation({
   args: {
     ...SessionIdArg,
     scheduledPromptId: v.id('chatroom_scheduledPrompts'),
-    conversationMode: v.optional(writableConversationModeValidator),
-    sessionPolicy: v.optional(taskEnvelopeV1Validator.fields.sessionPolicy),
+    ...policyArgs,
   },
   handler: async (ctx, args) => {
     const row = await requireScheduledPromptAccess(ctx, args.sessionId, args.scheduledPromptId);
@@ -363,21 +412,14 @@ export const updatePolicy = mutation({
       });
     }
     assertNotFinished(row);
-    if (args.conversationMode === undefined && args.sessionPolicy === undefined) {
+    if (!hasPolicyInput(args)) {
       throw new ConvexError({
         code: 'NOTHING_TO_UPDATE',
         message: 'Provide conversationMode or sessionPolicy',
       });
     }
-    let envelope = effectiveEnvelope(row);
-    if (args.conversationMode !== undefined) {
-      envelope = withTaskEnvelopeConversationMode(envelope, args.conversationMode);
-    }
-    if (args.sessionPolicy !== undefined) {
-      envelope = withTaskEnvelopeSessionPolicy(envelope, args.sessionPolicy);
-    }
     await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
-      taskEnvelope: envelope,
+      taskEnvelope: applyPolicyInput(effectiveEnvelope(row), args),
       updatedAt: Date.now(),
     });
   },
@@ -394,6 +436,7 @@ export const update = mutation({
     hourUTC: v.optional(v.number()),
     minuteUTC: v.optional(v.number()),
     runAt: v.optional(v.number()),
+    ...policyArgs,
   },
   handler: async (ctx, args) => {
     const row = await requireScheduledPromptAccess(ctx, args.sessionId, args.scheduledPromptId);
@@ -409,6 +452,7 @@ export const update = mutation({
       updatedAt: now,
       ...buildContentPatch(args.name, args.prompt),
       ...buildSchedulePatch(row, args, now),
+      ...buildPolicyPatch(row, args),
     };
     await ctx.db.patch('chatroom_scheduledPrompts', row._id, patch);
   },
