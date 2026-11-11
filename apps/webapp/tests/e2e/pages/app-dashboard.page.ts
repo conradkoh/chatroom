@@ -8,7 +8,7 @@ export class AppDashboardPage extends BasePage {
   }
 
   get heading(): Locator {
-    return this.page.getByRole('heading', { name: 'Welcome to the App' });
+    return this.page.getByRole('heading', { name: 'Welcome', exact: true });
   }
 
   get viewProfileButton(): Locator {
