@@ -1,6 +1,25 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
 import { TAG_DOWNSTREAM } from '../../support/tags';
+
+type Box = NonNullable<Awaited<ReturnType<Locator['boundingBox']>>>;
+
+/**
+ * Reads a locator's bounding box with retries. The root layout re-mounts shortly after
+ * `load`, so a one-shot read can hit a detached node (null) or a pre-mount layout.
+ * `assert` runs inside the retry so geometry checks settle together with the read.
+ */
+async function readBox(locator: Locator, assert: (box: Box) => void = () => {}): Promise<Box> {
+  const read: { box: Box | null } = { box: null };
+  await expect(async () => {
+    const box = await locator.boundingBox();
+    expect(box, 'element should be laid out').not.toBeNull();
+    assert(box!);
+    read.box = box;
+  }).toPass({ timeout: 5_000 });
+  if (!read.box) throw new Error('readBox: no bounding box after retries');
+  return read.box;
+}
 
 test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
   // The fixtures render a fixed 15th November 2023 date; pin the browser timezone so
@@ -17,9 +36,8 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     const row = fixture.getByTestId('timeline-team-message');
     const toggle = fixture.getByTestId('timeline-handoff-toggle');
 
-    const box = await row.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.height).toBeLessThanOrEqual(96);
+    await expect(row).toBeVisible();
+    await readBox(row, (box) => expect(box.height).toBeLessThanOrEqual(96));
 
     await expect(fixture.getByTestId('timeline-message-footer')).toHaveCount(0);
     await expect(toggle).toContainText('15th November 2023');
@@ -35,8 +53,10 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     const toggle = fixture.getByTestId('timeline-handoff-toggle');
     const chevron = toggle.locator('svg');
 
-    const headerY = (await header.boundingBox())!.y;
-    const chevronY = (await chevron.boundingBox())!.y;
+    await expect(header).toBeVisible();
+    await expect(chevron).toBeVisible();
+    const headerY = (await readBox(header)).y;
+    const chevronY = (await readBox(chevron)).y;
 
     await toggle.focus();
     await page.keyboard.press('Enter');
@@ -44,16 +64,16 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(toggle).toBeFocused();
     await expect(fixture.getByTestId('timeline-message-footer')).toBeVisible();
-    expect(Math.abs((await header.boundingBox())!.y - headerY)).toBeLessThanOrEqual(1);
-    expect(Math.abs((await chevron.boundingBox())!.y - chevronY)).toBeLessThanOrEqual(1);
+    await readBox(header, (box) => expect(Math.abs(box.y - headerY)).toBeLessThanOrEqual(1));
+    await readBox(chevron, (box) => expect(Math.abs(box.y - chevronY)).toBeLessThanOrEqual(1));
 
     await page.keyboard.press('Space');
 
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(toggle).toBeFocused();
     await expect(fixture.getByTestId('timeline-message-footer')).toHaveCount(0);
-    expect(Math.abs((await header.boundingBox())!.y - headerY)).toBeLessThanOrEqual(1);
-    expect(Math.abs((await chevron.boundingBox())!.y - chevronY)).toBeLessThanOrEqual(1);
+    await readBox(header, (box) => expect(Math.abs(box.y - headerY)).toBeLessThanOrEqual(1));
+    await readBox(chevron, (box) => expect(Math.abs(box.y - chevronY)).toBeLessThanOrEqual(1));
   });
 
   test('labels an empty handoff and previews code-only content', async ({ page }) => {
@@ -72,9 +92,8 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     const preview = longFixture.getByTestId('timeline-handoff-preview');
     const toggle = longFixture.getByTestId('timeline-handoff-toggle');
 
-    const previewBox = await preview.boundingBox();
-    expect(previewBox).not.toBeNull();
-    expect(previewBox!.height).toBeLessThanOrEqual(41);
+    await expect(preview).toBeVisible();
+    await readBox(preview, (box) => expect(box.height).toBeLessThanOrEqual(41));
     expect(await toggle.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 
     const normalToggle = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-toggle');

@@ -3,23 +3,9 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { ConvexHttpClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { test as authenticatedTest, expect } from '../../fixtures/auth.fixture';
+import { expect, test } from '../../fixtures/auth.fixture';
 import { getConvexUrl } from '../../support/env';
 import { TAG_DOWNSTREAM } from '../../support/tags';
-
-const test = authenticatedTest.extend({
-  // The shared fixture's dashboard heading is stale; keep its authenticatedPage contract while
-  // checking the current dashboard heading, as agent-sidebar.spec.ts does.
-  authenticatedPage: async ({ page }, use) => {
-    await page.goto('/login');
-    await page.getByRole('button', { name: /continue anonymously/i }).click();
-    await page.waitForURL('**/app');
-    await expect(page.getByRole('heading', { name: 'Welcome' })).toBeVisible();
-    // Playwright fixture `use` is not a React hook.
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    await use(page);
-  },
-});
 
 const FOLDER = '/tmp/e2e-wizard-existing';
 const CHATROOM_NAME = 'e2e-wizard-existing';
