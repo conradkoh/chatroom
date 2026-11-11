@@ -22,12 +22,10 @@ async function createTestSession(id: string) {
 async function createBuilderEntryThreeRoleChatroom(
   sessionId: SessionId
 ): Promise<Id<'chatroom_rooms'>> {
+  // Pinned to duo@1: the legacy teamId/teamRoles args were ignored and this room was always duo.
   return await t.mutation(api.chatrooms.create, {
     sessionId,
-    teamId: 'custom',
-    teamName: 'Custom Three-Role Team',
-    teamRoles: ['planner', 'builder', 'architect'],
-    teamEntryPoint: 'builder',
+    teamStructureId: 'duo@1',
   });
 }
 
