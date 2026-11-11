@@ -96,6 +96,20 @@ describe('active team structure assignment', () => {
     await expectStructure(sessionId, chatroomId, 'duo');
   });
 
+  test('defaults a chatroom created without a team to the Trio structure', async () => {
+    const { sessionId } = await createSession('team-structure-default');
+    const chatroomId = await t.mutation(api.chatrooms.create, { sessionId });
+
+    const assignment = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_activeTeamStructures')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first()
+    );
+    expect(assignment?.teamStructureId).toBe('trio@1');
+    await expectStructure(sessionId, chatroomId, 'trio');
+  });
+
   test('switches to Solo, repeats that assignment, and ignores stale legacy role fields', async () => {
     const { sessionId } = await createSession('team-structure-switch');
     const chatroomId = await t.mutation(api.chatrooms.create, {
