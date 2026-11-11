@@ -50,7 +50,7 @@ describe('team presets', () => {
       ],
       entryPoint: 'coordinator',
     });
-    expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');
+    expect(DEFAULT_TEAM_PRESET_ID).toBe('trio');
   });
 
   test('lists and resolves known preset IDs', () => {

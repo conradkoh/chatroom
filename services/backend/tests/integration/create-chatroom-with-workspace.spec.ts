@@ -5,6 +5,7 @@
  * daemon.gitRefresh enqueue. Invalid input must leave no partial state.
  */
 
+import { DEFAULT_TEAM_PRESET_ID } from '@workspace/shared/domain/team-presets';
 import { describe, expect, test } from 'vitest';
 
 import { BACKEND_ERROR_CODES } from '../../config/errorCodes';
@@ -155,6 +156,24 @@ describe('chatrooms.createWithWorkspace', () => {
     });
 
     expect(await roomCount(sessionId)).toBe(before);
+  });
+
+  test('creates a Trio room when given the default team the new-chatroom wizard sends', async () => {
+    const { sessionId, machineId } = await setupMachine('test-cw-default', 'machine-cw-default');
+
+    const { chatroomId } = await createWithWorkspace(sessionId, machineId, {
+      teamStructureId: DEFAULT_TEAM_PRESET_ID,
+    });
+
+    const team = await t.query(api.chatrooms.getTeamStructureForChatroom, {
+      sessionId,
+      chatroomId,
+    });
+    expect(team).toMatchObject({
+      teamId: 'trio',
+      teamStructureId: 'trio@1',
+      entryPoint: 'coordinator',
+    });
   });
 
   test('truncates a long derived name to 100 characters', async () => {
