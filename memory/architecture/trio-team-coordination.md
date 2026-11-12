@@ -45,6 +45,17 @@ session boundaries per handoff edge.
    `handoffGraph: 'advisory'` and an empty rule list. They continue to inherit
    the sender task's envelope policy, and their configured-membership handoff
    lists are unaffected.
+5. **One slice per specifier session; small packages.** The specifier plans a
+   work package as ordered slices but builds only one per session. After the
+   builder delivers that slice and the specifier reviews it, the specifier hands
+   a slice report to `coordinator` that names the slices still to do, and stops.
+   The coordinator reviews the slice and sends each remaining slice as a new work
+   package, so the `new` policy on `coordinator` → `specifier` (decision 2)
+   resets the specifier's context per slice rather than per package. The
+   coordinator sizes each package to one reviewable outcome (about three slices
+   or fewer, one reviewable surface) and sends the next package only after the
+   previous one is reviewed. This is a prompt and template change only;
+   `handoffSessionRules` are unchanged.
 
 ## Known gap
 
