@@ -330,6 +330,39 @@ const pushModelsSnapshotIfChangedEffect = (
     )
   );
 
+/**
+ * Read the last pushed snapshot, build the next one, push it when it changed
+ * and record it — as one step under `modelsPushLock`. The backend replaces the
+ * whole availableModels map on every push, so without the lock two concurrent
+ * callers would build from the same snapshot and the later push would drop the
+ * earlier caller's harness update.
+ */
+const commitModelsSnapshotEffect = (
+  buildNext: (current: Record<string, string[]> | null) => Record<string, string[]>,
+  options?: { logPrefix?: string | undefined }
+): Effect.Effect<
+  PushModelsSnapshotOutcome,
+  never,
+  DaemonSessionService | DaemonMutableStateService
+> =>
+  Effect.gen(function* () {
+    const mutable = yield* DaemonMutableStateService;
+    return yield* mutable.modelsPushLock.withPermits(1)(
+      Effect.gen(function* () {
+        const next = buildNext(yield* Ref.get(mutable.lastPushedModels));
+        const outcome = yield* pushModelsSnapshotIfChangedEffect(next, options);
+        if (outcome.kind === 'pushed') {
+          yield* Ref.set(mutable.lastPushedModels, outcome.snapshot.lastPushedModels);
+          yield* Ref.set(
+            mutable.lastPushedHarnessFingerprint,
+            outcome.snapshot.lastPushedHarnessFingerprint
+          );
+        }
+        return outcome;
+      })
+    );
+  });
+
 /** Re-discover models and push capability updates when the set has changed. */
 export const refreshModelsEffect: Effect.Effect<
   RefreshModelsOutcome,
@@ -337,7 +370,6 @@ export const refreshModelsEffect: Effect.Effect<
   DaemonSessionService | DaemonMutableStateService
 > = Effect.gen(function* () {
   const session = yield* DaemonSessionService;
-  const mutable = yield* DaemonMutableStateService;
 
   if (!session.config) {
     return { kind: 'noop' } satisfies RefreshModelsOutcome;
@@ -361,7 +393,7 @@ export const refreshModelsEffect: Effect.Effect<
     ctxConfig.availableHarnesses = freshConfig.availableHarnesses;
     ctxConfig.harnessVersions = freshConfig.harnessVersions;
 
-    return yield* pushModelsSnapshotIfChangedEffect(models);
+    return yield* commitModelsSnapshotEffect(() => models);
   }).pipe(
     Effect.catch((error) =>
       Effect.sync(() => {
@@ -373,11 +405,6 @@ export const refreshModelsEffect: Effect.Effect<
   );
 
   if (outcome.kind === 'pushed') {
-    yield* Ref.set(mutable.lastPushedModels, outcome.snapshot.lastPushedModels);
-    yield* Ref.set(
-      mutable.lastPushedHarnessFingerprint,
-      outcome.snapshot.lastPushedHarnessFingerprint
-    );
     return {
       kind: 'pushed',
       snapshot: outcome.snapshot,
@@ -416,27 +443,12 @@ const discoverAndPushHarnessModelsEffect = (
   catalog: Record<string, string[]>
 ): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> =>
   Effect.gen(function* () {
-    const mutable = yield* DaemonMutableStateService;
+    // Discovery runs outside the lock so harnesses still discover concurrently.
     const result = yield* Effect.promise(() => discoverModelsForHarness(harness, service));
-
-    const next = nextSnapshotAfterHarness(
-      yield* Ref.get(mutable.lastPushedModels),
-      harness,
-      result,
-      catalog
+    yield* commitModelsSnapshotEffect(
+      (current) => nextSnapshotAfterHarness(current, harness, result, catalog),
+      { logPrefix: `${harness} models updated` }
     );
-
-    const pushOutcome = yield* pushModelsSnapshotIfChangedEffect(next, {
-      logPrefix: `${harness} models updated`,
-    });
-
-    if (pushOutcome.kind === 'pushed') {
-      yield* Ref.set(mutable.lastPushedModels, pushOutcome.snapshot.lastPushedModels);
-      yield* Ref.set(
-        mutable.lastPushedHarnessFingerprint,
-        pushOutcome.snapshot.lastPushedHarnessFingerprint
-      );
-    }
   });
 
 /**

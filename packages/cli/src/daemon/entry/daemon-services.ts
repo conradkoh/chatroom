@@ -7,7 +7,7 @@
  *   → infrastructure/services/
  */
 
-import { Context, Effect, Layer, Ref } from 'effect';
+import { Context, Effect, Layer, Ref, Semaphore } from 'effect';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
@@ -279,6 +279,13 @@ export class DaemonSessionService extends Context.Service<
 export interface DaemonMutableStateServiceShape {
   lastPushedModels: Ref.Ref<Record<string, string[]> | null>;
   lastPushedHarnessFingerprint: Ref.Ref<string | null>;
+  /**
+   * Single-permit lock held for every read → merge → push → commit of the
+   * model snapshot. The backend replaces the whole availableModels map on each
+   * push, so two pushes built from the same snapshot would drop each other's
+   * harness updates.
+   */
+  modelsPushLock: Semaphore.Semaphore;
 }
 
 export class DaemonMutableStateService extends Context.Service<
@@ -286,18 +293,20 @@ export class DaemonMutableStateService extends Context.Service<
   DaemonMutableStateServiceShape
 >()('DaemonMutableStateService') {}
 
-/** Build DaemonMutableStateService layer from initial values. */
+/**
+ * Build DaemonMutableStateService layer from initial values.
+ *
+ * The state is created once, here, not on each layer build: every program
+ * provided with the returned layer (background model discovery and the daemon
+ * runtime that handles manual refresh) shares the same Refs and lock.
+ */
 export function DaemonMutableStateServiceLive(init: {
   lastPushedModels: Record<string, string[]> | null;
   lastPushedHarnessFingerprint: string | null;
-}) {
-  return Layer.effect(
-    DaemonMutableStateService,
-    Effect.gen(function* () {
-      return {
-        lastPushedModels: yield* Ref.make(init.lastPushedModels),
-        lastPushedHarnessFingerprint: yield* Ref.make(init.lastPushedHarnessFingerprint),
-      };
-    })
-  );
+}): Layer.Layer<DaemonMutableStateService> {
+  return Layer.succeed(DaemonMutableStateService, {
+    lastPushedModels: Ref.makeUnsafe(init.lastPushedModels),
+    lastPushedHarnessFingerprint: Ref.makeUnsafe(init.lastPushedHarnessFingerprint),
+    modelsPushLock: Semaphore.makeUnsafe(1),
+  });
 }
