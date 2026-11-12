@@ -182,6 +182,8 @@ Bumping only a subset (for example just the npm publish set: root, `packages/cli
 A new workspace package under `apps/`, `services/`, or `packages/` must adopt the
 same version.
 
+**CLI publishing:** `chatroom-cli` is published to npm only by `.github/workflows/publish-cli.yml`, which runs on every push to `master` and publishes when the `packages/cli/package.json` version is newer than npm's (it packs and publishes the tarball from `packages/cli/.npm-publish`) — never run `npm publish` from `packages/cli`.
+
 ### Daemon Debugging
 
 ```bash
