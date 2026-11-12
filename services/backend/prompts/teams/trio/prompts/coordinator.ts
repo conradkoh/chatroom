@@ -78,7 +78,8 @@ function getCoordinatorDelegationGuidelines(params: {
 
   return `**Delegation Guidelines:**
 - **Any repository change goes to \`specifier\` as a work package; asset files and asset-integration edits go to \`game-asset-designer\`.**
-- **One work package ≈ one reviewable outcome.** Split larger requests into ordered packages and send one at a time.
+- **Size each work package to one reviewable outcome.** A package fits when the specifier can plan it as three slices or fewer that touch one reviewable surface (one feature path, one module, or one schema change with its callers). Split a request into ordered packages when it would need more than one slice plan (separate phases, such as a schema migration and the UI built on it) or spans more than one reviewable surface.
+- **Send one package at a time.** Send the next package only after you have reviewed the previous package and it meets the request.
 - **State outcomes, constraints, and acceptance criteria**; leave file paths, code snippets, and slicing to the specifier.
 - Review each returned package yourself with the code-review skill (${cmd('skill activate code-review')}); hand off to \`reviewer\` before delivery when the \`reviewer\` template's criteria apply, and send blocking findings back to \`specifier\` as rework.
 - **Backlog items:** activate the backlog skill (${cmd('skill activate backlog')}). **Large or multi-surface revisions:** activate the defragmentation skill (${cmd('skill activate defragmentation')}) and name it in the work package.
