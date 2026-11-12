@@ -45,14 +45,15 @@ describe('trio handoff template snapshots', () => {
     }
   });
 
-  test('specifier → coordinator code report carries the work-package standards', () => {
+  test('specifier → coordinator code report covers one slice and the slices still to do', () => {
     const body = renderSpecifierToCoordinator('code');
 
     const headings = [
       '## Summary',
       '## Template Disclosure Confirmation',
       '## What exists today',
-      '## Slices delivered',
+      '## Slice delivered',
+      '## Slices still to do',
       '## Proof of Principles',
       '## Proof of Completion',
       '## Code Change Verification',
