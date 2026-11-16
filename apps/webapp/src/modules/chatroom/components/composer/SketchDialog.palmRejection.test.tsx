@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,41 +9,60 @@ import { SketchDialog } from './SketchDialog';
 // while the pencil arrives as `pointerType: 'pen'`. Palm contact must never paint, and must never
 // block the pencil from starting a stroke.
 
-const ctx: {
-  fillStyle: string;
-  fillRect: ReturnType<typeof vi.fn>;
-  beginPath: ReturnType<typeof vi.fn>;
-  arc: ReturnType<typeof vi.fn>;
-  fill: ReturnType<typeof vi.fn>;
-  strokeStyle: string;
-  lineWidth: number;
-  lineCap: string;
-  lineJoin: string;
-  moveTo: ReturnType<typeof vi.fn>;
-  lineTo: ReturnType<typeof vi.fn>;
-  stroke: ReturnType<typeof vi.fn>;
-  getImageData?: ReturnType<typeof vi.fn>;
-  putImageData?: ReturnType<typeof vi.fn>;
-} = {
-  fillStyle: '',
-  fillRect: vi.fn(),
-  beginPath: vi.fn(),
-  arc: vi.fn(),
-  fill: vi.fn(),
-  strokeStyle: '',
-  lineWidth: 0,
-  lineCap: 'butt',
-  lineJoin: 'miter',
-  moveTo: vi.fn(),
-  lineTo: vi.fn(),
-  stroke: vi.fn(),
-};
+function createContextStub() {
+  const pixels = { data: new Uint8ClampedArray(4) } as unknown as ImageData; // unique per context
+  return {
+    pixels,
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 0,
+    lineCap: 'butt',
+    lineJoin: 'miter',
+    globalCompositeOperation: 'source-over',
+    lineDashOffset: 0,
+    fillRect: vi.fn(),
+    clearRect: vi.fn(),
+    strokeRect: vi.fn(),
+    setLineDash: vi.fn(),
+    beginPath: vi.fn(),
+    arc: vi.fn(),
+    fill: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    stroke: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    setTransform: vi.fn(),
+    translate: vi.fn(),
+    rotate: vi.fn(),
+    scale: vi.fn(),
+    drawImage: vi.fn(),
+    getImageData: vi.fn(() => pixels),
+    putImageData: vi.fn(),
+  };
+}
+type ContextStub = ReturnType<typeof createContextStub>;
+// Per-canvas contexts:
+const contexts = new Map<HTMLCanvasElement, ContextStub>();
+const stubs = () => [...contexts.values()];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-    ctx as unknown as CanvasRenderingContext2D
-  );
+  contexts.clear();
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
+    this: HTMLCanvasElement
+  ) {
+    let c = contexts.get(this);
+    if (!c) {
+      c = createContextStub();
+      contexts.set(this, c);
+    }
+    return c as unknown as CanvasRenderingContext2D;
+  } as never);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 function setupCanvas(canvas: HTMLCanvasElement) {
@@ -93,9 +112,10 @@ function fire(
   );
 }
 
-const dotAt = (x: number, y: number) => ctx.arc.mock.calls.some(([cx, cy]) => cx === x && cy === y);
+const dotAt = (x: number, y: number) =>
+  stubs().some((s) => s.arc.mock.calls.some(([cx, cy]) => cx === x && cy === y));
 const segmentTo = (x: number, y: number) =>
-  ctx.lineTo.mock.calls.some(([lx, ly]) => lx === x && ly === y);
+  stubs().some((s) => s.lineTo.mock.calls.some(([lx, ly]) => lx === x && ly === y));
 
 function renderCanvas() {
   render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
@@ -171,20 +191,6 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
   });
 
   describe('undoing palm marks', () => {
-    const snapshot = { data: new Uint8ClampedArray(4) } as unknown as ImageData;
-
-    beforeEach(() => {
-      Object.assign(ctx, {
-        getImageData: vi.fn(() => snapshot),
-        putImageData: vi.fn(),
-      });
-    });
-
-    afterEach(() => {
-      delete (ctx as Record<string, unknown>).getImageData;
-      delete (ctx as Record<string, unknown>).putImageData;
-    });
-
     it('restores the layer when the pencil lands after the palm moved', async () => {
       const canvas = renderCanvas();
       await act(async () => {
@@ -194,7 +200,11 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
         fire(canvas, 'pointerup', PENCIL, 100, 100);
         fire(canvas, 'pointerup', PALM, 300, 300);
       });
-      expect(ctx.putImageData).toHaveBeenCalledWith(snapshot, 0, 0);
+      const target = stubs().find((s) =>
+        s.lineTo.mock.calls.some(([x, y]) => x === 320 && y === 310)
+      );
+      expect(target?.putImageData).toHaveBeenCalledTimes(1);
+      expect(target?.putImageData).toHaveBeenCalledWith(target?.pixels, 0, 0);
       expect(dotAt(100, 100)).toBe(true);
     });
 
@@ -205,7 +215,77 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
         fire(canvas, 'pointermove', PALM, 320, 310);
         fire(canvas, 'pointercancel', PALM, 320, 310);
       });
-      expect(ctx.putImageData).toHaveBeenCalledWith(snapshot, 0, 0);
+      const target = stubs().find((s) =>
+        s.lineTo.mock.calls.some(([x, y]) => x === 320 && y === 310)
+      );
+      expect(target?.putImageData).toHaveBeenCalledWith(target?.pixels, 0, 0);
+      // Restoring the pixels also restores that flag, so no scan is needed.
+      expect(target?.getImageData).toHaveBeenCalledTimes(1);
+      // The restored layer had no content, so there is still nothing to save.
+      expect(screen.getByRole('button', { name: 'Add sketch' })).toBeDisabled();
+    });
+
+    it('restores only the layer the palm painted when the active layer changes before the pencil lands', async () => {
+      vi.stubGlobal(
+        'createImageBitmap',
+        vi.fn(async () => ({ width: 40, height: 40, close: vi.fn() }))
+      );
+      const user = userEvent.setup();
+      const canvas = renderCanvas();
+      const paste = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, 'clipboardData', {
+        value: {
+          items: [
+            {
+              kind: 'file',
+              type: 'image/png',
+              getAsFile: () => new File(['x'], 'a.png', { type: 'image/png' }),
+            },
+          ],
+        },
+      });
+      await act(async () => {
+        document.dispatchEvent(paste);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      const apply = await screen.findByRole('button', { name: 'Apply' });
+      // The paste import resolves asynchronously; Apply is disabled until it lands.
+      await waitFor(() => expect(apply).toBeEnabled());
+      await user.click(apply);
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull());
+      // Pasting switches to the transform tool; the palm stroke below needs brush bindings.
+      await user.keyboard('b');
+      for (const stub of stubs()) stub.putImageData.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: /Drawing 1/ }));
+      await act(async () => {
+        fire(canvas, 'pointerdown', PALM, 300, 300);
+        fire(canvas, 'pointermove', PALM, 320, 310);
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Pasted image 1/ }));
+      await act(async () => {
+        fire(canvas, 'pointermove', PALM, 340, 320);
+        fire(canvas, 'pointerdown', PENCIL, 100, 100);
+        fire(canvas, 'pointerup', PENCIL, 100, 100);
+        fire(canvas, 'pointerup', PALM, 300, 300);
+      });
+      const painted = stubs().filter((s) =>
+        s.lineTo.mock.calls.some(([x, y]) => x === 320 && y === 310)
+      );
+      expect(painted).toHaveLength(1);
+      const ctxA = painted[0] as ContextStub;
+      const pencilled = stubs().filter((s) =>
+        s.arc.mock.calls.some(([x, y]) => x === 100 && y === 100)
+      );
+      expect(pencilled).toHaveLength(1);
+      const ctxB = pencilled[0] as ContextStub;
+      expect(ctxA).not.toBe(ctxB);
+      // The stroke stays pinned to the layer it started on, even after the layer switch.
+      expect(ctxA.lineTo.mock.calls.some(([x, y]) => x === 340 && y === 320)).toBe(true);
+      expect(ctxB.lineTo.mock.calls.some(([x, y]) => x === 340 && y === 320)).toBe(false);
+      // Only the painted layer is restored.
+      expect(ctxA.putImageData).toHaveBeenCalledTimes(1);
+      expect(ctxA.putImageData).toHaveBeenCalledWith(ctxA.pixels, 0, 0);
+      expect(ctxB.putImageData).not.toHaveBeenCalled();
     });
   });
 

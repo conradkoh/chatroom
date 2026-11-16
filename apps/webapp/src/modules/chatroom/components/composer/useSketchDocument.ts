@@ -20,6 +20,7 @@ import {
   drawSketchSegment,
   getCssToCanvasScale,
   mapClientPointToCanvas,
+  type SketchPoint,
 } from './sketchCanvasDrawing';
 import {
   getCoalescedPointerEvents,
@@ -27,6 +28,7 @@ import {
   shouldStartSketchStroke,
   endSketchStroke,
   type ActiveSketchStroke,
+  type SketchStrokeSnapshot,
 } from './sketchCanvasPointer';
 import type { SketchSelectionRect } from './sketchCanvasSelection';
 import {
@@ -185,61 +187,76 @@ export function useSketchDocument({
       }
     };
   }, [doc.layers, scheduleComposite]);
+  const layerContext = useCallback(
+    (id: SketchLayerId) => layersRef.current.get(id)?.getContext('2d') ?? null,
+    []
+  );
+  const markLayer = useCallback(
+    (id: SketchLayerId, value: boolean) =>
+      setDoc((state) => updateLayerHasContent(state, id, value)),
+    []
+  );
+  // Keep `activeContext` and `mark` for deleteRegion/floating code. Re-express them as
+  // layerContext(doc.activeLayerId) / markLayer(doc.activeLayerId, v).
   const activeContext = useCallback(
-    () => layersRef.current.get(doc.activeLayerId)?.getContext('2d') ?? null,
-    [doc.activeLayerId]
+    () => layerContext(doc.activeLayerId),
+    [doc.activeLayerId, layerContext]
   );
   const mark = useCallback(
-    (value: boolean) => setDoc((state) => updateLayerHasContent(state, doc.activeLayerId, value)),
-    [doc.activeLayerId]
+    (value: boolean) => markLayer(doc.activeLayerId, value),
+    [doc.activeLayerId, markLayer]
   );
   const drawAt = useCallback(
-    (point: { x: number; y: number }, canvas: HTMLCanvasElement) => {
-      const ctx = activeContext();
+    (point: SketchPoint, canvas: HTMLCanvasElement, layerId: SketchLayerId) => {
+      const ctx = layerContext(layerId);
       if (!ctx) return;
       const scale = getCssToCanvasScale(canvas);
       if (eraserMode) drawSketchEraseDot(ctx, point, brushSize, scale);
       else drawSketchDot(ctx, point, { color: brushColor, size: brushSize }, scale);
-      if (!eraserMode) mark(true);
+      if (!eraserMode) markLayer(layerId, true);
       scheduleComposite();
     },
-    [activeContext, brushColor, brushSize, eraserMode, mark, scheduleComposite]
+    [brushColor, brushSize, eraserMode, layerContext, markLayer, scheduleComposite]
   );
   const drawSegment = useCallback(
-    (
-      from: { x: number; y: number },
-      to: { x: number; y: number },
-      _brush: unknown,
-      canvas: HTMLCanvasElement
-    ) => {
-      const ctx = activeContext();
+    (from: SketchPoint, to: SketchPoint, canvas: HTMLCanvasElement, layerId: SketchLayerId) => {
+      const ctx = layerContext(layerId);
       if (!ctx) return;
       const scale = getCssToCanvasScale(canvas);
       if (eraserMode) drawSketchEraseSegment(ctx, from, to, brushSize, scale);
       else drawSketchSegment(ctx, from, to, { color: brushColor, size: brushSize }, scale);
-      if (!eraserMode) mark(true);
+      if (!eraserMode) markLayer(layerId, true);
       scheduleComposite();
     },
-    [activeContext, brushColor, brushSize, eraserMode, mark, scheduleComposite]
+    [brushColor, brushSize, eraserMode, layerContext, markLayer, scheduleComposite]
   );
-  const snapshotActiveLayer = useCallback((): ImageData | null => {
-    const ctx = activeContext();
-    // Guarded because lightweight canvas stubs (jsdom) do not implement getImageData.
-    if (!ctx || typeof ctx.getImageData !== 'function') return null;
-    return ctx.getImageData(0, 0, SKETCH_CANVAS_WIDTH, SKETCH_CANVAS_HEIGHT);
-  }, [activeContext]);
+  const snapshotLayer = useCallback(
+    (layerId: SketchLayerId): SketchStrokeSnapshot | null => {
+      const ctx = layerContext(layerId);
+      // Guarded because lightweight canvas stubs (jsdom) do not implement getImageData.
+      if (!ctx || typeof ctx.getImageData !== 'function') return null;
+      return {
+        layerId,
+        pixels: ctx.getImageData(0, 0, SKETCH_CANVAS_WIDTH, SKETCH_CANVAS_HEIGHT),
+        hadContent: doc.layers.find((layer) => layer.id === layerId)?.hasContent ?? false,
+      };
+    },
+    [doc.layers, layerContext]
+  );
   // Drops a stroke without committing it: a palm the pencil took over, or a touch iPadOS cancelled.
   const abandonStroke = useCallback(
-    (canvas: HTMLCanvasElement, active: ActiveSketchStroke) => {
+    (active: ActiveSketchStroke) => {
       activeRef.current = null;
-      endSketchStroke(canvas, active.pointerId, active);
-      const ctx = activeContext();
-      if (!ctx || !active.snapshot) return;
-      ctx.putImageData(active.snapshot, 0, 0);
-      mark(layerHasNonTransparentPixels(ctx));
+      const canvas = canvasRef.current;
+      if (canvas) endSketchStroke(canvas, active.pointerId, active);
+      const snapshot = active.snapshot;
+      const ctx = snapshot && layerContext(snapshot.layerId);
+      if (!snapshot || !ctx) return;
+      ctx.putImageData(snapshot.pixels, 0, 0);
+      markLayer(snapshot.layerId, snapshot.hadContent); // no full-layer scan
       scheduleComposite();
     },
-    [activeContext, mark, scheduleComposite]
+    [layerContext, markLayer, scheduleComposite]
   );
   const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -250,24 +267,25 @@ export function useSketchDocument({
       const current = activeRef.current;
       // A pen landing during a touch stroke means that touch was a resting palm.
       if (canvas && current && isSketchPalm(penSession, current.pointerType))
-        abandonStroke(canvas, current);
+        abandonStroke(current);
       if (!shouldStartSketchStroke(disabled, e.isPrimary, e.button, activeRef.current != null))
         return;
       const point = canvas && mapClientPointToCanvas(e.clientX, e.clientY, canvas);
       if (!canvas || !point) return;
       const isTouch = e.pointerType === 'touch';
-      if (!isTouch) drawAt(point, canvas);
+      if (!isTouch) drawAt(point, canvas, doc.activeLayerId);
       activeRef.current = {
         pointerId: e.pointerId,
         pointerType: e.pointerType,
+        layerId: doc.activeLayerId,
         lastPoint: point,
         brush: { color: brushColor, size: brushSize },
         pendingDot: isTouch,
-        snapshot: isTouch ? snapshotActiveLayer() : null,
+        snapshot: isTouch ? snapshotLayer(doc.activeLayerId) : null,
       };
       canvas.setPointerCapture(e.pointerId);
     },
-    [abandonStroke, brushColor, brushSize, disabled, drawAt, snapshotActiveLayer]
+    [abandonStroke, brushColor, brushSize, disabled, doc.activeLayerId, drawAt, snapshotLayer]
   );
   const onPointerMove: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -277,19 +295,19 @@ export function useSketchDocument({
       const active = activeRef.current;
       if (!canvas || !active) return;
       if (isSketchPalm(penSession, active.pointerType)) {
-        abandonStroke(canvas, active);
+        abandonStroke(active);
         return;
       }
       if (active.pointerId !== e.pointerId) return;
       if (active.pendingDot) {
         active.pendingDot = false;
-        drawAt(active.lastPoint, canvas);
+        drawAt(active.lastPoint, canvas, active.layerId);
       }
       processCoalescedPointerMove(
         canvas,
         getCoalescedPointerEvents(e.nativeEvent),
         active,
-        drawSegment
+        (from, to, _brush, c) => drawSegment(from, to, c, active.layerId)
       );
     },
     [abandonStroke, drawAt, drawSegment]
@@ -303,18 +321,18 @@ export function useSketchDocument({
       if (active?.pointerId !== e.pointerId) return;
       // iPadOS cancels touches it classifies as a palm; undo whatever that touch painted.
       if (cancelled && active.pointerType === 'touch') {
-        abandonStroke(canvas, active);
+        abandonStroke(active);
         return;
       }
       activeRef.current = null;
-      if (active.pendingDot) drawAt(active.lastPoint, canvas); // a finger tap still leaves a dot
+      if (active.pendingDot) drawAt(active.lastPoint, canvas, active.layerId); // a finger tap still leaves a dot
       if (eraserMode) {
-        const ctx = activeContext();
-        mark(Boolean(ctx && layerHasNonTransparentPixels(ctx)));
+        const ctx = layerContext(active.layerId);
+        markLayer(active.layerId, Boolean(ctx && layerHasNonTransparentPixels(ctx)));
         scheduleComposite();
       }
     },
-    [abandonStroke, activeContext, drawAt, eraserMode, mark, scheduleComposite]
+    [abandonStroke, drawAt, eraserMode, layerContext, markLayer, scheduleComposite]
   );
   const onPointerUp = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => finish(e, false),

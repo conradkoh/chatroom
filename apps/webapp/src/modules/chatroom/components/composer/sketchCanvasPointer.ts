@@ -1,15 +1,22 @@
 import { mapClientPointToCanvas, type SketchBrush, type SketchPoint } from './sketchCanvasDrawing';
 
+/** Pixels of the layer a touch stroke painted, from before its first paint; restored if the touch
+ * turns out to be a palm. `hadContent` is that layer's hasContent flag at the same moment. */
+export type SketchStrokeSnapshot = { layerId: string; pixels: ImageData; hadContent: boolean };
+
 export type ActiveSketchStroke = {
   pointerId: number;
   pointerType: string;
+  /** The layer this stroke paints into for its whole life, even if the active layer changes. */
+  layerId: string;
   lastPoint: SketchPoint;
   brush: SketchBrush;
   /** Touch strokes paint their first dot on the first move (or on up for a tap), so a palm that
    * lands just before the pencil paints nothing. */
   pendingDot: boolean;
-  /** Active-layer pixels from before a touch stroke; restored if the touch turns out to be a palm. */
-  snapshot: ImageData | null;
+  /** Pixels of the layer a touch stroke painted, from before its first paint; restored if the touch
+   * turns out to be a palm. `hadContent` is that layer's hasContent flag at the same moment. */
+  snapshot: SketchStrokeSnapshot | null;
 };
 
 export function shouldStartSketchStroke(
