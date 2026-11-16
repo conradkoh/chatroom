@@ -80,3 +80,4 @@ Pair with `useSketchSelection`, `useSketchManipulation`, and `useSketchClipboard
 - **`Sketch*`** — React components (PascalCase file).
 - **`sketch*`** — pure functions, constants, or hooks (`useSketch*`).
 - **`sketch/`** — editor layout UI extracted from the monolithic dialog; import components directly from this folder when composing custom editors.
+- **Pointer input** — tool hooks check `sketchPointerPolicy.ts` (Apple Pencil palm rejection) before starting a gesture; reuse it for new tools.

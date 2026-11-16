@@ -41,8 +41,12 @@ describe('sketch canvas pointer helpers', () => {
     });
     const active: ActiveSketchStroke = {
       pointerId: 1,
+      pointerType: 'mouse',
+      layerId: 'layer-1',
       lastPoint: { x: 0, y: 0 },
       brush: { color: '#171717', size: 4 },
+      pendingDot: false,
+      snapshot: null,
     };
     const drawSegment = vi.fn();
     processCoalescedPointerMove(
