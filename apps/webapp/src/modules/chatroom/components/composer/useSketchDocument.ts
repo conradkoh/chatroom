@@ -340,6 +340,18 @@ export function useSketchDocument({
     (e: ReactPointerEvent<HTMLCanvasElement>) => finish(e, true),
     [finish]
   );
+  // A touch that never painted and lost capture without a lift is not a confirmed tap: drop it.
+  // A touch that already painted, and every pen or mouse stroke, commits as before.
+  const onLostPointerCapture = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>) => {
+      const active = activeRef.current;
+      finish(
+        e,
+        active?.pointerId === e.pointerId && active.pointerType === 'touch' && active.pendingDot
+      );
+    },
+    [finish]
+  );
   const deleteRegion = useCallback(
     (selection: SketchSelectionRect) => {
       const ctx = activeContext();
@@ -559,7 +571,7 @@ export function useSketchDocument({
       onPointerMove,
       onPointerUp,
       onPointerCancel,
-      onLostPointerCapture: onPointerUp,
+      onLostPointerCapture,
     },
     exportPngFile,
     deleteRegion,

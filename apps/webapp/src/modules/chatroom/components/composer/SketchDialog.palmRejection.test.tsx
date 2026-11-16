@@ -93,7 +93,7 @@ const PENCIL: Contact = { pointerId: 3, pointerType: 'pen' };
 
 function fire(
   canvas: HTMLCanvasElement,
-  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel' | 'lostpointercapture',
   contact: Contact,
   x: number,
   y: number
@@ -177,6 +177,28 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
     });
     expect(dotAt(250, 250)).toBe(true);
     expect(screen.getByRole('button', { name: 'Add sketch' })).toBeEnabled();
+  });
+
+  it('drops a pending touch tap that loses capture without a lift', async () => {
+    const canvas = renderCanvas();
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 250, 250);
+      fire(canvas, 'lostpointercapture', PALM, 250, 250);
+    });
+    // A touch that never painted is not a confirmed tap: drop it.
+    expect(dotAt(250, 250)).toBe(false);
+  });
+
+  it('keeps a finger stroke that painted when it loses capture', async () => {
+    const canvas = renderCanvas();
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 250, 250);
+      fire(canvas, 'pointermove', PALM, 280, 260);
+      fire(canvas, 'lostpointercapture', PALM, 280, 260);
+    });
+    // A touch that already painted commits as before; only a real cancel rolls back.
+    expect(segmentTo(280, 260)).toBe(true);
+    expect(stubs().some((s) => s.putImageData.mock.calls.length > 0)).toBe(false);
   });
 
   it('ignores a palm after the pencil hovers over the canvas', async () => {
