@@ -1,6 +1,16 @@
 import { mapClientPointToCanvas, type SketchBrush, type SketchPoint } from './sketchCanvasDrawing';
 
-export type ActiveSketchStroke = { pointerId: number; lastPoint: SketchPoint; brush: SketchBrush };
+export type ActiveSketchStroke = {
+  pointerId: number;
+  pointerType: string;
+  lastPoint: SketchPoint;
+  brush: SketchBrush;
+  /** Touch strokes paint their first dot on the first move (or on up for a tap), so a palm that
+   * lands just before the pencil paints nothing. */
+  pendingDot: boolean;
+  /** Active-layer pixels from before a touch stroke; restored if the touch turns out to be a palm. */
+  snapshot: ImageData | null;
+};
 
 export function shouldStartSketchStroke(
   disabled: boolean,
