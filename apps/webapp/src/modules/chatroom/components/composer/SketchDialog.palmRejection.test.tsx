@@ -464,4 +464,43 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
     });
     expect(frameXs(shared).at(-1)).toBe(100.5);
   });
+
+  it('a palm lift or lost capture does not disturb the pencil stroke', async () => {
+    const canvas = renderCanvas();
+    await act(async () => {
+      fire(canvas, 'pointerdown', PENCIL, 100, 100);
+      fire(canvas, 'pointerdown', PALM, 300, 300);
+      fire(canvas, 'pointermove', PENCIL, 150, 120);
+      fire(canvas, 'pointerup', PALM, 300, 300);
+      fire(canvas, 'lostpointercapture', PALM, 300, 300);
+      fire(canvas, 'pointermove', PENCIL, 200, 150);
+    });
+    expect(segmentTo(200, 150)).toBe(true);
+    expect(stubs().some((s) => s.putImageData.mock.calls.length > 0)).toBe(false);
+    expect(dotAt(300, 300)).toBe(false);
+  });
+
+  it('a reopened sketch accepts finger input again', async () => {
+    const onOpenChange = vi.fn();
+    const onSave = vi.fn();
+    const view = render(<SketchDialog open onOpenChange={onOpenChange} onSave={onSave} />);
+    const canvas = screen.getByLabelText('Sketch canvas') as HTMLCanvasElement;
+    setupCanvas(canvas);
+    await act(async () => {
+      fire(canvas, 'pointerdown', PENCIL, 100, 100);
+      fire(canvas, 'pointerup', PENCIL, 100, 100);
+    });
+    view.rerender(<SketchDialog open={false} onOpenChange={onOpenChange} onSave={onSave} />);
+    await waitFor(() => expect(screen.queryByLabelText('Sketch canvas')).toBeNull());
+    view.rerender(<SketchDialog open onOpenChange={onOpenChange} onSave={onSave} />);
+    const fresh = screen.getByLabelText('Sketch canvas') as HTMLCanvasElement;
+    setupCanvas(fresh);
+    await act(async () => {
+      fire(fresh, 'pointerdown', PALM, 200, 200);
+      fire(fresh, 'pointermove', PALM, 240, 220);
+      fire(fresh, 'pointerup', PALM, 240, 220);
+    });
+    // A new session means no pen has been seen: the finger draws again.
+    expect(segmentTo(240, 220)).toBe(true);
+  });
 });
