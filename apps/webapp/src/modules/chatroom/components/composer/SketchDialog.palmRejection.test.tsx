@@ -116,6 +116,7 @@ const dotAt = (x: number, y: number) =>
   stubs().some((s) => s.arc.mock.calls.some(([cx, cy]) => cx === x && cy === y));
 const segmentTo = (x: number, y: number) =>
   stubs().some((s) => s.lineTo.mock.calls.some(([lx, ly]) => lx === x && ly === y));
+const getImageDataCalls = () => stubs().reduce((n, s) => n + s.getImageData.mock.calls.length, 0);
 
 function renderCanvas() {
   render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
@@ -188,6 +189,37 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
     });
     expect(dotAt(400, 400)).toBe(false);
     expect(segmentTo(420, 410)).toBe(false);
+  });
+
+  it('does not read back the layer for a touch pointerdown or a finger tap', async () => {
+    const canvas = renderCanvas();
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 250, 250);
+    });
+    expect(getImageDataCalls()).toBe(0);
+    await act(async () => {
+      fire(canvas, 'pointerup', PALM, 250, 250);
+    });
+    expect(dotAt(250, 250)).toBe(true);
+    expect(getImageDataCalls()).toBe(0);
+  });
+
+  it('reads back the layer once when a touch stroke first paints', async () => {
+    const canvas = renderCanvas();
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 250, 250);
+      fire(canvas, 'pointermove', PALM, 260, 255);
+      fire(canvas, 'pointermove', PALM, 280, 260);
+    });
+    expect(segmentTo(280, 260)).toBe(true);
+    expect(getImageDataCalls()).toBe(1);
+    const reader = stubs().find((s) => s.getImageData.mock.calls.length > 0);
+    expect(reader?.getImageData).toHaveBeenCalledWith(
+      0,
+      0,
+      SKETCH_CANVAS_WIDTH,
+      SKETCH_CANVAS_HEIGHT
+    );
   });
 
   describe('undoing palm marks', () => {

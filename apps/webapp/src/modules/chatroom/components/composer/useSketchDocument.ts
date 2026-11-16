@@ -281,11 +281,11 @@ export function useSketchDocument({
         lastPoint: point,
         brush: { color: brushColor, size: brushSize },
         pendingDot: isTouch,
-        snapshot: isTouch ? snapshotLayer(doc.activeLayerId) : null,
+        snapshot: null,
       };
       canvas.setPointerCapture(e.pointerId);
     },
-    [abandonStroke, brushColor, brushSize, disabled, doc.activeLayerId, drawAt, snapshotLayer]
+    [abandonStroke, brushColor, brushSize, disabled, doc.activeLayerId, drawAt]
   );
   const onPointerMove: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -301,6 +301,8 @@ export function useSketchDocument({
       if (active.pointerId !== e.pointerId) return;
       if (active.pendingDot) {
         active.pendingDot = false;
+        // Read back only when a touch stroke is about to paint; a pending touch has nothing to restore.
+        active.snapshot = snapshotLayer(active.layerId);
         drawAt(active.lastPoint, canvas, active.layerId);
       }
       processCoalescedPointerMove(
@@ -310,7 +312,7 @@ export function useSketchDocument({
         (from, to, _brush, c) => drawSegment(from, to, c, active.layerId)
       );
     },
-    [abandonStroke, drawAt, drawSegment]
+    [abandonStroke, drawAt, drawSegment, snapshotLayer]
   );
   const finish = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>, cancelled: boolean) => {
