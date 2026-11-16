@@ -69,6 +69,7 @@ export function SketchEditorSession({
     discardFloatingSelection,
     layers,
     setActiveLayerId,
+    penSession,
   } = useSketchDocument({
     brushColor: effectiveBrushColor,
     brushSize,
@@ -101,6 +102,7 @@ export function SketchEditorSession({
     enabled: activeTool === 'select',
     keyboardEnabled: selectionKeyboardEnabled && !floating,
     disabled: inputDisabled,
+    penSession,
     onRequestDelete: handleDeleteSelectionRect,
   });
   // fallow-ignore-next-line complexity
@@ -158,6 +160,7 @@ export function SketchEditorSession({
     floating,
     beginFloatingSelection,
     updateFloatingTransform,
+    penSession,
   });
   clearSelectionRef.current = clearSelection;
   const save = async () => {

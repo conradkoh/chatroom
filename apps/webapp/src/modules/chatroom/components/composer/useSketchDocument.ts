@@ -50,7 +50,12 @@ import {
   setActiveLayer,
 } from './sketchDocument';
 import { buildSketchFileName } from './sketchFileName';
-import { createSketchPenSession, isSketchPalm, recordSketchPointer } from './sketchPointerPolicy';
+import {
+  createSketchPenSession,
+  isSketchPalm,
+  recordSketchPointer,
+  type SketchPenSession,
+} from './sketchPointerPolicy';
 import { applySketchTransform, computeContainTransform } from './sketchTransform';
 
 export type UseSketchDocumentArgs = {
@@ -61,6 +66,7 @@ export type UseSketchDocumentArgs = {
 };
 export type UseSketchDocumentResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
+  penSession: SketchPenSession;
   layers: ReturnType<typeof createInitialDocument>['layers'];
   activeLayerId: SketchLayerId;
   selection: SketchSelection | null;
@@ -525,6 +531,7 @@ export function useSketchDocument({
   );
   return {
     canvasRef,
+    penSession: penSessionRef.current,
     layers: doc.layers,
     activeLayerId: doc.activeLayerId,
     selection: doc.selection,

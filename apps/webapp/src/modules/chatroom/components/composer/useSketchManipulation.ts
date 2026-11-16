@@ -14,6 +14,7 @@ import {
 import { mapClientPointToCanvas, getCssToCanvasScale } from './sketchCanvasDrawing';
 import { drawSketchTransformOverlay } from './sketchCanvasSelection';
 import type { SketchSelection, SketchFloatingSelectionMeta } from './sketchDocument';
+import { isSketchPalm, recordSketchPointer, type SketchPenSession } from './sketchPointerPolicy';
 import type { SketchToolId } from './sketchTools';
 import {
   clampTransformToCanvas,
@@ -67,6 +68,7 @@ export function useSketchManipulation({
   floating,
   beginFloatingSelection,
   updateFloatingTransform,
+  penSession,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   overlayRef: RefObject<HTMLCanvasElement | null>;
@@ -76,9 +78,11 @@ export function useSketchManipulation({
   floating: SketchFloatingSelectionMeta | null;
   beginFloatingSelection: () => SketchFloatingSelectionMeta | null;
   updateFloatingTransform: (t: SketchFloatingSelectionMeta['transform']) => void;
+  penSession: SketchPenSession;
 }) {
   const active = useRef<{
     id: number;
+    pointerType: string;
     start: { x: number; y: number };
     transform: SketchFloatingSelectionMeta['transform'];
     handle: SketchTransformHandle;
@@ -114,8 +118,23 @@ export function useSketchManipulation({
   useEffect(() => {
     setHoverHandle(null);
   }, [activeTool, disabled]);
+  const endDrag = useCallback(
+    (pointerId: number, cancel: boolean) => {
+      const c = canvasRef.current;
+      if (active.current?.id !== pointerId || !c) return;
+      if (c.hasPointerCapture(pointerId)) c.releasePointerCapture(pointerId);
+      if (cancel && active.current && floating) updateFloatingTransform(active.current.transform);
+      active.current = null;
+      setDragHandle(null);
+    },
+    [canvasRef, floating, updateFloatingTransform]
+  );
   const down: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
+      recordSketchPointer(penSession, e.pointerType);
+      if (isSketchPalm(penSession, e.pointerType)) return;
+      if (active.current && isSketchPalm(penSession, active.current.pointerType))
+        endDrag(active.current.id, true); // restores the drag-start transform
       if (disabled || !e.isPrimary || e.button !== 0) return;
       if (!floating && !selection) return;
       const started = floating ?? beginFloatingSelection();
@@ -134,14 +153,30 @@ export function useSketchManipulation({
             )
           : 'move';
       if (!handle) return;
-      active.current = { id: e.pointerId, start: p, transform: started.transform, handle };
+      active.current = {
+        id: e.pointerId,
+        pointerType: e.pointerType,
+        start: p,
+        transform: started.transform,
+        handle,
+      };
       setDragHandle(handle);
       c.setPointerCapture(e.pointerId);
     },
-    [activeTool, beginFloatingSelection, canvasRef, disabled, floating, selection]
+    [
+      activeTool,
+      beginFloatingSelection,
+      canvasRef,
+      disabled,
+      endDrag,
+      floating,
+      penSession,
+      selection,
+    ]
   );
   const move: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
+      recordSketchPointer(penSession, e.pointerType);
       const c = canvasRef.current;
       const p = c && mapClientPointToCanvas(e.clientX, e.clientY, c);
       if (!c || !p) return;
@@ -193,25 +228,14 @@ export function useSketchManipulation({
       else next = translateTransform(a.transform, p.x - a.start.x, p.y - a.start.y);
       updateFloatingTransform(clampTransformToCanvas(next, f.sourceWidth, f.sourceHeight));
     },
-    [activeTool, canvasRef, disabled, floating, selection, updateFloatingTransform]
-  );
-  const endDrag = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>, cancel: boolean) => {
-      const c = canvasRef.current;
-      if (active.current?.id !== e.pointerId || !c) return;
-      if (c.hasPointerCapture(e.pointerId)) c.releasePointerCapture(e.pointerId);
-      if (cancel && active.current && floating) updateFloatingTransform(active.current.transform);
-      active.current = null;
-      setDragHandle(null);
-    },
-    [canvasRef, floating, updateFloatingTransform]
+    [activeTool, canvasRef, disabled, floating, penSession, selection, updateFloatingTransform]
   );
   const finish: ComponentProps<'canvas'>['onPointerUp'] = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>) => endDrag(e, false),
+    (e: ReactPointerEvent<HTMLCanvasElement>) => endDrag(e.pointerId, false),
     [endDrag]
   );
   const cancel: ComponentProps<'canvas'>['onPointerCancel'] = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>) => endDrag(e, true),
+    (e: ReactPointerEvent<HTMLCanvasElement>) => endDrag(e.pointerId, true),
     [endDrag]
   );
   const onPointerLeave = useCallback(() => setHoverHandle(null), []);

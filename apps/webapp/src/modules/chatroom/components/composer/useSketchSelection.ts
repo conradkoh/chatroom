@@ -24,6 +24,7 @@ import {
   shouldStartSketchSelection,
 } from './sketchCanvasSelectionPointer';
 import type { SketchLayerId, SketchSelection } from './sketchDocument';
+import { isSketchPalm, recordSketchPointer, type SketchPenSession } from './sketchPointerPolicy';
 
 export function useSketchSelection({
   canvasRef,
@@ -33,6 +34,7 @@ export function useSketchSelection({
   enabled,
   keyboardEnabled = enabled,
   disabled,
+  penSession,
   onRequestDelete,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -42,12 +44,13 @@ export function useSketchSelection({
   enabled: boolean;
   keyboardEnabled?: boolean;
   disabled: boolean;
+  penSession: SketchPenSession;
   onRequestDelete: (s: SketchSelectionRect) => void;
 }) {
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const anchor = useRef<{ x: number; y: number } | null>(null);
   const draft = useRef<SketchSelectionRect | null>(null);
-  const active = useRef<number | null>(null);
+  const active = useRef<{ id: number; pointerType: string } | null>(null);
   const priorSelection = useRef<SketchSelection | null>(null);
   const paint = useCallback((s: SketchSelectionRect | null) => {
     const c = overlayRef.current?.getContext('2d');
@@ -64,46 +67,12 @@ export function useSketchSelection({
     onSelectionChange({ layerId: activeLayerId, rect: FULL_SKETCH_SELECTION });
     paint(FULL_SKETCH_SELECTION);
   }, [activeLayerId, onSelectionChange, paint]);
-  const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>) => {
-      if (
-        !shouldStartSketchSelection(
-          disabled,
-          enabled,
-          e.isPrimary,
-          e.button,
-          active.current !== null
-        )
-      )
-        return;
-      const c = canvasRef.current;
-      const p = c && mapClientPointToCanvas(e.clientX, e.clientY, c);
-      if (!c || !p) return;
-      anchor.current = p;
-      priorSelection.current = selection;
-      active.current = e.pointerId;
-      c.setPointerCapture(e.pointerId);
-    },
-    [canvasRef, disabled, enabled, selection]
-  );
-  const onPointerMove: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>) => {
-      if (active.current !== e.pointerId) return;
-      const c = canvasRef.current;
-      const a = anchor.current;
-      if (!c || !a) return;
-      draft.current = mapPointerToSelectionDraft(c, a, e.clientX, e.clientY);
-      if (!draft.current) return;
-      paint(draft.current);
-    },
-    [canvasRef, paint]
-  );
   const finish = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>, cancel: boolean) => {
-      if (active.current !== e.pointerId) return;
+    (pointerId: number, cancel: boolean) => {
+      if (active.current?.id !== pointerId) return;
       const c = canvasRef.current;
       if (!c) return;
-      endSelectionPointer(c, e.pointerId);
+      endSelectionPointer(c, pointerId);
       const result = resolveSelectionFinish(
         cancel,
         c,
@@ -120,14 +89,54 @@ export function useSketchSelection({
       anchor.current = null;
       draft.current = null;
     },
-    [activeLayerId, canvasRef, clearSelection, onSelectionChange]
+    [activeLayerId, canvasRef, clearSelection, onSelectionChange, paint]
+  );
+  const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>) => {
+      recordSketchPointer(penSession, e.pointerType);
+      if (isSketchPalm(penSession, e.pointerType)) return;
+      // A pen landing during a touch marquee means that touch was a palm: restore and hand over.
+      if (active.current && isSketchPalm(penSession, active.current.pointerType))
+        finish(active.current.id, true);
+      if (
+        !shouldStartSketchSelection(
+          disabled,
+          enabled,
+          e.isPrimary,
+          e.button,
+          active.current !== null
+        )
+      )
+        return;
+      const c = canvasRef.current;
+      const p = c && mapClientPointToCanvas(e.clientX, e.clientY, c);
+      if (!c || !p) return;
+      anchor.current = p;
+      priorSelection.current = selection;
+      active.current = { id: e.pointerId, pointerType: e.pointerType };
+      c.setPointerCapture(e.pointerId);
+    },
+    [canvasRef, disabled, enabled, finish, penSession, selection]
+  );
+  const onPointerMove: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>) => {
+      recordSketchPointer(penSession, e.pointerType);
+      if (active.current?.id !== e.pointerId) return;
+      const c = canvasRef.current;
+      const a = anchor.current;
+      if (!c || !a) return;
+      draft.current = mapPointerToSelectionDraft(c, a, e.clientX, e.clientY);
+      if (!draft.current) return;
+      paint(draft.current);
+    },
+    [canvasRef, paint, penSession]
   );
   const onPointerUp = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>) => finish(e, false),
+    (e: ReactPointerEvent<HTMLCanvasElement>) => finish(e.pointerId, false),
     [finish]
   );
   const onPointerCancel = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>) => finish(e, true),
+    (e: ReactPointerEvent<HTMLCanvasElement>) => finish(e.pointerId, true),
     [finish]
   );
   useEffect(() => {

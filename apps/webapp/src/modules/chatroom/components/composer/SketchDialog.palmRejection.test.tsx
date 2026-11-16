@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SKETCH_CANVAS_HEIGHT, SKETCH_CANVAS_WIDTH } from './sketchConstants';
@@ -206,5 +207,33 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
       });
       expect(ctx.putImageData).toHaveBeenCalledWith(snapshot, 0, 0);
     });
+  });
+
+  it('ignores a palm marquee in the Select tool after the pencil drew', async () => {
+    const user = userEvent.setup();
+    const canvas = renderCanvas();
+    await act(async () => {
+      fire(canvas, 'pointerdown', PENCIL, 100, 100);
+      fire(canvas, 'pointerup', PENCIL, 100, 100);
+    });
+    await user.keyboard('m');
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 100, 100);
+      fire(canvas, 'pointermove', PALM, 400, 300);
+      fire(canvas, 'pointerup', PALM, 400, 300);
+    });
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled();
+  });
+
+  it('lets a finger marquee select before any pencil is used', async () => {
+    const user = userEvent.setup();
+    const canvas = renderCanvas();
+    await user.keyboard('m');
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 100, 100);
+      fire(canvas, 'pointermove', PALM, 400, 300);
+      fire(canvas, 'pointerup', PALM, 400, 300);
+    });
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
   });
 });

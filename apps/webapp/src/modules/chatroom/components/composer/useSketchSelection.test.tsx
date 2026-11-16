@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FULL_SKETCH_SELECTION } from './sketchCanvasSelection';
 import { SKETCH_CANVAS_HEIGHT, SKETCH_CANVAS_WIDTH } from './sketchConstants';
 import type { SketchSelection } from './sketchDocument';
+import { createSketchPenSession } from './sketchPointerPolicy';
 import { useSketchSelection } from './useSketchSelection';
 
 const ACTIVE_LAYER_ID = 'layer-test-1';
@@ -46,6 +47,7 @@ function event(canvas: HTMLCanvasElement, type: string, init: PointerEventInit =
     isPrimary: native.isPrimary,
     button: native.button,
     pointerId: native.pointerId,
+    pointerType: native.pointerType,
     clientX: native.clientX,
     clientY: native.clientY,
   };
@@ -62,6 +64,7 @@ function controlled(
     selection = next;
   });
   const onRequestDelete = vi.fn();
+  const penSession = createSketchPenSession();
   const hook = renderHook(
     (p: { enabled: boolean; disabled: boolean; keyboardEnabled?: boolean }) =>
       useSketchSelection({
@@ -72,11 +75,19 @@ function controlled(
         enabled: p.enabled,
         keyboardEnabled: p.keyboardEnabled,
         disabled: p.disabled,
+        penSession,
         onRequestDelete,
       }),
     { initialProps: { enabled, disabled, keyboardEnabled } }
   );
-  return { ...hook, canvas, onSelectionChange, onRequestDelete, getSelection: () => selection };
+  return {
+    ...hook,
+    canvas,
+    onSelectionChange,
+    onRequestDelete,
+    penSession,
+    getSelection: () => selection,
+  };
 }
 function drag(api: ReturnType<typeof controlled>) {
   act(() => {
@@ -176,5 +187,95 @@ describe('useSketchSelection', () => {
       )
     );
     expect(api.getSelection()).toBeNull();
+  });
+  it('lets a finger drag select before any pencil is used', () => {
+    const api = controlled();
+    act(() => {
+      api.result.current.selectionBindings.onPointerDown?.(
+        event(api.canvas, 'pointerdown', { pointerType: 'touch', pointerId: 2 }) as never
+      );
+      api.result.current.selectionBindings.onPointerMove?.(
+        event(api.canvas, 'pointermove', {
+          pointerType: 'touch',
+          pointerId: 2,
+          clientX: 300,
+          clientY: 250,
+        }) as never
+      );
+      api.result.current.selectionBindings.onPointerUp?.(
+        event(api.canvas, 'pointerup', { pointerType: 'touch', pointerId: 2 }) as never
+      );
+    });
+    expect(api.onSelectionChange).toHaveBeenLastCalledWith({
+      layerId: ACTIVE_LAYER_ID,
+      rect: { x: 300, y: 300, width: 600, height: 450 },
+    });
+  });
+  it('ignores a palm drag once a pencil has been used', () => {
+    const api = controlled();
+    act(() => {
+      api.result.current.selectionBindings.onPointerMove?.(
+        event(api.canvas, 'pointermove', {
+          pointerType: 'pen',
+          pointerId: 3,
+          clientX: 50,
+          clientY: 50,
+        }) as never
+      );
+    });
+    act(() => {
+      api.result.current.selectionBindings.onPointerDown?.(
+        event(api.canvas, 'pointerdown', { pointerType: 'touch', pointerId: 2 }) as never
+      );
+      api.result.current.selectionBindings.onPointerMove?.(
+        event(api.canvas, 'pointermove', {
+          pointerType: 'touch',
+          pointerId: 2,
+          clientX: 300,
+          clientY: 250,
+        }) as never
+      );
+      api.result.current.selectionBindings.onPointerUp?.(
+        event(api.canvas, 'pointerup', { pointerType: 'touch', pointerId: 2 }) as never
+      );
+    });
+    expect(api.onSelectionChange).not.toHaveBeenCalled();
+  });
+  it('hands the marquee to the pencil when it lands during a palm drag', () => {
+    const api = controlled();
+    act(() => {
+      api.result.current.selectionBindings.onPointerDown?.(
+        event(api.canvas, 'pointerdown', { pointerType: 'touch', pointerId: 2 }) as never
+      );
+    });
+    act(() => {
+      api.result.current.selectionBindings.onPointerDown?.(
+        event(api.canvas, 'pointerdown', {
+          pointerType: 'pen',
+          pointerId: 3,
+          clientX: 50,
+          clientY: 50,
+        }) as never
+      );
+    });
+    act(() => {
+      api.result.current.selectionBindings.onPointerMove?.(
+        event(api.canvas, 'pointermove', {
+          pointerType: 'pen',
+          pointerId: 3,
+          clientX: 300,
+          clientY: 250,
+        }) as never
+      );
+    });
+    act(() => {
+      api.result.current.selectionBindings.onPointerUp?.(
+        event(api.canvas, 'pointerup', { pointerType: 'pen', pointerId: 3 }) as never
+      );
+    });
+    expect(api.onSelectionChange).toHaveBeenLastCalledWith({
+      layerId: ACTIVE_LAYER_ID,
+      rect: { x: 150, y: 150, width: 750, height: 600 },
+    });
   });
 });

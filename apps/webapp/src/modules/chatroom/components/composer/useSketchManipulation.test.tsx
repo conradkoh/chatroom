@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { SketchTransform } from './sketchDocument';
+import { createSketchPenSession } from './sketchPointerPolicy';
 import { cursorForSketchManipulation, useSketchManipulation } from './useSketchManipulation';
 
 const meta = {
@@ -64,6 +65,7 @@ describe('useSketchManipulation', () => {
         floating,
         beginFloatingSelection: begin,
         updateFloatingTransform: update,
+        penSession: createSketchPenSession(),
       })
     );
     act(() => h.result.current.manipulationBindings.onPointerDown?.(event(c, 30, 30)));
@@ -87,11 +89,91 @@ describe('useSketchManipulation', () => {
         floating: meta,
         beginFloatingSelection: vi.fn(),
         updateFloatingTransform: update,
+        penSession: createSketchPenSession(),
       })
     );
     act(() => h.result.current.manipulationBindings.onPointerDown?.(event(c, 30, 30)));
     act(() => h.result.current.manipulationBindings.onPointerCancel?.(event(c, 50, 50)));
     expect(update).toHaveBeenLastCalledWith(meta.transform);
+  });
+});
+
+describe('useSketchManipulation palm rejection', () => {
+  function renderMove(update: Mock<(t: SketchTransform) => void>) {
+    const c = setup();
+    const penSession = createSketchPenSession();
+    const h = renderHook(() =>
+      useSketchManipulation({
+        canvasRef: { current: c },
+        overlayRef: { current: null },
+        activeTool: 'move',
+        disabled: false,
+        selection: null,
+        floating: meta,
+        beginFloatingSelection: vi.fn(),
+        updateFloatingTransform: update,
+        penSession,
+      })
+    );
+    return { c, h };
+  }
+
+  it('ignores a palm drag once a pencil has been used', () => {
+    const update = vi.fn<(t: SketchTransform) => void>();
+    const { c, h } = renderMove(update);
+    act(() =>
+      h.result.current.manipulationBindings.onPointerMove?.(
+        event(c, 10, 10, { pointerType: 'pen', pointerId: 3 })
+      )
+    );
+    act(() =>
+      h.result.current.manipulationBindings.onPointerDown?.(
+        event(c, 30, 30, { pointerType: 'touch', pointerId: 2 })
+      )
+    );
+    act(() =>
+      h.result.current.manipulationBindings.onPointerMove?.(
+        event(c, 50, 50, { pointerType: 'touch', pointerId: 2 })
+      )
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('lets a finger drag move before any pencil is used', () => {
+    const update = vi.fn<(t: SketchTransform) => void>();
+    const { c, h } = renderMove(update);
+    act(() =>
+      h.result.current.manipulationBindings.onPointerDown?.(
+        event(c, 30, 30, { pointerType: 'touch', pointerId: 2 })
+      )
+    );
+    act(() =>
+      h.result.current.manipulationBindings.onPointerMove?.(
+        event(c, 50, 50, { pointerType: 'touch', pointerId: 2 })
+      )
+    );
+    expect(update).toHaveBeenLastCalledWith({ ...meta.transform, x: 40, y: 40 });
+  });
+
+  it('hands the drag to the pencil when it lands during a palm drag', () => {
+    const update = vi.fn<(t: SketchTransform) => void>();
+    const { c, h } = renderMove(update);
+    act(() =>
+      h.result.current.manipulationBindings.onPointerDown?.(
+        event(c, 30, 30, { pointerType: 'touch', pointerId: 2 })
+      )
+    );
+    act(() =>
+      h.result.current.manipulationBindings.onPointerDown?.(
+        event(c, 30, 30, { pointerType: 'pen', pointerId: 3 })
+      )
+    );
+    act(() =>
+      h.result.current.manipulationBindings.onPointerMove?.(
+        event(c, 60, 60, { pointerType: 'pen', pointerId: 3 })
+      )
+    );
+    expect(update).toHaveBeenLastCalledWith({ ...meta.transform, x: 50, y: 50 });
   });
 });
 
@@ -109,6 +191,7 @@ describe('useSketchManipulation transform scaling', () => {
         floating: meta,
         beginFloatingSelection: vi.fn(),
         updateFloatingTransform: update,
+        penSession: createSketchPenSession(),
       })
     );
     return { c, h };
@@ -166,6 +249,7 @@ describe('useSketchManipulation cursor', () => {
         floating: meta,
         beginFloatingSelection: vi.fn(),
         updateFloatingTransform: vi.fn(),
+        penSession: createSketchPenSession(),
         ...overrides,
       })
     );
