@@ -14,7 +14,11 @@ import {
 import { mapClientPointToCanvas, getCssToCanvasScale } from './sketchCanvasDrawing';
 import { drawSketchTransformOverlay } from './sketchCanvasSelection';
 import type { SketchSelection, SketchFloatingSelectionMeta } from './sketchDocument';
-import { isSketchPalm, recordSketchPointer, type SketchPenSession } from './sketchPointerPolicy';
+import {
+  isSketchPalm,
+  recordSketchPointerAndDropPalm,
+  type SketchPenSession,
+} from './sketchPointerPolicy';
 import type { SketchToolId } from './sketchTools';
 import {
   clampTransformToCanvas,
@@ -131,10 +135,10 @@ export function useSketchManipulation({
   );
   const down: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
-      recordSketchPointer(penSession, e.pointerType);
+      recordSketchPointerAndDropPalm(penSession, e.pointerType, active.current, (g) =>
+        endDrag(g.id, true)
+      ); // restores the drag-start transform
       if (isSketchPalm(penSession, e.pointerType)) return;
-      if (active.current && isSketchPalm(penSession, active.current.pointerType))
-        endDrag(active.current.id, true); // restores the drag-start transform
       if (disabled || !e.isPrimary || e.button !== 0) return;
       if (!floating && !selection) return;
       const started = floating ?? beginFloatingSelection();
@@ -176,7 +180,11 @@ export function useSketchManipulation({
   );
   const move: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
-      recordSketchPointer(penSession, e.pointerType);
+      // A pen hover during a touch drag means that touch was a palm: restore the drag-start
+      // transform, then fall through so the pen gets hover feedback (active is null now).
+      recordSketchPointerAndDropPalm(penSession, e.pointerType, active.current, (g) =>
+        endDrag(g.id, true)
+      );
       const c = canvasRef.current;
       const p = c && mapClientPointToCanvas(e.clientX, e.clientY, c);
       if (!c || !p) return;
@@ -228,7 +236,16 @@ export function useSketchManipulation({
       else next = translateTransform(a.transform, p.x - a.start.x, p.y - a.start.y);
       updateFloatingTransform(clampTransformToCanvas(next, f.sourceWidth, f.sourceHeight));
     },
-    [activeTool, canvasRef, disabled, floating, penSession, selection, updateFloatingTransform]
+    [
+      activeTool,
+      canvasRef,
+      disabled,
+      endDrag,
+      floating,
+      penSession,
+      selection,
+      updateFloatingTransform,
+    ]
   );
   const finish: ComponentProps<'canvas'>['onPointerUp'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => endDrag(e.pointerId, false),

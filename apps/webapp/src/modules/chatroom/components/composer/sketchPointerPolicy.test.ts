@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { createSketchPenSession, isSketchPalm, recordSketchPointer } from './sketchPointerPolicy';
+import {
+  createSketchPenSession,
+  isSketchPalm,
+  recordSketchPointer,
+  recordSketchPointerAndDropPalm,
+} from './sketchPointerPolicy';
 
 describe('sketchPointerPolicy', () => {
   it('lets touch draw before any pen is seen', () => {
@@ -24,6 +29,42 @@ describe('sketchPointerPolicy', () => {
     recordSketchPointer(session, 'mouse');
     recordSketchPointer(session, '');
     recordSketchPointer(session, undefined);
+    expect(session.penSeen).toBe(false);
+  });
+
+  it('drops an active touch gesture when a pen pointer arrives', () => {
+    const session = createSketchPenSession();
+    const gesture = { pointerType: 'touch' };
+    const drop = vi.fn();
+    expect(recordSketchPointerAndDropPalm(session, 'pen', gesture, drop)).toBe(true);
+    expect(drop).toHaveBeenCalledTimes(1);
+    expect(drop).toHaveBeenCalledWith(gesture);
+    expect(session.penSeen).toBe(true);
+  });
+
+  it('does not drop an active pen gesture', () => {
+    const session = createSketchPenSession();
+    const drop = vi.fn();
+    expect(recordSketchPointerAndDropPalm(session, 'pen', { pointerType: 'pen' }, drop)).toBe(
+      false
+    );
+    expect(drop).not.toHaveBeenCalled();
+  });
+
+  it('returns false with no active gesture', () => {
+    const session = createSketchPenSession();
+    const drop = vi.fn();
+    expect(recordSketchPointerAndDropPalm(session, 'pen', null, drop)).toBe(false);
+    expect(drop).not.toHaveBeenCalled();
+  });
+
+  it('does not drop a touch gesture when no pen has been seen', () => {
+    const session = createSketchPenSession();
+    const drop = vi.fn();
+    expect(recordSketchPointerAndDropPalm(session, 'touch', { pointerType: 'touch' }, drop)).toBe(
+      false
+    );
+    expect(drop).not.toHaveBeenCalled();
     expect(session.penSeen).toBe(false);
   });
 });

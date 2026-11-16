@@ -14,11 +14,29 @@ export function createSketchPenSession(): SketchPenSession {
 }
 
 /** Remembers pen use. Call for every pointerdown and pointermove, including pen hover moves. */
+// fallow-ignore-next-line unused-export
 export function recordSketchPointer(
   session: SketchPenSession,
   pointerType: string | undefined
 ): void {
   if (pointerType === 'pen') session.penSeen = true;
+}
+
+/**
+ * Records the pointer (pen hover counts), then drops the tool's in-progress gesture if it is a
+ * touch the palm rule now rejects. Call first in every tool's pointerdown and pointermove.
+ * Returns true when it dropped a gesture.
+ */
+export function recordSketchPointerAndDropPalm<T extends { pointerType: string }>(
+  session: SketchPenSession,
+  pointerType: string | undefined,
+  active: T | null,
+  drop: (gesture: T) => void
+): boolean {
+  recordSketchPointer(session, pointerType);
+  if (!active || !isSketchPalm(session, active.pointerType)) return false;
+  drop(active);
+  return true;
 }
 
 /** True when a pointer of this type is a palm under the session's palm rule. */

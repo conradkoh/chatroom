@@ -55,7 +55,7 @@ import { buildSketchFileName } from './sketchFileName';
 import {
   createSketchPenSession,
   isSketchPalm,
-  recordSketchPointer,
+  recordSketchPointerAndDropPalm,
   type SketchPenSession,
 } from './sketchPointerPolicy';
 import { applySketchTransform, computeContainTransform } from './sketchTransform';
@@ -261,13 +261,10 @@ export function useSketchDocument({
   const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
       const penSession = penSessionRef.current;
-      recordSketchPointer(penSession, e.pointerType);
-      if (isSketchPalm(penSession, e.pointerType)) return;
       const canvas = canvasRef.current;
-      const current = activeRef.current;
-      // A pen landing during a touch stroke means that touch was a resting palm.
-      if (canvas && current && isSketchPalm(penSession, current.pointerType))
-        abandonStroke(current);
+      // A pen arriving during a touch stroke means that touch was a resting palm.
+      recordSketchPointerAndDropPalm(penSession, e.pointerType, activeRef.current, abandonStroke);
+      if (isSketchPalm(penSession, e.pointerType)) return;
       if (!shouldStartSketchStroke(disabled, e.isPrimary, e.button, activeRef.current != null))
         return;
       const point = canvas && mapClientPointToCanvas(e.clientX, e.clientY, canvas);
@@ -290,15 +287,14 @@ export function useSketchDocument({
   const onPointerMove: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
       const penSession = penSessionRef.current;
-      recordSketchPointer(penSession, e.pointerType); // pen hover counts
+      // A pen arriving during a touch stroke means that touch was a resting palm.
+      if (
+        recordSketchPointerAndDropPalm(penSession, e.pointerType, activeRef.current, abandonStroke)
+      )
+        return;
       const canvas = canvasRef.current;
       const active = activeRef.current;
-      if (!canvas || !active) return;
-      if (isSketchPalm(penSession, active.pointerType)) {
-        abandonStroke(active);
-        return;
-      }
-      if (active.pointerId !== e.pointerId) return;
+      if (!canvas || !active || active.pointerId !== e.pointerId) return;
       if (active.pendingDot) {
         active.pendingDot = false;
         // Read back only when a touch stroke is about to paint; a pending touch has nothing to restore.

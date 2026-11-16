@@ -24,7 +24,11 @@ import {
   shouldStartSketchSelection,
 } from './sketchCanvasSelectionPointer';
 import type { SketchLayerId, SketchSelection } from './sketchDocument';
-import { isSketchPalm, recordSketchPointer, type SketchPenSession } from './sketchPointerPolicy';
+import {
+  isSketchPalm,
+  recordSketchPointerAndDropPalm,
+  type SketchPenSession,
+} from './sketchPointerPolicy';
 
 export function useSketchSelection({
   canvasRef,
@@ -93,11 +97,11 @@ export function useSketchSelection({
   );
   const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
-      recordSketchPointer(penSession, e.pointerType);
+      // A pen arriving during a touch marquee means that touch was a palm: restore and hand over.
+      recordSketchPointerAndDropPalm(penSession, e.pointerType, active.current, (g) =>
+        finish(g.id, true)
+      );
       if (isSketchPalm(penSession, e.pointerType)) return;
-      // A pen landing during a touch marquee means that touch was a palm: restore and hand over.
-      if (active.current && isSketchPalm(penSession, active.current.pointerType))
-        finish(active.current.id, true);
       if (
         !shouldStartSketchSelection(
           disabled,
@@ -120,7 +124,9 @@ export function useSketchSelection({
   );
   const onPointerMove: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
-      recordSketchPointer(penSession, e.pointerType);
+      recordSketchPointerAndDropPalm(penSession, e.pointerType, active.current, (g) =>
+        finish(g.id, true)
+      );
       if (active.current?.id !== e.pointerId) return;
       const c = canvasRef.current;
       const a = anchor.current;
@@ -129,7 +135,7 @@ export function useSketchSelection({
       if (!draft.current) return;
       paint(draft.current);
     },
-    [canvasRef, paint, penSession]
+    [canvasRef, finish, paint, penSession]
   );
   const onPointerUp = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => finish(e.pointerId, false),

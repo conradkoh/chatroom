@@ -257,6 +257,21 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
       expect(screen.getByRole('button', { name: 'Add sketch' })).toBeDisabled();
     });
 
+    it('drops a palm stroke when the pencil hovers', async () => {
+      const canvas = renderCanvas();
+      await act(async () => {
+        fire(canvas, 'pointerdown', PALM, 300, 300);
+        fire(canvas, 'pointermove', PALM, 320, 310);
+        fire(canvas, 'pointermove', PENCIL, 50, 50); // hover only
+        fire(canvas, 'pointermove', PALM, 340, 320);
+      });
+      const target = stubs().find((s) =>
+        s.lineTo.mock.calls.some(([x, y]) => x === 320 && y === 310)
+      );
+      expect(target?.putImageData).toHaveBeenCalledWith(target?.pixels, 0, 0);
+      expect(segmentTo(340, 320)).toBe(false);
+    });
+
     it('restores only the layer the palm painted when the active layer changes before the pencil lands', async () => {
       vi.stubGlobal(
         'createImageBitmap',
@@ -337,6 +352,20 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
     expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled();
   });
 
+  it('drops a palm marquee when the pencil hovers mid-gesture', async () => {
+    const user = userEvent.setup();
+    const canvas = renderCanvas();
+    await user.keyboard('m');
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 100, 100);
+      fire(canvas, 'pointermove', PALM, 400, 300);
+      fire(canvas, 'pointermove', PENCIL, 50, 50); // hover only
+      fire(canvas, 'pointermove', PALM, 450, 350);
+      fire(canvas, 'pointerup', PALM, 450, 350);
+    });
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled();
+  });
+
   it('lets a finger marquee select before any pencil is used', async () => {
     const user = userEvent.setup();
     const canvas = renderCanvas();
@@ -347,5 +376,70 @@ describe('SketchDialog palm rejection (Apple Pencil)', () => {
       fire(canvas, 'pointerup', PALM, 400, 300);
     });
     expect(screen.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
+  });
+
+  // A pen hover must cancel the in-progress palm drag and restore the drag-start
+  // transform, in both move and transform tools. One shared stub for all canvases
+  // keeps every overlay frame in a single strokeRect log.
+  const useSharedStub = () => {
+    const shared = createContextStub();
+    vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue(
+      shared as unknown as CanvasRenderingContext2D
+    );
+    return shared;
+  };
+  // Overlay frame rects are 200x200 selections, so their strokeRect width is 199;
+  // transform handle rects are smaller and filter out.
+  const frameXs = (shared: ContextStub) =>
+    shared.strokeRect.mock.calls.filter((call) => call[2] === 199).map((call) => call[0]);
+
+  it('drops a palm drag when the pencil hovers in the Move tool', async () => {
+    const user = userEvent.setup();
+    const shared = useSharedStub();
+    const canvas = renderCanvas();
+    await user.keyboard('m');
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 100, 100);
+      fire(canvas, 'pointermove', PALM, 300, 300);
+      fire(canvas, 'pointerup', PALM, 300, 300);
+    });
+    await user.keyboard('v');
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 200, 200);
+    });
+    await act(async () => {
+      fire(canvas, 'pointermove', PALM, 250, 250);
+    });
+    expect(frameXs(shared)).toContain(150.5);
+    await act(async () => {
+      fire(canvas, 'pointermove', PENCIL, 50, 50); // hover only
+      fire(canvas, 'pointermove', PALM, 300, 300);
+    });
+    expect(frameXs(shared).at(-1)).toBe(100.5);
+  });
+
+  it('drops a palm drag when the pencil hovers in the Transform tool', async () => {
+    const user = userEvent.setup();
+    const shared = useSharedStub();
+    const canvas = renderCanvas();
+    await user.keyboard('m');
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 100, 100);
+      fire(canvas, 'pointermove', PALM, 300, 300);
+      fire(canvas, 'pointerup', PALM, 300, 300);
+    });
+    await user.keyboard('t');
+    await act(async () => {
+      fire(canvas, 'pointerdown', PALM, 200, 200);
+    });
+    await act(async () => {
+      fire(canvas, 'pointermove', PALM, 250, 250);
+    });
+    expect(frameXs(shared)).toContain(150.5);
+    await act(async () => {
+      fire(canvas, 'pointermove', PENCIL, 50, 50); // hover only
+      fire(canvas, 'pointermove', PALM, 300, 300);
+    });
+    expect(frameXs(shared).at(-1)).toBe(100.5);
   });
 });
