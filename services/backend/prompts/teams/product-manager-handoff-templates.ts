@@ -45,6 +45,9 @@ export function getProductManagerToEntryPointHandoffTemplate(query: HandoffTempl
 ## Consistency with existing functionality
 <the existing capabilities the feature must stay consistent with, with concrete paths and symbols as evidence; where the feature extends or conflicts with existing behavior, say so and mark each conflict as a decision for the user; the gaps the feature would leave if the proposed scope is not accepted>
 
+## UI and UX review
+<if the feature has any UI surface (a new screen, panel, flow, interaction, or visible state), state that \`${entryPoint}\` must get a \`uiux-engineer\` design before any UI work on this feature, and name each surface; do not design layout yourself. If the feature has no UI surface, write exactly \`No UI surface: no uiux-engineer design needed.\`>
+
 ## Open questions for the user
 <each open question with the options, the consequence of each, and a recommended default; write exactly \`None observed.\` if none remain>
 

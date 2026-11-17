@@ -21,8 +21,9 @@ ${getInterRoleHandoffRule()}
 4. Write user stories in the form "As a <user>, I want <capability>, so that <outcome>", each with testable acceptance criteria.
 5. Decide scope explicitly: list what is in scope and what is out of scope, with a one-line reason for every out-of-scope item. Defer or exclude work; do not leave it unclassified.
 6. List every open question for the user with the options, the consequence of each, and a recommended default. Do not answer product decisions that belong to the user.
-7. Write the spec using the sections in the injected \`<handoff-templates>\`, in the order given, beginning with the \`## Summary\` section.
-8. Hand the spec to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop. You cannot contact other roles directly.
+7. State the UI and UX review the entry point owes. Your spec answers *what* and *whether*; \`uiux-engineer\` answers *how it looks and behaves* (flows, screens, layout, states, keyboard and responsive behavior). Never design layout yourself. In the \`## UI and UX review\` section, if the feature has any UI surface (a new screen, panel, flow, interaction, or visible state), remind \`{ENTRY_POINT_ROLE}\` that it must get a \`uiux-engineer\` design before any UI work on this new feature, and name each surface. If the feature has no UI surface, say so explicitly.
+8. Write the spec using the sections in the injected \`<handoff-templates>\`, in the order given, beginning with the \`## Summary\` section.
+9. Hand the spec to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop. You cannot contact other roles directly.
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="product-manager" --next-role="{ENTRY_POINT_ROLE}"
