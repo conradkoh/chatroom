@@ -45,9 +45,11 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * brief in the same rule (~560 characters),
  * then from 18700 to admit the shared test-seam glossary term (~240 characters),
  * then from 19000 to admit the show-an-existing-file delegation bullet
- * (~410 characters).
+ * (~410 characters),
+ * then from 19500 to admit the product-manager activation gate (~980 characters;
+ * the specification sections live in the product-manager handoff template, not here).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 19500;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 20500;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

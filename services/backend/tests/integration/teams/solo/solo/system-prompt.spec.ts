@@ -314,8 +314,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       **Solo Team Context:**
       - You are the only implementer — you plan, implement, and deliver
       - You communicate directly with the user (single point of contact)
-      - There is no separate builder or planner. Specialist roles (\`architect\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
+      - There is no separate builder or planner. Specialist roles (\`architect\`, \`product-manager\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
       - You hand off to the user when work is complete and every required gate has passed
+      - **Product manager before scoping a new ambiguous feature:** when the user asks for a new feature whose scope is ambiguous or undecided, whose in-scope boundary the user has not set, or whose feature completeness depends on existing behavior you cannot settle from the code you have read, hand off to \`product-manager\` for a product specification before you plan or implement it. Only the entry point (\`solo\`) activates it. Skip it for small bug fixes, for unambiguous requests with an agreed scope, and for pure asset or UI requests that have their own gates; a bug fix activates it only when the fix itself needs a scope decision, and the handoff must say so. When the specification returns, check its \`## In scope\`, \`## Out of scope\`, and \`## Consistency with existing functionality\` sections before you delegate, put any open question that blocks planning to \`user\` before you delegate, and use the accepted specification as the scope of the work you delegate next. The \`product-manager\` handoff template defines the request.
 
       **Team composition:** Duo team — you coordinate with \`solo\`, \`product-manager\`, \`architect\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
 
@@ -367,7 +368,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
-      2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+      2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
       3. If requirements are NOT met (including partial work) → revise and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
