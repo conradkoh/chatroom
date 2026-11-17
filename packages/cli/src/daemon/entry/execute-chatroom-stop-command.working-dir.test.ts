@@ -15,31 +15,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { executeChatroomStopCommand } from './execute-chatroom-stop-command.js';
-import { buildStopTargetDescriptor } from '../services/agent-process-service/infrastructure/stop-agent-confirmed-adapter.js';
+import { buildStopTargetDescriptor } from '../services/agent-process-service/index.js';
 
 const ROOM = 'room-1';
 const SLOT_WORKING_DIR = '/Users/me/project/';
 const WORKSPACE_WORKING_DIR = '/Users/me/project';
+const OTHER_WORKING_DIR = '/Users/me/other-project';
 
-function setup() {
-  const alive = new Set<number>([101, 102]);
-  const harnessService = {
-    stop: vi.fn(async (pid: number) => {
-      alive.delete(pid);
-    }),
-    untrack: vi.fn(),
-  };
-  const processes = {
-    kill: (pid: number, signal?: number | string) => {
-      if (signal === 0 && !alive.has(pid)) {
-        const error = new Error('ESRCH') as NodeJS.ErrnoException;
-        error.code = 'ESRCH';
-        throw error;
-      }
-    },
-  };
-  const lifecycleEnqueue = vi.fn(async () => ({ success: true }));
-  const targets = [
+function defaultTargets() {
+  return [
     buildStopTargetDescriptor({
       machineId: 'machine-1',
       chatroomId: ROOM,
@@ -57,6 +41,29 @@ function setup() {
       workingDir: SLOT_WORKING_DIR,
     }),
   ];
+}
+
+function setup(
+  options: { targets?: ReturnType<typeof defaultTargets>; alivePids?: number[] } = {}
+) {
+  const targets = options.targets ?? defaultTargets();
+  const alive = new Set<number>(options.alivePids ?? targets.map((target) => target.pid));
+  const harnessService = {
+    stop: vi.fn(async (pid: number) => {
+      alive.delete(pid);
+    }),
+    untrack: vi.fn(),
+  };
+  const processes = {
+    kill: (pid: number, signal?: number | string) => {
+      if (signal === 0 && !alive.has(pid)) {
+        const error = new Error('ESRCH') as NodeJS.ErrnoException;
+        error.code = 'ESRCH';
+        throw error;
+      }
+    },
+  };
+  const lifecycleEnqueue = vi.fn(async () => ({ success: true }));
   const apm = {
     markStopIntent: vi.fn(),
     markChatroomStopIntent: vi.fn(),
@@ -84,8 +91,12 @@ function setup() {
   );
   return {
     alive,
+    apm,
     harnessService,
     lifecycleEnqueue,
+    nativeDelivery,
+    runSerializedForAgent,
+    taskService,
     run: (workingDir: string) =>
       executeChatroomStopCommand({
         apm,
@@ -112,5 +123,65 @@ describe('executeChatroomStopCommand working-directory matching', () => {
     await state.run(WORKSPACE_WORKING_DIR);
     expect(state.harnessService.stop).toHaveBeenCalledTimes(2);
     expect([...state.alive]).toEqual([]);
+  });
+
+  it('does not stop agents in another workspace', async () => {
+    const state = setup();
+    await state.run(OTHER_WORKING_DIR);
+    expect(state.harnessService.stop).not.toHaveBeenCalled();
+    expect([...state.alive]).toEqual([101, 102]);
+  });
+
+  it('recovers stopped roles and acknowledges the stop command', async () => {
+    const state = setup();
+    await expect(state.run(WORKSPACE_WORKING_DIR)).resolves.toBeUndefined();
+    expect(state.nativeDelivery.recoverStoppedRole).toHaveBeenCalledWith({
+      chatroomId: ROOM,
+      role: 'coordinator',
+      mode: 'explicit',
+    });
+    expect(state.nativeDelivery.recoverStoppedRole).toHaveBeenCalledWith({
+      chatroomId: ROOM,
+      role: 'architect',
+      mode: 'explicit',
+    });
+    const shutdownCalls = state.lifecycleEnqueue.mock.calls.filter(
+      ([fact]) =>
+        typeof fact === 'object' &&
+        fact !== null &&
+        'kind' in fact &&
+        fact.kind === 'chatroom_shutdown_complete'
+    );
+    expect(shutdownCalls).toHaveLength(1);
+    expect(state.lifecycleEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'chatroom_shutdown_complete', commandId: 'command-1' })
+    );
+  });
+
+  it('still throws when a live process remains outside the requested scope', async () => {
+    const state = setup({
+      targets: [
+        buildStopTargetDescriptor({
+          machineId: 'machine-1',
+          chatroomId: ROOM,
+          role: 'coordinator',
+          pid: 101,
+          agentHarness: 'claude-sdk',
+          workingDir: '/Users/me/project/',
+        }),
+        buildStopTargetDescriptor({
+          machineId: 'machine-1',
+          chatroomId: ROOM,
+          role: 'coordinator',
+          pid: 104,
+          agentHarness: 'claude-sdk',
+          workingDir: '/Users/me/other-project',
+        }),
+      ],
+      alivePids: [101, 104],
+    });
+    await expect(state.run('/Users/me/project')).rejects.toThrow();
+    expect(state.alive.has(104)).toBe(true);
+    expect(state.nativeDelivery.recoverStoppedRole).not.toHaveBeenCalled();
   });
 });

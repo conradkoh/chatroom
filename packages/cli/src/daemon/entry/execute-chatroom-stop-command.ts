@@ -1,6 +1,7 @@
 import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 // fallow-ignore-file complexity
+import { normalizeWorkingDirForLookup } from '../../infrastructure/services/workspace/normalize-working-dir.js';
 import { runRoleScopedStop } from '../services/agent-process-service/index.js';
 import type {
   AgentProcessManager,
@@ -27,6 +28,12 @@ export async function executeChatroomStopCommand(args: {
   }
 
   const confirmedDeps = args.apm.getConfirmedStopAdapterDeps();
+  const scopeDir = args.workingDir ? normalizeWorkingDirForLookup(args.workingDir) : undefined;
+  const isInScope = (target: { workingDir?: string | undefined }) =>
+    scopeDir === undefined ||
+    (target.workingDir !== undefined &&
+      normalizeWorkingDirForLookup(target.workingDir) === scopeDir);
+
   const targets = await args.apm.discoverStopTargets(args.chatroomId);
   const roles = new Set(
     targets
@@ -34,7 +41,7 @@ export async function executeChatroomStopCommand(args: {
         (target) =>
           target.chatroomId === args.chatroomId &&
           (!args.role || target.role.toLowerCase() === args.role.toLowerCase()) &&
-          (!args.workingDir || target.workingDir === args.workingDir)
+          isInScope(target)
       )
       .map((target) => target.role.toLowerCase())
   );
@@ -74,7 +81,7 @@ export async function executeChatroomStopCommand(args: {
               (target) =>
                 target.chatroomId === args.chatroomId &&
                 target.role.toLowerCase() === role &&
-                target.workingDir !== args.workingDir
+                !isInScope(target)
             );
             if (liveOutsideScope)
               throw new Error(

@@ -10,6 +10,7 @@ import {
   type ConfirmedStopAdapterDeps,
 } from './stop-agent-confirmed-adapter.js';
 import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
+import { normalizeWorkingDirForLookup } from '../../../../infrastructure/services/workspace/normalize-working-dir.js';
 import { buildExitedLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type { AgentStopReason } from '../../../domain/entities/agent-stop.js';
 import type { StopAgentTargetsDeps } from '../../../domain/usecase/stop-agent-targets.js';
@@ -74,10 +75,13 @@ export async function runRoleScopedStop(args: {
   args.apm.markStopIntent(args.chatroomId, args.role, args.reason, undefined, args.workingDir);
   const deps = createStopAgentTargetsDeps(args);
   const discovered = await args.apm.discoverStopTargets(args.chatroomId);
+  const scopeDir = args.workingDir ? normalizeWorkingDirForLookup(args.workingDir) : undefined;
   const targets = discovered.filter(
     (target) =>
       normalizeAgentStopRole(target.role) === normalizeAgentStopRole(args.role) &&
-      (!args.workingDir || target.workingDir === args.workingDir)
+      (scopeDir === undefined ||
+        (target.workingDir !== undefined &&
+          normalizeWorkingDirForLookup(target.workingDir) === scopeDir))
   );
   return stopAgentTargets(deps, {
     chatroomId: args.chatroomId,
