@@ -24,6 +24,7 @@ describe('agent-role lifecycle tags', () => {
     expect(getAgentRoleTags('triage')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('uiux-engineer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('researcher')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
+    expect(getAgentRoleTags('product-manager')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('reviewer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('game-asset-designer')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
     expect(getAgentRoleTags('verifier')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
@@ -48,6 +49,7 @@ describe('agent-role lifecycle tags', () => {
     expect(isEphemeralAgentRole('triage')).toBe(true);
     expect(isEphemeralAgentRole('UIUX-ENGINEER')).toBe(true);
     expect(isEphemeralAgentRole('Researcher')).toBe(true);
+    expect(isEphemeralAgentRole('Product-Manager')).toBe(true);
     expect(isEphemeralAgentRole('Reviewer')).toBe(true);
     expect(isEphemeralAgentRole('Game-Asset-Designer')).toBe(true);
     expect(isEphemeralAgentRole('Verifier')).toBe(true);
@@ -72,6 +74,7 @@ describe('agent-role lifecycle tags', () => {
       getPermanentRoleNames(['solo', 'architect', 'triage', 'uiux-engineer', 'enhancer'])
     ).toEqual(['solo']);
     expect(getPermanentRoleNames(['researcher'])).toEqual([]);
+    expect(getPermanentRoleNames(['product-manager'])).toEqual([]);
     expect(getPermanentRoleNames(['reviewer'])).toEqual([]);
     expect(getPermanentRoleNames(['game-asset-designer'])).toEqual([]);
     expect(getPermanentRoleNames(['verifier'])).toEqual([]);
@@ -88,6 +91,18 @@ describe('agent-role lifecycle tags', () => {
     expect(getBuiltinRolesForTeam('solo')).not.toContain('reviewer');
   });
 
+  test('product-manager is an ephemeral role ordered directly after each entry point in all three teams', () => {
+    for (const teamId of ['duo', 'solo', 'trio'] as const) {
+      const roles = getBuiltinRolesForTeam(teamId);
+      expect(roles).toContain('product-manager');
+      expect(roles.indexOf('product-manager')).toBe(1);
+      expect(getAgentRoleTags('product-manager')).toEqual([AgentRoleLifecycleTag.Ephemeral]);
+    }
+    expect(getBuiltinRolesForTeam('duo')[0]).toBe('planner');
+    expect(getBuiltinRolesForTeam('solo')[0]).toBe('solo');
+    expect(getBuiltinRolesForTeam('trio')[0]).toBe('coordinator');
+  });
+
   test('game-asset-designer is an ephemeral duo-only role ordered between uiux-engineer and verifier', () => {
     const duoRoles = getBuiltinRolesForTeam('duo');
     expect(duoRoles).toContain('game-asset-designer');
@@ -99,6 +114,7 @@ describe('agent-role lifecycle tags', () => {
   test('trio has coordinator, specifier, and builder with duo-mirrored ordering', () => {
     expect(getBuiltinRolesForTeam('trio')).toEqual([
       'coordinator',
+      'product-manager',
       'architect',
       'researcher',
       'triage',

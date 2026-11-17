@@ -10,6 +10,8 @@ import { getCoordinatorArchitectChatTemplate } from './coordinator-architect-cha
 import { getCoordinatorArchitectCodeTemplate } from './coordinator-architect-code';
 import { getCoordinatorGameAssetDesignerChatTemplate } from './coordinator-game-asset-designer-chat';
 import { getCoordinatorGameAssetDesignerCodeTemplate } from './coordinator-game-asset-designer-code';
+import { getCoordinatorProductManagerChatTemplate } from './coordinator-product-manager-chat';
+import { getCoordinatorProductManagerCodeTemplate } from './coordinator-product-manager-code';
 import { getCoordinatorResearcherChatTemplate } from './coordinator-researcher-chat';
 import { getCoordinatorResearcherCodeTemplate } from './coordinator-researcher-code';
 import { getCoordinatorReviewerChatTemplate } from './coordinator-reviewer-chat';
@@ -35,6 +37,7 @@ export const trioCoordinatorHandoffContract = {
     'user',
     'specifier',
     'architect',
+    'product-manager',
     'uiux-engineer',
     'triage',
     'researcher',
@@ -46,6 +49,7 @@ export const trioCoordinatorHandoffContract = {
     'user',
     'specifier',
     'architect',
+    'product-manager',
     'uiux-engineer',
     'triage',
     'researcher',
@@ -65,6 +69,10 @@ export const trioCoordinatorHandoffContract = {
     architect: handoffTemplateByMode({
       chat: getCoordinatorArchitectChatTemplate,
       code: getCoordinatorArchitectCodeTemplate,
+    }),
+    'product-manager': handoffTemplateByMode({
+      chat: getCoordinatorProductManagerChatTemplate,
+      code: getCoordinatorProductManagerCodeTemplate,
     }),
     'uiux-engineer': handoffTemplateByMode({
       chat: getCoordinatorUiuxEngineerChatTemplate,

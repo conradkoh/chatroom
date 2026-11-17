@@ -72,6 +72,14 @@ const roleMetadata = {
       { teamId: 'trio', order: 25 },
     ],
   },
+  'product-manager': {
+    tags: [AgentRoleLifecycleTag.Ephemeral],
+    teams: [
+      { teamId: 'duo', order: 15 },
+      { teamId: 'solo', order: 15 },
+      { teamId: 'trio', order: 15 },
+    ],
+  },
   verifier: {
     tags: [AgentRoleLifecycleTag.Ephemeral],
     teams: [
