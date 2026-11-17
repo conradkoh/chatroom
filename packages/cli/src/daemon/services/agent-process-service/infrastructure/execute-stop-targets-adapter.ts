@@ -10,6 +10,7 @@ import {
   type ConfirmedStopAdapterDeps,
 } from './stop-agent-confirmed-adapter.js';
 import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
+import { normalizeWorkingDirForLookup } from '../../../../infrastructure/services/workspace/normalize-working-dir.js';
 import { buildExitedLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type { AgentStopReason } from '../../../domain/entities/agent-stop.js';
 import type { StopAgentTargetsDeps } from '../../../domain/usecase/stop-agent-targets.js';
@@ -61,6 +62,7 @@ export function createStopAgentTargetsDeps(args: {
       ).revisionKey,
   };
 }
+// fallow-ignore-next-line complexity
 export async function runRoleScopedStop(args: {
   apm: AgentProcessManager;
   confirmedDeps: ConfirmedStopAdapterDeps;
@@ -74,11 +76,27 @@ export async function runRoleScopedStop(args: {
   args.apm.markStopIntent(args.chatroomId, args.role, args.reason, undefined, args.workingDir);
   const deps = createStopAgentTargetsDeps(args);
   const discovered = await args.apm.discoverStopTargets(args.chatroomId);
+  const scopeDir = args.workingDir ? normalizeWorkingDirForLookup(args.workingDir) : undefined;
   const targets = discovered.filter(
     (target) =>
       normalizeAgentStopRole(target.role) === normalizeAgentStopRole(args.role) &&
-      (!args.workingDir || target.workingDir === args.workingDir)
+      (scopeDir === undefined ||
+        (target.workingDir !== undefined &&
+          normalizeWorkingDirForLookup(target.workingDir) === scopeDir))
   );
+  // Slots are keyed by their raw launch spelling; claim intent on each matched
+  // slot's own key so a spelling difference (e.g. trailing slash) cannot leave
+  // a running slot unmarked.
+  for (const target of targets) {
+    if (target.workingDir !== undefined && target.workingDir !== args.workingDir)
+      args.apm.markStopIntent(
+        args.chatroomId,
+        args.role,
+        args.reason,
+        target.pid,
+        target.workingDir
+      );
+  }
   return stopAgentTargets(deps, {
     chatroomId: args.chatroomId,
     scope: { kind: 'agent', role: args.role },

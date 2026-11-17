@@ -1,6 +1,7 @@
 import { AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 // fallow-ignore-file complexity
+import { normalizeWorkingDirForLookup } from '../../infrastructure/services/workspace/normalize-working-dir.js';
 import { runRoleScopedStop } from '../services/agent-process-service/index.js';
 import type {
   AgentProcessManager,
@@ -27,27 +28,36 @@ export async function executeChatroomStopCommand(args: {
   }
 
   const confirmedDeps = args.apm.getConfirmedStopAdapterDeps();
+  const scopeDir = args.workingDir ? normalizeWorkingDirForLookup(args.workingDir) : undefined;
+  const isInScope = (target: { workingDir?: string | undefined }) =>
+    scopeDir === undefined ||
+    (target.workingDir !== undefined &&
+      normalizeWorkingDirForLookup(target.workingDir) === scopeDir);
+
   const targets = await args.apm.discoverStopTargets(args.chatroomId);
-  const roles = new Set(
-    targets
-      .filter(
-        (target) =>
-          target.chatroomId === args.chatroomId &&
-          (!args.role || target.role.toLowerCase() === args.role.toLowerCase()) &&
-          (!args.workingDir || target.workingDir === args.workingDir)
-      )
-      .map((target) => target.role.toLowerCase())
-  );
-  if (args.role) roles.add(args.role.toLowerCase());
+  // role -> working-dir spelling used for serialization and stop intent. For a
+  // workspace-scoped stop this is the matched slot's own spelling (slot keys use
+  // the raw launch path), not the command's normalized spelling.
+  const roleWorkingDirs = new Map<string, string | undefined>();
+  for (const target of targets) {
+    if (target.chatroomId !== args.chatroomId) continue;
+    const role = target.role.toLowerCase();
+    if (args.role && role !== args.role.toLowerCase()) continue;
+    if (!isInScope(target) || roleWorkingDirs.has(role)) continue;
+    roleWorkingDirs.set(role, args.workingDir ? target.workingDir : undefined);
+  }
+  if (args.role && !roleWorkingDirs.has(args.role.toLowerCase()))
+    roleWorkingDirs.set(args.role.toLowerCase(), args.workingDir);
   if (!args.role && !args.workingDir) {
     for (const role of await args.taskService.listMachineTaskRolesForChatroom(args.chatroomId))
-      roles.add(role.toLowerCase());
+      if (!roleWorkingDirs.has(role.toLowerCase()))
+        roleWorkingDirs.set(role.toLowerCase(), undefined);
   }
 
   const results = await Promise.allSettled(
-    [...roles].map((role) =>
+    [...roleWorkingDirs].map(([role, workingDir]) =>
       args.runSerializedForAgent(
-        { chatroomId: args.chatroomId, role, workingDir: args.workingDir },
+        { chatroomId: args.chatroomId, role, workingDir },
         { timeoutMs: AGENT_LIFECYCLE_OPERATION_TIMEOUT_MS },
         async (_ops, context) => {
           if (context.signal.aborted) throw context.signal.reason;
@@ -58,7 +68,7 @@ export async function executeChatroomStopCommand(args: {
             chatroomId: args.chatroomId,
             role,
             reason: 'user.stop',
-            workingDir: args.workingDir,
+            workingDir,
           });
           if (result.failures.length > 0)
             throw new AggregateError(
@@ -74,7 +84,7 @@ export async function executeChatroomStopCommand(args: {
               (target) =>
                 target.chatroomId === args.chatroomId &&
                 target.role.toLowerCase() === role &&
-                target.workingDir !== args.workingDir
+                !isInScope(target)
             );
             if (liveOutsideScope)
               throw new Error(
