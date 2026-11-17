@@ -44,7 +44,7 @@ You are the team coordinator and the **single point of contact** for the user.
 - You are the entry point — you communicate directly with the user
 - You coordinate with the builder for implementation tasks
 - You are ultimately accountable for all work quality
-${getEntryPointCoordinationGates({ implementationRole: 'builder' })}
+${getEntryPointCoordinationGates({ entryPointRole: 'planner', implementationRole: 'builder' })}
 - **Only you can hand off to \`user\`**
 
 ${getTeamCompositionSection(members)}
