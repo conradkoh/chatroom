@@ -1,0 +1,187 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`product manager handoff template snapshots > 'duo' 'planner' → 'product-manager' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`product-manager\` agent receives only the text inside your \`handoff --next-role="product-manager"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`planner\` → \`product-manager\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Pass the feature request in the user's words, the problem it solves and who it is for, any constraints or decisions already made, and the areas of the app it likely touches. List the domain nouns the product manager must check for existing equivalents in the repository. Ask the product manager for a specification only: do not edit files, implement code, or design the technical architecture.
+
+Use this for a new, ambiguous feature request whose scope is not yet decided. Skip it for small bug fixes and for requests whose scope is already unambiguous, unless a bug fix needs a scope decision.
+
+After completing the specification, the product manager must return it to \`planner\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="planner" --next-role="product-manager" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`product manager handoff template snapshots > 'duo' 'product-manager' → 'planner' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`planner\` agent receives only the text inside your \`handoff --next-role="planner"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`product-manager\` → \`planner\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Return a complete product specification for the authoritative feature request. The product manager is advisory and read-only: do not edit files, build, or implement. Base every consistency claim on the existing app behavior you inspected, citing concrete repository paths and symbols, docs, or decision records under \`memory/\`. List open questions instead of guessing them. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section.
+
+## Summary
+<state the feature, the recommended scope in two to four sentences, and whether any open question blocks planning>
+
+## Problem statement
+<the problem the user is trying to solve, who is affected, and the outcome they want, recovered from the request and relevant history>
+
+## User stories
+<one \`###\` per story in the form "As a <user>, I want <capability>, so that <outcome>", each followed by a bullet list of testable acceptance criteria>
+
+## In scope
+<every capability, behavior, and state the feature includes, including the states needed to make it feature complete (loading, empty, error, permissions, and migration of existing data where they apply)>
+
+## Out of scope
+<each excluded or deferred item with a one-line reason; write exactly \`None observed.\` if nothing is excluded>
+
+## Consistency with existing functionality
+<the existing capabilities the feature must stay consistent with, with concrete paths and symbols as evidence; where the feature extends or conflicts with existing behavior, say so and mark each conflict as a decision for the user; the gaps the feature would leave if the proposed scope is not accepted>
+
+## UI and UX review
+<if the feature has any UI surface (a new screen, panel, flow, interaction, or visible state), state that \`planner\` must get a \`uiux-engineer\` design before any UI work on this feature, and name each surface; do not design layout yourself. If the feature has no UI surface, write exactly \`No UI surface: no uiux-engineer design needed.\`>
+
+## Open questions for the user
+<each open question with the options, the consequence of each, and a recommended default; write exactly \`None observed.\` if none remain>
+
+Instructions after the body (not part of the message): run the normal handoff command to \`planner\` with the complete body above, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="product-manager" --next-role="planner" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`product manager handoff template snapshots > 'solo' 'product-manager' → 'solo' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`solo\` agent receives only the text inside your \`handoff --next-role="solo"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`product-manager\` → \`solo\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Return a complete product specification for the authoritative feature request. The product manager is advisory and read-only: do not edit files, build, or implement. Base every consistency claim on the existing app behavior you inspected, citing concrete repository paths and symbols, docs, or decision records under \`memory/\`. List open questions instead of guessing them. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section.
+
+## Summary
+<state the feature, the recommended scope in two to four sentences, and whether any open question blocks planning>
+
+## Problem statement
+<the problem the user is trying to solve, who is affected, and the outcome they want, recovered from the request and relevant history>
+
+## User stories
+<one \`###\` per story in the form "As a <user>, I want <capability>, so that <outcome>", each followed by a bullet list of testable acceptance criteria>
+
+## In scope
+<every capability, behavior, and state the feature includes, including the states needed to make it feature complete (loading, empty, error, permissions, and migration of existing data where they apply)>
+
+## Out of scope
+<each excluded or deferred item with a one-line reason; write exactly \`None observed.\` if nothing is excluded>
+
+## Consistency with existing functionality
+<the existing capabilities the feature must stay consistent with, with concrete paths and symbols as evidence; where the feature extends or conflicts with existing behavior, say so and mark each conflict as a decision for the user; the gaps the feature would leave if the proposed scope is not accepted>
+
+## UI and UX review
+<if the feature has any UI surface (a new screen, panel, flow, interaction, or visible state), state that \`solo\` must get a \`uiux-engineer\` design before any UI work on this feature, and name each surface; do not design layout yourself. If the feature has no UI surface, write exactly \`No UI surface: no uiux-engineer design needed.\`>
+
+## Open questions for the user
+<each open question with the options, the consequence of each, and a recommended default; write exactly \`None observed.\` if none remain>
+
+Instructions after the body (not part of the message): run the normal handoff command to \`solo\` with the complete body above, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="product-manager" --next-role="solo" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`product manager handoff template snapshots > 'solo' 'solo' → 'product-manager' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`product-manager\` agent receives only the text inside your \`handoff --next-role="product-manager"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`solo\` → \`product-manager\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Pass the feature request in the user's words, the problem it solves and who it is for, any constraints or decisions already made, and the areas of the app it likely touches. List the domain nouns the product manager must check for existing equivalents in the repository. Ask the product manager for a specification only: do not edit files, implement code, or design the technical architecture.
+
+Use this for a new, ambiguous feature request whose scope is not yet decided. Skip it for small bug fixes and for requests whose scope is already unambiguous, unless a bug fix needs a scope decision.
+
+After completing the specification, the product manager must return it to \`solo\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="solo" --next-role="product-manager" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`product manager handoff template snapshots > 'trio' 'coordinator' → 'product-manager' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`product-manager\` agent receives only the text inside your \`handoff --next-role="product-manager"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`coordinator\` → \`product-manager\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+The automatically injected \`<user-message>\` is the authoritative request. Pass the feature request in the user's words, the problem it solves and who it is for, any constraints or decisions already made, and the areas of the app it likely touches. List the domain nouns the product manager must check for existing equivalents in the repository. Ask the product manager for a specification only: do not edit files, implement code, or design the technical architecture.
+
+Use this for a new, ambiguous feature request whose scope is not yet decided. Skip it for small bug fixes and for requests whose scope is already unambiguous, unless a bug fix needs a scope decision.
+
+After completing the specification, the product manager must return it to \`coordinator\` with the normal handoff command.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="coordinator" --next-role="product-manager" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;
+
+exports[`product manager handoff template snapshots > 'trio' 'product-manager' → 'coordinator' renders the complete contract 1`] = `
+"> ⚠️ **Template notice — not part of the message. Do not copy this notice into your handoff.**
+> Recipient visibility: the \`coordinator\` agent receives only the text inside your \`handoff --next-role="coordinator"\` command. It cannot see anything you write in this agent session, or tool output. Put your complete deliverable in the handoff message.
+
+Handoff template \`product-manager\` → \`coordinator\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
+
+Instructions (not part of the message): Return a complete product specification for the authoritative feature request. The product manager is advisory and read-only: do not edit files, build, or implement. Base every consistency claim on the existing app behavior you inspected, citing concrete repository paths and symbols, docs, or decision records under \`memory/\`. List open questions instead of guessing them. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section.
+
+## Summary
+<state the feature, the recommended scope in two to four sentences, and whether any open question blocks planning>
+
+## Problem statement
+<the problem the user is trying to solve, who is affected, and the outcome they want, recovered from the request and relevant history>
+
+## User stories
+<one \`###\` per story in the form "As a <user>, I want <capability>, so that <outcome>", each followed by a bullet list of testable acceptance criteria>
+
+## In scope
+<every capability, behavior, and state the feature includes, including the states needed to make it feature complete (loading, empty, error, permissions, and migration of existing data where they apply)>
+
+## Out of scope
+<each excluded or deferred item with a one-line reason; write exactly \`None observed.\` if nothing is excluded>
+
+## Consistency with existing functionality
+<the existing capabilities the feature must stay consistent with, with concrete paths and symbols as evidence; where the feature extends or conflicts with existing behavior, say so and mark each conflict as a decision for the user; the gaps the feature would leave if the proposed scope is not accepted>
+
+## UI and UX review
+<if the feature has any UI surface (a new screen, panel, flow, interaction, or visible state), state that \`coordinator\` must get a \`uiux-engineer\` design before any UI work on this feature, and name each surface; do not design layout yourself. If the feature has no UI surface, write exactly \`No UI surface: no uiux-engineer design needed.\`>
+
+## Open questions for the user
+<each open question with the options, the consequence of each, and a recommended default; write exactly \`None observed.\` if none remain>
+
+Instructions after the body (not part of the message): run the normal handoff command to \`coordinator\` with the complete body above, then stop.
+
+\`\`\`bash
+chatroom handoff --chatroom-id="<chatroom-id>" --role="product-manager" --next-role="coordinator" << 'CHATROOM_HANDOFF_END'
+---MESSAGE---
+[Your message here]
+CHATROOM_HANDOFF_END
+\`\`\`"
+`;

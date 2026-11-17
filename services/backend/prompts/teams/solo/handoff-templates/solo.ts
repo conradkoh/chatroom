@@ -8,6 +8,8 @@
 
 import { getSoloArchitectChatTemplate } from './solo-architect-chat';
 import { getSoloArchitectCodeTemplate } from './solo-architect-code';
+import { getSoloProductManagerChatTemplate } from './solo-product-manager-chat';
+import { getSoloProductManagerCodeTemplate } from './solo-product-manager-code';
 import { getSoloTriageChatTemplate } from './solo-triage-chat';
 import { getSoloTriageCodeTemplate } from './solo-triage-code';
 import { getSoloUiuxEngineerChatTemplate } from './solo-uiux-engineer-chat';
@@ -23,12 +25,16 @@ import {
 
 export const soloHandoffContract = {
   role: 'solo',
-  receivesFrom: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
-  returnsTo: ['user', 'architect', 'uiux-engineer', 'triage', 'verifier'],
+  receivesFrom: ['user', 'architect', 'product-manager', 'uiux-engineer', 'triage', 'verifier'],
+  returnsTo: ['user', 'architect', 'product-manager', 'uiux-engineer', 'triage', 'verifier'],
   outboundTemplates: {
     architect: handoffTemplateByMode({
       chat: getSoloArchitectChatTemplate,
       code: getSoloArchitectCodeTemplate,
+    }),
+    'product-manager': handoffTemplateByMode({
+      chat: getSoloProductManagerChatTemplate,
+      code: getSoloProductManagerCodeTemplate,
     }),
     'uiux-engineer': handoffTemplateByMode({
       chat: getSoloUiuxEngineerChatTemplate,

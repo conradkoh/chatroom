@@ -56,7 +56,7 @@ describe('generator > composeSystemPrompt with the enforced trio team', () => {
     });
 
     expect(prompt).toMatch(
-      /^Available targets: user, specifier, architect, uiux-engineer, triage, researcher, reviewer, game-asset-designer, verifier$/m
+      /^Available targets: user, specifier, architect, product-manager, uiux-engineer, triage, researcher, reviewer, game-asset-designer, verifier$/m
     );
   });
 });

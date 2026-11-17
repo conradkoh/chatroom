@@ -75,7 +75,7 @@ async function startAgent(
 // ---------------------------------------------------------------------------
 
 describe('startAgent use case — request snapshots', () => {
-  test('starts configured roles and skips unconfigured researcher, triage, reviewer, game-asset-designer, and verifier', async () => {
+  test('starts configured roles and skips unconfigured product-manager, researcher, triage, reviewer, game-asset-designer, and verifier', async () => {
     const { sessionId } = await createTestSession('start-agent-all-current-config');
     const chatroomId = await createChatroom(sessionId, ['planner', 'builder', 'architect']);
     const machineId = 'start-machine-all-current-config';
@@ -119,6 +119,7 @@ describe('startAgent use case — request snapshots', () => {
     expect(first).toMatchObject({
       started: expect.arrayContaining(['planner', 'builder']),
       skipped: [
+        { role: 'product-manager', reason: 'No saved launch configuration' },
         { role: 'researcher', reason: 'No saved launch configuration' },
         { role: 'triage', reason: 'No saved launch configuration' },
         { role: 'reviewer', reason: 'No saved launch configuration' },

@@ -86,7 +86,9 @@ describe('Solo Team > Solo > System Prompt', () => {
 
     // Solo can hand off to user
     expect(prompt).toContain('### Handoff Options');
-    expect(prompt).toContain('Available targets: architect, triage, uiux-engineer, verifier, user');
+    expect(prompt).toContain(
+      'Available targets: product-manager, architect, triage, uiux-engineer, verifier, user'
+    );
 
     // Commands reference
     expect(prompt).toContain('### Commands');
@@ -312,10 +314,18 @@ describe('Solo Team > Solo > System Prompt', () => {
       **Solo Team Context:**
       - You are the only implementer — you plan, implement, and deliver
       - You communicate directly with the user (single point of contact)
-      - There is no separate builder or planner. Specialist roles (\`architect\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
+      - There is no separate builder or planner. Specialist roles (\`architect\`, \`product-manager\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
       - You hand off to the user when work is complete and every required gate has passed
+      - **Routing rules (\`solo\`), apply the first that matches:** \`product-manager\` answers *what* and *whether* (scope, user stories, in and out of scope, consistency with existing behavior) and never designs layout. \`uiux-engineer\` answers *how it looks and behaves* (user flows, screens, layout, component ownership, loading, empty, error and success states, keyboard and responsive behavior) and never decides scope.
+        1. **Bug report:** goes to \`triage\` first. Neither \`product-manager\` nor \`uiux-engineer\` is involved unless the fix itself needs a scope or design decision.
+        2. **New feature with undecided or ambiguous scope:** goes to \`product-manager\` first; its specification decides the next step.
+        3. **New feature with a UI surface and agreed scope:** a UI surface is a new screen, panel, flow, interaction, or visible state. It goes to \`uiux-engineer\` for a design before any UI work by you. Do not start UI implementation of a new UI feature without that design.
+        4. **Non-game icons, illustrations, and asset files:** are never sent to \`product-manager\` or \`uiux-engineer\` (this team has no \`game-asset-designer\`; you handle the asset work yourself).
+        5. **Backend contract, API, or schema change:** goes to \`architect\` first.
+        6. **Existing UI with no new surface and no design decision:** goes straight to you, with no \`uiux-engineer\`.
+      - **Product manager before scoping a new ambiguous feature:** when the user asks for a new feature whose scope is ambiguous or undecided, whose in-scope boundary the user has not set, or whose feature completeness depends on existing behavior you cannot settle from the code you have read, hand off to \`product-manager\` for a product specification before you plan or implement it. Only the entry point (\`solo\`) activates it. Skip it for small bug fixes, for unambiguous requests with an agreed scope, and for pure asset requests that have their own gate; a bug fix activates it only when the fix itself needs a scope decision, and the handoff must say so. When the specification returns, read its \`## UI and UX review\` section and follow it (routing rule 3), check its \`## In scope\`, \`## Out of scope\`, and \`## Consistency with existing functionality\` sections before you delegate, put any open question that blocks planning to \`user\` before you delegate, and use the accepted specification as the scope of the work you delegate next. The \`product-manager\` handoff template defines the request.
 
-      **Team composition:** Duo team — you coordinate with \`solo\`, \`architect\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`solo\`, \`product-manager\`, \`architect\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -336,6 +346,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       \`\`\`bash
       chatroom handoff view-template --from="solo" --to="user" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="architect" --mode="<chat|code>" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="product-manager" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="uiux-engineer" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="triage" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="verifier" --mode="<chat|code>" --team-id="solo"
@@ -364,7 +375,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
-      2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+      2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
       3. If requirements are NOT met (including partial work) → revise and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
@@ -377,7 +388,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)
 
       ### Handoff Options
-      Available targets: architect, triage, uiux-engineer, verifier, user
+      Available targets: product-manager, architect, triage, uiux-engineer, verifier, user
 
       ### Commands
 

@@ -101,4 +101,12 @@ describe('solo > getSoloGuidance', () => {
     expect(guidance).toContain('--since-message-id="<from-anchor>"');
     expect(guidance).toContain('**do not** hand off to user');
   });
+
+  test('activates the product manager for new ambiguous features, naming solo as the activator', () => {
+    const guidance = getSoloGuidance(baseParams);
+    expect(guidance).toContain('**Product manager before scoping a new ambiguous feature:**');
+    expect(guidance).toContain('hand off to `product-manager` for a product specification before');
+    expect(guidance).toContain('Only the entry point (`solo`) activates it.');
+    expect(guidance).toContain('Skip it for small bug fixes, for unambiguous requests');
+  });
 });

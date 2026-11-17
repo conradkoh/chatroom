@@ -39,6 +39,7 @@ const teamFacts = [
     persistedRoles: ['planner', 'builder'],
     roles: [
       'planner',
+      'product-manager',
       'architect',
       'researcher',
       'triage',
@@ -50,6 +51,7 @@ const teamFacts = [
     ],
     permanentRoles: ['planner', 'builder'],
     ephemeralRoles: [
+      'product-manager',
       'architect',
       'researcher',
       'triage',
@@ -62,9 +64,9 @@ const teamFacts = [
   {
     teamId: 'solo',
     persistedRoles: ['solo'],
-    roles: ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+    roles: ['solo', 'product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
     permanentRoles: ['solo'],
-    ephemeralRoles: ['architect', 'triage', 'uiux-engineer', 'verifier'],
+    ephemeralRoles: ['product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
   },
 ] as const;
 

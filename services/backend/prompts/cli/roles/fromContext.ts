@@ -6,6 +6,7 @@ import { getArchitectGuidance } from './architect';
 import { getBuilderGuidance } from './builder';
 import { getGameAssetDesignerGuidance } from './game-asset-designer';
 import { getPlannerGuidance } from './planner';
+import { getProductManagerGuidance } from './product-manager';
 import { getResearcherGuidance } from './researcher';
 import { getReviewerGuidance } from './reviewer';
 import { getTriageGuidance } from './triage';
@@ -80,6 +81,11 @@ const BASE_ROLE_GUIDANCE_BY_ROLE: Record<string, ((ctx: SelectorContext) => stri
     }),
   researcher: (ctx) =>
     getResearcherGuidance({
+      nativeIntegration: ctx.nativeIntegration,
+      recipientRole: resolveSpecialistRecipientRole(ctx),
+    }),
+  'product-manager': (ctx) =>
+    getProductManagerGuidance({
       nativeIntegration: ctx.nativeIntegration,
       recipientRole: resolveSpecialistRecipientRole(ctx),
     }),

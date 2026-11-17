@@ -23,6 +23,7 @@ import {
 const expectedStructures = {
   duo: [
     { role: 'planner', lifecycle: 'permanent', optional: false },
+    { role: 'product-manager', lifecycle: 'ephemeral', optional: true },
     { role: 'architect', lifecycle: 'ephemeral', optional: true },
     { role: 'researcher', lifecycle: 'ephemeral', optional: true },
     { role: 'triage', lifecycle: 'ephemeral', optional: true },
@@ -34,6 +35,7 @@ const expectedStructures = {
   ],
   solo: [
     { role: 'solo', lifecycle: 'permanent', optional: false },
+    { role: 'product-manager', lifecycle: 'ephemeral', optional: true },
     { role: 'architect', lifecycle: 'ephemeral', optional: true },
     { role: 'triage', lifecycle: 'ephemeral', optional: true },
     { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
@@ -41,6 +43,7 @@ const expectedStructures = {
   ],
   trio: [
     { role: 'coordinator', lifecycle: 'permanent', optional: false },
+    { role: 'product-manager', lifecycle: 'ephemeral', optional: true },
     { role: 'architect', lifecycle: 'ephemeral', optional: true },
     { role: 'researcher', lifecycle: 'ephemeral', optional: true },
     { role: 'triage', lifecycle: 'ephemeral', optional: true },
@@ -59,9 +62,10 @@ describe('team presets', () => {
       name: 'Duo',
       structureId: 'duo@1',
       description:
-        'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
+        'A planner and builder working as a pair, planner as coordinator, with optional ephemeral architect, product-manager, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
       roles: [
         'planner',
+        'product-manager',
         'architect',
         'researcher',
         'triage',
@@ -77,17 +81,18 @@ describe('team presets', () => {
       name: 'Solo',
       structureId: 'solo@1',
       description:
-        'A single agent working independently, with optional ephemeral architect, triage, uiux-engineer, and verifier roles',
-      roles: ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+        'A single agent working independently, with optional ephemeral architect, product-manager, triage, uiux-engineer, and verifier roles',
+      roles: ['solo', 'product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
       entryPoint: 'solo',
     });
     expect(TEAM_PRESETS.trio).toMatchObject({
       name: 'Trio',
       structureId: 'trio@1',
       description:
-        'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns plans into code-level builder briefs, with optional ephemeral architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
+        'A coordinator, specifier, and builder: the coordinator owns the user conversation and routes all work, the specifier turns plans into code-level builder briefs, with optional ephemeral architect, product-manager, researcher, triage, reviewer, uiux-engineer, game-asset-designer, and verifier roles',
       roles: [
         'coordinator',
+        'product-manager',
         'architect',
         'researcher',
         'triage',
@@ -184,6 +189,7 @@ describe('team presets', () => {
       'planner',
       [
         'planner',
+        'product-manager',
         'architect',
         'researcher',
         'triage',
@@ -201,6 +207,7 @@ describe('team presets', () => {
       'planner',
       [
         'planner',
+        'product-manager',
         'architect',
         'researcher',
         'triage',
@@ -216,14 +223,14 @@ describe('team presets', () => {
       'solo@1',
       'Solo',
       'solo',
-      ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+      ['solo', 'product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
     ],
     [
       'solo@1',
       'solo@1',
       'Solo',
       'solo',
-      ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+      ['solo', 'product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
     ],
   ] as const)(
     'resolves %s from persisted roles that omit triage',
@@ -240,6 +247,7 @@ describe('team presets', () => {
         roles: roles.map((role) => ({
           role,
           lifecycle: [
+            'product-manager',
             'architect',
             'researcher',
             'triage',
@@ -251,6 +259,7 @@ describe('team presets', () => {
             ? 'ephemeral'
             : 'permanent',
           optional: [
+            'product-manager',
             'architect',
             'researcher',
             'triage',

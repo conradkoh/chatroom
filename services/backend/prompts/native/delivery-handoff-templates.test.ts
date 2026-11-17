@@ -57,7 +57,7 @@ describe('appendNativeDeliveryHandoffTemplates — catalog coverage guard', () =
 });
 
 describe('appendNativeDeliveryHandoffTemplates — pair headings in returnsTo order', () => {
-  test('duo planner inlines the seven pair headings in the documented order', () => {
+  test('duo planner inlines the ten pair headings in the documented order', () => {
     const output = render('duo', 'planner');
     const headings = [...output.matchAll(/^### Handoff template `([^`]+)` → `([^`]+)`$/gm)].map(
       ([, from, to]) => `${from}→${to}`
@@ -67,6 +67,7 @@ describe('appendNativeDeliveryHandoffTemplates — pair headings in returnsTo or
       'planner→user',
       'planner→builder',
       'planner→architect',
+      'planner→product-manager',
       'planner→uiux-engineer',
       'planner→triage',
       'planner→researcher',

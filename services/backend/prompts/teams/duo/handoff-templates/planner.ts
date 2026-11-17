@@ -12,6 +12,8 @@ import { getPlannerBuilderChatTemplate } from './planner-builder-chat';
 import { getPlannerBuilderCodeTemplate } from './planner-builder-code';
 import { getPlannerGameAssetDesignerChatTemplate } from './planner-game-asset-designer-chat';
 import { getPlannerGameAssetDesignerCodeTemplate } from './planner-game-asset-designer-code';
+import { getPlannerProductManagerChatTemplate } from './planner-product-manager-chat';
+import { getPlannerProductManagerCodeTemplate } from './planner-product-manager-code';
 import { getPlannerResearcherChatTemplate } from './planner-researcher-chat';
 import { getPlannerResearcherCodeTemplate } from './planner-researcher-code';
 import { getPlannerReviewerChatTemplate } from './planner-reviewer-chat';
@@ -35,6 +37,7 @@ export const duoPlannerHandoffContract = {
     'user',
     'builder',
     'architect',
+    'product-manager',
     'uiux-engineer',
     'triage',
     'researcher',
@@ -46,6 +49,7 @@ export const duoPlannerHandoffContract = {
     'user',
     'builder',
     'architect',
+    'product-manager',
     'uiux-engineer',
     'triage',
     'researcher',
@@ -61,6 +65,10 @@ export const duoPlannerHandoffContract = {
     architect: handoffTemplateByMode({
       chat: getPlannerArchitectChatTemplate,
       code: getPlannerArchitectCodeTemplate,
+    }),
+    'product-manager': handoffTemplateByMode({
+      chat: getPlannerProductManagerChatTemplate,
+      code: getPlannerProductManagerCodeTemplate,
     }),
     'uiux-engineer': handoffTemplateByMode({
       chat: getPlannerUiuxEngineerChatTemplate,

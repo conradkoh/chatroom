@@ -50,6 +50,13 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('before any specifier delegation');
     expect(guidance).not.toContain('before any builder delegation');
     expect(guidance).toContain('`## Rework findings (prior round)`');
+    expect(guidance).toContain('**Product manager before scoping a new ambiguous feature:**');
+    expect(guidance).toContain('Only the entry point (`coordinator`) activates it.');
+    expect(guidance).toContain('Skip it for small bug fixes, for unambiguous requests');
+    expect(guidance).toContain('**Bug reports go to triage first:**');
+    expect(guidance.indexOf('**Product manager before scoping')).toBeLessThan(
+      guidance.indexOf('**Bug reports go to triage first:**')
+    );
   });
 
   test.each(GUIDANCE_VARIANTS)('specifier guidance (%s)', (variant, nativeIntegration) => {
@@ -81,6 +88,12 @@ describe('trio role guidance', () => {
     expect(guidance).toContain(
       'Rework feedback to the builder must name the file, the line where known, and the failing requirement.'
     );
+    expect(guidance).toContain(
+      '**Scope gaps go to `coordinator`; you never activate `product-manager`.**'
+    );
+    expect(guidance).toContain('do not try to contact `product-manager`');
+    expect(guidance).not.toContain('**Product manager before scoping a new ambiguous feature:**');
+    expect(guidance).not.toContain('hand off to `product-manager`');
   });
 
   test.each(GUIDANCE_VARIANTS)('builder guidance (%s)', (variant, nativeIntegration) => {

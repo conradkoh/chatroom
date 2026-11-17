@@ -42,6 +42,7 @@ flowchart TD
 chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="architect" --mode="<chat|code>" --team-id="duo"
+chatroom handoff view-template --from="planner" --to="product-manager" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="uiux-engineer" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="triage" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="researcher" --mode="<chat|code>" --team-id="duo"
@@ -117,7 +118,7 @@ flowchart TD
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
 3. If requirements are NOT met (including partial work) → hand back to \`builder\` for rework
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role."
 `;
@@ -148,6 +149,7 @@ You are the team coordinator and the **single point of contact** for the user.
 \`\`\`bash
 chatroom handoff view-template --from="solo" --to="user" --mode="<chat|code>" --team-id="solo"
 chatroom handoff view-template --from="solo" --to="architect" --mode="<chat|code>" --team-id="solo"
+chatroom handoff view-template --from="solo" --to="product-manager" --mode="<chat|code>" --team-id="solo"
 chatroom handoff view-template --from="solo" --to="uiux-engineer" --mode="<chat|code>" --team-id="solo"
 chatroom handoff view-template --from="solo" --to="triage" --mode="<chat|code>" --team-id="solo"
 chatroom handoff view-template --from="solo" --to="verifier" --mode="<chat|code>" --team-id="solo"
@@ -179,7 +181,7 @@ Break complex features into small, focused slices. For code review guidance, act
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
 3. If requirements are NOT met (including partial work) → revise and re-validate
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role."
 `;
@@ -285,7 +287,7 @@ flowchart TD
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
 3. If requirements are NOT met (including partial work) → hand back to \`builder\` for rework
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role."
 `;
@@ -335,7 +337,7 @@ Break complex features into small, focused slices. For code review guidance, act
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
+2. If requirements are met → complete any required review and \`<verifier-gate>\` steps → run proof of verification → deliver to \`user\`. An advisory report (researcher, architect, product-manager, triage, uiux-engineer) feeds the next delegation; it is not the deliverable unless the user asked only for that report.
 3. If requirements are NOT met (including partial work) → revise and re-validate
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role."
 `;

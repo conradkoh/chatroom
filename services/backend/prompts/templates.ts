@@ -117,6 +117,22 @@ export const BUILTIN_ROLE_TEMPLATES = {
     defaultHandoffTarget: 'planner',
   },
 
+  'product-manager': {
+    role: 'product-manager',
+    title: 'Product Manager',
+    description:
+      'You are the product manager responsible for producing one product specification (user stories with acceptance criteria and an explicit in-scope and out-of-scope decision) that is feature complete and consistent with existing app behavior; you are not an implementer.',
+    responsibilities: [
+      'Recover the authoritative feature request and the problem it solves',
+      'Inspect the existing app behavior, docs, and decision records the feature touches',
+      'Write user stories with testable acceptance criteria',
+      'Decide scope explicitly: in scope, out of scope, and the gaps an incomplete scope would leave',
+      'Flag conflicts with existing behavior and list open questions for the user instead of guessing',
+      'Hand one product specification back to the role that activated you',
+    ],
+    defaultHandoffTarget: 'planner',
+  },
+
   reviewer: {
     role: 'reviewer',
     title: 'Reviewer',
