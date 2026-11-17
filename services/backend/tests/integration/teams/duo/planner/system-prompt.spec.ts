@@ -74,7 +74,7 @@ describe('Duo Team > Planner > System Prompt', () => {
     // Planner CAN hand off to user in duo team
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toContain(
-      'Available targets: architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, builder, user'
+      'Available targets: product-manager, architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, builder, user'
     );
     // Researcher nudge points to the researcher handoff template rather than restating its criteria
     expect(prompt).toContain('Ground new work first');
@@ -304,7 +304,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - **Show the user an existing file:** to show the user a file that already exists (for example an image), attach it with \`--attach-file=<path>\` on the handoff to \`user\`. Viewing a file does not go through \`game-asset-designer\`. Do not say a file is attached unless your handoff to \`user\` sent it with \`--attach-file\`; if you cannot attach it, say so. When the request does not say how the user wants to view a file (inline, as an attachment, or as a path), ask before choosing.
       - **Only you can hand off to \`user\`**
 
-      **Team composition:** Duo team — you coordinate with \`architect\`, \`researcher\`, \`triage\`, \`reviewer\`, \`uiux-engineer\`, \`game-asset-designer\`, \`verifier\`, \`builder\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`product-manager\`, \`architect\`, \`researcher\`, \`triage\`, \`reviewer\`, \`uiux-engineer\`, \`game-asset-designer\`, \`verifier\`, \`builder\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -339,6 +339,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="architect" --mode="<chat|code>" --team-id="duo"
+      chatroom handoff view-template --from="planner" --to="product-manager" --mode="<chat|code>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="uiux-engineer" --mode="<chat|code>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="triage" --mode="<chat|code>" --team-id="duo"
       chatroom handoff view-template --from="planner" --to="researcher" --mode="<chat|code>" --team-id="duo"
@@ -427,7 +428,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)
 
       ### Handoff Options
-      Available targets: architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, builder, user
+      Available targets: product-manager, architect, researcher, triage, reviewer, uiux-engineer, game-asset-designer, verifier, builder, user
 
       ### Commands
 

@@ -86,7 +86,9 @@ describe('Solo Team > Solo > System Prompt', () => {
 
     // Solo can hand off to user
     expect(prompt).toContain('### Handoff Options');
-    expect(prompt).toContain('Available targets: architect, triage, uiux-engineer, verifier, user');
+    expect(prompt).toContain(
+      'Available targets: product-manager, architect, triage, uiux-engineer, verifier, user'
+    );
 
     // Commands reference
     expect(prompt).toContain('### Commands');
@@ -315,7 +317,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       - There is no separate builder or planner. Specialist roles (\`architect\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
       - You hand off to the user when work is complete and every required gate has passed
 
-      **Team composition:** Duo team — you coordinate with \`solo\`, \`architect\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
+      **Team composition:** Duo team — you coordinate with \`solo\`, \`product-manager\`, \`architect\`, \`triage\`, \`uiux-engineer\`, \`verifier\` for implementation.
 
       **Agent presence:** This prompt does **not** tell you who is online. Other agents may be offline. Delegate code-changing work by handing off when appropriate; do not infer availability from team configuration or prior chat history.
 
@@ -336,6 +338,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       \`\`\`bash
       chatroom handoff view-template --from="solo" --to="user" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="architect" --mode="<chat|code>" --team-id="solo"
+      chatroom handoff view-template --from="solo" --to="product-manager" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="uiux-engineer" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="triage" --mode="<chat|code>" --team-id="solo"
       chatroom handoff view-template --from="solo" --to="verifier" --mode="<chat|code>" --team-id="solo"
@@ -377,7 +380,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)
 
       ### Handoff Options
-      Available targets: architect, triage, uiux-engineer, verifier, user
+      Available targets: product-manager, architect, triage, uiux-engineer, verifier, user
 
       ### Commands
 

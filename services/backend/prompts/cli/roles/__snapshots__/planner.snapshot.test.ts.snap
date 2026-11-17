@@ -42,6 +42,7 @@ flowchart TD
 chatroom handoff view-template --from="planner" --to="user" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="builder" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="architect" --mode="<chat|code>" --team-id="duo"
+chatroom handoff view-template --from="planner" --to="product-manager" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="uiux-engineer" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="triage" --mode="<chat|code>" --team-id="duo"
 chatroom handoff view-template --from="planner" --to="researcher" --mode="<chat|code>" --team-id="duo"
@@ -148,6 +149,7 @@ You are the team coordinator and the **single point of contact** for the user.
 \`\`\`bash
 chatroom handoff view-template --from="solo" --to="user" --mode="<chat|code>" --team-id="solo"
 chatroom handoff view-template --from="solo" --to="architect" --mode="<chat|code>" --team-id="solo"
+chatroom handoff view-template --from="solo" --to="product-manager" --mode="<chat|code>" --team-id="solo"
 chatroom handoff view-template --from="solo" --to="uiux-engineer" --mode="<chat|code>" --team-id="solo"
 chatroom handoff view-template --from="solo" --to="triage" --mode="<chat|code>" --team-id="solo"
 chatroom handoff view-template --from="solo" --to="verifier" --mode="<chat|code>" --team-id="solo"

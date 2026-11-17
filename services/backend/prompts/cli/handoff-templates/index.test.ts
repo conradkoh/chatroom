@@ -144,11 +144,12 @@ describe('getHandoffTemplate — role-owned catalog compatibility', () => {
 });
 
 describe('listHandoffTemplatePairs', () => {
-  test('lists the 17 duo pairs in contract order', () => {
+  test('lists the 19 duo pairs in contract order', () => {
     expect(listHandoffTemplatePairs('duo')).toEqual([
       { teamId: 'duo', fromRole: 'planner', toRole: 'user' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'builder' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'architect' },
+      { teamId: 'duo', fromRole: 'planner', toRole: 'product-manager' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'uiux-engineer' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'triage' },
       { teamId: 'duo', fromRole: 'planner', toRole: 'researcher' },
@@ -157,6 +158,7 @@ describe('listHandoffTemplatePairs', () => {
       { teamId: 'duo', fromRole: 'planner', toRole: 'verifier' },
       { teamId: 'duo', fromRole: 'builder', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'architect', toRole: 'planner' },
+      { teamId: 'duo', fromRole: 'product-manager', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'researcher', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'reviewer', toRole: 'planner' },
       { teamId: 'duo', fromRole: 'uiux-engineer', toRole: 'planner' },
@@ -166,14 +168,16 @@ describe('listHandoffTemplatePairs', () => {
     ]);
   });
 
-  test('lists the 9 solo pairs in contract order', () => {
+  test('lists the 11 solo pairs in contract order', () => {
     expect(listHandoffTemplatePairs('solo')).toEqual([
       { teamId: 'solo', fromRole: 'solo', toRole: 'user' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'architect' },
+      { teamId: 'solo', fromRole: 'solo', toRole: 'product-manager' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'uiux-engineer' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'triage' },
       { teamId: 'solo', fromRole: 'solo', toRole: 'verifier' },
       { teamId: 'solo', fromRole: 'architect', toRole: 'solo' },
+      { teamId: 'solo', fromRole: 'product-manager', toRole: 'solo' },
       { teamId: 'solo', fromRole: 'uiux-engineer', toRole: 'solo' },
       { teamId: 'solo', fromRole: 'triage', toRole: 'solo' },
       { teamId: 'solo', fromRole: 'verifier', toRole: 'solo' },
@@ -202,8 +206,8 @@ describe('renderHandoffTemplate — callout and pair-title invariants', () => {
     ...listHandoffTemplatePairs('solo'),
   ] as const;
 
-  test('covers every permanent pair (17 duo + 9 solo)', () => {
-    expect(ALL_PAIRS).toHaveLength(26);
+  test('covers every permanent pair (19 duo + 11 solo)', () => {
+    expect(ALL_PAIRS).toHaveLength(30);
   });
 
   for (const pair of ALL_PAIRS) {

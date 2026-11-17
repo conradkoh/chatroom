@@ -18,6 +18,7 @@ describe('team presets', () => {
       name: 'Duo',
       roles: [
         'planner',
+        'product-manager',
         'architect',
         'researcher',
         'triage',
@@ -31,13 +32,14 @@ describe('team presets', () => {
     });
     expect(TEAM_PRESETS.solo).toMatchObject({
       name: 'Solo',
-      roles: ['solo', 'architect', 'triage', 'uiux-engineer', 'verifier'],
+      roles: ['solo', 'product-manager', 'architect', 'triage', 'uiux-engineer', 'verifier'],
       entryPoint: 'solo',
     });
     expect(TEAM_PRESETS.trio).toMatchObject({
       name: 'Trio',
       roles: [
         'coordinator',
+        'product-manager',
         'architect',
         'researcher',
         'triage',

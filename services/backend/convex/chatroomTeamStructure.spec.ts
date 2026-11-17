@@ -8,6 +8,7 @@ import { t } from './test.setup';
 const expectedRoles = {
   duo: [
     { role: 'planner', lifecycle: 'permanent', optional: false },
+    { role: 'product-manager', lifecycle: 'ephemeral', optional: true },
     { role: 'architect', lifecycle: 'ephemeral', optional: true },
     { role: 'researcher', lifecycle: 'ephemeral', optional: true },
     { role: 'triage', lifecycle: 'ephemeral', optional: true },
@@ -19,6 +20,7 @@ const expectedRoles = {
   ],
   solo: [
     { role: 'solo', lifecycle: 'permanent', optional: false },
+    { role: 'product-manager', lifecycle: 'ephemeral', optional: true },
     { role: 'architect', lifecycle: 'ephemeral', optional: true },
     { role: 'triage', lifecycle: 'ephemeral', optional: true },
     { role: 'uiux-engineer', lifecycle: 'ephemeral', optional: true },
@@ -26,6 +28,7 @@ const expectedRoles = {
   ],
   trio: [
     { role: 'coordinator', lifecycle: 'permanent', optional: false },
+    { role: 'product-manager', lifecycle: 'ephemeral', optional: true },
     { role: 'architect', lifecycle: 'ephemeral', optional: true },
     { role: 'researcher', lifecycle: 'ephemeral', optional: true },
     { role: 'triage', lifecycle: 'ephemeral', optional: true },

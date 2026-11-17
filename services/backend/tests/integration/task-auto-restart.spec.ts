@@ -134,6 +134,7 @@ describe('Handoff target role validation', () => {
     expect(result.error?.suggestedTargets).toEqual([
       'user',
       'planner',
+      'product-manager',
       'architect',
       'researcher',
       'triage',

@@ -87,6 +87,7 @@ describe('buildAvailableHandoffRoles', () => {
       'user',
       'specifier',
       'architect',
+      'product-manager',
       'uiux-engineer',
       'triage',
       'researcher',
