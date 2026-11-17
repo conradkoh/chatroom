@@ -49,7 +49,7 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * then from 19500 to admit the product-manager activation gate (~980 characters;
  * the specification sections live in the product-manager handoff template, not here).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 20500;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 22500;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

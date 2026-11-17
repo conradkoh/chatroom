@@ -28,6 +28,7 @@ const reportHeadings = [
   '## In scope',
   '## Out of scope',
   '## Consistency with existing functionality',
+  '## UI and UX review',
   '## Open questions for the user',
 ];
 
