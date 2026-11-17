@@ -63,7 +63,7 @@ function setup(
       }
     },
   };
-  const lifecycleEnqueue = vi.fn(async () => ({ success: true }));
+  const lifecycleEnqueue = vi.fn(async (_fact: unknown) => ({ success: true }));
   const apm = {
     markStopIntent: vi.fn(),
     markChatroomStopIntent: vi.fn(),
@@ -155,6 +155,60 @@ describe('executeChatroomStopCommand working-directory matching', () => {
     expect(shutdownCalls).toHaveLength(1);
     expect(state.lifecycleEnqueue).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'chatroom_shutdown_complete', commandId: 'command-1' })
+    );
+  });
+
+  it('uses the matched slot spelling for stop intent and serialization', async () => {
+    const state = setup();
+    await state.run(WORKSPACE_WORKING_DIR);
+    const markStopIntentCalls = state.apm.markStopIntent.mock.calls;
+    expect(markStopIntentCalls.length).toBeGreaterThan(0);
+    expect(markStopIntentCalls.map((call) => call[4])).toEqual(
+      markStopIntentCalls.map(() => '/Users/me/project/')
+    );
+    for (const call of state.runSerializedForAgent.mock.calls) {
+      expect(call[0]).toEqual(expect.objectContaining({ workingDir: '/Users/me/project/' }));
+    }
+  });
+
+  it('stops both spellings when one role has two slot spellings', async () => {
+    const state = setup({
+      targets: [
+        buildStopTargetDescriptor({
+          machineId: 'machine-1',
+          chatroomId: ROOM,
+          role: 'coordinator',
+          pid: 101,
+          agentHarness: 'claude-sdk',
+          workingDir: '/Users/me/project/',
+        }),
+        buildStopTargetDescriptor({
+          machineId: 'machine-1',
+          chatroomId: ROOM,
+          role: 'coordinator',
+          pid: 103,
+          agentHarness: 'claude-sdk',
+          workingDir: '/Users/me/project',
+        }),
+      ],
+      alivePids: [101, 103],
+    });
+    await state.run('/Users/me/project');
+    expect(state.harnessService.stop).toHaveBeenCalledTimes(2);
+    expect([...state.alive]).toEqual([]);
+    expect(state.apm.markStopIntent).toHaveBeenCalledWith(
+      'room-1',
+      'coordinator',
+      'user.stop',
+      undefined,
+      '/Users/me/project/'
+    );
+    expect(state.apm.markStopIntent).toHaveBeenCalledWith(
+      'room-1',
+      'coordinator',
+      'user.stop',
+      103,
+      '/Users/me/project'
     );
   });
 

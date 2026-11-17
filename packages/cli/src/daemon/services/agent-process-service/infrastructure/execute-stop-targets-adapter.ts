@@ -62,6 +62,7 @@ export function createStopAgentTargetsDeps(args: {
       ).revisionKey,
   };
 }
+// fallow-ignore-next-line complexity
 export async function runRoleScopedStop(args: {
   apm: AgentProcessManager;
   confirmedDeps: ConfirmedStopAdapterDeps;
@@ -83,6 +84,19 @@ export async function runRoleScopedStop(args: {
         (target.workingDir !== undefined &&
           normalizeWorkingDirForLookup(target.workingDir) === scopeDir))
   );
+  // Slots are keyed by their raw launch spelling; claim intent on each matched
+  // slot's own key so a spelling difference (e.g. trailing slash) cannot leave
+  // a running slot unmarked.
+  for (const target of targets) {
+    if (target.workingDir !== undefined && target.workingDir !== args.workingDir)
+      args.apm.markStopIntent(
+        args.chatroomId,
+        args.role,
+        args.reason,
+        target.pid,
+        target.workingDir
+      );
+  }
   return stopAgentTargets(deps, {
     chatroomId: args.chatroomId,
     scope: { kind: 'agent', role: args.role },
