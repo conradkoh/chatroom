@@ -62,7 +62,7 @@ describe.each(ENTRY_POINTS)('%s routing rules', (_name, entryPoint, implementer,
   test('states the six rules in order', () => {
     const markers = [
       '1. **Bug report:** goes to `triage` first.',
-      '2. **New feature with undecided or ambiguous scope:** goes to `product-manager` first',
+      '2. **New feature to build, with undecided or ambiguous scope:** goes to `product-manager` first',
       '3. **New feature with a UI surface and agreed scope:**',
       '4. **Non-game icons, illustrations, and asset files:**',
       '5. **Backend contract, API, or schema change:** goes to `architect` first.',
@@ -103,6 +103,79 @@ describe.each(ENTRY_POINTS)('%s routing rules', (_name, entryPoint, implementer,
   test('applies the product-manager UI and UX review section', () => {
     expect(guidance).toContain(
       'read its `## UI and UX review` section and follow it (routing rule 3)'
+    );
+  });
+});
+
+describe.each(ENTRY_POINTS)('%s decision routing', (_name, entryPoint, _implementer, guidance) => {
+  test('routes product decisions to product-manager and technical decisions to architect', () => {
+    expect(guidance).toContain(`**Decision routing (\`${entryPoint}\`):**`);
+    expect(guidance).toContain('do not bundle open decisions into a list for `user`');
+    expect(guidance).toContain('Open **product** decisions');
+    expect(guidance).toContain('go to `product-manager`');
+    expect(guidance).toContain('Open **technical** decisions');
+    expect(guidance).toContain('go to `architect`');
+  });
+
+  test('scopes routing to delegated development work and leaves conversation with the entry point', () => {
+    expect(guidance).toContain(
+      'govern delegated development work: a request to change code, behavior, or docs in this repository'
+    );
+    expect(guidance).toContain(
+      'Conversation is yours: answer questions, explanations, opinions, brainstorming, status, the wording of your own reply, and non-development topics yourself, without routing them to a specialist'
+    );
+    expect(guidance).toContain('ask one focused question in chat, not a list');
+    expect(guidance).toContain(
+      'Conversation that is not delegated development work is not routed under this rule.'
+    );
+  });
+
+  test('has no absolute ban on conversation or product-defaults routing', () => {
+    expect(guidance).not.toContain('never hand `user` a list of decisions');
+    const rule = guidance.slice(
+      guidance.indexOf('**Decision routing ('),
+      guidance.indexOf('**Product manager before scoping')
+    );
+    expect(rule).not.toMatch(/\bnever\b/i);
+    expect(rule).not.toContain('product defaults');
+  });
+
+  test('product-manager gate triggers on a request to build, not on feature talk', () => {
+    expect(guidance).toContain(
+      'when the user asks for a new feature to be built in this repository and its scope is ambiguous or undecided'
+    );
+    expect(guidance).toContain(
+      'A question, an opinion, or brainstorming about a possible feature is conversation: answer it yourself, without a handoff.'
+    );
+  });
+
+  test('reaches user only for an ambiguous request or destructive risk', () => {
+    expect(guidance).toContain('**ambiguous or insufficient request:**');
+    expect(guidance).toContain('**destructive risk:**');
+    expect(guidance).toContain(
+      'deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money'
+    );
+  });
+
+  test('sends one open specialist question back once, then proceeds', () => {
+    expect(guidance).toContain(
+      'send that one question back to the same specialist once, then proceed on its recommendation'
+    );
+  });
+
+  test('falls back to the entry point when the team has no such specialist', () => {
+    expect(guidance).toContain(
+      'If your team composition does not list `product-manager` or `architect`, make that decision yourself, record the rationale in your handoff'
+    );
+  });
+
+  test('appears after the routing rules and replaces the old user question line', () => {
+    expect(guidance.indexOf('**Decision routing (')).toBeGreaterThan(
+      guidance.indexOf('**Routing rules (')
+    );
+    expect(guidance).not.toContain('put any open question that blocks planning to `user`');
+    expect(guidance).toContain(
+      'settle any open question it raises under the decision-routing rule'
     );
   });
 });

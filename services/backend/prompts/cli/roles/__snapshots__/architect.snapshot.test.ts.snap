@@ -16,13 +16,14 @@ Completing a **chatroom task** does NOT end your **session**. After every handof
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to \`planner\` with the normal command, then stop:
+7. Decide every open technical decision for the development work yourself, inside your one recommended design (approach, design, contracts, schema, libraries, trade-offs), and state the evidence you used (repository paths, \`memory/\`, \`docs/\`, existing tests). Do not hand \`planner\` a list of open technical questions. Questions outside repository technical design (product, copy, general discussion) are not part of the design: leave them to \`planner\`. Escalate only an item that meets the escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Name each escalated item in the \`## Escalation items for the user\` section of your handoff. Decide everything else in the design yourself.
+8. Hand the complete design brief to \`planner\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="planner"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`planner\` needs to coordinate implementation. It must not contain implementation edits or alternative designs."
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`planner\` needs to coordinate implementation. It must not contain implementation edits or alternative designs. Any item that meets the escalation criteria is named in \`## Escalation items for the user\`; otherwise that section is \`None observed.\`."
 `;
 
 exports[`architect guidance snapshots > CLI solo renders the complete operating model 1`] = `
@@ -41,13 +42,14 @@ Completing a **chatroom task** does NOT end your **session**. After every handof
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to \`solo\` with the normal command, then stop:
+7. Decide every open technical decision for the development work yourself, inside your one recommended design (approach, design, contracts, schema, libraries, trade-offs), and state the evidence you used (repository paths, \`memory/\`, \`docs/\`, existing tests). Do not hand \`solo\` a list of open technical questions. Questions outside repository technical design (product, copy, general discussion) are not part of the design: leave them to \`solo\`. Escalate only an item that meets the escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Name each escalated item in the \`## Escalation items for the user\` section of your handoff. Decide everything else in the design yourself.
+8. Hand the complete design brief to \`solo\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="solo"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`solo\` needs to coordinate implementation. It must not contain implementation edits or alternative designs."
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`solo\` needs to coordinate implementation. It must not contain implementation edits or alternative designs. Any item that meets the escalation criteria is named in \`## Escalation items for the user\`; otherwise that section is \`None observed.\`."
 `;
 
 exports[`architect guidance snapshots > native planner renders the complete operating model 1`] = `
@@ -66,13 +68,14 @@ You are the architect responsible for system design and code-level implementatio
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to \`planner\` with the normal command, then stop:
+7. Decide every open technical decision for the development work yourself, inside your one recommended design (approach, design, contracts, schema, libraries, trade-offs), and state the evidence you used (repository paths, \`memory/\`, \`docs/\`, existing tests). Do not hand \`planner\` a list of open technical questions. Questions outside repository technical design (product, copy, general discussion) are not part of the design: leave them to \`planner\`. Escalate only an item that meets the escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Name each escalated item in the \`## Escalation items for the user\` section of your handoff. Decide everything else in the design yourself.
+8. Hand the complete design brief to \`planner\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="planner"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`planner\` needs to coordinate implementation. It must not contain implementation edits or alternative designs."
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`planner\` needs to coordinate implementation. It must not contain implementation edits or alternative designs. Any item that meets the escalation criteria is named in \`## Escalation items for the user\`; otherwise that section is \`None observed.\`."
 `;
 
 exports[`architect guidance snapshots > native solo renders the complete operating model 1`] = `
@@ -91,11 +94,12 @@ You are the architect responsible for system design and code-level implementatio
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to \`solo\` with the normal command, then stop:
+7. Decide every open technical decision for the development work yourself, inside your one recommended design (approach, design, contracts, schema, libraries, trade-offs), and state the evidence you used (repository paths, \`memory/\`, \`docs/\`, existing tests). Do not hand \`solo\` a list of open technical questions. Questions outside repository technical design (product, copy, general discussion) are not part of the design: leave them to \`solo\`. Escalate only an item that meets the escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Name each escalated item in the \`## Escalation items for the user\` section of your handoff. Decide everything else in the design yourself.
+8. Hand the complete design brief to \`solo\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="solo"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`solo\` needs to coordinate implementation. It must not contain implementation edits or alternative designs."
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`solo\` needs to coordinate implementation. It must not contain implementation edits or alternative designs. Any item that meets the escalation criteria is named in \`## Escalation items for the user\`; otherwise that section is \`None observed.\`."
 `;

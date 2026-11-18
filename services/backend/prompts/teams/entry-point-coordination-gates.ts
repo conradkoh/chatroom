@@ -18,7 +18,7 @@ export function getProductManagerGate(options: {
 }): string {
   const { entryPointRole, beforeStep } = options;
 
-  return `- **Product manager before scoping a new ambiguous feature:** when the user asks for a new feature whose scope is ambiguous or undecided, whose in-scope boundary the user has not set, or whose feature completeness depends on existing behavior you cannot settle from the code you have read, hand off to \`product-manager\` for a product specification before ${beforeStep}. Only the entry point (\`${entryPointRole}\`) activates it. Skip it for small bug fixes, for unambiguous requests with an agreed scope, and for pure asset requests that have their own gate; a bug fix activates it only when the fix itself needs a scope decision, and the handoff must say so. When the specification returns, read its \`## UI and UX review\` section and follow it (routing rule 3), check its \`## In scope\`, \`## Out of scope\`, and \`## Consistency with existing functionality\` sections before you delegate, put any open question that blocks planning to \`user\` before you delegate, and use the accepted specification as the scope of the work you delegate next. The \`product-manager\` handoff template defines the request.`;
+  return `- **Product manager before scoping a new ambiguous feature:** when the user asks for a new feature to be built in this repository and its scope is ambiguous or undecided, the user has not set its in-scope boundary, or its completeness depends on existing behavior you cannot settle from the code you have read, hand off to \`product-manager\` for a product specification before ${beforeStep}. A question, an opinion, or brainstorming about a possible feature is conversation: answer it yourself, without a handoff. Only the entry point (\`${entryPointRole}\`) activates it. Skip it for small bug fixes, for unambiguous requests with an agreed scope, and for pure asset requests that have their own gate; a bug fix activates it only when the fix itself needs a scope decision, and the handoff must say so. When the specification returns, read its \`## UI and UX review\` section and follow it (routing rule 3), check its \`## In scope\`, \`## Out of scope\`, and \`## Consistency with existing functionality\` sections before you delegate, settle any open question it raises under the decision-routing rule (only an item that meets its escalation criteria goes to \`user\`) before you delegate, and use the accepted specification as the scope of the work you delegate next. The \`product-manager\` handoff template defines the request.`;
 }
 
 /** Wording that varies between an entry point that delegates implementation and one that implements itself. */
@@ -63,13 +63,26 @@ export function getEntryPointRoutingRules(options: {
     ? getDelegatingRoutingWording(implementationRole)
     : SELF_IMPLEMENTING_ROUTING_WORDING;
 
-  return `- **Routing rules (\`${entryPointRole}\`), apply the first that matches:** \`product-manager\` answers *what* and *whether* (scope, user stories, in and out of scope, consistency with existing behavior) and never designs layout. \`uiux-engineer\` answers *how it looks and behaves* (user flows, screens, layout, component ownership, loading, empty, error and success states, keyboard and responsive behavior) and never decides scope.
+  return `- **Routing rules (\`${entryPointRole}\`), apply the first that matches:** These rules, the decision routing rule, and the specialist gates govern delegated development work: a request to change code, behavior, or docs in this repository. Conversation is yours: answer questions, explanations, opinions, brainstorming, status, the wording of your own reply, and non-development topics yourself, without routing them to a specialist. When the user's own intent is genuinely unclear, ask one focused question in chat, not a list. \`product-manager\` answers *what* and *whether* (scope, user stories, in and out of scope, consistency with existing behavior) and never designs layout. \`uiux-engineer\` answers *how it looks and behaves* (user flows, screens, layout, component ownership, loading, empty, error and success states, keyboard and responsive behavior) and never decides scope.
   1. **Bug report:** goes to \`triage\` first. Neither \`product-manager\` nor \`uiux-engineer\` is involved unless the fix itself needs a scope or design decision.
-  2. **New feature with undecided or ambiguous scope:** goes to \`product-manager\` first; its specification decides the next step.
+  2. **New feature to build, with undecided or ambiguous scope:** goes to \`product-manager\` first; its specification decides the next step. A question or brainstorm about a possible feature is not this rule: answer it yourself.
   3. **New feature with a UI surface and agreed scope:** a UI surface is a new screen, panel, flow, interaction, or visible state. It goes to \`uiux-engineer\` for a design before any ${uiWorkBy}. Do not start UI implementation of a new UI feature without that design${citeDesign}.
   4. **Non-game icons, illustrations, and asset files:** ${assetRoute}.
   5. **Backend contract, API, or schema change:** goes to \`architect\` first.
   6. **Existing UI with no new surface and no design decision:** goes straight to ${goesTo}, with no \`uiux-engineer\`.`;
+}
+
+/**
+ * Decision-routing rule for the entry point: open product decisions go to
+ * `product-manager`, open technical decisions go to `architect`, and `user`
+ * is reached only for an ambiguous or insufficient request or destructive
+ * risk. Rendered for every team's entry point; the fallback covers teams that
+ * do not advertise the optional specialists.
+ */
+export function getDecisionRoutingRule(options: { entryPointRole: string }): string {
+  const { entryPointRole } = options;
+
+  return `- **Decision routing (\`${entryPointRole}\`):** for delegated development work, do not bundle open decisions into a list for \`user\`. Open **product** decisions (scope, user stories, in and out of scope, consistency with existing behavior) go to \`product-manager\`. Open **technical** decisions (approach, design, contracts, schema, libraries, trade-offs) go to \`architect\`. Reach \`user\` only under these escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Everything else is decided by the owning specialist. If a specialist's report leaves a decision open that falls within its remit, send that one question back to the same specialist once, then proceed on its recommendation. If your team composition does not list \`product-manager\` or \`architect\`, make that decision yourself, record the rationale in your handoff, and escalate to \`user\` only under (a) or (b). Conversation that is not delegated development work is not routed under this rule.`;
 }
 
 export function getEntryPointCoordinationGates(options: {
@@ -79,6 +92,7 @@ export function getEntryPointCoordinationGates(options: {
   const { entryPointRole, implementationRole } = options;
 
   return `${getEntryPointRoutingRules({ entryPointRole, implementationRole })}
+${getDecisionRoutingRule({ entryPointRole })}
 ${getProductManagerGate({
   entryPointRole,
   beforeStep: `any researcher, architect, or \`${implementationRole}\` delegation`,

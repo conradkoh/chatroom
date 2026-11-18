@@ -47,9 +47,14 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * then from 19000 to admit the show-an-existing-file delegation bullet
  * (~410 characters),
  * then from 19500 to admit the product-manager activation gate (~980 characters;
- * the specification sections live in the product-manager handoff template, not here).
+ * the specification sections live in the product-manager handoff template, not here),
+ * then from 22500 to admit the shared decision-routing rule and the reworded
+ * product-manager clause (~1230 characters),
+ * then from 23500 to admit the conversation carve-out in the routing rules,
+ * the softened decision-routing opening, and the request-to-build framing of
+ * the product-manager gate (~440 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 22500;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 24000;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

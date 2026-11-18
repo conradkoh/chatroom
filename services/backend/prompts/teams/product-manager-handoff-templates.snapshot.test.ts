@@ -29,6 +29,7 @@ const reportHeadings = [
   '## Out of scope',
   '## Consistency with existing functionality',
   '## UI and UX review',
+  '## Product decisions made',
   '## Open questions for the user',
 ];
 
@@ -52,10 +53,12 @@ describe('product manager handoff template snapshots', () => {
     'product manager report to %s %s includes the report sections in order and routing',
     (teamId, entryPoint) => {
       const template = renderPair({ teamId, fromRole: 'product-manager', toRole: entryPoint });
+      // Match section headings as whole lines: section bodies may reference another heading name inline.
+      const headingLines = template.split('\n').filter((line) => line.startsWith('## '));
 
       let previousIndex = -1;
       for (const heading of reportHeadings) {
-        const index = template.indexOf(heading);
+        const index = headingLines.indexOf(heading);
         expect(index).toBeGreaterThan(previousIndex);
         previousIndex = index;
       }
@@ -63,6 +66,28 @@ describe('product manager handoff template snapshots', () => {
       expect(template).toContain(`next-role="${entryPoint}"`);
     }
   );
+
+  test.each([
+    ['duo', 'planner'],
+    ['solo', 'solo'],
+    ['trio', 'coordinator'],
+  ] as const)('%s %s report reserves open questions for escalation items', (teamId, entryPoint) => {
+    const template = renderPair({ teamId, fromRole: 'product-manager', toRole: entryPoint });
+    const openQuestions = template.slice(template.indexOf('## Open questions for the user'));
+
+    expect(template).toContain('## Product decisions made');
+    expect(template).toContain('development-scope product decision');
+    expect(template).toContain(
+      'return non-development product questions (copy, pricing, opinions, general product talk)'
+    );
+    expect(template).not.toContain('product defaults');
+    expect(template).toContain('the recommended default you chose, and a one-line rationale');
+    expect(openQuestions).toContain('only items that meet the escalation criteria');
+    expect(openQuestions).toContain('(b) the decision involves deletion, data loss');
+    expect(openQuestions).toContain('`None observed.`');
+    expect(template).not.toContain('mark each conflict as a decision for the user');
+    expect(template).not.toContain('List open questions instead of guessing');
+  });
 
   test.each([
     ['duo', 'planner'],

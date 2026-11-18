@@ -25,10 +25,10 @@ ${handoffCommand({
 export function getProductManagerToEntryPointHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.toRole;
 
-  return `Instructions (not part of the message): Return a complete product specification for the authoritative feature request. The product manager is advisory and read-only: do not edit files, build, or implement. Base every consistency claim on the existing app behavior you inspected, citing concrete repository paths and symbols, docs, or decision records under \`memory/\`. List open questions instead of guessing them. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section.
+  return `Instructions (not part of the message): Return a complete product specification for the authoritative feature request. The product manager is advisory and read-only: do not edit files, build, or implement. Base every consistency claim on the existing app behavior you inspected, citing concrete repository paths and symbols, docs, or decision records under \`memory/\`. Decide every development-scope product decision yourself with a recommended default and rationale; return non-development product questions (copy, pricing, opinions, general product talk) to \`${entryPoint}\` in \`## Summary\`; list a question for the user only if it meets the escalation criteria. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section.
 
 ## Summary
-<state the feature, the recommended scope in two to four sentences, and whether any open question blocks planning>
+<state the feature, the recommended scope in two to four sentences, and whether any escalation item blocks planning>
 
 ## Problem statement
 <the problem the user is trying to solve, who is affected, and the outcome they want, recovered from the request and relevant history>
@@ -43,13 +43,16 @@ export function getProductManagerToEntryPointHandoffTemplate(query: HandoffTempl
 <each excluded or deferred item with a one-line reason; write exactly \`None observed.\` if nothing is excluded>
 
 ## Consistency with existing functionality
-<the existing capabilities the feature must stay consistent with, with concrete paths and symbols as evidence; where the feature extends or conflicts with existing behavior, say so and mark each conflict as a decision for the user; the gaps the feature would leave if the proposed scope is not accepted>
+<the existing capabilities the feature must stay consistent with, with concrete paths and symbols as evidence; where the feature extends or conflicts with existing behavior, say so and record each conflict as a product decision under \`## Product decisions made\`; the gaps the feature would leave if the proposed scope is not accepted>
 
 ## UI and UX review
 <if the feature has any UI surface (a new screen, panel, flow, interaction, or visible state), state that \`${entryPoint}\` must get a \`uiux-engineer\` design before any UI work on this feature, and name each surface; do not design layout yourself. If the feature has no UI surface, write exactly \`No UI surface: no uiux-engineer design needed.\`>
 
+## Product decisions made
+<one \`###\` per development-scope product decision you made (scope, user stories, in and out of scope, consistency with existing behavior), each with the options considered, the recommended default you chose, and a one-line rationale; write exactly \`None observed.\` if you made none>
+
 ## Open questions for the user
-<each open question with the options, the consequence of each, and a recommended default; write exactly \`None observed.\` if none remain>
+<only items that meet the escalation criteria: (a) the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. For each, give the options, the consequence of each, and a recommended default. Do not list ordinary product choices here: decide them under \`## Product decisions made\`. Write exactly \`None observed.\` if no item meets the criteria>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 
