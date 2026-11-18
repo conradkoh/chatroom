@@ -5,6 +5,7 @@
  * Phase 7: Migrated to Effect-TS services with typed error handling.
  */
 
+import type { FunctionReturnType } from 'convex/server';
 import { ConvexError } from 'convex/values';
 import type { Layer } from 'effect';
 import { Effect } from 'effect';
@@ -21,6 +22,8 @@ import {
   requireSessionIdEffect,
   validateChatroomIdEffect,
 } from '../../infrastructure/services/index.js';
+import { getConvexErrorCode } from '../../utils/convex-error.js';
+import { sanitizeForTerminal } from '../../utils/terminal-safety.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -40,8 +43,13 @@ export interface TelegramSendMessageOptions {
 export type SendMessageError =
   | { readonly _tag: 'NotAuthenticated'; readonly convexUrl: string; readonly otherUrls: string[] }
   | { readonly _tag: 'InvalidChatroomId'; readonly id: string }
+  | { readonly _tag: 'InvalidIntegrationId'; readonly id: string; readonly chatroomId: string }
   | { readonly _tag: 'EmptyMessage' }
-  | { readonly _tag: 'ActionFailed'; readonly cause: Error };
+  | { readonly _tag: 'ActionFailed'; readonly cause: Error; readonly chatroomId: string };
+
+type SendTelegramMessageActionResult = FunctionReturnType<
+  typeof api.integrations.telegram.actions.sendMessage
+>;
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
@@ -89,7 +97,7 @@ export const sendMessageEffect = (
 ): Effect.Effect<void, SendMessageError, BackendService | SessionService> =>
   Effect.gen(function* () {
     const backend = yield* BackendService;
-    const { chatroomId, message, role } = options;
+    const { chatroomId, integrationId, message, role } = options;
 
     const sessionId = yield* requireSessionIdEffect((a) => ({
       _tag: 'NotAuthenticated' as const,
@@ -102,6 +110,15 @@ export const sendMessageEffect = (
       id,
     }));
 
+    // Reject malformed integration IDs before contacting the backend.
+    if (!/^[a-z0-9]{20,40}$/.test(integrationId)) {
+      return yield* Effect.fail<SendMessageError>({
+        _tag: 'InvalidIntegrationId',
+        id: integrationId,
+        chatroomId,
+      });
+    }
+
     // Validate message is not empty
     if (!message || message.trim().length === 0) {
       return yield* Effect.fail<SendMessageError>({ _tag: 'EmptyMessage' });
@@ -109,22 +126,34 @@ export const sendMessageEffect = (
 
     const senderRole = role || 'user';
 
-    // Send message via action
+    // Send message to exactly one integration via the action
     const result = yield* backend
-      .action<{ success?: boolean | undefined }>(api.integrations.telegram.actions.sendMessage, {
+      .action<SendTelegramMessageActionResult>(api.integrations.telegram.actions.sendMessage, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        integrationId: integrationId as Id<'chatroom_integrations'>,
         message,
         senderRole,
       })
-      .pipe(Effect.mapError((cause): SendMessageError => ({ _tag: 'ActionFailed', cause })));
+      .pipe(
+        Effect.mapError((cause): SendMessageError => ({ _tag: 'ActionFailed', cause, chatroomId }))
+      );
 
-    // Display success
+    if (result?.success !== true) {
+      return yield* Effect.fail<SendMessageError>({
+        _tag: 'ActionFailed',
+        cause: new Error(
+          'Unexpected response from backend; the message may not have been delivered'
+        ),
+        chatroomId,
+      });
+    }
+
+    // Display success — only reachable after the backend confirms delivery.
     yield* Effect.sync(() => {
-      if (result?.success) {
-        console.log('✅ Message sent to Telegram');
-        console.log(`📨 "${message}"`);
-      }
+      console.log('✅ Message sent to Telegram');
+      console.log(`   Integration: ${integrationId}`);
+      console.log(`📨 "${message}"`);
     });
   });
 
@@ -156,10 +185,16 @@ function handleSendMessageError(err: SendMessageError): Effect.Effect<void> {
         `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${err.id?.length || 0})`
       );
       process.exit(1);
+    } else if (err._tag === 'InvalidIntegrationId') {
+      console.error(`❌ Invalid integration ID format: ${sanitizeForTerminal(err.id)}`);
+      console.error(
+        `💡 Find it with: chatroom integrations list --chatroom-id=${sanitizeForTerminal(err.chatroomId)} --platform=telegram`
+      );
+      process.exit(1);
     } else if (err._tag === 'EmptyMessage') {
       console.error('❌ Message cannot be empty');
       console.error(
-        '   Provide a message via --message flag\n   Example: chatroom telegram send-message --chatroom-id=<id> --integration-id=<id> --message="Hello"'
+        '   Provide a message via --message flag\n   Example: chatroom telegram send-message --chatroom-id=<id> --integration-id=<id> --message="Hello"\n   (--integration-id comes from: chatroom integrations list --chatroom-id=<id>)'
       );
       process.exit(1);
     } else if (err._tag === 'ActionFailed') {
@@ -171,6 +206,12 @@ function handleSendMessageError(err: SendMessageError): Effect.Effect<void> {
           message?: string | undefined;
         };
         console.error(`\n${errorData.message || 'An unexpected error occurred'}`);
+
+        if (getConvexErrorCode(err.cause) === 'INTEGRATION_NOT_FOUND') {
+          console.error(
+            `💡 Find it with: chatroom integrations list --chatroom-id=${sanitizeForTerminal(err.chatroomId)} --platform=telegram`
+          );
+        }
 
         if (process.env.CHATROOM_DEBUG === 'true') {
           console.error('\n🔍 Debug Info:');

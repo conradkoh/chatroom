@@ -1279,9 +1279,12 @@ telegramCommand
   .command('send-message')
   .description('Send a message to a connected Telegram integration')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--integration-id <id>', 'Telegram integration ID')
+  .requiredOption(
+    '--integration-id <id>',
+    'Telegram integration ID (find it with: chatroom integrations list --chatroom-id=<id> --platform=telegram)'
+  )
   .requiredOption('--message <text>', 'Message to send')
-  .option('--role <role>', 'Sender role label (default: user)')
+  .option('--role <role>', 'Sender role label shown as [role] (default: user)')
   .action(
     async (options: {
       chatroomId: string;
