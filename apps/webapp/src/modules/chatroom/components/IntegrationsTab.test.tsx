@@ -315,6 +315,7 @@ describe('IntegrationsTab', () => {
 
       expect(mocks.sendMessage).toHaveBeenCalledWith({
         chatroomId: 'room-1',
+        integrationId: 'integ-1',
         message: 'hello there',
         senderRole: 'user',
       });
@@ -361,6 +362,7 @@ describe('IntegrationsTab', () => {
       await waitFor(() => {
         expect(mocks.sendMessage).toHaveBeenCalledWith({
           chatroomId: 'room-1',
+          integrationId: 'integ-1',
           message: 'enter message',
           senderRole: 'user',
         });

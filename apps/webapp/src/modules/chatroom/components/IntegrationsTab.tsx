@@ -246,6 +246,7 @@ const IntegrationCard = memo(function IntegrationCard({
     try {
       await sendMessage({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        integrationId: integration._id,
         message: testMessage.trim(),
         senderRole: 'user',
       });
@@ -260,7 +261,7 @@ const IntegrationCard = memo(function IntegrationCard({
     } finally {
       setIsSending(false);
     }
-  }, [chatroomId, testMessage, sendMessage]);
+  }, [chatroomId, integration._id, testMessage, sendMessage]);
 
   const PlatformIcon = integration.platform === 'telegram' ? FaTelegram : MessageSquare;
   const platformName = integration.platform === 'telegram' ? 'Telegram' : integration.platform;
