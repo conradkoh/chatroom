@@ -1270,6 +1270,35 @@ registerChatroomRoleCommand(program, {
 });
 
 // ============================================================================
+// INTEGRATIONS COMMANDS (auth required)
+// ============================================================================
+
+const integrationsCommand = program
+  .command('integrations')
+  .description('Chat platform integrations for a chatroom (read-only)');
+
+integrationsCommand
+  .command('list')
+  .description(
+    "List a chatroom's integrations (ID, platform, name, description, status, chat ID). Never prints secrets."
+  )
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .option('--platform <platform>', 'Only show integrations for this platform (e.g. telegram)')
+  .option('--format <format>', 'Output format: text or json', 'text')
+  .action(async (options: { chatroomId: string; platform?: string; format: string }) => {
+    if (options.format !== 'text' && options.format !== 'json') {
+      throw new Error('--format must be text or json');
+    }
+    await maybeRequireAuth();
+    const { listIntegrations } = await import('./commands/integrations/index.js');
+    await listIntegrations({
+      chatroomId: options.chatroomId,
+      platform: options.platform,
+      format: options.format,
+    });
+  });
+
+// ============================================================================
 // TELEGRAM COMMANDS (auth required)
 // ============================================================================
 
