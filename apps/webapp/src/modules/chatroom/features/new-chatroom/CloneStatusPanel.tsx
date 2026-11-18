@@ -82,7 +82,7 @@ function FailedPanel({
       {detail && (
         <details className="text-xs text-chatroom-text-muted">
           <summary className="cursor-pointer">Details</summary>
-          <pre className="mt-2 whitespace-pre-wrap font-mono">{detail}</pre>
+          <pre className="mt-2 whitespace-pre-wrap break-words font-mono">{detail}</pre>
         </details>
       )}
       <RetryButton onRetry={onRetry} />
