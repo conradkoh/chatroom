@@ -31,10 +31,22 @@ import {
 } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 import { FaTelegram } from 'react-icons/fa';
+import { toast } from 'sonner';
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 
 type IntegrationListItem = FunctionReturnType<typeof api.integrations.list>[number];
 
@@ -73,20 +85,19 @@ export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: Int
   const hasIntegrations = integrations && integrations.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-chatroom-text-muted">
-            Connect external chat platforms to this chatroom.
-          </p>
-        </div>
-        {hasIntegrations && !showWizard && (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="min-w-0 text-xs leading-relaxed text-chatroom-text-secondary">
+          Connect external chat platforms to this chatroom.
+        </p>
+        {hasIntegrations && (
           <Button
             variant="outline"
             size="sm"
+            disabled={showWizard}
             onClick={() => setShowWizard(true)}
-            className="text-xs gap-1.5"
+            className="w-full gap-1.5 text-xs sm:w-auto sm:shrink-0"
           >
             <Plus size={14} />
             Add Integration
@@ -103,6 +114,14 @@ export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: Int
         />
       )}
 
+      {/* Loading */}
+      {integrations === undefined && (
+        <Skeleton
+          data-testid="integrations-loading"
+          className="h-[104px] w-full rounded-none sm:h-[72px]"
+        />
+      )}
+
       {/* Integration List */}
       {hasIntegrations && (
         <div className="space-y-3">
@@ -111,13 +130,16 @@ export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: Int
               key={integration._id}
               integration={integration}
               chatroomId={chatroomId}
+              isHighlighted={false}
             />
           ))}
         </div>
       )}
 
       {/* Empty State */}
-      {!hasIntegrations && !showWizard && <EmptyState onAdd={() => setShowWizard(true)} />}
+      {integrations !== undefined && !hasIntegrations && !showWizard && (
+        <EmptyState onAdd={() => setShowWizard(true)} />
+      )}
     </div>
   );
 });
@@ -133,7 +155,7 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
       <h3 className="text-sm font-bold text-chatroom-text-primary mb-1">
         No integrations configured
       </h3>
-      <p className="text-xs text-chatroom-text-muted mb-6 max-w-xs">
+      <p className="text-xs text-chatroom-text-secondary mb-6 max-w-xs">
         Connect Telegram or other platforms to receive and send messages directly in this chatroom.
       </p>
       <Button variant="outline" size="sm" onClick={onAdd} className="text-xs gap-1.5">
@@ -149,9 +171,11 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
 const IntegrationCard = memo(function IntegrationCard({
   integration,
   chatroomId,
+  isHighlighted,
 }: {
   integration: IntegrationListItem;
   chatroomId: string;
+  isHighlighted: boolean;
 }) {
   const updateIntegration = useSessionMutation(api.integrations.update);
   const removeIntegration = useSessionMutation(api.integrations.remove);
@@ -159,6 +183,7 @@ const IntegrationCard = memo(function IntegrationCard({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showTestDialog, setShowTestDialog] = useState(false);
   const [testMessage, setTestMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -172,18 +197,25 @@ const IntegrationCard = memo(function IntegrationCard({
         integrationId: integration._id,
         enabled: !integration.enabled,
       });
+    } catch (err) {
+      toast.error(integrationErrorMessage(err));
     } finally {
       setIsToggling(false);
     }
   }, [integration._id, integration.enabled, updateIntegration]);
 
   const handleDelete = useCallback(async () => {
+    setDeleteError(null);
     setIsDeleting(true);
     try {
       await removeIntegration({ integrationId: integration._id });
+      setShowDeleteConfirm(false);
+    } catch (err) {
+      const message = integrationErrorMessage(err);
+      setDeleteError(message);
+      toast.error(message);
     } finally {
       setIsDeleting(false);
-      setShowDeleteConfirm(false);
     }
   }, [integration._id, removeIntegration]);
 
@@ -217,22 +249,35 @@ const IntegrationCard = memo(function IntegrationCard({
   const platformName = integration.platform === 'telegram' ? 'Telegram' : integration.platform;
 
   return (
-    <div className="border border-chatroom-border rounded-none p-4 bg-chatroom-bg-secondary">
-      <div className="flex items-center justify-between">
-        {/* Left: Platform info */}
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-none bg-chatroom-bg-tertiary flex items-center justify-center shrink-0">
-            <PlatformIcon size={20} className="text-chatroom-text-muted" />
+    <div
+      className={cn(
+        'border bg-chatroom-bg-secondary transition-colors',
+        isHighlighted
+          ? 'border-chatroom-status-success/40 bg-chatroom-status-success/5'
+          : 'border-chatroom-border'
+      )}
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center">
+        {/* Identity */}
+        <div className="flex min-w-0 items-center gap-3 p-4 sm:flex-1">
+          <div
+            className={cn(
+              'flex size-10 shrink-0 items-center justify-center rounded-none bg-chatroom-bg-tertiary',
+              !integration.enabled && 'opacity-60'
+            )}
+          >
+            <PlatformIcon size={20} className="text-chatroom-text-secondary" />
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-sm font-bold text-chatroom-text-primary">{platformName}</span>
               <span
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-none px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
                   integration.enabled
-                    ? 'bg-green-500/10 text-green-500 dark:bg-green-500/20 dark:text-green-400'
+                    ? 'bg-chatroom-status-success/10 text-chatroom-status-success'
                     : 'bg-chatroom-bg-tertiary text-chatroom-text-muted'
-                }`}
+                )}
               >
                 {integration.enabled ? (
                   <>
@@ -248,128 +293,140 @@ const IntegrationCard = memo(function IntegrationCard({
               </span>
             </div>
             {integration.config?.chatId && (
-              <span className="text-[11px] text-chatroom-text-muted font-mono">
+              <p className="mt-1 truncate font-mono text-[11px] text-chatroom-text-secondary">
                 Chat ID: {integration.config.chatId}
-              </span>
+              </p>
             )}
           </div>
         </div>
 
-        {/* Right: Controls */}
-        <div className="flex items-center gap-3 shrink-0">
-          <Switch
-            checked={integration.enabled}
-            onCheckedChange={handleToggle}
-            disabled={isToggling}
-          />
-          {showDeleteConfirm ? (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="destructive"
-                size="sm"
-                className="text-xs h-7 px-2 font-bold uppercase tracking-wider"
-                onClick={handleDelete}
-                disabled={isDeleting}
-              >
-                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="text-xs h-7 px-2"
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowTestDialog(true)}
-                disabled={!integration.enabled}
-                className="text-chatroom-text-muted hover:text-chatroom-accent h-7 px-2 text-xs gap-1"
-              >
-                <Send size={12} />
-                Test
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 h-7 w-7 p-0"
-              >
-                <Trash2 size={14} />
-              </Button>
-            </div>
-          )}
+        {/* Controls */}
+        <div className="flex items-center justify-between gap-3 border-t border-chatroom-border px-4 py-2 sm:justify-end sm:gap-4 sm:border-t-0 sm:py-0 sm:pl-0 sm:pr-4">
+          <label className="flex items-center gap-2 text-xs text-chatroom-text-secondary">
+            <Switch
+              checked={integration.enabled}
+              onCheckedChange={handleToggle}
+              disabled={isToggling}
+            />
+            Enabled
+          </label>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!integration.enabled}
+              onClick={() => setShowTestDialog(true)}
+              className="gap-1.5 text-xs"
+            >
+              <Send size={12} />
+              Test
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                setDeleteError(null);
+                setShowDeleteConfirm(true);
+              }}
+              className="text-chatroom-text-muted hover:text-chatroom-status-error"
+            >
+              <Trash2 size={14} />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Test Message Dialog */}
       {showTestDialog && (
-        <div className="mt-3 pt-3 border-t border-chatroom-border">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-chatroom-text-primary">
-                Send Test Message
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowTestDialog(false);
-                  setTestError(null);
-                  setTestSuccess(false);
-                  setTestMessage('');
-                }}
-                className="h-6 w-6 p-0 text-chatroom-text-muted"
-              >
-                <X size={12} />
-              </Button>
-            </div>
-
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                placeholder="Type a test message..."
-                value={testMessage}
-                onChange={(e) => {
-                  setTestMessage(e.target.value);
-                  setTestError(null);
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendTestMessage()}
-                disabled={isSending || testSuccess}
-                className="text-xs bg-chatroom-bg-primary border-chatroom-border flex-1"
-              />
-              <Button
-                size="sm"
-                onClick={handleSendTestMessage}
-                disabled={isSending || !testMessage.trim() || testSuccess}
-                className="text-xs gap-1.5 h-9"
-              >
-                {isSending ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : testSuccess ? (
-                  <Check size={12} className="text-green-500" />
-                ) : (
-                  <Send size={12} />
-                )}
-                {isSending ? 'Sending...' : testSuccess ? 'Sent!' : 'Send'}
-              </Button>
-            </div>
-
-            {testError && <p className="text-xs text-red-500 dark:text-red-400">{testError}</p>}
-
-            {testSuccess && (
-              <p className="text-xs text-green-500 dark:text-green-400">
-                ✅ Message sent to Telegram!
-              </p>
-            )}
+        <div className="space-y-3 border-t border-chatroom-border bg-chatroom-bg-primary/50 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
+              Send Test Message
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowTestDialog(false);
+                setTestError(null);
+                setTestSuccess(false);
+                setTestMessage('');
+              }}
+              className="h-6 w-6 p-0 text-chatroom-text-muted"
+            >
+              <X size={12} />
+            </Button>
           </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              type="text"
+              placeholder="Type a test message..."
+              value={testMessage}
+              onChange={(e) => {
+                setTestMessage(e.target.value);
+                setTestError(null);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendTestMessage()}
+              disabled={isSending || testSuccess}
+              className="flex-1 border-chatroom-border bg-chatroom-bg-primary text-xs"
+            />
+            <Button
+              size="sm"
+              onClick={handleSendTestMessage}
+              disabled={isSending || !testMessage.trim() || testSuccess}
+              className="w-full gap-1.5 text-xs sm:w-auto"
+            >
+              {isSending ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : testSuccess ? (
+                <Check size={12} className="text-chatroom-status-success" />
+              ) : (
+                <Send size={12} />
+              )}
+              {isSending ? 'Sending...' : testSuccess ? 'Sent!' : 'Send'}
+            </Button>
+          </div>
+
+          {testError && <p className="text-xs text-chatroom-status-error">{testError}</p>}
+
+          {testSuccess && (
+            <p className="text-xs text-chatroom-status-success">✅ Message sent to Telegram!</p>
+          )}
         </div>
       )}
+
+      <AlertDialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => {
+          if (!isDeleting) setShowDeleteConfirm(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {platformName} integration?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Messages will stop being sent
+              {integration.config?.chatId ? ` to chat ${integration.config.chatId}` : ''}. The saved
+              bot token and chat ID are deleted. You can reconnect at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && <p className="text-xs text-chatroom-status-error">{deleteError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            {/* A plain Button, not AlertDialogAction: the dialog must stay open while
+                the delete mutation runs so failures can be retried in place. */}
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="gap-1.5 font-bold uppercase tracking-wider"
+            >
+              {isDeleting ? <Loader2 size={12} className="animate-spin" /> : null}Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });
@@ -443,7 +500,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
   }, [botToken, chatId, chatroomId, createIntegration]);
 
   return (
-    <div className="border border-chatroom-border rounded-none bg-chatroom-bg-secondary overflow-hidden">
+    <div className="border border-chatroom-border bg-chatroom-bg-secondary overflow-hidden">
       {/* Wizard Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-tertiary/50">
         <div className="flex items-center gap-2">
@@ -502,9 +559,10 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                   setError(null);
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && handleValidate()}
+                disabled={isValidating}
                 className="font-mono text-xs bg-chatroom-bg-primary border-chatroom-border"
               />
-              {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
+              {error && <p className="text-xs text-chatroom-status-error">{error}</p>}
             </div>
 
             <div className="flex justify-end">
@@ -586,9 +644,10 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                     setStep('confirm');
                   }
                 }}
+                disabled={isConnecting}
                 className="font-mono text-xs bg-chatroom-bg-primary border-chatroom-border"
               />
-              {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
+              {error && <p className="text-xs text-chatroom-status-error">{error}</p>}
             </div>
 
             <div className="flex items-center justify-between">
@@ -599,6 +658,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                   setStep('enter-token');
                   setError(null);
                 }}
+                disabled={isConnecting}
                 className="text-xs"
               >
                 Back
@@ -624,9 +684,9 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
         {/* Step: Confirm Bot */}
         {step === 'confirm' && botInfo && (
           <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 rounded-none bg-green-500/5 dark:bg-green-500/10 border border-green-500/20">
-              <div className="w-10 h-10 rounded-none bg-green-500/20 flex items-center justify-center">
-                <Bot size={20} className="text-green-500 dark:text-green-400" />
+            <div className="flex items-center gap-3 p-3 rounded-none bg-chatroom-status-success/10 border border-chatroom-status-success/20">
+              <div className="w-10 h-10 rounded-none bg-chatroom-status-success/20 flex items-center justify-center">
+                <Bot size={20} className="text-chatroom-status-success" />
               </div>
               <div>
                 <p className="text-sm font-bold text-chatroom-text-primary">{botInfo.botName}</p>
@@ -634,7 +694,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                   <p className="text-xs text-chatroom-text-muted">@{botInfo.botUsername}</p>
                 )}
               </div>
-              <Check size={16} className="ml-auto text-green-500 dark:text-green-400" />
+              <Check size={16} className="ml-auto text-chatroom-status-success" />
             </div>
 
             {chatId.trim() && (
@@ -646,7 +706,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
               </div>
             )}
 
-            {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
+            {error && <p className="text-xs text-chatroom-status-error">{error}</p>}
 
             <div className="flex items-center justify-between">
               <Button
@@ -656,6 +716,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                   setStep('enter-chat-id');
                   setError(null);
                 }}
+                disabled={isConnecting}
                 className="text-xs"
               >
                 Back
@@ -685,8 +746,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
         {/* Step: Done */}
         {step === 'done' && (
           <div className="space-y-4 text-center py-4">
-            <div className="w-12 h-12 rounded-none bg-green-500/20 flex items-center justify-center mx-auto">
-              <Check size={24} className="text-green-500 dark:text-green-400" />
+            <div className="w-12 h-12 rounded-none bg-chatroom-status-success/20 flex items-center justify-center mx-auto">
+              <Check size={24} className="text-chatroom-status-success" />
             </div>
             <div>
               <p className="text-sm font-bold text-chatroom-text-primary">Telegram connected!</p>
