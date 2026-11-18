@@ -27,9 +27,25 @@ describe('product-manager guidance snapshots', () => {
     expect(guidance).toContain('beginning with the `## Summary` section');
     expect(guidance).toContain('existing app behavior');
     expect(guidance).toContain('out of scope');
-    expect(guidance).toContain('open question');
+    expect(guidance).toContain('escalation criteria');
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
     expect(guidance).not.toContain('{SESSION_CONTINUITY}');
+  });
+
+  test('decides product decisions itself and escalates only under the criteria', () => {
+    const guidance = getProductManagerGuidance({
+      nativeIntegration: false,
+      recipientRole: 'planner',
+    });
+
+    expect(guidance).toContain('Decide each product decision yourself');
+    expect(guidance).toContain('a recommended default and a one-line rationale');
+    expect(guidance).toContain('List to the user only items that meet the escalation criteria');
+    expect(guidance).toContain('(a) **ambiguous or insufficient request:**');
+    expect(guidance).toContain('(b) **destructive risk:**');
+    expect(guidance).not.toContain('belong to the user');
+    expect(guidance).not.toContain('List every open question for the user');
+    expect(guidance).not.toContain('instead of guessing');
   });
 
   test('role dispatch renders the operating model for product-manager', () => {
