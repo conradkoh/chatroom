@@ -98,7 +98,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
 
   if (showCreateForm) {
     return (
-      <div className="chatroom-root flex min-h-dvh items-start justify-center bg-chatroom-bg-primary text-chatroom-text-primary sm:p-6 sm:pt-12">
+      <div className="chatroom-root flex min-h-0 flex-1 justify-center bg-chatroom-bg-primary text-chatroom-text-primary sm:items-start sm:p-6 sm:pt-12">
         <NewChatroomWizard onCreated={onSelect} onCancel={handleCancelCreateForm} />
       </div>
     );
