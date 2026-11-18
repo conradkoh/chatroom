@@ -18,6 +18,7 @@ import {
   Database,
   FileText,
   Paperclip,
+  ChevronDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from 'react';
@@ -1019,11 +1020,16 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
             trigger={
               <button
                 type="button"
-                className="w-full text-xs bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none flex h-8 items-center justify-between gap-2 px-3 py-2"
+                data-testid="settings-mobile-tab-trigger"
+                className="flex h-9 w-full items-center gap-2 rounded-none border border-chatroom-border bg-chatroom-bg-surface px-3 text-xs font-bold uppercase tracking-wide text-chatroom-text-primary hover:bg-chatroom-bg-hover focus:outline-none focus:ring-0"
               >
-                <span className="truncate text-left flex-1">
+                <span className="shrink-0 text-chatroom-text-muted">
+                  {TAB_CONFIG.find((t) => t.id === activeTab)?.icon}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-left">
                   {TAB_CONFIG.find((t) => t.id === activeTab)?.label ?? 'Select tab'}
                 </span>
+                <ChevronDown size={14} className="shrink-0 text-chatroom-text-muted" />
               </button>
             }
           >
@@ -1044,7 +1050,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           </ResponsivePickerShell>
         </div>
 
-        <FixedModalBody className="p-6">
+        <FixedModalBody className="p-4 sm:p-6">
           {activeTab === 'setup' && (
             <SetupContent chatroomId={chatroomId} onArchiveComplete={onClose} />
           )}
