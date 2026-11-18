@@ -29,7 +29,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
 import { FaTelegram } from 'react-icons/fa';
 import { toast } from 'sonner';
 
@@ -71,7 +71,7 @@ interface BotInfo {
   botUsername: string | null;
 }
 
-type WizardStep = 'select-platform' | 'enter-token' | 'enter-chat-id' | 'confirm' | 'done';
+type WizardStep = 'enter-token' | 'enter-chat-id' | 'confirm';
 
 // ─── Main Component ─────────────────────────────────────────────────────
 
@@ -81,8 +81,25 @@ export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: Int
   });
 
   const [showWizard, setShowWizard] = useState(false);
+  const [highlightId, setHighlightId] = useState<Id<'chatroom_integrations'> | null>(null);
 
   const hasIntegrations = integrations && integrations.length > 0;
+
+  // On connect the wizard unmounts; the toast and a short-lived row highlight
+  // replace the old "done" step's job of confirming what just happened.
+  const handleConnected = useCallback((integrationId: Id<'chatroom_integrations'>) => {
+    setShowWizard(false);
+    setHighlightId(integrationId);
+    toast.success('Telegram connected', {
+      description: 'Use Test on the new row to send a message.',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const timer = setTimeout(() => setHighlightId(null), 4000);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -109,7 +126,7 @@ export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: Int
       {showWizard && (
         <TelegramSetupWizard
           chatroomId={chatroomId}
-          onComplete={() => setShowWizard(false)}
+          onConnected={handleConnected}
           onCancel={() => setShowWizard(false)}
         />
       )}
@@ -130,7 +147,7 @@ export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: Int
               key={integration._id}
               integration={integration}
               chatroomId={chatroomId}
-              isHighlighted={false}
+              isHighlighted={integration._id === highlightId}
             />
           ))}
         </div>
@@ -435,11 +452,11 @@ const IntegrationCard = memo(function IntegrationCard({
 
 const TelegramSetupWizard = memo(function TelegramSetupWizard({
   chatroomId,
-  onComplete,
+  onConnected,
   onCancel,
 }: {
   chatroomId: string;
-  onComplete: () => void;
+  onConnected: (integrationId: Id<'chatroom_integrations'>) => void;
   onCancel: () => void;
 }) {
   const [step, setStep] = useState<WizardStep>('enter-token');
@@ -481,7 +498,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
 
     try {
       // Create the integration record (webhook not needed for output-only)
-      await createIntegration({
+      const integrationId = await createIntegration({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         platform: 'telegram',
         config: {
@@ -491,13 +508,13 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
         enabled: true,
       });
 
-      setStep('done');
+      onConnected(integrationId);
     } catch (err: unknown) {
       setError(integrationErrorMessage(err));
     } finally {
       setIsConnecting(false);
     }
-  }, [botToken, chatId, chatroomId, createIntegration]);
+  }, [botToken, chatId, chatroomId, createIntegration, onConnected]);
 
   return (
     <div className="border border-chatroom-border bg-chatroom-bg-secondary overflow-hidden">
@@ -740,24 +757,6 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
                 )}
               </Button>
             </div>
-          </div>
-        )}
-
-        {/* Step: Done */}
-        {step === 'done' && (
-          <div className="space-y-4 text-center py-4">
-            <div className="w-12 h-12 rounded-none bg-chatroom-status-success/20 flex items-center justify-center mx-auto">
-              <Check size={24} className="text-chatroom-status-success" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-chatroom-text-primary">Telegram connected!</p>
-              <p className="text-xs text-chatroom-text-muted mt-1">
-                Your Telegram bot is connected. Use the &quot;Test&quot; button to send messages.
-              </p>
-            </div>
-            <Button size="sm" onClick={onComplete} className="text-xs">
-              Done
-            </Button>
           </div>
         )}
       </div>
