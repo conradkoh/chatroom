@@ -39,6 +39,8 @@ export const list = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     const integrations = await ctx.db
       .query('chatroom_integrations')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -65,6 +67,9 @@ export const get = query({
         message: 'Integration not found',
       });
     }
+
+    await requireChatroomAccess(ctx, args.sessionId, integration.chatroomId);
+
     return redactIntegration(integration);
   },
 });

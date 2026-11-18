@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
@@ -6,6 +7,16 @@ import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Assert a promise rejects with a ConvexError carrying the expected `code`. */
+async function expectConvexErrorCode(promise: Promise<unknown>, code: string): Promise<void> {
+  const error = await promise.then(
+    () => null,
+    (reason: unknown) => reason
+  );
+  expect(error).toBeInstanceOf(ConvexError);
+  expect((error as ConvexError).data).toMatchObject({ code });
+}
 
 async function createTestSession(id: string): Promise<SessionId> {
   const login = await t.mutation(api.auth.loginAnon, {
@@ -221,6 +232,31 @@ describe('integrations CRUD', () => {
       expect(integrations).toHaveLength(1);
       expect(integrations[0].config.webhookSecret).toBeUndefined();
     });
+
+    test("rejects another user's chatroom with ACCESS_DENIED and returns no data", async () => {
+      const ownerSession = await createTestSession('int-list-owner-access');
+      const attackerSession = await createTestSession('int-list-attacker');
+      const chatroomId = await createChatroom(ownerSession);
+      await createIntegration(ownerSession, chatroomId);
+
+      await expectConvexErrorCode(
+        t.query(api.integrations.list, { sessionId: attackerSession, chatroomId }),
+        'ACCESS_DENIED'
+      );
+    });
+
+    test('rejects a never-logged-in session with AUTH_FAILED', async () => {
+      const ownerSession = await createTestSession('int-list-owner-auth');
+      const chatroomId = await createChatroom(ownerSession);
+
+      await expectConvexErrorCode(
+        t.query(api.integrations.list, {
+          sessionId: 'never-logged-in-session' as SessionId,
+          chatroomId,
+        }),
+        'AUTH_FAILED'
+      );
+    });
   });
 
   // ─── Get ────────────────────────────────────────────────────────────
@@ -256,6 +292,45 @@ describe('integrations CRUD', () => {
           integrationId: 'invalid_id_that_doesnt_exist' as Id<'chatroom_integrations'>,
         })
       ).rejects.toThrow();
+    });
+
+    test('throws NOT_FOUND for a deleted integration', async () => {
+      const sessionId = await createTestSession('int-get-deleted');
+      const chatroomId = await createChatroom(sessionId);
+      const integrationId = await createIntegration(sessionId, chatroomId);
+
+      await t.mutation(api.integrations.remove, { sessionId, integrationId });
+
+      await expectConvexErrorCode(
+        t.query(api.integrations.get, { sessionId, integrationId }),
+        'NOT_FOUND'
+      );
+    });
+
+    test("rejects another user's integration with ACCESS_DENIED and returns no data", async () => {
+      const ownerSession = await createTestSession('int-get-owner-access');
+      const attackerSession = await createTestSession('int-get-attacker');
+      const chatroomId = await createChatroom(ownerSession);
+      const integrationId = await createIntegration(ownerSession, chatroomId);
+
+      await expectConvexErrorCode(
+        t.query(api.integrations.get, { sessionId: attackerSession, integrationId }),
+        'ACCESS_DENIED'
+      );
+    });
+
+    test('rejects a never-logged-in session with AUTH_FAILED', async () => {
+      const ownerSession = await createTestSession('int-get-owner-auth');
+      const chatroomId = await createChatroom(ownerSession);
+      const integrationId = await createIntegration(ownerSession, chatroomId);
+
+      await expectConvexErrorCode(
+        t.query(api.integrations.get, {
+          sessionId: 'never-logged-in-session' as SessionId,
+          integrationId,
+        }),
+        'AUTH_FAILED'
+      );
     });
   });
 });
