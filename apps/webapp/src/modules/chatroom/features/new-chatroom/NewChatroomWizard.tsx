@@ -261,7 +261,7 @@ export function NewChatroomWizard({ onCreated, onCancel }: NewChatroomWizardProp
   }, [clearError]);
 
   return (
-    <div className="flex h-dvh w-full flex-col bg-chatroom-bg-surface backdrop-blur-xl sm:h-[min(40rem,calc(100dvh-6rem))] sm:max-w-2xl sm:border-2 sm:border-chatroom-border-strong">
+    <div className="flex w-full flex-col bg-chatroom-bg-surface backdrop-blur-xl sm:h-[min(40rem,100%)] sm:max-w-2xl sm:border-2 sm:border-chatroom-border-strong">
       <WizardHeader step={step} />
       <div className="flex min-h-0 flex-1 flex-col">
         <WizardStepBody
