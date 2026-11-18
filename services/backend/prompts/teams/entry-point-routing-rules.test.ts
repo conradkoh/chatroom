@@ -107,6 +107,47 @@ describe.each(ENTRY_POINTS)('%s routing rules', (_name, entryPoint, implementer,
   });
 });
 
+describe.each(ENTRY_POINTS)('%s decision routing', (_name, entryPoint, _implementer, guidance) => {
+  test('routes product decisions to product-manager and technical decisions to architect', () => {
+    expect(guidance).toContain(`**Decision routing (\`${entryPoint}\`):**`);
+    expect(guidance).toContain('never hand `user` a list of decisions');
+    expect(guidance).toContain('Open **product** decisions');
+    expect(guidance).toContain('go to `product-manager`');
+    expect(guidance).toContain('Open **technical** decisions');
+    expect(guidance).toContain('go to `architect`');
+  });
+
+  test('reaches user only for an ambiguous request or destructive risk', () => {
+    expect(guidance).toContain('**ambiguous or insufficient request:**');
+    expect(guidance).toContain('**destructive risk:**');
+    expect(guidance).toContain(
+      'deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money'
+    );
+  });
+
+  test('sends one open specialist question back once, then proceeds', () => {
+    expect(guidance).toContain(
+      'send that one question back to the same specialist once, then proceed on its recommendation'
+    );
+  });
+
+  test('falls back to the entry point when the team has no such specialist', () => {
+    expect(guidance).toContain(
+      'If your team composition does not list `product-manager` or `architect`, make that decision yourself, record the rationale in your handoff'
+    );
+  });
+
+  test('appears after the routing rules and replaces the old user question line', () => {
+    expect(guidance.indexOf('**Decision routing (')).toBeGreaterThan(
+      guidance.indexOf('**Routing rules (')
+    );
+    expect(guidance).not.toContain('put any open question that blocks planning to `user`');
+    expect(guidance).toContain(
+      'settle any open question it raises under the decision-routing rule'
+    );
+  });
+});
+
 describe('trio and duo asset rule routes to the designer; solo handles assets itself', () => {
   test.each(ENTRY_POINTS.slice(0, 2))('%s', (_name, _entry, _impl, guidance) => {
     expect(guidance).toContain(

@@ -19,6 +19,7 @@ import {
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
 import {
+  getDecisionRoutingRule,
   getEntryPointRoutingRules,
   getProductManagerGate,
 } from '../../entry-point-coordination-gates';
@@ -41,6 +42,7 @@ You are an autonomous agent responsible for BOTH planning and implementing chatr
 - There is no separate builder or planner. Specialist roles (\`architect\`, \`product-manager\`, \`uiux-engineer\`, \`triage\`, \`verifier\`) advise you through handoffs and do not implement
 - You hand off to the user when work is complete and every required gate has passed
 ${getEntryPointRoutingRules({ entryPointRole: 'solo' })}
+${getDecisionRoutingRule({ entryPointRole: 'solo' })}
 ${getProductManagerGate({ entryPointRole: 'solo', beforeStep: 'you plan or implement it' })}
 
 ${getTeamCompositionSection(teamRoles)}
