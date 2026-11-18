@@ -35,6 +35,7 @@ import { FaTelegram } from 'react-icons/fa';
 import { toast } from 'sonner';
 
 import { CopyButton } from './CopyButton';
+import { IntegrationDetailFields, evaluateIntegrationDetails } from './IntegrationDetailFields';
 import { IntegrationDetailsEditor } from './IntegrationDetailsEditor';
 import { integrationErrorMessage } from './integrationErrorMessage';
 
@@ -573,6 +574,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
   const [step, setStep] = useState<WizardStep>('enter-token');
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [botInfo, setBotInfo] = useState<BotInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -604,6 +607,9 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
 
   // Step 2: Create integration (output-only — no webhook needed)
   const handleConnect = useCallback(async () => {
+    const details = evaluateIntegrationDetails(name, description);
+    if (!details.name.ok || !details.description.ok) return;
+
     setError(null);
     setIsConnecting(true);
 
@@ -617,6 +623,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
           chatId: chatId.trim(),
         },
         enabled: true,
+        ...(details.name.value ? { name: details.name.value } : {}),
+        ...(details.description.value ? { description: details.description.value } : {}),
       });
 
       onConnected(integrationId);
@@ -625,7 +633,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
     } finally {
       setIsConnecting(false);
     }
-  }, [botToken, chatId, chatroomId, createIntegration, onConnected]);
+  }, [botToken, chatId, name, description, chatroomId, createIntegration, onConnected]);
 
   return (
     <div className="border border-chatroom-border bg-chatroom-bg-secondary overflow-hidden">
@@ -834,6 +842,26 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
               </div>
             )}
 
+            <div className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
+                Details (optional)
+              </p>
+              <IntegrationDetailFields
+                idPrefix="wizard"
+                name={name}
+                description={description}
+                onNameChange={(v) => {
+                  setName(v);
+                  setError(null);
+                }}
+                onDescriptionChange={(v) => {
+                  setDescription(v);
+                  setError(null);
+                }}
+                disabled={isConnecting}
+              />
+            </div>
+
             {error && <p className="text-xs text-chatroom-status-error">{error}</p>}
 
             <div className="flex items-center justify-between">
@@ -852,7 +880,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
               <Button
                 size="sm"
                 onClick={handleConnect}
-                disabled={isConnecting}
+                disabled={isConnecting || !evaluateIntegrationDetails(name, description).valid}
                 className="text-xs gap-1.5"
               >
                 {isConnecting ? (

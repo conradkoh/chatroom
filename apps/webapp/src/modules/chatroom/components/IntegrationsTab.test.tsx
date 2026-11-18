@@ -129,6 +129,118 @@ describe('IntegrationsTab', () => {
   });
 
   describe('setup wizard', () => {
+    async function driveToConfirmStep() {
+      fireEvent.click(screen.getByRole('button', { name: 'Add Integration' }));
+      fireEvent.change(screen.getByPlaceholderText('123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'), {
+        target: { value: '123456:secret' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Validate Token/ }));
+
+      fireEvent.change(await screen.findByPlaceholderText('-1001234567890'), {
+        target: { value: TELEGRAM_CHAT_ID },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Continue/ }));
+      await screen.findByText('TestBot');
+    }
+
+    it('creates without name or description keys when both detail fields are empty', async () => {
+      mocks.list.mockReturnValue([]);
+      mocks.validateBotToken.mockResolvedValue({
+        botId: 1,
+        botName: 'TestBot',
+        botUsername: null,
+      });
+      mocks.create.mockResolvedValue('integ-new');
+
+      const { IntegrationsTab } = await import('./IntegrationsTab');
+      render(<IntegrationsTab chatroomId="room-1" />);
+
+      await driveToConfirmStep();
+      fireEvent.click(screen.getByRole('button', { name: /Connect Bot/ }));
+
+      await waitFor(() => {
+        expect(mocks.create).toHaveBeenCalledTimes(1);
+      });
+      const payload = mocks.create.mock.calls[0][0] as Record<string, unknown>;
+      expect(payload).not.toHaveProperty('name');
+      expect(payload).not.toHaveProperty('description');
+    });
+
+    it('trims name and description before creating', async () => {
+      mocks.list.mockReturnValue([]);
+      mocks.validateBotToken.mockResolvedValue({
+        botId: 1,
+        botName: 'TestBot',
+        botUsername: null,
+      });
+      mocks.create.mockResolvedValue('integ-new');
+
+      const { IntegrationsTab } = await import('./IntegrationsTab');
+      render(<IntegrationsTab chatroomId="room-1" />);
+
+      await driveToConfirmStep();
+      fireEvent.change(screen.getByLabelText(/Name/), {
+        target: { value: '  Team alerts  ' },
+      });
+      fireEvent.change(screen.getByLabelText(/Description/), {
+        target: { value: '  Team desc  ' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Connect Bot/ }));
+
+      await waitFor(() => {
+        expect(mocks.create).toHaveBeenCalledWith({
+          chatroomId: 'room-1',
+          platform: 'telegram',
+          config: { botToken: '123456:secret', chatId: TELEGRAM_CHAT_ID },
+          enabled: true,
+          name: 'Team alerts',
+          description: 'Team desc',
+        });
+      });
+    });
+
+    it('disables Connect Bot and shows the message when the name is over the limit', async () => {
+      mocks.list.mockReturnValue([]);
+      mocks.validateBotToken.mockResolvedValue({
+        botId: 1,
+        botName: 'TestBot',
+        botUsername: null,
+      });
+
+      const { IntegrationsTab } = await import('./IntegrationsTab');
+      render(<IntegrationsTab chatroomId="room-1" />);
+
+      await driveToConfirmStep();
+      fireEvent.change(screen.getByLabelText(/Name/), {
+        target: { value: 'a'.repeat(81) },
+      });
+
+      expect(screen.getByText('Name must be 80 characters or fewer (got 81).')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Connect Bot/ })).toBeDisabled();
+      expect(mocks.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps typed detail values when stepping Back and forward again', async () => {
+      mocks.list.mockReturnValue([]);
+      mocks.validateBotToken.mockResolvedValue({
+        botId: 1,
+        botName: 'TestBot',
+        botUsername: null,
+      });
+
+      const { IntegrationsTab } = await import('./IntegrationsTab');
+      render(<IntegrationsTab chatroomId="room-1" />);
+
+      await driveToConfirmStep();
+      fireEvent.change(screen.getByLabelText(/Name/), {
+        target: { value: 'Team alerts' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+      fireEvent.click(await screen.findByRole('button', { name: /Continue/ }));
+
+      expect(await screen.findByLabelText(/Name/)).toHaveValue('Team alerts');
+    });
+
     it('closes on connect, toasts once and highlights the new row', async () => {
       let rows: ReturnType<typeof makeIntegration>[] = [];
       mocks.list.mockImplementation(() => rows);
