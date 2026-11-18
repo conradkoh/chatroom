@@ -11,13 +11,68 @@ import { randomBytes } from 'crypto';
 
 import { v, ConvexError } from 'convex/values';
 
-import type { GetMeResponse, WebhookResponse } from './types';
+import type { GetMeResponse, SendMessageResponse, WebhookResponse } from './types';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TELEGRAM_API = 'https://api.telegram.org';
+
+// ─── Outbound Send Helpers ───────────────────────────────────────────────────
+
+/** Result of posting one message to one Telegram chat. */
+export type TelegramPostResult = { ok: true; messageId: number } | { ok: false; reason: string };
+
+/**
+ * Label an explicit send: 'user' becomes 'You'; any other role is used verbatim.
+ * No role filtering — explicit sends are never dropped.
+ */
+export function formatTelegramText(senderRole: string, content: string): string {
+  const label = senderRole === 'user' ? 'You' : senderRole;
+  return `[${label}] ${content}`;
+}
+
+/**
+ * POST one message to one chat. Never throws. Never includes the URL or token in
+ * `reason`. Caller: telegram/actions.ts `sendMessage` only.
+ */
+// fallow-ignore-next-line complexity
+export async function postTelegramMessage(params: {
+  botToken: string;
+  chatId: string;
+  text: string;
+}): Promise<TelegramPostResult> {
+  let response: Response;
+  try {
+    response = await fetch(`${TELEGRAM_API}/bot${params.botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: params.chatId, text: params.text }),
+    });
+  } catch {
+    return {
+      ok: false,
+      reason: 'Could not reach the Telegram API. The message may not have been delivered.',
+    };
+  }
+
+  let data: SendMessageResponse | undefined;
+  try {
+    data = (await response.json()) as SendMessageResponse;
+  } catch {
+    data = undefined;
+  }
+
+  if (!response.ok || !data?.ok || typeof data.result?.message_id !== 'number') {
+    return {
+      ok: false,
+      reason: data?.description ?? `Telegram API returned HTTP ${response.status}`,
+    };
+  }
+
+  return { ok: true, messageId: data.result.message_id };
+}
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 

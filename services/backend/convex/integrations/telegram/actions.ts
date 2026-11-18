@@ -6,10 +6,12 @@
  * These wrap the internal Telegram bot actions with session authentication.
  */
 
-import { v } from 'convex/values';
+import { v, ConvexError } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { formatTelegramText, postTelegramMessage } from './api';
 import { internal } from '../../_generated/api';
+import type { Id } from '../../_generated/dataModel';
 import { action } from '../../_generated/server';
 
 /**
@@ -64,24 +66,56 @@ export const removeWebhook = action({
   },
 });
 
+/** Result of an explicit send to exactly one Telegram integration. */
+export interface SendTelegramMessageResult {
+  success: true;
+  integrationId: Id<'chatroom_integrations'>;
+  telegramMessageId: number;
+}
+
 /**
- * Send a message to all active Telegram integrations for a chatroom (authenticated).
- * Used by agents via the CLI to push messages to Telegram.
+ * Send one message to exactly one Telegram integration (authenticated).
+ *
+ * No role filtering: `senderRole` is only the `[label]`. Returns only after
+ * Telegram accepts the message; every failure throws.
  */
 export const sendMessage = action({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
+    integrationId: v.id('chatroom_integrations'),
     message: v.string(),
     senderRole: v.string(),
   },
-  handler: async (ctx, args): Promise<{ success: boolean }> => {
-    await ctx.runAction(internal.integrations.telegram.api.forwardToTelegram, {
+  handler: async (ctx, args): Promise<SendTelegramMessageResult> => {
+    if (args.message.trim().length === 0) {
+      throw new ConvexError({ code: 'INVALID_MESSAGE', message: 'Message cannot be empty' });
+    }
+
+    const target = await ctx.runQuery(internal.integrations.telegram.internal.resolveSendTarget, {
+      sessionId: args.sessionId,
       chatroomId: args.chatroomId,
-      content: args.message,
-      senderRole: args.senderRole,
-      // No sourcePlatform — this is coming from the chatroom, not Telegram
+      integrationId: args.integrationId,
     });
-    return { success: true };
+
+    const result = await postTelegramMessage({
+      botToken: target.botToken,
+      chatId: target.chatId,
+      text: formatTelegramText(args.senderRole, args.message),
+    });
+
+    if (!result.ok) {
+      throw new ConvexError({
+        code: 'TELEGRAM_SEND_FAILED',
+        integrationId: target.integrationId,
+        message: `Telegram did not accept the message: ${result.reason}`,
+      });
+    }
+
+    return {
+      success: true,
+      integrationId: target.integrationId,
+      telegramMessageId: result.messageId,
+    };
   },
 });

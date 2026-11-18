@@ -17,6 +17,13 @@ export interface GetMeResponse {
   description?: string | undefined;
 }
 
+/** Telegram sendMessage API response (subset). */
+export interface SendMessageResponse {
+  ok: boolean;
+  result?: { message_id: number } | undefined;
+  description?: string | undefined;
+}
+
 /** Telegram setWebhook / deleteWebhook API response. */
 export interface WebhookResponse {
   ok: boolean;
