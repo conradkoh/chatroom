@@ -33,6 +33,8 @@ import React, { useState, useCallback, useEffect, memo } from 'react';
 import { FaTelegram } from 'react-icons/fa';
 import { toast } from 'sonner';
 
+import { integrationErrorMessage } from './integrationErrorMessage';
+
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -49,15 +51,6 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
 type IntegrationListItem = FunctionReturnType<typeof api.integrations.list>[number];
-
-function integrationErrorMessage(err: unknown): string {
-  if (err && typeof err === 'object' && 'data' in err) {
-    const data = (err as { data?: { message?: string } }).data;
-    if (data?.message) return data.message;
-  }
-  if (err instanceof Error) return err.message;
-  return 'Unknown error';
-}
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
