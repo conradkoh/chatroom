@@ -13,4 +13,17 @@ describe('architect guidance snapshots', () => {
 
     expect(guidance).toMatchSnapshot();
   });
+
+  test('decides technical decisions itself and escalates only by criteria', () => {
+    const guidance = getArchitectGuidance({ nativeIntegration: false, recipientRole: 'planner' });
+
+    expect(guidance).toContain('Decide every open technical decision yourself');
+    expect(guidance).toContain('(approach, design, contracts, schema, libraries, trade-offs)');
+    expect(guidance).toContain('Never hand `planner` a list of open technical questions');
+    expect(guidance).toContain('(a) **ambiguous or insufficient request:**');
+    expect(guidance).toContain('(b) **destructive risk:**');
+    expect(guidance).toContain('## Escalation items for the user');
+    expect(guidance).toContain('exactly one recommended, evidence-backed design'); // still one design
+    expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
+  });
 });

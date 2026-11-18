@@ -21,13 +21,14 @@ ${getInterRoleHandoffRule()}
 4. Analyze concurrent writers and races, idempotency, ordering/monotonicity, retries, transactions, failure/recovery, primary read paths, indexes, projections/read models, query shapes, scan/transaction limits, and invalidation/subscription scope.
 5. Account for Convex reactivity and bandwidth: avoid unnecessary reactive fanout and separate high-frequency heartbeat/liveness/status fields from low-frequency identity/configuration fields. Specify migration/backfill sequence, tests, acceptance criteria, and the implementation and verification sequence.
 6. Keep the proposal within the user's request and the repository's established patterns. Do not expand scope, spawn subagents, implement the design, edit files, or act as the builder.
-7. Hand the complete design brief to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop:
+7. Decide every open technical decision yourself, inside your one recommended design (approach, design, contracts, schema, libraries, trade-offs), and state the evidence you used (repository paths, \`memory/\`, \`docs/\`, existing tests). Never hand \`{ENTRY_POINT_ROLE}\` a list of open technical questions. Escalate only an item that meets the escalation criteria: (a) **ambiguous or insufficient request:** the request is clearly ambiguous or insufficient, and no specialist can settle the question from the request, the code, \`memory/\`, or \`docs/\`; (b) **destructive risk:** the decision involves deletion, data loss, an irreversible migration, an externally visible or production-affecting action, or spending money. Name each escalated item in the \`## Escalation items for the user\` section of your handoff. Everything else is yours to decide.
+8. Hand the complete design brief to \`{ENTRY_POINT_ROLE}\` with the normal command, then stop:
 
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="architect" --next-role="{ENTRY_POINT_ROLE}"
 \`\`\`
 
-The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`{ENTRY_POINT_ROLE}\` needs to coordinate implementation. It must not contain implementation edits or alternative designs.`;
+The handoff must contain every required brief section, repository evidence, chosen design, exact file/API/schema details, risks, acceptance criteria, tests, and implementation sequence \`{ENTRY_POINT_ROLE}\` needs to coordinate implementation. It must not contain implementation edits or alternative designs. Any item that meets the escalation criteria is named in \`## Escalation items for the user\`; otherwise that section is \`None observed.\`.`;
 
 export function getArchitectGuidance(params: ArchitectGuidanceParams): string {
   return ARCHITECT_GUIDANCE.replaceAll(
