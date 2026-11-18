@@ -1,84 +1,20 @@
-import type { Page } from '@playwright/test';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { ConvexHttpClient } from 'convex/browser';
-import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { expect, test } from '../../fixtures/auth.fixture';
 import { getConvexUrl } from '../../support/env';
 import { TAG_DOWNSTREAM } from '../../support/tags';
+import {
+  claimGitCloneCommand,
+  openWorkspaceStep,
+  readSessionId,
+  seedConnectedMachine,
+} from '../../support/wizard-seed';
 
 const FOLDER = '/tmp/e2e-wizard-existing';
 const CHATROOM_NAME = 'e2e-wizard-existing';
 const CLONE_URL = 'https://github.com/example/hello-world.git';
 const CLONE_PATH = '/tmp/e2e-wizard/hello-world';
-const CLAIM_TIMEOUT_MS = 15_000;
-
-async function readSessionId(page: Page): Promise<SessionId> {
-  const rawSessionId = await page.evaluate(() => localStorage.getItem('sessionId'));
-  expect(rawSessionId, 'anonymous login should persist a session').toBeTruthy();
-  return rawSessionId as SessionId;
-}
-
-/** Registers a machine with a connected daemon. The wizard only lists machines that are connected. */
-async function seedConnectedMachine(
-  client: ConvexHttpClient,
-  sessionId: SessionId
-): Promise<string> {
-  const machineId = `e2e-wizard-${crypto.randomUUID()}`;
-  await client.mutation(api.machines.register, {
-    sessionId,
-    machineId,
-    hostname: 'e2e-host',
-    os: 'linux',
-    availableHarnesses: ['opencode'],
-  });
-  await client.mutation(api.machines.daemonHeartbeat, { sessionId, machineId });
-  return machineId;
-}
-
-/** Opens the wizard, picks the connected machine and moves to the workspace step. */
-async function openWorkspaceStep(page: Page): Promise<void> {
-  await page.goto('/app?create=true');
-  await expect(page.getByRole('heading', { name: 'New Chatroom' })).toBeVisible({
-    timeout: 15_000,
-  });
-
-  // The machine row is enabled once the heartbeat registers as connected.
-  const machineRow = page.getByRole('button', { name: /e2e-host/ });
-  await expect(machineRow).toBeEnabled({ timeout: 30_000 });
-  await machineRow.click();
-  await page.getByRole('button', { name: 'Continue' }).click();
-}
-
-/**
- * Stands in for the machine's daemon. Polls the inbox until a `daemon.gitClone` command is
- * delivered and claims it. Any other command type is acknowledged so it cannot block the queue.
- */
-async function claimGitCloneCommand(
-  client: ConvexHttpClient,
-  sessionId: SessionId,
-  machineId: string
-) {
-  const deadline = Date.now() + CLAIM_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const claimed = await client.mutation(api.daemon.machineCommandInbox.claimNext, {
-      sessionId,
-      machineId,
-    });
-    if (claimed?.type === 'daemon.gitClone') return claimed;
-    if (claimed) {
-      await client.mutation(api.daemon.machineCommandInbox.acknowledge, {
-        sessionId,
-        commandId: claimed.commandId,
-      });
-      continue;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(
-    `No daemon.gitClone command reached machine ${machineId} within ${CLAIM_TIMEOUT_MS} ms`
-  );
-}
 
 test.describe('New chatroom wizard', { tag: [TAG_DOWNSTREAM] }, () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
