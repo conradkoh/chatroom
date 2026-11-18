@@ -2275,6 +2275,10 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     /** Platform identifier (e.g. "telegram", "slack") */
     platform: v.string(),
+    /** Optional human/agent-facing label. Trimmed, non-empty, ≤80 chars when present. Not unique. */
+    name: v.optional(v.string()),
+    /** Optional purpose/context for choosing this integration. Trimmed, non-empty, ≤500 chars when present. */
+    description: v.optional(v.string()),
     /** Platform-specific configuration (bot token, chat ID, etc.) */
     config: v.object({
       /** Bot token or API key - sensitive, stored encrypted at rest by Convex */

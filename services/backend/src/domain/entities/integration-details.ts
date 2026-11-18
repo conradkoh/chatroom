@@ -1,5 +1,6 @@
-// fallow-ignore-file unused-file
+// fallow-ignore-next-line unused-export
 export const INTEGRATION_NAME_MAX_LENGTH = 80;
+// fallow-ignore-next-line unused-export
 export const INTEGRATION_DESCRIPTION_MAX_LENGTH = 500;
 
 export type IntegrationDetailField = 'name' | 'description';
