@@ -38,9 +38,16 @@ describe('product-manager guidance snapshots', () => {
       recipientRole: 'planner',
     });
 
-    expect(guidance).toContain('Decide each product decision yourself');
+    expect(guidance).toContain('Decide each development-scope product decision yourself');
     expect(guidance).toContain('a recommended default and a one-line rationale');
     expect(guidance).toContain('List to the user only items that meet the escalation criteria');
+    expect(guidance).toContain(
+      'Non-development product questions (copy, pricing, opinions, general product talk)'
+    );
+    expect(guidance).toContain('return them to `planner`');
+    expect(guidance).toContain('scoping coding and development work in this repository');
+    expect(guidance).not.toContain('product defaults');
+    expect(guidance).not.toMatch(/never list/i);
     expect(guidance).toContain('(a) **ambiguous or insufficient request:**');
     expect(guidance).toContain('(b) **destructive risk:**');
     expect(guidance).not.toContain('belong to the user');

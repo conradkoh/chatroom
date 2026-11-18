@@ -66,8 +66,12 @@ describe('architect handoff template — escalation contract', () => {
       const escalation = template.slice(template.indexOf('## Escalation items for the user'));
 
       expect(template).toContain(
-        'Decide every open technical decision yourself inside the one design'
+        'Decide every open repository technical-design decision for the development work yourself'
       );
+      expect(template).toContain(
+        'decide those that concern repository technical design for development work'
+      );
+      expect(template).not.toMatch(/never hand[^.]*list/i);
       expect(template).toContain('(b) the decision involves deletion, data loss');
       expect(escalation).toContain('Do not list technical choices here');
       expect(escalation).toContain('`None observed.`');

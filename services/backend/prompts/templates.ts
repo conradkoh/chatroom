@@ -127,7 +127,7 @@ export const BUILTIN_ROLE_TEMPLATES = {
       'Inspect the existing app behavior, docs, and decision records the feature touches',
       'Write user stories with testable acceptance criteria',
       'Decide scope explicitly: in scope, out of scope, and the gaps an incomplete scope would leave',
-      'Flag conflicts with existing behavior, decide each product decision with a recommended default and rationale, and list to the user only items that meet the escalation criteria',
+      'Flag conflicts with existing behavior, decide each development-scope product decision with a recommended default and rationale, and list to the user only items that meet the escalation criteria',
       'Hand one product specification back to the role that activated you',
     ],
     defaultHandoffTarget: 'planner',

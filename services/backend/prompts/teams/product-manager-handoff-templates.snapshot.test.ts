@@ -76,6 +76,11 @@ describe('product manager handoff template snapshots', () => {
     const openQuestions = template.slice(template.indexOf('## Open questions for the user'));
 
     expect(template).toContain('## Product decisions made');
+    expect(template).toContain('development-scope product decision');
+    expect(template).toContain(
+      'return non-development product questions (copy, pricing, opinions, general product talk)'
+    );
+    expect(template).not.toContain('product defaults');
     expect(template).toContain('the recommended default you chose, and a one-line rationale');
     expect(openQuestions).toContain('only items that meet the escalation criteria');
     expect(openQuestions).toContain('(b) the decision involves deletion, data loss');

@@ -45,7 +45,7 @@ export function getArchitectToEntryPointHandoffTemplate(query: HandoffTemplateQu
   const entryPoint = query.toRole;
   const sharedContractsHeading = `## Shared contracts (${entryPoint}-owned)`;
 
-  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to \`${entryPoint}\`. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. Decide every open technical decision yourself inside the one design; do not return open technical questions. List an item for the user only if it meets the escalation criteria. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
+  return `Instructions (not part of the message): Return exactly one recommended, evidence-backed design brief for the authoritative user request to \`${entryPoint}\`. This is an advisory handback: do not implement code, edit files, spawn subagents, present alternatives, or expand scope. Decide every open repository technical-design decision for the development work yourself inside the one design; do not return open technical questions. List an item for the user only if it meets the escalation criteria. The injected \`<handoff-templates>\` block is the authoritative structure for this handoff; complete every section in order. Use \`Not Applicable.\` only when a section is genuinely inapplicable, with no explanation or filler.
 
 ## Summary
 <describe the design problem being solved, the repository/product surface where it fits, and the evidence-backed context; do not refer to hidden session text>
@@ -100,7 +100,7 @@ ${sharedContractsHeading}
 ## What to avoid
 - Do not implement code or edit files as the architect; this handoff is advisory only.
 - Do not present alternative designs, generic advice, or requirements without concrete evidence and file-level consequences.
-- Do not hand the entry point a list of open technical questions: decide them in the design with the evidence you used. Escalate only an item that meets the escalation criteria, in \`## Escalation items for the user\`.
+- Do not hand the entry point a list of open technical questions: decide those that concern repository technical design for development work in the design, with the evidence you used. Escalate only an item that meets the escalation criteria, in \`## Escalation items for the user\`.
 - Do not invent APIs, schema fields, query shapes, indexes, or source-of-truth locations when existing repository patterns apply.
 - <explicit task-specific anti-patterns, scope boundaries, and migration/source-of-truth pitfalls>
 

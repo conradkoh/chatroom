@@ -77,6 +77,13 @@ describe('role templates', () => {
     ]);
   });
 
+  test('product-manager metadata describes development-scope decisions', () => {
+    const responsibilities = ROLE_TEMPLATES['product-manager'].responsibilities.join(' ');
+
+    expect(responsibilities).toContain('decide each development-scope product decision');
+    expect(responsibilities).not.toContain('product defaults');
+  });
+
   test('architect metadata is coding-focused', () => {
     expect(ROLE_TEMPLATES.architect.responsibilities).toEqual([
       'Recover the authoritative user request and relevant history',
