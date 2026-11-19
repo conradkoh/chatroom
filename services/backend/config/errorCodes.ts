@@ -209,6 +209,13 @@ export type BackendErrorCode =
   | 'FILE_UPLOADS_UNAVAILABLE'
   | 'WEB_SESSION_REQUIRED'
 
+  // ── Integrations ──────────────────────────────────────────────────
+  | 'INTEGRATION_NOT_FOUND'
+  | 'INTEGRATION_WRONG_PLATFORM'
+  | 'INTEGRATION_DISABLED'
+  | 'INTEGRATION_NOT_CONFIGURED'
+  | 'TELEGRAM_SEND_FAILED'
+
   // ── Conflict ──────────────────────────────────────────────────────
   | 'CONFLICT';
 
@@ -529,6 +536,18 @@ export const BACKEND_ERROR_CODES = {
   /** The upload request must come from an authenticated web session */
   WEB_SESSION_REQUIRED: 'WEB_SESSION_REQUIRED',
 
+  // ── Integrations ────────────────────────────────────────────────────
+  /** The integration is missing or belongs to another chatroom */
+  INTEGRATION_NOT_FOUND: 'INTEGRATION_NOT_FOUND',
+  /** The integration is not a Telegram integration */
+  INTEGRATION_WRONG_PLATFORM: 'INTEGRATION_WRONG_PLATFORM',
+  /** The integration is disabled */
+  INTEGRATION_DISABLED: 'INTEGRATION_DISABLED',
+  /** The integration is missing its bot token or chat ID */
+  INTEGRATION_NOT_CONFIGURED: 'INTEGRATION_NOT_CONFIGURED',
+  /** Telegram rejected the message or could not be reached */
+  TELEGRAM_SEND_FAILED: 'TELEGRAM_SEND_FAILED',
+
   // ── Conflict ────────────────────────────────────────────────────────
   /** Conflict (e.g. duplicate) */
   CONFLICT: 'CONFLICT',
@@ -711,6 +730,11 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   // Integration
   BACKEND_ERROR_CODES.WEBHOOK_REGISTRATION_FAILED,
   BACKEND_ERROR_CODES.WEBHOOK_REMOVAL_FAILED,
+  BACKEND_ERROR_CODES.INTEGRATION_NOT_FOUND,
+  BACKEND_ERROR_CODES.INTEGRATION_WRONG_PLATFORM,
+  BACKEND_ERROR_CODES.INTEGRATION_DISABLED,
+  BACKEND_ERROR_CODES.INTEGRATION_NOT_CONFIGURED,
+  BACKEND_ERROR_CODES.TELEGRAM_SEND_FAILED,
   BACKEND_ERROR_CODES.OAUTH_ERROR,
   BACKEND_ERROR_CODES.LOGIN_ERROR,
 

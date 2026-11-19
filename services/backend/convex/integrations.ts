@@ -2,10 +2,45 @@ import { v, ConvexError } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc } from './_generated/dataModel';
-import { mutation, query, internalQuery } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { omitUndefined } from './lib/omitUndefined';
+import {
+  normalizeIntegrationDetail,
+  type IntegrationDetailField,
+} from '../src/domain/entities/integration-details';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Throws VALIDATION_ERROR for over-limit input; returns undefined for unset. */
+function requireIntegrationDetail(field: IntegrationDetailField, raw: string): string | undefined {
+  const result = normalizeIntegrationDetail(field, raw);
+  if (!result.ok) {
+    throw new ConvexError({
+      code: 'VALIDATION_ERROR',
+      field: result.field,
+      maxLength: result.maxLength,
+      message: result.message,
+    });
+  }
+  return result.value;
+}
+
+/**
+ * Build the name/description patch for `update`: only provided fields appear in
+ * the result, and an empty input maps to an explicit `undefined` so `ctx.db.patch`
+ * removes the key from the stored document.
+ */
+function buildIntegrationDetailPatch(
+  name: string | undefined,
+  description: string | undefined
+): { name?: string | undefined; description?: string | undefined } {
+  const patch: { name?: string | undefined; description?: string | undefined } = {};
+  if (name !== undefined) patch.name = requireIntegrationDetail('name', name);
+  if (description !== undefined)
+    patch.description = requireIntegrationDetail('description', description);
+  return patch;
+}
 
 /** Redact a bot token for safe display — show only last 4 chars. */
 function redactBotToken(token?: string): string | undefined {
@@ -39,6 +74,8 @@ export const list = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     const integrations = await ctx.db
       .query('chatroom_integrations')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -65,6 +102,9 @@ export const get = query({
         message: 'Integration not found',
       });
     }
+
+    await requireChatroomAccess(ctx, args.sessionId, integration.chatroomId);
+
     return redactIntegration(integration);
   },
 });
@@ -86,28 +126,41 @@ export const create = mutation({
       webhookUrl: v.optional(v.string()),
     }),
     enabled: v.optional(v.boolean()),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and chatroom ownership
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    const name = args.name === undefined ? undefined : requireIntegrationDetail('name', args.name);
+    const description =
+      args.description === undefined
+        ? undefined
+        : requireIntegrationDetail('description', args.description);
+
     const now = Date.now();
 
-    const integrationId = await ctx.db.insert('chatroom_integrations', {
-      chatroomId: args.chatroomId,
-      platform: args.platform,
-      config: args.config,
-      enabled: args.enabled ?? true,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const integrationId = await ctx.db.insert(
+      'chatroom_integrations',
+      omitUndefined({
+        chatroomId: args.chatroomId,
+        platform: args.platform,
+        config: args.config,
+        enabled: args.enabled ?? true,
+        name,
+        description,
+        createdAt: now,
+        updatedAt: now,
+      })
+    );
 
     return integrationId;
   },
 });
 
 /**
- * Update an existing integration's config or enabled status.
+ * Update an existing integration's config, enabled status, name or description.
  * Requires chatroom ownership.
  */
 export const update = mutation({
@@ -122,6 +175,8 @@ export const update = mutation({
       })
     ),
     enabled: v.optional(v.boolean()),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get('chatroom_integrations', args.integrationId);
@@ -135,12 +190,14 @@ export const update = mutation({
     // Validate session and chatroom ownership
     await requireChatroomAccess(ctx, args.sessionId, existing.chatroomId);
 
-    const now = Date.now();
+    // Validate both before writing anything (no partial write on a validation error).
+    const detailPatch = buildIntegrationDetailPatch(args.name, args.description);
 
     await ctx.db.patch('chatroom_integrations', args.integrationId, {
       ...(args.config !== undefined ? { config: args.config } : {}),
       ...(args.enabled !== undefined ? { enabled: args.enabled } : {}),
-      updatedAt: now,
+      ...detailPatch, // an explicit undefined value removes the field
+      updatedAt: Date.now(),
     });
 
     return { success: true };
@@ -171,28 +228,5 @@ export const remove = mutation({
     await ctx.db.delete('chatroom_integrations', args.integrationId);
 
     return { success: true };
-  },
-});
-
-// ─── Internal functions (for outbound forwarding / internal use) ─────────────
-
-/**
- * Internal query to list active integrations for a chatroom by platform.
- * Used by the outbound forwarding action.
- */
-export const listActiveByPlatform = internalQuery({
-  args: {
-    chatroomId: v.id('chatroom_rooms'),
-    platform: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const integrations = await ctx.db
-      .query('chatroom_integrations')
-      .withIndex('by_chatroom_platform', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('platform', args.platform)
-      )
-      .collect();
-
-    return integrations.filter((i) => i.enabled);
   },
 });

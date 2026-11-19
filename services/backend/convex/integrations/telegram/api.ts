@@ -11,13 +11,68 @@ import { randomBytes } from 'crypto';
 
 import { v, ConvexError } from 'convex/values';
 
-import type { GetMeResponse, WebhookResponse } from './types';
+import type { GetMeResponse, SendMessageResponse, WebhookResponse } from './types';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TELEGRAM_API = 'https://api.telegram.org';
+
+// ─── Outbound Send Helpers ───────────────────────────────────────────────────
+
+/** Result of posting one message to one Telegram chat. */
+export type TelegramPostResult = { ok: true; messageId: number } | { ok: false; reason: string };
+
+/**
+ * Label an explicit send: 'user' becomes 'You'; any other role is used verbatim.
+ * No role filtering — explicit sends are never dropped.
+ */
+export function formatTelegramText(senderRole: string, content: string): string {
+  const label = senderRole === 'user' ? 'You' : senderRole;
+  return `[${label}] ${content}`;
+}
+
+/**
+ * POST one message to one chat. Never throws. Never includes the URL or token in
+ * `reason`. Caller: telegram/actions.ts `sendMessage` only.
+ */
+// fallow-ignore-next-line complexity
+export async function postTelegramMessage(params: {
+  botToken: string;
+  chatId: string;
+  text: string;
+}): Promise<TelegramPostResult> {
+  let response: Response;
+  try {
+    response = await fetch(`${TELEGRAM_API}/bot${params.botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: params.chatId, text: params.text }),
+    });
+  } catch {
+    return {
+      ok: false,
+      reason: 'Could not reach the Telegram API. The message may not have been delivered.',
+    };
+  }
+
+  let data: SendMessageResponse | undefined;
+  try {
+    data = (await response.json()) as SendMessageResponse;
+  } catch {
+    data = undefined;
+  }
+
+  if (!response.ok || !data?.ok || typeof data.result?.message_id !== 'number') {
+    return {
+      ok: false,
+      reason: data?.description ?? `Telegram API returned HTTP ${response.status}`,
+    };
+  }
+
+  return { ok: true, messageId: data.result.message_id };
+}
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
@@ -137,62 +192,5 @@ export const removeWebhook = internalAction({
     });
 
     return { success: true };
-  },
-});
-
-// ─── Outbound Forwarding ──────────────────────────────────────────────────────
-
-/**
- * Forward a chatroom message to all active Telegram integrations for that chatroom.
- * Skips messages that originated from Telegram (loop prevention via sourcePlatform).
- */
-export const forwardToTelegram = internalAction({
-  args: {
-    chatroomId: v.id('chatroom_rooms'),
-    content: v.string(),
-    senderRole: v.string(),
-    sourcePlatform: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // Loop prevention: don't forward messages that came from Telegram
-    if (args.sourcePlatform === 'telegram') return;
-
-    // Skip non-user/agent messages (system messages, etc.)
-    if (args.senderRole !== 'user' && !args.senderRole.match(/^(planner|builder|solo)$/)) {
-      return;
-    }
-
-    // Get active Telegram integrations for this chatroom
-    const integrations = await ctx.runQuery(internal.integrations.listActiveByPlatform, {
-      chatroomId: args.chatroomId,
-      platform: 'telegram',
-    });
-
-    if (!integrations || integrations.length === 0) return;
-
-    // Forward to each active Telegram integration
-    for (const integration of integrations) {
-      const chatId = integration.config.chatId;
-      const botToken = integration.config.botToken;
-
-      if (!chatId || !botToken) continue;
-
-      try {
-        const label = args.senderRole === 'user' ? 'You' : args.senderRole;
-        const text = `[${label}] ${args.content}`;
-
-        const url = `${TELEGRAM_API}/bot${botToken}/sendMessage`;
-        await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text,
-          }),
-        });
-      } catch (error) {
-        console.error(`Failed to forward to Telegram integration ${integration._id}:`, error);
-      }
-    }
   },
 });

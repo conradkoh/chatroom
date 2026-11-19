@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Loader2,
   MessageSquare,
+  Pencil,
   Plus,
   Power,
   PowerOff,
@@ -32,6 +33,11 @@ import {
 import React, { useState, useCallback, useEffect, memo } from 'react';
 import { FaTelegram } from 'react-icons/fa';
 import { toast } from 'sonner';
+
+import { CopyButton } from './CopyButton';
+import { IntegrationDetailFields, evaluateIntegrationDetails } from './IntegrationDetailFields';
+import { IntegrationDetailsEditor } from './IntegrationDetailsEditor';
+import { integrationErrorMessage } from './integrationErrorMessage';
 
 import {
   AlertDialog,
@@ -49,15 +55,6 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
 type IntegrationListItem = FunctionReturnType<typeof api.integrations.list>[number];
-
-function integrationErrorMessage(err: unknown): string {
-  if (err && typeof err === 'object' && 'data' in err) {
-    const data = (err as { data?: { message?: string } }).data;
-    if (data?.message) return data.message;
-  }
-  if (err instanceof Error) return err.message;
-  return 'Unknown error';
-}
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -201,11 +198,39 @@ const IntegrationCard = memo(function IntegrationCard({
   const [isToggling, setIsToggling] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [showTestDialog, setShowTestDialog] = useState(false);
+  const [activePanel, setActivePanel] = useState<'test' | 'edit' | null>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
   const [testMessage, setTestMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [testSuccess, setTestSuccess] = useState(false);
+
+  const PlatformIcon = integration.platform === 'telegram' ? FaTelegram : MessageSquare;
+  const platformName = integration.platform === 'telegram' ? 'Telegram' : integration.platform;
+  const targetLabel = integration.name
+    ? `"${integration.name}"`
+    : `this ${platformName} integration`;
+  const chatSuffix = integration.config?.chatId
+    ? ` (${platformName} chat ${integration.config.chatId})`
+    : '';
+  const hasLongDescription =
+    !!integration.description &&
+    (integration.description.length > 120 || integration.description.includes('\n'));
+
+  const resetTestState = useCallback(() => {
+    setTestError(null);
+    setTestSuccess(false);
+    setTestMessage('');
+  }, []);
+
+  const openEditPanel = useCallback(() => {
+    if (activePanel === 'edit') {
+      setActivePanel(null);
+      return;
+    }
+    if (activePanel === 'test') resetTestState();
+    setActivePanel('edit');
+  }, [activePanel, resetTestState]);
 
   const handleToggle = useCallback(async () => {
     setIsToggling(true);
@@ -246,13 +271,15 @@ const IntegrationCard = memo(function IntegrationCard({
     try {
       await sendMessage({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        integrationId: integration._id,
         message: testMessage.trim(),
         senderRole: 'user',
       });
       setTestSuccess(true);
       setTestMessage('');
+      toast.success(`Test message sent to ${targetLabel}`);
       setTimeout(() => {
-        setShowTestDialog(false);
+        setActivePanel((p) => (p === 'test' ? null : p));
         setTestSuccess(false);
       }, 2000);
     } catch (err: unknown) {
@@ -260,10 +287,7 @@ const IntegrationCard = memo(function IntegrationCard({
     } finally {
       setIsSending(false);
     }
-  }, [chatroomId, testMessage, sendMessage]);
-
-  const PlatformIcon = integration.platform === 'telegram' ? FaTelegram : MessageSquare;
-  const platformName = integration.platform === 'telegram' ? 'Telegram' : integration.platform;
+  }, [chatroomId, integration._id, testMessage, sendMessage, targetLabel]);
 
   return (
     <div
@@ -276,18 +300,31 @@ const IntegrationCard = memo(function IntegrationCard({
     >
       <div className="flex flex-col sm:flex-row sm:items-center">
         {/* Identity */}
-        <div className="flex min-w-0 items-center gap-3 p-4 sm:flex-1">
+        <div className="flex min-w-0 items-start gap-3 p-4 sm:flex-1">
           <div
             className={cn(
-              'flex size-10 shrink-0 items-center justify-center rounded-none bg-chatroom-bg-tertiary',
+              'mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-none bg-chatroom-bg-tertiary',
               !integration.enabled && 'opacity-60'
             )}
           >
             <PlatformIcon size={20} className="text-chatroom-text-secondary" />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <p
+              title={integration.name}
+              className={cn(
+                'break-words text-sm line-clamp-2 sm:line-clamp-1',
+                integration.name
+                  ? 'font-bold text-chatroom-text-primary'
+                  : 'italic text-chatroom-text-muted'
+              )}
+            >
+              {integration.name ?? 'Unnamed integration'}
+            </p>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-sm font-bold text-chatroom-text-primary">{platformName}</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-chatroom-text-secondary">
+                {platformName}
+              </span>
               <span
                 className={cn(
                   'inline-flex items-center gap-1 rounded-none px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
@@ -309,11 +346,58 @@ const IntegrationCard = memo(function IntegrationCard({
                 )}
               </span>
             </div>
-            {integration.config?.chatId && (
-              <p className="mt-1 truncate font-mono text-[11px] text-chatroom-text-secondary">
-                Chat ID: {integration.config.chatId}
-              </p>
-            )}
+            {integration.description ? (
+              <div>
+                <p
+                  className={cn(
+                    'whitespace-pre-line break-words text-xs text-chatroom-text-secondary',
+                    !descExpanded && 'line-clamp-2'
+                  )}
+                >
+                  {integration.description}
+                </p>
+                {hasLongDescription && (
+                  <button
+                    type="button"
+                    onClick={() => setDescExpanded((v) => !v)}
+                    className="mt-0.5 text-[11px] text-chatroom-accent hover:underline"
+                  >
+                    {descExpanded ? 'Show less' : 'Show more'}
+                  </button>
+                )}
+              </div>
+            ) : !integration.name ? (
+              <Button
+                variant="link"
+                size="xs"
+                onClick={() => setActivePanel('edit')}
+                className="h-auto p-0 text-[11px]"
+              >
+                Add name and description
+              </Button>
+            ) : null}
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
+                <span className="shrink-0 text-chatroom-text-muted">ID</span>
+                <span
+                  title={integration._id}
+                  className="min-w-0 truncate font-mono text-chatroom-text-secondary"
+                >
+                  {integration._id}
+                </span>
+                <CopyButton
+                  text={integration._id}
+                  variant="compact"
+                  label="ID"
+                  copiedLabel="ID copied"
+                />
+              </div>
+              {integration.config?.chatId && (
+                <p className="truncate font-mono text-[11px] text-chatroom-text-secondary">
+                  Chat ID: {integration.config.chatId}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -332,7 +416,8 @@ const IntegrationCard = memo(function IntegrationCard({
               variant="outline"
               size="sm"
               disabled={!integration.enabled}
-              onClick={() => setShowTestDialog(true)}
+              title={integration.enabled ? undefined : 'Enable this integration to send a test'}
+              onClick={() => setActivePanel('test')}
               className="gap-1.5 text-xs"
             >
               <Send size={12} />
@@ -341,6 +426,18 @@ const IntegrationCard = memo(function IntegrationCard({
             <Button
               variant="ghost"
               size="icon-sm"
+              data-testid="integration-edit-button"
+              aria-label="Edit name and description"
+              onClick={openEditPanel}
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary"
+            >
+              <Pencil size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              data-testid="integration-delete-button"
+              aria-label="Remove integration"
               onClick={() => {
                 setDeleteError(null);
                 setShowDeleteConfirm(true);
@@ -354,7 +451,7 @@ const IntegrationCard = memo(function IntegrationCard({
       </div>
 
       {/* Test Message Dialog */}
-      {showTestDialog && (
+      {activePanel === 'test' && (
         <div className="space-y-3 border-t border-chatroom-border bg-chatroom-bg-primary/50 p-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
@@ -364,16 +461,18 @@ const IntegrationCard = memo(function IntegrationCard({
               variant="ghost"
               size="sm"
               onClick={() => {
-                setShowTestDialog(false);
-                setTestError(null);
-                setTestSuccess(false);
-                setTestMessage('');
+                setActivePanel(null);
+                resetTestState();
               }}
               className="h-6 w-6 p-0 text-chatroom-text-muted"
             >
               <X size={12} />
             </Button>
           </div>
+          <p className="text-xs text-chatroom-text-secondary">
+            Sends only to {targetLabel}
+            {chatSuffix}.
+          </p>
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
@@ -405,12 +504,20 @@ const IntegrationCard = memo(function IntegrationCard({
             </Button>
           </div>
 
-          {testError && <p className="text-xs text-chatroom-status-error">{testError}</p>}
+          {testError && (
+            <p className="text-xs text-chatroom-status-error">
+              <span className="font-bold">Not sent.</span> {testError}
+            </p>
+          )}
 
           {testSuccess && (
-            <p className="text-xs text-chatroom-status-success">✅ Message sent to Telegram!</p>
+            <p className="text-xs text-chatroom-status-success">✅ Sent to {targetLabel}.</p>
           )}
         </div>
+      )}
+
+      {activePanel === 'edit' && (
+        <IntegrationDetailsEditor integration={integration} onClose={() => setActivePanel(null)} />
       )}
 
       <AlertDialog
@@ -421,11 +528,16 @@ const IntegrationCard = memo(function IntegrationCard({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {platformName} integration?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Remove {integration.name ? `"${integration.name}"` : `${platformName} integration`}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Messages will stop being sent
               {integration.config?.chatId ? ` to chat ${integration.config.chatId}` : ''}. The saved
               bot token and chat ID are deleted. You can reconnect at any time.
+              <span className="mt-2 block break-all font-mono text-[11px] text-chatroom-text-muted">
+                ID {integration._id}
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && <p className="text-xs text-chatroom-status-error">{deleteError}</p>}
@@ -462,6 +574,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
   const [step, setStep] = useState<WizardStep>('enter-token');
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [botInfo, setBotInfo] = useState<BotInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -481,7 +595,10 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
     setIsValidating(true);
 
     try {
-      const info = await validateBotToken({ botToken: botToken.trim() });
+      const info = await validateBotToken({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        botToken: botToken.trim(),
+      });
       setBotInfo(info);
       setStep('enter-chat-id');
     } catch (err: unknown) {
@@ -489,10 +606,13 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
     } finally {
       setIsValidating(false);
     }
-  }, [botToken, validateBotToken]);
+  }, [botToken, chatroomId, validateBotToken]);
 
   // Step 2: Create integration (output-only — no webhook needed)
   const handleConnect = useCallback(async () => {
+    const details = evaluateIntegrationDetails(name, description);
+    if (!details.name.ok || !details.description.ok) return;
+
     setError(null);
     setIsConnecting(true);
 
@@ -506,6 +626,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
           chatId: chatId.trim(),
         },
         enabled: true,
+        ...(details.name.value ? { name: details.name.value } : {}),
+        ...(details.description.value ? { description: details.description.value } : {}),
       });
 
       onConnected(integrationId);
@@ -514,7 +636,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
     } finally {
       setIsConnecting(false);
     }
-  }, [botToken, chatId, chatroomId, createIntegration, onConnected]);
+  }, [botToken, chatId, name, description, chatroomId, createIntegration, onConnected]);
 
   return (
     <div className="border border-chatroom-border bg-chatroom-bg-secondary overflow-hidden">
@@ -723,6 +845,26 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
               </div>
             )}
 
+            <div className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
+                Details (optional)
+              </p>
+              <IntegrationDetailFields
+                idPrefix="wizard"
+                name={name}
+                description={description}
+                onNameChange={(v) => {
+                  setName(v);
+                  setError(null);
+                }}
+                onDescriptionChange={(v) => {
+                  setDescription(v);
+                  setError(null);
+                }}
+                disabled={isConnecting}
+              />
+            </div>
+
             {error && <p className="text-xs text-chatroom-status-error">{error}</p>}
 
             <div className="flex items-center justify-between">
@@ -741,7 +883,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
               <Button
                 size="sm"
                 onClick={handleConnect}
-                disabled={isConnecting}
+                disabled={isConnecting || !evaluateIntegrationDetails(name, description).valid}
                 className="text-xs gap-1.5"
               >
                 {isConnecting ? (
