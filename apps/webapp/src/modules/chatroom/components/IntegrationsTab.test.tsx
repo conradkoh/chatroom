@@ -156,6 +156,12 @@ describe('IntegrationsTab', () => {
       render(<IntegrationsTab chatroomId="room-1" />);
 
       await driveToConfirmStep();
+
+      expect(mocks.validateBotToken).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        botToken: '123456:secret',
+      });
+
       fireEvent.click(screen.getByRole('button', { name: /Connect Bot/ }));
 
       await waitFor(() => {

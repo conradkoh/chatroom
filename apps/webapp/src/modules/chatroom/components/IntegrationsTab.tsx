@@ -595,7 +595,10 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
     setIsValidating(true);
 
     try {
-      const info = await validateBotToken({ botToken: botToken.trim() });
+      const info = await validateBotToken({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        botToken: botToken.trim(),
+      });
       setBotInfo(info);
       setStep('enter-chat-id');
     } catch (err: unknown) {
@@ -603,7 +606,7 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
     } finally {
       setIsValidating(false);
     }
-  }, [botToken, validateBotToken]);
+  }, [botToken, chatroomId, validateBotToken]);
 
   // Step 2: Create integration (output-only — no webhook needed)
   const handleConnect = useCallback(async () => {
