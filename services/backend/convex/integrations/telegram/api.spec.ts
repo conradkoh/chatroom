@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 /**
  * Tests for the Telegram API module logic.
  *
- * Note: The actual Convex actions (forwardToTelegram, validateBotToken, etc.)
+ * Note: The actual Convex actions (validateBotToken, etc.)
  * call external APIs and use Convex runtime context. These are tested
  * indirectly through the integration test suite.
  *
