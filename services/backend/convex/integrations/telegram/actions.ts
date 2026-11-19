@@ -4,6 +4,8 @@
  * Telegram Integration Actions — authenticated public actions for the frontend.
  *
  * These wrap the internal Telegram bot actions with session authentication.
+ * Chatroom access is enforced (via `telegram/internal.ts`) before any Telegram
+ * HTTP call or DB write.
  */
 
 import { v, ConvexError } from 'convex/values';
@@ -20,12 +22,18 @@ import { action } from '../../_generated/server';
 export const validateBotToken = action({
   args: {
     ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
     botToken: v.string(),
   },
   handler: async (
     ctx,
     args
   ): Promise<{ botId: number; botName: string; botUsername: string | null }> => {
+    await ctx.runQuery(internal.integrations.telegram.internal.requireTelegramSetupAccess, {
+      sessionId: args.sessionId,
+      chatroomId: args.chatroomId,
+    });
+
     return await ctx.runAction(internal.integrations.telegram.api.validateBotToken, {
       botToken: args.botToken,
     });
@@ -42,6 +50,11 @@ export const registerWebhook = action({
     integrationId: v.id('chatroom_integrations'),
   },
   handler: async (ctx, args): Promise<{ webhookUrl: string }> => {
+    await ctx.runQuery(internal.integrations.telegram.internal.requireWebhookIntegrationAccess, {
+      sessionId: args.sessionId,
+      integrationId: args.integrationId,
+    });
+
     return await ctx.runAction(internal.integrations.telegram.api.registerWebhook, {
       botToken: args.botToken,
       integrationId: args.integrationId,
@@ -59,6 +72,11 @@ export const removeWebhook = action({
     integrationId: v.id('chatroom_integrations'),
   },
   handler: async (ctx, args): Promise<{ success: boolean }> => {
+    await ctx.runQuery(internal.integrations.telegram.internal.requireWebhookIntegrationAccess, {
+      sessionId: args.sessionId,
+      integrationId: args.integrationId,
+    });
+
     return await ctx.runAction(internal.integrations.telegram.api.removeWebhook, {
       botToken: args.botToken,
       integrationId: args.integrationId,

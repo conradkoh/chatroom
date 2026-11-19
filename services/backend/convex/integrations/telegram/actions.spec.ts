@@ -347,4 +347,335 @@ describe('telegram actions', () => {
       expect(vi.mocked(fetch)).toHaveBeenCalledTimes(0);
     });
   });
+
+  describe('validateBotToken', () => {
+    const BOT_TOKEN = '123456:secret';
+
+    beforeEach(() => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                ok: true,
+                result: { id: 7, first_name: 'Bot', username: 'bot' },
+              }),
+              { status: 200 }
+            )
+        )
+      );
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    test('rejects a never-logged-in session with AUTH_FAILED before calling Telegram', async () => {
+      const ownerSession = await createTestSession('tg-validate-auth-owner');
+      const chatroomId = await createChatroom(ownerSession);
+
+      const error = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.validateBotToken, {
+          sessionId: 'tg-validate-auth' as SessionId,
+          chatroomId,
+          botToken: BOT_TOKEN,
+        }),
+        'AUTH_FAILED'
+      );
+
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(0);
+      expect(error.data.message).not.toContain(BOT_TOKEN);
+    });
+
+    test("rejects another user's chatroom with ACCESS_DENIED before calling Telegram", async () => {
+      const ownerSession = await createTestSession('tg-validate-owner');
+      const attackerSession = await createTestSession('tg-validate-attacker');
+      const chatroomId = await createChatroom(ownerSession);
+
+      const error = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.validateBotToken, {
+          sessionId: attackerSession,
+          chatroomId,
+          botToken: BOT_TOKEN,
+        }),
+        'ACCESS_DENIED'
+      );
+
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(0);
+      expect(error.data.message).not.toContain(BOT_TOKEN);
+    });
+
+    test('returns bot info for the chatroom owner with exactly one HTTP call', async () => {
+      const sessionId = await createTestSession('tg-validate-owner-ok');
+      const chatroomId = await createChatroom(sessionId);
+
+      const result = await t.action(api.integrations.telegram.actions.validateBotToken, {
+        sessionId,
+        chatroomId,
+        botToken: BOT_TOKEN,
+      });
+
+      expect(result).toEqual({ botId: 7, botName: 'Bot', botUsername: 'bot' });
+      const fetchMock = vi.mocked(fetch);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(urlOf(fetchMock.mock.calls[0]!)).toBe(
+        `https://api.telegram.org/bot${BOT_TOKEN}/getMe`
+      );
+    });
+  });
+
+  describe('registerWebhook', () => {
+    const BOT_TOKEN = '123456:secret';
+    const originalSiteUrl = process.env.CONVEX_SITE_URL;
+    let webhookUrlPrefix: string;
+
+    beforeEach(() => {
+      process.env.CONVEX_SITE_URL = 'https://example.convex.site';
+      webhookUrlPrefix = 'https://example.convex.site/api/telegram/webhook';
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }))
+      );
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      if (originalSiteUrl === undefined) {
+        delete process.env.CONVEX_SITE_URL;
+      } else {
+        process.env.CONVEX_SITE_URL = originalSiteUrl;
+      }
+    });
+
+    test('rejects a never-logged-in session with AUTH_FAILED before calling Telegram', async () => {
+      const ownerSession = await createTestSession('tg-register-auth-owner');
+      const chatroomId = await createChatroom(ownerSession);
+      const integrationId = await createIntegration(ownerSession, chatroomId);
+
+      const error = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.registerWebhook, {
+          sessionId: 'tg-register-auth' as SessionId,
+          botToken: BOT_TOKEN,
+          integrationId,
+        }),
+        'AUTH_FAILED'
+      );
+
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(0);
+      expect(error.data.message).not.toContain(BOT_TOKEN);
+      const stored = await t.run((ctx) => ctx.db.get('chatroom_integrations', integrationId));
+      expect(stored?.config.webhookUrl).toBeUndefined();
+      expect(stored?.config.webhookSecret).toBeUndefined();
+    });
+
+    test("rejects another user's integration with INTEGRATION_NOT_FOUND before calling Telegram", async () => {
+      const ownerSession = await createTestSession('tg-register-foreign-owner');
+      const attackerSession = await createTestSession('tg-register-foreign-attacker');
+      const ownerChatroom = await createChatroom(ownerSession);
+      const integrationId = await createIntegration(ownerSession, ownerChatroom);
+
+      const error = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.registerWebhook, {
+          sessionId: attackerSession,
+          botToken: BOT_TOKEN,
+          integrationId,
+        }),
+        'INTEGRATION_NOT_FOUND'
+      );
+
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(0);
+      expect(error.data.message).not.toContain(BOT_TOKEN);
+      const stored = await t.run((ctx) => ctx.db.get('chatroom_integrations', integrationId));
+      expect(stored?.config.webhookUrl).toBeUndefined();
+      expect(stored?.config.webhookSecret).toBeUndefined();
+    });
+
+    test('gives the same response for a missing integration as for a foreign one', async () => {
+      const ownerSession = await createTestSession('tg-register-oracle-owner');
+      const attackerSession = await createTestSession('tg-register-oracle-attacker');
+      const ownerChatroom = await createChatroom(ownerSession);
+      const attackerChatroom = await createChatroom(attackerSession);
+      const foreignIntegration = await createIntegration(attackerSession, attackerChatroom);
+
+      const foreignError = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.registerWebhook, {
+          sessionId: ownerSession,
+          botToken: BOT_TOKEN,
+          integrationId: foreignIntegration,
+        }),
+        'INTEGRATION_NOT_FOUND'
+      );
+
+      // A deleted integration is indistinguishable from one owned by someone else.
+      const deletedIntegration = await createIntegration(ownerSession, ownerChatroom);
+      await t.run((ctx) => ctx.db.delete('chatroom_integrations', deletedIntegration));
+
+      const missingError = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.registerWebhook, {
+          sessionId: ownerSession,
+          botToken: BOT_TOKEN,
+          integrationId: deletedIntegration,
+        }),
+        'INTEGRATION_NOT_FOUND'
+      );
+
+      expect(missingError.data).toEqual(foreignError.data);
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(0);
+    });
+
+    test('stores the webhook URL and a secret for the owner', async () => {
+      const sessionId = await createTestSession('tg-register-owner');
+      const chatroomId = await createChatroom(sessionId);
+      const integrationId = await createIntegration(sessionId, chatroomId);
+
+      const result = await t.action(api.integrations.telegram.actions.registerWebhook, {
+        sessionId,
+        botToken: BOT_TOKEN,
+        integrationId,
+      });
+
+      const expectedUrl = `${webhookUrlPrefix}/${integrationId}`;
+      expect(result).toEqual({ webhookUrl: expectedUrl });
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+
+      const stored = await t.run((ctx) => ctx.db.get('chatroom_integrations', integrationId));
+      expect(stored?.config.webhookUrl).toBe(expectedUrl);
+      expect(stored?.config.webhookSecret).toBeTruthy();
+    });
+  });
+
+  describe('removeWebhook', () => {
+    const BOT_TOKEN = '123456:secret';
+    const originalSiteUrl = process.env.CONVEX_SITE_URL;
+
+    beforeEach(() => {
+      process.env.CONVEX_SITE_URL = 'https://example.convex.site';
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }))
+      );
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      if (originalSiteUrl === undefined) {
+        delete process.env.CONVEX_SITE_URL;
+      } else {
+        process.env.CONVEX_SITE_URL = originalSiteUrl;
+      }
+    });
+
+    /** Register a webhook as the owner so the removal tests have something to protect. */
+    async function seedWebhook(
+      sessionId: SessionId,
+      integrationId: Id<'chatroom_integrations'>
+    ): Promise<void> {
+      await t.action(api.integrations.telegram.actions.registerWebhook, {
+        sessionId,
+        botToken: BOT_TOKEN,
+        integrationId,
+      });
+    }
+
+    test('rejects a never-logged-in session with AUTH_FAILED and leaves the webhook intact', async () => {
+      const ownerSession = await createTestSession('tg-remove-auth-owner');
+      const chatroomId = await createChatroom(ownerSession);
+      const integrationId = await createIntegration(ownerSession, chatroomId);
+      await seedWebhook(ownerSession, integrationId);
+      const before = await t.run((ctx) => ctx.db.get('chatroom_integrations', integrationId));
+
+      const error = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.removeWebhook, {
+          sessionId: 'tg-remove-auth' as SessionId,
+          botToken: BOT_TOKEN,
+          integrationId,
+        }),
+        'AUTH_FAILED'
+      );
+
+      // Only the seeding registration reached Telegram.
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+      expect(error.data.message).not.toContain(BOT_TOKEN);
+      const after = await t.run((ctx) => ctx.db.get('chatroom_integrations', integrationId));
+      expect(after?.config).toEqual(before?.config);
+      expect(after?.config.webhookUrl).toBeTruthy();
+      expect(after?.config.webhookSecret).toBeTruthy();
+    });
+
+    test("rejects another user's integration with INTEGRATION_NOT_FOUND and leaves the webhook intact", async () => {
+      const ownerSession = await createTestSession('tg-remove-foreign-owner');
+      const attackerSession = await createTestSession('tg-remove-foreign-attacker');
+      const ownerChatroom = await createChatroom(ownerSession);
+      const integrationId = await createIntegration(ownerSession, ownerChatroom);
+      await seedWebhook(ownerSession, integrationId);
+      const before = await t.run((ctx) => ctx.db.get('chatroom_integrations', integrationId));
+
+      const error = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.removeWebhook, {
+          sessionId: attackerSession,
+          botToken: BOT_TOKEN,
+          integrationId,
+        }),
+        'INTEGRATION_NOT_FOUND'
+      );
+
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+      expect(error.data.message).not.toContain(BOT_TOKEN);
+      expect(error.data.message).not.toContain(before?.config.webhookSecret ?? '');
+      const after = await t.run((ctx) => ctx.db.get('chatroom_integrations', integrationId));
+      expect(after?.config).toEqual(before?.config);
+    });
+
+    test('gives the same response for a missing integration as for a foreign one', async () => {
+      const ownerSession = await createTestSession('tg-remove-oracle-owner');
+      const attackerSession = await createTestSession('tg-remove-oracle-attacker');
+      const ownerChatroom = await createChatroom(ownerSession);
+      const attackerChatroom = await createChatroom(attackerSession);
+      const foreignIntegration = await createIntegration(attackerSession, attackerChatroom);
+
+      const foreignError = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.removeWebhook, {
+          sessionId: ownerSession,
+          botToken: BOT_TOKEN,
+          integrationId: foreignIntegration,
+        }),
+        'INTEGRATION_NOT_FOUND'
+      );
+
+      const deletedIntegration = await createIntegration(ownerSession, ownerChatroom);
+      await t.run((ctx) => ctx.db.delete('chatroom_integrations', deletedIntegration));
+
+      const missingError = await expectConvexErrorCode(
+        t.action(api.integrations.telegram.actions.removeWebhook, {
+          sessionId: ownerSession,
+          botToken: BOT_TOKEN,
+          integrationId: deletedIntegration,
+        }),
+        'INTEGRATION_NOT_FOUND'
+      );
+
+      expect(missingError.data).toEqual(foreignError.data);
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(0);
+    });
+
+    test('clears the webhook URL and secret for the owner', async () => {
+      const sessionId = await createTestSession('tg-remove-owner');
+      const chatroomId = await createChatroom(sessionId);
+      const integrationId = await createIntegration(sessionId, chatroomId);
+      await seedWebhook(sessionId, integrationId);
+
+      const result = await t.action(api.integrations.telegram.actions.removeWebhook, {
+        sessionId,
+        botToken: BOT_TOKEN,
+        integrationId,
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+      const stored = await t.run((ctx) => ctx.db.get('chatroom_integrations', integrationId));
+      expect(stored?.config.webhookUrl).toBeUndefined();
+      expect(stored?.config.webhookSecret).toBeFalsy();
+    });
+  });
 });
