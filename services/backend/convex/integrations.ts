@@ -2,7 +2,7 @@ import { v, ConvexError } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc } from './_generated/dataModel';
-import { mutation, query, internalQuery } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { omitUndefined } from './lib/omitUndefined';
 import {
@@ -228,28 +228,5 @@ export const remove = mutation({
     await ctx.db.delete('chatroom_integrations', args.integrationId);
 
     return { success: true };
-  },
-});
-
-// ─── Internal functions (for outbound forwarding / internal use) ─────────────
-
-/**
- * Internal query to list active integrations for a chatroom by platform.
- * Used by the outbound forwarding action.
- */
-export const listActiveByPlatform = internalQuery({
-  args: {
-    chatroomId: v.id('chatroom_rooms'),
-    platform: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const integrations = await ctx.db
-      .query('chatroom_integrations')
-      .withIndex('by_chatroom_platform', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('platform', args.platform)
-      )
-      .collect();
-
-    return integrations.filter((i) => i.enabled);
   },
 });
