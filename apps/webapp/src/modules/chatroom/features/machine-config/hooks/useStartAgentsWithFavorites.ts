@@ -46,7 +46,11 @@ export interface StartWithFavoritesDialogProps {
 
 export interface UseStartAgentsWithFavoritesOptions {
   chatroomId: string;
-  /** The caller's existing start + toast code. Resolves when the start request finished. */
+  /**
+   * The caller's start action, including its user-facing error toasts; the caller owns those toasts.
+   * Resolves when the start request has finished. If it rejects, the controller catches and logs the
+   * error once and always returns the flow to `idle`, so no path produces an unhandled rejection.
+   */
   start: (info: { appliedCount: number }) => Promise<void>;
 }
 
