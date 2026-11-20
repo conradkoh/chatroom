@@ -1,15 +1,11 @@
 'use client';
 
-import {
-  getAllowedSignupMethods,
-  getSignupConfigLabel,
-} from '@workspace/backend/config/signupMethods';
 import { Settings, Shield, Ticket, Users } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { SYSTEM_ADMIN_ACCESS_PERMISSION, useHasPermission } from '@/application/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAppInfo } from '@/modules/app/useAppInfo';
+import { useAppInfo, useSignupConfig } from '@/modules/app/useAppInfo';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 
 interface _StatusCardData {
@@ -27,6 +23,7 @@ export default function AdminDashboard() {
   const authState = useAuthState();
   const hasSystemAdminAccess = useHasPermission(SYSTEM_ADMIN_ACCESS_PERMISSION);
   const { appInfo, isLoading } = useAppInfo();
+  const signupConfig = useSignupConfig();
 
   /**
    * Memoized status cards data to prevent unnecessary recalculations.
@@ -51,8 +48,8 @@ export default function AdminDashboard() {
       },
       {
         title: 'Sign-up Mode',
-        value: getSignupConfigLabel(getAllowedSignupMethods()),
-        description: 'Edit featureFlags.ts and redeploy to change',
+        value: signupConfig ? signupConfig.label : '...',
+        description: 'Derived from the deployment environment (see featureFlags.ts)',
         icon: <Ticket className="h-4 w-4 text-muted-foreground" />,
       },
       {
@@ -67,7 +64,7 @@ export default function AdminDashboard() {
         icon: <Users className="h-4 w-4 text-muted-foreground" />,
       },
     ];
-  }, [authState, appInfo, hasSystemAdminAccess, isLoading]);
+  }, [authState, appInfo, hasSystemAdminAccess, isLoading, signupConfig]);
 
   /**
    * Memoized Google auth status for system information section.

@@ -1,6 +1,7 @@
-import { useContext } from 'react';
+import { useContext, useMemo } from 'react';
 
 import { AppInfoContext, type AppInfoContextValue } from './AppInfoProvider';
+import { deriveSignupConfig, type SignupConfig } from './signupConfig';
 
 /**
  * Custom hook for consuming app info context.
@@ -33,6 +34,21 @@ export function useGoogleAuthAvailable(): boolean | null {
   }
 
   return appInfo.googleAuthAvailable;
+}
+
+/**
+ * Signup configuration from the backend (`allowedSignupMethods`). Use this for every
+ * signup decision in the webapp; never call the env-bound backend helpers from the browser.
+ *
+ * @returns SignupConfig, or null while app info is loading
+ */
+export function useSignupConfig(): SignupConfig | null {
+  const { appInfo, isLoading } = useAppInfo();
+  const methods = appInfo?.allowedSignupMethods;
+  return useMemo(
+    () => (isLoading || !appInfo ? null : deriveSignupConfig(methods)),
+    [isLoading, appInfo, methods]
+  );
 }
 
 /**
