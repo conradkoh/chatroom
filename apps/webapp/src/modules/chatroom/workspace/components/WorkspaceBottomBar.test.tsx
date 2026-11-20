@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -8,7 +8,8 @@ import {
 } from './WorkspaceBottomBar';
 
 const mockUseIsDesktop = vi.fn();
-const mockUseKeyboardInset = vi.fn();
+const mockUseKeyboardInset = vi.fn(); // raw visualViewport inset (Android)
+const mockUseViewportOffsetTop = vi.fn(); // raw visualViewport offsetTop (iOS)
 const mockUseMainChatComposerFocused = vi.fn();
 
 function serializeShellHierarchy(outer: HTMLElement) {
@@ -34,10 +35,10 @@ vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/hooks/useMobileKeyboard')>();
   return {
     ...actual,
+    useVisualViewportKeyboardInset: (enabled?: boolean) => (enabled ? mockUseKeyboardInset() : 0),
+    useVisualViewportOffsetTop: (enabled?: boolean) => (enabled ? mockUseViewportOffsetTop() : 0),
     useMainChatComposerKeyboardInset: (enabled?: boolean) =>
       enabled && mockUseMainChatComposerFocused() ? mockUseKeyboardInset() : 0,
-    useMainChatComposerFocused: (enabled?: boolean) =>
-      enabled ? mockUseMainChatComposerFocused() : false,
   };
 });
 
@@ -45,9 +46,11 @@ describe('WorkspaceBottomBarShell', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReturnValue(false);
     mockUseKeyboardInset.mockReturnValue(0);
+    mockUseViewportOffsetTop.mockReturnValue(0);
     mockUseMainChatComposerFocused.mockReturnValue(false);
   });
 
+  const bar = () => screen.getByTestId('workspace-bottom-bar');
   const renderShell = () =>
     render(
       <WorkspaceBottomBarShell>
@@ -62,41 +65,107 @@ describe('WorkspaceBottomBarShell', () => {
     expect(outer.className).not.toContain('bg-chatroom-bg-surface');
   });
 
-  it('adds horizontal and bottom safe-area padding on mobile', () => {
+  it('renders the bar on mobile', () => {
     renderShell();
-    const outer = screen.getByTestId('workspace-bottom-bar');
-    expect(outer).toBeInTheDocument();
-    expect(mockUseMainChatComposerFocused).toHaveBeenCalled();
+    expect(bar()).toBeInTheDocument();
+  });
+
+  it('keeps bottom inset present when composer is focused and no keyboard is present', () => {
+    vi.useFakeTimers();
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    renderShell();
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('present');
+    expect(bar().style.transform).toBe('');
+    vi.useRealTimers();
+  });
+
+  it('suppresses bottom inset and lifts with Android-style visualViewport inset (composer focused)', () => {
+    vi.useFakeTimers();
+    mockUseKeyboardInset.mockReturnValue(300);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    renderShell();
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('suppressed');
+    expect(bar().style.transform).toBe('translateY(-300px)');
+    vi.useRealTimers();
+  });
+
+  it('suppresses bottom inset without lifting with iOS-style offsetTop (composer focused)', () => {
+    vi.useFakeTimers();
+    mockUseViewportOffsetTop.mockReturnValue(300);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    renderShell();
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('suppressed');
+    expect(bar().style.transform).toBe('');
+    vi.useRealTimers();
+  });
+
+  it('suppresses bottom inset when a keyboard covers the bar but composer is not focused (dialog input)', () => {
+    vi.useFakeTimers();
+    mockUseKeyboardInset.mockReturnValue(300);
+    renderShell();
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('suppressed');
+    expect(bar().style.transform).toBe('');
+    vi.useRealTimers();
+  });
+
+  it('restores bottom inset once the keyboard closes', () => {
+    vi.useFakeTimers();
+    mockUseKeyboardInset.mockReturnValue(300);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    const { rerender } = renderShell();
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('suppressed');
+    mockUseKeyboardInset.mockReturnValue(0);
+    rerender(
+      <WorkspaceBottomBarShell>
+        <span>content</span>
+      </WorkspaceBottomBarShell>
+    );
+    expect(bar().getAttribute('data-bottom-inset')).toBe('present');
+    vi.useRealTimers();
+  });
+
+  it('does not suppress before the settle window elapses', () => {
+    vi.useFakeTimers();
+    mockUseKeyboardInset.mockReturnValue(300);
+    renderShell();
+    expect(bar().getAttribute('data-bottom-inset')).toBe('present');
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('suppressed');
+    vi.useRealTimers();
+  });
+
+  it('desktop: no suppression, no inline shell styles', () => {
+    vi.useFakeTimers();
+    mockUseIsDesktop.mockReturnValue(true);
+    mockUseKeyboardInset.mockReturnValue(300);
+    mockUseViewportOffsetTop.mockReturnValue(300);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    renderShell();
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('present');
+    expect(bar().style.cssText).toBe('');
+    vi.useRealTimers();
+  });
+
+  it('adds no CSS transition to the bar', () => {
+    renderShell();
+    expect(bar().className).not.toMatch(/transition/);
   });
 
   it('does not lift when inset is present but composer not focused', () => {
     mockUseKeyboardInset.mockReturnValue(300);
     vi.useFakeTimers();
     renderShell();
-    vi.advanceTimersByTime(300);
+    act(() => vi.advanceTimersByTime(300)); // settle window
     const outer = screen.getByTestId('workspace-bottom-bar');
     expect(outer.style.paddingBottom).toBe('');
     expect(outer.style.transform).toBe('');
     vi.useRealTimers();
-  });
-
-  it('suppresses bottom safe-area when editable element is focused (iOS fallback)', () => {
-    mockUseMainChatComposerFocused.mockReturnValue(true);
-    renderShell();
-    expect(screen.getByTestId('workspace-bottom-bar').style.paddingBottom).toBe('');
-  });
-
-  it('keeps bottom safe-area when keyboard closed', () => {
-    renderShell();
-    expect(mockUseKeyboardInset).toHaveBeenCalled();
-    expect(mockUseMainChatComposerFocused).toHaveBeenCalled();
-  });
-
-  it('does not suppress safe-area on desktop', () => {
-    mockUseIsDesktop.mockReturnValue(true);
-    mockUseMainChatComposerFocused.mockReturnValue(true);
-    renderShell();
-    expect(screen.getByTestId('workspace-bottom-bar').style.cssText).toBe('');
   });
 
   it('keeps safe-area padding outside the fixed-height content row', () => {
@@ -109,16 +178,16 @@ describe('WorkspaceBottomBarShell', () => {
     expect(inner.className).toContain('min-h-[32px]');
   });
 
-  it('gates safe-area suppression by composer focus and settled threshold', () => {
-    expect(shouldSuppressWorkspaceBottomBarSafeArea(0, true)).toBe(true);
-    expect(shouldSuppressWorkspaceBottomBarSafeArea(119, false)).toBe(false);
-    expect(shouldSuppressWorkspaceBottomBarSafeArea(120, false)).toBe(true);
-    expect(shouldSuppressWorkspaceBottomBarSafeArea(300, false, false)).toBe(false);
-  });
-
   it('composes mobile shell safe-area and keyboard transform styles', () => {
     expect(getWorkspaceBottomBarShellStyle(true, 300, true).transform).toBe('translateY(-300px)');
     expect(getWorkspaceBottomBarShellStyle(false, 300, true).transform).toBe('translateY(-300px)');
+  });
+
+  it('keeps env() bottom padding when not suppressed, drops it when suppressed (mobile)', () => {
+    expect(getWorkspaceBottomBarShellStyle(true, 0, false).paddingBottom).toBe(
+      'env(safe-area-inset-bottom, 0px)'
+    );
+    expect(getWorkspaceBottomBarShellStyle(true, 0, true).paddingBottom).toBeUndefined();
   });
 
   it('lifts footer when composer focused with keyboard inset', () => {
@@ -126,9 +195,75 @@ describe('WorkspaceBottomBarShell', () => {
     mockUseKeyboardInset.mockReturnValue(300);
     mockUseMainChatComposerFocused.mockReturnValue(true);
     renderShell();
-    vi.advanceTimersByTime(300);
+    act(() => vi.advanceTimersByTime(300)); // settle window
     expect(screen.getByTestId('workspace-bottom-bar').style.transform).toBe('translateY(-300px)');
     vi.useRealTimers();
+  });
+});
+
+describe('shouldSuppressWorkspaceBottomBarSafeArea', () => {
+  it('suppresses only when settled and keyboard occlusion reaches the 120px threshold', () => {
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(0)).toBe(false);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(119)).toBe(false);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(120)).toBe(true);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(300, false)).toBe(false);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(300, true)).toBe(true);
+  });
+});
+
+describe('WorkspaceBottomBarShell tap guard', () => {
+  beforeEach(() => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValue(0);
+    mockUseViewportOffsetTop.mockReturnValue(0);
+    mockUseMainChatComposerFocused.mockReturnValue(false);
+  });
+
+  const renderWithComposer = (onChildClick: () => void = () => {}) =>
+    render(
+      <>
+        <div data-main-chat-composer>
+          <textarea aria-label="composer" />
+        </div>
+        <input aria-label="dialog input" />
+        <WorkspaceBottomBarShell>
+          <button type="button" onClick={onChildClick}>
+            act
+          </button>
+        </WorkspaceBottomBarShell>
+      </>
+    );
+
+  it('prevents default on mousedown when mobile and the main composer is focused', () => {
+    renderWithComposer();
+    const composer = screen.getByLabelText('composer');
+    composer.focus();
+    const notPrevented = fireEvent.mouseDown(screen.getByTestId('workspace-bottom-bar'));
+    expect(notPrevented).toBe(false);
+    expect(document.activeElement).toBe(composer);
+  });
+
+  it('does not prevent mousedown when focus is outside the main composer', () => {
+    renderWithComposer();
+    screen.getByLabelText('dialog input').focus();
+    expect(fireEvent.mouseDown(screen.getByTestId('workspace-bottom-bar'))).toBe(true);
+  });
+
+  it('does not prevent mousedown on desktop', () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    renderWithComposer();
+    screen.getByLabelText('composer').focus();
+    expect(fireEvent.mouseDown(screen.getByTestId('workspace-bottom-bar'))).toBe(true);
+  });
+
+  it('child button still receives click after a guarded mousedown', () => {
+    const onChildClick = vi.fn();
+    renderWithComposer(onChildClick);
+    screen.getByLabelText('composer').focus();
+    const button = screen.getByRole('button', { name: 'act' });
+    fireEvent.mouseDown(button);
+    fireEvent.click(button);
+    expect(onChildClick).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -136,6 +271,7 @@ describe('runtime hierarchy snapshots', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReturnValue(false);
     mockUseKeyboardInset.mockReturnValue(0);
+    mockUseViewportOffsetTop.mockReturnValue(0);
     mockUseMainChatComposerFocused.mockReturnValue(false);
   });
   const renderSnapshot = () =>
@@ -148,7 +284,7 @@ describe('runtime hierarchy snapshots', () => {
   it('mobile — keyboard closed', () => {
     vi.useFakeTimers();
     renderSnapshot();
-    vi.advanceTimersByTime(300);
+    act(() => vi.advanceTimersByTime(300));
     expect(snapshot()).toMatchInlineSnapshot(`
     {
       "inner": {
@@ -172,7 +308,7 @@ describe('runtime hierarchy snapshots', () => {
     mockUseKeyboardInset.mockReturnValue(300);
     mockUseMainChatComposerFocused.mockReturnValue(true);
     renderSnapshot();
-    vi.advanceTimersByTime(300);
+    act(() => vi.advanceTimersByTime(300));
     expect(screen.getByTestId('workspace-bottom-bar').style.transform).toContain(
       'translateY(-300px)'
     );
@@ -198,7 +334,7 @@ describe('runtime hierarchy snapshots', () => {
     vi.useFakeTimers();
     mockUseKeyboardInset.mockReturnValue(300);
     renderSnapshot();
-    vi.advanceTimersByTime(300);
+    act(() => vi.advanceTimersByTime(300));
     expect(screen.getByTestId('workspace-bottom-bar').style.transform).toBe('');
     expect(snapshot()).toMatchInlineSnapshot(`
     {
@@ -222,7 +358,7 @@ describe('runtime hierarchy snapshots', () => {
     vi.useFakeTimers();
     mockUseMainChatComposerFocused.mockReturnValue(true);
     renderSnapshot();
-    vi.advanceTimersByTime(300);
+    act(() => vi.advanceTimersByTime(300));
     expect(screen.getByTestId('workspace-bottom-bar').style.transform).toBe('');
     expect(snapshot()).toMatchInlineSnapshot(`
     {
@@ -248,7 +384,7 @@ describe('runtime hierarchy snapshots', () => {
     mockUseKeyboardInset.mockReturnValue(300);
     mockUseMainChatComposerFocused.mockReturnValue(true);
     renderSnapshot();
-    vi.advanceTimersByTime(300);
+    act(() => vi.advanceTimersByTime(300));
     expect(screen.getByTestId('workspace-bottom-bar').style.cssText).toBe('');
     expect(snapshot()).toMatchInlineSnapshot(`
     {
