@@ -93,6 +93,7 @@ vi.mock('../../infrastructure/local-actions/pick-folder.js', () => ({
 // The ledger runtime is the module boundary to the coalescing service. A never-settling
 // refresh proves dispatch does not await it.
 const mockRefresh = vi.hoisted(() => vi.fn());
+const mockServeSnapshot = vi.hoisted(() => vi.fn());
 const mockGetRepositoryLedgerService = vi.hoisted(() => vi.fn());
 vi.mock('./repository-ledger-runtime.js', () => ({
   getRepositoryLedgerService: mockGetRepositoryLedgerService,
@@ -256,6 +257,7 @@ function createDedupTracker() {
     pickFolderIds: new Map<string, number>(),
     gitCloneIds: new Map<string, number>(),
     syncProjectRootsIds: new Map<string, number>(),
+    reportRepositoryLedgerIds: new Map<string, number>(),
   };
 }
 
@@ -605,8 +607,13 @@ describe('dispatchCommandEventEffect daemon.syncProjectRoots', () => {
   beforeEach(() => {
     mockRefresh.mockReset();
     mockRefresh.mockResolvedValue(undefined);
+    mockServeSnapshot.mockReset();
+    mockServeSnapshot.mockReturnValue('started');
     mockGetRepositoryLedgerService.mockReset();
-    mockGetRepositoryLedgerService.mockReturnValue({ refresh: mockRefresh });
+    mockGetRepositoryLedgerService.mockReturnValue({
+      refresh: mockRefresh,
+      serveSnapshot: mockServeSnapshot,
+    });
   });
 
   it('starts the refresh without awaiting it', async () => {
@@ -687,5 +694,75 @@ describe('dispatchCommandEventEffect daemon.syncProjectRoots', () => {
     );
 
     expect(mockRefresh).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H. daemon.reportRepositoryLedger (background snapshot, never blocks)
+// ---------------------------------------------------------------------------
+
+describe('dispatchCommandEventEffect daemon.reportRepositoryLedger', () => {
+  function reportLedgerEvent(id: string) {
+    return {
+      _id: id,
+      type: 'daemon.reportRepositoryLedger',
+      requestId: 'req-ledger-1',
+      rescan: true,
+    } as any;
+  }
+
+  beforeEach(() => {
+    mockServeSnapshot.mockReset();
+    mockServeSnapshot.mockReturnValue('started');
+    mockGetRepositoryLedgerService.mockReset();
+    mockGetRepositoryLedgerService.mockReturnValue({
+      refresh: mockRefresh,
+      serveSnapshot: mockServeSnapshot,
+    });
+  });
+
+  it('starts the snapshot without awaiting it', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportLedgerEvent('evt-rl-nonblocking');
+
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
+      withDeps(createMockDaemonDeps())
+    );
+
+    expect(mockServeSnapshot).toHaveBeenCalledWith({
+      requestId: 'req-ledger-1',
+      rescan: true,
+    });
+    expect(tracker.reportRepositoryLedgerIds.has('evt-rl-nonblocking')).toBe(true);
+  });
+
+  it('starts one snapshot when the same event id is dispatched twice', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportLedgerEvent('evt-rl-dedupe');
+    const overrides = withDeps(createMockDaemonDeps());
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(mockServeSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves when serveSnapshot reports a duplicate without starting another job', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportLedgerEvent('evt-rl-duplicate');
+    mockServeSnapshot.mockReturnValue('duplicate');
+    const overrides = withDeps(createMockDaemonDeps());
+
+    await expect(
+      runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides)
+    ).resolves.toBeUndefined();
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(mockServeSnapshot).toHaveBeenCalledTimes(1);
   });
 });

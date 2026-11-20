@@ -10,7 +10,8 @@ describe('event type catalog', () => {
       classification: 'error',
     });
     expect(resolveEventTypeMeta('task.custom').classification).toBe('success');
-    expect(Object.keys(EVENT_TYPE_CATALOG)).toHaveLength(47);
+    expect(Object.keys(EVENT_TYPE_CATALOG)).toHaveLength(48);
+    expect(EVENT_TYPE_CATALOG).toHaveProperty('daemon.reportRepositoryLedger');
     expect(resolveEventTypeMeta('legacy.custom').classification).toBe('muted');
   });
   it('resolves classification styles', () => {

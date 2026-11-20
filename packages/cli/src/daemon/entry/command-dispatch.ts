@@ -54,6 +54,7 @@ export interface DedupTracker {
   pickFolderIds: Map<string, number>;
   gitCloneIds: Map<string, number>;
   syncProjectRootsIds: Map<string, number>;
+  reportRepositoryLedgerIds: Map<string, number>;
 }
 
 /** Union of services required to dispatch any command event. */
@@ -79,6 +80,7 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
   evictStaleEntries(tracker.gitCloneIds, evictBefore);
   evictStaleEntries(tracker.syncProjectRootsIds, evictBefore);
+  evictStaleEntries(tracker.reportRepositoryLedgerIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 
@@ -92,6 +94,7 @@ export function createDedupTracker(): DedupTracker {
     pickFolderIds: new Map<string, number>(),
     gitCloneIds: new Map<string, number>(),
     syncProjectRootsIds: new Map<string, number>(),
+    reportRepositoryLedgerIds: new Map<string, number>(),
   };
 }
 
@@ -309,6 +312,25 @@ function handleSyncProjectRootsEffect(
   });
 }
 
+function handleReportRepositoryLedgerEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.reportRepositoryLedgerIds.has(eventId)) return;
+    tracker.reportRepositoryLedgerIds.set(eventId, Date.now());
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.reportRepositoryLedger' }>;
+    const session = yield* DaemonSessionService;
+    // Not awaited: the job runs in the background. serveSnapshot starts it synchronously and never throws.
+    // 'duplicate' means a job for this requestId is already running, so there is nothing to do.
+    getRepositoryLedgerService(session).serveSnapshot({
+      requestId: typedEvent.requestId,
+      rescan: typedEvent.rescan,
+    });
+  });
+}
+
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -368,6 +390,7 @@ const commandEventHandlers: {
   'daemon.pickFolder': handlePickFolderCommandEffect,
   'daemon.gitClone': handleGitCloneCommandEffect,
   'daemon.syncProjectRoots': handleSyncProjectRootsEffect,
+  'daemon.reportRepositoryLedger': handleReportRepositoryLedgerEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
 };
 
