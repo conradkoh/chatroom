@@ -402,4 +402,78 @@ describe('useRepositoryLedger', () => {
 
     expect(setIntervalSpy).not.toHaveBeenCalled();
   });
+
+  it('a consumer that reused a pending request does not discard it on unmount or cancel', async () => {
+    mocks.request.mockResolvedValue({ requestId: REQUEST_1, reused: true });
+    mocks.rows.set(REQUEST_1, pendingRow());
+    const { result, unmount } = renderLedger();
+    await ask(result);
+    expect(result.current.view.kind).toBe('asking');
+
+    act(() => {
+      result.current.cancel();
+    });
+    unmount();
+
+    expect(mocks.discard).not.toHaveBeenCalled();
+  });
+
+  it('a consumer that created a pending request discards it on unmount', async () => {
+    mocks.rows.set(REQUEST_1, pendingRow());
+    const { result, unmount } = renderLedger();
+    await ask(result);
+
+    unmount();
+
+    expect(mocks.discard).toHaveBeenCalledWith({ requestId: REQUEST_1 });
+  });
+
+  it('a reused completed snapshot is not discarded on unmount', async () => {
+    mocks.request.mockResolvedValue({ requestId: REQUEST_1, reused: true });
+    mocks.rows.set(REQUEST_1, completedRow());
+    const { result, unmount } = renderLedger();
+    await ask(result);
+    expect(result.current.snapshot?.requestId).toBe(REQUEST_1);
+
+    unmount();
+
+    expect(mocks.discard).not.toHaveBeenCalled();
+  });
+
+  it('a reused request that disappears shows neutral idle, not expired', async () => {
+    mocks.request.mockResolvedValue({ requestId: REQUEST_1, reused: true });
+    mocks.rows.set(REQUEST_1, pendingRow());
+    const { result, rerender } = renderLedger();
+    await ask(result);
+
+    mocks.rows.set(REQUEST_1, null);
+    rerender();
+
+    expect(result.current.view).toEqual({ kind: 'idle', canRequest: true });
+  });
+
+  it('a reused snapshot that its creator discarded shows neutral idle, not expired', async () => {
+    mocks.request.mockResolvedValue({ requestId: REQUEST_1, reused: true });
+    mocks.rows.set(REQUEST_1, completedRow());
+    const { result, rerender } = renderLedger();
+    await ask(result);
+    expect(result.current.snapshot).not.toBeNull();
+
+    mocks.rows.set(REQUEST_1, null);
+    rerender();
+
+    expect(result.current.snapshot).toBeNull();
+    expect(result.current.view).toEqual({ kind: 'idle', canRequest: true });
+  });
+
+  it('a created snapshot whose row disappears still reads as expired', async () => {
+    mocks.rows.set(REQUEST_1, completedRow());
+    const { result, rerender } = renderLedger();
+    await ask(result);
+
+    mocks.rows.set(REQUEST_1, null);
+    rerender();
+
+    expect(result.current.view).toEqual({ kind: 'idle', reason: 'expired', canRequest: true });
+  });
 });

@@ -76,22 +76,34 @@ export interface UseRepositoryLedgerResult {
   cancel: () => void;
 }
 
-/** The request this hook issued. `requestId` is null while the request call is in flight. */
+/** A request this hook issued. `requestId` is null while the request call is in flight. `owned` is false when the server reused another consumer's pending request. */
 interface AskState {
   requestId: RequestId | null;
   rescan: boolean;
+  owned: boolean;
 }
 
-/** Where the issued request stands. `null` means no request was issued. */
-type AskPhase = 'starting' | 'asking' | 'timedOut' | 'failed' | 'completed' | 'missing';
+/** The displayed snapshot. `owned` is false when the snapshot's request was created by another consumer. */
+interface ShownState {
+  requestId: RequestId;
+  owned: boolean;
+}
+
+/** What this hook may discard on unmount or cancel. */
+interface LatestRequests {
+  ask: AskState | null;
+  shown: ShownState | null;
+}
+
+/**
+ * Where the issued request stands. `missing`: an owned row disappeared (expired and cleaned up).
+ * `discarded`: a reused row disappeared, most likely because its creator discarded it; neutral idle.
+ */
+type AskPhase =
+  'starting' | 'asking' | 'timedOut' | 'failed' | 'completed' | 'missing' | 'discarded';
 
 /** A failed request call: the machine rejected it as offline, or it failed with copy to show. */
 type RequestFailure = { kind: 'offline' } | { kind: 'error'; message: string };
-
-interface LatestIds {
-  askId: RequestId | null;
-  shownId: RequestId | null;
-}
 
 interface DeriveViewInput {
   phase: AskPhase | null;
@@ -116,6 +128,24 @@ function requestArgs(requestId: RequestId | null) {
 
 function askIdOf(ask: AskState | null): RequestId | null {
   return ask === null ? null : ask.requestId;
+}
+
+function shownIdOf(shown: ShownState | null): RequestId | null {
+  return shown === null ? null : shown.requestId;
+}
+
+/** Whether this hook created the displayed snapshot's request. */
+function shownOwnedOf(shown: ShownState | null): boolean {
+  return shown !== null && shown.owned;
+}
+
+/** The row feeding the displayed snapshot: the completed ask while promoting, else the shown row. */
+function snapshotRowOf(
+  phase: AskPhase | null,
+  askRow: LedgerRequestRow | null | undefined,
+  shownRow: LedgerRequestRow | null | undefined
+): LedgerRequestRow | null | undefined {
+  return phase === 'completed' ? askRow : shownRow;
 }
 
 function rescanOf(ask: AskState | null): boolean {
@@ -150,9 +180,16 @@ function snapshotOf(
   return toSnapshotMeta(row as CompletedRow);
 }
 
-/** True when the displayed snapshot is gone (null row) or past its expiry; false while loading. */
-function isSnapshotExpired(row: LedgerRequestRow | null | undefined, now: number): boolean {
-  if (row === null) return true;
+/**
+ * True when the displayed snapshot is past its expiry, or its row is gone while this hook owns it.
+ * A reused snapshot whose row is gone was discarded by its creator, which is not expiry. False while loading.
+ */
+function isSnapshotExpired(
+  row: LedgerRequestRow | null | undefined,
+  now: number,
+  owned: boolean
+): boolean {
+  if (row === null) return owned;
   return row?.status === 'completed' && row.expiresAt <= now;
 }
 
@@ -162,10 +199,14 @@ function rowPhase(row: LedgerRequestRow, now: number): AskPhase {
   return row.expiresAt <= now ? 'timedOut' : 'asking';
 }
 
-/** Phase of an issued request: undefined row is still loading, null row is gone. */
-function askPhaseOf(row: LedgerRequestRow | null | undefined, now: number): AskPhase {
+/** Phase of an issued request: undefined row is still loading; null row is gone (owned: missing, reused: discarded). */
+function askPhaseOf(
+  row: LedgerRequestRow | null | undefined,
+  now: number,
+  owned: boolean
+): AskPhase {
   if (row === undefined) return 'asking';
-  if (row === null) return 'missing';
+  if (row === null) return owned ? 'missing' : 'discarded';
   return rowPhase(row, now);
 }
 
@@ -176,13 +217,13 @@ function derivePhase(
 ): AskPhase | null {
   if (ask === null) return null;
   if (ask.requestId === null) return 'starting';
-  return askPhaseOf(askRow, now);
+  return askPhaseOf(askRow, now, ask.owned);
 }
 
-/** The request id of a completed ask waiting to be promoted, else null. */
-function completedAskId(phase: AskPhase | null, ask: AskState | null): RequestId | null {
-  if (phase !== 'completed' || ask === null) return null;
-  return ask.requestId;
+/** The snapshot a completed ask promotes to, or null when there is nothing to promote. */
+function promotedSnapshot(phase: AskPhase | null, ask: AskState | null): ShownState | null {
+  if (phase !== 'completed' || ask === null || ask.requestId === null) return null;
+  return { requestId: ask.requestId, owned: ask.owned };
 }
 
 function blockedByOf(
@@ -312,9 +353,20 @@ function useDiscardQuietly(): (requestId: RequestId) => void {
   }, []);
 }
 
-function discardLatest(latest: LatestIds, discardQuietly: (requestId: RequestId) => void): void {
-  if (latest.askId) discardQuietly(latest.askId);
-  if (latest.shownId) discardQuietly(latest.shownId);
+/** Discards a request on the server only when this hook created it. A reused request belongs to its creator. */
+function discardOwned(
+  request: { requestId: RequestId | null; owned: boolean },
+  discardQuietly: (requestId: RequestId) => void
+): void {
+  if (request.owned && request.requestId !== null) discardQuietly(request.requestId);
+}
+
+function discardLatest(
+  latest: LatestRequests,
+  discardQuietly: (requestId: RequestId) => void
+): void {
+  if (latest.ask !== null) discardOwned(latest.ask, discardQuietly);
+  if (latest.shown !== null) discardOwned(latest.shown, discardQuietly);
 }
 
 function useLedgerRows(askId: RequestId | null, shownId: RequestId | null) {
@@ -355,43 +407,46 @@ export function useRepositoryLedger(
   gate: LedgerGate
 ): UseRepositoryLedgerResult {
   const [ask, setAsk] = useState<AskState | null>(null);
-  const [shownId, setShownId] = useState<RequestId | null>(null);
+  const [shown, setShown] = useState<ShownState | null>(null);
   const [requestFailure, setRequestFailure] = useState<RequestFailure | null>(null);
   const sequence = useRef(0);
-  const latest = useRef<LatestIds>({ askId: null, shownId: null });
+  const latest = useRef<LatestRequests>({ ask: null, shown: null });
   const discardQuietly = useDiscardQuietly();
   const requestMutation = useSessionMutation(api.repositoryLedger.request);
 
   const askId = askIdOf(ask);
+  const shownId = shownIdOf(shown);
   const { askRow, shownRow, now } = useLedgerRows(askId, shownId);
   const phase = derivePhase(ask, askRow, now);
-  const snapshot = snapshotOf(phase === 'completed' ? askRow : shownRow, now);
+  const snapshot = snapshotOf(snapshotRowOf(phase, askRow, shownRow), now);
   const { entries, isLoadingPages } = useLedgerPages(snapshot);
   const view = deriveView({
     phase,
     rescan: rescanOf(ask),
     askRow,
     snapshot,
-    snapshotExpired: isSnapshotExpired(shownRow, now),
+    snapshotExpired: isSnapshotExpired(shownRow, now, shownOwnedOf(shown)),
     ...failureFieldsOf(requestFailure),
     gate,
   });
 
   useEffect(() => {
-    latest.current = { askId, shownId };
-  }, [askId, shownId]);
+    latest.current = { ask, shown };
+  }, [ask, shown]);
 
-  // Promote a completed ask to the displayed snapshot; discard the one it replaces.
+  // Promote a completed ask to the displayed snapshot. Discard the one it replaces only if this hook created it.
   useEffect(() => {
-    const completedId = completedAskId(phase, ask);
-    if (completedId === null) return;
-    const previous = shownId;
-    setShownId(completedId);
+    const promoted = promotedSnapshot(phase, ask);
+    if (promoted === null) return;
+    const replaced = shown;
+    setShown(promoted);
     setAsk(null);
-    if (previous !== null && previous !== completedId) discardQuietly(previous);
-  }, [phase, ask, shownId, discardQuietly]);
+    if (replaced !== null && replaced.requestId !== promoted.requestId) {
+      discardOwned(replaced, discardQuietly);
+    }
+  }, [phase, ask, shown, discardQuietly]);
 
-  // Unmount (collapse or leave the page) discards the snapshot and any pending ask.
+  // Unmount (collapse or leave the page) discards the requests this hook created.
   useEffect(
     () => () => {
       sequence.current += 1;
@@ -404,14 +459,15 @@ export function useRepositoryLedger(
     async (rescan: boolean) => {
       const current = ++sequence.current;
       setRequestFailure(null);
-      setAsk({ requestId: null, rescan });
+      setAsk({ requestId: null, rescan, owned: false });
       try {
-        const { requestId } = await requestMutation({ machineId, rescan });
+        const { requestId, reused } = await requestMutation({ machineId, rescan });
+        const owned = !reused;
         if (current !== sequence.current) {
-          discardQuietly(requestId);
+          discardOwned({ requestId, owned }, discardQuietly);
           return;
         }
-        setAsk({ requestId, rescan });
+        setAsk({ requestId, rescan, owned });
       } catch (error) {
         if (current === sequence.current) {
           setAsk(null);
@@ -426,7 +482,7 @@ export function useRepositoryLedger(
     sequence.current += 1;
     discardLatest(latest.current, discardQuietly);
     setAsk(null);
-    setShownId(null);
+    setShown(null);
     setRequestFailure(null);
   }, [discardQuietly]);
 

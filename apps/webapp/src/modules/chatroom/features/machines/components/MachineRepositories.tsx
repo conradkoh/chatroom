@@ -440,7 +440,8 @@ function LedgerBody({
 /**
  * Repositories section for one expanded machine card: a snapshot loaded on demand from the
  * machine's daemon, listed as fixed-height virtualised rows, with one chatroom per row.
- * The hook discards the snapshot when this component unmounts (collapse or navigation).
+ * The hook discards the requests this section created when it unmounts (collapse or navigation);
+ * reused requests are left to their creator.
  */
 export function MachineRepositories({
   machineId,
