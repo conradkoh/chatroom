@@ -16,30 +16,36 @@ export function formatOs(os: string): string {
 
 const RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat('en', { numeric: 'always' });
 
+interface RelativeUnit {
+  /** Upper bound (exclusive) in seconds before the next unit takes over. */
+  limitSeconds: number;
+  secondsPerUnit: number;
+  unit: Intl.RelativeTimeFormatUnit;
+}
+
+const RELATIVE_UNITS: readonly RelativeUnit[] = [
+  { limitSeconds: 60 * 60, secondsPerUnit: 60, unit: 'minute' },
+  { limitSeconds: 24 * 60 * 60, secondsPerUnit: 60 * 60, unit: 'hour' },
+  { limitSeconds: 30 * 24 * 60 * 60, secondsPerUnit: 24 * 60 * 60, unit: 'day' },
+  { limitSeconds: 365 * 24 * 60 * 60, secondsPerUnit: 30 * 24 * 60 * 60, unit: 'month' },
+];
+
+const SECONDS_PER_YEAR = 365 * 24 * 60 * 60;
+
 /**
  * Relative "last seen" text. < 60 s (or a clock-skewed future time) → 'just now'.
  * Units: minutes (<60), hours (<24), days (<30), months (<12), years.
  */
 export function formatLastSeen(lastSeenAt: number, now: number): string {
-  const elapsedMs = now - lastSeenAt;
-  if (elapsedMs < 0) return 'just now';
+  const elapsedSeconds = Math.floor((now - lastSeenAt) / 1000);
+  if (elapsedSeconds < 60) return 'just now';
 
-  const seconds = Math.floor(elapsedMs / 1000);
-  if (seconds < 60) return 'just now';
+  const unit = RELATIVE_UNITS.find((candidate) => elapsedSeconds < candidate.limitSeconds);
+  if (!unit) {
+    return RELATIVE_TIME_FORMAT.format(-Math.floor(elapsedSeconds / SECONDS_PER_YEAR), 'year');
+  }
 
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return RELATIVE_TIME_FORMAT.format(-minutes, 'minute');
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return RELATIVE_TIME_FORMAT.format(-hours, 'hour');
-
-  const days = Math.floor(hours / 24);
-  if (days < 30) return RELATIVE_TIME_FORMAT.format(-days, 'day');
-
-  const months = Math.floor(days / 30);
-  if (months < 12) return RELATIVE_TIME_FORMAT.format(-months, 'month');
-
-  return RELATIVE_TIME_FORMAT.format(-Math.floor(days / 365), 'year');
+  return RELATIVE_TIME_FORMAT.format(-Math.floor(elapsedSeconds / unit.secondsPerUnit), unit.unit);
 }
 
 /** 'Nov 3, 2026' (en-US, month short, day numeric, year numeric). */
@@ -51,16 +57,33 @@ export function formatRegisteredDate(registeredAt: number): string {
   });
 }
 
+function countLabel(count: number, unit: string, capped: boolean): string {
+  const plural = capped || count !== 1 ? 's' : '';
+  const plus = capped ? '+' : '';
+  return `${count}${plus} ${unit}${plural}`;
+}
+
 /** '3 workspaces · 2 chatrooms'; capped counts keep plurals and gain a '+' suffix. */
 export function formatUsageSummary(usage: {
   activeWorkspaceCount: number;
   activeChatroomCount: number;
   capped: boolean;
 }): string {
-  const plus = usage.capped ? '+' : '';
-  const workspacePlural = usage.capped || usage.activeWorkspaceCount !== 1 ? 's' : '';
-  const chatroomPlural = usage.capped || usage.activeChatroomCount !== 1 ? 's' : '';
-  return `${usage.activeWorkspaceCount}${plus} workspace${workspacePlural} · ${usage.activeChatroomCount}${plus} chatroom${chatroomPlural}`;
+  const workspaces = countLabel(usage.activeWorkspaceCount, 'workspace', usage.capped);
+  const chatrooms = countLabel(usage.activeChatroomCount, 'chatroom', usage.capped);
+  return `${workspaces} · ${chatrooms}`;
+}
+
+function compareMachines(a: UserMachine, b: UserMachine): number {
+  const byName = getMachineDisplayName(a).localeCompare(getMachineDisplayName(b), undefined, {
+    sensitivity: 'base',
+  });
+  if (byName !== 0) return byName;
+
+  const byRegisteredAt = a.registeredAt - b.registeredAt;
+  if (byRegisteredAt !== 0) return byRegisteredAt;
+
+  return a.machineId.localeCompare(b.machineId);
 }
 
 /**
@@ -68,13 +91,5 @@ export function formatUsageSummary(usage: {
  * Status/connectivity are deliberately excluded so heartbeats never reshuffle cards.
  */
 export function sortMachinesByDisplayName(machines: readonly UserMachine[]): UserMachine[] {
-  return [...machines].sort((a, b) => {
-    const byName = getMachineDisplayName(a).localeCompare(getMachineDisplayName(b), undefined, {
-      sensitivity: 'base',
-    });
-    if (byName !== 0) return byName;
-    if (a.registeredAt !== b.registeredAt) return a.registeredAt - b.registeredAt;
-    if (a.machineId === b.machineId) return 0;
-    return a.machineId < b.machineId ? -1 : 1;
-  });
+  return [...machines].sort(compareMachines);
 }

@@ -19,6 +19,131 @@ export interface MachineAliasFieldProps {
 
 const SAVE_FALLBACK_COPY = 'Could not save the name. Try again.';
 
+const ICON_BUTTON_CLASSES =
+  'flex h-8 w-8 shrink-0 items-center justify-center text-chatroom-text-muted transition-colors hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary disabled:opacity-50';
+
+function textSizeClass(compact: boolean): string {
+  return compact ? 'text-xs' : 'text-sm';
+}
+
+/** Empty input clears the alias; the backend treats undefined and '' the same. */
+function aliasOrUndefined(value: string): string | undefined {
+  return value || undefined;
+}
+
+/** Display mode: name plus the always-visible rename affordance. */
+function MachineAliasDisplay({
+  alias,
+  hostname,
+  compact,
+  onEdit,
+  attachPencil,
+}: {
+  alias?: string;
+  hostname: string;
+  compact: boolean;
+  onEdit: () => void;
+  attachPencil: (node: HTMLButtonElement | null) => void;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <span
+        data-testid="machine-name"
+        className={`truncate font-bold text-chatroom-text-primary ${textSizeClass(compact)}`}
+      >
+        {alias || hostname}
+      </span>
+      <button
+        ref={attachPencil}
+        type="button"
+        onClick={onEdit}
+        title="Rename machine"
+        aria-label="Rename machine"
+        data-testid="machine-alias-edit"
+        className={ICON_BUTTON_CLASSES}
+      >
+        <Pencil size={12} />
+      </button>
+    </div>
+  );
+}
+
+/** Edit mode: input with Save/Cancel buttons and an inline error line. */
+function MachineAliasEditor({
+  value,
+  hostname,
+  compact,
+  isSaving,
+  error,
+  attachInput,
+  onChange,
+  onKeyDown,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  hostname: string;
+  compact: boolean;
+  isSaving: boolean;
+  error: string | null;
+  attachInput: (node: HTMLInputElement | null) => void;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 items-center gap-1">
+        <input
+          ref={attachInput}
+          type="text"
+          data-testid="machine-alias-input"
+          aria-label="Machine name"
+          maxLength={64}
+          placeholder={hostname}
+          value={value}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          disabled={isSaving}
+          className={`h-8 min-w-0 flex-1 border border-chatroom-border bg-chatroom-bg-secondary px-2 font-bold text-chatroom-text-primary outline-none focus:border-chatroom-border-strong disabled:opacity-50 ${textSizeClass(compact)}`}
+        />
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onSave}
+          disabled={isSaving}
+          aria-label="Save name"
+          data-testid="machine-alias-save"
+          className={ICON_BUTTON_CLASSES}
+        >
+          <Check size={12} />
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onCancel}
+          disabled={isSaving}
+          aria-label="Cancel rename"
+          data-testid="machine-alias-cancel"
+          className={ICON_BUTTON_CLASSES}
+        >
+          <X size={12} />
+        </button>
+      </div>
+      {error && (
+        <p
+          role="alert"
+          data-testid="machine-alias-error"
+          className="text-xs text-chatroom-status-error"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Inline machine alias editor shared by the Machines page and AgentSettingsModal.
  *
@@ -93,7 +218,7 @@ export const MachineAliasField = memo(function MachineAliasField({
     setIsSaving(true);
     setError(null);
     try {
-      await setMachineAlias({ machineId, alias: trimmed || undefined });
+      await setMachineAlias({ machineId, alias: aliasOrUndefined(trimmed) });
       refocusPencilRef.current = true;
       setIsEditing(false);
     } catch (err) {
@@ -121,82 +246,30 @@ export const MachineAliasField = memo(function MachineAliasField({
     setError(null);
   }, []);
 
-  const textSize = compact ? 'text-xs' : 'text-sm';
-  const iconButtonClasses =
-    'flex h-8 w-8 shrink-0 items-center justify-center text-chatroom-text-muted transition-colors hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary disabled:opacity-50';
-
   if (!isEditing) {
     return (
-      <div className="flex min-w-0 items-center gap-1">
-        <span
-          data-testid="machine-name"
-          className={`truncate font-bold text-chatroom-text-primary ${textSize}`}
-        >
-          {alias || hostname}
-        </span>
-        <button
-          ref={attachPencil}
-          type="button"
-          onClick={beginEdit}
-          title="Rename machine"
-          aria-label="Rename machine"
-          data-testid="machine-alias-edit"
-          className={iconButtonClasses}
-        >
-          <Pencil size={12} />
-        </button>
-      </div>
+      <MachineAliasDisplay
+        alias={alias}
+        hostname={hostname}
+        compact={compact}
+        onEdit={beginEdit}
+        attachPencil={attachPencil}
+      />
     );
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <div className="flex min-w-0 items-center gap-1">
-        <input
-          ref={attachInput}
-          type="text"
-          data-testid="machine-alias-input"
-          aria-label="Machine name"
-          maxLength={64}
-          placeholder={hostname}
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          disabled={isSaving}
-          className={`h-8 min-w-0 flex-1 border border-chatroom-border bg-chatroom-bg-secondary px-2 font-bold text-chatroom-text-primary outline-none focus:border-chatroom-border-strong disabled:opacity-50 ${textSize}`}
-        />
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => void save()}
-          disabled={isSaving}
-          aria-label="Save name"
-          data-testid="machine-alias-save"
-          className={iconButtonClasses}
-        >
-          <Check size={12} />
-        </button>
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={cancelEdit}
-          disabled={isSaving}
-          aria-label="Cancel rename"
-          data-testid="machine-alias-cancel"
-          className={iconButtonClasses}
-        >
-          <X size={12} />
-        </button>
-      </div>
-      {error && (
-        <p
-          role="alert"
-          data-testid="machine-alias-error"
-          className="text-xs text-chatroom-status-error"
-        >
-          {error}
-        </p>
-      )}
-    </div>
+    <MachineAliasEditor
+      value={value}
+      hostname={hostname}
+      compact={compact}
+      isSaving={isSaving}
+      error={error}
+      attachInput={attachInput}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      onSave={() => void save()}
+      onCancel={cancelEdit}
+    />
   );
 });
