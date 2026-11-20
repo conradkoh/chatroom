@@ -35,7 +35,7 @@ export function BulkCreateButton({
       data-testid="bulk-create-open"
       disabled={disabledReason !== null}
       onClick={onOpen}
-      className="h-9 bg-chatroom-accent px-4 text-xs font-bold uppercase tracking-wide text-chatroom-bg-primary hover:bg-chatroom-text-secondary"
+      className="h-9 w-full bg-chatroom-accent px-4 text-xs font-bold uppercase tracking-wide text-chatroom-bg-primary hover:bg-chatroom-text-secondary sm:w-auto"
     >
       {disabledReason ?? `Create chatrooms for ${repositoryCount(count)}`}
     </Button>
