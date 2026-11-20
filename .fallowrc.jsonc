@@ -160,6 +160,15 @@
       "file": "**/src/domain/usecase/machine/machine-usage.ts",
       "exports": ["MACHINE_USAGE_SCAN_CAP"],
     },
+    // Exported for the project-root specs. Spec files are not analysis entries.
+    {
+      "file": "**/src/domain/usecase/machine/project-roots.ts",
+      "exports": ["normalizeProjectRoot", "enqueueProjectRootsSync"],
+    },
+    {
+      "file": "**/src/domain/entities/project-root.ts",
+      "exports": ["isSameOrNestedPath"],
+    },
   ],
   "duplicates": {
     "ignore": [

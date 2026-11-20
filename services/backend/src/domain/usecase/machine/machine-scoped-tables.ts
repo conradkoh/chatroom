@@ -196,6 +196,7 @@ export const MACHINE_SCOPED_TABLES: readonly MachineScopedTable[] = [
   // Request tables (their by_machineId indexes exist only for this purge).
   byMachine('chatroom_folderPickerRequests', 'by_machineId'),
   byMachine('chatroom_gitCloneRequests', 'by_machineId'),
+  byMachine('chatroom_machineProjectRoots', 'by_machineId'),
   byMachine('chatroom_capabilities_refresh_machine_results', 'by_machineId'),
 
   // Git state.

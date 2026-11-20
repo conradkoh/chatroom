@@ -154,6 +154,11 @@ export type BackendErrorCode =
   | 'GIT_CLONE_REQUEST_NOT_FOUND'
   | 'GIT_CLONE_PATH_MISMATCH'
 
+  // ── Project roots ─────────────────────────────────────────────────
+  | 'PROJECT_ROOT_DUPLICATE'
+  | 'PROJECT_ROOT_NESTED'
+  | 'PROJECT_ROOT_LIMIT_REACHED'
+
   // ── Folder picker ─────────────────────────────────────────────────
   | 'FOLDER_PICKER_REQUEST_NOT_FOUND'
 
@@ -443,6 +448,14 @@ export const BACKEND_ERROR_CODES = {
   /** Reported clone path does not match the requested target path */
   GIT_CLONE_PATH_MISMATCH: 'GIT_CLONE_PATH_MISMATCH',
 
+  // ── Project roots ─────────────────────────────────────────────────
+  /** Project root already exists for this machine */
+  PROJECT_ROOT_DUPLICATE: 'PROJECT_ROOT_DUPLICATE',
+  /** Project root is inside an existing root */
+  PROJECT_ROOT_NESTED: 'PROJECT_ROOT_NESTED',
+  /** Machine already has the maximum number of project roots */
+  PROJECT_ROOT_LIMIT_REACHED: 'PROJECT_ROOT_LIMIT_REACHED',
+
   // ── Folder picker ─────────────────────────────────────────────────
   /** Folder picker request not found */
   FOLDER_PICKER_REQUEST_NOT_FOUND: 'FOLDER_PICKER_REQUEST_NOT_FOUND',
@@ -685,6 +698,11 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.MACHINE_DELETION_IN_PROGRESS,
   BACKEND_ERROR_CODES.GIT_CLONE_REQUEST_NOT_FOUND,
   BACKEND_ERROR_CODES.GIT_CLONE_PATH_MISMATCH,
+
+  // Project roots
+  BACKEND_ERROR_CODES.PROJECT_ROOT_DUPLICATE,
+  BACKEND_ERROR_CODES.PROJECT_ROOT_NESTED,
+  BACKEND_ERROR_CODES.PROJECT_ROOT_LIMIT_REACHED,
 
   // Folder picker
   BACKEND_ERROR_CODES.FOLDER_PICKER_REQUEST_NOT_FOUND,

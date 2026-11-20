@@ -1209,6 +1209,21 @@ export default defineSchema({
     .index('by_status_updatedAt', ['status', 'updatedAt']),
 
   /**
+   * User-intent project roots for a machine. One row per root so two browser tabs never
+   * overwrite each other's edits; uniqueness/nesting/limit are enforced in the serializable
+   * mutation (`src/domain/usecase/machine/project-roots.ts`). Tiny, low-frequency writes.
+   * The daemon learns about changes through a coalesced `daemon.syncProjectRoots` inbox nudge.
+   */
+  chatroom_machineProjectRoots: defineTable({
+    machineId: v.string(),
+    userId: v.id('users'),
+    path: v.string(), // normalized by normalizeProjectRoot
+    addedAt: v.number(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_machine_path', ['machineId', 'path']),
+
+  /**
    * Model visibility filters for a machine's harness.
    * Machine-level - shared across all users and chatrooms.
    * Hidden models appear greyed-out in the UI but are still visible.
