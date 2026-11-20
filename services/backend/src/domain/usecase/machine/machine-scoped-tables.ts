@@ -138,10 +138,13 @@ const machinesTable: MachineScopedTable = {
 };
 
 /**
- * Command runs own two satellite tables. Chunks are drained in pages of 200 so a
- * single large run does not blow the mutation budget; the run row (and its live
- * tail) is only removed once its chunks are gone.
+ * Command runs own two satellite tables. Output chunks are drained in pages of
+ * COMMAND_RUN_CHUNK_PAGE per call, so one large run stays under the per-mutation read cap.
+ * A full page means more chunks remain: the run row is reported not removed and the next
+ * batch resumes. The run row (and its live tail) is only removed once its chunks are gone.
  */
+const COMMAND_RUN_CHUNK_PAGE = 50;
+
 const commandRunsTable: MachineScopedTable = {
   table: 'chatroom_commandRunsV2',
   cost: 30,
@@ -151,11 +154,11 @@ const commandRunsTable: MachineScopedTable = {
     const chunks = await ctx.db
       .query('chatroom_commandOutputV2')
       .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', runId))
-      .take(200);
+      .take(COMMAND_RUN_CHUNK_PAGE);
     for (const chunk of chunks) {
       await ctx.db.delete('chatroom_commandOutputV2', chunk._id);
     }
-    if (chunks.length === 200) return { writes: chunks.length, removed: false };
+    if (chunks.length === COMMAND_RUN_CHUNK_PAGE) return { writes: chunks.length, removed: false };
 
     let writes = chunks.length;
     const tail = await ctx.db

@@ -744,6 +744,85 @@ describe('batched purge', () => {
     expect(second).toMatchObject({ deleted: 10, drained: false });
     expect(remainingAfterSecond).toBe(0);
   });
+
+  test('a command run with 120 output chunks drains over three batches with no orphan chunks or tail', async () => {
+    const { sessionId } = await createTestSession('md-run-chunks');
+    const userId = await userIdFor(sessionId);
+    const machineId = 'machine-md-run-chunks';
+    const key: PurgeKey = { machineId, userId };
+
+    const runId = await t.run(async (ctx) => {
+      const now = Date.now();
+      const id = await ctx.db.insert('chatroom_commandRunsV2', {
+        machineId,
+        workingDir: '/work/run-chunks',
+        commandName: 'dev',
+        script: 'bun dev',
+        status: 'completed',
+        startedAt: now,
+        requestedBy: userId,
+      });
+      await ctx.db.insert('chatroom_commandRunTailsV2', {
+        runId: id,
+        machineId,
+        compression: 'gzip',
+        content: 'H4sI',
+        byteLength: 4,
+        totalBytesWritten: 4,
+        updatedAt: now,
+        lineCount: 1,
+      });
+      for (let i = 0; i < 120; i++) {
+        await ctx.db.insert('chatroom_commandOutputV2', {
+          runId: id,
+          compression: 'gzip',
+          content: 'H4sI',
+          chunkIndex: i,
+          timestamp: now,
+        });
+      }
+      return id;
+    });
+
+    const chunkCount = () =>
+      t.run(
+        async (ctx) =>
+          (
+            await ctx.db
+              .query('chatroom_commandOutputV2')
+              .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', runId))
+              .collect()
+          ).length
+      );
+    const runExists = () =>
+      t.run((ctx) => ctx.db.get('chatroom_commandRunsV2', runId).then((row) => row !== null));
+    const tailCount = () =>
+      t.run(
+        async (ctx) =>
+          (
+            await ctx.db
+              .query('chatroom_commandRunTailsV2')
+              .withIndex('by_runId', (q) => q.eq('runId', runId))
+              .collect()
+          ).length
+      );
+
+    const first = await t.run((ctx) => purgeMachineBatch(ctx, key));
+    expect(first).toMatchObject({ drained: false });
+    expect(await chunkCount()).toBe(70);
+    expect(await runExists()).toBe(true);
+
+    const second = await t.run((ctx) => purgeMachineBatch(ctx, key));
+    expect(second).toMatchObject({ drained: false });
+    expect(await chunkCount()).toBe(20);
+    expect(await runExists()).toBe(true);
+
+    const third = await t.run((ctx) => purgeMachineBatch(ctx, key));
+    expect(third).toMatchObject({ drained: true });
+    expect(await chunkCount()).toBe(0);
+    expect(await tailCount()).toBe(0);
+    expect(await runExists()).toBe(false);
+  });
 });
 
 // ─── 6. Sweeper ─────────────────────────────────────────────────────────────
