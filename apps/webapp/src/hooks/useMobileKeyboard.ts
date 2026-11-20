@@ -94,6 +94,18 @@ export function computeVisualViewportOffsetTopPx(): number {
 }
 
 /**
+ * Current visualViewport.scale: the pinch-zoom factor, 1 at rest and >1 when zoomed.
+ * Lets callers tell a keyboard occlusion apart from a pinch-zoom shrink.
+ */
+// fallow-ignore-next-line unused-export
+export function computeVisualViewportScale(): number {
+  if (typeof window === 'undefined') return 1;
+  const vv = window.visualViewport;
+  if (!vv || typeof vv.scale !== 'number') return 1;
+  return vv.scale;
+}
+
+/**
  * Shared subscription for visualViewport-derived metrics (keyboard inset,
  * offset top). Recomputes on resize/scroll/focus changes with rAF + delayed
  * rechecks to catch late browser layout/scroll settles.
@@ -160,6 +172,16 @@ export function useVisualViewportKeyboardInset(enabled = true): number {
 
 export function useVisualViewportOffsetTop(enabled = true): number {
   return useVisualViewportValue(enabled, computeVisualViewportOffsetTopPx);
+}
+
+/**
+ * Live pinch-zoom factor from the shared visualViewport subscription.
+ * Returns 0 while disabled or before the first measurement. Callers treat any value
+ * <= 1.01 as "not zoomed", so 0 is safe.
+ */
+// fallow-ignore-next-line unused-export
+export function useVisualViewportScale(enabled = true): number {
+  return useVisualViewportValue(enabled, computeVisualViewportScale);
 }
 
 /** Root selector marking the main chat composer — footer keyboard lift keys off this. */
