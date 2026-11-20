@@ -62,6 +62,7 @@
   --color-chatroom-status-error: var(--chatroom-status-error);
   --color-chatroom-status-info: var(--chatroom-status-info);
   --color-chatroom-status-purple: var(--chatroom-status-purple);
+  --color-chatroom-status-slow: var(--chatroom-status-slow);
   --color-chatroom-accent: var(--chatroom-accent);
   --color-chatroom-accent-subtle: var(--chatroom-accent-subtle);
   --color-chatroom-text-on-accent: var(--chatroom-text-on-accent);
@@ -295,6 +296,7 @@ input,
   --chatroom-status-error: #b91c1c; /* red-700 */
   --chatroom-status-info: #1d4ed8; /* blue-700 */
   --chatroom-status-purple: #7c3aed; /* purple-600 */
+  --chatroom-status-slow: #c2410c; /* orange-700 */
 
   /* Accent */
   --chatroom-accent: #171717; /* neutral-900 */
@@ -352,6 +354,7 @@ input,
   --chatroom-status-error: #f87171; /* red-400 */
   --chatroom-status-info: #60a5fa; /* blue-400 */
   --chatroom-status-purple: #c084fc; /* purple-400 */
+  --chatroom-status-slow: #fb923c; /* orange-400 */
 
   /* Accent */
   --chatroom-accent: #fafafa; /* zinc-100 */

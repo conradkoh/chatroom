@@ -45,6 +45,7 @@ function renderFooter(
   message: Message,
   props: {
     handoffDurationMs?: number;
+    handoffDurationSlow?: boolean;
   } = {}
 ) {
   return render(
@@ -69,7 +70,7 @@ describe('TimelineMessageFooter', () => {
 
     const duration = screen.getByTestId('timeline-handoff-duration');
     expect(duration).toHaveTextContent('1m 2s');
-    expect(duration).toHaveAttribute('title', 'Time since task started: 1m 2s');
+    expect(duration).toHaveAttribute('title', 'Time since previous message: 1m 2s');
     expect(duration.compareDocumentPosition(screen.getByText('TS:1700000000000'))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
@@ -78,6 +79,14 @@ describe('TimelineMessageFooter', () => {
   it('hides handoff duration when no timing is supplied', () => {
     renderFooter(makeMessage());
     expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
+  });
+
+  it('forwards the slow tone from the footer to the timestamp', () => {
+    renderFooter(makeMessage(), { handoffDurationMs: 420_000, handoffDurationSlow: true });
+
+    const duration = screen.getByTestId('timeline-handoff-duration');
+    expect(duration).toHaveAttribute('data-duration-tone', 'slow');
+    expect(duration).toHaveClass('text-chatroom-status-slow');
   });
 });
 
@@ -89,13 +98,51 @@ describe('TimelineMessageTimestamp', () => {
 
     const duration = screen.getByTestId('timeline-handoff-duration');
     expect(duration).toHaveTextContent('1m 2s');
-    expect(duration).toHaveAttribute('title', 'Time since task started: 1m 2s');
+    expect(duration).toHaveAttribute('title', 'Time since previous message: 1m 2s');
+    expect(duration).toHaveAttribute('data-duration-tone', 'normal');
+    expect(duration).toHaveClass('text-chatroom-text-muted');
+    expect(duration).not.toHaveClass('text-chatroom-status-slow');
     expect(duration).not.toHaveClass('hidden');
     expect(duration).not.toHaveClass('sm:inline');
 
     const fullDate = screen.getByText(`TS:${CREATION_TIME}`);
     expect(fullDate).toHaveAttribute('title', `TS_FULL:${CREATION_TIME}`);
     expect(screen.queryByText(`TOD:${CREATION_TIME}`)).not.toBeInTheDocument();
+  });
+
+  it('renders a slow duration in orange with the relative tooltip', () => {
+    render(
+      <TimelineMessageTimestamp
+        creationTime={CREATION_TIME}
+        handoffDurationMs={420_000}
+        handoffDurationSlow
+      />
+    );
+
+    const duration = screen.getByTestId('timeline-handoff-duration');
+    expect(duration).toHaveTextContent('7m 0s');
+    expect(duration).toHaveAttribute(
+      'title',
+      'Time since previous message: 7m 0s (much longer than typical in this view)'
+    );
+    expect(duration).toHaveAttribute('data-duration-tone', 'slow');
+    expect(duration).toHaveClass('text-chatroom-status-slow');
+    expect(duration).not.toHaveClass('text-chatroom-text-muted');
+  });
+
+  it('keeps a slow duration hidden below sm in compact mode', () => {
+    render(
+      <TimelineMessageTimestamp
+        creationTime={CREATION_TIME}
+        handoffDurationMs={420_000}
+        handoffDurationSlow
+        compact
+      />
+    );
+
+    const duration = screen.getByTestId('timeline-handoff-duration');
+    expect(duration).toHaveClass('hidden', 'sm:inline');
+    expect(duration).toHaveClass('text-chatroom-status-slow');
   });
 
   it('renders the compact variant with responsive duration and time-of-day spans', () => {

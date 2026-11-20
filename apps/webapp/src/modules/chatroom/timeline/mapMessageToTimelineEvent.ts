@@ -11,7 +11,8 @@ import type { Message } from '../types/message';
  */
 export function mapMessageToTimelineEvent(
   message: Message,
-  handoffDurationMs?: number
+  handoffDurationMs?: number,
+  handoffDurationSlow?: boolean
 ): TimelineEvent {
   const base = {
     id: message._id,
@@ -28,5 +29,5 @@ export function mapMessageToTimelineEvent(
     return { ...base, kind: 'user_message', message };
   }
 
-  return { ...base, kind: 'team_message', message, handoffDurationMs };
+  return { ...base, kind: 'team_message', message, handoffDurationMs, handoffDurationSlow };
 }

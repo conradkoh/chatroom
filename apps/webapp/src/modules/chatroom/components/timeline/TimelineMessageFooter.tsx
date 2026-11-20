@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
 import { useAttachments } from '../../attachments';
-import { formatHandoffDuration } from '../../timeline/handoffTiming';
+import { formatHandoffDuration, formatHandoffDurationTitle } from '../../timeline/handoffTiming';
 import type { Message } from '../../types/message';
 import {
   formatTimeOfDay,
@@ -58,6 +58,8 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
 export interface TimelineMessageTimestampProps {
   creationTime: number;
   handoffDurationMs?: number;
+  /** Whether the duration is much longer than others in the loaded window (orange). */
+  handoffDurationSlow?: boolean;
   /** Collapsed handoff bar: below `sm`, hide the duration and show the time of day only. */
   compact?: boolean;
 }
@@ -67,9 +69,11 @@ export interface TimelineMessageTimestampProps {
  * `compact` keeps the same markup but swaps the full date for the time of day
  * below `sm`, where the summary bar has no room for the date.
  */
+// fallow-ignore-next-line complexity
 export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
   creationTime,
   handoffDurationMs,
+  handoffDurationSlow,
   compact = false,
 }: TimelineMessageTimestampProps) {
   return (
@@ -77,9 +81,11 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
       {handoffDurationMs !== undefined && (
         <span
           data-testid="timeline-handoff-duration"
-          title={`Time since task started: ${formatHandoffDuration(handoffDurationMs)}`}
+          data-duration-tone={handoffDurationSlow ? 'slow' : 'normal'}
+          title={formatHandoffDurationTitle(handoffDurationMs, Boolean(handoffDurationSlow))}
           className={cn(
-            'text-[10px] font-mono tabular-nums text-chatroom-text-muted',
+            'text-[10px] font-mono tabular-nums',
+            handoffDurationSlow ? 'text-chatroom-status-slow' : 'text-chatroom-text-muted',
             compact && 'hidden sm:inline'
           )}
         >
@@ -106,8 +112,10 @@ export interface TimelineMessageFooterProps {
   message: Message;
   /** When set, copy/download use this instead of message.content. */
   displayContent?: string;
-  /** Historical duration from the origin task start through this handoff. */
+  /** Elapsed time since the previous message in the timeline. */
   handoffDurationMs?: number;
+  /** Whether the duration is much longer than others in the loaded window (orange). */
+  handoffDurationSlow?: boolean;
 }
 
 /**
@@ -119,6 +127,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
   message,
   displayContent,
   handoffDurationMs,
+  handoffDurationSlow,
 }: TimelineMessageFooterProps) {
   const markdownContent = displayContent ?? message.content;
   const { add: addAttachment, isAttached } = useAttachments();
@@ -158,6 +167,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
         <TimelineMessageTimestamp
           creationTime={message._creationTime}
           handoffDurationMs={handoffDurationMs}
+          handoffDurationSlow={handoffDurationSlow}
         />
       </div>
     </div>

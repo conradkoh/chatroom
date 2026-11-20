@@ -8,7 +8,11 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { shallowEqualRecord, structurallyEqual } from './stableIdentity';
 import { toMessage } from '../../../hooks/chatroomMessageStore';
-import { getHandoffDurationMs } from '../../../timeline/handoffTiming';
+import {
+  getHandoffDurationMs,
+  getSlowHandoffThresholdMs,
+  isSlowHandoffDuration,
+} from '../../../timeline/handoffTiming';
 import { mapMessageToTimelineEvent } from '../../../timeline/mapMessageToTimelineEvent';
 import type { TimelineEvent } from '../../../timeline/types';
 import type { Message } from '../../../types/message';
@@ -120,11 +124,6 @@ export function useConversation(chatroomId: string) {
     return stabilized;
   }, [mergedMessages]);
 
-  const messagesById = useMemo(
-    () => new Map(messages.map((message) => [message._id, message] as const)),
-    [messages]
-  );
-
   // Loading until the current anchor's first page arrives. Convex resets the
   // paginated query to LoadingFirstPage synchronously when its args change, so
   // a stale slice from the previous anchor is never shown during transitions.
@@ -148,18 +147,29 @@ export function useConversation(chatroomId: string) {
     setSelectedAnchorId(null);
   }, []);
 
-  // `handoffDurationMs` is derived from other messages, so an event is keyed on
-  // both its message (now identity-stable) and the freshly computed duration.
+  // `handoffDurationMs` is derived from the previous message, so an event is keyed
+  // on both its message (now identity-stable) and the freshly computed duration.
+  // `handoffDurationSlow` depends on the whole window's duration distribution, so a
+  // newly loaded message can recolor older rows.
   //
   // Like `stableMessagesRef`, this ref write happens during render. It is safe
-  // because the write is idempotent per `messages`/`messagesById` pair, and a
-  // discarded render only costs one extra pass on the next render.
+  // because the write is idempotent per `messages`, and a discarded render only
+  // costs one extra pass on the next render.
   const stableEventsRef = useRef<Map<string, TimelineEvent>>(new Map());
   const events: TimelineEvent[] = useMemo(() => {
     const previousById = stableEventsRef.current;
     const nextById = new Map<string, TimelineEvent>();
-    const stabilized = messages.map((message) => {
-      const next = mapMessageToTimelineEvent(message, getHandoffDurationMs(message, messagesById));
+    const durations = messages.map((message, index) =>
+      getHandoffDurationMs(message, messages[index - 1])
+    );
+    const slowThresholdMs = getSlowHandoffThresholdMs(durations);
+    const stabilized = messages.map((message, index) => {
+      const durationMs = durations[index];
+      const next = mapMessageToTimelineEvent(
+        message,
+        durationMs,
+        isSlowHandoffDuration(durationMs, slowThresholdMs)
+      );
       const previous = previousById.get(next.id);
       const stable = previous && shallowEqualRecord(previous, next) ? previous : next;
       nextById.set(next.id, stable);
@@ -167,7 +177,7 @@ export function useConversation(chatroomId: string) {
     });
     stableEventsRef.current = nextById;
     return stabilized;
-  }, [messages, messagesById]);
+  }, [messages]);
 
   // `usePaginatedQuery` allocates a fresh `loadMore` on every render, so keep the
   // latest one in a ref to expose a callback whose identity never changes.

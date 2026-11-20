@@ -75,6 +75,32 @@ describe('mapMessageToTimelineEvent', () => {
     expect(event.handoffDurationMs).toBeUndefined();
   });
 
+  it('carries the relative slowness flag on handoffs', () => {
+    const message = makeMessage({
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'planner',
+    });
+    const event = mapMessageToTimelineEvent(message, 420_000, true);
+
+    expect(event.kind).toBe('team_message');
+    if (event.kind !== 'team_message') throw new Error('expected a team_message event');
+    expect(event.handoffDurationMs).toBe(420_000);
+    expect(event.handoffDurationSlow).toBe(true);
+  });
+
+  it('never marks user messages or context dividers as slow', () => {
+    const userEvent = mapMessageToTimelineEvent(makeMessage({ senderRole: 'user' }), 420_000, true);
+    const contextEvent = mapMessageToTimelineEvent(
+      makeMessage({ type: 'new-context', senderRole: 'system' }),
+      420_000,
+      true
+    );
+
+    expect(userEvent).not.toHaveProperty('handoffDurationSlow');
+    expect(contextEvent).not.toHaveProperty('handoffDurationSlow');
+  });
+
   it('treats user handoffs as team_message (not user_message)', () => {
     const message = makeMessage({
       type: 'handoff',

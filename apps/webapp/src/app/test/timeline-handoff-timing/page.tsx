@@ -14,6 +14,11 @@ const HANDOFF: Message = {
   _creationTime: Date.UTC(2023, 10, 15, 12, 14, 22),
 };
 
+const HANDOFF_SLOW: Message = {
+  ...HANDOFF,
+  _id: 'e2e-handoff-slow',
+};
+
 const MESSAGE: Message = {
   _id: 'e2e-message',
   type: 'message',
@@ -33,6 +38,14 @@ export default function TimelineHandoffTimingTestPage() {
             message={HANDOFF}
             chatroomId="e2e-chatroom"
             handoffDurationMs={62_000}
+          />
+        </section>
+        <section data-testid="handoff-timing-slow-fixture">
+          <TimelineTeamMessage
+            message={HANDOFF_SLOW}
+            chatroomId="e2e-chatroom"
+            handoffDurationMs={420_000}
+            handoffDurationSlow
           />
         </section>
         <section data-testid="ordinary-message-fixture">
