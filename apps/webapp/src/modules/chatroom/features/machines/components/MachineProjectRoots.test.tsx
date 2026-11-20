@@ -197,13 +197,13 @@ describe('MachineProjectRoots', () => {
     expect(pathInput()).toBeEnabled();
   });
 
-  it('adds the typed path, clears the input and shows the success note', async () => {
+  it('adds the trimmed typed path, clears the input and shows the success note', async () => {
     const user = userEvent.setup();
     mocks.roots = [];
     mocks.add.mockResolvedValue({ rootId: 'r9', path: '/x', collapsedPaths: [] });
     renderSection();
 
-    await user.type(pathInput(), '/x');
+    await user.type(pathInput(), '  /x  ');
     await user.click(addButton());
 
     expect(mocks.add).toHaveBeenCalledWith({ machineId: 'm-1', path: '/x' });

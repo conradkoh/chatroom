@@ -218,12 +218,12 @@ function useAddRootForm({
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const trimmed = path.trim();
+      const submitted = path;
+      const trimmed = submitted.trim();
       const blocked = [offline, atLimit, adding, trimmed === ''].some(Boolean);
       if (blocked) return;
-      // Only clear when the input still holds the submitted value: text typed while
-      // the add was in flight must survive.
-      if (await addRoot(trimmed)) setPath((current) => (current === trimmed ? '' : current));
+      // Clear only what was submitted: text typed while the add was in flight must survive.
+      if (await addRoot(trimmed)) setPath((current) => (current === submitted ? '' : current));
     },
     [adding, addRoot, atLimit, offline, path]
   );
