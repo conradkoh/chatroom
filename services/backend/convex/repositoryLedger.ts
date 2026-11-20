@@ -8,8 +8,9 @@
 import { ConvexError, v, type Infer } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { mutation, query, type MutationCtx } from './_generated/server';
+import { internalMutation, mutation, query, type MutationCtx } from './_generated/server';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { normalizeWorkingDir } from './workspacePathSecurity';
@@ -146,6 +147,25 @@ async function insertChunks(
   }
 }
 
+/** Delete every chunk of one request, in pages of LEDGER_MAX_CHUNKS. Returns how many were deleted. */
+async function deleteRequestChunks(
+  ctx: MutationCtx,
+  requestId: Id<'chatroom_repositoryLedgerRequests'>
+): Promise<number> {
+  let deleted = 0;
+  for (;;) {
+    const chunks = await ctx.db
+      .query('chatroom_repositoryLedgerChunks')
+      .withIndex('by_request_chunk', (q) => q.eq('requestId', requestId))
+      .take(LEDGER_MAX_CHUNKS);
+    if (chunks.length === 0) return deleted;
+    for (const chunk of chunks) {
+      await ctx.db.delete('chatroom_repositoryLedgerChunks', chunk._id);
+    }
+    deleted += chunks.length;
+  }
+}
+
 /**
  * Missing row ⇒ ignored (discarded or cleaned up). Row of another machine ⇒
  * REPOSITORY_LEDGER_REQUEST_NOT_FOUND. Terminal row ⇒ duplicate. Expired row ⇒ ignored.
@@ -279,14 +299,63 @@ export const discard = mutation({
     const row = await ctx.db.get('chatroom_repositoryLedgerRequests', args.requestId);
     if (!row || row.userId !== auth.userId) return { ok: true as const };
 
-    const chunks = await ctx.db
-      .query('chatroom_repositoryLedgerChunks')
-      .withIndex('by_request_chunk', (q) => q.eq('requestId', args.requestId))
-      .take(LEDGER_MAX_CHUNKS);
-    for (const chunk of chunks) {
-      await ctx.db.delete('chatroom_repositoryLedgerChunks', chunk._id);
-    }
+    await deleteRequestChunks(ctx, args.requestId);
     await ctx.db.delete('chatroom_repositoryLedgerRequests', args.requestId);
     return { ok: true as const };
+  },
+});
+
+/** Expired rows removed per cron run. A full batch reschedules the run. */
+const CLEANUP_BATCH_ROWS = 100;
+/**
+ * Chunk documents deleted per run before the run stops starting new rows. Chunks are the only
+ * large reads, so this keeps one run under the per-mutation read limit.
+ */
+const CLEANUP_CHUNK_BUDGET = 20;
+
+/** Delete one expired request and its chunks. Returns the chunks deleted. */
+async function purgeExpiredRequest(ctx: MutationCtx, row: LedgerRequestRow): Promise<number> {
+  const deleted = await deleteRequestChunks(ctx, row._id);
+  await ctx.db.delete('chatroom_repositoryLedgerRequests', row._id);
+  return deleted;
+}
+
+/**
+ * Purge rows until the batch ends or the chunk budget is spent. Returns how many rows were
+ * processed; fewer than the batch means the run stopped early.
+ */
+async function purgeExpiredBatch(ctx: MutationCtx, expired: LedgerRequestRow[]): Promise<number> {
+  let chunksDeleted = 0;
+  let processed = 0;
+  for (const row of expired) {
+    if (chunksDeleted >= CLEANUP_CHUNK_BUDGET) break;
+    chunksDeleted += await purgeExpiredRequest(ctx, row);
+    processed++;
+  }
+  return processed;
+}
+
+/** A full batch or an early stop means more expired rows likely remain. */
+function needsAnotherRun(expiredCount: number, processed: number): boolean {
+  return expiredCount === CLEANUP_BATCH_ROWS || processed < expiredCount;
+}
+
+/**
+ * Cron (every 5 min). Deletes requests (pending or terminal) with expiresAt < now, and their chunks.
+ * Reschedules itself when the batch was full or the chunk budget stopped it early.
+ */
+export const cleanupExpiredLedgerRequests = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const expired = await ctx.db
+      .query('chatroom_repositoryLedgerRequests')
+      .withIndex('by_expiresAt', (q) => q.lt('expiresAt', now))
+      .take(CLEANUP_BATCH_ROWS);
+
+    const processed = await purgeExpiredBatch(ctx, expired);
+    if (needsAnotherRun(expired.length, processed)) {
+      await ctx.scheduler.runAfter(0, internal.repositoryLedger.cleanupExpiredLedgerRequests, {});
+    }
   },
 });

@@ -3,7 +3,8 @@
  *
  * Covers `api.repositoryLedger.request`, `get` and `discard`: offline gating,
  * request reuse, command enqueue, expiry, owner scoping and chunk cleanup.
- * Reporting, listing and cleanup land in later slices.
+ * Reporting lives in repository-ledger-report.spec.ts and expiry cleanup in
+ * repository-ledger-cleanup.spec.ts. Listing lands in a later slice.
  */
 
 import { afterEach, describe, expect, test, vi } from 'vitest';

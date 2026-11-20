@@ -265,6 +265,31 @@ async function seedMachineGraph(
   });
 }
 
+/** Seed one completed ledger request and two chunk rows for a machine. */
+async function seedLedgerSnapshot(userId: Id<'users'>, machineId: string): Promise<void> {
+  await t.run(async (ctx) => {
+    const now = Date.now();
+    const requestId = await ctx.db.insert('chatroom_repositoryLedgerRequests', {
+      userId,
+      machineId,
+      rescan: false,
+      status: 'completed',
+      createdAt: now,
+      updatedAt: now,
+      completedAt: now,
+      expiresAt: now + 10 * 60_000,
+    });
+    for (const chunkIndex of [0, 1]) {
+      await ctx.db.insert('chatroom_repositoryLedgerChunks', {
+        requestId,
+        machineId,
+        chunkIndex,
+        entries: [],
+      });
+    }
+  });
+}
+
 async function drainScheduler(): Promise<void> {
   await t.finishAllScheduledFunctions(() => vi.runAllTimers());
 }
@@ -917,5 +942,28 @@ describe('chatroomCleanup.cleanupMachines → shared purge', () => {
         .collect()
     );
     expect(tombstones).toHaveLength(1);
+  });
+});
+
+describe('machines.deleteMachine purges repository ledger snapshots', () => {
+  test('removes request and chunk rows for the deleted machine and leaves other machines untouched', async () => {
+    const { sessionId } = await createTestSession('md-ledger-owner');
+    const userId = await userIdFor(sessionId);
+    const deletedMachineId = 'machine-md-ledger-deleted';
+    const keptMachineId = 'machine-md-ledger-kept';
+    await registerMachine(sessionId, deletedMachineId);
+    await registerMachine(sessionId, keptMachineId);
+    await seedLedgerSnapshot(userId, deletedMachineId);
+    await seedLedgerSnapshot(userId, keptMachineId);
+
+    await t.mutation(api.machines.deleteMachine, { sessionId, machineId: deletedMachineId });
+    await drainScheduler();
+
+    const deletedKey = { machineId: deletedMachineId, userId };
+    const keptKey = { machineId: keptMachineId, userId };
+    expect(await countForTable('chatroom_repositoryLedgerRequests', deletedKey)).toBe(0);
+    expect(await countForTable('chatroom_repositoryLedgerChunks', deletedKey)).toBe(0);
+    expect(await countForTable('chatroom_repositoryLedgerRequests', keptKey)).toBe(1);
+    expect(await countForTable('chatroom_repositoryLedgerChunks', keptKey)).toBe(2);
   });
 });

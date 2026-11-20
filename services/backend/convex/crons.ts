@@ -107,6 +107,13 @@ crons.interval(
   internal.connectionCleanup.cleanupExpiredConnectionCloseRequests
 );
 
+// Repository ledger snapshots — remove expired requests and their chunks (every 5 minutes)
+crons.interval(
+  'cleanup expired repository ledger requests',
+  { minutes: 5 },
+  internal.repositoryLedger.cleanupExpiredLedgerRequests
+);
+
 // Scheduled prompts — fire due prompts every minute
 crons.interval('run scheduled prompts', { minutes: 1 }, internal.scheduledPrompts.runDue);
 
