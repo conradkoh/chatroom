@@ -158,6 +158,7 @@ export type BackendErrorCode =
   | 'PROJECT_ROOT_DUPLICATE'
   | 'PROJECT_ROOT_NESTED'
   | 'PROJECT_ROOT_LIMIT_REACHED'
+  | 'REPOSITORY_LEDGER_REQUEST_NOT_FOUND'
 
   // ── Folder picker ─────────────────────────────────────────────────
   | 'FOLDER_PICKER_REQUEST_NOT_FOUND'
@@ -455,6 +456,8 @@ export const BACKEND_ERROR_CODES = {
   PROJECT_ROOT_NESTED: 'PROJECT_ROOT_NESTED',
   /** Machine already has the maximum number of project roots */
   PROJECT_ROOT_LIMIT_REACHED: 'PROJECT_ROOT_LIMIT_REACHED',
+  /** Repository ledger request not found for this machine */
+  REPOSITORY_LEDGER_REQUEST_NOT_FOUND: 'REPOSITORY_LEDGER_REQUEST_NOT_FOUND',
 
   // ── Folder picker ─────────────────────────────────────────────────
   /** Folder picker request not found */
@@ -703,6 +706,7 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.PROJECT_ROOT_DUPLICATE,
   BACKEND_ERROR_CODES.PROJECT_ROOT_NESTED,
   BACKEND_ERROR_CODES.PROJECT_ROOT_LIMIT_REACHED,
+  BACKEND_ERROR_CODES.REPOSITORY_LEDGER_REQUEST_NOT_FOUND,
 
   // Folder picker
   BACKEND_ERROR_CODES.FOLDER_PICKER_REQUEST_NOT_FOUND,

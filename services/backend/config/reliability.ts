@@ -63,6 +63,8 @@ export const MACHINE_COMMAND_CLAIM_LEASE_MS = 60_000;
 export const MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS = 20_000;
 export const MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS = 5 * 60_000;
 export const MACHINE_COMMAND_LOCAL_ACTION_TTL_MS = 60_000;
+/** Terminal ledger snapshot retention: a completed or failed request and its chunks expire this long after completion. */
+export const REPOSITORY_LEDGER_SNAPSHOT_TTL_MS = 10 * 60_000;
 
 // ─── Observed Chatroom Sync ───────────────────────────────────────────────────
 
