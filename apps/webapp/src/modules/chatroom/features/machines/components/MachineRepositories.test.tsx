@@ -590,6 +590,132 @@ describe('MachineRepositories', () => {
     expect(screen.queryAllByTestId(/^ledger-banner-/)).toHaveLength(0);
   });
 
+  it('counts the visible no-chatroom rows for the bulk trigger', async () => {
+    const user = userEvent.setup();
+    const entries = [
+      entry('/Users/me/projects/api'),
+      entry('/Users/me/projects/app'),
+      entry('/Users/me/projects/docs'),
+      entry('/Users/me/work/mobile', { root: '/Users/me/work', hasChatroom: true }),
+    ];
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 4 }));
+    mocks.page = makePage({ results: entries, status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+
+    expect((await screen.findByTestId('bulk-create-open')).textContent).toBe(
+      'Create chatrooms for 3 repositories'
+    );
+
+    await user.type(screen.getByTestId('ledger-filter'), 'ap');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('bulk-create-open').textContent).toBe(
+        'Create chatrooms for 2 repositories'
+      )
+    );
+  });
+
+  it('disables the bulk trigger with the winning reason', async () => {
+    const user = userEvent.setup();
+    const entries = [entry('/Users/me/projects/a')];
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1 }));
+    mocks.page = makePage({ results: entries, status: 'Exhausted' });
+    const { rerender } = renderRepositories();
+
+    await clickLoad(user);
+    await screen.findByTestId('ledger-ready');
+    expect(screen.getByTestId('bulk-create-open')).toBeEnabled();
+
+    rerender(
+      <MachineRepositories
+        machineId="m-1"
+        displayName="Studio Mac"
+        connected={false}
+        hasRoots={true}
+      />
+    );
+    const offline = screen.getByTestId('bulk-create-open');
+    expect(offline.textContent).toBe('Machine is offline');
+    expect(offline).toBeDisabled();
+
+    rerender(
+      <MachineRepositories
+        machineId="m-1"
+        displayName="Studio Mac"
+        connected={undefined}
+        hasRoots={true}
+      />
+    );
+    expect(screen.getByTestId('bulk-create-open').textContent).toBe('Checking machine…');
+
+    mocks.page = makePage({ results: entries, status: 'CanLoadMore' });
+    rerender(
+      <MachineRepositories
+        machineId="m-1"
+        displayName="Studio Mac"
+        connected={true}
+        hasRoots={true}
+      />
+    );
+    const loading = screen.getByTestId('bulk-create-open');
+    expect(loading.textContent).toBe('Loading repositories…');
+    expect(loading).toBeDisabled();
+  });
+
+  it('shows the done line instead of the bulk trigger when every row has a chatroom', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1 }));
+    mocks.page = makePage({
+      results: [entry('/Users/me/projects/a', { hasChatroom: true })],
+      status: 'Exhausted',
+    });
+    renderRepositories();
+
+    await clickLoad(user);
+
+    expect((await screen.findByTestId('bulk-create-done')).textContent).toBe(
+      'Every repository shown has a chatroom.'
+    );
+    expect(screen.queryByTestId('bulk-create-open')).toBeNull();
+  });
+
+  it('hides the bulk area when the filter matches nothing', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1 }));
+    mocks.page = makePage({ results: [entry('/Users/me/projects/a')], status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+    await screen.findByTestId('ledger-ready');
+    await user.type(screen.getByTestId('ledger-filter'), 'zzz');
+
+    await screen.findByTestId('ledger-no-match');
+    expect(screen.queryByTestId('bulk-create-open')).toBeNull();
+    expect(screen.queryByTestId('bulk-create-done')).toBeNull();
+  });
+
+  it('opens the bulk dialog with the first 50 of 120 repositories to create', async () => {
+    const user = userEvent.setup();
+    const entries = Array.from({ length: 120 }, (_, index) =>
+      entry(`/Users/me/projects/repo-${String(index).padStart(3, '0')}`)
+    );
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 120 }));
+    mocks.page = makePage({ results: entries, status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+
+    const open = await screen.findByTestId('bulk-create-open');
+    expect(open.textContent).toBe('Create chatrooms for 120 repositories');
+    await user.click(open);
+
+    expect(await screen.findByTestId('bulk-create-dialog')).toBeDefined();
+    expect(screen.getAllByTestId('bulk-create-path')).toHaveLength(50);
+    expect(screen.getByTestId('bulk-create-confirm').textContent).toBe('Create 50 chatrooms');
+  });
+
   it('moves the only Rescan into the empty snapshot and hides the filter', async () => {
     const user = userEvent.setup();
     mocks.rows.set('req-1', completedRow({ repositoryCount: 0 }));

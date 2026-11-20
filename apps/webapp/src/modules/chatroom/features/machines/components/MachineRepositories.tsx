@@ -1,9 +1,11 @@
 'use client';
 
 import { Loader2, RefreshCw } from 'lucide-react';
-import { useCallback, useDeferredValue, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useDeferredValue, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
+import { BulkCreateButton } from './BulkCreateButton';
+import { BulkCreateDialog } from './BulkCreateDialog';
 import { LedgerNotice } from './LedgerNotice';
 import { RepositoryBanners } from './RepositoryBanners';
 import { RepositoryFilterBar } from './RepositoryFilterBar';
@@ -15,6 +17,7 @@ import {
   type LedgerView,
   type UseRepositoryLedgerResult,
 } from '../hooks/useRepositoryLedger';
+import { bulkCreateDisabledReason, repositoryCount } from '../lib/bulkCreate';
 import { formatLastSeen } from '../lib/machineDisplay';
 import { getMachineErrorCopy } from '../lib/machineErrorCopy';
 import { filterRepositories } from '../lib/repositoryFilter';
@@ -84,8 +87,16 @@ function LedgerAsking({ displayName, onCancel }: { displayName: string; onCancel
   );
 }
 
-function repositoryCountLabel(count: number): string {
-  return count === 1 ? '1 repository' : `${count} repositories`;
+interface LedgerReadyProps {
+  ledger: UseRepositoryLedgerResult;
+  snapshot: LedgerSnapshotMeta;
+  view: LedgerView;
+  machineId: string;
+  displayName: string;
+  connected: boolean | undefined;
+  currentRootPaths: readonly string[] | undefined;
+  creatingPath: string | null;
+  onCreate: (path: string) => void;
 }
 
 function rescanIssueCopy(
@@ -94,16 +105,6 @@ function rescanIssueCopy(
   if (issue.kind === 'timedOut')
     return 'The daemon did not respond. The previous list is still shown.';
   return `Rescan failed: ${issue.message}. The previous list is still shown.`;
-}
-
-interface LedgerReadyProps {
-  ledger: UseRepositoryLedgerResult;
-  snapshot: LedgerSnapshotMeta;
-  view: LedgerView;
-  connected: boolean | undefined;
-  currentRootPaths: readonly string[] | undefined;
-  creatingPath: string | null;
-  onCreate: (path: string) => void;
 }
 
 function RescanButton({
@@ -154,12 +155,16 @@ function LedgerReady({
   ledger,
   snapshot,
   view,
+  machineId,
+  displayName,
   connected,
   currentRootPaths,
   creatingPath,
   onCreate,
 }: LedgerReadyProps) {
   const [filter, setFilter] = useState('');
+  const [bulkPaths, setBulkPaths] = useState<string[] | null>(null);
+  const bulkButtonRef = useRef<HTMLButtonElement>(null);
   // The list filters on the deferred value so typing stays responsive on large snapshots.
   const deferredFilter = useDeferredValue(filter);
   const { entries, isLoadingPages } = ledger;
@@ -167,10 +172,12 @@ function LedgerReady({
     () => filterRepositories(entries, deferredFilter),
     [entries, deferredFilter]
   );
+  const bulkRows = visible.filter((entry) => !entry.hasChatroom);
+  const bulkDisabledReason = bulkCreateDisabledReason({ connected, isLoadingPages });
   const asking = view.kind === 'asking';
   const rescanIssue = view.kind === 'ready' ? view.rescanIssue : undefined;
   const isEmpty = !isLoadingPages && entries.length === 0;
-  const summary = `Snapshot from ${formatLastSeen(snapshot.generatedAt, Date.now())} · ${repositoryCountLabel(snapshot.totalCount)} · not kept in sync`;
+  const summary = `Snapshot from ${formatLastSeen(snapshot.generatedAt, Date.now())} · ${repositoryCount(snapshot.totalCount)} · not kept in sync`;
   const rescan = (
     <RescanButton
       asking={asking}
@@ -213,7 +220,19 @@ function LedgerReady({
 
       {entries.length > 0 && (
         <>
-          <RepositoryFilterBar value={filter} onChange={setFilter} />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <RepositoryFilterBar value={filter} onChange={setFilter} />
+            </div>
+            {visible.length > 0 && (
+              <BulkCreateButton
+                count={bulkRows.length}
+                disabledReason={bulkDisabledReason}
+                buttonRef={bulkButtonRef}
+                onOpen={() => setBulkPaths(bulkRows.map((entry) => entry.path))}
+              />
+            )}
+          </div>
           {visible.length === 0 ? (
             <NoMatch filter={deferredFilter} onClear={() => setFilter('')} />
           ) : (
@@ -235,6 +254,18 @@ function LedgerReady({
             />
           )}
         </>
+      )}
+
+      {bulkPaths !== null && (
+        <BulkCreateDialog
+          machineId={machineId}
+          displayName={displayName}
+          paths={bulkPaths}
+          onClose={() => {
+            setBulkPaths(null);
+            bulkButtonRef.current?.focus();
+          }}
+        />
       )}
     </div>
   );
@@ -303,6 +334,8 @@ export function MachineRepositories({
         ledger={ledger}
         snapshot={snapshot}
         view={view}
+        machineId={machineId}
+        displayName={displayName}
         connected={connected}
         currentRootPaths={currentRootPaths}
         creatingPath={creatingPath}

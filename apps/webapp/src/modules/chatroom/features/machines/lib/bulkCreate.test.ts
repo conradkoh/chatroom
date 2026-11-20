@@ -1,0 +1,124 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  EMPTY_BULK_TOTALS,
+  addBulkResult,
+  bulkCreateDisabledReason,
+  chatroomCount,
+  failureReason,
+  planBulkCreate,
+  repositoryCount,
+} from './bulkCreate';
+
+const INVALID_WORKING_DIR_COPY =
+  "That path isn't valid. Use an absolute folder path such as /Users/you/projects.";
+
+function paths(count: number): string[] {
+  return Array.from({ length: count }, (_, index) => `/r/repo-${String(index).padStart(3, '0')}`);
+}
+
+describe('planBulkCreate', () => {
+  it('sends at most 50 per call and reports the remainder', () => {
+    const all = paths(120);
+
+    expect(planBulkCreate(all, 0)).toEqual({ batch: all.slice(0, 50), remaining: 70 });
+    expect(planBulkCreate(all, 0).batch).toHaveLength(50);
+    expect(planBulkCreate(all, 50)).toEqual({ batch: all.slice(50, 100), remaining: 20 });
+    expect(planBulkCreate(all, 50).batch).toHaveLength(50);
+    expect(planBulkCreate(all, 100)).toEqual({ batch: all.slice(100), remaining: 0 });
+    expect(planBulkCreate(all, 100).batch).toHaveLength(20);
+  });
+
+  it('handles empty and exactly-full inputs', () => {
+    expect(planBulkCreate([], 0)).toEqual({ batch: [], remaining: 0 });
+    expect(planBulkCreate(paths(50), 0)).toEqual({ batch: paths(50), remaining: 0 });
+    expect(planBulkCreate(paths(50), 0).batch).toHaveLength(50);
+  });
+
+  it('keeps list order across batches', () => {
+    const all = paths(120);
+
+    expect(planBulkCreate(all, 50).batch[0]).toBe('/r/repo-050');
+    expect(planBulkCreate(all, 50).batch[49]).toBe('/r/repo-099');
+  });
+});
+
+describe('failureReason', () => {
+  it('maps a known code to the friendly copy', () => {
+    expect(failureReason({ code: 'INVALID_WORKING_DIR', message: 'raw' })).toBe(
+      INVALID_WORKING_DIR_COPY
+    );
+  });
+
+  it('falls back to the backend message for an unknown code', () => {
+    expect(failureReason({ code: 'SOMETHING', message: 'Backend says no' })).toBe(
+      'Backend says no'
+    );
+  });
+});
+
+describe('addBulkResult', () => {
+  it('starts the totals from an empty result', () => {
+    expect(
+      addBulkResult(EMPTY_BULK_TOTALS, { results: [], created: 48, skipped: 1, failed: 0 })
+    ).toEqual({ created: 48, skipped: 1, failed: 0, failures: [] });
+  });
+
+  it('accumulates counts and maps each failure reason', () => {
+    const first = addBulkResult(EMPTY_BULK_TOTALS, {
+      results: [],
+      created: 48,
+      skipped: 1,
+      failed: 0,
+    });
+    const second = addBulkResult(first, {
+      results: [
+        {
+          workingDir: '/Users/me/projects/bad dir',
+          outcome: 'failed',
+          code: 'INVALID_WORKING_DIR',
+          message: 'raw',
+        },
+      ],
+      created: 0,
+      skipped: 0,
+      failed: 1,
+    });
+
+    expect(second).toEqual({
+      created: 48,
+      skipped: 1,
+      failed: 1,
+      failures: [{ workingDir: '/Users/me/projects/bad dir', reason: INVALID_WORKING_DIR_COPY }],
+    });
+  });
+});
+
+describe('bulkCreateDisabledReason', () => {
+  it('prefers offline, then unknown connectivity, then loading', () => {
+    expect(bulkCreateDisabledReason({ connected: false, isLoadingPages: true })).toBe(
+      'Machine is offline'
+    );
+    expect(bulkCreateDisabledReason({ connected: undefined, isLoadingPages: false })).toBe(
+      'Checking machine…'
+    );
+    expect(bulkCreateDisabledReason({ connected: true, isLoadingPages: true })).toBe(
+      'Loading repositories…'
+    );
+    expect(bulkCreateDisabledReason({ connected: true, isLoadingPages: false })).toBeNull();
+  });
+});
+
+describe('repositoryCount', () => {
+  it('pluralises repositories', () => {
+    expect(repositoryCount(1)).toBe('1 repository');
+    expect(repositoryCount(70)).toBe('70 repositories');
+  });
+});
+
+describe('chatroomCount', () => {
+  it('pluralises chatrooms', () => {
+    expect(chatroomCount(1)).toBe('1 chatroom');
+    expect(chatroomCount(50)).toBe('50 chatrooms');
+  });
+});

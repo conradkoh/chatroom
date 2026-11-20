@@ -169,6 +169,11 @@
       "file": "**/src/domain/entities/project-root.ts",
       "exports": ["isSameOrNestedPath"],
     },
+    // Exported for the bulk-create planner specs. Spec files are not analysis entries.
+    {
+      "file": "**/src/modules/chatroom/features/machines/lib/bulkCreate.ts",
+      "exports": ["failureReason"],
+    },
   ],
   "duplicates": {
     "ignore": [

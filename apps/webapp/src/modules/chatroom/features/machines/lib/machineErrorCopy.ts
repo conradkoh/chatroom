@@ -51,6 +51,11 @@ function mappedCopy(code: string | null): string | undefined {
   return MACHINE_ERROR_COPY[code];
 }
 
+/** Mapped copy for a known backend error code, or undefined. */
+export function copyForErrorCode(code: string): string | undefined {
+  return MACHINE_ERROR_COPY[code];
+}
+
 /** `ConvexError.data.code` when `data` is an object with a string `code`; otherwise null. */
 export function getConvexErrorCode(error: unknown): string | null {
   const data = getErrorData(error);
