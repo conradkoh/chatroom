@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   rootsMachineIds: [] as string[],
   shouldThrow: false,
   setMachineAlias: vi.fn(),
+  noopMutation: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -46,16 +47,25 @@ vi.mock('convex-helpers/react/sessions', () => ({
         return mocks.lastSeen;
       case 'machines:getMachineCapabilities':
         return mocks.capabilities?.[(args as { machineId?: string })?.machineId ?? ''];
-      case 'machineProjectRoots:list':
-        mocks.rootsMachineIds.push((args as { machineId: string }).machineId);
+      case 'machineProjectRoots:list': {
+        // Two hook calls share one Convex subscription, so record each machine once.
+        const machineId = (args as { machineId: string }).machineId;
+        if (!mocks.rootsMachineIds.includes(machineId)) mocks.rootsMachineIds.push(machineId);
         return { roots: [] };
+      }
       case 'folderPickerRequests:get':
+        return undefined;
+      case 'repositoryLedger:get':
         return undefined;
       default:
         throw new Error(`Unexpected query: ${name}`);
     }
   },
-  useSessionMutation: () => mocks.setMachineAlias,
+  useSessionMutation: (mutation: unknown) => {
+    const name = getFunctionName(mutation as FunctionReference<'mutation'>);
+    return name === 'machines:setMachineAlias' ? mocks.setMachineAlias : mocks.noopMutation;
+  },
+  useSessionPaginatedQuery: () => undefined,
 }));
 
 vi.mock('next/navigation', () => ({

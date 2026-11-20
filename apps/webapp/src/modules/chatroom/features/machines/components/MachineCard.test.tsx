@@ -13,8 +13,15 @@ const mocks = vi.hoisted(() => ({
   capabilities: undefined as
     | Record<string, { availableHarnesses: string[]; harnessVersions: Record<string, never> }>
     | undefined,
+  roots: [{ rootId: 'r1', path: '/Users/me/projects', addedAt: 1 }],
   setMachineAlias: vi.fn(),
   deleteMachine: vi.fn(),
+  addRoot: vi.fn(),
+  removeRoot: vi.fn(),
+  requestPicker: vi.fn(),
+  ledgerRequest: vi.fn(),
+  ledgerDiscard: vi.fn(),
+  createMany: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -23,16 +30,26 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (name === 'machines:getMachineCapabilities') {
       return mocks.capabilities?.[(args as { machineId?: string })?.machineId ?? ''];
     }
-    if (name === 'machineProjectRoots:list') return { roots: [] };
+    if (name === 'machineProjectRoots:list') return { roots: mocks.roots };
     if (name === 'folderPickerRequests:get') return undefined;
+    if (name === 'repositoryLedger:get' || name === 'repositoryLedger:listEntries') {
+      return undefined;
+    }
     throw new Error(`Unexpected query: ${name}`);
   },
   useSessionMutation: (mutation: unknown) => {
     const name = getFunctionName(mutation as FunctionReference<'mutation'>);
     if (name === 'machines:setMachineAlias') return mocks.setMachineAlias;
     if (name === 'machines:deleteMachine') return mocks.deleteMachine;
+    if (name === 'machineProjectRoots:add') return mocks.addRoot;
+    if (name === 'machineProjectRoots:remove') return mocks.removeRoot;
+    if (name === 'folderPickerRequests:request') return mocks.requestPicker;
+    if (name === 'repositoryLedger:request') return mocks.ledgerRequest;
+    if (name === 'repositoryLedger:discard') return mocks.ledgerDiscard;
+    if (name === 'chatrooms:createManyWithWorkspace') return mocks.createMany;
     throw new Error(`Unexpected mutation: ${name}`);
   },
+  useSessionPaginatedQuery: () => undefined,
 }));
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -68,9 +85,16 @@ function renderRow(row: MachineRowModel) {
   return render(<MachineList rows={[row]} expandedMachineId={null} onToggle={() => {}} />);
 }
 
+function renderExpanded(row: MachineRowModel, expandedMachineId: string | null) {
+  return render(
+    <MachineList rows={[row]} expandedMachineId={expandedMachineId} onToggle={() => {}} />
+  );
+}
+
 describe('MachineList / MachineCard', () => {
   beforeEach(() => {
     mocks.capabilities = {};
+    mocks.roots = [{ rootId: 'r1', path: '/Users/me/projects', addedAt: 1 }];
     mocks.setMachineAlias.mockReset();
     mocks.setMachineAlias.mockResolvedValue({ success: true });
     mocks.deleteMachine.mockReset();
@@ -80,6 +104,12 @@ describe('MachineList / MachineCard', () => {
       detachedWorkspaceCount: 0,
       affectedChatroomCount: 0,
     });
+    mocks.addRoot.mockReset();
+    mocks.removeRoot.mockReset();
+    mocks.requestPicker.mockReset();
+    mocks.ledgerRequest.mockReset();
+    mocks.ledgerDiscard.mockReset();
+    mocks.createMany.mockReset();
   });
 
   it('shows Online for a connected machine', () => {
@@ -218,5 +248,21 @@ describe('MachineList / MachineCard', () => {
     await user.click(screen.getByTestId('machine-action-delete'));
 
     expect(await screen.findByTestId('delete-machine-confirm')).toBeDisabled();
+  });
+
+  it('shows the repositories section below project roots only while expanded', () => {
+    const row = makeRow({ connected: true });
+    const { rerender } = renderExpanded(row, 'machine-1');
+
+    const roots = screen.getByTestId('machine-roots-section');
+    const repositories = screen.getByTestId('machine-repositories-section');
+    expect(roots.compareDocumentPosition(repositories) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(within(repositories).getByTestId('ledger-load')).toBeEnabled();
+
+    rerender(<MachineList rows={[row]} expandedMachineId={null} onToggle={() => {}} />);
+
+    expect(screen.queryByTestId('machine-repositories-section')).toBeNull();
   });
 });

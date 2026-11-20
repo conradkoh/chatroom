@@ -9,6 +9,7 @@ import { MachineActionsMenu } from './MachineActionsMenu';
 import { MachineAliasField } from './MachineAliasField';
 import { MachineHarnessChips } from './MachineHarnessChips';
 import { MachineProjectRoots } from './MachineProjectRoots';
+import { MachineRepositories } from './MachineRepositories';
 import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
 import type { MachineRowModel } from '../hooks/useMachineRows';
 import {
@@ -19,6 +20,7 @@ import {
 } from '../lib/machineDisplay';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMachineProjectRoots } from '@/hooks/useMachineProjectRoots';
 import type { MachineUsage } from '@/hooks/useMachineUsage';
 import { cn } from '@/lib/utils';
 
@@ -221,9 +223,10 @@ function MachineCardHeader({
   );
 }
 
-/** Expanded body: project roots is the first section. Mounted only while expanded. */
+/** Expanded body: project roots, then the on-demand repository ledger. Mounted only while expanded. */
 function MachineCardBody({ row, bodyId }: { row: MachineRowModel; bodyId: string }) {
   const { machine } = row;
+  const { roots } = useMachineProjectRoots(machine.machineId);
   return (
     <div id={bodyId} data-testid="machine-card-body" className="border-t-2 border-chatroom-border">
       <section
@@ -237,6 +240,18 @@ function MachineCardBody({ row, bodyId }: { row: MachineRowModel; bodyId: string
           hostname={machine.hostname}
           alias={machine.alias}
           connected={row.connected}
+        />
+      </section>
+      <section
+        aria-label="Repositories"
+        data-testid="machine-repositories-section"
+        className="border-t border-chatroom-border px-4 py-4 sm:px-6"
+      >
+        <MachineRepositories
+          machineId={machine.machineId}
+          displayName={row.displayName}
+          connected={row.connected}
+          hasRoots={roots === undefined ? undefined : roots.length > 0}
         />
       </section>
     </div>

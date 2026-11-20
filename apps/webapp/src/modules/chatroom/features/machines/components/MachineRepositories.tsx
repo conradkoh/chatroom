@@ -1,0 +1,300 @@
+'use client';
+
+import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { useCallback, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
+
+import { RepositoryRow } from './RepositoryRow';
+import { useBulkCreateChatrooms } from '../hooks/useBulkCreateChatrooms';
+import {
+  useRepositoryLedger,
+  type LedgerSnapshotMeta,
+  type LedgerView,
+  type UseRepositoryLedgerResult,
+} from '../hooks/useRepositoryLedger';
+import { formatLastSeen } from '../lib/machineDisplay';
+import { getMachineErrorCopy } from '../lib/machineErrorCopy';
+
+import { Button } from '@/components/ui/button';
+import { VirtualizedScrollList } from '@/modules/chatroom/components/virtual-list';
+
+const SECTION_HEADING_CLASS =
+  'text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted';
+
+const OFFLINE_COPY = 'Machine is offline. Start the daemon to load repositories.';
+const NO_ROOTS_COPY = 'Add a project root above, then load repositories.';
+const EXPIRED_COPY = 'That snapshot expired. Load it again.';
+const INTRO_COPY =
+  "Repositories are read from this machine's daemon when you ask. The list is a snapshot, not kept in sync.";
+const TIMED_OUT_COPY = 'The daemon did not respond. It may need updating, or it went offline.';
+
+export interface MachineRepositoriesProps {
+  machineId: string;
+  displayName: string;
+  connected: boolean | undefined;
+  hasRoots: boolean | undefined;
+}
+
+type IdleView = Extract<LedgerView, { kind: 'idle' }>;
+
+/** Idle copy: the blocking condition wins, then expiry, then the neutral introduction. */
+function idleCopy(view: IdleView): string {
+  if (view.blockedBy === 'offline') return OFFLINE_COPY;
+  if (view.blockedBy === 'no-roots') return NO_ROOTS_COPY;
+  if (view.reason === 'expired') return EXPIRED_COPY;
+  return INTRO_COPY;
+}
+
+function LedgerIdle({ view, onLoad }: { view: IdleView; onLoad: () => void }) {
+  return (
+    <div data-testid="ledger-idle" className="mt-3 space-y-3">
+      <p className="text-xs text-chatroom-text-muted">{idleCopy(view)}</p>
+      <Button
+        data-testid="ledger-load"
+        disabled={!view.canRequest}
+        onClick={onLoad}
+        className="h-9 bg-chatroom-accent px-4 text-xs font-bold uppercase tracking-wide text-chatroom-bg-primary hover:bg-chatroom-text-secondary"
+      >
+        Load repositories
+      </Button>
+    </div>
+  );
+}
+
+function LedgerAsking({ displayName, onCancel }: { displayName: string; onCancel: () => void }) {
+  return (
+    <div data-testid="ledger-asking" className="mt-3 space-y-3">
+      <div className="flex items-center gap-2 text-xs text-chatroom-text-primary">
+        <Loader2 size={14} className="animate-spin text-chatroom-text-muted" aria-hidden />
+        Asking daemon…
+      </div>
+      <p className="text-xs text-chatroom-text-muted">
+        Waiting for {displayName} to scan its project roots.
+      </p>
+      <Button variant="outline" size="xs" onClick={onCancel}>
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
+/** Warning/error callout shared by every ledger failure. */
+function LedgerNotice({
+  tone = 'warning',
+  children,
+}: {
+  tone?: 'warning' | 'error';
+  children: ReactNode;
+}) {
+  const toneClass =
+    tone === 'error' ? 'text-chatroom-status-error' : 'text-chatroom-status-warning';
+  return (
+    <div
+      className={`flex items-start gap-2 border border-chatroom-status-warning/40 bg-chatroom-status-warning/10 p-3 text-xs ${toneClass}`}
+    >
+      <AlertTriangle
+        size={14}
+        className="mt-0.5 shrink-0 text-chatroom-status-warning"
+        aria-hidden
+      />
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function repositoryCountLabel(count: number): string {
+  return count === 1 ? '1 repository' : `${count} repositories`;
+}
+
+function rescanIssueCopy(
+  issue: NonNullable<Extract<LedgerView, { kind: 'ready' }>['rescanIssue']>
+) {
+  if (issue.kind === 'timedOut')
+    return 'The daemon did not respond. The previous list is still shown.';
+  return `Rescan failed: ${issue.message}. The previous list is still shown.`;
+}
+
+interface LedgerReadyProps {
+  ledger: UseRepositoryLedgerResult;
+  snapshot: LedgerSnapshotMeta;
+  view: LedgerView;
+  connected: boolean | undefined;
+  creatingPath: string | null;
+  onCreate: (path: string) => void;
+}
+
+/** The displayed snapshot: summary, Rescan, rescan issues, page progress and the virtualised rows. */
+// fallow-ignore-next-line complexity
+function LedgerReady({
+  ledger,
+  snapshot,
+  view,
+  connected,
+  creatingPath,
+  onCreate,
+}: LedgerReadyProps) {
+  const asking = view.kind === 'asking';
+  const rescanIssue = view.kind === 'ready' ? view.rescanIssue : undefined;
+  const { entries, isLoadingPages } = ledger;
+  const summary = `Snapshot from ${formatLastSeen(snapshot.generatedAt, Date.now())} · ${repositoryCountLabel(snapshot.totalCount)} · not kept in sync`;
+
+  return (
+    <div data-testid="ledger-ready" className="mt-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p data-testid="ledger-summary" className="font-mono text-[10px] text-chatroom-text-muted">
+          {summary}
+        </p>
+        <Button
+          data-testid="ledger-rescan"
+          variant="outline"
+          size="xs"
+          disabled={asking || connected !== true}
+          onClick={() => void ledger.request(true)}
+        >
+          {asking ? (
+            <>
+              <Loader2 size={12} className="animate-spin" aria-hidden />
+              Asking daemon…
+            </>
+          ) : (
+            <>
+              <RefreshCw size={12} aria-hidden />
+              Rescan
+            </>
+          )}
+        </Button>
+      </div>
+
+      {rescanIssue && <LedgerNotice>{rescanIssueCopy(rescanIssue)}</LedgerNotice>}
+
+      {isLoadingPages && (
+        <p data-testid="ledger-loading-pages" className="text-xs text-chatroom-text-muted">
+          Loading repositories… {entries.length} of {snapshot.totalCount}
+        </p>
+      )}
+
+      {!isLoadingPages && entries.length === 0 && (
+        <p data-testid="ledger-empty" className="text-xs text-chatroom-text-muted">
+          No git repositories found under your project roots.
+        </p>
+      )}
+
+      {entries.length > 0 && (
+        <VirtualizedScrollList
+          items={entries}
+          height="min(28rem, 60dvh)"
+          estimateSize={() => 72}
+          getItemKey={(_, entry) => entry.path}
+          overscan={8}
+          renderItem={(entry) => (
+            <RepositoryRow
+              entry={entry}
+              disabled={connected !== true}
+              creating={creatingPath === entry.path}
+              onCreate={onCreate}
+            />
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
+function RetryBlock({
+  testId,
+  message,
+  tone,
+  onRetry,
+}: {
+  testId: string;
+  message: string;
+  tone: 'warning' | 'error';
+  onRetry: () => void;
+}) {
+  return (
+    <div data-testid={testId} className="mt-3 space-y-3">
+      <LedgerNotice tone={tone}>{message}</LedgerNotice>
+      <Button variant="outline" size="xs" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Repositories section for one expanded machine card: a snapshot loaded on demand from the
+ * machine's daemon, listed as fixed-height virtualised rows, with one chatroom per row.
+ * The hook discards the snapshot when this component unmounts (collapse or navigation).
+ */
+// fallow-ignore-next-line complexity
+export function MachineRepositories({
+  machineId,
+  displayName,
+  connected,
+  hasRoots,
+}: MachineRepositoriesProps) {
+  const ledger = useRepositoryLedger(machineId, { connected, hasRoots });
+  const { createOne } = useBulkCreateChatrooms();
+  const [creatingPath, setCreatingPath] = useState<string | null>(null);
+
+  const handleCreate = useCallback(
+    async (path: string) => {
+      setCreatingPath(path);
+      try {
+        const outcome = await createOne(machineId, path);
+        if (outcome.outcome === 'created') toast.success('Chatroom created');
+        else if (outcome.outcome === 'skipped') toast('This repository already has a chatroom');
+        else toast.error(outcome.message);
+      } catch (error) {
+        toast.error(getMachineErrorCopy(error, 'Could not create the chatroom. Try again.'));
+      } finally {
+        setCreatingPath(null);
+      }
+    },
+    [createOne, machineId]
+  );
+
+  const { snapshot, view } = ledger;
+  let body: ReactNode = null;
+  if (snapshot !== null) {
+    body = (
+      <LedgerReady
+        ledger={ledger}
+        snapshot={snapshot}
+        view={view}
+        connected={connected}
+        creatingPath={creatingPath}
+        onCreate={handleCreate}
+      />
+    );
+  } else if (view.kind === 'idle') {
+    body = <LedgerIdle view={view} onLoad={() => void ledger.request(false)} />;
+  } else if (view.kind === 'asking') {
+    body = <LedgerAsking displayName={displayName} onCancel={ledger.cancel} />;
+  } else if (view.kind === 'timedOut') {
+    body = (
+      <RetryBlock
+        testId="ledger-timed-out"
+        message={TIMED_OUT_COPY}
+        tone="warning"
+        onRetry={() => void ledger.request(false)}
+      />
+    );
+  } else if (view.kind === 'failed') {
+    body = (
+      <RetryBlock
+        testId="ledger-failed"
+        message={`Could not read repositories: ${view.message}`}
+        tone="error"
+        onRetry={() => void ledger.request(false)}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <h3 className={SECTION_HEADING_CLASS}>Repositories</h3>
+      {body}
+    </div>
+  );
+}
