@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { FunctionReference } from 'convex/server';
 import { getFunctionName } from 'convex/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,12 +25,14 @@ const mocks = vi.hoisted(() => ({
   capabilities: undefined as
     | Record<string, { availableHarnesses: string[]; harnessVersions: Record<string, never> }>
     | undefined,
+  /** machine ids the roots section subscribed for; empty while every card is collapsed. */
+  rootsMachineIds: [] as string[],
   shouldThrow: false,
   setMachineAlias: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: (query: unknown, args?: { machineId?: string }) => {
+  useSessionQuery: (query: unknown, args?: { machineId?: string } | 'skip') => {
     if (mocks.shouldThrow) throw new Error('[CONVEX Q(machines:getUserMachines)] boom');
     const name = getFunctionName(query as FunctionReference<'query'>);
     switch (name) {
@@ -42,7 +45,12 @@ vi.mock('convex-helpers/react/sessions', () => ({
       case 'machines:listMachineLastSeen':
         return mocks.lastSeen;
       case 'machines:getMachineCapabilities':
-        return mocks.capabilities?.[args?.machineId ?? ''];
+        return mocks.capabilities?.[(args as { machineId?: string })?.machineId ?? ''];
+      case 'machineProjectRoots:list':
+        mocks.rootsMachineIds.push((args as { machineId: string }).machineId);
+        return { roots: [] };
+      case 'folderPickerRequests:get':
+        return undefined;
       default:
         throw new Error(`Unexpected query: ${name}`);
     }
@@ -91,6 +99,7 @@ describe('MachinesPage', () => {
     mocks.lastSeen = undefined;
     mocks.capabilities = undefined;
     mocks.shouldThrow = false;
+    mocks.rootsMachineIds = [];
     mocks.setMachineAlias.mockReset();
     mocks.setMachineAlias.mockResolvedValue({ success: true });
     consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -185,5 +194,91 @@ describe('MachinesPage', () => {
     rerender(<MachinesPage />);
     expect(screen.queryByTestId('machine-card')).toBeNull();
     expect(screen.getByTestId('machines-empty')).toBeDefined();
+  });
+
+  it('starts collapsed and mounts no roots subscription', () => {
+    mocks.registry = { machines: [ALPHA] };
+    render(<MachinesPage />);
+
+    const expander = screen.getByTestId('machine-expander');
+    expect(expander).toHaveAttribute('aria-expanded', 'false');
+    expect(expander).toHaveAttribute('aria-label', 'Show details for Alpha');
+    expect(screen.queryByTestId('machine-card-body')).toBeNull();
+    expect(mocks.rootsMachineIds).toEqual([]);
+  });
+
+  it('expands on click, links the body, and keeps focus on the expander', async () => {
+    const user = userEvent.setup();
+    mocks.registry = { machines: [ALPHA] };
+    render(<MachinesPage />);
+
+    const expander = screen.getByTestId('machine-expander');
+    await user.click(expander);
+
+    const body = screen.getByTestId('machine-card-body');
+    expect(expander).toHaveAttribute('aria-expanded', 'true');
+    expect(expander).toHaveAttribute('aria-label', 'Hide details for Alpha');
+    expect(expander).toHaveAttribute('aria-controls', body.id);
+    expect(document.activeElement).toBe(expander);
+    expect(mocks.rootsMachineIds).toEqual(['m-alpha']);
+  });
+
+  it('toggles from the keyboard with Enter and Space', async () => {
+    const user = userEvent.setup();
+    mocks.registry = { machines: [ALPHA] };
+    render(<MachinesPage />);
+
+    const expander = screen.getByTestId('machine-expander');
+    expander.focus();
+    await user.keyboard('{Enter}');
+    expect(expander).toHaveAttribute('aria-expanded', 'true');
+
+    await user.keyboard(' ');
+    expect(expander).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('returns focus to the expander when collapsed by a click that did not focus it', () => {
+    mocks.registry = { machines: [ALPHA] };
+    render(<MachinesPage />);
+
+    const expander = screen.getByTestId('machine-expander');
+    fireEvent.click(expander);
+    expect(screen.getByTestId('machine-card-body')).toBeDefined();
+
+    screen.getByTestId('machine-actions-trigger').focus();
+    fireEvent.click(expander);
+
+    expect(screen.queryByTestId('machine-card-body')).toBeNull();
+    expect(document.activeElement).toBe(expander);
+  });
+
+  it('expands only one card at a time', async () => {
+    const user = userEvent.setup();
+    mocks.registry = { machines: [ALPHA, BRAVO] };
+    render(<MachinesPage />);
+
+    const expanders = screen.getAllByTestId('machine-expander');
+    await user.click(expanders[0]);
+    expect(screen.getAllByTestId('machine-card-body')).toHaveLength(1);
+
+    await user.click(expanders[1]);
+    expect(screen.getAllByTestId('machine-card-body')).toHaveLength(1);
+    expect(expanders[0]).toHaveAttribute('aria-expanded', 'false');
+    expect(expanders[1]).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('subscribes to project roots only for the expanded machine', async () => {
+    const user = userEvent.setup();
+    mocks.registry = { machines: [ALPHA, BRAVO] };
+    render(<MachinesPage />);
+
+    expect(mocks.rootsMachineIds).toEqual([]);
+
+    const expanders = screen.getAllByTestId('machine-expander');
+    await user.click(expanders[0]);
+    expect(mocks.rootsMachineIds).toEqual(['m-alpha']);
+
+    await user.click(expanders[1]);
+    expect(mocks.rootsMachineIds).toEqual(['m-alpha', 'm-bravo']);
   });
 });

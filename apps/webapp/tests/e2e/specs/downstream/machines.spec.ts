@@ -131,6 +131,63 @@ test.describe('Machines tab', { tag: [TAG_DOWNSTREAM, TAG_NAV] }, () => {
     const after = await client.query(api.machines.getUserMachines, { sessionId });
     expect(after.machines.map((machine) => machine.machineId)).not.toContain(machineId);
   });
+
+  test('manages project roots from the expanded card', async ({ authenticatedPage: page }) => {
+    const sessionId = await readSessionId(page);
+    const client = new ConvexHttpClient(getConvexUrl());
+    const machineId = await seedConnectedMachine(client, sessionId, {
+      hostname: 'e2e-machines-roots-host',
+      idPrefix: 'e2e-machines-roots',
+    });
+
+    await page.goto('/app/machines');
+    const card = page.locator(`[data-testid="machine-card"][data-machine-id="${machineId}"]`);
+    await expect(card.getByTestId('machine-status')).toHaveText('Online', { timeout: 15_000 });
+
+    await card.getByTestId('machine-expander').click();
+    await expect(card.getByTestId('project-roots-empty')).toBeVisible();
+
+    const input = card.getByLabel('Project root path');
+
+    // Add with Enter: the list, counter and success note update, the input clears.
+    await input.fill('/e2e/roots/a/b');
+    await input.press('Enter');
+    await expect(card.getByTestId('project-root-row')).toHaveCount(1);
+    await expect(card.getByTestId('project-roots-count')).toHaveText('1 / 20');
+    await expect(input).toHaveValue('');
+
+    // Duplicate: the copy shows and the typed value is kept.
+    await input.fill('/e2e/roots/a/b');
+    await card.getByTestId('project-roots-add').click();
+    await expect(card.getByTestId('project-roots-error')).toHaveText(
+      'That folder is already a project root.'
+    );
+    await expect(input).toHaveValue('/e2e/roots/a/b');
+
+    // Nested below the existing root.
+    await input.fill('/e2e/roots/a/b/c');
+    await input.press('Enter');
+    await expect(card.getByTestId('project-roots-error')).toHaveText(
+      'That folder is already inside an existing project root.'
+    );
+
+    // Collapsing the parent replaces the child.
+    await input.fill('/e2e/roots/a');
+    await input.press('Enter');
+    await expect(card.getByTestId('project-roots-success')).toContainText(
+      'Replaced 1 nested root: /e2e/roots/a/b'
+    );
+    await expect(card.getByTestId('project-root-row')).toHaveCount(1);
+
+    // Offline: adding is disabled with the note, removing still works.
+    await client.mutation(api.machines.markDaemonOffline, { sessionId, machineId });
+    await expect(card.getByTestId('project-roots-offline')).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByTestId('project-roots-add')).toBeDisabled();
+    await expect(input).toBeDisabled();
+
+    await card.getByRole('button', { name: 'Remove project root /e2e/roots/a' }).click();
+    await expect(card.getByTestId('project-roots-empty')).toBeVisible();
+  });
 });
 
 test.describe('Machines tab (mobile)', { tag: [TAG_DOWNSTREAM, TAG_NAV] }, () => {
