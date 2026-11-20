@@ -269,6 +269,9 @@ export function useStartAgentsWithFavorites({
       moveTo('starting');
       try {
         await startRef.current({ appliedCount: count });
+      } catch (error) {
+        // The caller owns user-facing error toasts. The controller only logs, so a rejected start never escapes as an unhandled rejection.
+        console.error('Start-all request failed; the start flow returned to idle.', error);
       } finally {
         setStartedFromDialog(false);
         moveTo('idle');

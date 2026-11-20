@@ -410,6 +410,30 @@ describe('useStartAgentsWithFavorites', () => {
     expect(start).toHaveBeenCalledTimes(1);
   });
 
+  it('returns to idle, logs once, and never rejects unhandled when start rejects', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    mocks.data = matchingFixture();
+    const start = vi.fn().mockRejectedValue(new Error('start failed'));
+    const { result } = renderFlow(start);
+
+    await act(async () => {
+      result.current.requestStart();
+    });
+    // Let Node deliver any unhandledRejection event before asserting on it.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(result.current.phase).toBe('idle');
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(unhandled).not.toHaveBeenCalled();
+    process.off('unhandledRejection', unhandled);
+    error.mockRestore();
+  });
+
   it('reports busy while checking', async () => {
     vi.useFakeTimers();
     mocks.data = { ...fixture(), requests: {} };
