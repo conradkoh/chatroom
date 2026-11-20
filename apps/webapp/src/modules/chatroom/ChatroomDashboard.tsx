@@ -761,6 +761,7 @@ function ChatroomDashboardContent({
     chatroomId as Id<'chatroom_rooms'>
   );
   const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
+  const startAllButtonRef = useRef<HTMLButtonElement>(null);
   const [agenticFocusToken, setAgenticFocusToken] = useState(0);
   const requestAgenticFocus = useCallback(() => setAgenticFocusToken((n) => n + 1), []);
 
@@ -2032,6 +2033,7 @@ function ChatroomDashboardContent({
                         isStartingAllAgents={
                           startAll.isBusy || chatroomStatus?.remoteAgentStatus === undefined
                         }
+                        startAllButtonRef={startAllButtonRef}
                       />
                       <WorkQueue
                         chatroomId={chatroomId as Id<'chatroom_rooms'>}
@@ -2043,7 +2045,10 @@ function ChatroomDashboardContent({
                   <WorkspaceBottomBar onSwitchToSourceControl={handleSwitchToSourceControl} />
                 </div>
 
-                <StartWithFavoritesDialog {...startAll.dialogProps} />
+                <StartWithFavoritesDialog
+                  {...startAll.dialogProps}
+                  finalFocusRef={startAllButtonRef}
+                />
                 <PromptModal
                   isOpen={modalState.isOpen}
                   onClose={handleCloseModal}
