@@ -1,11 +1,6 @@
 'use client';
 
 import { featureFlags } from '@workspace/backend/config/featureFlags';
-import {
-  isInviteSignupAllowed,
-  isSelfSignupAllowed,
-  isSignupAllowed,
-} from '@workspace/backend/config/signupMethods';
 import { AlertCircle, ChevronRight, KeyRound, KeySquare, Loader2, Ticket } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -13,7 +8,8 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 
 import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
 import { Button } from '@/components/ui/button';
-import { useGoogleAuthAvailable } from '@/modules/app/useAppInfo';
+import type { SignupConfig } from '@/modules/app/signupConfig';
+import { useGoogleAuthAvailable, useSignupConfig } from '@/modules/app/useAppInfo';
 import { AnonymousLoginButton } from '@/modules/auth/AnonymousLoginButton';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { GoogleLoginButton } from '@/modules/auth/GoogleLoginButton';
@@ -37,6 +33,7 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const authState = useAuthState();
   const googleAuthAvailable = useGoogleAuthAvailable();
+  const signupConfig = useSignupConfig();
   const [sessionId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null
   );
@@ -80,7 +77,7 @@ function LoginPageContent() {
   }
 
   const returnTo = searchParams.get('returnTo');
-  return _renderLoginForm(googleAuthAvailable, sessionId, returnTo);
+  return _renderLoginForm(googleAuthAvailable, signupConfig, sessionId, returnTo);
 }
 
 function _renderSignupDisabledBanner() {
@@ -181,30 +178,22 @@ function _renderDisabledState() {
 
 /**
  * Renders the main login form with authentication options.
+ * `signupConfig` is null while the backend's signup methods are loading.
  */
+// fallow-ignore-next-line complexity
 function _renderLoginForm(
   googleAuthAvailable: boolean | null,
+  signupConfig: SignupConfig | null,
   sessionId: string | null,
   returnTo: string | null
 ) {
-  const signupAllowed = isSignupAllowed();
-  const selfSignupAllowed = isSelfSignupAllowed();
-  const inviteSignupAllowed = isInviteSignupAllowed();
-  const inviteOnlyMode = inviteSignupAllowed && !selfSignupAllowed;
-
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
       <div className="w-full max-w-md space-y-6">
-        {!signupAllowed && _renderSignupDisabledBanner()}
+        {signupConfig !== null && !signupConfig.signupAllowed && _renderSignupDisabledBanner()}
         {_renderHeader()}
-        {_renderLoginOptions({
-          googleAuthAvailable,
-          sessionId,
-          selfSignupAllowed,
-          inviteSignupAllowed,
-          returnTo,
-        })}
-        {inviteOnlyMode && _renderInviteOnlyHint()}
+        {_renderLoginOptions({ googleAuthAvailable, signupConfig, sessionId, returnTo })}
+        {signupConfig?.inviteOnlyMode && _renderInviteOnlyHint()}
         {_renderFooter()}
       </div>
     </main>
@@ -229,13 +218,11 @@ function _renderHeader() {
 // fallow-ignore-next-line complexity
 function _renderLoginOptions(options: {
   googleAuthAvailable: boolean | null;
+  signupConfig: SignupConfig | null;
   sessionId: string | null;
-  selfSignupAllowed: boolean;
-  inviteSignupAllowed: boolean;
   returnTo: string | null;
 }) {
-  const { googleAuthAvailable, sessionId, selfSignupAllowed, inviteSignupAllowed, returnTo } =
-    options;
+  const { googleAuthAvailable, signupConfig, sessionId, returnTo } = options;
 
   return (
     <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
@@ -248,16 +235,34 @@ function _renderLoginOptions(options: {
         {/* Login with Code */}
         {_renderCodeLoginOption()}
 
-        {/* Invite Signup */}
-        {inviteSignupAllowed && _renderInviteSignupOption()}
-
-        {/* Anonymous Login */}
-        {sessionId && selfSignupAllowed && <AnonymousLoginButton variant="list" />}
+        {/* Invite Signup and Anonymous Login: only once the backend's signup methods are known */}
+        {signupConfig === null ? (
+          _renderSignupOptionsLoading()
+        ) : (
+          <>
+            {signupConfig.inviteSignupAllowed && _renderInviteSignupOption()}
+            {sessionId && signupConfig.selfSignupAllowed && <AnonymousLoginButton variant="list" />}
+          </>
+        )}
       </div>
 
       {/* Recovery Section */}
       {_renderRecoverySection()}
     </div>
+  );
+}
+
+/**
+ * Placeholder for the invite/anonymous rows while signup methods load. Same height as a row
+ * so the layout does not jump when the real rows appear.
+ */
+function _renderSignupOptionsLoading() {
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="signup-options-loading"
+      className="h-16 bg-muted/30 animate-pulse"
+    />
   );
 }
 

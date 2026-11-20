@@ -73,29 +73,25 @@ describe('signup method helpers', () => {
 });
 
 describe('getSignupConfigLabel', () => {
-  beforeEach(() => {
-    mockAllowedSignupMethods.value = ['self'];
-  });
-
-  it('returns Disabled when allowedSignupMethods is null or empty', () => {
-    mockAllowedSignupMethods.value = null;
-    expect(getSignupConfigLabel()).toBe('Disabled');
-    mockAllowedSignupMethods.value = [];
-    expect(getSignupConfigLabel()).toBe('Disabled');
+  it('returns Disabled for no methods', () => {
+    expect(getSignupConfigLabel([])).toBe('Disabled');
   });
 
   it('returns Open (self) when only self is allowed', () => {
-    mockAllowedSignupMethods.value = ['self'];
-    expect(getSignupConfigLabel()).toBe('Open (self)');
+    expect(getSignupConfigLabel(['self'])).toBe('Open (self)');
   });
 
   it('returns Invite only when only invite is allowed', () => {
-    mockAllowedSignupMethods.value = ['invite'];
-    expect(getSignupConfigLabel()).toBe('Invite only');
+    expect(getSignupConfigLabel(['invite'])).toBe('Invite only');
   });
 
-  it('returns Self + Invite when both are allowed', () => {
-    mockAllowedSignupMethods.value = ['self', 'invite'];
-    expect(getSignupConfigLabel()).toBe('Self + Invite');
+  it('returns Self + Invite when both are allowed, in either order', () => {
+    expect(getSignupConfigLabel(['self', 'invite'])).toBe('Self + Invite');
+    expect(getSignupConfigLabel(['invite', 'self'])).toBe('Self + Invite');
+  });
+
+  it('does not read featureFlags: the label follows the argument only', () => {
+    mockAllowedSignupMethods.value = null;
+    expect(getSignupConfigLabel(['self'])).toBe('Open (self)');
   });
 });
