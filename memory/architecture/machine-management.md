@@ -26,12 +26,24 @@ status: stable
 - Workspaces are soft-detached (`removedAt`), never hard-deleted, and are the one deliberate exemption that keeps rows carrying a deleted `machineId`. Chatrooms, messages and participants are preserved.
 - The 90-day path is the same path: there is no second machine-cascade implementation.
 
-## Project roots and ledger are lazy (planned)
+## Project roots and the repository ledger are lazy
 
-- Not yet in the schema. This is the rule the later Machines slices must follow.
-- Project roots are user intent stored in Convex (small, at most 20 per machine) and must be added to `MACHINE_SCOPED_TABLES` when they land.
-- The repository ledger is owned by the daemon as a local file and is never uploaded autonomously. A snapshot exists only as a transient, TTL'd request row plus chunks created on demand.
-- No always-on daemon subscription is added for roots or ledger state; see [daemon request lifecycle](/architecture/daemon-request-lifecycle.md) and [bandwidth at rest across projects](/architecture/bandwidth-at-rest-scaling.md).
+- Project roots are built. They live in `chatroom_machineProjectRoots` (registered in
+  `MACHINE_SCOPED_TABLES` at `services/backend/src/domain/usecase/machine/machine-scoped-tables.ts`),
+  are exposed by `api.machineProjectRoots.list/add/remove`, and are managed from the Machines tab's
+  expanded card. Roots are user intent stored in Convex (at most `MAX_PROJECT_ROOTS`, 20 per machine);
+  `add` enqueues at most one coalesced `daemon.syncProjectRoots` nudge and requires the machine online,
+  while `remove` works offline.
+- The daemon-local repository ledger is built in the CLI: one ledger service per daemon process
+  (`packages/cli/src/daemon/entry/repository-ledger-runtime.ts`), refreshed on daemon boot and on the
+  `daemon.syncProjectRoots` nudge, backed by the atomic local store
+  (`packages/cli/src/daemon/infrastructure/local/repository-ledger-store.ts`). The ledger is never
+  uploaded autonomously.
+- Not built yet (package 3 / planned): the Repositories section UI and the on-demand ledger snapshot
+  (request row, chunked pages, TTL).
+- No always-on daemon subscription is added for roots or ledger state; see
+  [daemon request lifecycle](/architecture/daemon-request-lifecycle.md) and
+  [bandwidth at rest across projects](/architecture/bandwidth-at-rest-scaling.md).
 
 ## Command-nudge pattern
 
@@ -41,7 +53,10 @@ status: stable
 
 ## Per-row action area (webapp extension point)
 
-- The Machines tab (`apps/webapp/src/app/app/machines/`, a later slice, not yet built) renders each machine row with an action area.
+- The Machines tab is built at `apps/webapp/src/app/app/machines/` (feature code in
+  `apps/webapp/src/modules/chatroom/features/machines/`). Each card has a header action area
+  (`MachineActionsMenu`, fed by descriptors in `machineActions.ts`) and an expandable body; project
+  roots is the first body section and mounts only while the card is expanded.
 - Future machine-level actions plug into that per-row area and must reuse the backend invariants above: owner check, offline guard where the action mutates a live daemon, and registry registration for any new machine-keyed data.
 
 ## Architecture references
