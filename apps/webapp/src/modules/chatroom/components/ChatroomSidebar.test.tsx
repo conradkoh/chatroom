@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import {
   deriveChatroomState,
@@ -220,6 +220,7 @@ const renderSidebar = (chatrooms: ChatroomWithStatus[], activeChatroomId = chatr
 };
 
 const CURRENT = { agentHarness: 'opencode', model: 'claude-opus-4-8[effort=high]' };
+const FAVOURITE = { agentHarness: 'pi', model: 'gpt-5.6-terra[reasoning=high]' };
 
 function setStartCheckData(favourites: unknown[]) {
   mockQueryData.getTeamStructureForChatroom = {
@@ -587,6 +588,113 @@ describe('ChatroomSidebar', () => {
       expect(mockStopAllCommandRuns).toHaveBeenCalledWith({
         chatroomId: chatroom._id,
       });
+    });
+  });
+
+  describe('play button with favourites check', () => {
+    const clickPlay = () => fireEvent.click(screen.getByLabelText('Start agents'));
+
+    it('starts immediately with no dialog when every agent is on its top favourite', async () => {
+      setStartCheckData([CURRENT]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
+      expect(screen.queryByTestId('start-favourites-dialog')).not.toBeInTheDocument();
+      expect(mockSaveConfig).not.toHaveBeenCalled();
+      expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+    });
+
+    it('opens the dialog listing current → favourite and starts nothing until the user chooses', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      const dialog = await screen.findByTestId('start-favourites-dialog');
+      const rows = within(dialog).getAllByTestId('start-favourites-row');
+      expect(rows).toHaveLength(1);
+      expect(within(rows[0]).getByText('opencode · Claude Opus 4.8 [high]')).toBeInTheDocument();
+      expect(within(rows[0]).getByText('pi · Gpt 5.6 Terra [high]')).toBeInTheDocument();
+      expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+      expect(mockSaveConfig).not.toHaveBeenCalled();
+    });
+
+    it('Start with current starts without saving', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      fireEvent.click(await screen.findByTestId('start-favourites-current'));
+      await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
+      expect(mockSaveConfig).not.toHaveBeenCalled();
+      expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+    });
+
+    it('Use favourites & start saves the favourite before starting and reports it', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      fireEvent.click(await screen.findByTestId('start-favourites-use'));
+      await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
+      expect(mockSaveConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatroomId: 'chr-1',
+          workspaceId: 'ws-1',
+          role: 'builder',
+          machineId: 'machine-1',
+          workingDir: '/repo',
+          agentHarness: 'pi',
+          model: 'gpt-5.6-terra[reasoning=high]',
+        })
+      );
+      expect(mockSaveConfig.mock.invocationCallOrder[0]).toBeLessThan(
+        mockRequestChatroomStart.mock.invocationCallOrder[0]
+      );
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        'Applied favourites to 1 agent(s). Start requested for 1 agent(s).'
+      );
+    });
+
+    it('Cancel starts and saves nothing', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      fireEvent.click(await screen.findByTestId('start-favourites-cancel'));
+      await waitFor(() =>
+        expect(screen.queryByTestId('start-favourites-dialog')).not.toBeInTheDocument()
+      );
+      expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+      expect(mockSaveConfig).not.toHaveBeenCalled();
+    });
+
+    it('clicks and keys inside the dialog do not select the chatroom row', async () => {
+      setStartCheckData([FAVOURITE]);
+      // Render the row inactive: selection is a no-op for the active chatroom, so it could not observe propagation.
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })], 'chr-other');
+      clickPlay();
+      const row = await screen.findByTestId('start-favourites-row');
+      fireEvent.click(row);
+      fireEvent.keyDown(row, { key: 'Enter' });
+      expect(mockPush).not.toHaveBeenCalled();
+      expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+    });
+
+    it('play button is disabled with aria-busy and a checking title while the check runs', () => {
+      mockQueriesPending = true;
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      const button = screen.getByTitle('Checking favourite models…');
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute('aria-busy', 'true');
+      expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+    });
+
+    it('returns focus to the play button when the dialog closes', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      const play = screen.getByLabelText('Start agents');
+      play.focus();
+      fireEvent.click(play);
+      fireEvent.click(await screen.findByTestId('start-favourites-cancel'));
+      await waitFor(() => expect(play).toHaveFocus());
     });
   });
 });
