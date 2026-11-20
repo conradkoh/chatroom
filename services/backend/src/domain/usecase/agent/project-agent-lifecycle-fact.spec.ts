@@ -307,8 +307,32 @@ describe('projectAgentLifecycleFact exited branch', () => {
     const result = await exit(s, 9999, 300);
 
     expect(result).toMatchObject({ success: true, skipped: true });
+    expect(result.rejectionReason).toBe('pid_mismatch');
     const row = await rowFor(s.chatroomId, 'builder');
     expect(row?.status).toBe('waiting');
     expect(row?.observedPid).toBe(4242);
+  });
+
+  test('an exit for a role without a launch request reports not_configured', async () => {
+    const s = await setup();
+
+    const result = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'exited' as const,
+        chatroomId: s.chatroomId,
+        role: 'planner',
+        pid: 4242,
+        revisionKey: 'exit:300',
+        emittedAt: 300,
+      },
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'not_configured',
+    });
   });
 });

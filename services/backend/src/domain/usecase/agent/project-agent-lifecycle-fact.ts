@@ -123,7 +123,11 @@ export async function projectAgentLifecycleFact(
       emittedAt: fact.emittedAt,
     });
     if (result.applied) await onAgentExited(ctx, fact);
-    return { success: true, skipped: !result.applied };
+    return {
+      success: true,
+      skipped: !result.applied,
+      ...(result.reason ? { rejectionReason: result.reason } : {}),
+    };
   }
   if (fact.kind === 'turn_failed') {
     const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
