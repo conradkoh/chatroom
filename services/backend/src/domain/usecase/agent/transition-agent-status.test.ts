@@ -20,7 +20,7 @@ const project = vi.mocked(projectAgentRoleStatusReadModel);
 describe('transitionAgentStatus', () => {
   beforeEach(() => {
     lookup.mockResolvedValue(null);
-    project.mockResolvedValue(undefined);
+    project.mockResolvedValue({ applied: true });
   });
 
   it('projects an operational event to the role-status read model', async () => {

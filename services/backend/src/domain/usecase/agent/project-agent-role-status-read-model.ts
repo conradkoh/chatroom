@@ -16,6 +16,43 @@ export type StatusEvent = {
   errorMessage?: string | undefined;
 };
 
+export type ProjectRoleStatusResult =
+  | { applied: true }
+  | { applied: false; reason: 'room_missing' | 'machine_mismatch' | 'stale_event' };
+
+const TERMINAL_ROLE_STATUSES = new Set<AgentRoleStatusReadModelStatus>(['error', 'offline']);
+
+/**
+ * Logs a dropped role-status projection, but only for terminal statuses. Working and
+ * heartbeat drops are frequent and expected, so they stay silent.
+ */
+function warnIfDroppedTerminalStatus(
+  reason: 'room_missing' | 'machine_mismatch' | 'stale_event',
+  details: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    status: AgentRoleStatusReadModelStatus;
+    machineId: string | undefined;
+    sourceEventAt: number | undefined;
+    lastEventAt: number | undefined;
+  }
+): void {
+  if (!TERMINAL_ROLE_STATUSES.has(details.status)) return;
+  console.warn('[agents] dropped terminal role status', {
+    reason,
+    status: details.status,
+    chatroomId: details.chatroomId,
+    role: details.role,
+    machineId: details.machineId,
+    sourceEventAt: details.sourceEventAt,
+    lastEventAt: details.lastEventAt,
+    deltaMs:
+      details.sourceEventAt !== undefined && details.lastEventAt !== undefined
+        ? details.lastEventAt - details.sourceEventAt
+        : undefined,
+  });
+}
+
 export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
   if (lastStatus === 'agent.waiting' || lastStatus === 'task.completed')
     return { status: 'waiting' };
@@ -51,6 +88,38 @@ export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
   return { status: 'offline' };
 }
 
+/**
+ * Finds the read-model row for a role. Workspace-scoped rows are looked up
+ * through the workspace index; rows without a workspace fall back to the
+ * chatroom/role index. Shared by the projection and last-seen touch paths so
+ * both resolve the same row.
+ */
+async function findAgentRoleStatusRow(
+  ctx: MutationCtx,
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
+    role: string;
+  }
+) {
+  return args.workspaceId
+    ? await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_workspace_role', (q) =>
+          q
+            .eq('chatroomId', args.chatroomId)
+            .eq('workspaceId', args.workspaceId)
+            .eq('role', args.role)
+        )
+        .first()
+    : await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+        )
+        .first();
+}
+
 export async function projectAgentRoleStatusReadModel(
   ctx: MutationCtx,
   args: {
@@ -69,10 +138,21 @@ export async function projectAgentRoleStatusReadModel(
     sourceEventAt?: number | undefined;
     sourceRevisionKey?: string | undefined;
   }
-): Promise<void> {
+): Promise<ProjectRoleStatusResult> {
   const role = args.role.trim().toLowerCase();
+  const status = args.event?.status ?? 'offline';
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!room) return;
+  if (!room) {
+    warnIfDroppedTerminalStatus('room_missing', {
+      chatroomId: args.chatroomId,
+      role,
+      status,
+      machineId: args.sourceMachineId,
+      sourceEventAt: args.sourceEventAt,
+      lastEventAt: undefined,
+    });
+    return { applied: false, reason: 'room_missing' };
+  }
 
   const launchRequest =
     args.launchRequest ??
@@ -84,21 +164,24 @@ export async function projectAgentRoleStatusReadModel(
   const event = args.event ?? { status: 'offline' as const };
   const now = Date.now();
   const workspaceId = launchRequest?.workspaceId ?? args.workspaceId;
-  const existing = workspaceId
-    ? await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_workspace_role', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('workspaceId', workspaceId).eq('role', role)
-        )
-        .first()
-    : await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
-        .first();
+  const existing = await findAgentRoleStatusRow(ctx, {
+    chatroomId: args.chatroomId,
+    workspaceId,
+    role,
+  });
   // Lifecycle facts are retried by the daemon outbox and can arrive out of
   // order after reconnect. Only accept a newer observation for this role.
-  if (args.sourceMachineId && existing?.machineId && existing.machineId !== args.sourceMachineId)
-    return;
+  if (args.sourceMachineId && existing?.machineId && existing.machineId !== args.sourceMachineId) {
+    warnIfDroppedTerminalStatus('machine_mismatch', {
+      chatroomId: args.chatroomId,
+      role,
+      status,
+      machineId: args.sourceMachineId,
+      sourceEventAt: args.sourceEventAt,
+      lastEventAt: existing.lastEventAt,
+    });
+    return { applied: false, reason: 'machine_mismatch' };
+  }
   if (
     existing &&
     args.sourceEventAt !== undefined &&
@@ -108,8 +191,17 @@ export async function projectAgentRoleStatusReadModel(
         args.sourceRevisionKey !== undefined &&
         existing.revisionKey !== undefined &&
         args.sourceRevisionKey <= existing.revisionKey))
-  )
-    return;
+  ) {
+    warnIfDroppedTerminalStatus('stale_event', {
+      chatroomId: args.chatroomId,
+      role,
+      status,
+      machineId: args.sourceMachineId ?? existing.machineId,
+      sourceEventAt: args.sourceEventAt,
+      lastEventAt: existing.lastEventAt,
+    });
+    return { applied: false, reason: 'stale_event' };
+  }
   const activeTask =
     event.status === 'working'
       ? await findActiveAssignedTaskForRole(ctx, { chatroomId: args.chatroomId, role })
@@ -155,6 +247,7 @@ export async function projectAgentRoleStatusReadModel(
       });
     }
   } else await ctx.db.insert('chatroom_agentRoleStatusReadModel', fields);
+  return { applied: true };
 }
 
 export async function touchAgentRoleStatusLastSeen(
@@ -176,17 +269,11 @@ export async function touchAgentRoleStatusLastSeen(
     role,
   });
   const workspaceId = launchRequest?.workspaceId;
-  const existing = workspaceId
-    ? await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_workspace_role', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('workspaceId', workspaceId).eq('role', role)
-        )
-        .first()
-    : await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
-        .first();
+  const existing = await findAgentRoleStatusRow(ctx, {
+    chatroomId: args.chatroomId,
+    workspaceId,
+    role,
+  });
   if (!existing) return false;
   if (args.machineId && existing.machineId && existing.machineId !== args.machineId) return false;
   if (

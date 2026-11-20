@@ -1,0 +1,545 @@
+import type { SessionId } from 'convex-helpers/server/sessions';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
+import { recordLastSentLaunchRequest } from './record-last-sent-launch-request';
+import { api } from '../../../../convex/_generated/api';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import { t } from '../../../../test.setup';
+import { AgentStartReasonCode } from '../../entities/agent';
+
+let n = 0;
+
+async function setup() {
+  const sessionId = `lifecycle-fact-${++n}` as SessionId;
+  const machineId = `lifecycle-fact-machine-${n}`;
+  await t.mutation(api.auth.loginAnon, { sessionId });
+  await t.mutation(api.machines.register, {
+    sessionId,
+    machineId,
+    hostname: 'test',
+    os: 'linux',
+    availableHarnesses: ['opencode'],
+  });
+  const chatroomId = await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamId: 'duo',
+    teamName: 'Duo',
+    teamRoles: ['planner', 'builder'],
+    teamEntryPoint: 'planner',
+  });
+  return { sessionId, machineId, chatroomId };
+}
+type Setup = Awaited<ReturnType<typeof setup>>;
+
+// The status branch only projects for a role whose last-sent launch request is
+// owned by the reporting machine; without one it returns `not_configured`.
+async function recordLaunchRequestFor(s: Setup, role: string) {
+  await t.run(async (ctx) => {
+    const user = await ctx.db.query('users').first();
+    await recordLastSentLaunchRequest(ctx, {
+      requestId: `lifecycle-request-${role}`,
+      commandId: `lifecycle-command-${role}`,
+      chatroomId: s.chatroomId,
+      teamStructureId: 'duo@1',
+      role,
+      agentType: 'remote',
+      machineId: s.machineId,
+      agentHarness: 'opencode',
+      model: 'test',
+      workingDir: '/tmp',
+      reason: AgentStartReasonCode.USER_START,
+      wantResume: false,
+      requestedBy: user!._id,
+      requestedAt: Date.now(),
+    });
+  });
+}
+
+function rowFor(chatroomId: Id<'chatroom_rooms'>, role: string) {
+  return t.run((ctx) =>
+    ctx.db
+      .query('chatroom_agentRoleStatusReadModel')
+      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+      .first()
+  );
+}
+
+describe('projectAgentLifecycleFact status branch', () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('an applied status fact is not skipped and stays silent', async () => {
+    const s = await setup();
+    await recordLaunchRequestFor(s, 'builder');
+
+    const seeded = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        status: 'waiting' as const,
+        revisionKey: 'status:200',
+        emittedAt: 200,
+      },
+    });
+
+    expect(seeded).toMatchObject({ success: true, skipped: false });
+    expect(seeded.rejectionReason).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
+
+    const applied = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        status: 'error' as const,
+        errorSource: 'runtime' as const,
+        errorCode: 'daemon.status',
+        errorMessage: 'boom',
+        revisionKey: 'status:300',
+        emittedAt: 300,
+      },
+    });
+
+    expect(applied).toMatchObject({ success: true, skipped: false });
+    expect(applied.rejectionReason).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
+    expect((await rowFor(s.chatroomId, 'builder'))?.status).toBe('error');
+  });
+
+  test('a stale error fact reports stale_event and warns', async () => {
+    const s = await setup();
+    await recordLaunchRequestFor(s, 'builder');
+
+    await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        status: 'waiting' as const,
+        revisionKey: 'status:200',
+        emittedAt: 200,
+      },
+    });
+
+    const result = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        status: 'error' as const,
+        errorSource: 'runtime' as const,
+        errorCode: 'daemon.status',
+        errorMessage: 'boom',
+        revisionKey: 'status:100',
+        emittedAt: 100,
+      },
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'stale_event',
+    });
+    expect((await rowFor(s.chatroomId, 'builder'))?.status).toBe('waiting');
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  test('a stale heartbeat-class fact reports stale_event without warning', async () => {
+    const s = await setup();
+    await recordLaunchRequestFor(s, 'builder');
+
+    await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        status: 'waiting' as const,
+        revisionKey: 'status:200',
+        emittedAt: 200,
+      },
+    });
+
+    const result = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        status: 'working' as const,
+        revisionKey: 'status:100',
+        emittedAt: 100,
+      },
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'stale_event',
+    });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test('a role without a launch request keeps reporting not_configured', async () => {
+    const s = await setup();
+
+    const result = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'planner',
+        status: 'error' as const,
+        errorSource: 'runtime' as const,
+        errorCode: 'daemon.status',
+        errorMessage: 'boom',
+        revisionKey: 'status:100',
+        emittedAt: 100,
+      },
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'not_configured',
+    });
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('projectAgentLifecycleFact exited branch', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Seeds a running builder: a status fact at emittedAt 200, then observedPid 4242
+  // written directly on the row, the way a spawned fact would leave it.
+  async function seedRunningBuilder(s: Setup, observedPid = 4242) {
+    await recordLaunchRequestFor(s, 'builder');
+    await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        status: 'waiting' as const,
+        revisionKey: 'status:200',
+        emittedAt: 200,
+      },
+    });
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .first();
+      await ctx.db.patch('chatroom_agentRoleStatusReadModel', row!._id, { observedPid });
+    });
+  }
+
+  function exit(s: Setup, pid: number, emittedAt: number, stopReason?: string) {
+    return t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'exited' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        pid,
+        ...(stopReason ? { stopReason } : {}),
+        revisionKey: `exit:${emittedAt}`,
+        emittedAt,
+      },
+    });
+  }
+
+  test('pid 0 exit against a stale observedPid applies, marks offline, and clears observedPid', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+
+    const result = await exit(s, 0, 300);
+
+    expect(result).toMatchObject({ success: true, skipped: false });
+    expect(result.rejectionReason).toBeUndefined();
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('offline');
+    expect(row?.observedPid).toBeUndefined();
+  });
+
+  test('exit whose pid matches observedPid still applies', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+
+    const result = await exit(s, 4242, 300);
+
+    expect(result).toMatchObject({ success: true, skipped: false });
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('offline');
+    expect(row?.observedPid).toBeUndefined();
+  });
+
+  test('non-zero pid mismatch is skipped and leaves the row unchanged', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+
+    const result = await exit(s, 9999, 300);
+
+    expect(result).toMatchObject({ success: true, skipped: true });
+    expect(result.rejectionReason).toBe('pid_mismatch');
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('waiting');
+    expect(row?.observedPid).toBe(4242);
+  });
+
+  test('an exit for a role without a launch request reports not_configured', async () => {
+    const s = await setup();
+
+    const result = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'exited' as const,
+        chatroomId: s.chatroomId,
+        role: 'planner',
+        pid: 4242,
+        revisionKey: 'exit:300',
+        emittedAt: 300,
+      },
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'not_configured',
+    });
+  });
+
+  function participantFor(chatroomId: Id<'chatroom_rooms'>) {
+    return t.run((ctx) =>
+      ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique()
+    );
+  }
+
+  // The chatroom fixture has no participants, so seed the builder row the exit
+  // path would patch.
+  async function ensureBuilderParticipant(s: Setup) {
+    await t.run(async (ctx) => {
+      const existing = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      if (existing) return;
+      await ctx.db.insert('chatroom_participants', {
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        agentType: 'remote',
+        lastSeenAt: Date.now(),
+      });
+    });
+  }
+
+  // Seeds a task the role is working on, the way a claimed task would sit.
+  function seedInFlightTask(s: Setup, assignedTo: string, status: 'acknowledged' | 'in_progress') {
+    const now = Date.now();
+    return t.run((ctx) =>
+      ctx.db.insert('chatroom_tasks', {
+        chatroomId: s.chatroomId,
+        createdBy: 'user',
+        content: `${assignedTo} in-flight task`,
+        status,
+        assignedTo,
+        acknowledgedAt: now,
+        ...(status === 'in_progress' ? { startedAt: now } : {}),
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    );
+  }
+
+  function taskById(taskId: Id<'chatroom_tasks'>) {
+    return t.run((ctx) => ctx.db.get('chatroom_tasks', taskId));
+  }
+
+  test('a stale pid 0 exit is dropped and does not touch the participant', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242); // row lastEventAt = 200
+    await ensureBuilderParticipant(s);
+    await t.run(async (ctx) => {
+      const p = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      await ctx.db.patch('chatroom_participants', p!._id, { lastSeenAction: 'sentinel' });
+    });
+
+    const result = await exit(s, 0, 100); // 100 < 200 → stale_event
+
+    expect(result).toMatchObject({ success: true, skipped: true, rejectionReason: 'stale_event' });
+    expect((await participantFor(s.chatroomId))?.lastSeenAction).toBe('sentinel');
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('waiting');
+    expect(row?.observedPid).toBe(4242);
+  });
+
+  test('a machine-mismatched pid 0 exit is dropped and does not touch the participant', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+    await ensureBuilderParticipant(s);
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .first();
+      await ctx.db.patch('chatroom_agentRoleStatusReadModel', row!._id, {
+        machineId: 'other-machine',
+      });
+      const p = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      await ctx.db.patch('chatroom_participants', p!._id, { lastSeenAction: 'sentinel' });
+    });
+
+    const result = await exit(s, 0, 300);
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'machine_mismatch',
+    });
+    expect((await participantFor(s.chatroomId))?.lastSeenAction).toBe('sentinel');
+    expect((await rowFor(s.chatroomId, 'builder'))?.observedPid).toBe(4242);
+  });
+
+  test('a stale team_switch exit still reassigns in-flight tasks and leaves the row unchanged', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242); // row lastEventAt = 200, observedPid = 4242
+    const taskId = await seedInFlightTask(s, 'builder', 'in_progress');
+
+    const result = await exit(s, 4242, 100, 'platform.team_switch'); // 100 < 200 → stale_event
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'stale_event',
+    });
+    const task = await taskById(taskId);
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('planner');
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('waiting');
+    expect(row?.observedPid).toBe(4242);
+    expect(row?.lastEventAt).toBe(200);
+  });
+
+  test('a stale exit without platform.team_switch does not reassign in-flight tasks', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+    const taskId = await seedInFlightTask(s, 'builder', 'in_progress');
+
+    const byUser = await exit(s, 4242, 100, 'user.stop');
+    const noReason = await exit(s, 4242, 100);
+
+    expect(byUser).toMatchObject({ skipped: true, rejectionReason: 'stale_event' });
+    expect(noReason).toMatchObject({ skipped: true, rejectionReason: 'stale_event' });
+    const task = await taskById(taskId);
+    expect(task?.status).toBe('in_progress');
+    expect(task?.assignedTo).toBe('builder');
+  });
+
+  test('a machine_mismatch team_switch exit does not reassign in-flight tasks', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+    const taskId = await seedInFlightTask(s, 'builder', 'in_progress');
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .first();
+      await ctx.db.patch('chatroom_agentRoleStatusReadModel', row!._id, {
+        machineId: 'other-machine',
+      });
+    });
+
+    const result = await exit(s, 0, 300, 'platform.team_switch');
+
+    expect(result).toMatchObject({ skipped: true, rejectionReason: 'machine_mismatch' });
+    const task = await taskById(taskId);
+    expect(task?.status).toBe('in_progress');
+    expect(task?.assignedTo).toBe('builder');
+  });
+
+  test('a team_switch exit for a role without a launch request does not reassign', async () => {
+    const s = await setup();
+    const taskId = await seedInFlightTask(s, 'planner', 'in_progress');
+
+    const result = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'exited' as const,
+        chatroomId: s.chatroomId,
+        role: 'planner',
+        pid: 4242,
+        stopReason: 'platform.team_switch',
+        revisionKey: 'exit:300',
+        emittedAt: 300,
+      },
+    });
+
+    expect(result).toMatchObject({ skipped: true, rejectionReason: 'not_configured' });
+    expect((await taskById(taskId))?.status).toBe('in_progress');
+  });
+
+  test('an applied team_switch exit reassigns in-flight tasks to the entry point', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+    const taskId = await seedInFlightTask(s, 'builder', 'acknowledged');
+
+    const result = await exit(s, 4242, 300, 'platform.team_switch');
+
+    expect(result).toMatchObject({ success: true, skipped: false });
+    const task = await taskById(taskId);
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('planner');
+  });
+});

@@ -2,6 +2,7 @@ import { agentExited as agentExitedUseCase } from './agent-exited';
 import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
 import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
+import { reconcileAgentStatusAfterStop } from './reconcile-agent-status-after-stop';
 import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -84,6 +85,7 @@ export async function projectAgentLifecycleFact(
   skipped?: boolean | undefined;
   clearedCount?: number | undefined;
   reconciledExecutionCount?: number | undefined;
+  reconciledRoleCount?: number | undefined;
   rejectionReason?: string | undefined;
 }> {
   const { machineId, fact } = args;
@@ -120,8 +122,19 @@ export async function projectAgentLifecycleFact(
       revisionKey: fact.revisionKey,
       emittedAt: fact.emittedAt,
     });
-    if (result.applied) await onAgentExited(ctx, fact);
-    return { success: true, skipped: !result.applied };
+    // Team-switch task reassignment is a side effect of a real team switch, not of the
+    // role-status observation. A `stale_event` drop must not lose it: the daemon treats
+    // `skipped` as delivered and never retries. This narrows the "dropped fact has no
+    // side effects" rule to the read model and participant state. The participant patch
+    // stays applied-only, and the stale fact never touches the read-model row.
+    // `not_configured` and `machine_mismatch` do not reassign: the reporting machine
+    // does not own the role.
+    if (result.applied || result.reason === 'stale_event') await onAgentExited(ctx, fact);
+    return {
+      success: true,
+      skipped: !result.applied,
+      ...(result.reason ? { rejectionReason: result.reason } : {}),
+    };
   }
   if (fact.kind === 'turn_failed') {
     const launchRequest = await getLastSentLaunchRequestForRole(ctx, {
@@ -153,7 +166,7 @@ export async function projectAgentLifecycleFact(
     });
     if (!launchRequest || launchRequest.machineId !== machineId)
       return { success: true, skipped: true, rejectionReason: 'not_configured' };
-    await projectAgentRoleStatusReadModel(ctx, {
+    const result = await projectAgentRoleStatusReadModel(ctx, {
       chatroomId: fact.chatroomId,
       role: fact.role,
       event: {
@@ -172,7 +185,11 @@ export async function projectAgentLifecycleFact(
       sourceEventAt: fact.emittedAt,
       sourceRevisionKey: fact.revisionKey,
     });
-    return { success: true };
+    return {
+      success: true,
+      skipped: !result.applied,
+      ...(!result.applied ? { rejectionReason: result.reason } : {}),
+    };
   }
   if (fact.kind === 'chatroom_shutdown_complete') {
     const command = await ctx.db.get('chatroom_machineCommandInbox', fact.commandId);
@@ -182,10 +199,23 @@ export async function projectAgentLifecycleFact(
     if (command.status !== 'processing') {
       return { success: true, skipped: true, rejectionReason: 'command_not_processing' };
     }
+    let reconciledRoleCount = 0;
+    const payload = command.command;
+    if (payload.type === 'agent.stop' && payload.chatroomId === fact.chatroomId) {
+      const reconciled = await reconcileAgentStatusAfterStop(ctx, {
+        machineId,
+        scope: {
+          chatroomId: fact.chatroomId,
+          role: payload.role,
+          workingDir: payload.workingDir,
+        },
+        emittedAt: fact.emittedAt,
+        revisionKey: fact.revisionKey,
+      });
+      reconciledRoleCount = reconciled.reconciledCount;
+    }
     await ctx.db.delete('chatroom_machineCommandInbox', command._id);
-    return {
-      success: true,
-    };
+    return { success: true, reconciledRoleCount };
   }
   const registration = await registerSpawnedAgentIfAuthorized(ctx, {
     ...fact,

@@ -8,6 +8,8 @@ status: stable
 
 # Agent stop golden path
 
+> **Status note (superseded in part):** The durable `chatroom_agentStopCommands` aggregate described below was replaced by machine inbox `agent.stop` commands. Role status rows are no longer driven by that aggregate; they are reconciled when the daemon reports `chatroom_shutdown_complete`, via `reconcileAgentStatusAfterStop` ([reconcile-agent-status-after-stop.ts](../../services/backend/src/domain/usecase/agent/reconcile-agent-status-after-stop.ts)). Do not rely on the durable-target design below. The history is kept for context.
+
 ## Decision
 
 One durable `chatroom_agentStopCommands` aggregate represents each logical stop action. The backend snapshots exact PID targets once, the daemon executes only those assigned targets, and per-role `agentRoleView.stopState` drives the UI.
