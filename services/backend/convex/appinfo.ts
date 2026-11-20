@@ -1,3 +1,4 @@
+import { getAllowedSignupMethods, type SignupMethod } from '../config/signupMethods';
 import { query } from './_generated/server';
 
 // Public interfaces and types
@@ -5,6 +6,8 @@ export interface AppInfo {
   version: string;
   googleAuthAvailable: boolean;
   googleAuthDetails: GoogleAuthDetails;
+  /** Signup methods this deployment accepts, resolved server-side. Empty array = sign-ups closed. */
+  allowedSignupMethods: SignupMethod[];
 }
 
 export interface GoogleAuthDetails {
@@ -22,8 +25,9 @@ interface _GoogleAuthConfig {
 }
 
 /**
- * Gets application information including version and authentication configuration.
- * Provides frontend components with app metadata and Google Auth availability status.
+ * Gets application information including version, authentication configuration, and the
+ * signup methods this deployment accepts. Provides frontend components with app metadata,
+ * Google Auth availability status, and the backend-resolved signup methods.
  */
 export const get = query({
   args: {},
@@ -43,6 +47,7 @@ export const get = query({
       version: appInfo?.latestVersion || '1.0.0',
       googleAuthAvailable: googleAuthDetails.isConfiguredInDatabase && googleAuthDetails.isEnabled,
       googleAuthDetails,
+      allowedSignupMethods: getAllowedSignupMethods(),
     };
   },
 });
