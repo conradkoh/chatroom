@@ -16,6 +16,7 @@ status: stable
 - Tombstone-first: in one transaction the use case runs the guards (ownership always; offline proof for user-initiated deletes), inserts a `chatroom_machineDeletions` row (`status: 'purging'`) and deletes the `chatroom_machines` row. With `inlineBudget: 0` the purge is only scheduled.
 - Deleting the machine row revokes daemon authority: every daemon mutation authorizes through `requireMachineOwner` → `checkAccess`, whose `getMachineByMachineId` dependency reads `chatroom_machines` (`services/backend/modules/auth/accessCheck.ts`).
 - `machines.register` only creates a machine when no `purging` tombstone exists for that `machineId`; otherwise it throws `MACHINE_DELETION_IN_PROGRESS`. Repeating a delete after completion returns `already_deleted`.
+- A daemon that is still running but was marked offline by a stale heartbeat can re-register as a new machine after a purge completes, so a "deleted" machine can reappear until the daemon is stopped.
 - Purge runs in budgeted batches through `machineDeletion.purgeBatch`; an empty verification pass marks the tombstone `completed`. `machineDeletion.sweepMachineDeletions` (every 5 minutes) restarts dead chains, fails them after `MACHINE_PURGE_MAX_RESTARTS` (10), and prunes completed tombstones after `MACHINE_DELETION_RETENTION_MS` (7 days). Failed tombstones are kept.
 
 ## Registry rule

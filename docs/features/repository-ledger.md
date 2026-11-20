@@ -31,7 +31,7 @@ The ledger is request/response and transient. It is never a durable, synced tabl
   the ledger first.
 - `listEntries` pages the chunk rows. `get` returns the request row, including
   `invalidPathCount`, `repositoryCount`, `truncated`, and `roots`.
-- `discard` is a best-effort early clear of a request and its chunks.
+- `discard` is a best-effort early clear of a request and its chunks. Only the consumer that created a request discards it; a consumer that reused a pending request leaves it to its creator.
 - The ledger is never uploaded autonomously. Nothing is pushed on boot, on rescan, or when
   project roots change.
 
@@ -109,6 +109,8 @@ state-by-state reference.
 The snapshot is not kept in sync, and it is discarded when the section unmounts (card collapse or
 navigation). Rows are fixed at 72 px, the bulk-create button spans the section below the `sm`
 breakpoint, and the bulk dialog stays inside the viewport on mobile.
+
+Entries load in pages of 3 chunks (300 entries). `numItems` counts chunk documents of 100 entries, and the server clamps it to 10 chunks, so the webapp keeps loading until the list is exhausted.
 
 ## Where the code lives
 
