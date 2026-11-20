@@ -18,11 +18,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: (query: unknown, args?: { machineId?: string }) => {
+  useSessionQuery: (query: unknown, args?: { machineId?: string } | 'skip') => {
     const name = getFunctionName(query as FunctionReference<'query'>);
     if (name === 'machines:getMachineCapabilities') {
-      return mocks.capabilities?.[args?.machineId ?? ''];
+      return mocks.capabilities?.[(args as { machineId?: string })?.machineId ?? ''];
     }
+    if (name === 'machineProjectRoots:list') return { roots: [] };
+    if (name === 'folderPickerRequests:get') return undefined;
     throw new Error(`Unexpected query: ${name}`);
   },
   useSessionMutation: (mutation: unknown) => {
@@ -63,7 +65,7 @@ const USAGE: MachineUsage = {
 };
 
 function renderRow(row: MachineRowModel) {
-  return render(<MachineList rows={[row]} />);
+  return render(<MachineList rows={[row]} expandedMachineId={null} onToggle={() => {}} />);
 }
 
 describe('MachineList / MachineCard', () => {

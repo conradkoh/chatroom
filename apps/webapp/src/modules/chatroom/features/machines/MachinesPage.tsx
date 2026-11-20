@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import { MachineList } from './components/MachineList';
 import {
   MachinesEmptyState,
@@ -40,8 +42,15 @@ export function MachinesPage() {
 
 function MachinesContent() {
   const { rows, isLoading } = useMachineRows();
+  const [expandedMachineId, setExpandedMachineId] = useState<string | null>(null);
 
   if (isLoading) return <MachinesLoadingState />;
   if (rows.length === 0) return <MachinesEmptyState />;
-  return <MachineList rows={rows} />;
+  return (
+    <MachineList
+      rows={rows}
+      expandedMachineId={expandedMachineId}
+      onToggle={(id) => setExpandedMachineId((current) => (current === id ? null : id))}
+    />
+  );
 }

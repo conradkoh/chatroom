@@ -44,7 +44,7 @@ function AddRootButton({ disabled, adding }: { disabled: boolean; adding: boolea
   );
 }
 
-/** The error line under the input; only the add form owns add errors. */
+/** The add error line under the input. Picker errors stay in SetupFolderPickerField. */
 function AddErrorLine({ error }: { error: string | null }) {
   if (!error) return null;
   return (
@@ -121,33 +121,84 @@ function PathField({
   );
 }
 
-/**
- * Typed or Browse-picked path plus the Add action.
- *
- * Browse only fills the input; submitting is always the user's explicit action.
- * The success live region stays mounted so screen readers announce every add.
- */
-export function AddProjectRootForm({
+interface AddRootMutation {
+  adding: boolean;
+  error: string | null;
+  success: string;
+  setError: (error: string | null) => void;
+  setSuccess: (success: string) => void;
+  /** Resolves true on success, false on a mapped failure. */
+  addRoot: (path: string) => Promise<boolean>;
+}
+
+/** The add mutation's pending/error/success state, separate from the path and picker. */
+function useAddRootMutation(
+  onAdd: AddProjectRootFormProps['onAdd'],
+  inputRef: RefObject<HTMLInputElement | null>
+): AddRootMutation {
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState('');
+
+  const addRoot = useCallback(
+    async (path: string) => {
+      setAdding(true);
+      setError(null);
+      setSuccess('');
+      try {
+        const result = await onAdd(path);
+        setSuccess(formatAddedNote(result));
+        inputRef.current?.focus();
+        return true;
+      } catch (err) {
+        setError(getMachineErrorCopy(err, ADD_FALLBACK_COPY));
+        return false;
+      } finally {
+        setAdding(false);
+      }
+    },
+    [inputRef, onAdd]
+  );
+
+  return { adding, error, success, setError, setSuccess, addRoot };
+}
+
+interface AddRootFormState {
+  path: string;
+  adding: boolean;
+  error: string | null;
+  success: string;
+  inputRef: RefObject<HTMLInputElement | null>;
+  picker: FolderPickerState;
+  onChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}
+
+/** Typed path, add mutation state and the Browse picker, in one testable unit. */
+function useAddRootForm({
   machineId,
-  displayName,
   hostname,
   alias,
   offline,
   atLimit,
   onAdd,
-}: AddProjectRootFormProps) {
+}: AddProjectRootFormProps): AddRootFormState {
   const [path, setPath] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const { adding, error, success, setError, setSuccess, addRoot } = useAddRootMutation(
+    onAdd,
+    inputRef
+  );
 
   // Stable: it is an effect dependency inside useSetupWorkspaceFolderPicker.
-  const handlePicked = useCallback((picked: string) => {
-    setPath(picked);
-    setError(null);
-    setSuccess('');
-  }, []);
+  const handlePicked = useCallback(
+    (picked: string) => {
+      setPath(picked);
+      setError(null);
+      setSuccess('');
+    },
+    [setError, setSuccess]
+  );
 
   const { picker } = useSetupWorkspaceFolderPicker({
     selectedMachineId: machineId,
@@ -155,49 +206,59 @@ export function AddProjectRootForm({
     onPathSelected: handlePicked,
   });
 
-  const handleChange = useCallback((value: string) => {
-    setPath(value);
-    setError(null);
-    setSuccess('');
-  }, []);
+  const handleChange = useCallback(
+    (value: string) => {
+      setPath(value);
+      setError(null);
+      setSuccess('');
+    },
+    [setError, setSuccess]
+  );
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const trimmed = path.trim();
-      if (offline || atLimit || adding || trimmed === '') return;
-
-      setAdding(true);
-      setError(null);
-      setSuccess('');
-      try {
-        const result = await onAdd(trimmed);
-        setPath('');
-        setSuccess(formatAddedNote(result));
-        setAdding(false);
-        inputRef.current?.focus();
-      } catch (err) {
-        setError(getMachineErrorCopy(err, ADD_FALLBACK_COPY));
-        setAdding(false);
-      }
+      const blocked = [offline, atLimit, adding, trimmed === ''].some(Boolean);
+      if (blocked) return;
+      if (await addRoot(trimmed)) setPath('');
     },
-    [adding, atLimit, offline, onAdd, path]
+    [adding, addRoot, atLimit, offline, path]
   );
 
+  return {
+    path,
+    adding,
+    error,
+    success,
+    inputRef,
+    picker,
+    onChange: handleChange,
+    onSubmit: handleSubmit,
+  };
+}
+
+/**
+ * Typed or Browse-picked path plus the Add action.
+ *
+ * Browse only fills the input; submitting is always the user's explicit action.
+ */
+export function AddProjectRootForm(props: AddProjectRootFormProps) {
+  const form = useAddRootForm(props);
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form onSubmit={form.onSubmit} noValidate>
       <PathField
-        path={path}
-        onChange={handleChange}
-        picker={picker}
-        inputRef={inputRef}
-        error={error}
-        adding={adding}
-        offline={offline}
-        atLimit={atLimit}
-        displayName={displayName}
+        path={form.path}
+        onChange={form.onChange}
+        picker={form.picker}
+        inputRef={form.inputRef}
+        error={form.error}
+        adding={form.adding}
+        offline={props.offline}
+        atLimit={props.atLimit}
+        displayName={props.displayName}
       />
-      <AddSuccessNote success={success} />
+      <AddSuccessNote success={form.success} />
     </form>
   );
 }

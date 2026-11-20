@@ -1,7 +1,7 @@
 'use client';
 
-import { MAX_PROJECT_ROOTS } from '@workspace/backend/src/domain/entities/project-root';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { MAX_PROJECT_ROOTS } from '@workspace/backend/src/domain/entities/project-root';
 import { AlertTriangle } from 'lucide-react';
 
 import { AddProjectRootForm } from './AddProjectRootForm';
@@ -23,6 +23,22 @@ export interface MachineProjectRootsProps {
 
 const SECTION_HEADING_CLASS =
   'text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted';
+
+function ProjectRootsHeader({ count }: { count: number | undefined }) {
+  return (
+    <div className="flex items-baseline justify-between">
+      <h3 className={SECTION_HEADING_CLASS}>Project roots</h3>
+      {count !== undefined && (
+        <span
+          data-testid="project-roots-count"
+          className="text-[10px] font-mono text-chatroom-text-muted"
+        >
+          {count} / {MAX_PROJECT_ROOTS}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function ProjectRootsLoading() {
   return (
@@ -82,6 +98,11 @@ function LimitNote() {
   );
 }
 
+/** At the design's limit the Add action is disabled, even though the server would collapse. */
+function isAtRootLimit(roots: MachineProjectRoot[] | undefined): boolean {
+  return roots !== undefined && roots.length >= MAX_PROJECT_ROOTS;
+}
+
 /**
  * Project roots manager: the expandable card's first section.
  *
@@ -97,21 +118,11 @@ export function MachineProjectRoots({
 }: MachineProjectRootsProps) {
   const { roots, addRoot, removeRoot } = useMachineProjectRoots(machineId);
   const offline = connected === false;
-  const atLimit = roots !== undefined && roots.length >= MAX_PROJECT_ROOTS;
+  const atLimit = isAtRootLimit(roots);
 
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <h3 className={SECTION_HEADING_CLASS}>Project roots</h3>
-        {roots !== undefined && (
-          <span
-            data-testid="project-roots-count"
-            className="text-[10px] font-mono text-chatroom-text-muted"
-          >
-            {roots.length} / {MAX_PROJECT_ROOTS}
-          </span>
-        )}
-      </div>
+      <ProjectRootsHeader count={roots?.length} />
       <p className="mt-1 text-xs text-chatroom-text-muted">
         Folders the daemon scans for git repositories.
       </p>
