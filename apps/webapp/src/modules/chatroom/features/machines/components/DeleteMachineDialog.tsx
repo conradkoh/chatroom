@@ -401,7 +401,14 @@ function DeleteDialogBody({
  * rejection) renders the blocked body, everything else shows the confirm body. The
  * destructive action only enables once connectivity is known-offline and usage has
  * loaded; the server remains authoritative.
+ * A server MACHINE_ONLINE rejection keeps the blocked body until connectivity next
+ * transitions to offline.
  */
+// The dialog controller is deliberately one function: its transient state, the
+// rejection guard and the mutation handler read as a single unit, and splitting it
+// would add a hook boundary for four lines of derived state. Pre-existing size
+// finding, surfaced because this slice touches the file.
+// fallow-ignore-next-line complexity
 export function DeleteMachineDialog({
   open,
   onOpenChange,
@@ -414,7 +421,15 @@ export function DeleteMachineDialog({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [serverSaysOnline, setServerSaysOnline] = useState(false);
+  const [prevConnected, setPrevConnected] = useState(connected);
   const cancelRef = useRef<HTMLButtonElement>(null);
+
+  // A server MACHINE_ONLINE rejection holds the blocked body only until connectivity
+  // next transitions to offline. Render-phase reset keeps this out of an effect.
+  if (prevConnected !== connected) {
+    setPrevConnected(connected);
+    if (connected === false) setServerSaysOnline(false);
+  }
 
   // Reset transient state whenever the dialog toggles so a reopen starts clean.
   const handleOpenChange = useCallback(

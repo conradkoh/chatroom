@@ -284,4 +284,56 @@ describe('DeleteMachineDialog', () => {
     expect(screen.getByTestId('delete-machine-blocked')).toBeInTheDocument();
     expect(screen.queryByTestId('delete-machine-confirm-body')).toBeNull();
   });
+
+  it('switches from blocked to confirm once the machine goes offline after a server MACHINE_ONLINE rejection', async () => {
+    const user = userEvent.setup();
+    mocks.deleteMachine.mockRejectedValue(
+      new ConvexError({ code: 'MACHINE_ONLINE', message: 'Machine is online' })
+    );
+    const { rerender, onOpenChange } = renderDialog({ connected: false, usage: USAGE });
+
+    await user.click(confirmButton() as HTMLElement);
+    expect(await screen.findByTestId('delete-machine-blocked')).toBeInTheDocument();
+
+    const props = {
+      open: true,
+      onOpenChange,
+      machine: { machineId: 'machine-1', displayName: 'home-server' },
+      usage: USAGE,
+    };
+    rerender(<DeleteMachineDialog {...props} connected />);
+    expect(screen.getByTestId('delete-machine-blocked')).toBeInTheDocument();
+
+    rerender(<DeleteMachineDialog {...props} connected={false} />);
+    expect(screen.queryByTestId('delete-machine-blocked')).toBeNull();
+    expect(screen.getByTestId('delete-machine-confirm-body')).toBeInTheDocument();
+    expect(confirmButton()).toBeEnabled();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('keeps confirm disabled after a server MACHINE_ONLINE rejection goes offline while usage is still loading', async () => {
+    const user = userEvent.setup();
+    mocks.deleteMachine.mockRejectedValue(
+      new ConvexError({ code: 'MACHINE_ONLINE', message: 'Machine is online' })
+    );
+    const { rerender, onOpenChange } = renderDialog({ connected: false, usage: USAGE });
+
+    await user.click(confirmButton() as HTMLElement);
+    expect(await screen.findByTestId('delete-machine-blocked')).toBeInTheDocument();
+
+    const props = {
+      open: true,
+      onOpenChange,
+      machine: { machineId: 'machine-1', displayName: 'home-server' },
+    };
+    rerender(<DeleteMachineDialog {...props} connected usage={USAGE} />);
+    rerender(<DeleteMachineDialog {...props} connected={false} usage={undefined} />);
+
+    expect(screen.queryByTestId('delete-machine-blocked')).toBeNull();
+    expect(screen.getByTestId('delete-machine-confirm-body')).toBeInTheDocument();
+    expect(confirmButton()).toBeDisabled();
+
+    rerender(<DeleteMachineDialog {...props} connected={false} usage={USAGE} />);
+    expect(confirmButton()).toBeEnabled();
+  });
 });
