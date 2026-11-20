@@ -209,6 +209,7 @@ describe('MachineProjectRoots', () => {
     expect(mocks.add).toHaveBeenCalledWith({ machineId: 'm-1', path: '/x' });
     await waitFor(() => expect(pathInput().value).toBe(''));
     expect(screen.getByTestId('project-roots-success').textContent).toBe('Added /x.');
+    await waitFor(() => expect(pathInput()).toHaveFocus());
   });
 
   it('submits on Enter in the path input', async () => {
