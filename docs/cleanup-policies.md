@@ -8,24 +8,25 @@ All cleanup functions run as Convex `internalMutation` cron jobs. They process r
 
 ## Cleanup Schedule
 
-| Table                                   | Cleanup Strategy            | TTL / Condition                             | Batch Size                | Schedule     | File                       | Notes                                                   |
-| --------------------------------------- | --------------------------- | ------------------------------------------- | ------------------------- | ------------ | -------------------------- | ------------------------------------------------------- |
-| `chatroom_machineCommandInbox`          | Age-based / lease recovery  | Command deadline                            | 2,000                     | Every 15 min | `machineCommandCleanup.ts` | Recovers expired claims every minute                    |
-| `chatroom_commandOutput`                | Age-based (terminal runs)   | 7 days                                      | 500 chunks (50 runs)      | Hourly       | `storageCleanup.ts`        | Deletes output chunks for completed/failed/stopped runs |
-| `chatroom_commandRuns`                  | Age-based (terminal status) | 30 days                                     | 500                       | Daily        | `storageCleanup.ts`        | Also deletes remaining output chunks                    |
-| `chatroom_workspaceCommitDetail`        | Age-based                   | 30 days                                     | 500                       | Daily        | `storageCleanup.ts`        |                                                         |
-| `chatroom_workspaceFullDiff`            | Age-based                   | 24 hours                                    | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
-| `chatroom_workspaceFileContent`         | Age-based                   | 24 hours                                    | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
-| `chatroom_workspaceDiffRequests`        | Age-based                   | 24 hours                                    | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
-| `chatroom_workspaceFileContentRequests` | Age-based                   | 24 hours                                    | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                          |
-| `chatroom_workspaceFileTree`            | Stale scannedAt             | 30 days                                     | 500                       | Daily        | `chatroomCleanup.ts`       | Self-reschedules if batch full                          |
-| `chatroom_read_cursors`                 | Orphaned (chatroom deleted) | —                                           | 500 scan / 300 delete cap | Daily        | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                 |
-| `chatroom_machines`                     | Inactive (lastSeenAt)       | 90 days                                     | 50                        | Daily        | `chatroomCleanup.ts`       | Full cascading delete of 16+ related tables             |
-| `chatroom_participants`                 | Orphaned (chatroom deleted) | —                                           | 500 scan / 300 delete cap | Daily        | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                 |
-| `cliSessions`                           | Inactive + stale            | 30d (inactive) / 90d (stale)                | 500                       | Daily        | `chatroomCleanup.ts`       | Two passes with dedup Set to prevent double-delete      |
-| `cliAuthRequests`                       | Terminal status age         | 7 days                                      | 500                       | Daily        | `chatroomCleanup.ts`       | Targets expired, denied, approved requests              |
-| `chatroom_tasks`                        | Terminal status age         | 60 days                                     | 500                       | Daily        | `chatroomCleanup.ts`       | Uses completedAt with \_creationTime fallback           |
-| `chatroom_fileAttachments`              | Age-based (unbound)         | `pending_upload` 15 min / `uploaded` 60 min | 100                       | Every 15 min | `fileAttachments.ts`       | Self-reschedules when a batch is full                   |
+| Table                                   | Cleanup Strategy              | TTL / Condition                                                                    | Batch Size                | Schedule     | File                       | Notes                                                                                                                           |
+| --------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------- | ------------------------- | ------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `chatroom_machineCommandInbox`          | Age-based / lease recovery    | Command deadline                                                                   | 2,000                     | Every 15 min | `machineCommandCleanup.ts` | Recovers expired claims every minute                                                                                            |
+| `chatroom_commandOutput`                | Age-based (terminal runs)     | 7 days                                                                             | 500 chunks (50 runs)      | Hourly       | `storageCleanup.ts`        | Deletes output chunks for completed/failed/stopped runs                                                                         |
+| `chatroom_commandRuns`                  | Age-based (terminal status)   | 30 days                                                                            | 500                       | Daily        | `storageCleanup.ts`        | Also deletes remaining output chunks                                                                                            |
+| `chatroom_workspaceCommitDetail`        | Age-based                     | 30 days                                                                            | 500                       | Daily        | `storageCleanup.ts`        |                                                                                                                                 |
+| `chatroom_workspaceFullDiff`            | Age-based                     | 24 hours                                                                           | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                                                                                                  |
+| `chatroom_workspaceFileContent`         | Age-based                     | 24 hours                                                                           | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                                                                                                  |
+| `chatroom_workspaceDiffRequests`        | Age-based                     | 24 hours                                                                           | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                                                                                                  |
+| `chatroom_workspaceFileContentRequests` | Age-based                     | 24 hours                                                                           | 200                       | Hourly       | `storageCleanup.ts`        | Part of cached content cleanup                                                                                                  |
+| `chatroom_workspaceFileTree`            | Stale scannedAt               | 30 days                                                                            | 500                       | Daily        | `chatroomCleanup.ts`       | Self-reschedules if batch full                                                                                                  |
+| `chatroom_read_cursors`                 | Orphaned (chatroom deleted)   | —                                                                                  | 500 scan / 300 delete cap | Daily        | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                                                                                         |
+| `chatroom_machines`                     | Inactive (lastSeenAt)         | 90 days                                                                            | 50                        | Daily        | `chatroomCleanup.ts`       | Starts a shared machine deletion (tombstone + scheduled purge of every `MACHINE_SCOPED_TABLES` table); workspaces soft-detached |
+| `chatroom_machineDeletions`             | Completed tombstone retention | 7 days after `updatedAt` (`MACHINE_DELETION_RETENTION_MS`); failed tombstones kept | 100                       | Every 5 min  | `machineDeletion.ts`       | Sweep also restarts dead purge chains                                                                                           |
+| `chatroom_participants`                 | Orphaned (chatroom deleted)   | —                                                                                  | 500 scan / 300 delete cap | Daily        | `chatroomCleanup.ts`       | Delete-capped to prevent infinite loops                                                                                         |
+| `cliSessions`                           | Inactive + stale              | 30d (inactive) / 90d (stale)                                                       | 500                       | Daily        | `chatroomCleanup.ts`       | Two passes with dedup Set to prevent double-delete                                                                              |
+| `cliAuthRequests`                       | Terminal status age           | 7 days                                                                             | 500                       | Daily        | `chatroomCleanup.ts`       | Targets expired, denied, approved requests                                                                                      |
+| `chatroom_tasks`                        | Terminal status age           | 60 days                                                                            | 500                       | Daily        | `chatroomCleanup.ts`       | Uses completedAt with \_creationTime fallback                                                                                   |
+| `chatroom_fileAttachments`              | Age-based (unbound)           | `pending_upload` 15 min / `uploaded` 60 min                                        | 100                       | Every 15 min | `fileAttachments.ts`       | Self-reschedules when a batch is full                                                                                           |
 
 ## Self-Rescheduling Pattern
 
@@ -69,31 +70,51 @@ Orphan-detection cleanups (`cleanupReadCursors`, `cleanupParticipants`) use a di
 
 This prevents the pathological case where the cron infinitely reschedules to re-scan the same valid records.
 
-## Machine Cascading Delete
+## Machine Deletion
 
-When a machine is deleted (90-day inactive), the cleanup removes ALL related rows across these tables:
+Deleting a machine — by a user through `machines.deleteMachine` or by the 90-day
+inactive cleanup — always goes through the shared `startMachineDeletion` use case
+in `services/backend/src/domain/usecase/machine/delete-machine.ts`.
 
-| Table                                   | Lookup Method                         |
-| --------------------------------------- | ------------------------------------- |
-| `chatroom_machineLiveness`              | Index: `by_machineId`                 |
-| `chatroom_machineStatus`                | Index: `by_machineId`                 |
-| `chatroom_machineModelFilters`          | Index: `by_machine_harness`           |
-| `chatroom_agentDesiredConfigs`          | Index: `by_machineId`                 |
-| `chatroom_agentRuntimeStates`           | Index: `by_machineId`                 |
-| `chatroom_workspaces`                   | Index: `by_machine`                   |
-| `chatroom_workspaceGitState`            | Filter: `machineId`                   |
-| `chatroom_workspaceFileTree`            | Filter: `machineId`                   |
-| `chatroom_workspaceFileContent`         | Filter: `machineId`                   |
-| `chatroom_workspaceFullDiff`            | Filter: `machineId`                   |
-| `chatroom_workspacePRDiffs`             | Filter: `machineId`                   |
-| `chatroom_workspaceDiffRequests`        | Filter: `machineId`                   |
-| `chatroom_workspaceFileContentRequests` | Filter: `machineId`                   |
-| `chatroom_workspaceFileTreeRequests`    | Filter: `machineId`                   |
-| `chatroom_workspaceCommitDetail`        | Filter: `machineId`                   |
-| `chatroom_runnableCommands`             | Filter: `machineId`                   |
-| `chatroom_commandRuns`                  | Filter: `machineId` (+ output chunks) |
+1. **Tombstone first.** In one transaction the use case writes a
+   `chatroom_machineDeletions` row (`status: 'purging'`) and deletes the
+   `chatroom_machines` row together with its status, liveness, capabilities and
+   available-models projections. Deleting the machine row revokes daemon authority:
+   every daemon mutation authorizes through `requireMachineOwner` → `checkAccess`,
+   which reads that row. `machines.register` refuses to create a machine while a
+   `purging` tombstone exists.
+2. **Budgeted, resumable purge.** The remaining machine data is purged by
+   `machineDeletion.purgeBatch`, which walks `MACHINE_SCOPED_TABLES` in
+   `services/backend/src/domain/usecase/machine/machine-scoped-tables.ts` in
+   budgeted slices and reschedules itself until a full pass returns no rows. An
+   empty verification pass marks the tombstone `completed`.
+   `machineDeletion.sweepMachineDeletions` (every 5 minutes) restarts purge chains
+   that died and prunes completed tombstones after 7 days.
+3. **The registry is the contract.** `MACHINE_SCOPED_TABLES` is the authoritative
+   list of what a machine deletion purges. A new table with a top-level `machineId`
+   field must be registered there or listed in `MACHINE_SCOPED_EXEMPTIONS` with a
+   reason; `src/domain/usecase/machine/machine-scoped-tables.spec.ts` fails when it
+   is neither.
+4. **What survives.** Workspaces are soft-detached (`removedAt` set, primary
+   workspace pointer cleared) rather than deleted, so chatroom history keeps its
+   workspace references. Chatrooms, messages and participants are preserved.
+   Orphan capabilities projections (a capabilities row with no machine) are still
+   cleaned inline by the 90-day cleanup.
 
-Due to the large number of related rows, machines are processed in small batches (50 per run).
+The 90-day cleanup hands each stale machine to `startMachineDeletion` with
+`initiatedBy: 'system'`, `requireOffline: false` and `inlineBudget: 0`, so only the
+tombstone and authority revocation run inline and the purge is always scheduled.
+User-initiated deletes run the first purge slice inline within
+`MACHINE_PURGE_BUDGET` and require the machine to be offline.
+
+Behaviour change from the previous inline cascade: the 90-day path used to
+hard-delete workspaces and cover roughly 30 of the ~60 machine-keyed tables, listed
+by hand and already stale. It now soft-detaches workspaces and covers every table
+in `MACHINE_SCOPED_TABLES`.
+
+Machines are still processed 50 per run by `cleanupMachines`, and the job
+reschedules itself when a full batch was returned. The purge itself is not inline:
+each machine schedules its own `machineDeletion.purgeBatch` chain.
 
 ## Source Files
 
