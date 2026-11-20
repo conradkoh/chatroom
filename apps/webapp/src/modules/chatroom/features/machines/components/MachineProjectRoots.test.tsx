@@ -197,13 +197,13 @@ describe('MachineProjectRoots', () => {
     expect(pathInput()).toBeEnabled();
   });
 
-  it('adds the trimmed typed path, clears the input and shows the success note', async () => {
+  it('adds the typed path, clears the input and shows the success note', async () => {
     const user = userEvent.setup();
     mocks.roots = [];
     mocks.add.mockResolvedValue({ rootId: 'r9', path: '/x', collapsedPaths: [] });
     renderSection();
 
-    await user.type(pathInput(), '  /x  ');
+    await user.type(pathInput(), '/x');
     await user.click(addButton());
 
     expect(mocks.add).toHaveBeenCalledWith({ machineId: 'm-1', path: '/x' });
@@ -323,6 +323,33 @@ describe('MachineProjectRoots', () => {
       expect(screen.getByTestId('project-roots-success').textContent).toBe('Added /slow.')
     );
     expect(addButton()).not.toHaveTextContent('Adding…');
+  });
+
+  it('keeps text typed while an add is pending instead of clearing the input', async () => {
+    const user = userEvent.setup();
+    mocks.roots = [];
+    let resolveAdd!: (value: { rootId: string; path: string; collapsedPaths: string[] }) => void;
+    mocks.add.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+    renderSection();
+
+    await user.type(pathInput(), '/x/a{Enter}');
+    expect(await screen.findByText('Adding…')).toBeDefined();
+
+    await user.clear(pathInput());
+    await user.type(pathInput(), '/x/other');
+    expect(pathInput().value).toBe('/x/other');
+
+    resolveAdd({ rootId: 'r1', path: '/x/a', collapsedPaths: [] });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('project-roots-success').textContent).toBe('Added /x/a.')
+    );
+    expect(pathInput().value).toBe('/x/other');
   });
 
   it('fills the input from a completed Browse without adding it', async () => {

@@ -221,7 +221,9 @@ function useAddRootForm({
       const trimmed = path.trim();
       const blocked = [offline, atLimit, adding, trimmed === ''].some(Boolean);
       if (blocked) return;
-      if (await addRoot(trimmed)) setPath('');
+      // Only clear when the input still holds the submitted value: text typed while
+      // the add was in flight must survive.
+      if (await addRoot(trimmed)) setPath((current) => (current === trimmed ? '' : current));
     },
     [adding, addRoot, atLimit, offline, path]
   );
