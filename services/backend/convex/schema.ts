@@ -12,6 +12,10 @@ import {
   gitCloneStatusValidator,
 } from '../src/domain/entities/git-clone-request';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
+import {
+  ledgerEntryValidator,
+  ledgerRootValidator,
+} from '../src/domain/entities/repository-ledger';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
 import {
   commitStatusValidator,
@@ -1537,6 +1541,45 @@ export default defineSchema({
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),
   }).index('by_machineId', ['machineId']),
+
+  /**
+   * Transient repository-ledger snapshot requests (`api.repositoryLedger.*`). One row per on-demand
+   * request. Never a durable synced ledger: rows and chunks are removed after `expiresAt` by
+   * `cleanupExpiredLedgerRequests`. Read by id only. `by_machineId_createdAt` serves request reuse
+   * and the machine-delete purge; never subscribe through it.
+   */
+  chatroom_repositoryLedgerRequests: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    rescan: v.boolean(),
+    status: v.union(v.literal('pending'), v.literal('completed'), v.literal('failed')),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    expiresAt: v.number(), // pending: createdAt + command TTL; terminal: completedAt + snapshot TTL
+    errorMessage: v.optional(v.string()),
+    repositoryCount: v.optional(v.number()),
+    invalidPathCount: v.optional(v.number()),
+    truncated: v.optional(v.boolean()),
+    ledgerGeneratedAt: v.optional(v.number()),
+    roots: v.optional(v.array(ledgerRootValidator)),
+  })
+    .index('by_machineId_createdAt', ['machineId', 'createdAt'])
+    .index('by_expiresAt', ['expiresAt']),
+
+  /**
+   * Snapshot entries, split into chunks so each document stays under 1 MiB. Written atomically with
+   * the terminal request row (slice 3A-2). Transient, like the request row.
+   * `by_machineId` exists only for the machine-delete purge; never subscribe through it.
+   */
+  chatroom_repositoryLedgerChunks: defineTable({
+    requestId: v.id('chatroom_repositoryLedgerRequests'),
+    machineId: v.string(),
+    chunkIndex: v.number(),
+    entries: v.array(ledgerEntryValidator),
+  })
+    .index('by_request_chunk', ['requestId', 'chunkIndex'])
+    .index('by_machineId', ['machineId']),
 
   // ============================================================================
   // EVENT STREAM TABLE

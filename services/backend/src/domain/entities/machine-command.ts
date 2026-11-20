@@ -76,7 +76,12 @@ export const machineCommandPayloadValidator = v.union(
     repoUrl: v.string(),
     targetPath: v.string(),
   }),
-  v.object({ type: v.literal('daemon.syncProjectRoots') })
+  v.object({ type: v.literal('daemon.syncProjectRoots') }),
+  v.object({
+    type: v.literal('daemon.reportRepositoryLedger'),
+    requestId: v.id('chatroom_repositoryLedgerRequests'),
+    rescan: v.boolean(),
+  })
 );
 export type MachineCommandPayload = typeof machineCommandPayloadValidator.type;
 export type MachineCommandType = MachineCommandPayload['type'];
@@ -92,4 +97,5 @@ export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
   // Delivery window (5 min) for the command. Clone runtime is not bounded by this TTL.
   'daemon.gitClone': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.syncProjectRoots': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
+  'daemon.reportRepositoryLedger': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
 };

@@ -198,6 +198,8 @@ export const MACHINE_SCOPED_TABLES: readonly MachineScopedTable[] = [
   byMachine('chatroom_gitCloneRequests', 'by_machineId'),
   byMachine('chatroom_machineProjectRoots', 'by_machineId'),
   byMachine('chatroom_capabilities_refresh_machine_results', 'by_machineId'),
+  byMachine('chatroom_repositoryLedgerRequests', 'by_machineId_createdAt'),
+  byMachine('chatroom_repositoryLedgerChunks', 'by_machineId', 15),
 
   // Git state.
   byMachine('chatroom_workspaceGitState', 'by_machine_workingDir'),
