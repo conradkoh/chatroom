@@ -26,7 +26,57 @@ function splitRootPrefix(path: string, root: string): { prefix: string; rest: st
   return { prefix: root, rest: path.slice(root.length) };
 }
 
-// fallow-ignore-next-line complexity
+function RepositoryStatusBadge({ hasChatroom }: { hasChatroom: boolean }) {
+  return hasChatroom ? (
+    <Badge
+      variant="outline"
+      className="rounded-none border-chatroom-status-success/40 text-[10px] uppercase text-chatroom-status-success"
+    >
+      Has chatroom
+    </Badge>
+  ) : (
+    <Badge
+      variant="outline"
+      className="rounded-none border-chatroom-border text-[10px] uppercase text-chatroom-text-muted"
+    >
+      No chatroom
+    </Badge>
+  );
+}
+
+/** `Open` for a row that already has a chatroom, otherwise the create button. */
+function RepositoryAction({ entry, disabled, creating, onCreate }: RepositoryRowProps) {
+  if (entry.hasChatroom && entry.chatroomId) {
+    return (
+      <Link href={`/app/chatroom?id=${entry.chatroomId}`} className={ACTION_CLASS}>
+        Open
+      </Link>
+    );
+  }
+  return (
+    <button
+      type="button"
+      disabled={disabled || creating}
+      onClick={() => onCreate(entry.path)}
+      className={ACTION_CLASS}
+    >
+      <CreateLabel creating={creating} />
+    </button>
+  );
+}
+
+function CreateLabel({ creating }: { creating: boolean }) {
+  if (creating) {
+    return (
+      <>
+        <Loader2 size={12} className="animate-spin" aria-hidden />
+        Creating…
+      </>
+    );
+  }
+  return <>Create chatroom</>;
+}
+
 function RepositoryRowComponent({ entry, disabled, creating, onCreate }: RepositoryRowProps) {
   const { prefix, rest } = splitRootPrefix(entry.path, entry.root);
   return (
@@ -54,42 +104,13 @@ function RepositoryRowComponent({ entry, disabled, creating, onCreate }: Reposit
         </div>
       </div>
       <div className="flex w-[8.5rem] shrink-0 flex-col items-end gap-1">
-        {entry.hasChatroom ? (
-          <Badge
-            variant="outline"
-            className="rounded-none border-chatroom-status-success/40 text-[10px] uppercase text-chatroom-status-success"
-          >
-            Has chatroom
-          </Badge>
-        ) : (
-          <Badge
-            variant="outline"
-            className="rounded-none border-chatroom-border text-[10px] uppercase text-chatroom-text-muted"
-          >
-            No chatroom
-          </Badge>
-        )}
-        {entry.hasChatroom && entry.chatroomId ? (
-          <Link href={`/app/chatroom?id=${entry.chatroomId}`} className={ACTION_CLASS}>
-            Open
-          </Link>
-        ) : (
-          <button
-            type="button"
-            disabled={disabled || creating}
-            onClick={() => onCreate(entry.path)}
-            className={ACTION_CLASS}
-          >
-            {creating ? (
-              <>
-                <Loader2 size={12} className="animate-spin" aria-hidden />
-                Creating…
-              </>
-            ) : (
-              'Create chatroom'
-            )}
-          </button>
-        )}
+        <RepositoryStatusBadge hasChatroom={entry.hasChatroom} />
+        <RepositoryAction
+          entry={entry}
+          disabled={disabled}
+          creating={creating}
+          onCreate={onCreate}
+        />
       </div>
     </div>
   );
