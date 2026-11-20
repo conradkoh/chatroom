@@ -10,7 +10,7 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-import { applyConvexDevEnvDefaults } from './convex-dev-env';
+import { applyConvexDevEnvDefaults, buildConvexDevEnv } from './convex-dev-env';
 
 const repoRoot = resolve(dirname(import.meta.path), '..');
 const backendDir = resolve(repoRoot, 'services/backend');
@@ -121,6 +121,7 @@ async function main(): Promise<void> {
 
   const child = Bun.spawn(args, {
     cwd: backendDir,
+    env: buildConvexDevEnv(process.env, isLocalDeployment),
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',

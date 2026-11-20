@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { applyConvexDevEnvDefaults } from './convex-dev-env';
+import { applyConvexDevEnvDefaults, buildConvexDevEnv } from './convex-dev-env';
 
 const KEYS = [
   'CONVEX_NON_INTERACTIVE',
@@ -36,5 +36,24 @@ describe('applyConvexDevEnvDefaults', () => {
     process.env.CONVEX_NON_INTERACTIVE = 'false';
     applyConvexDevEnvDefaults();
     expect(process.env.CONVEX_NON_INTERACTIVE).toBe('false');
+  });
+});
+
+describe('buildConvexDevEnv', () => {
+  it('removes TZ for local deployments and keeps other variables', () => {
+    expect(buildConvexDevEnv({ TZ: 'Asia/Singapore', PATH: 'x' }, true)).toEqual({ PATH: 'x' });
+  });
+
+  it('keeps TZ for hosted deployments', () => {
+    expect(buildConvexDevEnv({ TZ: 'Asia/Singapore', PATH: 'x' }, false)).toEqual({
+      TZ: 'Asia/Singapore',
+      PATH: 'x',
+    });
+  });
+
+  it('does not mutate the input object', () => {
+    const base = { TZ: 'Asia/Singapore', PATH: 'x' };
+    buildConvexDevEnv(base, true);
+    expect(base).toEqual({ TZ: 'Asia/Singapore', PATH: 'x' });
   });
 });
