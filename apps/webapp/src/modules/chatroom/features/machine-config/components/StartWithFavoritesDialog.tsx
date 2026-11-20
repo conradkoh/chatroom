@@ -377,6 +377,7 @@ export function StartWithFavoritesDialog({
       >
         <AlertDialogContent
           data-testid="start-favourites-dialog"
+          className="data-[size=default]:max-w-[calc(100%-2rem)]"
           initialFocus={hasFailures ? startAnywayRef : primaryRef}
           finalFocus={finalFocusRef}
         >

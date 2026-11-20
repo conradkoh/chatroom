@@ -93,6 +93,15 @@ describe('StartWithFavoritesDialog', () => {
     expect(screen.getByTestId('start-favourites-use')).toHaveClass('w-full');
   });
 
+  it('uses the design width on phones and keeps the sm breakpoint width', () => {
+    renderDialog();
+
+    const content = screen.getByTestId('start-favourites-dialog');
+    expect(content).toHaveClass('data-[size=default]:max-w-[calc(100%-2rem)]');
+    expect(content).toHaveClass('data-[size=default]:sm:max-w-lg');
+    expect(content).not.toHaveClass('data-[size=default]:max-w-xs');
+  });
+
   it('calls the matching callback for each action', () => {
     const { props } = renderDialog();
 
