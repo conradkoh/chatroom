@@ -1,23 +1,18 @@
 import type { Message } from '../types/message';
 
 /**
- * Returns the persisted duration represented by a handoff, when its origin is
- * present in the already-loaded timeline window.
+ * Returns the time elapsed between a handoff and the message that immediately
+ * precedes it in the loaded timeline. Only handoffs carry a duration; a handoff
+ * with no predecessor (first row of the window) or a negative/non-finite gap has none.
  */
 // fallow-ignore-next-line complexity
 export function getHandoffDurationMs(
   message: Message,
-  messagesById: ReadonlyMap<string, Message>
+  previousMessage: Message | undefined
 ): number | undefined {
-  if (message.type !== 'handoff' || !message.taskOriginMessageId) return undefined;
+  if (message.type !== 'handoff' || !previousMessage) return undefined;
 
-  const origin = messagesById.get(message.taskOriginMessageId);
-  if (!origin) return undefined;
-
-  const startedAt = origin.acknowledgedAt ?? origin._creationTime;
-  const completedAt = origin.completedAt ?? message._creationTime;
-  const durationMs = completedAt - startedAt;
-
+  const durationMs = message._creationTime - previousMessage._creationTime;
   return Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : undefined;
 }
 

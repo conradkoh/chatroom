@@ -77,7 +77,7 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
       {handoffDurationMs !== undefined && (
         <span
           data-testid="timeline-handoff-duration"
-          title={`Time since task started: ${formatHandoffDuration(handoffDurationMs)}`}
+          title={`Time since previous message: ${formatHandoffDuration(handoffDurationMs)}`}
           className={cn(
             'text-[10px] font-mono tabular-nums text-chatroom-text-muted',
             compact && 'hidden sm:inline'
@@ -106,7 +106,7 @@ export interface TimelineMessageFooterProps {
   message: Message;
   /** When set, copy/download use this instead of message.content. */
   displayContent?: string;
-  /** Historical duration from the origin task start through this handoff. */
+  /** Elapsed time since the previous message in the timeline. */
   handoffDurationMs?: number;
 }
 

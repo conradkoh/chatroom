@@ -241,7 +241,7 @@ export interface TimelineTeamMessageProps {
   chatroomId: string;
   /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
   headerNavigation?: TimelineMessageHeaderNavigation;
-  /** Historical duration from the origin task start through this handoff. */
+  /** Elapsed time since the previous message in the timeline. */
   handoffDurationMs?: number;
   /**
    * When true the row starts collapsed: a summary bar with a 2-line plain-text

@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { formatHandoffDuration, getHandoffDurationMs } from './handoffTiming';
 import type { Message } from '../types/message';
 
-const origin: Message = {
-  _id: 'origin',
+const previous: Message = {
+  _id: 'previous',
   type: 'message',
   senderRole: 'user',
   content: 'Start work',
-  _creationTime: 1_000,
+  _creationTime: 6_000,
   acknowledgedAt: 2_000,
   completedAt: 65_500,
 };
@@ -23,28 +23,35 @@ const handoff: Message = {
 };
 
 describe('handoff timing', () => {
-  it('uses the origin lifecycle timestamps', () => {
-    expect(getHandoffDurationMs(handoff, new Map([[origin._id, origin]]))).toBe(63_500);
-  });
-
-  it('falls back to creation times for legacy records', () => {
-    const legacyOrigin = { ...origin, acknowledgedAt: undefined, completedAt: undefined };
-    const legacyHandoff = { ...handoff, _creationTime: 6_000 };
-    expect(getHandoffDurationMs(legacyHandoff, new Map([[legacyOrigin._id, legacyOrigin]]))).toBe(
-      5_000
-    );
+  it('measures elapsed time since the immediately preceding message', () => {
+    expect(getHandoffDurationMs(handoff, previous)).toBe(60_000);
   });
 
   it.each([
-    ['missing origin', { ...handoff, taskOriginMessageId: 'missing' }],
-    ['non-handoff', { ...handoff, type: 'message', taskOriginMessageId: 'origin' }],
-  ])('omits timing for %s', (_label, message) => {
-    expect(getHandoffDurationMs(message, new Map([[origin._id, origin]]))).toBeUndefined();
+    ['notice', { ...previous, type: 'notice' }],
+    ['message', { ...previous, type: 'message' }],
+  ])('counts a %s predecessor', (_label, predecessor) => {
+    const earlier = { ...predecessor, _creationTime: 4_000 };
+    expect(getHandoffDurationMs(handoff, earlier)).toBe(62_000);
   });
 
-  it('omits negative durations', () => {
-    const invalidOrigin = { ...origin, acknowledgedAt: 100_000 };
-    expect(getHandoffDurationMs(handoff, new Map([[origin._id, invalidOrigin]]))).toBeUndefined();
+  it('keeps a zero gap between messages created at the same instant', () => {
+    expect(getHandoffDurationMs(handoff, { ...previous, _creationTime: 66_000 })).toBe(0);
+  });
+
+  it('omits the duration when there is no previous message', () => {
+    expect(getHandoffDurationMs(handoff, undefined)).toBeUndefined();
+  });
+
+  it('omits negative durations when the previous message is later', () => {
+    expect(getHandoffDurationMs(handoff, { ...previous, _creationTime: 100_000 })).toBeUndefined();
+  });
+
+  it.each([
+    ['message', { ...handoff, type: 'message' }],
+    ['notice', { ...handoff, type: 'notice' }],
+  ])('omits the duration for a non-handoff %s', (_label, message) => {
+    expect(getHandoffDurationMs(message, previous)).toBeUndefined();
   });
 
   it.each([

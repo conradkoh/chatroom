@@ -464,7 +464,6 @@ describe('useConversation', () => {
       targetRole: 'user',
       content: 'done',
       _creationTime: 500,
-      taskOriginMessageId: 'msg-u',
     };
     mockUsePaginatedQuery.mockReturnValue({
       results: [userMessage, notice, handoff],
@@ -487,7 +486,80 @@ describe('useConversation', () => {
 
     expect(result.current.events[2]).toMatchObject({
       kind: 'team_message',
-      handoffDurationMs: 400,
+      handoffDurationMs: 300,
     });
+  });
+
+  it('reports each handoff duration as the gap from the previous message, not the shared origin lifecycle', () => {
+    // The bug scenario: one origin task acknowledged at 0 and completed at 67s,
+    // with a five-handoff chain that all reference it. The frozen origin lifecycle
+    // made every row show 67_000; the true elapsed times differ per row.
+    const origin = {
+      _id: 'msg-u',
+      type: 'message',
+      senderRole: 'user',
+      content: 'do it',
+      _creationTime: 0,
+      acknowledgedAt: 0,
+      completedAt: 67_000,
+    };
+    const chain = [72_000, 180_000, 600_000, 660_000, 690_000].map((creationTime, index) => ({
+      _id: `msg-h${index + 1}`,
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'user',
+      content: `step ${index + 1}`,
+      _creationTime: creationTime,
+      taskOriginMessageId: origin._id,
+    }));
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [origin, ...chain],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useConversation('room-1'));
+
+    expect(
+      result.current.events.map(
+        (event) => (event as { handoffDurationMs?: number }).handoffDurationMs
+      )
+    ).toEqual([undefined, 72_000, 108_000, 420_000, 60_000, 30_000]);
+  });
+
+  it('keeps handoff event identity stable when the results array is rebuilt with equal values', () => {
+    const results = [
+      { _id: 'msg-u', type: 'message', senderRole: 'user', content: 'do it', _creationTime: 0 },
+      {
+        _id: 'msg-h',
+        type: 'handoff',
+        senderRole: 'builder',
+        targetRole: 'user',
+        content: 'done',
+        _creationTime: 500,
+      },
+    ];
+    mockUsePaginatedQuery.mockReturnValue({
+      results,
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    const { result, rerender } = renderHook(() => useConversation('room-1'));
+    const before = result.current.events;
+    expect(before).toHaveLength(2);
+
+    mockUsePaginatedQuery.mockReturnValue({
+      results: results.map((message) => ({ ...message })),
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    rerender();
+
+    const after = result.current.events;
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+    expect((after[1] as { handoffDurationMs?: number }).handoffDurationMs).toBe(500);
   });
 });

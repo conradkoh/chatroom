@@ -69,7 +69,7 @@ describe('TimelineMessageFooter', () => {
 
     const duration = screen.getByTestId('timeline-handoff-duration');
     expect(duration).toHaveTextContent('1m 2s');
-    expect(duration).toHaveAttribute('title', 'Time since task started: 1m 2s');
+    expect(duration).toHaveAttribute('title', 'Time since previous message: 1m 2s');
     expect(duration.compareDocumentPosition(screen.getByText('TS:1700000000000'))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
@@ -89,7 +89,7 @@ describe('TimelineMessageTimestamp', () => {
 
     const duration = screen.getByTestId('timeline-handoff-duration');
     expect(duration).toHaveTextContent('1m 2s');
-    expect(duration).toHaveAttribute('title', 'Time since task started: 1m 2s');
+    expect(duration).toHaveAttribute('title', 'Time since previous message: 1m 2s');
     expect(duration).not.toHaveClass('hidden');
     expect(duration).not.toHaveClass('sm:inline');
 
