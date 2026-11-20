@@ -28,6 +28,17 @@ const SECTION_HEADING_CLASSES =
 
 const DELETE_FALLBACK_COPY = 'Could not delete the machine. Try again.';
 
+const REMOVED_ITEMS = [
+  'Registration, capabilities and status',
+  'Cached workspace data and pending commands',
+  'Project roots and repository ledger',
+];
+
+const NOT_AFFECTED_ITEMS = [
+  'Chatrooms and their message history are kept',
+  'Files on the computer are untouched',
+];
+
 export interface DeleteMachineDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,25 +51,39 @@ export interface DeleteMachineDialogProps {
   finalFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
-/** The deleted branch of `machines.deleteMachine`'s result. */
-interface DeletedMachineResult {
-  purgeComplete: boolean;
-  detachedWorkspaceCount: number;
-  affectedChatroomCount: number;
-}
+/** `machines.deleteMachine`'s result union. */
+type DeleteMachineResult =
+  | {
+      status: 'deleted';
+      purgeComplete: boolean;
+      detachedWorkspaceCount: number;
+      affectedChatroomCount: number;
+    }
+  | { status: 'already_deleted' };
 
-function plural(count: number, unit: 'workspace' | 'chatroom'): string {
-  return `${count} ${unit}${count === 1 ? '' : 's'}`;
+/** "1 workspace", "2 workspaces"; capped counts are lower bounds and always plural. */
+function countLabel(count: number, singular: string, plural: string, capped: boolean): string {
+  return `${count}${capped ? '+' : ''} ${count === 1 && !capped ? singular : plural}`;
 }
 
 /** Success toast: what was detached, plus a background-purge note when applicable. */
-function formatDeletedToast(displayName: string, result: DeletedMachineResult): string {
+function formatDeletedToast(
+  displayName: string,
+  result: Extract<DeleteMachineResult, { status: 'deleted' }>
+): string {
   const detached =
     result.detachedWorkspaceCount === 0
       ? ''
-      : ` ${plural(result.detachedWorkspaceCount, 'workspace')} detached from ${plural(
+      : ` ${countLabel(
+          result.detachedWorkspaceCount,
+          'workspace',
+          'workspaces',
+          false
+        )} detached from ${countLabel(
           result.affectedChatroomCount,
-          'chatroom'
+          'chatroom',
+          'chatrooms',
+          false
         )}.`;
   const purge = result.purgeComplete
     ? ''
@@ -66,21 +91,53 @@ function formatDeletedToast(displayName: string, result: DeletedMachineResult): 
   return `Deleted "${displayName}".${detached}${purge}`;
 }
 
-/**
- * Detach line for the confirmation body. `capped` counts are lower bounds, so they
- * always read as plural ("500+ workspace links").
- */
+/** Detach line for the confirmation body. */
 function formatDetachedLine(usage: MachineUsage): string {
   if (usage.activeWorkspaceCount === 0) return 'No chatrooms are linked to this machine.';
 
-  const plus = usage.capped ? '+' : '';
-  const workspaces = `${usage.activeWorkspaceCount}${plus} ${
-    usage.activeWorkspaceCount === 1 && !usage.capped ? 'workspace link' : 'workspace links'
-  }`;
-  const chatrooms = `${usage.activeChatroomCount}${plus} chatroom${
-    usage.activeChatroomCount === 1 && !usage.capped ? '' : 's'
-  }`;
+  const workspaces = countLabel(
+    usage.activeWorkspaceCount,
+    'workspace link',
+    'workspace links',
+    usage.capped
+  );
+  const chatrooms = countLabel(usage.activeChatroomCount, 'chatroom', 'chatrooms', usage.capped);
   return `${workspaces}, detached from ${chatrooms}`;
+}
+
+/** Closes-then-toasts on success; `already_deleted` has nothing left to report. */
+function announceDeletion(
+  displayName: string,
+  result: DeleteMachineResult,
+  close: () => void
+): void {
+  close();
+  if (result.status === 'already_deleted') {
+    toast('This machine was already deleted.');
+    return;
+  }
+  toast.success(formatDeletedToast(displayName, result));
+}
+
+/** Maps a failed delete to the dialog's three recovery shapes. */
+function handleDeleteFailure(
+  error: unknown,
+  handlers: {
+    onOnline(): void;
+    onMissing(message: string): void;
+    onRetryable(message: string): void;
+  }
+): void {
+  const code = getConvexErrorCode(error);
+  if (code === 'MACHINE_ONLINE') {
+    handlers.onOnline();
+    return;
+  }
+  if (code === 'MACHINE_NOT_FOUND') {
+    handlers.onMissing(getMachineErrorCopy(error, 'This machine no longer exists.'));
+    return;
+  }
+  handlers.onRetryable(getMachineErrorCopy(error, DELETE_FALLBACK_COPY));
 }
 
 /** Online variant: explains the guard, offers the stop command, no destructive action. */
@@ -130,6 +187,101 @@ function BlockedDeleteBody({
   );
 }
 
+/** One headed bullet group in the consequence list. */
+function ConsequenceSection({ heading, items }: { heading: string; items: string[] }) {
+  return (
+    <section className="space-y-1">
+      <h3 className={SECTION_HEADING_CLASSES}>{heading}</h3>
+      <ul className="list-disc space-y-0.5 pl-5">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Detach counts: skeleton while usage loads, then counts with an explanatory note. */
+function DetachedSection({ usage }: { usage: MachineUsage | undefined }) {
+  if (usage === undefined) {
+    return (
+      <section className="space-y-1" data-testid="delete-machine-usage">
+        <h3 className={SECTION_HEADING_CLASSES}>Will be detached</h3>
+        <Skeleton className="h-4 w-64 rounded-none" />
+      </section>
+    );
+  }
+
+  const hasWorkspaces = usage.activeWorkspaceCount > 0;
+  return (
+    <section className="space-y-1" data-testid="delete-machine-usage">
+      <h3 className={SECTION_HEADING_CLASSES}>Will be detached</h3>
+      <ul className="list-disc space-y-0.5 pl-5">
+        <li>{formatDetachedLine(usage)}</li>
+      </ul>
+      {hasWorkspaces && (
+        <p className="text-xs text-chatroom-text-muted">
+          They show “no workspace” until you attach a workspace on another machine.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Inline retryable error line for the confirm body. */
+function ConfirmDeleteError({ error }: { error: string | null }) {
+  if (!error) return null;
+  return (
+    <div
+      data-testid="delete-machine-error"
+      role="alert"
+      className="border border-chatroom-status-error/40 bg-chatroom-status-error/10 p-3 text-xs text-chatroom-status-error"
+    >
+      {error}
+    </div>
+  );
+}
+
+/** Cancel (initial focus) plus the guarded destructive action. */
+function ConfirmDeleteFooter({
+  pending,
+  canConfirm,
+  cancelRef,
+  onConfirm,
+}: {
+  pending: boolean;
+  canConfirm: boolean;
+  cancelRef: React.RefObject<HTMLButtonElement | null>;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialogFooter>
+      <AlertDialogCancel ref={cancelRef} disabled={pending}>
+        Cancel
+      </AlertDialogCancel>
+      <AlertDialogAction
+        data-testid="delete-machine-confirm"
+        disabled={!canConfirm}
+        onClick={(e) => {
+          // Keep the dialog open: the mutation decides between success, a live
+          // online flip, and a retryable inline error.
+          e.preventDefault();
+          e.preventBaseUIHandler();
+          onConfirm();
+        }}
+      >
+        {pending ? (
+          <>
+            <Loader2 className="animate-spin" size={14} /> Deleting…
+          </>
+        ) : (
+          'Delete machine'
+        )}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  );
+}
+
 /** Offline variant: consequences, detach counts, inline error and the destructive action. */
 function ConfirmDeleteBody({
   displayName,
@@ -148,8 +300,6 @@ function ConfirmDeleteBody({
   cancelRef: React.RefObject<HTMLButtonElement | null>;
   onConfirm: () => void;
 }) {
-  const detachedLine = usage === undefined ? null : formatDetachedLine(usage);
-
   return (
     <>
       <AlertDialogHeader>
@@ -157,76 +307,90 @@ function ConfirmDeleteBody({
         <AlertDialogDescription render={<div className="space-y-3 text-left" />}>
           <p>This removes the machine from your account. Offline machines only.</p>
           <div data-testid="delete-machine-confirm-body" className="space-y-3">
-            <section className="space-y-1">
-              <h3 className={SECTION_HEADING_CLASSES}>Will be removed</h3>
-              <ul className="list-disc space-y-0.5 pl-5">
-                <li>Registration, capabilities and status</li>
-                <li>Cached workspace data and pending commands</li>
-                <li>Project roots and repository ledger</li>
-              </ul>
-            </section>
-            <section className="space-y-1" data-testid="delete-machine-usage">
-              <h3 className={SECTION_HEADING_CLASSES}>Will be detached</h3>
-              {detachedLine === null ? (
-                <Skeleton className="h-4 w-64 rounded-none" />
-              ) : (
-                <div className="space-y-1">
-                  <ul className="list-disc space-y-0.5 pl-5">
-                    <li>{detachedLine}</li>
-                  </ul>
-                  {usage !== undefined && usage.activeWorkspaceCount > 0 && (
-                    <p className="text-xs text-chatroom-text-muted">
-                      They show “no workspace” until you attach a workspace on another machine.
-                    </p>
-                  )}
-                </div>
-              )}
-            </section>
-            <section className="space-y-1">
-              <h3 className={SECTION_HEADING_CLASSES}>Not affected</h3>
-              <ul className="list-disc space-y-0.5 pl-5">
-                <li>Chatrooms and their message history are kept</li>
-                <li>Files on the computer are untouched</li>
-              </ul>
-            </section>
+            <ConsequenceSection heading="Will be removed" items={REMOVED_ITEMS} />
+            <DetachedSection usage={usage} />
+            <ConsequenceSection heading="Not affected" items={NOT_AFFECTED_ITEMS} />
             <p>To use this computer again, run the daemon there to register it as a new machine.</p>
           </div>
-          {error && (
-            <div
-              data-testid="delete-machine-error"
-              role="alert"
-              className="border border-chatroom-status-error/40 bg-chatroom-status-error/10 p-3 text-xs text-chatroom-status-error"
-            >
-              {error}
-            </div>
-          )}
+          <ConfirmDeleteError error={error} />
         </AlertDialogDescription>
       </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel ref={cancelRef} disabled={pending}>
-          Cancel
-        </AlertDialogCancel>
-        <AlertDialogAction
-          data-testid="delete-machine-confirm"
-          disabled={!canConfirm}
-          onClick={(e) => {
-            // Keep the dialog open: the mutation decides between success, a live
-            // online flip, and a retryable inline error.
-            e.preventDefault();
-            e.preventBaseUIHandler();
-            onConfirm();
-          }}
-        >
-          {pending ? (
-            <>
-              <Loader2 className="animate-spin" size={14} /> Deleting…
-            </>
-          ) : (
-            'Delete machine'
-          )}
-        </AlertDialogAction>
-      </AlertDialogFooter>
+      <ConfirmDeleteFooter
+        pending={pending}
+        canConfirm={canConfirm}
+        cancelRef={cancelRef}
+        onConfirm={onConfirm}
+      />
     </>
+  );
+}
+
+/** Dialog shell: owns the controlled root and the focus contract. */
+function DeleteDialogShell({
+  open,
+  pending,
+  onOpenChange,
+  finalFocusRef,
+  cancelRef,
+  children,
+}: {
+  open: boolean;
+  pending: boolean;
+  onOpenChange: (open: boolean) => void;
+  finalFocusRef?: React.RefObject<HTMLElement | null>;
+  cancelRef: React.RefObject<HTMLButtonElement | null>;
+  children: React.ReactNode;
+}) {
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        // A pending delete is not dismissable: Escape and the backdrop are ignored.
+        if (!pending) onOpenChange(next);
+      }}
+    >
+      <AlertDialogContent
+        data-testid="delete-machine-dialog"
+        initialFocus={cancelRef}
+        finalFocus={finalFocusRef}
+      >
+        {children}
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** Chooses the live variant: blocked for online/ server-rejected machines, confirm otherwise. */
+function DeleteDialogBody({
+  displayName,
+  blocked,
+  usage,
+  pending,
+  canConfirm,
+  error,
+  cancelRef,
+  onConfirm,
+}: {
+  displayName: string;
+  blocked: boolean;
+  usage: MachineUsage | undefined;
+  pending: boolean;
+  canConfirm: boolean;
+  error: string | null;
+  cancelRef: React.RefObject<HTMLButtonElement | null>;
+  onConfirm: () => void;
+}) {
+  if (blocked) return <BlockedDeleteBody displayName={displayName} cancelRef={cancelRef} />;
+  return (
+    <ConfirmDeleteBody
+      displayName={displayName}
+      usage={usage}
+      pending={pending}
+      canConfirm={canConfirm}
+      error={error}
+      cancelRef={cancelRef}
+      onConfirm={onConfirm}
+    />
   );
 }
 
@@ -252,7 +416,7 @@ export function DeleteMachineDialog({
   const [serverSaysOnline, setServerSaysOnline] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
-  // Reset transient state on close so a reopened dialog always starts clean.
+  // Reset transient state whenever the dialog toggles so a reopen starts clean.
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) {
@@ -270,57 +434,40 @@ export function DeleteMachineDialog({
     setError(null);
     try {
       const result = await deleteMachine({ machineId: machine.machineId });
-      handleOpenChange(false);
-      if (result.status === 'already_deleted') {
-        toast('This machine was already deleted.');
-        return;
-      }
-      toast.success(formatDeletedToast(machine.displayName, result));
+      announceDeletion(machine.displayName, result, () => handleOpenChange(false));
     } catch (err) {
-      const code = getConvexErrorCode(err);
-      if (code === 'MACHINE_ONLINE') {
-        setServerSaysOnline(true);
-      } else if (code === 'MACHINE_NOT_FOUND') {
-        handleOpenChange(false);
-        toast.error(getMachineErrorCopy(err, 'This machine no longer exists.'));
-      } else {
-        setError(getMachineErrorCopy(err, DELETE_FALLBACK_COPY));
-      }
+      handleDeleteFailure(err, {
+        onOnline: () => setServerSaysOnline(true),
+        onMissing: (message) => {
+          handleOpenChange(false);
+          toast.error(message);
+        },
+        onRetryable: setError,
+      });
     } finally {
       setPending(false);
     }
   }, [deleteMachine, handleOpenChange, machine.displayName, machine.machineId, pending]);
 
-  const blocked = connected === true || serverSaysOnline;
-  // The confirm action must never be available unless connectivity is known-offline.
-  const canConfirm = connected === false && usage !== undefined && !pending;
-
   return (
-    <AlertDialog
+    <DeleteDialogShell
       open={open}
-      onOpenChange={(next) => {
-        if (!pending) handleOpenChange(next);
-      }}
+      pending={pending}
+      onOpenChange={handleOpenChange}
+      finalFocusRef={finalFocusRef}
+      cancelRef={cancelRef}
     >
-      <AlertDialogContent
-        data-testid="delete-machine-dialog"
-        initialFocus={cancelRef}
-        finalFocus={finalFocusRef}
-      >
-        {blocked ? (
-          <BlockedDeleteBody displayName={machine.displayName} cancelRef={cancelRef} />
-        ) : (
-          <ConfirmDeleteBody
-            displayName={machine.displayName}
-            usage={usage}
-            pending={pending}
-            canConfirm={canConfirm}
-            error={error}
-            cancelRef={cancelRef}
-            onConfirm={() => void handleConfirm()}
-          />
-        )}
-      </AlertDialogContent>
-    </AlertDialog>
+      <DeleteDialogBody
+        displayName={machine.displayName}
+        blocked={connected === true || serverSaysOnline}
+        usage={usage}
+        pending={pending}
+        // The confirm action must never be available unless connectivity is known-offline.
+        canConfirm={connected === false && usage !== undefined && !pending}
+        error={error}
+        cancelRef={cancelRef}
+        onConfirm={() => void handleConfirm()}
+      />
+    </DeleteDialogShell>
   );
 }

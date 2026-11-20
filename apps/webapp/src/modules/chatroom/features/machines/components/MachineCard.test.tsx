@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { FunctionReference } from 'convex/server';
 import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     | Record<string, { availableHarnesses: string[]; harnessVersions: Record<string, never> }>
     | undefined,
   setMachineAlias: vi.fn(),
+  deleteMachine: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -23,8 +25,15 @@ vi.mock('convex-helpers/react/sessions', () => ({
     }
     throw new Error(`Unexpected query: ${name}`);
   },
-  useSessionMutation: () => mocks.setMachineAlias,
+  useSessionMutation: (mutation: unknown) => {
+    const name = getFunctionName(mutation as FunctionReference<'mutation'>);
+    if (name === 'machines:setMachineAlias') return mocks.setMachineAlias;
+    if (name === 'machines:deleteMachine') return mocks.deleteMachine;
+    throw new Error(`Unexpected mutation: ${name}`);
+  },
 }));
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const REGISTERED_AT = Date.UTC(2026, 10, 3, 12);
 const THREE_HOURS_AGO = Date.now() - 3 * 3600_000;
@@ -62,6 +71,13 @@ describe('MachineList / MachineCard', () => {
     mocks.capabilities = {};
     mocks.setMachineAlias.mockReset();
     mocks.setMachineAlias.mockResolvedValue({ success: true });
+    mocks.deleteMachine.mockReset();
+    mocks.deleteMachine.mockResolvedValue({
+      status: 'deleted',
+      purgeComplete: true,
+      detachedWorkspaceCount: 0,
+      affectedChatroomCount: 0,
+    });
   });
 
   it('shows Online for a connected machine', () => {
@@ -154,5 +170,51 @@ describe('MachineList / MachineCard', () => {
 
     expect(screen.queryByTestId('machine-harness-chips')).toBeNull();
     expect(screen.queryByTestId('machine-harness-chip')).toBeNull();
+  });
+
+  async function openActions() {
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('machine-actions-trigger'));
+    await screen.findAllByRole('menuitem');
+    return user;
+  }
+
+  it('starts the inline alias editor from the Rename action', async () => {
+    renderRow(makeRow({ connected: true }));
+    const user = await openActions();
+
+    await user.click(screen.getByTestId('machine-action-rename'));
+
+    const input = await screen.findByTestId('machine-alias-input');
+    await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  it('opens the blocked delete dialog for an online machine', async () => {
+    renderRow(makeRow({ connected: true, usage: USAGE }));
+    const user = await openActions();
+
+    await user.click(screen.getByTestId('machine-action-delete'));
+
+    expect(await screen.findByTestId('delete-machine-blocked')).toBeInTheDocument();
+    expect(screen.queryByTestId('delete-machine-confirm')).toBeNull();
+  });
+
+  it('opens the confirm dialog for an offline machine once usage has loaded', async () => {
+    renderRow(makeRow({ connected: false, usage: USAGE }));
+    const user = await openActions();
+
+    await user.click(screen.getByTestId('machine-action-delete'));
+
+    expect(await screen.findByTestId('delete-machine-confirm-body')).toBeInTheDocument();
+    expect(screen.getByTestId('delete-machine-confirm')).toBeEnabled();
+  });
+
+  it('keeps the delete action disabled while connectivity is unresolved', async () => {
+    renderRow(makeRow({ connected: undefined, usage: USAGE }));
+    const user = await openActions();
+
+    await user.click(screen.getByTestId('machine-action-delete'));
+
+    expect(await screen.findByTestId('delete-machine-confirm')).toBeDisabled();
   });
 });

@@ -1,7 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 
+import { DeleteMachineDialog } from './DeleteMachineDialog';
+import { buildMachineActions } from './machineActions';
+import { MachineActionsMenu } from './MachineActionsMenu';
 import { MachineAliasField } from './MachineAliasField';
 import { MachineHarnessChips } from './MachineHarnessChips';
 import { formatTimestampFull } from '../../../utils/chatroomTimestamp';
@@ -121,6 +124,18 @@ function MachineStatusLine({ row }: { row: MachineRowModel }) {
 /** One registered machine: name/alias, live status, usage and harness chips. */
 export function MachineCard({ row }: { row: MachineRowModel }) {
   const { machine } = row;
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [renameSignal, setRenameSignal] = useState(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const actions = useMemo(
+    () =>
+      buildMachineActions({
+        onRename: () => setRenameSignal((n) => n + 1),
+        onDelete: () => setDeleteOpen(true),
+      }),
+    []
+  );
 
   return (
     <li
@@ -136,6 +151,7 @@ export function MachineCard({ row }: { row: MachineRowModel }) {
               machineId={machine.machineId}
               alias={machine.alias}
               hostname={machine.hostname}
+              startEditSignal={renameSignal}
             />
           </div>
           <MachineStatusLine row={row} />
@@ -147,8 +163,17 @@ export function MachineCard({ row }: { row: MachineRowModel }) {
             className="hidden pt-2 text-xs text-chatroom-text-muted md:block"
             testId="machine-usage"
           />
+          <MachineActionsMenu actions={actions} triggerRef={triggerRef} />
         </div>
       </div>
+      <DeleteMachineDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        machine={{ machineId: machine.machineId, displayName: row.displayName }}
+        connected={row.connected}
+        usage={row.usage}
+        finalFocusRef={triggerRef}
+      />
     </li>
   );
 }

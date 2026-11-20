@@ -140,4 +140,20 @@ describe('MachinesPage', () => {
     expect(screen.getAllByText('Online')).toHaveLength(2);
     expect(screen.getByText('Offline')).toBeDefined();
   });
+
+  it('drops a card reactively when the registry stops returning the machine', () => {
+    mocks.registry = { machines: [ALPHA, BRAVO] };
+    const { rerender } = render(<MachinesPage />);
+
+    expect(cardIds()).toEqual(['m-alpha', 'm-bravo']);
+
+    mocks.registry = { machines: [ALPHA] };
+    rerender(<MachinesPage />);
+    expect(cardIds()).toEqual(['m-alpha']);
+
+    mocks.registry = { machines: [] };
+    rerender(<MachinesPage />);
+    expect(screen.queryByTestId('machine-card')).toBeNull();
+    expect(screen.getByTestId('machines-empty')).toBeDefined();
+  });
 });
