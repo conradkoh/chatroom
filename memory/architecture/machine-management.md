@@ -39,11 +39,20 @@ status: stable
   `daemon.syncProjectRoots` nudge, backed by the atomic local store
   (`packages/cli/src/daemon/infrastructure/local/repository-ledger-store.ts`). The ledger is never
   uploaded autonomously.
-- Not built yet (package 3 / planned): the Repositories section UI and the on-demand ledger snapshot
-  (request row, chunked pages, TTL).
+- Built: the on-demand ledger snapshot (request row, chunked pages, 10-min snapshot TTL, 5-min
+  cleanup cron) and bulk chatroom create (`chatrooms.createManyWithWorkspace`). See
+  [repository ledger feature note](../../docs/features/repository-ledger.md).
+- Not built yet (package 3B): the Repositories section UI and its webapp hooks.
 - No always-on daemon subscription is added for roots or ledger state; see
   [daemon request lifecycle](/architecture/daemon-request-lifecycle.md) and
   [bandwidth at rest across projects](/architecture/bandwidth-at-rest-scaling.md).
+
+## Repository ledger snapshot and bulk create
+
+- Snapshots are request/response and transient. They are never a durable synced table.
+- Bulk create has one creation path (`createChatroomWithWorkspace`). The UI must not add a parallel one.
+- `invalidPathCount` means "entries the snapshot omits" and is read from the request row.
+- Ledger tables are in `MACHINE_SCOPED_TABLES`, so a machine delete purges them.
 
 ## Command-nudge pattern
 
