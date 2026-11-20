@@ -28,8 +28,13 @@ import {
 } from '../config/reliability';
 import {
   LEDGER_CHUNK_SIZE,
+  LEDGER_MAX_BRANCH_LENGTH,
   LEDGER_MAX_CHUNKS,
   LEDGER_MAX_ENTRIES,
+  LEDGER_MAX_NAME_LENGTH,
+  LEDGER_MAX_PATH_LENGTH,
+  LEDGER_MAX_REMOTE_URL_LENGTH,
+  LEDGER_MAX_ROOTS,
   ledgerEntryValidator,
   ledgerRootValidator,
 } from '../src/domain/entities/repository-ledger';
@@ -208,21 +213,67 @@ type EarlyReportResponse = { ok: true; ignored: true } | { ok: true; duplicate: 
 type ReportTarget =
   { kind: 'row'; row: LedgerRequestRow } | { kind: 'early'; outcome: EarlyReportResponse };
 
-/** Normalize each entry's path. Invalid paths are counted and dropped, never stored. Input is already capped. */
+/** True when the value is absent or within its cap. */
+function withinCap(value: string | undefined, cap: number): boolean {
+  return value === undefined || value.length <= cap;
+}
+
+/** Field caps on the raw values. An entry that fails any cap is rejected, never truncated. */
+function fitsEntryCaps(entry: LedgerEntryInput): boolean {
+  return [
+    withinCap(entry.path, LEDGER_MAX_PATH_LENGTH),
+    withinCap(entry.root, LEDGER_MAX_PATH_LENGTH),
+    withinCap(entry.name, LEDGER_MAX_NAME_LENGTH),
+    withinCap(entry.branch, LEDGER_MAX_BRANCH_LENGTH),
+    withinCap(entry.remoteUrl, LEDGER_MAX_REMOTE_URL_LENGTH),
+  ].every(Boolean);
+}
+
+/** The normalized path, or null when normalization rejects it. */
+function normalizePathOrNull(path: string): string | null {
+  try {
+    return normalizeWorkingDir(path);
+  } catch {
+    return null;
+  }
+}
+
+/** The normalized path for an entry that fits its caps, or null when the entry is rejected. */
+function acceptedPath(entry: LedgerEntryInput): string | null {
+  if (!fitsEntryCaps(entry)) return null;
+  return normalizePathOrNull(entry.path);
+}
+
+/** Keep the first entry per already-normalized path; later duplicates are dropped silently. */
+function dedupeByPath(entries: LedgerEntryInput[]): LedgerEntryInput[] {
+  const seenPaths = new Set<string>();
+  return entries.filter((entry) => {
+    if (seenPaths.has(entry.path)) return false;
+    seenPaths.add(entry.path);
+    return true;
+  });
+}
+
+/**
+ * Keeps the first entry per normalized path. Over-long and invalid entries are rejected and counted
+ * in `invalidPathCount` (rejected entries, including invalid and over-long). Duplicates are skipped
+ * silently and are not counted. Input is already capped to LEDGER_MAX_ENTRIES by the caller.
+ */
 function prepareEntries(input: LedgerEntryInput[]): {
   entries: LedgerEntryInput[];
   invalidPathCount: number;
 } {
-  const entries: LedgerEntryInput[] = [];
+  const accepted: LedgerEntryInput[] = [];
   let invalidPathCount = 0;
   for (const entry of input) {
-    try {
-      entries.push({ ...entry, path: normalizeWorkingDir(entry.path) });
-    } catch {
+    const path = acceptedPath(entry);
+    if (path === null) {
       invalidPathCount++;
+      continue;
     }
+    accepted.push({ ...entry, path });
   }
-  return { entries, invalidPathCount };
+  return { entries: dedupeByPath(accepted), invalidPathCount };
 }
 
 /** Insert the entries as chunk rows of LEDGER_CHUNK_SIZE. Runs inside the caller's transaction. */
@@ -335,15 +386,19 @@ async function storeCompletedSnapshot(
     invalidPathCount,
     truncated,
     ledgerGeneratedAt: input.ledgerGeneratedAt,
-    roots: input.roots,
+    roots: input.roots?.slice(0, LEDGER_MAX_ROOTS),
   });
 }
 
 /**
  * Daemon report. Owner + machine checked. Missing row ⇒ ignored (discarded or cleaned up).
  * Row for another machine ⇒ REPOSITORY_LEDGER_REQUEST_NOT_FOUND. Terminal row ⇒ duplicate.
- * Expired row ⇒ ignored, nothing stored. Otherwise: completed stores ≤ LEDGER_MAX_ENTRIES
- * entries in chunks and patches the row terminal in the same transaction; failed patches the row only.
+ * Expired row ⇒ ignored, nothing stored. Otherwise: completed stores the snapshot in chunks and
+ * patches the row terminal in the same transaction; failed patches the row only.
+ *
+ * Caps applied on completion: entries are capped at LEDGER_MAX_ENTRIES, entries with over-long
+ * fields are dropped and counted in `invalidPathCount` (rejected entries, including invalid and
+ * over-long), duplicate normalized paths are stored once, and roots are capped at LEDGER_MAX_ROOTS.
  */
 export const reportResult = mutation({
   args: {
@@ -380,7 +435,7 @@ export const reportResult = mutation({
 
 /**
  * Best-effort early clear (the UI calls it when the Repositories section closes).
- * Owner only. Deletes the request's chunks (≤ LEDGER_MAX_CHUNKS) and then the request row.
+ * Owner only. Deletes every chunk of the request, in pages of LEDGER_MAX_CHUNKS, then the request row.
  * Unknown or non-owner ids are a no-op. Always returns { ok: true }.
  */
 export const discard = mutation({

@@ -2,6 +2,16 @@ import { v } from 'convex/values';
 
 /** Max repositories stored for one snapshot. Extra entries are dropped and the snapshot is marked truncated. */
 export const LEDGER_MAX_ENTRIES = 1000;
+/** Max length of an entry's `path` and `root`. Over-long entries are dropped and counted, never truncated. */
+export const LEDGER_MAX_PATH_LENGTH = 1024;
+/** Max length of an entry's `name`. */
+export const LEDGER_MAX_NAME_LENGTH = 256;
+/** Max length of an entry's `branch`. */
+export const LEDGER_MAX_BRANCH_LENGTH = 256;
+/** Max length of an entry's `remoteUrl`. */
+export const LEDGER_MAX_REMOTE_URL_LENGTH = 2048;
+/** Max roots stored per snapshot. Extra roots are dropped; the report still completes. */
+export const LEDGER_MAX_ROOTS = 20;
 /** Entries per chunk row. 100 entries stays well under the 1 MiB document limit. */
 export const LEDGER_CHUNK_SIZE = 100;
 /** Max chunk rows per snapshot. */

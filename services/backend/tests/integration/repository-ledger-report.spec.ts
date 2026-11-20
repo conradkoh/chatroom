@@ -32,6 +32,12 @@ type LedgerEntryArg = {
   discoveredAt: number;
 };
 
+type LedgerRootArg = {
+  path: string;
+  status: 'ok' | 'missing' | 'unreadable';
+  repositoryCount: number;
+};
+
 function entry(i: number, overrides: Partial<LedgerEntryArg> = {}): LedgerEntryArg {
   return {
     path: `/work/repo-${i}`,
@@ -73,7 +79,12 @@ function reportCompleted(
   sessionId: SessionId,
   machineId: string,
   requestId: RequestId,
-  args: { entries?: LedgerEntryArg[]; truncated?: boolean } = {}
+  args: {
+    entries?: LedgerEntryArg[];
+    truncated?: boolean;
+    roots?: LedgerRootArg[];
+    ledgerGeneratedAt?: number;
+  } = {}
 ) {
   return t.mutation(api.repositoryLedger.reportResult, {
     sessionId,
@@ -82,6 +93,8 @@ function reportCompleted(
     status: 'completed' as const,
     entries: args.entries ?? [],
     truncated: args.truncated,
+    roots: args.roots,
+    ledgerGeneratedAt: args.ledgerGeneratedAt,
   });
 }
 
@@ -361,5 +374,184 @@ describe('repository ledger reports', () => {
     for (const chunk of chunks) {
       expect(new TextEncoder().encode(JSON.stringify(chunk)).length).toBeLessThan(1_048_576);
     }
+  });
+
+  test('an over-long path is dropped and counted, never truncated', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-long-path',
+      'machine-ledger-report-long-path'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    await reportCompleted(sessionId, machineId, requestId, {
+      entries: [entry(1), entry(0, { path: '/' + 'a'.repeat(1024), root: '/work' }), entry(2)],
+    });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.repositoryCount).toBe(2);
+    expect(row!.invalidPathCount).toBe(1);
+
+    const stored = (await readChunks(requestId)).flatMap((chunk) => chunk.entries);
+    expect(stored.map((storedEntry) => storedEntry.path)).toEqual(['/work/repo-1', '/work/repo-2']);
+  });
+
+  test('over-long name, branch, and remoteUrl each drop their entry and are counted', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-long-fields',
+      'machine-ledger-report-long-fields'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    await reportCompleted(sessionId, machineId, requestId, {
+      entries: [
+        entry(1),
+        entry(0, { name: 'n'.repeat(257) }),
+        entry(2, { branch: 'b'.repeat(257) }),
+        entry(3, { remoteUrl: 'u'.repeat(2049) }),
+      ],
+    });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.invalidPathCount).toBe(3);
+    expect(row!.repositoryCount).toBe(1);
+
+    const stored = (await readChunks(requestId)).flatMap((chunk) => chunk.entries);
+    expect(stored.map((storedEntry) => storedEntry.path)).toEqual(['/work/repo-1']);
+  });
+
+  test('boundary-length field values are kept unchanged', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-boundary',
+      'machine-ledger-report-boundary'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    const atBoundary = entry(1, {
+      path: '/' + 'b'.repeat(1023),
+      name: 'n'.repeat(256),
+      branch: 'b'.repeat(256),
+      remoteUrl: 'u'.repeat(2048),
+    });
+
+    await reportCompleted(sessionId, machineId, requestId, { entries: [atBoundary] });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.invalidPathCount).toBe(0);
+    expect(row!.repositoryCount).toBe(1);
+
+    const stored = (await readChunks(requestId)).flatMap((chunk) => chunk.entries);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.path).toBe(atBoundary.path);
+    expect(stored[0]!.name).toBe(atBoundary.name);
+    expect(stored[0]!.branch).toBe(atBoundary.branch);
+    expect(stored[0]!.remoteUrl).toBe(atBoundary.remoteUrl);
+  });
+
+  test('a report with one over-long entry still completes atomically with the other entries stored', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-atomic-caps',
+      'machine-ledger-report-atomic-caps'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    const result = await reportCompleted(sessionId, machineId, requestId, {
+      entries: [entry(0), entry(1, { branch: 'b'.repeat(257) }), entry(2)],
+    });
+    expect(result).toEqual({ ok: true });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.completedAt).toBe(START);
+    expect(row!.invalidPathCount).toBe(1);
+    expect(row!.repositoryCount).toBe(2);
+
+    const stored = (await readChunks(requestId)).flatMap((chunk) => chunk.entries);
+    expect(stored.map((storedEntry) => storedEntry.path)).toEqual(['/work/repo-0', '/work/repo-2']);
+  });
+
+  test('roots over 20 are truncated to the first 20 and the report still completes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-roots-cap',
+      'machine-ledger-report-roots-cap'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    const roots: LedgerRootArg[] = Array.from({ length: 21 }, (_, i) => ({
+      path: `/r-${i}`,
+      status: 'ok',
+      repositoryCount: 0,
+    }));
+
+    const result = await reportCompleted(sessionId, machineId, requestId, { roots });
+    expect(result).toEqual({ ok: true });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.roots).toHaveLength(20);
+    expect(row!.roots![0]!.path).toBe('/r-0');
+    expect(row!.roots!.map((root) => root.path)).not.toContain('/r-20');
+  });
+
+  test('a trailing-slash duplicate is stored once and the first entry wins', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-dedupe',
+      'machine-ledger-report-dedupe'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    await reportCompleted(sessionId, machineId, requestId, {
+      entries: [
+        entry(1, { path: '/work/repo-1', name: 'first' }),
+        entry(1, { path: '/work/repo-1/', name: 'second' }),
+      ],
+    });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.repositoryCount).toBe(1);
+    expect(row!.invalidPathCount).toBe(0);
+
+    const stored = (await readChunks(requestId)).flatMap((chunk) => chunk.entries);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.name).toBe('first');
+    expect(stored[0]!.path).toBe('/work/repo-1');
+  });
+
+  test('the stored row keeps the reported roots and ledgerGeneratedAt', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-stored-row',
+      'machine-ledger-report-stored-row'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    const roots: LedgerRootArg[] = [{ path: '/work', status: 'ok', repositoryCount: 1 }];
+
+    await reportCompleted(sessionId, machineId, requestId, {
+      entries: [entry(1)],
+      roots,
+      ledgerGeneratedAt: START + 5_000,
+    });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.roots).toEqual(roots);
+    expect(row!.ledgerGeneratedAt).toBe(START + 5_000);
   });
 });
