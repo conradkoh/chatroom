@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRepositoryLedgerService,
+  type LedgerRequestId,
   type RepositoryLedgerPorts,
+  type RepositoryLedgerSnapshotReport,
 } from './repository-ledger-service.js';
 import type {
   LedgerRepository,
@@ -21,6 +23,7 @@ import {
 } from '../../infrastructure/local/repository-ledger-store.js';
 
 const ROOT = '/roots';
+const REQUEST_ID = 'req-1' as LedgerRequestId;
 const REPO_A: LedgerRepository = {
   path: '/roots/a',
   name: 'a',
@@ -79,9 +82,35 @@ function createPorts(overrides: Partial<RepositoryLedgerPorts> = {}): {
     scan: vi.fn(async () => okScan()),
     store,
     now: () => 1_000,
+    reportSnapshot: vi.fn(async () => ({ ok: true })),
     ...overrides,
   };
   return { ports, store };
+}
+
+function storedLedger(entries: StoredLedger['entries'], truncated = false): StoredLedger {
+  return {
+    version: 1,
+    generatedAt: 500,
+    roots: [ROOT],
+    rootStatuses: [{ path: ROOT, status: 'ok', repositoryCount: entries.length }],
+    truncated,
+    entries,
+  };
+}
+
+/** Resolves with the single report the service sent. */
+async function reported(ports: RepositoryLedgerPorts): Promise<RepositoryLedgerSnapshotReport> {
+  const reportSnapshot = ports.reportSnapshot as ReturnType<typeof vi.fn>;
+  await vi.waitFor(() => expect(reportSnapshot).toHaveBeenCalledTimes(1));
+  return reportSnapshot.mock.calls[0]?.[0] as RepositoryLedgerSnapshotReport;
+}
+
+function snapshotReport(
+  ports: RepositoryLedgerPorts
+): ReturnType<typeof vi.fn> & ((report: RepositoryLedgerSnapshotReport) => Promise<unknown>) {
+  return ports.reportSnapshot as ReturnType<typeof vi.fn> &
+    ((report: RepositoryLedgerSnapshotReport) => Promise<unknown>);
 }
 
 describe('createRepositoryLedgerService', () => {
@@ -90,6 +119,7 @@ describe('createRepositoryLedgerService', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -208,7 +238,9 @@ describe('createRepositoryLedgerService', () => {
       }),
     });
 
-    await expect(createRepositoryLedgerService(ports).refresh('boot')).resolves.toBeUndefined();
+    await expect(createRepositoryLedgerService(ports).refresh('boot')).resolves.toEqual({
+      ok: true,
+    });
 
     expect(ports.scan).toHaveBeenCalledWith([ROOT]);
     expect(store.write).toHaveBeenCalledTimes(1);
@@ -221,7 +253,10 @@ describe('createRepositoryLedgerService', () => {
       }),
     });
 
-    await expect(createRepositoryLedgerService(ports).refresh('boot')).resolves.toBeUndefined();
+    await expect(createRepositoryLedgerService(ports).refresh('boot')).resolves.toEqual({
+      ok: false,
+      errorMessage: 'Project roots could not be read',
+    });
 
     expect(ports.scan).not.toHaveBeenCalled();
     expect(store.write).not.toHaveBeenCalled();
@@ -305,23 +340,38 @@ describe('createRepositoryLedgerService', () => {
     await vi.waitFor(() => expect(scan).toHaveBeenCalledTimes(1));
     const queued = service.refresh('roots-changed');
 
-    await expect(Promise.all([first, queued])).resolves.toEqual([undefined, undefined]);
+    await expect(Promise.all([first, queued])).resolves.toEqual([
+      { ok: false, errorMessage: 'scan blew up' },
+      { ok: true },
+    ]);
     expect(scan).toHaveBeenCalledTimes(2);
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining('Repository ledger refresh failed')
     );
   });
 
-  it('never reports a snapshot', async () => {
-    const { ports } = createPorts();
-    const portsWithReport = { ...ports, reportSnapshot: vi.fn() };
+  it('resolves refresh with { ok: false } when the scan throws', async () => {
+    const { ports } = createPorts({
+      scan: vi.fn(async () => {
+        throw new Error('scan exploded');
+      }),
+    });
 
-    await createRepositoryLedgerService(portsWithReport).refresh('boot');
-
-    expect(portsWithReport.reportSnapshot).not.toHaveBeenCalled();
+    await expect(createRepositoryLedgerService(ports).refresh('manual')).resolves.toEqual({
+      ok: false,
+      errorMessage: 'scan exploded',
+    });
   });
 
-  it('polls with no timers or filesystem watchers', () => {
+  it('never reports a snapshot during refresh', async () => {
+    const { ports } = createPorts();
+
+    await createRepositoryLedgerService(ports).refresh('boot');
+
+    expect(ports.reportSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('has no polling timers or filesystem watchers', () => {
     const serviceSource = readFileSync(
       new URL('./repository-ledger-service.ts', import.meta.url),
       'utf8'
@@ -332,8 +382,283 @@ describe('createRepositoryLedgerService', () => {
     );
 
     for (const source of [serviceSource, storeSource]) {
-      expect(source).not.toMatch(/setInterval|setTimeout|fs\.watch|\bwatch\(|chokidar/);
+      expect(source).not.toMatch(/setInterval|fs\.watch|\bwatch\(|chokidar/);
     }
+    // The only timer is the snapshot report retry backoff.
+    expect(serviceSource.match(/setTimeout/g)).toHaveLength(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // serveSnapshot
+  // -------------------------------------------------------------------------
+
+  it('scans once and reports completed when no ledger is stored and rescan is false', async () => {
+    const { ports } = createPorts();
+    const service = createRepositoryLedgerService(ports);
+
+    expect(service.serveSnapshot({ requestId: REQUEST_ID, rescan: false })).toBe('started');
+    const report = await reported(ports);
+
+    expect(ports.scan).toHaveBeenCalledTimes(1);
+    expect(report).toEqual({
+      requestId: REQUEST_ID,
+      status: 'completed',
+      entries: [{ ...REPO_A, discoveredAt: 1_000 }],
+      truncated: false,
+      roots: [{ path: ROOT, status: 'ok', repositoryCount: 1 }],
+      ledgerGeneratedAt: 1_000,
+    });
+  });
+
+  it('uses the stored ledger without scanning when rescan is false', async () => {
+    const store = createMemoryStore(storedLedger([{ ...REPO_A, discoveredAt: 500 }]));
+    const { ports } = createPorts({ store });
+    const service = createRepositoryLedgerService(ports);
+
+    service.serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    const report = await reported(ports);
+
+    expect(ports.scan).not.toHaveBeenCalled();
+    expect(report).toEqual({
+      requestId: REQUEST_ID,
+      status: 'completed',
+      entries: [{ ...REPO_A, discoveredAt: 500 }],
+      truncated: false,
+      roots: [{ path: ROOT, status: 'ok', repositoryCount: 1 }],
+      ledgerGeneratedAt: 500,
+    });
+  });
+
+  it('always scans when rescan is true even with a stored ledger', async () => {
+    const store = createMemoryStore(storedLedger([{ ...REPO_A, discoveredAt: 500 }]));
+    const { ports } = createPorts({ store });
+    const service = createRepositoryLedgerService(ports);
+
+    service.serveSnapshot({ requestId: REQUEST_ID, rescan: true });
+    const report = await reported(ports);
+
+    expect(ports.scan).toHaveBeenCalledTimes(1);
+    expect(report.status).toBe('completed');
+    expect(report).toMatchObject({ ledgerGeneratedAt: 1_000 });
+  });
+
+  it('reports completed with empty arrays when no roots are configured', async () => {
+    const { ports } = createPorts({ fetchRoots: vi.fn(async () => []) });
+    const service = createRepositoryLedgerService(ports);
+
+    service.serveSnapshot({ requestId: REQUEST_ID, rescan: true });
+    const report = await reported(ports);
+
+    expect(ports.scan).not.toHaveBeenCalled();
+    expect(report).toEqual({
+      requestId: REQUEST_ID,
+      status: 'completed',
+      entries: [],
+      truncated: false,
+      roots: [],
+    });
+  });
+
+  it('returns duplicate for a request already in flight and reports once', async () => {
+    const scan = deferred<ScanResult>();
+    const { ports } = createPorts({ scan: vi.fn(() => scan.promise) });
+    const service = createRepositoryLedgerService(ports);
+
+    expect(service.serveSnapshot({ requestId: REQUEST_ID, rescan: true })).toBe('started');
+    await vi.waitFor(() => expect(ports.scan).toHaveBeenCalledTimes(1));
+    expect(service.serveSnapshot({ requestId: REQUEST_ID, rescan: true })).toBe('duplicate');
+
+    scan.resolve(okScan());
+    await reported(ports);
+
+    expect(snapshotReport(ports)).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports failed with the thrown message when the scan throws', async () => {
+    const { ports } = createPorts({
+      scan: vi.fn(async () => {
+        throw new Error('scan failed hard');
+      }),
+    });
+    const service = createRepositoryLedgerService(ports);
+
+    service.serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    const report = await reported(ports);
+
+    expect(report).toEqual({
+      requestId: REQUEST_ID,
+      status: 'failed',
+      errorMessage: 'scan failed hard',
+    });
+  });
+
+  it('reports failed when roots cannot be read and nothing is stored', async () => {
+    const { ports } = createPorts({
+      fetchRoots: vi.fn(async () => {
+        throw new Error('backend offline');
+      }),
+    });
+    const service = createRepositoryLedgerService(ports);
+
+    service.serveSnapshot({ requestId: REQUEST_ID, rescan: true });
+    const report = await reported(ports);
+
+    expect(report).toEqual({
+      requestId: REQUEST_ID,
+      status: 'failed',
+      errorMessage: 'Project roots could not be read',
+    });
+  });
+
+  it('retries a transient report failure on a 1s then 2s schedule', async () => {
+    vi.useFakeTimers();
+    const reportSnapshot = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('report boom'))
+      .mockRejectedValueOnce(new Error('report boom'))
+      .mockResolvedValueOnce({ ok: true });
+    const { ports } = createPorts({ reportSnapshot });
+    const service = createRepositoryLedgerService(ports);
+
+    service.serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reportSnapshot).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(reportSnapshot).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(reportSnapshot).toHaveBeenCalledTimes(3);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it('gives up after four attempts and warns once when the report always fails', async () => {
+    vi.useFakeTimers();
+    const reportSnapshot = vi.fn().mockRejectedValue(new Error('always down'));
+    const { ports } = createPorts({ reportSnapshot });
+    const service = createRepositoryLedgerService(ports);
+
+    service.serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    expect(reportSnapshot).toHaveBeenCalledTimes(4);
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Repository ledger snapshot report failed after retries')
+    );
+  });
+
+  it('omits null branch and remoteUrl instead of sending null', async () => {
+    const repoB: LedgerRepository = {
+      path: '/roots/b',
+      name: 'b',
+      root: ROOT,
+      branch: null,
+      remoteUrl: null,
+    };
+    const store = createMemoryStore(
+      storedLedger([
+        { ...REPO_A, discoveredAt: 500 },
+        { ...repoB, discoveredAt: 500 },
+      ])
+    );
+    const { ports } = createPorts({ store });
+
+    createRepositoryLedgerService(ports).serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    const report = await reported(ports);
+
+    expect(report.status).toBe('completed');
+    if (report.status !== 'completed') throw new Error('expected completed');
+    expect(report.entries[1]).toEqual({
+      path: '/roots/b',
+      name: 'b',
+      root: ROOT,
+      discoveredAt: 500,
+    });
+    expect(report.entries[1]).not.toHaveProperty('branch');
+    expect(report.entries[1]).not.toHaveProperty('remoteUrl');
+  });
+
+  it('drops over-cap entries rather than truncating them', async () => {
+    const longPath = `/${'p'.repeat(1_024)}`; // 1025 characters
+    const longRemote = `https://example.com/${'r'.repeat(2_049 - 'https://example.com/'.length)}`;
+    expect(longPath).toHaveLength(1_025);
+    expect(longRemote).toHaveLength(2_049);
+    const store = createMemoryStore(
+      storedLedger([
+        { ...REPO_A, discoveredAt: 500 },
+        {
+          path: longPath,
+          name: 'long-path',
+          root: ROOT,
+          branch: 'main',
+          remoteUrl: null,
+          discoveredAt: 500,
+        },
+        {
+          path: '/roots/c',
+          name: 'c',
+          root: ROOT,
+          branch: 'main',
+          remoteUrl: longRemote,
+          discoveredAt: 500,
+        },
+      ])
+    );
+    const { ports } = createPorts({ store });
+
+    createRepositoryLedgerService(ports).serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    const report = await reported(ports);
+
+    expect(report.status).toBe('completed');
+    if (report.status !== 'completed') throw new Error('expected completed');
+    expect(report.entries).toEqual([{ ...REPO_A, discoveredAt: 500 }]);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Repository ledger snapshot dropped 2 over-cap entries')
+    );
+  });
+
+  it('keeps the first entry for a duplicated path', async () => {
+    const first: LedgerRepository = { ...REPO_A, name: 'first' };
+    const second: LedgerRepository = { ...REPO_A, name: 'second' };
+    const store = createMemoryStore(
+      storedLedger([
+        { ...first, discoveredAt: 500 },
+        { ...second, discoveredAt: 500 },
+      ])
+    );
+    const { ports } = createPorts({ store });
+
+    createRepositoryLedgerService(ports).serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    const report = await reported(ports);
+
+    expect(report.status).toBe('completed');
+    if (report.status !== 'completed') throw new Error('expected completed');
+    expect(report.entries).toEqual([{ ...first, discoveredAt: 500 }]);
+  });
+
+  it('sends 1000 of 1001 entries and marks the report truncated', async () => {
+    const entries = Array.from({ length: 1_001 }, (_, index) => ({
+      path: `/roots/repo-${index}`,
+      name: `repo-${index}`,
+      root: ROOT,
+      branch: null,
+      remoteUrl: null,
+      discoveredAt: 500,
+    }));
+    const store = createMemoryStore(storedLedger(entries));
+    const { ports } = createPorts({ store });
+
+    createRepositoryLedgerService(ports).serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    const report = await reported(ports);
+
+    expect(report.status).toBe('completed');
+    if (report.status !== 'completed') throw new Error('expected completed');
+    expect(report.entries).toHaveLength(1_000);
+    expect(report.truncated).toBe(true);
   });
 });
 
@@ -345,6 +670,8 @@ describe('createRepositoryLedgerService with real scanner and store', () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     await rm(tempRoot, { recursive: true, force: true });
   });
 
@@ -362,6 +689,7 @@ describe('createRepositoryLedgerService with real scanner and store', () => {
         clock += 1;
         return clock;
       },
+      reportSnapshot: vi.fn(async () => ({ ok: true })),
     };
     const service = createRepositoryLedgerService(ports);
 
@@ -383,5 +711,58 @@ describe('createRepositoryLedgerService with real scanner and store', () => {
 
     expect(second.entries.map((entry) => entry.path)).toEqual([join(root, 'a')]);
     expect(second.entries[0]?.discoveredAt).toBe(discoveredA);
+  });
+
+  it('reports a ledger already on disk without scanning', async () => {
+    const root = join(tempRoot, 'root');
+    await mkdir(join(root, 'a', '.git'), { recursive: true });
+    const ledgerPath = join(tempRoot, 'state', 'repository-ledger.json');
+    const store = createRepositoryLedgerStore(ledgerPath);
+    await store.write({
+      version: 1,
+      generatedAt: 777,
+      roots: [root],
+      rootStatuses: [{ path: root, status: 'ok', repositoryCount: 1 }],
+      truncated: false,
+      entries: [
+        {
+          path: join(root, 'a'),
+          name: 'a',
+          root,
+          branch: null,
+          remoteUrl: null,
+          discoveredAt: 700,
+        },
+      ],
+    });
+    const scan = vi.fn(() => scanRepositories({ roots: [root] }));
+    const reportSnapshot = vi.fn(async (_report: RepositoryLedgerSnapshotReport) => ({ ok: true }));
+    const service = createRepositoryLedgerService({
+      fetchRoots: vi.fn(async () => [root]),
+      scan,
+      store,
+      now: () => 999,
+      reportSnapshot,
+    });
+
+    service.serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+
+    await vi.waitFor(() => expect(reportSnapshot).toHaveBeenCalledTimes(1));
+    expect(scan).not.toHaveBeenCalled();
+    expect(reportSnapshot.mock.calls[0]?.[0]).toEqual({
+      requestId: REQUEST_ID,
+      status: 'completed',
+      entries: [
+        {
+          path: join(root, 'a'),
+          name: 'a',
+          root,
+          discoveredAt: 700,
+        },
+      ],
+      truncated: false,
+      roots: [{ path: root, status: 'ok', repositoryCount: 1 }],
+      ledgerGeneratedAt: 777,
+    });
   });
 });

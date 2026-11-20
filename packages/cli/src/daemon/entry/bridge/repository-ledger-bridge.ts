@@ -24,5 +24,11 @@ export function createRepositoryLedgerPorts(
     scan: (roots) => scanRepositories({ roots }),
     store: createRepositoryLedgerStore(resolveRepositoryLedgerPath(session.machineId)),
     now: () => Date.now(),
+    reportSnapshot: (report) =>
+      session.backend.mutation(api.repositoryLedger.reportResult, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+        ...report,
+      }),
   };
 }
