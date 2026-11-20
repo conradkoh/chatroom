@@ -2,8 +2,10 @@ import { v } from 'convex/values';
 
 /** Max repositories stored for one snapshot. Extra entries are dropped and the snapshot is marked truncated. */
 export const LEDGER_MAX_ENTRIES = 1000;
-/** Max length of an entry's `path` and `root`. Over-long entries are dropped and counted, never truncated. */
+/** Max length of an entry's `path` and `root`, and of a root's `path`. Over-long values are dropped and counted, never truncated. */
 export const LEDGER_MAX_PATH_LENGTH = 1024;
+/** Max length of a failed report's `errorMessage`. Longer text is cut to this length; the report is never rejected. */
+export const LEDGER_MAX_ERROR_MESSAGE_LENGTH = 2000;
 /** Max length of an entry's `name`. */
 export const LEDGER_MAX_NAME_LENGTH = 256;
 /** Max length of an entry's `branch`. */

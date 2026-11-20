@@ -263,6 +263,30 @@ describe('repository ledger reports', () => {
     expect(row!.expiresAt).toBe(row!.completedAt! + COMPLETED_TTL_MS);
   });
 
+  test('a 3,000-character errorMessage on a failed report is stored cut to 2,000 characters', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-long-error',
+      'machine-ledger-report-long-error'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    const result = await t.mutation(api.repositoryLedger.reportResult, {
+      sessionId,
+      machineId,
+      requestId,
+      status: 'failed' as const,
+      errorMessage: 'e'.repeat(3000),
+    });
+    expect(result).toEqual({ ok: true });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('failed');
+    expect(row!.errorMessage).toHaveLength(2000);
+    expect(row!.errorMessage).toBe('e'.repeat(2000));
+  });
+
   test('report after expiresAt returns ignored and stores nothing', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(START);
@@ -503,8 +527,37 @@ describe('repository ledger reports', () => {
     const row = await readRequest(requestId);
     expect(row!.status).toBe('completed');
     expect(row!.roots).toHaveLength(20);
+    expect(row!.omittedRootCount).toBe(1);
     expect(row!.roots![0]!.path).toBe('/r-0');
     expect(row!.roots!.map((root) => root.path)).not.toContain('/r-20');
+  });
+
+  test('a root path over 1,024 characters is dropped and counted, and the report completes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-long-root',
+      'machine-ledger-report-long-root'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    const keptPath = '/' + 'k'.repeat(1023); // exactly 1024 characters: kept
+    const droppedPath = '/' + 'd'.repeat(1999); // exactly 2000 characters: dropped
+    const result = await reportCompleted(sessionId, machineId, requestId, {
+      entries: [entry(1)],
+      roots: [
+        { path: keptPath, status: 'ok', repositoryCount: 1 },
+        { path: droppedPath, status: 'ok', repositoryCount: 0 },
+      ],
+    });
+    expect(result).toEqual({ ok: true });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.roots).toEqual([{ path: keptPath, status: 'ok', repositoryCount: 1 }]);
+    expect(row!.omittedRootCount).toBe(1);
+    expect(row!.invalidPathCount).toBe(0);
+    expect(row!.repositoryCount).toBe(1);
   });
 
   test('a trailing-slash duplicate is stored once and the first entry wins', async () => {

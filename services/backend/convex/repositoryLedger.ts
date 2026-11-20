@@ -31,6 +31,7 @@ import {
   LEDGER_MAX_BRANCH_LENGTH,
   LEDGER_MAX_CHUNKS,
   LEDGER_MAX_ENTRIES,
+  LEDGER_MAX_ERROR_MESSAGE_LENGTH,
   LEDGER_MAX_NAME_LENGTH,
   LEDGER_MAX_PATH_LENGTH,
   LEDGER_MAX_REMOTE_URL_LENGTH,
@@ -346,6 +347,39 @@ function classifyRequest(row: LedgerRequestRow): ReportTarget {
   return { kind: 'row', row };
 }
 
+/** True when a UTF-16 code unit is a high surrogate (0xD800–0xDBFF). */
+function isHighSurrogate(codeUnit: number): boolean {
+  return codeUnit >= 0xd800 && codeUnit <= 0xdbff;
+}
+
+/** Daemon error text cut to LEDGER_MAX_ERROR_MESSAGE_LENGTH. Never leaves a lone high surrogate. */
+function capErrorMessage(message: string | undefined): string | undefined {
+  if (message === undefined || message.length <= LEDGER_MAX_ERROR_MESSAGE_LENGTH) return message;
+  const last = message.charCodeAt(LEDGER_MAX_ERROR_MESSAGE_LENGTH - 1);
+  const cut = isHighSurrogate(last)
+    ? LEDGER_MAX_ERROR_MESSAGE_LENGTH - 1
+    : LEDGER_MAX_ERROR_MESSAGE_LENGTH;
+  return message.slice(0, cut);
+}
+
+type LedgerRootInput = Infer<typeof ledgerRootValidator>;
+
+/**
+ * Roots the snapshot keeps: paths within LEDGER_MAX_PATH_LENGTH, then the first LEDGER_MAX_ROOTS.
+ * Every other reported root is dropped and counted in omittedRootCount; the report still completes.
+ * An undefined input (no roots sent) stays undefined.
+ */
+function prepareRoots(input: LedgerRootInput[] | undefined): {
+  roots: LedgerRootInput[] | undefined;
+  omittedRootCount: number;
+} {
+  if (input === undefined) return { roots: undefined, omittedRootCount: 0 };
+  const roots = input
+    .filter((root) => root.path.length <= LEDGER_MAX_PATH_LENGTH)
+    .slice(0, LEDGER_MAX_ROOTS);
+  return { roots, omittedRootCount: input.length - roots.length };
+}
+
 /** Patch a request terminal as failed. Stores no chunks. */
 async function markRequestFailed(
   ctx: MutationCtx,
@@ -358,7 +392,7 @@ async function markRequestFailed(
     completedAt: now,
     updatedAt: now,
     expiresAt: now + REPOSITORY_LEDGER_SNAPSHOT_TTL_MS,
-    errorMessage,
+    errorMessage: capErrorMessage(errorMessage),
   });
 }
 
@@ -382,6 +416,7 @@ async function storeCompletedSnapshot(
   const reported = input.entries ?? [];
   const { entries, omittedCount } = prepareEntries(reported.slice(0, LEDGER_MAX_ENTRIES));
   const truncated = input.truncated === true || reported.length > LEDGER_MAX_ENTRIES;
+  const { roots, omittedRootCount } = prepareRoots(input.roots);
   const now = Date.now();
 
   await insertChunks(ctx, row._id, machineId, entries);
@@ -394,7 +429,8 @@ async function storeCompletedSnapshot(
     invalidPathCount: omittedCount + sanitizeDroppedCount(input.droppedEntryCount),
     truncated,
     ledgerGeneratedAt: input.ledgerGeneratedAt,
-    roots: input.roots?.slice(0, LEDGER_MAX_ROOTS),
+    roots,
+    omittedRootCount,
   });
 }
 
@@ -406,8 +442,10 @@ async function storeCompletedSnapshot(
  *
  * Caps applied on completion: entries are capped at LEDGER_MAX_ENTRIES, entries with over-long
  * fields are dropped and counted in `invalidPathCount`, duplicate normalized paths are stored once
- * and also counted, the daemon's `droppedEntryCount` is added to that count, and roots are capped at
- * LEDGER_MAX_ROOTS. Entries past LEDGER_MAX_ENTRIES are not counted; they set `truncated`.
+ * and also counted, the daemon's `droppedEntryCount` is added to that count, roots with paths over
+ * LEDGER_MAX_PATH_LENGTH are dropped and only the first LEDGER_MAX_ROOTS are kept; dropped roots are
+ * counted in omittedRootCount. Entries past LEDGER_MAX_ENTRIES are not counted; they set `truncated`.
+ * A failed report's errorMessage is cut to LEDGER_MAX_ERROR_MESSAGE_LENGTH.
  */
 export const reportResult = mutation({
   args: {

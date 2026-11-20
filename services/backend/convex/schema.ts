@@ -1567,6 +1567,8 @@ export default defineSchema({
     truncated: v.optional(v.boolean()),
     ledgerGeneratedAt: v.optional(v.number()),
     roots: v.optional(v.array(ledgerRootValidator)),
+    /** Roots the snapshot omits: paths over LEDGER_MAX_PATH_LENGTH, plus roots past LEDGER_MAX_ROOTS. */
+    omittedRootCount: v.optional(v.number()),
   })
     .index('by_machineId_createdAt', ['machineId', 'createdAt'])
     .index('by_expiresAt', ['expiresAt']),
