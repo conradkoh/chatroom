@@ -20,14 +20,25 @@ The section strip (`Chatrooms | Machines`) is shared with the chatroom list and 
 | `components/MachineProjectRoots.tsx` | Expanded card's first section: roots list, add form, offline/limit notes.                                      |
 | `components/AddProjectRootForm.tsx`  | Typed or Browse-picked path field, add state, error and success notes.                                         |
 | `components/ProjectRootRow.tsx`      | One root path with a remove button and an inline retry error.                                                  |
+| `components/MachineRepositories.tsx` | Expanded card's second section: snapshot states, filter, virtualised rows and the bulk-create dialog.          |
+| `components/RepositoryBanners.tsx`   | Snapshot warning banners: truncated, root issues, changed roots, offline and omitted entries.                  |
+| `components/RepositoryRow.tsx`       | One 72 px repository row: name, branch, path, status badge and open/create action.                             |
+| `components/RepositoryFilterBar.tsx` | Filter input for the loaded snapshot; Escape or the clear button empties it.                                   |
+| `components/BulkCreateButton.tsx`    | Bulk trigger for the visible no-chatroom rows, or the done line when every shown row has a chatroom.           |
+| `components/BulkCreateDialog.tsx`    | Confirm, pending, summary and error phases for one bulk-create session, walking batches of 50.                 |
+| `components/LedgerNotice.tsx`        | Warning/error callout shared by ledger failures and snapshot banners.                                          |
 | `components/MachineActionsMenu.tsx`  | Descriptor-driven card menu. Safe actions first, destructive actions after a separator.                        |
 | `components/machineActions.ts`       | `MachineAction` descriptor type and `buildMachineActions` (the extension point).                               |
 | `components/DeleteMachineDialog.tsx` | Blocked and confirm variants for deletion, with the live online→offline flip.                                  |
 | `components/MachineAliasField.tsx`   | Inline alias editor shared with `AgentSettingsModal`.                                                          |
 | `components/MachinesStates.tsx`      | Loading skeletons, empty state with the daemon start command, and the error-boundary fallback.                 |
 | `hooks/useMachineRows.ts`            | Joins the registry with connectivity, last-seen and usage into row models.                                     |
+| `hooks/useRepositoryLedger.ts`       | Owns the on-demand snapshot lifecycle and its view states; discards on unmount.                                |
+| `hooks/useBulkCreateChatrooms.ts`    | Calls `chatrooms.createManyWithWorkspace`; `createOne` is the same call with one directory.                    |
 | `lib/machineDisplay.ts`              | Pure display helpers: OS label, relative last seen, registered date, usage summary and registry-only sorting.  |
 | `lib/machineErrorCopy.ts`            | Maps `ConvexError.data.code` and payload messages to user-facing copy.                                         |
+| `lib/bulkCreate.ts`                  | Batch planning, running totals, button-disabled reasons and count copy for bulk create.                        |
+| `lib/repositoryFilter.ts`            | Case-insensitive name/path/branch filter over the loaded entries, in list order.                               |
 
 Shared hooks in `apps/webapp/src/hooks/`:
 
@@ -79,7 +90,68 @@ therefore hold no `machineProjectRoots.list` subscription.
 - `add` returns `collapsedPaths` when the new root replaces children; the success note names them
   (`Replaced N nested root(s): …`). `remove` returning `removed: false` is a success (already gone).
 
-The Repositories section is not built yet (package 3).
+## Repositories
+
+`MachineCard` mounts `MachineRepositories` in the same expanded body as project roots, after
+`MachineProjectRoots`, so a collapsed card loads nothing. The section is not kept in sync: it asks
+the machine's daemon for a snapshot when the user asks, and shows that list until it is discarded.
+
+`useRepositoryLedger(machineId, { connected, hasRoots })` owns the snapshot lifecycle. Its view
+kind is `idle`, `asking`, `ready`, `timedOut` or `failed`. The snapshot is discarded when the
+section unmounts (collapse or navigation); the hook calls `repositoryLedger.discard` for the
+pending ask and the displayed snapshot.
+
+`idle` copy checks the blocking condition first:
+
+- Offline: `Machine is offline. Start the daemon to load repositories.`
+- No roots: `Add a project root above, then load repositories.`
+- Expired: `That snapshot expired. Load it again.`
+- Otherwise: `Repositories are read from this machine's daemon when you ask. The list is a snapshot, not kept in sync.`
+- `Load repositories` is disabled unless `canRequest`, which needs the machine online and at least
+  one root.
+
+`asking` shows `Asking daemon…` with a `Cancel` button. When a snapshot already exists it stays
+visible and `Rescan` reads `Asking daemon…`.
+
+`ready` headers the list with `Snapshot from <relative time> · <N repositories> · not kept in sync`
+and a `Rescan` button (`ledger-rescan`), disabled unless the machine is online.
+
+- Empty: `No git repositories found under your project roots.` plus `Rescan`.
+- Pages still loading: `Loading repositories… <loaded> of <total>`.
+- No match: `No repositories match “<filter>”.` plus `Clear filter`.
+- A failed rescan keeps the previous list and shows a notice: the timed-out copy, or
+  `Rescan failed: <message>. The previous list is still shown.`
+
+`timedOut` shows `The daemon did not respond. It may need updating, or it went offline.` with
+`Try again`. `failed` shows `Could not read repositories: <message>` with `Try again`.
+
+`RepositoryBanners` renders the warning notices in order: truncated at the 1,000-entry cap, roots
+missing, roots unreadable, roots changed since the snapshot (`Rescan to refresh`), machine offline
+(`This snapshot may be out of date`), and omitted entries (invalid, over-long or duplicate paths).
+Banners and failure notices share the `LedgerNotice` callout.
+
+`RepositoryRow` is a fixed 72 px row: name, branch (or `no branch`), and the path with its root
+prefix dimmed. The status badge is `Has chatroom` or `No chatroom`; the action is `Open` (links to
+the chatroom) or `Create chatroom` (`Creating…` while pending), disabled unless the machine is
+confirmed online. `RepositoryFilterBar` filters the loaded entries through `filterRepositories`
+(`lib/repositoryFilter.ts`) on name, path and branch.
+
+Bulk create uses the same creation path as the single-row action: both go through
+`useBulkCreateChatrooms`, which calls `chatrooms.createManyWithWorkspace`; `createOne` passes a
+one-element array. The button targets the visible rows without a chatroom and reads `Create
+chatrooms for N repositories`, or `Every repository shown has a chatroom.` when there are none. It
+is disabled with `Machine is offline`, `Checking machine…` or `Loading repositories…` from
+`bulkCreateDisabledReason` (`lib/bulkCreate.ts`), and spans the section below `sm`.
+
+`BulkCreateDialog` walks the targets in batches of `BULK_CREATE_MAX_REPOSITORIES` (50) through
+`planBulkCreate`: confirm (`Create chatrooms for N repositories?`, with an over-limit note),
+pending (`Creating chatrooms…`), summary (`Created · Skipped · Failed`, the skipped line, `N
+repositories still have no chatroom.`, `Done`, and a next-batch button while work remains) and
+error (`Could not create chatrooms`, `Close`, `Try again`), with failures listed under `Failed
+(N)`. Closing the dialog toasts the cumulative result. Repositories that already have a chatroom
+are skipped and no agent is started. The UI disables create while the machine is offline; the
+backend itself does not require it. On mobile the dialog stays inside the viewport and rows keep
+their fixed height, truncating text.
 
 ## Delete flow
 
@@ -125,5 +197,4 @@ new backend codes instead of scattering strings across components.
 
 ## Not here yet
 
-The Repositories section (on-demand ledger snapshot, bulk chatroom creation) and daemon updates are
-later packages.
+Daemon updates are later packages.
