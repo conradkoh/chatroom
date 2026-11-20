@@ -260,7 +260,7 @@ describe('projectAgentLifecycleFact exited branch', () => {
     });
   }
 
-  function exit(s: Setup, pid: number, emittedAt: number) {
+  function exit(s: Setup, pid: number, emittedAt: number, stopReason?: string) {
     return t.mutation(api.machines.projectAgentLifecycleFact, {
       sessionId: s.sessionId,
       machineId: s.machineId,
@@ -269,6 +269,7 @@ describe('projectAgentLifecycleFact exited branch', () => {
         chatroomId: s.chatroomId,
         role: 'builder',
         pid,
+        ...(stopReason ? { stopReason } : {}),
         revisionKey: `exit:${emittedAt}`,
         emittedAt,
       },
@@ -367,6 +368,29 @@ describe('projectAgentLifecycleFact exited branch', () => {
     });
   }
 
+  // Seeds a task the role is working on, the way a claimed task would sit.
+  function seedInFlightTask(s: Setup, assignedTo: string, status: 'acknowledged' | 'in_progress') {
+    const now = Date.now();
+    return t.run((ctx) =>
+      ctx.db.insert('chatroom_tasks', {
+        chatroomId: s.chatroomId,
+        createdBy: 'user',
+        content: `${assignedTo} in-flight task`,
+        status,
+        assignedTo,
+        acknowledgedAt: now,
+        ...(status === 'in_progress' ? { startedAt: now } : {}),
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    );
+  }
+
+  function taskById(taskId: Id<'chatroom_tasks'>) {
+    return t.run((ctx) => ctx.db.get('chatroom_tasks', taskId));
+  }
+
   test('a stale pid 0 exit is dropped and does not touch the participant', async () => {
     const s = await setup();
     await seedRunningBuilder(s, 4242); // row lastEventAt = 200
@@ -422,5 +446,100 @@ describe('projectAgentLifecycleFact exited branch', () => {
     });
     expect((await participantFor(s.chatroomId))?.lastSeenAction).toBe('sentinel');
     expect((await rowFor(s.chatroomId, 'builder'))?.observedPid).toBe(4242);
+  });
+
+  test('a stale team_switch exit still reassigns in-flight tasks and leaves the row unchanged', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242); // row lastEventAt = 200, observedPid = 4242
+    const taskId = await seedInFlightTask(s, 'builder', 'in_progress');
+
+    const result = await exit(s, 4242, 100, 'platform.team_switch'); // 100 < 200 → stale_event
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'stale_event',
+    });
+    const task = await taskById(taskId);
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('planner');
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('waiting');
+    expect(row?.observedPid).toBe(4242);
+    expect(row?.lastEventAt).toBe(200);
+  });
+
+  test('a stale exit without platform.team_switch does not reassign in-flight tasks', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+    const taskId = await seedInFlightTask(s, 'builder', 'in_progress');
+
+    const byUser = await exit(s, 4242, 100, 'user.stop');
+    const noReason = await exit(s, 4242, 100);
+
+    expect(byUser).toMatchObject({ skipped: true, rejectionReason: 'stale_event' });
+    expect(noReason).toMatchObject({ skipped: true, rejectionReason: 'stale_event' });
+    const task = await taskById(taskId);
+    expect(task?.status).toBe('in_progress');
+    expect(task?.assignedTo).toBe('builder');
+  });
+
+  test('a machine_mismatch team_switch exit does not reassign in-flight tasks', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+    const taskId = await seedInFlightTask(s, 'builder', 'in_progress');
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .first();
+      await ctx.db.patch('chatroom_agentRoleStatusReadModel', row!._id, {
+        machineId: 'other-machine',
+      });
+    });
+
+    const result = await exit(s, 0, 300, 'platform.team_switch');
+
+    expect(result).toMatchObject({ skipped: true, rejectionReason: 'machine_mismatch' });
+    const task = await taskById(taskId);
+    expect(task?.status).toBe('in_progress');
+    expect(task?.assignedTo).toBe('builder');
+  });
+
+  test('a team_switch exit for a role without a launch request does not reassign', async () => {
+    const s = await setup();
+    const taskId = await seedInFlightTask(s, 'planner', 'in_progress');
+
+    const result = await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'exited' as const,
+        chatroomId: s.chatroomId,
+        role: 'planner',
+        pid: 4242,
+        stopReason: 'platform.team_switch',
+        revisionKey: 'exit:300',
+        emittedAt: 300,
+      },
+    });
+
+    expect(result).toMatchObject({ skipped: true, rejectionReason: 'not_configured' });
+    expect((await taskById(taskId))?.status).toBe('in_progress');
+  });
+
+  test('an applied team_switch exit reassigns in-flight tasks to the entry point', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+    const taskId = await seedInFlightTask(s, 'builder', 'acknowledged');
+
+    const result = await exit(s, 4242, 300, 'platform.team_switch');
+
+    expect(result).toMatchObject({ success: true, skipped: false });
+    const task = await taskById(taskId);
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('planner');
   });
 });

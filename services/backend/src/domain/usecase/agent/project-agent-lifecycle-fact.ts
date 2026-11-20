@@ -122,7 +122,14 @@ export async function projectAgentLifecycleFact(
       revisionKey: fact.revisionKey,
       emittedAt: fact.emittedAt,
     });
-    if (result.applied) await onAgentExited(ctx, fact);
+    // Team-switch task reassignment is a side effect of a real team switch, not of the
+    // role-status observation. A `stale_event` drop must not lose it: the daemon treats
+    // `skipped` as delivered and never retries. This narrows the "dropped fact has no
+    // side effects" rule to the read model and participant state. The participant patch
+    // stays applied-only, and the stale fact never touches the read-model row.
+    // `not_configured` and `machine_mismatch` do not reassign: the reporting machine
+    // does not own the role.
+    if (result.applied || result.reason === 'stale_event') await onAgentExited(ctx, fact);
     return {
       success: true,
       skipped: !result.applied,
