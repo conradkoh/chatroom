@@ -27,7 +27,7 @@ import {
   PanelBottomOpen,
   Terminal,
 } from 'lucide-react';
-import type { ComponentType, CSSProperties, ReactNode } from 'react';
+import type { ComponentType, CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
@@ -63,8 +63,11 @@ import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterO
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
-  useMainChatComposerFocused,
+  isMainChatComposerFocused,
   useMainChatComposerKeyboardInset,
+  useVisualViewportKeyboardInset,
+  useVisualViewportOffsetTop,
+  useVisualViewportScale,
 } from '@/hooks/useMobileKeyboard';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
@@ -959,15 +962,18 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 
 export const WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX = 120;
 export const WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS = 300;
+/** Pinch-zoom shrinks visualViewport, which reads as occlusion. Above this scale it is zoom, not a keyboard. */
+// fallow-ignore-next-line unused-export
+export const WORKSPACE_BOTTOM_BAR_MAX_KEYBOARD_VIEWPORT_SCALE = 1.01;
 
 export function shouldSuppressWorkspaceBottomBarSafeArea(
-  keyboardInsetPx: number,
-  composerFocused: boolean,
-  insetSettled = true
+  keyboardOccludedPx: number,
+  insetSettled = true,
+  viewportScale = 1
 ): boolean {
-  if (composerFocused) return true;
   if (!insetSettled) return false;
-  return keyboardInsetPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
+  if (viewportScale > WORKSPACE_BOTTOM_BAR_MAX_KEYBOARD_VIEWPORT_SCALE) return false;
+  return keyboardOccludedPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
 }
 
 export function getWorkspaceBottomBarShellStyle(
@@ -984,8 +990,13 @@ export function getWorkspaceBottomBarShellStyle(
 export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
+  // Lift: unchanged, composer-focus gated.
   const keyboardInsetPx = useMainChatComposerKeyboardInset(mobile);
-  const composerFocused = useMainChatComposerFocused(mobile);
+  // Suppression: keyboard geometry only, never focus, and never while pinch-zoomed.
+  const visualViewportInsetPx = useVisualViewportKeyboardInset(mobile); // Android: keyboard height
+  const visualViewportOffsetTopPx = useVisualViewportOffsetTop(mobile); // iOS: keyboard height via layout scroll
+  const visualViewportScale = useVisualViewportScale(mobile); // >1 means pinch-zoomed
+  const keyboardOccludedPx = mobile ? visualViewportInsetPx + visualViewportOffsetTopPx : 0;
   const [insetSettled, setInsetSettled] = useState(!mobile);
   useEffect(() => {
     if (!mobile) {
@@ -1000,14 +1011,25 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(id);
   }, [mobile]);
   const suppressBottomInset = shouldSuppressWorkspaceBottomBarSafeArea(
-    keyboardInsetPx,
-    composerFocused,
-    insetSettled
+    keyboardOccludedPx,
+    insetSettled,
+    visualViewportScale
+  );
+
+  // A tap on the bar must not blur the main composer. A blur between mousedown and click
+  // moves the bar (lift and padding) and drops the tap.
+  const handleMouseDown = useCallback(
+    (e: ReactMouseEvent<HTMLDivElement>) => {
+      if (mobile && isMainChatComposerFocused()) e.preventDefault();
+    },
+    [mobile]
   );
 
   return (
     <div
       data-testid="workspace-bottom-bar"
+      data-bottom-inset={mobile && suppressBottomInset ? 'suppressed' : 'present'}
+      onMouseDown={handleMouseDown}
       className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary select-none"
       style={getWorkspaceBottomBarShellStyle(mobile, keyboardInsetPx, suppressBottomInset)}
     >

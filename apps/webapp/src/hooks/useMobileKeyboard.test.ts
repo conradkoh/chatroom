@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   computeKeyboardInsetPx,
   computeVisualViewportOffsetTopPx,
+  computeVisualViewportScale,
   isMainChatComposerFocused,
   useEditableElementFocused,
   useMainChatComposerFocused,
@@ -229,6 +230,43 @@ describe('computeVisualViewportOffsetTopPx', () => {
   it('clamps negative __MOBILE_KEYBOARD_TEST_OFFSET_TOP__ override to 0', () => {
     window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__ = -20;
     expect(computeVisualViewportOffsetTopPx()).toBe(0);
+  });
+});
+
+describe('computeVisualViewportScale', () => {
+  afterEach(() => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  it('returns 1 when visualViewport is not available', () => {
+    expect(computeVisualViewportScale()).toBe(1);
+  });
+
+  it('returns 1 when visualViewport has no scale property', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { height: 800, offsetTop: 0 },
+    });
+    expect(computeVisualViewportScale()).toBe(1);
+  });
+
+  it('returns 1 at rest', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { scale: 1 },
+    });
+    expect(computeVisualViewportScale()).toBe(1);
+  });
+
+  it('returns the pinch-zoom factor when zoomed', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { scale: 2 },
+    });
+    expect(computeVisualViewportScale()).toBe(2);
   });
 });
 
