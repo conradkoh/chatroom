@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useQueries, type RequestForQueries } from 'convex/react';
 import { useSessionId, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
 import type { AgentHarness } from '../../../types/machine';
 import { applyFavoriteConfigs, type ApplyFavoriteConfigItem } from '../lib/applyFavoriteConfigs';
@@ -40,6 +40,8 @@ export interface StartWithFavoritesDialogProps {
   onStartWithCurrent: () => void;
   onStartAnyway: () => void;
   onCancel: () => void;
+  /** Element focus returns to when the dialog closes: the play button that started the flow. */
+  finalFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export interface UseStartAgentsWithFavoritesOptions {

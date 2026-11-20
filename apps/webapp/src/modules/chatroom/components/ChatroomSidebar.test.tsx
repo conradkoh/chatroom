@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import {
   deriveChatroomState,
@@ -594,6 +594,47 @@ describe('ChatroomSidebar', () => {
   describe('play button with favourites check', () => {
     const clickPlay = () => fireEvent.click(screen.getByLabelText('Start agents'));
 
+    /**
+     * Renders the sidebar with the mocked start-check queries pending, starts the flow, reproduces the browser's
+     * focus loss from a disabled control, then resolves the queries and re-renders.
+     *
+     * The re-render changes `activeChatroomId` (ChatroomSidebar is memoised) and `canStop` (so the memoised
+     * `ChatroomSidebarAgentActions` re-runs `useQueries`); identical props would bail out and the mocked
+     * queries would never re-run.
+     */
+    const renderWithDeferredCheck = () => {
+      mockQueriesPending = true;
+      setStartCheckData([FAVOURITE]);
+      const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
+      const { rerender } = renderSidebar([chatroom]);
+      const play = screen.getByLabelText('Start agents');
+      play.focus();
+      clickPlay();
+      expect(play).toBeDisabled();
+      // Browsers move focus to <body> when the focused control becomes disabled; jsdom keeps focus and refuses
+      // to blur a disabled control, so move focus to the body explicitly. The popup records <body> as the
+      // element focused before open, which is why returning to the play button needs an explicit finalFocus.
+      act(() => {
+        document.body.setAttribute('tabindex', '-1');
+        document.body.focus();
+        document.body.removeAttribute('tabindex');
+      });
+      expect(play).not.toHaveFocus();
+      mockQueriesPending = false;
+      // Both ChatroomSidebar and ChatroomSidebarAgentActions are memoised, so resolving the mocked queries needs
+      // a re-render with a changed prop that reaches the actions. Flip `canStop` while keeping the activity
+      // status (and so the row's section) unchanged; the Start button keeps the same element and ref.
+      mockStatuses.set(chatroom._id, {
+        ...makeStatus(chatroom._id, 'active', 'stopped'),
+        canStop: false,
+      });
+      (useChatroomListing as ReturnType<typeof vi.fn>).mockReturnValue({
+        chatrooms: [chatroom],
+        isLoading: false,
+      });
+      rerender(<ChatroomSidebar activeChatroomId="chr-other" />);
+    };
+
     it('starts immediately with no dialog when every agent is on its top favourite', async () => {
       setStartCheckData([CURRENT]);
       renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
@@ -687,14 +728,17 @@ describe('ChatroomSidebar', () => {
       expect(mockRequestChatroomStart).not.toHaveBeenCalled();
     });
 
-    it('returns focus to the play button when the dialog closes', async () => {
-      setStartCheckData([FAVOURITE]);
-      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
-      const play = screen.getByLabelText('Start agents');
-      play.focus();
-      fireEvent.click(play);
+    it('returns focus to the play button after Cancel', async () => {
+      renderWithDeferredCheck();
       fireEvent.click(await screen.findByTestId('start-favourites-cancel'));
-      await waitFor(() => expect(play).toHaveFocus());
+      await waitFor(() => expect(screen.getByLabelText('Start agents')).toHaveFocus());
+    });
+
+    it('returns focus to the play button after Start with current', async () => {
+      renderWithDeferredCheck();
+      fireEvent.click(await screen.findByTestId('start-favourites-current'));
+      await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
+      await waitFor(() => expect(screen.getByLabelText('Start agents')).toHaveFocus());
     });
   });
 });

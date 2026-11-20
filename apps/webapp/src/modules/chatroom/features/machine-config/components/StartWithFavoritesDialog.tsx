@@ -339,6 +339,7 @@ export function StartWithFavoritesDialog({
   onStartWithCurrent,
   onStartAnyway,
   onCancel,
+  finalFocusRef,
 }: StartWithFavoritesDialogProps) {
   const busy = isBusyPhase(phase);
   const hasFailures = failures.length > 0;
@@ -368,6 +369,7 @@ export function StartWithFavoritesDialog({
         <AlertDialogContent
           data-testid="start-favourites-dialog"
           initialFocus={hasFailures ? startAnywayRef : primaryRef}
+          finalFocus={finalFocusRef}
         >
           <AlertDialogHeader>
             <AlertDialogTitle>Start agents with your favourite models?</AlertDialogTitle>

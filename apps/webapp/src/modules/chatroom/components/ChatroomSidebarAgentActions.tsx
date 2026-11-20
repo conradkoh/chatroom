@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2, Play, RefreshCw, Square } from 'lucide-react';
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { StartWithFavoritesDialog } from '../features/machine-config/components/StartWithFavoritesDialog';
@@ -36,6 +36,7 @@ interface AgentActionButtonsProps {
   onStop: (event: React.MouseEvent) => void;
   onStart: (event: React.MouseEvent) => void;
   onRestart: (event: React.MouseEvent) => void;
+  startButtonRef: React.RefObject<HTMLButtonElement | null>;
 }
 
 function reportAgentOperation(
@@ -95,9 +96,11 @@ function StartButton({
   isStarting,
   startTitle,
   onStart,
-}: Pick<AgentActionButtonsProps, 'isStarting' | 'startTitle' | 'onStart'>) {
+  startButtonRef,
+}: Pick<AgentActionButtonsProps, 'isStarting' | 'startTitle' | 'onStart' | 'startButtonRef'>) {
   return (
     <button
+      ref={startButtonRef}
       onClick={onStart}
       title={startTitle}
       aria-label="Start agents"
@@ -145,12 +148,18 @@ function AgentActionButtons({
   onStop,
   onStart,
   onRestart,
+  startButtonRef,
 }: AgentActionButtonsProps) {
   return (
     <>
       {canStop && <StopButton isSubmittingStop={isSubmittingStop} onStop={onStop} />}
       {showStart && (
-        <StartButton isStarting={isStarting} startTitle={startTitle} onStart={onStart} />
+        <StartButton
+          isStarting={isStarting}
+          startTitle={startTitle}
+          onStart={onStart}
+          startButtonRef={startButtonRef}
+        />
       )}
       {isRunning && (
         <RestartButton
@@ -186,6 +195,7 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
   isRunning,
 }: ChatroomSidebarAgentActionsProps) {
   const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
+  const startButtonRef = useRef<HTMLButtonElement>(null);
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
   const [isSubmittingStop, setIsSubmittingStop] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
@@ -256,8 +266,9 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
         onStop={handleStop}
         onStart={handleStart}
         onRestart={handleRestart}
+        startButtonRef={startButtonRef}
       />
-      <StartWithFavoritesDialog {...dialogProps} />
+      <StartWithFavoritesDialog {...dialogProps} finalFocusRef={startButtonRef} />
     </>
   );
 });
