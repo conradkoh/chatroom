@@ -242,7 +242,7 @@ describe('useRepositoryLedger', () => {
       invalidPathCount: 2,
       truncated: true,
     });
-    expect(loadMore).toHaveBeenCalledWith(300);
+    expect(loadMore).toHaveBeenCalledWith(3);
     expect(result.current.isLoadingPages).toBe(true);
 
     mocks.page = makePage({ results: mocks.page?.results ?? [], status: 'Exhausted' });
@@ -475,5 +475,47 @@ describe('useRepositoryLedger', () => {
     rerender();
 
     expect(result.current.view).toEqual({ kind: 'idle', reason: 'expired', canRequest: true });
+  });
+
+  it('a 1,000-entry snapshot loads across chunk pages and resolves hasChatroom on every page', async () => {
+    const CHUNK_ENTRIES = 100;
+    const TOTAL = 1000;
+    const SERVER_CHUNK_CLAMP = 10;
+    const all = Array.from({ length: TOTAL }, (_, i) => ({
+      path: `/p/repo-${i}`,
+      name: `repo-${i}`,
+      root: '/p',
+      discoveredAt: BASE,
+      hasChatroom: i === 0 || i === 450 || i === 999,
+    }));
+    const requested: number[] = [];
+    const pageWith = (loaded: number): Page => ({
+      results: all.slice(0, loaded),
+      status: loaded >= TOTAL ? 'Exhausted' : 'CanLoadMore',
+      loadMore: vi.fn((numItems: number) => {
+        requested.push(numItems);
+        mocks.page = pageWith(Math.min(TOTAL, loaded + numItems * CHUNK_ENTRIES));
+      }),
+    });
+    mocks.page = pageWith(300);
+    mocks.rows.set(REQUEST_1, completedRow({ repositoryCount: TOTAL }));
+
+    const { result, rerender } = renderLedger();
+    await ask(result);
+    for (let i = 0; i < 20 && result.current.isLoadingPages; i++) {
+      act(() => {
+        rerender();
+      });
+    }
+
+    expect(requested).toEqual([3, 3, 3]);
+    expect(Math.max(...requested)).toBeLessThanOrEqual(SERVER_CHUNK_CLAMP);
+    expect(result.current.isLoadingPages).toBe(false);
+    expect(result.current.entries).toHaveLength(TOTAL);
+    expect(result.current.entries.filter((e) => e.hasChatroom).map((e) => e.name)).toEqual([
+      'repo-0',
+      'repo-450',
+      'repo-999',
+    ]);
   });
 });

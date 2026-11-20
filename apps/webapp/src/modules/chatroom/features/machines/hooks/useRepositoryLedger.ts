@@ -15,7 +15,8 @@ type RequestId = Id<'chatroom_repositoryLedgerRequests'>;
 type LedgerRequestRow = Doc<'chatroom_repositoryLedgerRequests'>;
 type CompletedRow = LedgerRequestRow & { status: 'completed' };
 
-const LEDGER_PAGE_SIZE = 300;
+/** `numItems` counts chunk documents of 100 entries each; the server clamps it to 10 chunks. 3 chunks = 300 entries per page. */
+const LEDGER_PAGE_CHUNKS = 3;
 const MACHINE_OFFLINE_CODE = 'MACHINE_OFFLINE';
 const REQUEST_FALLBACK_COPY = 'Could not ask the daemon. Try again.';
 const DAEMON_FAILURE_FALLBACK_COPY = 'The daemon reported an error.';
@@ -385,7 +386,7 @@ function useLoadRemainingPages(paged: LedgerPageState | undefined): void {
   const status = paged?.status;
   const loadMore = paged?.loadMore;
   useEffect(() => {
-    if (status === 'CanLoadMore' && loadMore) loadMore(LEDGER_PAGE_SIZE);
+    if (status === 'CanLoadMore' && loadMore) loadMore(LEDGER_PAGE_CHUNKS);
   }, [status, loadMore]);
 }
 
@@ -393,7 +394,7 @@ function useLedgerPages(snapshot: LedgerSnapshotMeta | null) {
   const paged: LedgerPageState | undefined = useSessionPaginatedQuery(
     api.repositoryLedger.listEntries,
     requestArgs(requestIdOf(snapshot)),
-    { initialNumItems: LEDGER_PAGE_SIZE }
+    { initialNumItems: LEDGER_PAGE_CHUNKS }
   );
   useLoadRemainingPages(paged);
   return {
