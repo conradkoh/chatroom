@@ -3,8 +3,15 @@ import type { SignupMethod } from './signupMethods';
 /**
  * Runtime feature flags for the backend.
  *
- * ⚠️  DO NOT import this from the webapp (`apps/webapp/`).
- *     The webapp renders UI unconditionally for released features.
+ * Webapp import rule (`apps/webapp/`):
+ * - The webapp may read the constant `featureFlags.disableLogin`. It is static, not env-derived.
+ * - The webapp must NOT call `isSignupAllowed`, `isSelfSignupAllowed`, `isInviteSignupAllowed`, or
+ *   `getAllowedSignupMethods` (from `config/signupMethods`), and must NOT read
+ *   `featureFlags.allowedSignupMethods`. Those read this runtime's env (`CONVEX_CLOUD_URL`,
+ *   `E2E_SEEDING_ENABLED`), which the browser bundle does not have, so in the browser they always
+ *   answer invite-only.
+ * - To learn which signup methods the deployment accepts, the webapp reads `api.appinfo.get`
+ *   (`allowedSignupMethods`), which is the backend's resolved decision.
  *
  * Runtime env contract (the Convex function runtime):
  * - `CONVEX_CLOUD_URL` and `CONVEX_SITE_URL` are set by the platform or the self-hosting
