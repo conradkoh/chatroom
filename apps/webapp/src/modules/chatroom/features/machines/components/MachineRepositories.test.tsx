@@ -132,6 +132,7 @@ function renderRepositories(
     displayName: string;
     connected: boolean | undefined;
     hasRoots: boolean | undefined;
+    currentRootPaths: readonly string[] | undefined;
   }> = {}
 ) {
   return render(
@@ -148,6 +149,17 @@ function renderRepositories(
 async function clickLoad(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByTestId('ledger-load'));
 }
+
+const FILTER_ENTRIES: LedgerEntryView[] = [
+  entry('/Users/me/projects/api-service', { name: 'Api-Service' }),
+  entry('/Users/me/work/web', {
+    name: 'web',
+    root: '/Users/me/work',
+    branch: 'feat/Login',
+    hasChatroom: true,
+  }),
+  entry('/Users/me/projects/docs', { name: 'docs' }),
+];
 
 describe('MachineRepositories', () => {
   beforeEach(() => {
@@ -373,5 +385,222 @@ describe('MachineRepositories', () => {
 
     const row = screen.getByTestId('repository-row');
     expect(within(row).getByRole('button', { name: 'Create chatroom' })).toBeDisabled();
+  });
+
+  it('narrows the rows by name, case-insensitively', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 3 }));
+    mocks.page = makePage({ results: FILTER_ENTRIES, status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+    await screen.findByTestId('ledger-ready');
+    await user.type(screen.getByTestId('ledger-filter'), 'API');
+
+    await waitFor(() => expect(screen.getAllByTestId('repository-row')).toHaveLength(1));
+    expect(screen.getByTestId('repository-row').textContent).toContain('Api-Service');
+  });
+
+  it('narrows the rows by branch, case-insensitively', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 3 }));
+    mocks.page = makePage({ results: FILTER_ENTRIES, status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+    await screen.findByTestId('ledger-ready');
+    await user.type(screen.getByTestId('ledger-filter'), 'login');
+
+    await waitFor(() => expect(screen.getAllByTestId('repository-row')).toHaveLength(1));
+    expect(screen.getByTestId('repository-row').textContent).toContain('web');
+  });
+
+  it('shows the no-match copy and restores the rows when the filter is cleared', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 3 }));
+    mocks.page = makePage({ results: FILTER_ENTRIES, status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+    await screen.findByTestId('ledger-ready');
+    await user.type(screen.getByTestId('ledger-filter'), 'zzz');
+
+    const noMatch = await screen.findByTestId('ledger-no-match');
+    expect(within(noMatch).getByText('No repositories match “zzz”.')).toBeDefined();
+    await user.click(within(noMatch).getByRole('button', { name: 'Clear filter' }));
+
+    await waitFor(() => expect(screen.getAllByTestId('repository-row')).toHaveLength(3));
+    expect((screen.getByTestId('ledger-filter') as HTMLInputElement).value).toBe('');
+  });
+
+  it('clears the filter on Escape', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 3 }));
+    mocks.page = makePage({ results: FILTER_ENTRIES, status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+    await screen.findByTestId('ledger-ready');
+    await user.type(screen.getByTestId('ledger-filter'), 'zzz');
+    await screen.findByTestId('ledger-no-match');
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.getAllByTestId('repository-row')).toHaveLength(3));
+  });
+
+  it('shows the truncated banner', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ truncated: true, repositoryCount: 3 }));
+    mocks.page = makePage({ results: [entry('/Users/me/projects/a')], status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+
+    expect((await screen.findByTestId('ledger-banner-truncated')).textContent).toBe(
+      'Showing the first 1,000 repositories. Narrow your project roots to see the rest.'
+    );
+  });
+
+  it('shows the omitted banner with the stored plural count', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1, invalidPathCount: 3 }));
+    mocks.page = makePage({ results: [entry('/Users/me/projects/a')], status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+
+    expect((await screen.findByTestId('ledger-banner-omitted')).textContent).toBe(
+      '3 entries are left out of this snapshot: invalid, over-long, or duplicate paths.'
+    );
+  });
+
+  it('shows the omitted banner with the stored singular count', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1, invalidPathCount: 1 }));
+    mocks.page = makePage({ results: [entry('/Users/me/projects/a')], status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+
+    expect((await screen.findByTestId('ledger-banner-omitted')).textContent).toBe(
+      '1 entry is left out of this snapshot: invalid, over-long, or duplicate paths.'
+    );
+  });
+
+  it('shows the missing-root banner', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set(
+      'req-1',
+      completedRow({
+        repositoryCount: 0,
+        roots: [{ path: '/Users/me/old-root', status: 'missing', repositoryCount: 0 }],
+      })
+    );
+    mocks.page = makePage({ results: [], status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+
+    expect((await screen.findByTestId('ledger-banner-roots-missing')).textContent).toBe(
+      '1 root was not found on this machine: /Users/me/old-root'
+    );
+  });
+
+  it('shows the roots-changed banner only when the current roots differ', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set(
+      'req-1',
+      completedRow({
+        repositoryCount: 1,
+        roots: [{ path: '/Users/me/projects', status: 'ok', repositoryCount: 1 }],
+      })
+    );
+    mocks.page = makePage({ results: [entry('/Users/me/projects/a')], status: 'Exhausted' });
+    const { rerender } = renderRepositories({
+      currentRootPaths: ['/Users/me/projects', '/Users/me/new'],
+    });
+
+    await clickLoad(user);
+    expect(await screen.findByTestId('ledger-banner-roots-changed')).toBeDefined();
+
+    rerender(
+      <MachineRepositories
+        machineId="m-1"
+        displayName="Studio Mac"
+        connected={true}
+        hasRoots={true}
+        currentRootPaths={['/Users/me/projects']}
+      />
+    );
+    expect(screen.queryByTestId('ledger-banner-roots-changed')).toBeNull();
+
+    rerender(
+      <MachineRepositories
+        machineId="m-1"
+        displayName="Studio Mac"
+        connected={true}
+        hasRoots={true}
+        currentRootPaths={undefined}
+      />
+    );
+    expect(screen.queryByTestId('ledger-banner-roots-changed')).toBeNull();
+  });
+
+  it('shows the stale banner when the machine goes offline', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1 }));
+    mocks.page = makePage({ results: [entry('/Users/me/projects/a')], status: 'Exhausted' });
+    const { rerender } = renderRepositories();
+
+    await clickLoad(user);
+    await screen.findByTestId('ledger-ready');
+    expect(screen.queryByTestId('ledger-banner-stale')).toBeNull();
+
+    rerender(
+      <MachineRepositories
+        machineId="m-1"
+        displayName="Studio Mac"
+        connected={false}
+        hasRoots={true}
+      />
+    );
+
+    expect(screen.getByTestId('ledger-banner-stale').textContent).toBe(
+      'Machine is offline. This snapshot may be out of date.'
+    );
+  });
+
+  it('shows no banners for a clean snapshot', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set(
+      'req-1',
+      completedRow({
+        repositoryCount: 1,
+        truncated: false,
+        invalidPathCount: 0,
+        roots: [{ path: '/Users/me/projects', status: 'ok', repositoryCount: 1 }],
+      })
+    );
+    mocks.page = makePage({ results: [entry('/Users/me/projects/a')], status: 'Exhausted' });
+    renderRepositories({ currentRootPaths: ['/Users/me/projects'] });
+
+    await clickLoad(user);
+    await screen.findByTestId('ledger-ready');
+
+    expect(screen.queryAllByTestId(/^ledger-banner-/)).toHaveLength(0);
+  });
+
+  it('moves the only Rescan into the empty snapshot and hides the filter', async () => {
+    const user = userEvent.setup();
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 0 }));
+    mocks.page = makePage({ results: [], status: 'Exhausted' });
+    renderRepositories();
+
+    await clickLoad(user);
+    const ready = await screen.findByTestId('ledger-ready');
+
+    expect(within(ready).getByTestId('ledger-rescan')).toBeDefined();
+    expect(within(ready).getAllByTestId('ledger-rescan')).toHaveLength(1);
+    expect(screen.queryByTestId('ledger-filter')).toBeNull();
   });
 });

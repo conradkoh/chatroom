@@ -252,6 +252,7 @@ function MachineCardBody({ row, bodyId }: { row: MachineRowModel; bodyId: string
           displayName={row.displayName}
           connected={row.connected}
           hasRoots={roots === undefined ? undefined : roots.length > 0}
+          currentRootPaths={roots?.map((root) => root.path)}
         />
       </section>
     </div>

@@ -1,9 +1,12 @@
 'use client';
 
-import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
-import { useCallback, useState, type ReactNode } from 'react';
+import { Loader2, RefreshCw } from 'lucide-react';
+import { useCallback, useDeferredValue, useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
+import { LedgerNotice } from './LedgerNotice';
+import { RepositoryBanners } from './RepositoryBanners';
+import { RepositoryFilterBar } from './RepositoryFilterBar';
 import { RepositoryRow } from './RepositoryRow';
 import { useBulkCreateChatrooms } from '../hooks/useBulkCreateChatrooms';
 import {
@@ -14,6 +17,7 @@ import {
 } from '../hooks/useRepositoryLedger';
 import { formatLastSeen } from '../lib/machineDisplay';
 import { getMachineErrorCopy } from '../lib/machineErrorCopy';
+import { filterRepositories } from '../lib/repositoryFilter';
 
 import { Button } from '@/components/ui/button';
 import { VirtualizedScrollList } from '@/modules/chatroom/components/virtual-list';
@@ -33,6 +37,8 @@ export interface MachineRepositoriesProps {
   displayName: string;
   connected: boolean | undefined;
   hasRoots: boolean | undefined;
+  /** The machine's current project root paths; undefined while the roots query loads. */
+  currentRootPaths?: readonly string[];
 }
 
 type IdleView = Extract<LedgerView, { kind: 'idle' }>;
@@ -78,30 +84,6 @@ function LedgerAsking({ displayName, onCancel }: { displayName: string; onCancel
   );
 }
 
-/** Warning/error callout shared by every ledger failure. */
-function LedgerNotice({
-  tone = 'warning',
-  children,
-}: {
-  tone?: 'warning' | 'error';
-  children: ReactNode;
-}) {
-  const toneClass =
-    tone === 'error' ? 'text-chatroom-status-error' : 'text-chatroom-status-warning';
-  return (
-    <div
-      className={`flex items-start gap-2 border border-chatroom-status-warning/40 bg-chatroom-status-warning/10 p-3 text-xs ${toneClass}`}
-    >
-      <AlertTriangle
-        size={14}
-        className="mt-0.5 shrink-0 text-chatroom-status-warning"
-        aria-hidden
-      />
-      <div className="min-w-0">{children}</div>
-    </div>
-  );
-}
-
 function repositoryCountLabel(count: number): string {
   return count === 1 ? '1 repository' : `${count} repositories`;
 }
@@ -119,24 +101,83 @@ interface LedgerReadyProps {
   snapshot: LedgerSnapshotMeta;
   view: LedgerView;
   connected: boolean | undefined;
+  currentRootPaths: readonly string[] | undefined;
   creatingPath: string | null;
   onCreate: (path: string) => void;
 }
 
-/** The displayed snapshot: summary, Rescan, rescan issues, page progress and the virtualised rows. */
+function RescanButton({
+  asking,
+  disabled,
+  onRescan,
+}: {
+  asking: boolean;
+  disabled: boolean;
+  onRescan: () => void;
+}) {
+  return (
+    <Button
+      data-testid="ledger-rescan"
+      variant="outline"
+      size="xs"
+      disabled={disabled || asking}
+      onClick={onRescan}
+    >
+      {asking ? (
+        <>
+          <Loader2 size={12} className="animate-spin" aria-hidden />
+          Asking daemon…
+        </>
+      ) : (
+        <>
+          <RefreshCw size={12} aria-hidden />
+          Rescan
+        </>
+      )}
+    </Button>
+  );
+}
+
+function NoMatch({ filter, onClear }: { filter: string; onClear: () => void }) {
+  return (
+    <div data-testid="ledger-no-match" className="space-y-2">
+      <p className="text-xs text-chatroom-text-muted">No repositories match “{filter.trim()}”.</p>
+      <Button variant="outline" size="xs" onClick={onClear}>
+        Clear filter
+      </Button>
+    </div>
+  );
+}
+
 // fallow-ignore-next-line complexity
 function LedgerReady({
   ledger,
   snapshot,
   view,
   connected,
+  currentRootPaths,
   creatingPath,
   onCreate,
 }: LedgerReadyProps) {
+  const [filter, setFilter] = useState('');
+  // The list filters on the deferred value so typing stays responsive on large snapshots.
+  const deferredFilter = useDeferredValue(filter);
+  const { entries, isLoadingPages } = ledger;
+  const visible = useMemo(
+    () => filterRepositories(entries, deferredFilter),
+    [entries, deferredFilter]
+  );
   const asking = view.kind === 'asking';
   const rescanIssue = view.kind === 'ready' ? view.rescanIssue : undefined;
-  const { entries, isLoadingPages } = ledger;
+  const isEmpty = !isLoadingPages && entries.length === 0;
   const summary = `Snapshot from ${formatLastSeen(snapshot.generatedAt, Date.now())} · ${repositoryCountLabel(snapshot.totalCount)} · not kept in sync`;
+  const rescan = (
+    <RescanButton
+      asking={asking}
+      disabled={connected !== true}
+      onRescan={() => void ledger.request(true)}
+    />
+  );
 
   return (
     <div data-testid="ledger-ready" className="mt-3 space-y-3">
@@ -144,26 +185,14 @@ function LedgerReady({
         <p data-testid="ledger-summary" className="font-mono text-[10px] text-chatroom-text-muted">
           {summary}
         </p>
-        <Button
-          data-testid="ledger-rescan"
-          variant="outline"
-          size="xs"
-          disabled={asking || connected !== true}
-          onClick={() => void ledger.request(true)}
-        >
-          {asking ? (
-            <>
-              <Loader2 size={12} className="animate-spin" aria-hidden />
-              Asking daemon…
-            </>
-          ) : (
-            <>
-              <RefreshCw size={12} aria-hidden />
-              Rescan
-            </>
-          )}
-        </Button>
+        {!isEmpty && rescan}
       </div>
+
+      <RepositoryBanners
+        snapshot={snapshot}
+        connected={connected}
+        currentRootPaths={currentRootPaths}
+      />
 
       {rescanIssue && <LedgerNotice>{rescanIssueCopy(rescanIssue)}</LedgerNotice>}
 
@@ -173,28 +202,39 @@ function LedgerReady({
         </p>
       )}
 
-      {!isLoadingPages && entries.length === 0 && (
-        <p data-testid="ledger-empty" className="text-xs text-chatroom-text-muted">
-          No git repositories found under your project roots.
-        </p>
+      {isEmpty && (
+        <div className="space-y-3">
+          <p data-testid="ledger-empty" className="text-xs text-chatroom-text-muted">
+            No git repositories found under your project roots.
+          </p>
+          {rescan}
+        </div>
       )}
 
       {entries.length > 0 && (
-        <VirtualizedScrollList
-          items={entries}
-          height="min(28rem, 60dvh)"
-          estimateSize={() => 72}
-          getItemKey={(_, entry) => entry.path}
-          overscan={8}
-          renderItem={(entry) => (
-            <RepositoryRow
-              entry={entry}
-              disabled={connected !== true}
-              creating={creatingPath === entry.path}
-              onCreate={onCreate}
+        <>
+          <RepositoryFilterBar value={filter} onChange={setFilter} />
+          {visible.length === 0 ? (
+            <NoMatch filter={deferredFilter} onClear={() => setFilter('')} />
+          ) : (
+            <VirtualizedScrollList
+              items={visible}
+              height="min(28rem, 60dvh)"
+              estimateSize={() => 72}
+              getItemKey={(_, entry) => entry.path}
+              overscan={8}
+              scrollResetKey={deferredFilter}
+              renderItem={(entry) => (
+                <RepositoryRow
+                  entry={entry}
+                  disabled={connected !== true}
+                  creating={creatingPath === entry.path}
+                  onCreate={onCreate}
+                />
+              )}
             />
           )}
-        />
+        </>
       )}
     </div>
   );
@@ -232,6 +272,7 @@ export function MachineRepositories({
   displayName,
   connected,
   hasRoots,
+  currentRootPaths,
 }: MachineRepositoriesProps) {
   const ledger = useRepositoryLedger(machineId, { connected, hasRoots });
   const { createOne } = useBulkCreateChatrooms();
@@ -263,6 +304,7 @@ export function MachineRepositories({
         snapshot={snapshot}
         view={view}
         connected={connected}
+        currentRootPaths={currentRootPaths}
         creatingPath={creatingPath}
         onCreate={handleCreate}
       />
