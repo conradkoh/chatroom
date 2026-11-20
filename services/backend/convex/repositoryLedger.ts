@@ -5,12 +5,19 @@
  * The daemon produces the snapshot. This module records the request and enqueues
  * `daemon.reportRepositoryLedger`. Snapshot data is transient and never durable.
  */
+import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v, type Infer } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, mutation, query, type MutationCtx } from './_generated/server';
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from './_generated/server';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { normalizeWorkingDir } from './workspacePathSecurity';
@@ -27,6 +34,7 @@ import {
   ledgerRootValidator,
 } from '../src/domain/entities/repository-ledger';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
+import { findActiveChatroomForWorkingDir } from '../src/domain/usecase/workspace/find-active-chatroom-for-working-dir';
 
 /** Number of most recent requests for a machine scanned when looking for a reusable pending request. */
 const RECENT_REQUEST_SCAN_LIMIT = 10;
@@ -104,6 +112,94 @@ export const get = query({
 
 type LedgerEntryInput = Infer<typeof ledgerEntryValidator>;
 type LedgerRequestRow = Doc<'chatroom_repositoryLedgerRequests'>;
+
+/** One snapshot row as the UI reads it. */
+export interface RepositoryLedgerListEntry {
+  path: string;
+  name: string;
+  root: string;
+  branch?: string;
+  remoteUrl?: string;
+  discoveredAt: number;
+  hasChatroom: boolean;
+  chatroomId?: Id<'chatroom_rooms'>;
+}
+
+export interface RepositoryLedgerEntriesPage {
+  page: RepositoryLedgerListEntry[];
+  isDone: boolean;
+  continueCursor: string;
+}
+
+const EMPTY_ENTRIES_PAGE: RepositoryLedgerEntriesPage = {
+  page: [],
+  isDone: true,
+  continueCursor: '',
+};
+
+/** Owner check + expiry. A null row means missing (discarded or cleaned up). */
+function isReadableLedgerRequest(
+  request: LedgerRequestRow | null,
+  userId: Id<'users'>
+): request is LedgerRequestRow {
+  return request !== null && request.userId === userId && request.expiresAt > Date.now();
+}
+
+/** Maps one stored entry to its list row. Stored paths are already normalized; the flag comes from the shared lookup. */
+async function toListEntry(
+  ctx: QueryCtx,
+  input: { machineId: string; ownerId: Id<'users'> },
+  entry: LedgerEntryInput
+): Promise<RepositoryLedgerListEntry> {
+  const active = await findActiveChatroomForWorkingDir(ctx, {
+    ownerId: input.ownerId,
+    machineId: input.machineId,
+    workingDir: entry.path,
+  });
+  return {
+    ...entry,
+    hasChatroom: active !== null,
+    ...(active ? { chatroomId: active.chatroomId } : {}),
+  };
+}
+
+/**
+ * Paginated snapshot rows for one request, in stored order. Owner only; a missing, discarded,
+ * expired or other user's request returns an empty page (never throws). Pages are chunk-based:
+ * `paginate` walks `by_request_chunk` and the page is the flattened chunk entries.
+ * `numItems` is clamped to LEDGER_MAX_CHUNKS so one call reads at most 10 chunk documents.
+ *
+ * Reactivity: the only reads are the request row, `by_request_chunk`, and the shared lookup's
+ * workspace/chatroom keys. A workspace row appearing at one of the page's paths re-runs the
+ * query, which is what flips the badges after a chatroom is created or archived.
+ */
+export const listEntries = query({
+  args: {
+    ...SessionIdArg,
+    requestId: v.id('chatroom_repositoryLedgerRequests'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args): Promise<RepositoryLedgerEntriesPage> => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return EMPTY_ENTRIES_PAGE;
+    const request = await ctx.db.get('chatroom_repositoryLedgerRequests', args.requestId);
+    if (!isReadableLedgerRequest(request, auth.userId)) return EMPTY_ENTRIES_PAGE;
+
+    const numItems = Math.min(Math.max(1, args.paginationOpts.numItems), LEDGER_MAX_CHUNKS);
+    const chunks = await ctx.db
+      .query('chatroom_repositoryLedgerChunks')
+      .withIndex('by_request_chunk', (q) => q.eq('requestId', args.requestId))
+      .paginate({ ...args.paginationOpts, numItems });
+
+    const entries = chunks.page.flatMap((chunk) => chunk.entries);
+    const page = await Promise.all(
+      entries.map((entry) =>
+        toListEntry(ctx, { machineId: request.machineId, ownerId: auth.userId }, entry)
+      )
+    );
+    return { page, isDone: chunks.isDone, continueCursor: chunks.continueCursor };
+  },
+});
 
 /** Response for a report that stored nothing: the row is gone or was already terminal. */
 type EarlyReportResponse = { ok: true; ignored: true } | { ok: true; duplicate: true };
