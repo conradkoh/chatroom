@@ -18,7 +18,7 @@ import {
 import { buildMachineFavoriteScopeKey } from '../lib/machineConfigScopeKey';
 import type { MachineConfigEntry } from '../types/machineConfig';
 
-export const START_FAVORITES_CHECK_TIMEOUT_MS = 4000;
+const START_FAVORITES_CHECK_TIMEOUT_MS = 4000;
 
 export type StartFlowPhase =
   'idle' | 'checking' | 'prompt' | 'applying' | 'apply-error' | 'starting';
