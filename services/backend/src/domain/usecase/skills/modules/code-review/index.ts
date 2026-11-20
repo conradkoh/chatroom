@@ -4,7 +4,7 @@ export const codeReviewSkill: SkillModule = {
   skillId: 'code-review',
   name: 'Code Review',
   description:
-    'Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.',
+    'Use this skill when reviewing, auditing, or giving feedback on code. Covers eleven pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, hallucinated content, and readability and comments.',
 
   getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "code-review" skill.
 
@@ -20,7 +20,7 @@ considering existing patterns, refactoring opportunities, or long-term cost. Res
 and 1.57x more security findings than human-written code (CodeRabbit, 2025). 66% of developers
 report spending more time fixing AI output than it saved (Stack Overflow, 2026).
 
-Apply the ten pillars below in priority order.
+Apply the eleven pillars below in priority order.
 
 ---
 
@@ -287,6 +287,28 @@ enum, config module, shared constants file)?
 Action: Consolidate magic literals into the canonical location for the codebase (typically
 enums alongside the relevant entity, or a dedicated constants module). For hallucinated
 references, treat as BLOCK — code that compiles against fictional APIs will fail in production.
+
+---
+
+## Pillar 11 — Readability & Comments (Standard Priority)
+
+Code is read far more often than it is written. AI output tends toward generic names, verbose structure, and comments added by reflex, and each of these slows the next change. Readable code also follows the language's idioms and the conventions of the code around it, so every change reads like the rest of the codebase.
+
+Look for:
+- Names that hide intent: generic names (\`data\`, \`result\`, \`temp\`, \`handle\`), names that describe the mechanism instead of the purpose, or names that contradict what the code does
+- Inconsistent naming: a new term for a concept the codebase already names, or a casing or file-naming style that differs from its neighbours
+- Structure that fights the reader: deep nesting, long compound conditions with no named intermediate, or a function whose steps cannot be told apart without reading every line
+- Non-idiomatic code: a hand-rolled pattern where the codebase already has an established helper or idiom for the same job
+- Comments that restate the code (\`// increment the counter\`) or describe what the code plainly does instead of why it does it
+- Misleading or stale comments: a comment that no longer matches the behaviour, states the wrong precondition, or names a function, parameter, or file that has since changed
+- Missing comments where the reasoning is not visible from the code: a non-obvious constraint, ordering requirement, workaround, or unit (ms or s) with no explanation
+- Missing documentation comments on exported functions, types, and modules where the surrounding code documents them
+
+Do not repeat findings already covered by Pillar 8 (commented-out code) or Pillar 9 (TODO, FIXME, and stub markers).
+
+Ask: Could the next reader change this safely from the code and its comments alone? Does each comment say something the code cannot say? Does each name say what the thing is for? Does this match how the neighbouring code is written?
+
+Action: Report each finding with its file and line, the reason it slows the next reader, and the exact rename, restructure, or rewritten comment. Classify as FLAG by default. Classify as BLOCK when a name or comment is wrong about behaviour, so the next reader would act on a false belief. Do not ask for a style the surrounding code does not follow.
 
 ---
 

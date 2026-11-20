@@ -72,6 +72,22 @@ describe('skills.activate', () => {
     expect(result.skill.prompt).toContain('Delete legacy');
   });
 
+  test('activates the code-review skill with readability and comment guidance', async () => {
+    const { sessionId } = await createTestSession('skills-activate-code-review-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'code-review',
+      role: 'planner',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.skill.skillId).toBe('code-review');
+    expect(result.skill.prompt).toContain('## Pillar 11 — Readability & Comments');
+  });
+
   test('activates the user-centricity skill with UX checklist guidance', async () => {
     const { sessionId } = await createTestSession('skills-activate-user-centricity-1');
     const chatroomId = await createChatroom(sessionId);

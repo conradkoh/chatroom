@@ -163,7 +163,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
-      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eleven pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, hallucinated content, and readability and comments.
       - **defragmentation**: Use for large or multi-surface system revisions: study surfaces, establish a golden path, migrate callers, and delete legacy implementations.
       - **user-centricity**: Use when a request involves UI changes: turn user intent into complete, accessible flows with explicit states and project-consistent interaction details.
       - **data-design**: Use when persistence or query patterns change: make schema, index, scan, timeout, and invalidation decisions explicit.
