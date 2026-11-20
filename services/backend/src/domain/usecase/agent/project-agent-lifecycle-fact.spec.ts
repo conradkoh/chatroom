@@ -335,4 +335,92 @@ describe('projectAgentLifecycleFact exited branch', () => {
       rejectionReason: 'not_configured',
     });
   });
+
+  function participantFor(chatroomId: Id<'chatroom_rooms'>) {
+    return t.run((ctx) =>
+      ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique()
+    );
+  }
+
+  // The chatroom fixture has no participants, so seed the builder row the exit
+  // path would patch.
+  async function ensureBuilderParticipant(s: Setup) {
+    await t.run(async (ctx) => {
+      const existing = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      if (existing) return;
+      await ctx.db.insert('chatroom_participants', {
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        agentType: 'remote',
+        lastSeenAt: Date.now(),
+      });
+    });
+  }
+
+  test('a stale pid 0 exit is dropped and does not touch the participant', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242); // row lastEventAt = 200
+    await ensureBuilderParticipant(s);
+    await t.run(async (ctx) => {
+      const p = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      await ctx.db.patch('chatroom_participants', p!._id, { lastSeenAction: 'sentinel' });
+    });
+
+    const result = await exit(s, 0, 100); // 100 < 200 → stale_event
+
+    expect(result).toMatchObject({ success: true, skipped: true, rejectionReason: 'stale_event' });
+    expect((await participantFor(s.chatroomId))?.lastSeenAction).toBe('sentinel');
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('waiting');
+    expect(row?.observedPid).toBe(4242);
+  });
+
+  test('a machine-mismatched pid 0 exit is dropped and does not touch the participant', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+    await ensureBuilderParticipant(s);
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .first();
+      await ctx.db.patch('chatroom_agentRoleStatusReadModel', row!._id, {
+        machineId: 'other-machine',
+      });
+      const p = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      await ctx.db.patch('chatroom_participants', p!._id, { lastSeenAction: 'sentinel' });
+    });
+
+    const result = await exit(s, 0, 300);
+
+    expect(result).toMatchObject({
+      success: true,
+      skipped: true,
+      rejectionReason: 'machine_mismatch',
+    });
+    expect((await participantFor(s.chatroomId))?.lastSeenAction).toBe('sentinel');
+    expect((await rowFor(s.chatroomId, 'builder'))?.observedPid).toBe(4242);
+  });
 });

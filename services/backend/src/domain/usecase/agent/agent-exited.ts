@@ -4,19 +4,21 @@
  * Idempotent handler for when an agent process exits. Replaces the inline
  * cleanup previously done in `recordAgentExited` (machines.ts).
  *
- * Two responsibilities:
- *   1. Clear PID on config — only if the PID and machineId match (PID-gated idempotency)
- *   2. Mark participant as exited — only if the config still belongs to the same machine
- *      (prevents overwriting a running agent's status during machine switch)
+ * Ordered so a dropped fact has no side effects:
+ *   1. Guard — the launch request must exist and belong to the reporting machine,
+ *      and a non-zero pid must match the last observed pid (pid 0 means "no
+ *      process", so it bypasses the pid guard).
+ *   2. Project the role offline first. The read-model projection owns the
+ *      ordering (stale_event) and machine (machine_mismatch) guards; if it drops
+ *      the fact, nothing else is mutated.
+ *   3. Mark the participant as exited and clear its connection.
  *
  */
 
 import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
-import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { AgentStopReasonEnum } from '../../entities/agent';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ export async function agentExited(
   ctx: MutationCtx,
   input: AgentExitedInput
 ): Promise<AgentExitedResult> {
-  const { chatroomId, role, machineId, pid, stopReason } = input;
+  const { chatroomId, role, machineId, pid } = input;
 
   const launchRequest = await getLastSentLaunchRequestForRole(ctx, { chatroomId, role });
   if (!launchRequest || launchRequest.machineId !== machineId)
@@ -101,34 +103,9 @@ export async function agentExited(
     return { applied: false, reason: 'pid_mismatch' };
   }
 
-  // 2. Mark participant as exited — guard against machine switch
-  //    If the config for this role now belongs to a different machine, or the
-  //    participant status is already set from a newer agent, skip the patch.
-  const shouldUpdateParticipant = launchRequest.machineId === machineId;
-
-  if (shouldUpdateParticipant) {
-    const isOrchestratedRestart =
-      stopReason === AgentStopReasonEnum['platform.task_start_in_new_session'] ||
-      stopReason === AgentStopReasonEnum['daemon.respawn'] ||
-      stopReason === AgentStopReasonEnum['user.restart'];
-    const participantStatus = isOrchestratedRestart ? 'agent.restart' : 'agent.exited';
-    const participantDesiredState = isOrchestratedRestart ? 'running' : undefined;
-    await transitionAgentStatus(ctx, chatroomId, role, participantStatus, participantDesiredState);
-
-    // Also mark the participant as exited and clear the connection (matching
-    // the cleanup previously done by cleanupMachineAgent).
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
-      .unique();
-    if (participant) {
-      await ctx.db.patch('chatroom_participants', participant._id, {
-        lastSeenAction: PARTICIPANT_EXITED_ACTION,
-        connectionId: undefined,
-      });
-    }
-  }
-  await projectAgentRoleStatusReadModel(ctx, {
+  // Project first. A fact dropped by the projection's ordering or machine guard
+  // must not mutate participants or anything else.
+  const projection = await projectAgentRoleStatusReadModel(ctx, {
     chatroomId,
     role,
     launchRequest,
@@ -140,5 +117,19 @@ export async function agentExited(
     sourceEventAt: input.emittedAt,
     sourceRevisionKey: input.revisionKey,
   });
+  if (!projection.applied) return { applied: false, reason: projection.reason };
+
+  // Mark the participant as exited and clear its connection. The launch request
+  // already matched this machine above.
+  const participant = await ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .unique();
+  if (participant) {
+    await ctx.db.patch('chatroom_participants', participant._id, {
+      lastSeenAction: PARTICIPANT_EXITED_ACTION,
+      connectionId: undefined,
+    });
+  }
   return { applied: true };
 }
