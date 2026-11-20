@@ -7,7 +7,6 @@ export const LEDGER_MAX_ENTRIES = 1000;
 // fallow-ignore-next-line unused-export
 export const LEDGER_CHUNK_SIZE = 100;
 /** Max chunk rows per snapshot. */
-// fallow-ignore-next-line unused-export
 export const LEDGER_MAX_CHUNKS = LEDGER_MAX_ENTRIES / LEDGER_CHUNK_SIZE;
 /** Max working directories accepted by one bulk create call. */
 // fallow-ignore-next-line unused-export
