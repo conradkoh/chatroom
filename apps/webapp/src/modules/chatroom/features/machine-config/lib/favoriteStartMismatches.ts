@@ -1,5 +1,3 @@
-// Consumed by the start-all favourites prompt in the next slice.
-// fallow-ignore-file unused-file
 import type { AgentHarness } from '../../../types/machine';
 import type { MachineConfigEntry } from '../types/machineConfig';
 
