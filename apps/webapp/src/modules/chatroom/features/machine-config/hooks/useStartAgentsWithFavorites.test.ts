@@ -117,8 +117,9 @@ function twoRoleFixture() {
   };
 }
 
-function renderFlow() {
-  const start = vi.fn().mockResolvedValue(undefined);
+type StartAction = (info: { appliedCount: number }) => Promise<void>;
+
+function renderFlow(start: StartAction = vi.fn().mockResolvedValue(undefined)) {
   const phases: StartFlowPhase[] = [];
   const view = renderHook(() => {
     const flow = useStartAgentsWithFavorites({ chatroomId: 'room-1', start });
@@ -316,6 +317,27 @@ describe('useStartAgentsWithFavorites', () => {
     warn.mockRestore();
   });
 
+  it('starts with the current configuration without prompting when a detail query errors', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mocks.data = {
+      ...fixture(),
+      favorites: { 'm1|team_trio#role_builder': new Error('forbidden') },
+    };
+    const { result, phases, start } = renderFlow();
+
+    await act(async () => {
+      result.current.requestStart();
+    });
+
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledWith({ appliedCount: 0 });
+    expect(phases).not.toContain('prompt');
+    expect(result.current.dialogProps.open).toBe(false);
+    expect(mocks.saveConfig).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
   it('falls back to starting without a prompt after the 4s timeout', async () => {
     vi.useFakeTimers();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -358,15 +380,33 @@ describe('useStartAgentsWithFavorites', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('starts only once when requestStart is called twice while busy', async () => {
+  it('ignores requestStart while a start is still in flight', async () => {
     mocks.data = matchingFixture();
-    const { result, start } = renderFlow();
+    let releaseStart!: () => void;
+    const start = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseStart = resolve;
+        })
+    );
+    const { result } = renderFlow(start);
 
     await act(async () => {
       result.current.requestStart();
+    });
+    expect(result.current.phase).toBe('starting');
+    expect(start).toHaveBeenCalledTimes(1);
+
+    act(() => {
       result.current.requestStart();
     });
+    expect(result.current.phase).toBe('starting');
+    expect(start).toHaveBeenCalledTimes(1);
 
+    await act(async () => {
+      releaseStart();
+    });
+    expect(result.current.phase).toBe('idle');
     expect(start).toHaveBeenCalledTimes(1);
   });
 
