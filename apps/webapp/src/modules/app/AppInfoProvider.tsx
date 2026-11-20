@@ -1,5 +1,6 @@
 'use client';
 
+import type { SignupMethod } from '@workspace/backend/config/signupMethods';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useQuery } from 'convex/react';
 import { createContext, type ReactNode, useMemo } from 'react';
@@ -16,6 +17,8 @@ export interface AppInfo {
     hasClientId: boolean;
     hasClientSecret: boolean;
   };
+  /** Backend-resolved signup methods. Missing = older backend; see deriveSignupConfig. */
+  allowedSignupMethods?: SignupMethod[];
 }
 
 /**
