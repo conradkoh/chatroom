@@ -151,7 +151,7 @@ function MachineExpander({
       type="button"
       onClick={handleClick}
       aria-expanded={expanded}
-      aria-controls={bodyId}
+      aria-controls={expanded ? bodyId : undefined}
       aria-label={`${expanded ? 'Hide' : 'Show'} details for ${displayName}`}
       data-testid="machine-expander"
       className="flex h-10 w-10 shrink-0 items-center justify-center text-chatroom-text-muted hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary sm:h-8 sm:w-8"

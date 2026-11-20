@@ -223,6 +223,18 @@ describe('MachinesPage', () => {
     expect(mocks.rootsMachineIds).toEqual(['m-alpha']);
   });
 
+  it('omits aria-controls while the card is collapsed and links the body once expanded', async () => {
+    const user = userEvent.setup();
+    mocks.registry = { machines: [ALPHA] };
+    render(<MachinesPage />);
+
+    const expander = screen.getByTestId('machine-expander');
+    expect(expander).not.toHaveAttribute('aria-controls');
+
+    await user.click(expander);
+    expect(expander).toHaveAttribute('aria-controls', screen.getByTestId('machine-card-body').id);
+  });
+
   it('toggles from the keyboard with Enter and Space', async () => {
     const user = userEvent.setup();
     mocks.registry = { machines: [ALPHA] };
