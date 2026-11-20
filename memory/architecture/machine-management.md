@@ -42,7 +42,8 @@ status: stable
 - Built: the on-demand ledger snapshot (request row, chunked pages, 10-min snapshot TTL, 5-min
   cleanup cron) and bulk chatroom create (`chatrooms.createManyWithWorkspace`). See
   [repository ledger feature note](../../docs/features/repository-ledger.md).
-- Not built yet (package 3B): the Repositories section UI and its webapp hooks.
+- Built: the Repositories section UI and its webapp hooks (`useRepositoryLedger`,
+  `useBulkCreateChatrooms`).
 - No always-on daemon subscription is added for roots or ledger state; see
   [daemon request lifecycle](/architecture/daemon-request-lifecycle.md) and
   [bandwidth at rest across projects](/architecture/bandwidth-at-rest-scaling.md).
