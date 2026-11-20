@@ -6,10 +6,18 @@
  * values, or an explicit message the backend chose to expose in the payload.
  */
 
+import { MAX_PROJECT_ROOTS } from '@workspace/backend/src/domain/entities/project-root';
+
 const MACHINE_ERROR_COPY: Record<string, string> = {
   NOT_AUTHORIZED_MACHINE: "You don't have access to this machine.",
   MACHINE_NOT_FOUND: 'This machine no longer exists.',
   MACHINE_ONLINE: 'This machine is online. Stop the daemon and try again.',
+  MACHINE_OFFLINE: 'This machine is offline. Start the daemon and try again.',
+  INVALID_WORKING_DIR:
+    "That path isn't valid. Use an absolute folder path such as /Users/you/projects.",
+  PROJECT_ROOT_DUPLICATE: 'That folder is already a project root.',
+  PROJECT_ROOT_NESTED: 'That folder is already inside an existing project root.',
+  PROJECT_ROOT_LIMIT_REACHED: `A machine can have up to ${MAX_PROJECT_ROOTS} project roots. Remove one to add another.`,
 };
 
 /** The ConvexError payload (`error.data`) when present; duck-typed so no `instanceof` is needed. */
@@ -44,7 +52,6 @@ function mappedCopy(code: string | null): string | undefined {
 }
 
 /** `ConvexError.data.code` when `data` is an object with a string `code`; otherwise null. */
-// fallow-ignore-next-line unused-export
 export function getConvexErrorCode(error: unknown): string | null {
   const data = getErrorData(error);
   if (typeof data !== 'object' || data === null) return null;

@@ -43,6 +43,23 @@ describe('getMachineErrorCopy', () => {
     expect(getMachineErrorCopy(error, FALLBACK)).toBe('Alias is too long');
   });
 
+  it.each([
+    ['MACHINE_OFFLINE', 'This machine is offline. Start the daemon and try again.'],
+    [
+      'INVALID_WORKING_DIR',
+      "That path isn't valid. Use an absolute folder path such as /Users/you/projects.",
+    ],
+    ['PROJECT_ROOT_DUPLICATE', 'That folder is already a project root.'],
+    ['PROJECT_ROOT_NESTED', 'That folder is already inside an existing project root.'],
+    [
+      'PROJECT_ROOT_LIMIT_REACHED',
+      'A machine can have up to 20 project roots. Remove one to add another.',
+    ],
+  ])('maps the project-root code %s', (code, copy) => {
+    const error = new ConvexError({ code, message: 'raw' });
+    expect(getMachineErrorCopy(error, FALLBACK)).toBe(copy);
+  });
+
   it('uses a string payload', () => {
     expect(getMachineErrorCopy(new ConvexError('Alias is invalid'), FALLBACK)).toBe(
       'Alias is invalid'
