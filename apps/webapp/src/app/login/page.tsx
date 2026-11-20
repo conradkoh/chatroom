@@ -13,7 +13,6 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 
 import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
 import { Button } from '@/components/ui/button';
-import { useGoogleAuthAvailable } from '@/modules/app/useAppInfo';
 import { AnonymousLoginButton } from '@/modules/auth/AnonymousLoginButton';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { GoogleLoginButton } from '@/modules/auth/GoogleLoginButton';
@@ -26,7 +25,6 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const authState = useAuthState();
-  const googleAuthAvailable = useGoogleAuthAvailable();
   const [sessionId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null
   );
@@ -60,7 +58,7 @@ function LoginPageContent() {
   }
 
   const returnTo = searchParams.get('returnTo');
-  return _renderLoginForm(googleAuthAvailable, sessionId, returnTo);
+  return _renderLoginForm(sessionId, returnTo);
 }
 
 function _renderSignupDisabledBanner() {
@@ -162,11 +160,7 @@ function _renderDisabledState() {
 /**
  * Renders the main login form with authentication options.
  */
-function _renderLoginForm(
-  googleAuthAvailable: boolean | null,
-  sessionId: string | null,
-  returnTo: string | null
-) {
+function _renderLoginForm(sessionId: string | null, returnTo: string | null) {
   const signupAllowed = isSignupAllowed();
   const selfSignupAllowed = isSelfSignupAllowed();
   const inviteSignupAllowed = isInviteSignupAllowed();
@@ -178,7 +172,6 @@ function _renderLoginForm(
         {!signupAllowed && _renderSignupDisabledBanner()}
         {_renderHeader()}
         {_renderLoginOptions({
-          googleAuthAvailable,
           sessionId,
           selfSignupAllowed,
           inviteSignupAllowed,
@@ -208,22 +201,23 @@ function _renderHeader() {
  */
 // fallow-ignore-next-line complexity
 function _renderLoginOptions(options: {
-  googleAuthAvailable: boolean | null;
   sessionId: string | null;
   selfSignupAllowed: boolean;
   inviteSignupAllowed: boolean;
   returnTo: string | null;
 }) {
-  const { googleAuthAvailable, sessionId, selfSignupAllowed, inviteSignupAllowed, returnTo } =
-    options;
+  const { sessionId, selfSignupAllowed, inviteSignupAllowed, returnTo } = options;
 
   return (
     <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
       <div className="divide-y divide-border">
-        {/* Google Login */}
-        {googleAuthAvailable && (
-          <GoogleLoginButton variant="ghost" showChevron={true} returnTo={returnTo} />
-        )}
+        {/* Google Login — owns its initializing/unavailable presentation */}
+        <GoogleLoginButton
+          variant="ghost"
+          showChevron={true}
+          returnTo={returnTo}
+          hideWhenUnavailable
+        />
 
         {/* Login with Code */}
         {_renderCodeLoginOption()}
