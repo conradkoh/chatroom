@@ -58,11 +58,14 @@ function HandoffToggleSummary({
   previewId,
   creationTime,
   handoffDurationMs,
+  handoffDurationSlow,
 }: {
   preview: string;
   previewId: string;
   creationTime: number;
   handoffDurationMs?: number;
+  /** Whether the duration is much longer than others in the loaded window (orange). */
+  handoffDurationSlow?: boolean;
 }) {
   return (
     <>
@@ -81,6 +84,7 @@ function HandoffToggleSummary({
         <TimelineMessageTimestamp
           creationTime={creationTime}
           handoffDurationMs={handoffDurationMs}
+          handoffDurationSlow={handoffDurationSlow}
           compact
         />
       </span>
@@ -100,6 +104,7 @@ function TimelineHandoffToggle({
   previewId,
   creationTime,
   handoffDurationMs,
+  handoffDurationSlow,
   onToggle,
 }: {
   collapsed: boolean;
@@ -110,6 +115,8 @@ function TimelineHandoffToggle({
   previewId: string;
   creationTime: number;
   handoffDurationMs?: number;
+  /** Whether the duration is much longer than others in the loaded window (orange). */
+  handoffDurationSlow?: boolean;
   onToggle: () => void;
 }) {
   return (
@@ -134,6 +141,7 @@ function TimelineHandoffToggle({
           previewId={previewId}
           creationTime={creationTime}
           handoffDurationMs={handoffDurationMs}
+          handoffDurationSlow={handoffDurationSlow}
         />
       ) : (
         <span className={TIMELINE_HANDOFF_TOGGLE_LABEL}>Collapse</span>
@@ -243,6 +251,8 @@ export interface TimelineTeamMessageProps {
   headerNavigation?: TimelineMessageHeaderNavigation;
   /** Elapsed time since the previous message in the timeline. */
   handoffDurationMs?: number;
+  /** Whether the duration is much longer than others in the loaded window (orange). */
+  handoffDurationSlow?: boolean;
   /**
    * When true the row starts collapsed: a summary bar with a 2-line plain-text
    * preview instead of the full markdown body. Used for agent-to-agent traffic in
@@ -256,6 +266,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   chatroomId: _chatroomId,
   headerNavigation,
   handoffDurationMs,
+  handoffDurationSlow,
   collapsible,
 }: TimelineTeamMessageProps) {
   const [expanded, setExpanded] = useState(false);
@@ -292,6 +303,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
           previewId={previewId}
           creationTime={message._creationTime}
           handoffDurationMs={handoffDurationMs}
+          handoffDurationSlow={handoffDurationSlow}
           onToggle={handleToggle}
         />
       )}
@@ -319,6 +331,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
             message={message}
             displayContent={message.content}
             handoffDurationMs={handoffDurationMs}
+            handoffDurationSlow={handoffDurationSlow}
           />
         </div>
       )}

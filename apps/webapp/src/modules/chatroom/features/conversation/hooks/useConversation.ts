@@ -8,7 +8,11 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { shallowEqualRecord, structurallyEqual } from './stableIdentity';
 import { toMessage } from '../../../hooks/chatroomMessageStore';
-import { getHandoffDurationMs } from '../../../timeline/handoffTiming';
+import {
+  getHandoffDurationMs,
+  getSlowHandoffThresholdMs,
+  isSlowHandoffDuration,
+} from '../../../timeline/handoffTiming';
 import { mapMessageToTimelineEvent } from '../../../timeline/mapMessageToTimelineEvent';
 import type { TimelineEvent } from '../../../timeline/types';
 import type { Message } from '../../../types/message';
@@ -145,6 +149,8 @@ export function useConversation(chatroomId: string) {
 
   // `handoffDurationMs` is derived from the previous message, so an event is keyed
   // on both its message (now identity-stable) and the freshly computed duration.
+  // `handoffDurationSlow` depends on the whole window's duration distribution, so a
+  // newly loaded message can recolor older rows.
   //
   // Like `stableMessagesRef`, this ref write happens during render. It is safe
   // because the write is idempotent per `messages`, and a discarded render only
@@ -153,10 +159,16 @@ export function useConversation(chatroomId: string) {
   const events: TimelineEvent[] = useMemo(() => {
     const previousById = stableEventsRef.current;
     const nextById = new Map<string, TimelineEvent>();
+    const durations = messages.map((message, index) =>
+      getHandoffDurationMs(message, messages[index - 1])
+    );
+    const slowThresholdMs = getSlowHandoffThresholdMs(durations);
     const stabilized = messages.map((message, index) => {
+      const durationMs = durations[index];
       const next = mapMessageToTimelineEvent(
         message,
-        getHandoffDurationMs(message, messages[index - 1])
+        durationMs,
+        isSlowHandoffDuration(durationMs, slowThresholdMs)
       );
       const previous = previousById.get(next.id);
       const stable = previous && shallowEqualRecord(previous, next) ? previous : next;

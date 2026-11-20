@@ -56,6 +56,11 @@ Color is used sparingly and purposefully. Large visual elements (backgrounds, ba
 - Blue (blue-400 / cyan-400 / blue-700)
 - Indicates: neutral status, informational messages
 
+**Slow/Latency**
+
+- Orange (orange-400 / orange-700)
+- Indicates: a duration much longer than its peers (e.g. a timeline handoff that took far longer than the others in view). Token: `chatroom-status-slow`
+
 ### Color Application Rules
 
 **DO:**
@@ -126,6 +131,7 @@ Success:           #34d399 (emerald-400)
 Warning:           #fbbf24 (amber-400)
 Error:             #f87171 (red-400)
 Info:              #60a5fa (blue-400)
+Slow:              #fb923c (orange-400)
 ```
 
 **Use Cases:**
@@ -161,6 +167,7 @@ Success:           #15803d (green-700)
 Warning:           #b45309 (amber-700)
 Error:             #b91c1c (red-700)
 Info:              #1d4ed8 (blue-700)
+Slow:              #c2410c (orange-700)
 ```
 
 **Use Cases:**

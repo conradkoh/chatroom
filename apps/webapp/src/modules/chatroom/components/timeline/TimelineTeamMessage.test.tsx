@@ -350,6 +350,7 @@ Edge case X
           message={NOTICE_MESSAGE}
           chatroomId="room-1"
           handoffDurationMs={undefined}
+          handoffDurationSlow
         />
       );
       expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
@@ -658,6 +659,35 @@ Edge case X
       expect(preview).toHaveClass('line-clamp-2');
       expect(preview.textContent?.length ?? 0).toBeLessThanOrEqual(240);
       expect(preview.textContent?.endsWith('…')).toBe(true);
+    });
+
+    it('renders a slow duration in the summary bar and keeps it slow after expanding', () => {
+      render(
+        <TimelineTeamMessage
+          message={COLLAPSIBLE_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={420_000}
+          handoffDurationSlow
+          collapsible
+        />
+      );
+
+      const toggle = screen.getByTestId('timeline-handoff-toggle');
+      const collapsedDuration = within(toggle).getByTestId('timeline-handoff-duration');
+      expect(collapsedDuration).toHaveAttribute('data-duration-tone', 'slow');
+      expect(collapsedDuration).toHaveClass('text-chatroom-status-slow');
+      expect(collapsedDuration).toHaveTextContent('7m 0s');
+
+      fireEvent.click(toggle);
+
+      const footer = screen.getByTestId('timeline-message-footer');
+      const expandedDuration = within(footer).getByTestId('timeline-handoff-duration');
+      expect(expandedDuration).toHaveAttribute('data-duration-tone', 'slow');
+      expect(expandedDuration).toHaveAttribute(
+        'title',
+        'Time since previous message: 7m 0s (much longer than typical in this view)'
+      );
+      expect(screen.getAllByTestId('timeline-handoff-duration')).toHaveLength(1);
     });
 
     it('moves the duration from the summary bar into the footer on expand', () => {

@@ -37,6 +37,7 @@ export const TimelineEventRow = memo(function TimelineEventRow({
         <TimelineTeamMessage
           message={event.message}
           handoffDurationMs={event.handoffDurationMs}
+          handoffDurationSlow={event.handoffDurationSlow}
           chatroomId={chatroomId}
           headerNavigation={headerNavigation}
           collapsible={!isEagerTimelineEvent(event)}

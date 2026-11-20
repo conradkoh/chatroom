@@ -25,6 +25,8 @@ export interface TeamMessageTimelineEvent extends TimelineEventBase {
   message: Message;
   /** Elapsed time since the previous message in the timeline. */
   handoffDurationMs?: number;
+  /** True when this duration is much longer than the other durations in the loaded window. */
+  handoffDurationSlow?: boolean;
 }
 
 /** Context boundary when a new context window is created. */
