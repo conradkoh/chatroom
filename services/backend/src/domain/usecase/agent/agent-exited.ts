@@ -57,7 +57,13 @@ export interface AgentExitedInput {
  * @param ctx - Convex mutation context
  * @param input - The exit parameters
  */
-export type AgentExitedResult = { applied: boolean };
+export type AgentExitedRejectionReason =
+  'not_configured' | 'pid_mismatch' | 'stale_event' | 'machine_mismatch' | 'room_missing';
+
+export type AgentExitedResult = {
+  applied: boolean;
+  reason?: AgentExitedRejectionReason | undefined;
+};
 
 export async function agentExited(
   ctx: MutationCtx,
@@ -66,7 +72,8 @@ export async function agentExited(
   const { chatroomId, role, machineId, pid, stopReason } = input;
 
   const launchRequest = await getLastSentLaunchRequestForRole(ctx, { chatroomId, role });
-  if (!launchRequest || launchRequest.machineId !== machineId) return { applied: false };
+  if (!launchRequest || launchRequest.machineId !== machineId)
+    return { applied: false, reason: 'not_configured' };
 
   // The daemon owns the process. Convex only checks the last observed PID in
   // its thin read model so a stale exit cannot overwrite a newer observation.
@@ -87,8 +94,11 @@ export async function agentExited(
           q.eq('chatroomId', chatroomId).eq('role', normalizedRole)
         )
         .first();
-  if (statusRow?.observedPid !== undefined && statusRow.observedPid !== pid) {
-    return { applied: false };
+  // pid 0 means the daemon has no process for this role (the idle-slot stop path
+  // emits it). It is not an identifier, so it cannot be a stale exit of a
+  // different process: bypass the guard and let the projection clear observedPid.
+  if (pid > 0 && statusRow?.observedPid !== undefined && statusRow.observedPid !== pid) {
+    return { applied: false, reason: 'pid_mismatch' };
   }
 
   // 2. Mark participant as exited — guard against machine switch

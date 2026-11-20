@@ -224,3 +224,91 @@ describe('projectAgentLifecycleFact status branch', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 });
+
+describe('projectAgentLifecycleFact exited branch', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Seeds a running builder: a status fact at emittedAt 200, then observedPid 4242
+  // written directly on the row, the way a spawned fact would leave it.
+  async function seedRunningBuilder(s: Setup, observedPid = 4242) {
+    await recordLaunchRequestFor(s, 'builder');
+    await t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'status' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        status: 'waiting' as const,
+        revisionKey: 'status:200',
+        emittedAt: 200,
+      },
+    });
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', s.chatroomId).eq('role', 'builder')
+        )
+        .first();
+      await ctx.db.patch('chatroom_agentRoleStatusReadModel', row!._id, { observedPid });
+    });
+  }
+
+  function exit(s: Setup, pid: number, emittedAt: number) {
+    return t.mutation(api.machines.projectAgentLifecycleFact, {
+      sessionId: s.sessionId,
+      machineId: s.machineId,
+      fact: {
+        kind: 'exited' as const,
+        chatroomId: s.chatroomId,
+        role: 'builder',
+        pid,
+        revisionKey: `exit:${emittedAt}`,
+        emittedAt,
+      },
+    });
+  }
+
+  test('pid 0 exit against a stale observedPid applies, marks offline, and clears observedPid', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+
+    const result = await exit(s, 0, 300);
+
+    expect(result).toMatchObject({ success: true, skipped: false });
+    expect(result.rejectionReason).toBeUndefined();
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('offline');
+    expect(row?.observedPid).toBeUndefined();
+  });
+
+  test('exit whose pid matches observedPid still applies', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+
+    const result = await exit(s, 4242, 300);
+
+    expect(result).toMatchObject({ success: true, skipped: false });
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('offline');
+    expect(row?.observedPid).toBeUndefined();
+  });
+
+  test('non-zero pid mismatch is skipped and leaves the row unchanged', async () => {
+    const s = await setup();
+    await seedRunningBuilder(s, 4242);
+
+    const result = await exit(s, 9999, 300);
+
+    expect(result).toMatchObject({ success: true, skipped: true });
+    const row = await rowFor(s.chatroomId, 'builder');
+    expect(row?.status).toBe('waiting');
+    expect(row?.observedPid).toBe(4242);
+  });
+});
