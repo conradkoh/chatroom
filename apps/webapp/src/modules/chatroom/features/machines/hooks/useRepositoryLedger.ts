@@ -85,44 +85,12 @@ interface AskState {
 /** Where the issued request stands. `null` means no request was issued. */
 type AskPhase = 'starting' | 'asking' | 'timedOut' | 'failed' | 'completed' | 'missing';
 
-// fallow-ignore-next-line complexity
-function toSnapshotMeta(row: CompletedRow): LedgerSnapshotMeta {
-  return {
-    requestId: row._id,
-    generatedAt: row.ledgerGeneratedAt ?? row.completedAt ?? row.updatedAt,
-    truncated: row.truncated === true,
-    invalidPathCount: row.invalidPathCount ?? 0,
-    roots: row.roots ?? [],
-    totalCount: row.repositoryCount ?? 0,
-  };
-}
+/** A failed request call: the machine rejected it as offline, or it failed with copy to show. */
+type RequestFailure = { kind: 'offline' } | { kind: 'error'; message: string };
 
-// fallow-ignore-next-line complexity
-function derivePhase(
-  ask: AskState | null,
-  askRow: LedgerRequestRow | null | undefined,
-  now: number
-): AskPhase | null {
-  if (ask === null) return null;
-  if (ask.requestId === null) return 'starting';
-  if (askRow === undefined) return 'asking';
-  if (askRow === null) return 'missing';
-  if (askRow.status === 'completed') return 'completed';
-  if (askRow.status === 'failed') return 'failed';
-  return askRow.expiresAt <= now ? 'timedOut' : 'asking';
-}
-
-/** Build the ask-independent idle gate. Offline wins over missing roots. Omit `blockedBy` when unblocked. */
-// fallow-ignore-next-line complexity
-function idleGate(gate: LedgerGate, offlineRejected: boolean) {
-  const blockedBy: 'offline' | 'no-roots' | undefined =
-    gate.connected === false || offlineRejected
-      ? 'offline'
-      : gate.hasRoots === false
-        ? 'no-roots'
-        : undefined;
-  const canRequest = blockedBy === undefined && gate.connected === true && gate.hasRoots === true;
-  return blockedBy === undefined ? { canRequest } : { canRequest, blockedBy };
+interface LatestIds {
+  askId: RequestId | null;
+  shownId: RequestId | null;
 }
 
 interface DeriveViewInput {
@@ -136,144 +104,306 @@ interface DeriveViewInput {
   offlineRejected: boolean;
 }
 
-/** The ask's failure, shown as a rescan issue when a snapshot is still displayed. */
-// fallow-ignore-next-line complexity
-function askFailure(input: DeriveViewInput): RescanIssue | null {
-  const { phase, askRow, callError } = input;
+interface LedgerPageState {
+  results: LedgerEntryView[];
+  status: string;
+  loadMore: (numItems: number) => unknown;
+}
+
+function requestArgs(requestId: RequestId | null) {
+  return requestId === null ? ('skip' as const) : { requestId };
+}
+
+function askIdOf(ask: AskState | null): RequestId | null {
+  return ask === null ? null : ask.requestId;
+}
+
+function rescanOf(ask: AskState | null): boolean {
+  return ask === null ? false : ask.rescan;
+}
+
+function requestIdOf(snapshot: LedgerSnapshotMeta | null): RequestId | null {
+  return snapshot === null ? null : snapshot.requestId;
+}
+
+function snapshotGeneratedAt(row: CompletedRow): number {
+  return row.ledgerGeneratedAt ?? row.completedAt ?? row.updatedAt;
+}
+
+function toSnapshotMeta(row: CompletedRow): LedgerSnapshotMeta {
+  return {
+    requestId: row._id,
+    generatedAt: snapshotGeneratedAt(row),
+    truncated: row.truncated === true,
+    invalidPathCount: row.invalidPathCount ?? 0,
+    roots: row.roots ?? [],
+    totalCount: row.repositoryCount ?? 0,
+  };
+}
+
+/** The displayed snapshot for a request row, or null while it loads, is unfinished, or has expired. */
+function snapshotOf(
+  row: LedgerRequestRow | null | undefined,
+  now: number
+): LedgerSnapshotMeta | null {
+  if (!row || row.status !== 'completed' || row.expiresAt <= now) return null;
+  return toSnapshotMeta(row as CompletedRow);
+}
+
+/** True when the displayed snapshot is gone (null row) or past its expiry; false while loading. */
+function isSnapshotExpired(row: LedgerRequestRow | null | undefined, now: number): boolean {
+  if (row === null) return true;
+  return row?.status === 'completed' && row.expiresAt <= now;
+}
+
+function rowPhase(row: LedgerRequestRow, now: number): AskPhase {
+  if (row.status === 'completed') return 'completed';
+  if (row.status === 'failed') return 'failed';
+  return row.expiresAt <= now ? 'timedOut' : 'asking';
+}
+
+/** Phase of an issued request: undefined row is still loading, null row is gone. */
+function askPhaseOf(row: LedgerRequestRow | null | undefined, now: number): AskPhase {
+  if (row === undefined) return 'asking';
+  if (row === null) return 'missing';
+  return rowPhase(row, now);
+}
+
+function derivePhase(
+  ask: AskState | null,
+  askRow: LedgerRequestRow | null | undefined,
+  now: number
+): AskPhase | null {
+  if (ask === null) return null;
+  if (ask.requestId === null) return 'starting';
+  return askPhaseOf(askRow, now);
+}
+
+/** The request id of a completed ask waiting to be promoted, else null. */
+function completedAskId(phase: AskPhase | null, ask: AskState | null): RequestId | null {
+  if (phase !== 'completed' || ask === null) return null;
+  return ask.requestId;
+}
+
+function blockedByOf(
+  gate: LedgerGate,
+  offlineRejected: boolean
+): 'offline' | 'no-roots' | undefined {
+  if (gate.connected === false || offlineRejected) return 'offline';
+  if (gate.hasRoots === false) return 'no-roots';
+  return undefined;
+}
+
+/** Build the ask-independent idle gate. Offline wins over missing roots. Omit `blockedBy` when unblocked. */
+function idleGate(gate: LedgerGate, offlineRejected: boolean) {
+  const blockedBy = blockedByOf(gate, offlineRejected);
+  const canRequest = blockedBy === undefined && gate.connected === true && gate.hasRoots === true;
+  return blockedBy === undefined ? { canRequest } : { canRequest, blockedBy };
+}
+
+/** The issue for a failed or timed-out ask, or null when the ask did not fail. */
+function failedPhaseIssue(
+  phase: AskPhase | null,
+  askRow: LedgerRequestRow | null | undefined
+): RescanIssue | null {
   if (phase === 'timedOut') return { kind: 'timedOut' };
-  if (phase === 'failed') {
-    return { kind: 'failed', message: askRow?.errorMessage ?? DAEMON_FAILURE_FALLBACK_COPY };
-  }
+  if (phase === 'failed') return { kind: 'failed', message: failedMessageOf(askRow) };
   if (phase === 'missing') return { kind: 'failed', message: RESCAN_EXPIRED_COPY };
-  if (callError !== null) return { kind: 'failed', message: callError };
   return null;
+}
+
+function failedMessageOf(askRow: LedgerRequestRow | null | undefined): string {
+  return askRow?.errorMessage ?? DAEMON_FAILURE_FALLBACK_COPY;
+}
+
+/** The ask's failure, shown as a rescan issue when a snapshot is still displayed. */
+function askFailure(input: DeriveViewInput): RescanIssue | null {
+  const issue = failedPhaseIssue(input.phase, input.askRow);
+  if (issue !== null) return issue;
+  return input.callError === null ? null : { kind: 'failed', message: input.callError };
+}
+
+/** The view for a failed ask. A missing ask with no snapshot returns null and falls through to idle. */
+function failedView(
+  failure: RescanIssue,
+  phase: AskPhase | null,
+  snapshot: LedgerSnapshotMeta | null
+): LedgerView | null {
+  if (snapshot !== null) return { kind: 'ready', rescanIssue: failure };
+  if (failure.kind === 'timedOut') return { kind: 'timedOut' };
+  if (phase === 'missing') return null;
+  return { kind: 'failed', message: failure.message };
+}
+
+/** The view for a failed ask or a displayed snapshot; null when the idle gate applies. */
+function settledView(input: DeriveViewInput): LedgerView | null {
+  const failure = askFailure(input);
+  if (failure !== null) return failedView(failure, input.phase, input.snapshot);
+  return input.snapshot === null ? null : { kind: 'ready' };
+}
+
+function idleView(input: DeriveViewInput): LedgerView {
+  const expired = input.snapshotExpired || input.phase === 'missing';
+  return {
+    kind: 'idle',
+    ...(expired ? { reason: 'expired' as const } : {}),
+    ...idleGate(input.gate, input.offlineRejected),
+  };
 }
 
 /**
  * Derive the view in order: asking, ask failure, displayed snapshot, then the idle gate.
  * A failing ask keeps the previous snapshot visible as a `ready` view with a `rescanIssue`.
  */
-// fallow-ignore-next-line complexity
 function deriveView(input: DeriveViewInput): LedgerView {
-  const { phase, rescan, snapshot, snapshotExpired, gate, offlineRejected } = input;
-
-  if (phase === 'starting' || phase === 'asking') {
-    return { kind: 'asking', rescan, hasPreviousSnapshot: snapshot !== null };
+  if (input.phase === 'starting' || input.phase === 'asking') {
+    return { kind: 'asking', rescan: input.rescan, hasPreviousSnapshot: input.snapshot !== null };
   }
+  return settledView(input) ?? idleView(input);
+}
 
-  const failure = askFailure(input);
-  if (failure !== null) {
-    if (snapshot !== null) return { kind: 'ready', rescanIssue: failure };
-    if (failure.kind === 'timedOut') return { kind: 'timedOut' };
-    // A missing ask with no snapshot falls through to idle with reason expired.
-    if (phase !== 'missing') return { kind: 'failed', message: failure.message };
-  }
-
-  if (snapshot !== null) return { kind: 'ready' };
-
+function failureFieldsOf(failure: RequestFailure | null): {
+  offlineRejected: boolean;
+  callError: string | null;
+} {
   return {
-    kind: 'idle',
-    ...(snapshotExpired || phase === 'missing' ? { reason: 'expired' as const } : {}),
-    ...idleGate(gate, offlineRejected),
+    offlineRejected: failure !== null && failure.kind === 'offline',
+    callError: failure !== null && failure.kind === 'error' ? failure.message : null,
   };
 }
 
-// fallow-ignore-next-line complexity
+function requestFailureOf(error: unknown): RequestFailure {
+  if (getConvexErrorCode(error) === MACHINE_OFFLINE_CODE) return { kind: 'offline' };
+  return { kind: 'error', message: getMachineErrorCopy(error, REQUEST_FALLBACK_COPY) };
+}
+
+/** The soonest deadline still in the future, or undefined. */
+function nextDeadline(deadlines: readonly (number | undefined)[], now: number): number | undefined {
+  const upcoming = deadlines.filter((t): t is number => t !== undefined && t > now);
+  return upcoming.length === 0 ? undefined : Math.min(...upcoming);
+}
+
+/** Current time, re-rendered at the next deadline so pending→timed out and completed→expired flip without polling. */
+function useDeadlineNow(deadlines: readonly (number | undefined)[]): number {
+  const [now, setNow] = useState(() => Date.now());
+  const target = nextDeadline(deadlines, now);
+  useEffect(() => {
+    if (target === undefined) return;
+    const timer = setTimeout(
+      () => setNow(Math.max(Date.now(), target)),
+      Math.max(0, target - Date.now())
+    );
+    return () => clearTimeout(timer);
+  }, [target]);
+  return now;
+}
+
+/** Discards a request on the server. Failures are ignored; the request expires on its own. */
+function useDiscardQuietly(): (requestId: RequestId) => void {
+  const discardMutation = useSessionMutation(api.repositoryLedger.discard);
+  // Kept in a ref so callers and the unmount cleanup always use the latest mutation.
+  const discardRef = useRef<typeof discardMutation | null>(null);
+  useEffect(() => {
+    discardRef.current = discardMutation;
+  });
+  return useCallback((requestId: RequestId) => {
+    const discard = discardRef.current;
+    if (discard) void discard({ requestId }).catch(() => undefined);
+  }, []);
+}
+
+function discardLatest(latest: LatestIds, discardQuietly: (requestId: RequestId) => void): void {
+  if (latest.askId) discardQuietly(latest.askId);
+  if (latest.shownId) discardQuietly(latest.shownId);
+}
+
+function useLedgerRows(askId: RequestId | null, shownId: RequestId | null) {
+  const askRow = useSessionQuery(api.repositoryLedger.get, requestArgs(askId));
+  const shownRow = useSessionQuery(api.repositoryLedger.get, requestArgs(shownId));
+  const now = useDeadlineNow([askRow?.expiresAt, shownRow?.expiresAt]);
+  return { askRow, shownRow, now };
+}
+
+function entriesOf(paged: LedgerPageState | undefined): LedgerEntryView[] {
+  return paged?.results ?? [];
+}
+
+/** Loads every page of the displayed snapshot as soon as the previous page lands. */
+function useLoadRemainingPages(paged: LedgerPageState | undefined): void {
+  const status = paged?.status;
+  const loadMore = paged?.loadMore;
+  useEffect(() => {
+    if (status === 'CanLoadMore' && loadMore) loadMore(LEDGER_PAGE_SIZE);
+  }, [status, loadMore]);
+}
+
+function useLedgerPages(snapshot: LedgerSnapshotMeta | null) {
+  const paged: LedgerPageState | undefined = useSessionPaginatedQuery(
+    api.repositoryLedger.listEntries,
+    requestArgs(requestIdOf(snapshot)),
+    { initialNumItems: LEDGER_PAGE_SIZE }
+  );
+  useLoadRemainingPages(paged);
+  return {
+    entries: entriesOf(paged),
+    isLoadingPages: snapshot !== null && paged?.status !== 'Exhausted',
+  };
+}
+
 export function useRepositoryLedger(
   machineId: string,
   gate: LedgerGate
 ): UseRepositoryLedgerResult {
   const [ask, setAsk] = useState<AskState | null>(null);
   const [shownId, setShownId] = useState<RequestId | null>(null);
-  const [offlineRejected, setOfflineRejected] = useState(false);
-  const [callError, setCallError] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-
+  const [requestFailure, setRequestFailure] = useState<RequestFailure | null>(null);
   const sequence = useRef(0);
-  const latest = useRef<{ askId: RequestId | null; shownId: RequestId | null }>({
-    askId: null,
-    shownId: null,
-  });
-
+  const latest = useRef<LatestIds>({ askId: null, shownId: null });
+  const discardQuietly = useDiscardQuietly();
   const requestMutation = useSessionMutation(api.repositoryLedger.request);
-  const discardMutation = useSessionMutation(api.repositoryLedger.discard);
-  // Kept in a ref so the unmount cleanup below runs only on unmount.
-  const discardRef = useRef<typeof discardMutation | null>(null);
-  useEffect(() => {
-    discardRef.current = discardMutation;
+
+  const askId = askIdOf(ask);
+  const { askRow, shownRow, now } = useLedgerRows(askId, shownId);
+  const phase = derivePhase(ask, askRow, now);
+  const snapshot = snapshotOf(phase === 'completed' ? askRow : shownRow, now);
+  const { entries, isLoadingPages } = useLedgerPages(snapshot);
+  const view = deriveView({
+    phase,
+    rescan: rescanOf(ask),
+    askRow,
+    snapshot,
+    snapshotExpired: isSnapshotExpired(shownRow, now),
+    ...failureFieldsOf(requestFailure),
+    gate,
   });
 
-  const discardQuietly = useCallback((requestId: RequestId) => {
-    const discard = discardRef.current;
-    if (discard) void discard({ requestId }).catch(() => undefined);
-  }, []);
-
-  const askId = ask?.requestId ?? null;
-  const askRow = useSessionQuery(api.repositoryLedger.get, askId ? { requestId: askId } : 'skip');
-  const shownRow = useSessionQuery(
-    api.repositoryLedger.get,
-    shownId ? { requestId: shownId } : 'skip'
-  );
-
-  const phase = derivePhase(ask, askRow, now);
-  const snapshotRow = phase === 'completed' ? askRow : shownRow;
-  const snapshot =
-    snapshotRow && snapshotRow.status === 'completed' && snapshotRow.expiresAt > now
-      ? toSnapshotMeta(snapshotRow as CompletedRow)
-      : null;
-  const snapshotExpired =
-    shownId !== null &&
-    (shownRow === null ||
-      (shownRow !== undefined && shownRow.status === 'completed' && shownRow.expiresAt <= now));
-
-  // Re-render at each deadline so pending→timed out and completed→expired flip without polling.
-  const askExpiresAt = askRow?.expiresAt;
-  const shownExpiresAt = shownRow?.expiresAt;
   useEffect(() => {
-    const upcoming = [askExpiresAt, shownExpiresAt].filter(
-      (t): t is number => t !== undefined && t > now
-    );
-    if (upcoming.length === 0) return;
-    const target = Math.min(...upcoming);
-    const timer = setTimeout(
-      () => setNow(Math.max(Date.now(), target)),
-      Math.max(0, target - Date.now())
-    );
-    return () => clearTimeout(timer);
-  }, [askExpiresAt, shownExpiresAt, now]);
+    latest.current = { askId, shownId };
+  }, [askId, shownId]);
 
   // Promote a completed ask to the displayed snapshot; discard the one it replaces.
-  // fallow-ignore-next-line complexity
   useEffect(() => {
-    if (phase !== 'completed' || !ask || ask.requestId === null) return;
-    const completedId = ask.requestId;
+    const completedId = completedAskId(phase, ask);
+    if (completedId === null) return;
     const previous = shownId;
     setShownId(completedId);
     setAsk(null);
     if (previous !== null && previous !== completedId) discardQuietly(previous);
   }, [phase, ask, shownId, discardQuietly]);
 
-  useEffect(() => {
-    latest.current = { askId, shownId };
-  }, [askId, shownId]);
-
   // Unmount (collapse or leave the page) discards the snapshot and any pending ask.
   useEffect(
     () => () => {
       sequence.current += 1;
-      const { askId: pendingId, shownId: snapshotId } = latest.current;
-      if (pendingId) discardQuietly(pendingId);
-      if (snapshotId) discardQuietly(snapshotId);
+      discardLatest(latest.current, discardQuietly);
     },
     [discardQuietly]
   );
 
   const request = useCallback(
-    // fallow-ignore-next-line complexity
     async (rescan: boolean) => {
       const current = ++sequence.current;
-      setOfflineRejected(false);
-      setCallError(null);
+      setRequestFailure(null);
       setAsk({ requestId: null, rescan });
       try {
         const { requestId } = await requestMutation({ machineId, rescan });
@@ -283,10 +413,10 @@ export function useRepositoryLedger(
         }
         setAsk({ requestId, rescan });
       } catch (error) {
-        if (current !== sequence.current) return;
-        setAsk(null);
-        if (getConvexErrorCode(error) === MACHINE_OFFLINE_CODE) setOfflineRejected(true);
-        else setCallError(getMachineErrorCopy(error, REQUEST_FALLBACK_COPY));
+        if (current === sequence.current) {
+          setAsk(null);
+          setRequestFailure(requestFailureOf(error));
+        }
       }
     },
     [machineId, requestMutation, discardQuietly]
@@ -294,44 +424,11 @@ export function useRepositoryLedger(
 
   const cancel = useCallback(() => {
     sequence.current += 1;
-    const { askId: pendingId, shownId: snapshotId } = latest.current;
+    discardLatest(latest.current, discardQuietly);
     setAsk(null);
     setShownId(null);
-    setOfflineRejected(false);
-    setCallError(null);
-    if (pendingId) discardQuietly(pendingId);
-    if (snapshotId) discardQuietly(snapshotId);
+    setRequestFailure(null);
   }, [discardQuietly]);
 
-  const view = deriveView({
-    phase,
-    rescan: ask?.rescan ?? false,
-    askRow,
-    snapshot,
-    snapshotExpired,
-    callError,
-    gate,
-    offlineRejected,
-  });
-
-  const entriesRequestId = snapshot?.requestId ?? null;
-  const paged = useSessionPaginatedQuery(
-    api.repositoryLedger.listEntries,
-    entriesRequestId ? { requestId: entriesRequestId } : 'skip',
-    { initialNumItems: LEDGER_PAGE_SIZE }
-  );
-  const pageStatus = paged?.status;
-  const loadMore = paged?.loadMore;
-  useEffect(() => {
-    if (pageStatus === 'CanLoadMore' && loadMore) loadMore(LEDGER_PAGE_SIZE);
-  }, [pageStatus, loadMore]);
-
-  return {
-    view,
-    snapshot,
-    entries: paged?.results ?? [],
-    isLoadingPages: snapshot !== null && pageStatus !== 'Exhausted',
-    request,
-    cancel,
-  };
+  return { view, snapshot, entries, isLoadingPages, request, cancel };
 }
