@@ -29,4 +29,12 @@ describe('reviewer guidance snapshots', () => {
     expect(guidance).toContain('**Authorization:**');
     expect(guidance).toContain('`defect` axis issue');
   });
+
+  test('assesses readability and comment quality in every review', () => {
+    const guidance = getReviewerGuidance({ nativeIntegration: false, recipientRole: 'planner' });
+
+    expect(guidance).toContain('Assess readability and comment quality in every review');
+    expect(guidance).toContain('`standards` axis');
+    expect(guidance).toContain('regardless of the stated focus');
+  });
 });
