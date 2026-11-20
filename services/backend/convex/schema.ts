@@ -1187,6 +1187,28 @@ export default defineSchema({
     .index('by_status', ['status']),
 
   /**
+   * Machine deletion job. `machines.deleteMachine` / the 90-day cleanup insert it (status 'purging'),
+   * `machineDeletion.purgeBatch` advances it, `sweepMachineDeletions` restarts dead chains.
+   * Doubles as the register guard (no re-register while 'purging') and the idempotent-repeat signal.
+   */
+  chatroom_machineDeletions: defineTable({
+    machineId: v.string(),
+    userId: v.id('users'),
+    initiatedBy: v.union(v.literal('user'), v.literal('system')),
+    status: v.union(v.literal('purging'), v.literal('completed'), v.literal('failed')),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    batchCount: v.number(),
+    restartCount: v.number(),
+    deletedRowCount: v.number(),
+    detachedWorkspaceCount: v.number(),
+    lastError: v.optional(v.string()),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_status_updatedAt', ['status', 'updatedAt']),
+
+  /**
    * Model visibility filters for a machine's harness.
    * Machine-level - shared across all users and chatrooms.
    * Hidden models appear greyed-out in the UI but are still visible.
@@ -1456,7 +1478,8 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
   })
     .index('by_batchId', ['batchId'])
-    .index('by_batchId_machineId', ['batchId', 'machineId']),
+    .index('by_batchId_machineId', ['batchId', 'machineId'])
+    .index('by_machineId', ['machineId']),
 
   /**
    * Folder picker requests initiated from the webapp setup wizard.
@@ -1475,13 +1498,15 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
-  }).index('by_userId_created', ['userId', 'createdAt']),
+  })
+    .index('by_userId_created', ['userId', 'createdAt'])
+    .index('by_machineId', ['machineId']),
 
   /**
    * Git clone requests initiated from the New Chatroom wizard.
    * The daemon is the sole writer of progress/result fields.
-   * Read only by id from the initiating tab. Never add list queries or indexes here:
-   * progress fields are high-frequency writes and a list would be invalidated on every update.
+   * Read only by id from the initiating tab. No list queries. `by_machineId` exists only
+   * for the machine-delete purge; never subscribe through it.
    */
   chatroom_gitCloneRequests: defineTable({
     userId: v.id('users'),
@@ -1496,7 +1521,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),
-  }),
+  }).index('by_machineId', ['machineId']),
 
   // ============================================================================
   // EVENT STREAM TABLE
@@ -2049,6 +2074,7 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machine_removedAt', ['machineId', 'removedAt'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 
   // The workspace selected as the primary workspace for a chatroom.

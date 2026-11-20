@@ -45,6 +45,15 @@ export const DAEMON_HEARTBEAT_INTERVAL_MS = 5 * 60_000; // 5 min
  *  so throttled lastSeenAt writes never expire between heartbeats. Set to 6× heartbeat. */
 export const DAEMON_HEARTBEAT_TTL_MS = 6 * DAEMON_HEARTBEAT_INTERVAL_MS; // 30 min
 
+// ─── Machine Deletion ────────────────────────────────────────────────────────
+
+/** A 'purging' machine deletion with no progress for this long is considered a dead chain. */
+export const MACHINE_PURGE_STALE_AFTER_MS = 2 * 60_000;
+/** After this many sweeper restarts a purge is marked 'failed'. */
+export const MACHINE_PURGE_MAX_RESTARTS = 10;
+/** Completed deletion tombstones are deleted after this long. */
+export const MACHINE_DELETION_RETENTION_MS = 7 * 24 * 60 * 60_000;
+
 // ─── Agent Request Deadline ──────────────────────────────────────────────────
 
 /** How long an agent.requestStart event is considered valid (ms). */
