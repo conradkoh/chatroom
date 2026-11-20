@@ -155,7 +155,7 @@ export async function projectAgentLifecycleFact(
     });
     if (!launchRequest || launchRequest.machineId !== machineId)
       return { success: true, skipped: true, rejectionReason: 'not_configured' };
-    await projectAgentRoleStatusReadModel(ctx, {
+    const result = await projectAgentRoleStatusReadModel(ctx, {
       chatroomId: fact.chatroomId,
       role: fact.role,
       event: {
@@ -174,7 +174,11 @@ export async function projectAgentLifecycleFact(
       sourceEventAt: fact.emittedAt,
       sourceRevisionKey: fact.revisionKey,
     });
-    return { success: true };
+    return {
+      success: true,
+      skipped: !result.applied,
+      ...(!result.applied ? { rejectionReason: result.reason } : {}),
+    };
   }
   if (fact.kind === 'chatroom_shutdown_complete') {
     const command = await ctx.db.get('chatroom_machineCommandInbox', fact.commandId);
