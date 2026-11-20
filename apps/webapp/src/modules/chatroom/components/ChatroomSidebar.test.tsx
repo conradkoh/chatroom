@@ -4,6 +4,7 @@ import {
   deriveChatroomState,
   isChatroomStopAvailable,
 } from '@workspace/shared/domain/chatroom-activity-status';
+import type * as ConvexReact from 'convex/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +30,21 @@ const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockPush = vi.fn();
+const mockSaveConfig = vi.fn();
+// Convex boundary for the favourites check. `useQueries` answers by query name.
+const mockQueryData: Record<string, unknown> = {};
+let mockQueriesPending = false;
+
+vi.mock('convex/react', async (importOriginal) => ({
+  ...(await importOriginal<typeof ConvexReact>()),
+  useQueries: (queries: Record<string, { query: { name: string } }>) =>
+    Object.fromEntries(
+      Object.entries(queries).map(([key, { query }]) => [
+        key,
+        mockQueriesPending ? undefined : mockQueryData[query.name],
+      ])
+    ),
+}));
 
 vi.mock('../hooks/useChatroomAgentOperations', () => ({
   useChatroomAgentOperations: () => ({
@@ -68,6 +84,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionId: () => ['session-1', () => {}],
   useSessionMutation: (mutationRef: unknown) => {
     const ref = mutationRef as { name?: string };
     if (ref && typeof ref === 'object' && 'name' in ref) {
@@ -84,6 +101,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'stopAllCommandRunsForChatroom') {
         return mockStopAllCommandRuns;
       }
+      if (name === 'saveConfig') {
+        return mockSaveConfig;
+      }
     }
     return () => {};
   },
@@ -96,15 +116,26 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getLifecycleImpacts: { name: 'getLifecycleImpacts' },
       markAsUnread: { name: 'markAsUnread' },
       markAsRead: { name: 'markAsRead' },
+      getTeamStructureForChatroom: { name: 'getTeamStructureForChatroom' },
+    },
+    workspaces: {
+      listWorkspacesForChatroom: { name: 'listWorkspacesForChatroom' },
     },
     machines: {
       sendCommand: { name: 'sendCommand' },
+      getMachineCapabilities: { name: 'getMachineCapabilities' },
     },
     commands: {
       stopAllCommandRunsForChatroom: { name: 'stopAllCommandRunsForChatroom' },
     },
+    machineConfigFavorites: {
+      getMachineConfigFavorites: { name: 'getMachineConfigFavorites' },
+    },
     agents: {
       requestChatroomAgentOperation: { name: 'requestChatroomAgentOperation' },
+      saveConfig: { name: 'saveConfig' },
+      listStatus: { name: 'listStatus' },
+      listLastSentLaunchRequests: { name: 'listLastSentLaunchRequests' },
     },
   },
 }));
@@ -180,13 +211,35 @@ const makeCompletedChatroom = (): ChatroomWithStatus =>
     name: 'Completed Chat',
   });
 
-const renderSidebar = (chatrooms: ChatroomWithStatus[]) => {
+const renderSidebar = (chatrooms: ChatroomWithStatus[], activeChatroomId = chatrooms[0]?._id) => {
   (useChatroomListing as ReturnType<typeof vi.fn>).mockReturnValue({
     chatrooms,
     isLoading: false,
   });
-  return render(<ChatroomSidebar activeChatroomId={chatrooms[0]?._id} />);
+  return render(<ChatroomSidebar activeChatroomId={activeChatroomId} />);
 };
+
+const CURRENT = { agentHarness: 'opencode', model: 'claude-opus-4-8[effort=high]' };
+
+function setStartCheckData(favourites: unknown[]) {
+  mockQueryData.getTeamStructureForChatroom = {
+    teamId: 'team-1',
+    roles: [{ role: 'builder' }, { role: 'user' }],
+  };
+  mockQueryData.listWorkspacesForChatroom = [
+    {
+      _id: 'ws-1',
+      machineId: 'machine-1',
+      workingDir: '/repo',
+      hostname: 'host-1',
+      machineAlias: 'laptop',
+    },
+  ];
+  mockQueryData.listStatus = [];
+  mockQueryData.listLastSentLaunchRequests = [{ role: 'builder', ...CURRENT, workingDir: '/repo' }];
+  mockQueryData.getMachineCapabilities = { availableHarnesses: ['opencode', 'pi'] };
+  mockQueryData.getMachineConfigFavorites = { favorites: favourites };
+}
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -215,6 +268,10 @@ describe('ChatroomSidebar', () => {
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
     mockPush.mockReset();
+    mockSaveConfig.mockReset();
+    mockSaveConfig.mockResolvedValue(undefined);
+    mockQueriesPending = false;
+    setStartCheckData([]);
     mockStatuses.clear();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
   });
