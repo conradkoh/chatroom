@@ -7,8 +7,6 @@ export const LEDGER_CHUNK_SIZE = 100;
 /** Max chunk rows per snapshot. */
 export const LEDGER_MAX_CHUNKS = LEDGER_MAX_ENTRIES / LEDGER_CHUNK_SIZE;
 /** Max working directories accepted by one bulk create call. */
-// Consumer lands in slice 3A-4 (bulk create); remove this suppression then.
-// fallow-ignore-next-line unused-export
 export const BULK_CREATE_MAX_REPOSITORIES = 50;
 
 const ledgerRootStatusValidator = v.union(
