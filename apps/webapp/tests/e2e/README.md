@@ -40,6 +40,7 @@ Behavior is locked by `scripts/resolve-e2e-suite.spec.ts`, `scripts/run-pre-push
 - The Convex dev deployment must be reachable from the dev server
 - Playwright browsers installed (`npx playwright install` if needed)
 - **For anonymous login on a hosted dev deployment and for admin specs:** `E2E_SEEDING_ENABLED` must be set on the Convex deployment (see [E2E Admin Seeding](#e2e-admin-seeding) below). Without it, `auth.loginAnon` rejects with `SIGNUP_DISABLED` and every `authenticatedPage` spec is skipped with that reason.
+- A local Convex instance advertising a loopback `http` origin (for example `pnpm local`) allows anonymous login without `E2E_SEEDING_ENABLED`; hosted dev still needs it. Admin specs still require `E2E_SEEDING_ENABLED` on every deployment, because the promote mutation is gated by it.
 
 ### Port configuration
 
