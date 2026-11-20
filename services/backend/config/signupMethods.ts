@@ -27,8 +27,7 @@ export function isInviteSignupAllowed(): boolean {
   return getAllowedSignupMethods().includes(SignupMethod.Invite);
 }
 
-export function getSignupConfigLabel(): string {
-  const methods = getAllowedSignupMethods();
+export function getSignupConfigLabel(methods: readonly SignupMethod[]): string {
   if (methods.length === 0) return 'Disabled';
   if (methods.length === 2) return 'Self + Invite';
   if (methods[0] === SignupMethod.Invite) return 'Invite only';

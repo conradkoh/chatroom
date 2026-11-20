@@ -1,6 +1,9 @@
 'use client';
 
-import { getSignupConfigLabel } from '@workspace/backend/config/signupMethods';
+import {
+  getAllowedSignupMethods,
+  getSignupConfigLabel,
+} from '@workspace/backend/config/signupMethods';
 import { Settings, Shield, Ticket, Users } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -48,7 +51,7 @@ export default function AdminDashboard() {
       },
       {
         title: 'Sign-up Mode',
-        value: getSignupConfigLabel(),
+        value: getSignupConfigLabel(getAllowedSignupMethods()),
         description: 'Edit featureFlags.ts and redeploy to change',
         icon: <Ticket className="h-4 w-4 text-muted-foreground" />,
       },
