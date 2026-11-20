@@ -318,6 +318,7 @@ export function useStartAgentsWithFavorites({
 
   const requestStart = useCallback(() => {
     if (phaseRef.current !== 'idle') return;
+    setFailures([]);
     moveTo('checking');
   }, [moveTo]);
 

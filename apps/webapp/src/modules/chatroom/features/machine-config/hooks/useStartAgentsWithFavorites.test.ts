@@ -255,6 +255,36 @@ describe('useStartAgentsWithFavorites', () => {
     expect(start).toHaveBeenCalledWith({ appliedCount: 1 });
   });
 
+  it('clears apply failures when a new flow starts', async () => {
+    mocks.data = twoRoleFixture();
+    mocks.saveConfig.mockImplementation((args: { role: string }) =>
+      args.role === 'reviewer'
+        ? Promise.reject(new Error('harness missing'))
+        : Promise.resolve(undefined)
+    );
+    const { result } = renderFlow();
+    await act(async () => {
+      result.current.requestStart();
+    });
+
+    await act(async () => {
+      result.current.dialogProps.onUseFavourites();
+    });
+    expect(result.current.phase).toBe('apply-error');
+
+    await act(async () => {
+      result.current.dialogProps.onCancel();
+    });
+    expect(result.current.phase).toBe('idle');
+
+    await act(async () => {
+      result.current.requestStart();
+    });
+
+    await waitFor(() => expect(result.current.phase).toBe('prompt'));
+    expect(result.current.dialogProps.failures).toEqual([]);
+  });
+
   it('returns to idle on cancel without saving or starting', async () => {
     mocks.data = fixture();
     const { result, start } = renderFlow();
