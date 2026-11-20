@@ -42,6 +42,7 @@ import {
   getMachineAvailableModels,
   upsertMachineAvailableModels,
 } from '../src/domain/usecase/machine/machine-available-models';
+import { getMachineUsage as getMachineUsageUseCase } from '../src/domain/usecase/machine/machine-usage';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -773,6 +774,77 @@ export const listMachineConnectivity = query({
             machineId: machine.machineId,
             connected: machineStatus?.status === 'online',
           };
+        })
+      ),
+    };
+  },
+});
+
+/**
+ * Owner-scoped usage counts per machine. Empty when unauthenticated.
+ */
+export const getMachineUsage = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return { machines: [] };
+    }
+
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return {
+      machines: await Promise.all(
+        machines.map(async (machine) => ({
+          machineId: machine.machineId,
+          ...(await getMachineUsageUseCase(ctx, machine.machineId)),
+        }))
+      ),
+    };
+  },
+});
+
+/**
+ * Last-seen for OFFLINE machines only; null when online. Never reads
+ * chatroom_machineLiveness for online machines (so online rows take no dependency
+ * on the 90-second liveness write). Offline with no liveness row → null.
+ */
+export const listMachineLastSeen = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return { machines: [] };
+    }
+
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return {
+      machines: await Promise.all(
+        machines.map(async (machine) => {
+          const status = await ctx.db
+            .query('chatroom_machineStatus')
+            .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+            .first();
+          if (status?.status === 'online') {
+            return { machineId: machine.machineId, lastSeenAt: null };
+          }
+
+          const liveness = await ctx.db
+            .query('chatroom_machineLiveness')
+            .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+            .first();
+          return { machineId: machine.machineId, lastSeenAt: liveness?.lastSeenAt ?? null };
         })
       ),
     };
