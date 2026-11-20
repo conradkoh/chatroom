@@ -250,6 +250,23 @@ export interface PurgeBatchResult {
   drained: boolean;
 }
 
+/** Soft-detach one workspace and clear its primary pointer when it was primary. */
+async function detachWorkspace(
+  ctx: MutationCtx,
+  workspace: { _id: Id<'chatroom_workspaces'>; chatroomId: Id<'chatroom_rooms'> },
+  now: number
+): Promise<void> {
+  await ctx.db.patch('chatroom_workspaces', workspace._id, { removedAt: now });
+
+  const primary = await ctx.db
+    .query('chatroom_primaryWorkspaces')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', workspace.chatroomId))
+    .first();
+  if (primary?.workspaceId === workspace._id) {
+    await ctx.db.delete('chatroom_primaryWorkspaces', primary._id);
+  }
+}
+
 /**
  * Soft-detach active workspaces: stamp `removedAt` and drop the chatroom's primary
  * workspace pointer when it pointed at the detached workspace. Rows are never
@@ -270,21 +287,103 @@ export async function detachActiveWorkspaces(
     .take(limit);
 
   const now = Date.now();
-  let detached = 0;
   for (const row of rows) {
-    await ctx.db.patch('chatroom_workspaces', row._id, { removedAt: now });
-    detached++;
-
-    const primary = await ctx.db
-      .query('chatroom_primaryWorkspaces')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', row.chatroomId))
-      .first();
-    if (primary?.workspaceId === row._id) {
-      await ctx.db.delete('chatroom_primaryWorkspaces', primary._id);
-    }
+    await detachWorkspace(ctx, row, now);
   }
 
-  return { detached, drained: rows.length < limit };
+  return { detached: rows.length, drained: rows.length < limit };
+}
+
+/**
+ * Delete one descriptor row, charging its cost (or the custom write count) to the
+ * remaining budget. Returns whether the row itself was removed.
+ */
+async function deleteOneRow(
+  ctx: MutationCtx,
+  descriptor: MachineScopedTable,
+  row: PurgeRowRef
+): Promise<{ spent: number; removed: boolean }> {
+  if (descriptor.deleteRow) {
+    const result = await descriptor.deleteRow(ctx, row);
+    return { spent: Math.max(descriptor.cost, result.writes), removed: result.removed };
+  }
+  await ctx.db.delete(descriptor.table, row._id);
+  return { spent: descriptor.cost, removed: true };
+}
+
+/**
+ * Delete the rows of one descriptor until the budget runs out or the table is
+ * drained. Returns the number of rows actually removed and whether this
+ * descriptor returned fewer rows than requested.
+ */
+async function deleteDescriptorRows(
+  ctx: MutationCtx,
+  descriptor: MachineScopedTable,
+  key: PurgeKey,
+  limit: number,
+  remaining: number
+): Promise<{ deleted: number; remaining: number; drained: boolean }> {
+  const rows = await descriptor.take(ctx, key, limit);
+  let deleted = 0;
+  let budget = remaining;
+  // A full page, or a custom deleteRow that needs another batch, means more work.
+  let moreWork = rows.length === limit;
+
+  for (const row of rows) {
+    const outcome = await deleteOneRow(ctx, descriptor, row);
+    budget -= outcome.spent;
+    if (outcome.removed) deleted++;
+    else moreWork = true;
+
+    if (budget <= 0) return { deleted, remaining: budget, drained: false };
+  }
+
+  return { deleted, remaining: budget, drained: !moreWork };
+}
+
+/** Purge one descriptor if the remaining budget allows at least one row. */
+async function purgeDescriptor(
+  ctx: MutationCtx,
+  key: PurgeKey,
+  descriptor: MachineScopedTable,
+  remaining: number
+): Promise<{ deleted: number; remaining: number; drained: boolean } | null> {
+  const limit = Math.floor(remaining / descriptor.cost);
+  if (limit <= 0) return null;
+  return deleteDescriptorRows(ctx, descriptor, key, limit, remaining);
+}
+
+/** Run one registry step and report whether the batch can keep going. */
+async function runRegistryStep(
+  ctx: MutationCtx,
+  key: PurgeKey,
+  descriptor: MachineScopedTable,
+  remaining: number
+): Promise<{ deleted: number; remaining: number; drained: boolean; keepGoing: boolean }> {
+  const step = await purgeDescriptor(ctx, key, descriptor, remaining);
+  if (step === null) return { deleted: 0, remaining, drained: false, keepGoing: false };
+  return { ...step, keepGoing: step.remaining > 0 };
+}
+
+/** Walk the registry in order, charging each row to the shared budget. */
+async function purgeRegisteredTables(
+  ctx: MutationCtx,
+  key: PurgeKey,
+  startingRemaining: number
+): Promise<{ deleted: number; remaining: number; drained: boolean }> {
+  let remaining = startingRemaining;
+  let deleted = 0;
+  let drained = true;
+
+  for (const descriptor of MACHINE_SCOPED_TABLES) {
+    const step = await runRegistryStep(ctx, key, descriptor, remaining);
+    deleted += step.deleted;
+    remaining = step.remaining;
+    if (!step.drained) drained = false;
+    if (!step.keepGoing) return { deleted, remaining, drained: false };
+  }
+
+  return { deleted, remaining, drained };
 }
 
 /**
@@ -296,50 +395,17 @@ export async function purgeMachineBatch(
   key: PurgeKey,
   budget: number = MACHINE_PURGE_BUDGET
 ): Promise<PurgeBatchResult> {
-  let remaining = budget;
-  let deleted = 0;
-
   const detach = await detachActiveWorkspaces(
     ctx,
     key.machineId,
-    Math.floor(remaining / WORKSPACE_DETACH_COST)
+    Math.floor(budget / WORKSPACE_DETACH_COST)
   );
-  remaining -= detach.detached * WORKSPACE_DETACH_COST;
-  let drained = detach.drained;
+  const remaining = budget - detach.detached * WORKSPACE_DETACH_COST;
+  const tables = await purgeRegisteredTables(ctx, key, remaining);
 
-  outer: for (const descriptor of MACHINE_SCOPED_TABLES) {
-    const n = Math.floor(remaining / descriptor.cost);
-    if (n <= 0) {
-      drained = false;
-      break;
-    }
-
-    const rows = await descriptor.take(ctx, key, n);
-    for (const row of rows) {
-      if (descriptor.deleteRow) {
-        const result = await descriptor.deleteRow(ctx, row);
-        remaining -= Math.max(descriptor.cost, result.writes);
-        if (result.removed) {
-          deleted++;
-        } else {
-          drained = false;
-        }
-      } else {
-        await ctx.db.delete(descriptor.table, row._id);
-        remaining -= descriptor.cost;
-        deleted++;
-      }
-
-      if (remaining <= 0) {
-        drained = false;
-        break outer;
-      }
-    }
-
-    if (rows.length === n) {
-      drained = false;
-    }
-  }
-
-  return { deleted, detached: detach.detached, drained };
+  return {
+    deleted: tables.deleted,
+    detached: detach.detached,
+    drained: detach.drained && tables.drained,
+  };
 }
