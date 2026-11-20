@@ -1,3 +1,4 @@
+import type { BulkCreateResult } from '@workspace/backend/src/domain/usecase/chatroom/create-chatrooms-for-working-dirs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -5,13 +6,9 @@ import {
   addBulkResult,
   bulkCreateDisabledReason,
   chatroomCount,
-  failureReason,
   planBulkCreate,
   repositoryCount,
 } from './bulkCreate';
-
-const INVALID_WORKING_DIR_COPY =
-  "That path isn't valid. Use an absolute folder path such as /Users/you/projects.";
 
 function paths(count: number): string[] {
   return Array.from({ length: count }, (_, index) => `/r/repo-${String(index).padStart(3, '0')}`);
@@ -40,20 +37,6 @@ describe('planBulkCreate', () => {
 
     expect(planBulkCreate(all, 50).batch[0]).toBe('/r/repo-050');
     expect(planBulkCreate(all, 50).batch[49]).toBe('/r/repo-099');
-  });
-});
-
-describe('failureReason', () => {
-  it('maps a known code to the friendly copy', () => {
-    expect(failureReason({ code: 'INVALID_WORKING_DIR', message: 'raw' })).toBe(
-      INVALID_WORKING_DIR_COPY
-    );
-  });
-
-  it('falls back to the backend message for an unknown code', () => {
-    expect(failureReason({ code: 'SOMETHING', message: 'Backend says no' })).toBe(
-      'Backend says no'
-    );
   });
 });
 
@@ -89,8 +72,35 @@ describe('addBulkResult', () => {
       created: 48,
       skipped: 1,
       failed: 1,
-      failures: [{ workingDir: '/Users/me/projects/bad dir', reason: INVALID_WORKING_DIR_COPY }],
+      failures: [
+        {
+          workingDir: '/Users/me/projects/bad dir',
+          reason: "That path isn't valid. Use an absolute folder path such as /Users/you/projects.",
+        },
+      ],
     });
+  });
+
+  it('falls back to the backend message for an unknown failure code', () => {
+    // Unknown codes are a forward-compatibility case: the backend union only carries
+    // INVALID_WORKING_DIR today, so this pins the fallback for a future failure code.
+    const result = {
+      results: [
+        {
+          workingDir: '/Users/me/projects/oops',
+          outcome: 'failed',
+          code: 'SOMETHING',
+          message: 'Backend says no',
+        },
+      ],
+      created: 0,
+      skipped: 0,
+      failed: 1,
+    } as unknown as BulkCreateResult;
+
+    const totals = addBulkResult(EMPTY_BULK_TOTALS, result);
+
+    expect(totals.failures[0]?.reason).toBe('Backend says no');
   });
 });
 

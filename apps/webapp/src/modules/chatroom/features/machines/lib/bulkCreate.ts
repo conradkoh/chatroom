@@ -37,7 +37,7 @@ export const EMPTY_BULK_TOTALS: BulkCreateTotals = {
 };
 
 /** Mapped copy for the item's code, else the backend message. */
-export function failureReason(outcome: { code: string; message: string }): string {
+function failureReason(outcome: { code: string; message: string }): string {
   return copyForErrorCode(outcome.code) ?? outcome.message;
 }
 
