@@ -292,7 +292,6 @@ export const discard = mutation({
     ...SessionIdArg,
     requestId: v.id('chatroom_repositoryLedgerRequests'),
   },
-  // fallow-ignore-next-line complexity
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return { ok: true as const };
