@@ -4,11 +4,12 @@ Machine-local configuration and process management — not Convex, not domain lo
 
 ## Belongs here
 
-| File / folder       | Role                                                 |
-| ------------------- | ---------------------------------------------------- |
-| `machine-config.ts` | Port over `infrastructure/machine/storage.ts`        |
-| `process-spawn.ts`  | Port over daemon-start process spawner               |
-| `harness/`          | Harness SDK registry + bound direct-harness adapters |
+| File / folder                | Role                                                 |
+| ---------------------------- | ---------------------------------------------------- |
+| `machine-config.ts`          | Port over `infrastructure/machine/storage.ts`        |
+| `process-spawn.ts`           | Port over daemon-start process spawner               |
+| `repository-ledger-store.ts` | Atomic local JSON store for the repository ledger    |
+| `harness/`                   | Harness SDK registry + bound direct-harness adapters |
 
 ## Does not belong here
 
