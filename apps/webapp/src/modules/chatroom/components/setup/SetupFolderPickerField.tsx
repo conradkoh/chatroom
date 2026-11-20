@@ -1,7 +1,7 @@
 'use client';
 
 import { FolderOpen, Loader2 } from 'lucide-react';
-import { memo, type ReactNode } from 'react';
+import { memo, type ReactNode, type Ref } from 'react';
 
 /** Folder picker state for a path field. Built by useSetupWorkspaceFolderPicker. */
 export interface FolderPickerState {
@@ -44,6 +44,14 @@ interface SetupFolderPickerFieldProps {
   picker: FolderPickerState;
   /** Shown under the input row, for example a clone target hint. */
   hint?: ReactNode;
+  /** Extra control rendered after Browse in the input row (e.g. an "Add root" submit button). */
+  actions?: ReactNode;
+  /** Marks the input invalid: aria-invalid + error border. */
+  invalid?: boolean;
+  /** Ref to the text input, for callers that restore focus. */
+  inputRef?: Ref<HTMLInputElement>;
+  /** Below `sm`, stack input / Browse / actions vertically with full-width buttons. */
+  stackOnMobile?: boolean;
 }
 
 function FieldHeading({
@@ -75,17 +83,21 @@ function BrowseButton({
   onBrowse,
   disabled,
   isPending,
+  fullWidthOnMobile,
 }: {
   onBrowse: () => void;
   disabled: boolean;
   isPending: boolean;
+  fullWidthOnMobile: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onBrowse}
       disabled={disabled || isPending}
-      className="flex h-10 shrink-0 items-center gap-2 px-3 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 sm:h-9"
+      className={`flex h-10 shrink-0 items-center gap-2 px-3 border border-chatroom-border text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 sm:h-9 ${
+        fullWidthOnMobile ? 'w-full justify-center sm:w-auto' : ''
+      }`}
     >
       <BrowseIcon isPending={isPending} />
       Browse
@@ -151,26 +163,46 @@ export const SetupFolderPickerField = memo(function SetupFolderPickerField({
   browseDisabled,
   picker,
   hint,
+  actions,
+  invalid,
+  inputRef,
+  stackOnMobile,
 }: SetupFolderPickerFieldProps) {
   return (
     <div>
       <FieldHeading variant={variant}>{heading}</FieldHeading>
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
+        <div
+          className={
+            stackOnMobile
+              ? 'flex flex-col gap-2 sm:flex-row sm:items-center'
+              : 'flex items-center gap-2'
+          }
+        >
           <input
+            ref={inputRef}
             type="text"
             aria-label={inputAriaLabel}
+            aria-invalid={invalid || undefined}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             disabled={inputDisabled}
-            className="min-w-0 h-10 sm:h-9 flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-sm font-mono text-chatroom-text-primary px-3 focus:outline-none focus:border-chatroom-accent disabled:opacity-50"
+            className={`min-w-0 h-10 sm:h-9 bg-chatroom-bg-tertiary border text-sm font-mono text-chatroom-text-primary px-3 focus:outline-none disabled:opacity-50 ${
+              stackOnMobile ? 'w-full flex-1 basis-auto' : 'flex-1'
+            } ${
+              invalid
+                ? 'border-chatroom-status-error focus:border-chatroom-status-error'
+                : 'border-chatroom-border focus:border-chatroom-accent'
+            }`}
           />
           <BrowseButton
             onBrowse={picker.onBrowse}
             disabled={browseDisabled}
             isPending={picker.isPending}
+            fullWidthOnMobile={stackOnMobile ?? false}
           />
+          {actions}
         </div>
         {hint}
         <PickerStatus variant={variant} picker={picker} waitingText={waitingText} />
