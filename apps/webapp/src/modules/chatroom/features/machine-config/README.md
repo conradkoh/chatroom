@@ -23,6 +23,8 @@ Client-side state and hooks for machine harness/model favorites and usage-based 
 
 Favourites are checked on demand, when a start is requested, not on render. Choosing `Use favourites & start` persists each favourite via `agents.saveConfig`, so later starts use it too.
 
+A role that is running or starting anywhere in the chatroom is skipped by the start check, so the flow never prompts about that role or writes its start config while it runs. Running status is chatroom-wide and keyed per role (one status row per role). When status is unknown nothing is skipped, so the check never suppresses a prompt it cannot justify.
+
 Server favorites API: `services/backend/convex/machineConfigFavorites.ts`
 
 Shared types: `types/machine.ts` (AgentHarness stays shared).
