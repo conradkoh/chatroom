@@ -695,6 +695,55 @@ describe('batched purge', () => {
 
     expect(deleted).toBe(10);
   });
+
+  test('large-row tables purge at most 10 rows per batch at the default budget', async () => {
+    const { sessionId } = await createTestSession('md-large-cap');
+    const userId = await userIdFor(sessionId);
+    const machineId = 'machine-md-large-cap';
+
+    const { first, second, remainingAfterFirst, remainingAfterSecond } = await t.run(
+      async (ctx) => {
+        // Parent request lives on a DIFFERENT machine. The request descriptor (cost 1)
+        // runs before the chunk descriptor, so a same-machine parent would spend budget
+        // and change the expected per-batch count.
+        const requestId = await ctx.db.insert('chatroom_repositoryLedgerRequests', {
+          userId,
+          machineId: 'machine-md-large-cap-parent',
+          rescan: false,
+          status: 'completed',
+          createdAt: 1,
+          updatedAt: 1,
+          expiresAt: 1,
+        });
+        for (let i = 0; i < 20; i++) {
+          await ctx.db.insert('chatroom_repositoryLedgerChunks', {
+            requestId,
+            machineId,
+            chunkIndex: i,
+            entries: [],
+          });
+        }
+        const countLeft = async () =>
+          (
+            await ctx.db
+              .query('chatroom_repositoryLedgerChunks')
+              .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+              .collect()
+          ).length;
+
+        const first = await purgeMachineBatch(ctx, { machineId, userId });
+        const remainingAfterFirst = await countLeft();
+        const second = await purgeMachineBatch(ctx, { machineId, userId });
+        const remainingAfterSecond = await countLeft();
+        return { first, second, remainingAfterFirst, remainingAfterSecond };
+      }
+    );
+
+    expect(first).toMatchObject({ deleted: 10, drained: false });
+    expect(remainingAfterFirst).toBe(10);
+    expect(second).toMatchObject({ deleted: 10, drained: false });
+    expect(remainingAfterSecond).toBe(0);
+  });
 });
 
 // ─── 6. Sweeper ─────────────────────────────────────────────────────────────

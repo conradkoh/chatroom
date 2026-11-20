@@ -11,8 +11,8 @@
  * ## Budgeting
  *
  * Convex caps a mutation at a fixed amount of document read/write work. Each
- * descriptor declares a `cost`: `1` for small rows and `15` for rows that can be
- * hundreds of KB (gzip blobs, shards, diffs, file content, command runs). A batch
+ * descriptor declares a `cost`: `1` for small rows and `30` for rows that can
+ * approach 1 MiB (gzip blobs, shards, diffs, file content, command runs). A batch
  * stops before the budget is exhausted and reports `drained: false` so the caller
  * schedules the next batch. `drained: true` means every descriptor returned fewer
  * rows than it asked for — i.e. the machine's data (and the detached workspaces)
@@ -30,7 +30,15 @@
 import type { Id, TableNames } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
-/** Document-work budget for one purge batch (Convex caps a mutation at ~300 units). */
+/**
+ * Document-work budget for one purge batch (about 300 units per Convex mutation).
+ *
+ * Small rows cost 1 unit. Rows that can approach 1 MiB (blobs, shards, diffs, file
+ * content, command runs, ledger chunks) cost 30 units, so one batch reads at most 10
+ * of them (about 10 MiB). That leaves headroom under Convex's per-mutation read-bytes
+ * cap (about 16 MiB, per the Convex limits docs) for small rows and the workspace
+ * detach step. The earlier cost of 15 allowed 20 such rows in one mutation.
+ */
 export const MACHINE_PURGE_BUDGET = 300;
 
 /** Budget charged per detached workspace (patch + optional primary-pointer delete + lookup). */
@@ -46,8 +54,8 @@ type PurgeRowRef = { _id: Id<TableNames> };
 
 export interface MachineScopedTable {
   table: TableNames;
-  /** 1 = small row; 15 = row that can be hundreds of KB (blobs, shards, diffs, file content, command runs). */
-  cost: 1 | 15;
+  /** 1 = small row; 30 = row that can approach 1 MiB (blobs, shards, diffs, file content, command runs, ledger chunks). */
+  cost: 1 | 30;
   /** Reads up to `limit` rows via an index whose first field is machineId. */
   take: (ctx: MutationCtx, key: PurgeKey, limit: number) => Promise<PurgeRowRef[]>;
   /** Optional: replaces ctx.db.delete. Returns writes used and whether the row itself was removed (false = more work next batch). */
@@ -88,7 +96,7 @@ interface MachineIndexedQuery {
 function byMachine<T extends TableNames>(
   table: T,
   indexName: string,
-  cost: 1 | 15 = 1,
+  cost: 1 | 30 = 1,
   userScoped = false
 ): MachineScopedTable {
   return {
@@ -136,8 +144,8 @@ const machinesTable: MachineScopedTable = {
  */
 const commandRunsTable: MachineScopedTable = {
   table: 'chatroom_commandRunsV2',
-  cost: 15,
-  take: byMachine('chatroom_commandRunsV2', 'by_machine_workingDir', 15).take,
+  cost: 30,
+  take: byMachine('chatroom_commandRunsV2', 'by_machine_workingDir', 30).take,
   deleteRow: async (ctx, row) => {
     const runId = row._id as Id<'chatroom_commandRunsV2'>;
     const chunks = await ctx.db
@@ -199,7 +207,7 @@ export const MACHINE_SCOPED_TABLES: readonly MachineScopedTable[] = [
   byMachine('chatroom_machineProjectRoots', 'by_machineId'),
   byMachine('chatroom_capabilities_refresh_machine_results', 'by_machineId'),
   byMachine('chatroom_repositoryLedgerRequests', 'by_machineId_createdAt'),
-  byMachine('chatroom_repositoryLedgerChunks', 'by_machineId', 15),
+  byMachine('chatroom_repositoryLedgerChunks', 'by_machineId', 30),
 
   // Git state.
   byMachine('chatroom_workspaceGitState', 'by_machine_workingDir'),
@@ -213,17 +221,17 @@ export const MACHINE_SCOPED_TABLES: readonly MachineScopedTable[] = [
   byMachine('chatroom_workspaceRecentCommits', 'by_machine_workingDir'),
   byMachine('chatroom_workspaceDiffRequests', 'by_machine_status'),
   byMachine('chatroom_workspacePRCommits', 'by_machine_workingDir_prNumber'),
-  byMachine('chatroom_workspaceFullDiff', 'by_machine_workingDir', 15),
-  byMachine('chatroom_workspaceFullDiffV2', 'by_machine_workingDir', 15),
-  byMachine('chatroom_workspacePRDiffs', 'by_machine_workingDir', 15),
-  byMachine('chatroom_workspaceCommitDetail', 'by_machine_workingDir_sha', 15),
-  byMachine('chatroom_workspaceCommitDetailV2', 'by_machine_workingDir_sha', 15),
+  byMachine('chatroom_workspaceFullDiff', 'by_machine_workingDir', 30),
+  byMachine('chatroom_workspaceFullDiffV2', 'by_machine_workingDir', 30),
+  byMachine('chatroom_workspacePRDiffs', 'by_machine_workingDir', 30),
+  byMachine('chatroom_workspaceCommitDetail', 'by_machine_workingDir_sha', 30),
+  byMachine('chatroom_workspaceCommitDetailV2', 'by_machine_workingDir_sha', 30),
 
   // File trees and listings.
-  byMachine('chatroom_workspaceFileTree', 'by_machine_workingDir', 15),
-  byMachine('chatroom_workspaceFileTreeV2', 'by_machine_workingDir', 15),
-  byMachine('chatroom_workspaceFileTreeCheckpointV2', 'by_machine_workingDir', 15),
-  byMachine('chatroom_workspaceFileTreeShardV3', 'by_machine_workingDir_syncGeneration', 15),
+  byMachine('chatroom_workspaceFileTree', 'by_machine_workingDir', 30),
+  byMachine('chatroom_workspaceFileTreeV2', 'by_machine_workingDir', 30),
+  byMachine('chatroom_workspaceFileTreeCheckpointV2', 'by_machine_workingDir', 30),
+  byMachine('chatroom_workspaceFileTreeShardV3', 'by_machine_workingDir_syncGeneration', 30),
   byMachine('chatroom_workspaceFileTreeManifestV3', 'by_machine_workingDir'),
   byMachine('chatroom_workspaceFileTreeDelta', 'by_machine_workingDir_revision'),
   byMachine('chatroom_workspaceFileTreeDeltaOperation', 'by_machine_workingDir_operationId'),
@@ -237,8 +245,8 @@ export const MACHINE_SCOPED_TABLES: readonly MachineScopedTable[] = [
   byMachine('chatroom_workspaceFileSearchRequests', 'by_machine_status'),
 
   // File content.
-  byMachine('chatroom_workspaceFileContent', 'by_machine_workingDir_path', 15),
-  byMachine('chatroom_workspaceFileContentV2', 'by_machine_workingDir_path', 15),
+  byMachine('chatroom_workspaceFileContent', 'by_machine_workingDir_path', 30),
+  byMachine('chatroom_workspaceFileContentV2', 'by_machine_workingDir_path', 30),
   byMachine('chatroom_workspaceFileContentRequests', 'by_machine_status'),
   byMachine('chatroom_workspaceFileWriteRequests', 'by_machine_status'),
 
