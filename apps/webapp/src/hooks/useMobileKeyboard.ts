@@ -179,7 +179,6 @@ export function useVisualViewportOffsetTop(enabled = true): number {
  * Returns 0 while disabled or before the first measurement. Callers treat any value
  * <= 1.01 as "not zoomed", so 0 is safe.
  */
-// fallow-ignore-next-line unused-export
 export function useVisualViewportScale(enabled = true): number {
   return useVisualViewportValue(enabled, computeVisualViewportScale);
 }

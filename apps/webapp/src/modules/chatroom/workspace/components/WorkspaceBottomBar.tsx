@@ -67,6 +67,7 @@ import {
   useMainChatComposerKeyboardInset,
   useVisualViewportKeyboardInset,
   useVisualViewportOffsetTop,
+  useVisualViewportScale,
 } from '@/hooks/useMobileKeyboard';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
@@ -961,12 +962,17 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 
 export const WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX = 120;
 export const WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS = 300;
+/** Pinch-zoom shrinks visualViewport, which reads as occlusion. Above this scale it is zoom, not a keyboard. */
+// fallow-ignore-next-line unused-export
+export const WORKSPACE_BOTTOM_BAR_MAX_KEYBOARD_VIEWPORT_SCALE = 1.01;
 
 export function shouldSuppressWorkspaceBottomBarSafeArea(
   keyboardOccludedPx: number,
-  insetSettled = true
+  insetSettled = true,
+  viewportScale = 1
 ): boolean {
   if (!insetSettled) return false;
+  if (viewportScale > WORKSPACE_BOTTOM_BAR_MAX_KEYBOARD_VIEWPORT_SCALE) return false;
   return keyboardOccludedPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
 }
 
@@ -986,9 +992,10 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   const mobile = !isDesktop;
   // Lift: unchanged, composer-focus gated.
   const keyboardInsetPx = useMainChatComposerKeyboardInset(mobile);
-  // Suppression: keyboard geometry only, never focus.
+  // Suppression: keyboard geometry only, never focus, and never while pinch-zoomed.
   const visualViewportInsetPx = useVisualViewportKeyboardInset(mobile); // Android: keyboard height
   const visualViewportOffsetTopPx = useVisualViewportOffsetTop(mobile); // iOS: keyboard height via layout scroll
+  const visualViewportScale = useVisualViewportScale(mobile); // >1 means pinch-zoomed
   const keyboardOccludedPx = mobile ? visualViewportInsetPx + visualViewportOffsetTopPx : 0;
   const [insetSettled, setInsetSettled] = useState(!mobile);
   useEffect(() => {
@@ -1005,7 +1012,8 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   }, [mobile]);
   const suppressBottomInset = shouldSuppressWorkspaceBottomBarSafeArea(
     keyboardOccludedPx,
-    insetSettled
+    insetSettled,
+    visualViewportScale
   );
 
   // A tap on the bar must not blur the main composer. A blur between mousedown and click

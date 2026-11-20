@@ -10,6 +10,7 @@ import {
 const mockUseIsDesktop = vi.fn();
 const mockUseKeyboardInset = vi.fn(); // raw visualViewport inset (Android)
 const mockUseViewportOffsetTop = vi.fn(); // raw visualViewport offsetTop (iOS)
+const mockUseViewportScale = vi.fn(); // visualViewport.scale (pinch-zoom factor)
 const mockUseMainChatComposerFocused = vi.fn();
 
 function serializeShellHierarchy(outer: HTMLElement) {
@@ -37,6 +38,7 @@ vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
     ...actual,
     useVisualViewportKeyboardInset: (enabled?: boolean) => (enabled ? mockUseKeyboardInset() : 0),
     useVisualViewportOffsetTop: (enabled?: boolean) => (enabled ? mockUseViewportOffsetTop() : 0),
+    useVisualViewportScale: (enabled?: boolean) => (enabled ? mockUseViewportScale() : 1),
     useMainChatComposerKeyboardInset: (enabled?: boolean) =>
       enabled && mockUseMainChatComposerFocused() ? mockUseKeyboardInset() : 0,
   };
@@ -47,6 +49,7 @@ describe('WorkspaceBottomBarShell', () => {
     mockUseIsDesktop.mockReturnValue(false);
     mockUseKeyboardInset.mockReturnValue(0);
     mockUseViewportOffsetTop.mockReturnValue(0);
+    mockUseViewportScale.mockReturnValue(1);
     mockUseMainChatComposerFocused.mockReturnValue(false);
   });
 
@@ -199,6 +202,29 @@ describe('WorkspaceBottomBarShell', () => {
     expect(screen.getByTestId('workspace-bottom-bar').style.transform).toBe('translateY(-300px)');
     vi.useRealTimers();
   });
+
+  it('keeps bottom inset present under pinch-zoom with no keyboard', () => {
+    vi.useFakeTimers();
+    // 800px layout viewport pinched to 2x: visualViewport.height is 400, so the
+    // occlusion reads as 400px with no keyboard on screen.
+    mockUseKeyboardInset.mockReturnValue(400);
+    mockUseViewportScale.mockReturnValue(2);
+    renderShell();
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('present');
+    expect(bar().style.transform).toBe('');
+    vi.useRealTimers();
+  });
+
+  it('keeps bottom inset present when a keyboard is up but the view is pinch-zoomed', () => {
+    vi.useFakeTimers();
+    mockUseKeyboardInset.mockReturnValue(300);
+    mockUseViewportScale.mockReturnValue(1.5);
+    renderShell();
+    act(() => vi.advanceTimersByTime(300)); // settle window
+    expect(bar().getAttribute('data-bottom-inset')).toBe('present');
+    vi.useRealTimers();
+  });
 });
 
 describe('shouldSuppressWorkspaceBottomBarSafeArea', () => {
@@ -209,6 +235,18 @@ describe('shouldSuppressWorkspaceBottomBarSafeArea', () => {
     expect(shouldSuppressWorkspaceBottomBarSafeArea(300, false)).toBe(false);
     expect(shouldSuppressWorkspaceBottomBarSafeArea(300, true)).toBe(true);
   });
+
+  it('does not suppress under pinch-zoom, even with a large occlusion', () => {
+    // 800px layout at 2x: visualViewport.height = 400, occlusion = 400 with no keyboard.
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(400, true, 2)).toBe(false);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(300, true, 1.5)).toBe(false);
+  });
+
+  it('treats scale up to 1.01 as not zoomed and anything above as zoomed', () => {
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(300, true, 1)).toBe(true);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(300, true, 1.01)).toBe(true);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(300, true, 1.02)).toBe(false);
+  });
 });
 
 describe('WorkspaceBottomBarShell tap guard', () => {
@@ -216,6 +254,7 @@ describe('WorkspaceBottomBarShell tap guard', () => {
     mockUseIsDesktop.mockReturnValue(false);
     mockUseKeyboardInset.mockReturnValue(0);
     mockUseViewportOffsetTop.mockReturnValue(0);
+    mockUseViewportScale.mockReturnValue(1);
     mockUseMainChatComposerFocused.mockReturnValue(false);
   });
 
@@ -272,6 +311,7 @@ describe('runtime hierarchy snapshots', () => {
     mockUseIsDesktop.mockReturnValue(false);
     mockUseKeyboardInset.mockReturnValue(0);
     mockUseViewportOffsetTop.mockReturnValue(0);
+    mockUseViewportScale.mockReturnValue(1);
     mockUseMainChatComposerFocused.mockReturnValue(false);
   });
   const renderSnapshot = () =>
