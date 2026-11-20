@@ -7,7 +7,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect, test } from '../../fixtures/auth.fixture';
 import { getConvexUrl } from '../../support/env';
 import { TAG_DOWNSTREAM, TAG_NAV } from '../../support/tags';
-import { readSessionId, seedConnectedMachine } from '../../support/wizard-seed';
+import { CLAIM_TIMEOUT_MS, readSessionId, seedConnectedMachine } from '../../support/wizard-seed';
 
 const DESKTOP_VIEWPORT = { width: 1440, height: 1000 } as const;
 const MOBILE_VIEWPORT = { width: 390, height: 844 } as const;
@@ -20,6 +20,12 @@ type LedgerRequestId = Id<'chatroom_repositoryLedgerRequests'>;
 const LEDGER_ROOT = '/e2e/ledger';
 /** Distinct names, so each filter term below matches exactly one row. */
 const LEDGER_REPO_NAMES = ['repo-alpha', 'repo-bravo', 'repo-charlie'] as const;
+
+/**
+ * Lets a discard that the UI sends on collapse reach the server before a test asserts the row
+ * survived. Discards are fire-and-forget, so a negative assertion needs a bounded settle.
+ */
+const DISCARD_SETTLE_MS = 1_000;
 
 /**
  * An online machine with one project root. Load needs both. `page` must already be authenticated.
@@ -80,6 +86,40 @@ async function reportSnapshot(
   });
 }
 
+/**
+ * Stands in for the daemon: claims the `daemon.reportRepositoryLedger` command that the UI's Load
+ * click enqueued and returns the request id it carries. Acks every claimed command so the queue
+ * stays clean. Mirrors `claimGitCloneCommand` in support/wizard-seed.ts.
+ */
+async function claimLedgerRequestId(seed: LedgerSeed): Promise<LedgerRequestId> {
+  const deadline = Date.now() + CLAIM_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const claimed = await seed.client.mutation(api.daemon.machineCommandInbox.claimNext, {
+      sessionId: seed.sessionId,
+      machineId: seed.machineId,
+    });
+    if (claimed) {
+      await seed.client.mutation(api.daemon.machineCommandInbox.acknowledge, {
+        sessionId: seed.sessionId,
+        commandId: claimed.commandId,
+      });
+    }
+    if (claimed?.type === 'daemon.reportRepositoryLedger') return claimed.requestId;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(
+    `No daemon.reportRepositoryLedger command reached machine ${seed.machineId} within ${CLAIM_TIMEOUT_MS} ms`
+  );
+}
+
+/** The ready section and every row of the snapshot the report just completed. */
+async function expectSnapshotRendered(card: Locator): Promise<void> {
+  await expect(card.getByTestId('ledger-ready')).toBeVisible({ timeout: 15_000 });
+  await expect(card.getByTestId('repository-row')).toHaveCount(LEDGER_REPO_NAMES.length, {
+    timeout: 15_000,
+  });
+}
+
 /** Load → asking → report → rows render. Every Load test goes through this path. */
 async function loadSnapshotThroughUi(
   card: Locator,
@@ -90,10 +130,7 @@ async function loadSnapshotThroughUi(
   await card.getByTestId('ledger-load').click();
   await expect(card.getByTestId('ledger-asking')).toBeVisible();
   await reportSnapshot(seed, requestId, droppedEntryCount);
-  await expect(card.getByTestId('ledger-ready')).toBeVisible({ timeout: 15_000 });
-  await expect(card.getByTestId('repository-row')).toHaveCount(LEDGER_REPO_NAMES.length, {
-    timeout: 15_000,
-  });
+  await expectSnapshotRendered(card);
 }
 
 /** Opens the card's actions menu and selects one entry by its stable test id. */
@@ -357,13 +394,18 @@ test.describe('Machines tab repositories', { tag: [TAG_DOWNSTREAM] }, () => {
     await expect(card.getByTestId('ledger-asking')).toHaveCount(0);
   });
 
-  test('collapsing the card discards the snapshot, so re-expanding asks again', async ({
+  test('collapsing the card discards a snapshot this consumer created', async ({
     authenticatedPage: page,
   }) => {
     const seed = await seedLedgerMachine(page, 'e2e-ledger-discard-host', 'e2e-ledger-discard');
-    const requestId = await createPendingRequest(seed);
     const card = await openExpandedCard(page, seed.machineId);
-    await loadSnapshotThroughUi(card, seed, requestId);
+
+    // The UI's Load click creates the request, so this consumer owns it.
+    await card.getByTestId('ledger-load').click();
+    await expect(card.getByTestId('ledger-asking')).toBeVisible();
+    const requestId = await claimLedgerRequestId(seed);
+    await reportSnapshot(seed, requestId);
+    await expectSnapshotRendered(card);
 
     await card.getByTestId('machine-expander').click();
     await expect(card.getByTestId('machine-repositories-section')).toHaveCount(0);
@@ -373,6 +415,30 @@ test.describe('Machines tab repositories', { tag: [TAG_DOWNSTREAM] }, () => {
       )
       .toBeNull();
 
+    await card.getByTestId('machine-expander').click();
+    await expect(card.getByTestId('ledger-load')).toBeVisible();
+    await expect(card.getByTestId('ledger-ready')).toHaveCount(0);
+  });
+
+  test('collapsing the card keeps a snapshot another consumer created', async ({
+    authenticatedPage: page,
+  }) => {
+    const seed = await seedLedgerMachine(page, 'e2e-ledger-reuse-host', 'e2e-ledger-reuse');
+    // The seeded pending request belongs to the test client. Load reuses it, so the UI does not own it.
+    const requestId = await createPendingRequest(seed);
+    const card = await openExpandedCard(page, seed.machineId);
+    await loadSnapshotThroughUi(card, seed, requestId);
+
+    await card.getByTestId('machine-expander').click();
+    await expect(card.getByTestId('machine-repositories-section')).toHaveCount(0);
+    await new Promise((resolve) => setTimeout(resolve, DISCARD_SETTLE_MS));
+    const row = await seed.client.query(api.repositoryLedger.get, {
+      sessionId: seed.sessionId,
+      requestId,
+    });
+    expect(row?.status).toBe('completed');
+
+    // Re-expanding starts a fresh hook: the Load state is idle again, the row was not discarded.
     await card.getByTestId('machine-expander').click();
     await expect(card.getByTestId('ledger-load')).toBeVisible();
     await expect(card.getByTestId('ledger-ready')).toHaveCount(0);
