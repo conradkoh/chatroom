@@ -160,6 +160,9 @@ export type BackendErrorCode =
   | 'PROJECT_ROOT_LIMIT_REACHED'
   | 'REPOSITORY_LEDGER_REQUEST_NOT_FOUND'
 
+  // ── Bulk create ───────────────────────────────────────────────────
+  | 'BULK_CREATE_LIMIT_EXCEEDED'
+
   // ── Folder picker ─────────────────────────────────────────────────
   | 'FOLDER_PICKER_REQUEST_NOT_FOUND'
 
@@ -459,6 +462,10 @@ export const BACKEND_ERROR_CODES = {
   /** Repository ledger request not found for this machine */
   REPOSITORY_LEDGER_REQUEST_NOT_FOUND: 'REPOSITORY_LEDGER_REQUEST_NOT_FOUND',
 
+  // ── Bulk create ───────────────────────────────────────────────────
+  /** More than BULK_CREATE_MAX_REPOSITORIES working dirs in one call; nothing was created */
+  BULK_CREATE_LIMIT_EXCEEDED: 'BULK_CREATE_LIMIT_EXCEEDED',
+
   // ── Folder picker ─────────────────────────────────────────────────
   /** Folder picker request not found */
   FOLDER_PICKER_REQUEST_NOT_FOUND: 'FOLDER_PICKER_REQUEST_NOT_FOUND',
@@ -707,6 +714,9 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.PROJECT_ROOT_NESTED,
   BACKEND_ERROR_CODES.PROJECT_ROOT_LIMIT_REACHED,
   BACKEND_ERROR_CODES.REPOSITORY_LEDGER_REQUEST_NOT_FOUND,
+
+  // Bulk create
+  BACKEND_ERROR_CODES.BULK_CREATE_LIMIT_EXCEEDED,
 
   // Folder picker
   BACKEND_ERROR_CODES.FOLDER_PICKER_REQUEST_NOT_FOUND,
