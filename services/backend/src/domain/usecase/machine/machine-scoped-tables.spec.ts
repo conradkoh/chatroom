@@ -61,7 +61,7 @@ describe('MACHINE_SCOPED_TABLES', () => {
       const userId = await ctx.db.insert('users', { type: 'anonymous', name: 'purge-spec' });
       for (const entry of MACHINE_SCOPED_TABLES) {
         const rows = await entry.take(ctx, { machineId: 'no-such-machine', userId }, 1);
-        expect(rows, `${entry.table} (${entry.table} index)`).toEqual([]);
+        expect(rows, entry.table).toEqual([]);
       }
     });
   });
