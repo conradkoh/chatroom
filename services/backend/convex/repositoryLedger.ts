@@ -244,7 +244,7 @@ function acceptedPath(entry: LedgerEntryInput): string | null {
   return normalizePathOrNull(entry.path);
 }
 
-/** Keep the first entry per already-normalized path; later duplicates are dropped silently. */
+/** Keep the first entry per already-normalized path; later duplicates are dropped. */
 function dedupeByPath(entries: LedgerEntryInput[]): LedgerEntryInput[] {
   const seenPaths = new Set<string>();
   return entries.filter((entry) => {
@@ -255,25 +255,31 @@ function dedupeByPath(entries: LedgerEntryInput[]): LedgerEntryInput[] {
 }
 
 /**
- * Keeps the first entry per normalized path. Over-long and invalid entries are rejected and counted
- * in `invalidPathCount` (rejected entries, including invalid and over-long). Duplicates are skipped
- * silently and are not counted. Input is already capped to LEDGER_MAX_ENTRIES by the caller.
+ * Keeps the first entry per normalized path. Rejected entries (invalid or over-long) and duplicate
+ * paths are omitted and counted in `omittedCount`. Input is already capped to LEDGER_MAX_ENTRIES by the caller.
  */
 function prepareEntries(input: LedgerEntryInput[]): {
   entries: LedgerEntryInput[];
-  invalidPathCount: number;
+  omittedCount: number;
 } {
   const accepted: LedgerEntryInput[] = [];
-  let invalidPathCount = 0;
+  let rejectedCount = 0;
   for (const entry of input) {
     const path = acceptedPath(entry);
     if (path === null) {
-      invalidPathCount++;
+      rejectedCount++;
       continue;
     }
     accepted.push({ ...entry, path });
   }
-  return { entries: dedupeByPath(accepted), invalidPathCount };
+  const entries = dedupeByPath(accepted);
+  return { entries, omittedCount: rejectedCount + (accepted.length - entries.length) };
+}
+
+/** The daemon's dropped count as stored: a missing, negative or non-finite value counts as 0. */
+function sanitizeDroppedCount(count: number | undefined): number {
+  if (count === undefined || !Number.isFinite(count) || count <= 0) return 0;
+  return Math.floor(count);
 }
 
 /** Insert the entries as chunk rows of LEDGER_CHUNK_SIZE. Runs inside the caller's transaction. */
@@ -358,7 +364,8 @@ async function markRequestFailed(
 
 /**
  * Store a completed snapshot: chunk rows then the terminal request row, in one transaction.
- * Entries are capped at LEDGER_MAX_ENTRIES, so the write is complete or absent.
+ * Entries are capped at LEDGER_MAX_ENTRIES, so the write is complete or absent. `invalidPathCount`
+ * is the server's omitted count plus the daemon's sanitized `droppedEntryCount`.
  */
 async function storeCompletedSnapshot(
   ctx: MutationCtx,
@@ -369,10 +376,11 @@ async function storeCompletedSnapshot(
     truncated?: boolean | undefined;
     roots?: Infer<typeof ledgerRootValidator>[] | undefined;
     ledgerGeneratedAt?: number | undefined;
+    droppedEntryCount?: number | undefined;
   }
 ): Promise<void> {
   const reported = input.entries ?? [];
-  const { entries, invalidPathCount } = prepareEntries(reported.slice(0, LEDGER_MAX_ENTRIES));
+  const { entries, omittedCount } = prepareEntries(reported.slice(0, LEDGER_MAX_ENTRIES));
   const truncated = input.truncated === true || reported.length > LEDGER_MAX_ENTRIES;
   const now = Date.now();
 
@@ -383,7 +391,7 @@ async function storeCompletedSnapshot(
     updatedAt: now,
     expiresAt: now + REPOSITORY_LEDGER_SNAPSHOT_TTL_MS,
     repositoryCount: entries.length,
-    invalidPathCount,
+    invalidPathCount: omittedCount + sanitizeDroppedCount(input.droppedEntryCount),
     truncated,
     ledgerGeneratedAt: input.ledgerGeneratedAt,
     roots: input.roots?.slice(0, LEDGER_MAX_ROOTS),
@@ -397,8 +405,9 @@ async function storeCompletedSnapshot(
  * patches the row terminal in the same transaction; failed patches the row only.
  *
  * Caps applied on completion: entries are capped at LEDGER_MAX_ENTRIES, entries with over-long
- * fields are dropped and counted in `invalidPathCount` (rejected entries, including invalid and
- * over-long), duplicate normalized paths are stored once, and roots are capped at LEDGER_MAX_ROOTS.
+ * fields are dropped and counted in `invalidPathCount`, duplicate normalized paths are stored once
+ * and also counted, the daemon's `droppedEntryCount` is added to that count, and roots are capped at
+ * LEDGER_MAX_ROOTS. Entries past LEDGER_MAX_ENTRIES are not counted; they set `truncated`.
  */
 export const reportResult = mutation({
   args: {
@@ -410,6 +419,8 @@ export const reportResult = mutation({
     truncated: v.optional(v.boolean()),
     roots: v.optional(v.array(ledgerRootValidator)),
     ledgerGeneratedAt: v.optional(v.number()),
+    /** Entries the daemon dropped before sending (over-cap or duplicate paths). Added to the stored invalidPathCount. */
+    droppedEntryCount: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -428,6 +439,7 @@ export const reportResult = mutation({
       truncated: args.truncated,
       roots: args.roots,
       ledgerGeneratedAt: args.ledgerGeneratedAt,
+      droppedEntryCount: args.droppedEntryCount,
     });
     return { ok: true as const };
   },

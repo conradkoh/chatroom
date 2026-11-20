@@ -62,6 +62,7 @@ describe('createRepositoryLedgerPorts', () => {
         },
       ],
       truncated: false,
+      droppedEntryCount: 3,
       roots: [{ path: '/projects', status: 'ok', repositoryCount: 1 }],
       ledgerGeneratedAt: 11,
     });
@@ -82,6 +83,7 @@ describe('createRepositoryLedgerPorts', () => {
         },
       ],
       truncated: false,
+      droppedEntryCount: 3,
       roots: [{ path: '/projects', status: 'ok', repositoryCount: 1 }],
       ledgerGeneratedAt: 11,
     });

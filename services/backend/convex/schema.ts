@@ -1559,6 +1559,10 @@ export default defineSchema({
     expiresAt: v.number(), // pending: createdAt + command TTL; terminal: completedAt + snapshot TTL
     errorMessage: v.optional(v.string()),
     repositoryCount: v.optional(v.number()),
+    /**
+     * Entries the snapshot omits: invalid, over-long or duplicate paths, including entries the daemon
+     * dropped before sending. Entries past LEDGER_MAX_ENTRIES are not counted; they set `truncated`.
+     */
     invalidPathCount: v.optional(v.number()),
     truncated: v.optional(v.boolean()),
     ledgerGeneratedAt: v.optional(v.number()),

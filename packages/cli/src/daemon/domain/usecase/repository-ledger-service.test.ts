@@ -405,6 +405,7 @@ describe('createRepositoryLedgerService', () => {
       status: 'completed',
       entries: [{ ...REPO_A, discoveredAt: 1_000 }],
       truncated: false,
+      droppedEntryCount: 0,
       roots: [{ path: ROOT, status: 'ok', repositoryCount: 1 }],
       ledgerGeneratedAt: 1_000,
     });
@@ -424,6 +425,7 @@ describe('createRepositoryLedgerService', () => {
       status: 'completed',
       entries: [{ ...REPO_A, discoveredAt: 500 }],
       truncated: false,
+      droppedEntryCount: 0,
       roots: [{ path: ROOT, status: 'ok', repositoryCount: 1 }],
       ledgerGeneratedAt: 500,
     });
@@ -455,6 +457,7 @@ describe('createRepositoryLedgerService', () => {
       status: 'completed',
       entries: [],
       truncated: false,
+      droppedEntryCount: 0,
       roots: [],
     });
   });
@@ -616,9 +619,68 @@ describe('createRepositoryLedgerService', () => {
     expect(report.status).toBe('completed');
     if (report.status !== 'completed') throw new Error('expected completed');
     expect(report.entries).toEqual([{ ...REPO_A, discoveredAt: 500 }]);
+    expect(report.droppedEntryCount).toBe(2);
     expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Repository ledger snapshot dropped 2 over-cap entries')
+      expect.stringContaining(
+        'Repository ledger snapshot dropped 2 entries (over-cap or duplicate paths)'
+      )
     );
+  });
+
+  it('reports over-cap and duplicate entries as droppedEntryCount', async () => {
+    const longName = 'n'.repeat(300);
+    const entries: StoredLedger['entries'] = [
+      { ...REPO_A, discoveredAt: 500 },
+      { ...REPO_A, name: 'duplicate', discoveredAt: 500 },
+      {
+        path: '/roots/long-name',
+        name: longName,
+        root: ROOT,
+        branch: 'main',
+        remoteUrl: null,
+        discoveredAt: 500,
+      },
+      {
+        path: '/roots/c',
+        name: 'c',
+        root: ROOT,
+        branch: 'main',
+        remoteUrl: null,
+        discoveredAt: 500,
+      },
+    ];
+    const store = createMemoryStore(storedLedger(entries));
+    const { ports } = createPorts({ store });
+
+    createRepositoryLedgerService(ports).serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    const report = await reported(ports);
+
+    expect(report.status).toBe('completed');
+    if (report.status !== 'completed') throw new Error('expected completed');
+    expect(report.droppedEntryCount).toBe(2);
+    expect(report.entries.map((entry) => entry.path)).toEqual(['/roots/a', '/roots/c']);
+    expect(report.truncated).toBe(false);
+  });
+
+  it('an all-dropped snapshot completes with zero entries and the full count', async () => {
+    const entries: StoredLedger['entries'] = Array.from({ length: 3 }, (_, index) => ({
+      path: `/roots/over-cap-${index}`,
+      name: 'n'.repeat(300),
+      root: ROOT,
+      branch: 'main',
+      remoteUrl: null,
+      discoveredAt: 500,
+    }));
+    const store = createMemoryStore(storedLedger(entries));
+    const { ports } = createPorts({ store });
+
+    createRepositoryLedgerService(ports).serveSnapshot({ requestId: REQUEST_ID, rescan: false });
+    const report = await reported(ports);
+
+    expect(report.status).toBe('completed');
+    if (report.status !== 'completed') throw new Error('expected completed');
+    expect(report.entries).toEqual([]);
+    expect(report.droppedEntryCount).toBe(3);
   });
 
   it('keeps the first entry for a duplicated path', async () => {
@@ -761,6 +823,7 @@ describe('createRepositoryLedgerService with real scanner and store', () => {
         },
       ],
       truncated: false,
+      droppedEntryCount: 0,
       roots: [{ path: root, status: 'ok', repositoryCount: 1 }],
       ledgerGeneratedAt: 777,
     });

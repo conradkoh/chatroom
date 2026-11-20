@@ -71,6 +71,11 @@ export type RepositoryLedgerSnapshotReport =
       status: 'completed';
       entries: SnapshotWireEntry[];
       truncated: boolean;
+      /**
+       * Entries omitted from `entries` because they were over the wire caps or duplicate paths.
+       * Entries past SNAPSHOT_WIRE_CAPS.entries are not counted; they set `truncated`.
+       */
+      droppedEntryCount: number;
       roots: SnapshotWireRoot[];
       ledgerGeneratedAt?: number;
     }
@@ -276,34 +281,39 @@ function isTruncated(stored: StoredLedger, keptCount: number): boolean {
 /** Walks stored entries once, keeping the first entry per path that fits the wire caps. */
 function collectEntries(stored: StoredLedger): {
   kept: SnapshotWireEntry[];
-  overCapCount: number;
+  droppedCount: number;
 } {
   const seenPaths = new Set<string>();
   const kept: SnapshotWireEntry[] = [];
-  let overCapCount = 0;
+  let droppedCount = 0;
   for (const entry of stored.entries) {
     const selection = selectEntry(entry, seenPaths);
     if (selection === 'kept') kept.push(toWireEntry(entry));
-    else if (selection === 'over-cap') overCapCount += 1;
+    else droppedCount += 1;
   }
-  return { kept, overCapCount };
+  return { kept, droppedCount };
 }
 
 /**
- * Entries for one report. First entry per path wins. Over-cap entries are dropped and counted
- * (logged, not sent). Entries past SNAPSHOT_WIRE_CAPS.entries are dropped and mark the report truncated.
+ * Entries for one report. First entry per path wins. Over-cap and duplicate entries are dropped and
+ * counted in `droppedCount` (logged, not sent). Entries past SNAPSHOT_WIRE_CAPS.entries are dropped
+ * and mark the report truncated.
  */
 function toSnapshotEntries(stored: StoredLedger): {
   entries: SnapshotWireEntry[];
   truncated: boolean;
+  droppedCount: number;
 } {
-  const { kept, overCapCount } = collectEntries(stored);
-  if (overCapCount > 0) {
-    warn(`Repository ledger snapshot dropped ${overCapCount} over-cap entries`);
+  const { kept, droppedCount } = collectEntries(stored);
+  if (droppedCount > 0) {
+    warn(
+      `Repository ledger snapshot dropped ${droppedCount} entries (over-cap or duplicate paths)`
+    );
   }
   return {
     entries: kept.slice(0, SNAPSHOT_WIRE_CAPS.entries),
     truncated: isTruncated(stored, kept.length),
+    droppedCount,
   };
 }
 
@@ -321,14 +331,22 @@ function completedReport(
   stored: StoredLedger | null
 ): RepositoryLedgerSnapshotReport {
   if (stored === null) {
-    return { requestId, status: 'completed', entries: [], truncated: false, roots: [] };
+    return {
+      requestId,
+      status: 'completed',
+      entries: [],
+      truncated: false,
+      droppedEntryCount: 0,
+      roots: [],
+    };
   }
-  const { entries, truncated } = toSnapshotEntries(stored);
+  const { entries, truncated, droppedCount } = toSnapshotEntries(stored);
   return {
     requestId,
     status: 'completed',
     entries,
     truncated,
+    droppedEntryCount: droppedCount,
     roots: toWireRoots(stored),
     ledgerGeneratedAt: stored.generatedAt,
   };

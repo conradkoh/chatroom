@@ -84,6 +84,7 @@ function reportCompleted(
     truncated?: boolean;
     roots?: LedgerRootArg[];
     ledgerGeneratedAt?: number;
+    droppedEntryCount?: number;
   } = {}
 ) {
   return t.mutation(api.repositoryLedger.reportResult, {
@@ -95,6 +96,7 @@ function reportCompleted(
     truncated: args.truncated,
     roots: args.roots,
     ledgerGeneratedAt: args.ledgerGeneratedAt,
+    droppedEntryCount: args.droppedEntryCount,
   });
 }
 
@@ -524,12 +526,78 @@ describe('repository ledger reports', () => {
     const row = await readRequest(requestId);
     expect(row!.status).toBe('completed');
     expect(row!.repositoryCount).toBe(1);
-    expect(row!.invalidPathCount).toBe(0);
+    expect(row!.invalidPathCount).toBe(1);
 
     const stored = (await readChunks(requestId)).flatMap((chunk) => chunk.entries);
     expect(stored).toHaveLength(1);
     expect(stored[0]!.name).toBe('first');
     expect(stored[0]!.path).toBe('/work/repo-1');
+  });
+
+  test('the daemon-dropped count is added to the stored invalidPathCount', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-daemon-dropped',
+      'machine-ledger-report-daemon-dropped'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    await reportCompleted(sessionId, machineId, requestId, {
+      entries: [entry(0), entry(2, { path: 'relative/repo' })],
+      droppedEntryCount: 2,
+    });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.repositoryCount).toBe(1);
+    expect(row!.invalidPathCount).toBe(3);
+
+    const read = await t.query(api.repositoryLedger.get, { sessionId, requestId });
+    expect(read).not.toBeNull();
+    expect(read!.invalidPathCount).toBe(3);
+  });
+
+  test('an all-dropped report completes with zero entries', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-all-dropped',
+      'machine-ledger-report-all-dropped'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    const result = await reportCompleted(sessionId, machineId, requestId, {
+      entries: [],
+      droppedEntryCount: 4,
+    });
+    expect(result).toEqual({ ok: true });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.repositoryCount).toBe(0);
+    expect(row!.invalidPathCount).toBe(4);
+    expect(await readChunks(requestId)).toHaveLength(0);
+  });
+
+  test('a negative or non-finite daemon count stores 0', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    const { sessionId, machineId } = await setupMachine(
+      'test-ledger-report-negative-dropped',
+      'machine-ledger-report-negative-dropped'
+    );
+    const { requestId } = await requestSnapshot(sessionId, machineId);
+
+    await reportCompleted(sessionId, machineId, requestId, {
+      entries: [entry(0)],
+      droppedEntryCount: -3,
+    });
+
+    const row = await readRequest(requestId);
+    expect(row!.status).toBe('completed');
+    expect(row!.repositoryCount).toBe(1);
+    expect(row!.invalidPathCount).toBe(0);
   });
 
   test('the stored row keeps the reported roots and ledgerGeneratedAt', async () => {
