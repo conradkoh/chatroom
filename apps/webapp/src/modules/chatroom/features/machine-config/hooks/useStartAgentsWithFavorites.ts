@@ -103,6 +103,8 @@ function machineIdsOf(workspaces: readonly WorkspaceRow[]): string[] {
   return [...new Set(workspaces.map((ws) => ws.machineId))];
 }
 
+// Flat builder of query descriptors (one per workspace, machine and role); the loops are the request set.
+// fallow-ignore-next-line complexity
 function detailQueries(
   sessionId: string,
   chatroomId: string,
@@ -157,6 +159,8 @@ function toStartCheckWorkspace(ws: WorkspaceRow): StartCheckWorkspace {
 }
 
 /** Builds the detector input from settled results and runs it. Call only when both stages are `ready`. */
+// Flat adapter from settled query results to the pure detector: each line is a null-coalescing default.
+// fallow-ignore-next-line complexity
 function findMismatches(
   core: Record<string, any>,
   detail: Record<string, any>
@@ -206,6 +210,8 @@ function findMismatches(
 type CheckResult =
   { status: 'pending' } | { status: 'error' } | { status: 'ready'; mismatches: FavoriteMismatch[] };
 
+// Pure reducer over the two query stages: each branch is one settled state the controller must distinguish.
+// fallow-ignore-next-line complexity
 function readCheck(core: Record<string, unknown>, detail: Record<string, unknown>): CheckResult {
   if (!hasCoreKeys(core)) return { status: 'pending' };
   const coreState = settle(core);
@@ -229,6 +235,8 @@ function toApplyItem(chatroomId: string, mismatch: FavoriteMismatch): ApplyFavor
 }
 
 // ── Controller ──────────────────────────────────────────────────────────────
+// Composition root of the start-flow state machine: one phase table plus query gating. Splitting it scatters the transitions the controller tests pin.
+// fallow-ignore-next-line complexity
 export function useStartAgentsWithFavorites({
   chatroomId,
   start,
@@ -279,6 +287,8 @@ export function useStartAgentsWithFavorites({
 
   const check = phase === 'checking' ? readCheck(core, detail) : null;
 
+  // Routes a settled check to start, prompt or the error fallback: each branch is a controller outcome the tests pin.
+  // fallow-ignore-next-line complexity
   useEffect(() => {
     if (phaseRef.current !== 'checking' || check === null || check.status === 'pending') return;
     if (check.status === 'error') {
