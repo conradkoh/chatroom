@@ -705,7 +705,7 @@ describe('ChatroomSidebar', () => {
       expect(mockSaveConfig).not.toHaveBeenCalled();
     });
 
-    it('clicks and keys inside the dialog do not select the chatroom row', async () => {
+    it('clicks, keys and context menus inside the dialog do not select the chatroom row or open its menu', async () => {
       setStartCheckData([FAVOURITE]);
       // Render the row inactive: selection is a no-op for the active chatroom, so it could not observe propagation.
       renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })], 'chr-other');
@@ -713,8 +713,10 @@ describe('ChatroomSidebar', () => {
       const row = await screen.findByTestId('start-favourites-row');
       fireEvent.click(row);
       fireEvent.keyDown(row, { key: 'Enter' });
+      fireEvent.contextMenu(row);
       expect(mockPush).not.toHaveBeenCalled();
       expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+      expect(screen.queryByText('Archive Chat')).not.toBeInTheDocument();
     });
 
     it('play button is disabled with aria-busy and a checking title while the check runs', () => {

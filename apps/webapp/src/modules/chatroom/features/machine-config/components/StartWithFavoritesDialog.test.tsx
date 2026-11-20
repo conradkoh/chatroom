@@ -204,29 +204,38 @@ describe('StartWithFavoritesDialog', () => {
     expect(props.onCancel).not.toHaveBeenCalled();
   });
 
-  it('interacting inside the dialog does not reach a parent click or keydown handler', () => {
-    const parentClick = vi.fn();
-    const parentKeyDown = vi.fn();
+  it('interacting inside the dialog does not reach a parent click, keydown, context-menu or press handler', () => {
+    const parent = {
+      onClick: vi.fn(),
+      onKeyDown: vi.fn(),
+      onContextMenu: vi.fn(),
+      onPointerDown: vi.fn(),
+      onMouseDown: vi.fn(),
+      onTouchStart: vi.fn(),
+    };
 
     render(
-      <div onClick={parentClick} onKeyDown={parentKeyDown}>
+      <div {...parent}>
         <StartWithFavoritesDialog {...makeProps()} />
       </div>
     );
 
-    fireEvent.click(screen.getByTestId('start-favourites-row'));
+    const row = screen.getByTestId('start-favourites-row');
+    fireEvent.click(row);
+    fireEvent.contextMenu(row);
+    fireEvent.pointerDown(row);
+    fireEvent.mouseDown(row);
+    fireEvent.touchStart(row);
     fireEvent.click(screen.getByText('Start agents with your favourite models?'));
     fireEvent.keyDown(screen.getByTestId('start-favourites-use'), { key: 'Enter' });
 
-    expect(parentClick).not.toHaveBeenCalled();
-    expect(parentKeyDown).not.toHaveBeenCalled();
+    for (const handler of Object.values(parent)) expect(handler).not.toHaveBeenCalled();
 
     const overlay = document.querySelector('[data-slot="alert-dialog-overlay"]');
     expect(overlay).not.toBeNull();
     fireEvent.click(overlay as Element);
 
-    expect(parentClick).not.toHaveBeenCalled();
-    expect(parentKeyDown).not.toHaveBeenCalled();
+    expect(parent.onClick).not.toHaveBeenCalled();
   });
 
   it('renders nothing when closed', () => {

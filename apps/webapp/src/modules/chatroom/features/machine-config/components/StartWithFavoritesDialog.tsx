@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowRight, Loader2, Star } from 'lucide-react';
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject, type SyntheticEvent } from 'react';
 
 import { getCompactModelLabel } from '../../../types/machine';
 import type {
@@ -329,6 +329,11 @@ function ErrorVariant({
   );
 }
 
+/** Stops a React event before it reaches an ancestor handler, such as the sidebar row's select or context menu. */
+function stopPropagation(event: SyntheticEvent) {
+  event.stopPropagation();
+}
+
 export function StartWithFavoritesDialog({
   open,
   phase,
@@ -355,7 +360,11 @@ export function StartWithFavoritesDialog({
     // Portal events bubble through React to the sidebar row: contain them here. Escape must still reach onOpenChange.
     <div
       className="contents"
-      onClick={(event) => event.stopPropagation()}
+      onClick={stopPropagation}
+      onContextMenu={stopPropagation}
+      onPointerDown={stopPropagation}
+      onMouseDown={stopPropagation}
+      onTouchStart={stopPropagation}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') event.stopPropagation();
       }}
