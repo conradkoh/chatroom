@@ -13,6 +13,7 @@ import { RepositoryRow } from './RepositoryRow';
 import { useBulkCreateChatrooms } from '../hooks/useBulkCreateChatrooms';
 import {
   useRepositoryLedger,
+  type LedgerEntryView,
   type LedgerSnapshotMeta,
   type LedgerView,
   type UseRepositoryLedgerResult,
@@ -87,18 +88,6 @@ function LedgerAsking({ displayName, onCancel }: { displayName: string; onCancel
   );
 }
 
-interface LedgerReadyProps {
-  ledger: UseRepositoryLedgerResult;
-  snapshot: LedgerSnapshotMeta;
-  view: LedgerView;
-  machineId: string;
-  displayName: string;
-  connected: boolean | undefined;
-  currentRootPaths: readonly string[] | undefined;
-  creatingPath: string | null;
-  onCreate: (path: string) => void;
-}
-
 function rescanIssueCopy(
   issue: NonNullable<Extract<LedgerView, { kind: 'ready' }>['rescanIssue']>
 ) {
@@ -150,7 +139,164 @@ function NoMatch({ filter, onClear }: { filter: string; onClear: () => void }) {
   );
 }
 
-// fallow-ignore-next-line complexity
+function LedgerHeader({
+  summary,
+  showRescan,
+  rescan,
+}: {
+  summary: string;
+  showRescan: boolean;
+  rescan: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p data-testid="ledger-summary" className="font-mono text-[10px] text-chatroom-text-muted">
+        {summary}
+      </p>
+      {showRescan && rescan}
+    </div>
+  );
+}
+
+/** Banners, the rescan-failure notice, and the page-loading progress line. */
+function LedgerNotices({
+  snapshot,
+  connected,
+  currentRootPaths,
+  view,
+  isLoadingPages,
+  loadedCount,
+}: {
+  snapshot: LedgerSnapshotMeta;
+  connected: boolean | undefined;
+  currentRootPaths: readonly string[] | undefined;
+  view: LedgerView;
+  isLoadingPages: boolean;
+  loadedCount: number;
+}) {
+  const rescanIssue = view.kind === 'ready' ? view.rescanIssue : undefined;
+  return (
+    <>
+      <RepositoryBanners
+        snapshot={snapshot}
+        connected={connected}
+        currentRootPaths={currentRootPaths}
+      />
+      {rescanIssue && <LedgerNotice>{rescanIssueCopy(rescanIssue)}</LedgerNotice>}
+      {isLoadingPages && (
+        <p data-testid="ledger-loading-pages" className="text-xs text-chatroom-text-muted">
+          Loading repositories… {loadedCount} of {snapshot.totalCount}
+        </p>
+      )}
+    </>
+  );
+}
+
+function LedgerEmpty({ rescan }: { rescan: ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <p data-testid="ledger-empty" className="text-xs text-chatroom-text-muted">
+        No git repositories found under your project roots.
+      </p>
+      {rescan}
+    </div>
+  );
+}
+
+interface RepositoryListSectionProps {
+  entries: LedgerEntryView[];
+  isLoadingPages: boolean;
+  machineId: string;
+  displayName: string;
+  connected: boolean | undefined;
+  creatingPath: string | null;
+  onCreate: (path: string) => void;
+}
+
+/** Filter, bulk create, and the virtualised list. Owns the filter and bulk-dialog state. */
+function RepositoryListSection({
+  entries,
+  isLoadingPages,
+  machineId,
+  displayName,
+  connected,
+  creatingPath,
+  onCreate,
+}: RepositoryListSectionProps) {
+  const [filter, setFilter] = useState('');
+  const [bulkPaths, setBulkPaths] = useState<string[] | null>(null);
+  const bulkButtonRef = useRef<HTMLButtonElement>(null);
+  // The list filters on the deferred value so typing stays responsive on large snapshots.
+  const deferredFilter = useDeferredValue(filter);
+  const visible = useMemo(
+    () => filterRepositories(entries, deferredFilter),
+    [entries, deferredFilter]
+  );
+  const bulkRows = visible.filter((entry) => !entry.hasChatroom);
+  const bulkDisabledReason = bulkCreateDisabledReason({ connected, isLoadingPages });
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <RepositoryFilterBar value={filter} onChange={setFilter} />
+        </div>
+        {visible.length > 0 && (
+          <BulkCreateButton
+            count={bulkRows.length}
+            disabledReason={bulkDisabledReason}
+            buttonRef={bulkButtonRef}
+            onOpen={() => setBulkPaths(bulkRows.map((entry) => entry.path))}
+          />
+        )}
+      </div>
+      {visible.length === 0 ? (
+        <NoMatch filter={deferredFilter} onClear={() => setFilter('')} />
+      ) : (
+        <VirtualizedScrollList
+          items={visible}
+          height="min(28rem, 60dvh)"
+          estimateSize={() => 72}
+          getItemKey={(_, entry) => entry.path}
+          overscan={8}
+          scrollResetKey={deferredFilter}
+          renderItem={(entry) => (
+            <RepositoryRow
+              entry={entry}
+              disabled={connected !== true}
+              creating={creatingPath === entry.path}
+              onCreate={onCreate}
+            />
+          )}
+        />
+      )}
+      {bulkPaths !== null && (
+        <BulkCreateDialog
+          machineId={machineId}
+          displayName={displayName}
+          paths={bulkPaths}
+          onClose={() => {
+            setBulkPaths(null);
+            bulkButtonRef.current?.focus();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+interface LedgerReadyProps {
+  ledger: UseRepositoryLedgerResult;
+  snapshot: LedgerSnapshotMeta;
+  view: LedgerView;
+  machineId: string;
+  displayName: string;
+  connected: boolean | undefined;
+  currentRootPaths: readonly string[] | undefined;
+  creatingPath: string | null;
+  onCreate: (path: string) => void;
+}
+
 function LedgerReady({
   ledger,
   snapshot,
@@ -162,25 +308,12 @@ function LedgerReady({
   creatingPath,
   onCreate,
 }: LedgerReadyProps) {
-  const [filter, setFilter] = useState('');
-  const [bulkPaths, setBulkPaths] = useState<string[] | null>(null);
-  const bulkButtonRef = useRef<HTMLButtonElement>(null);
-  // The list filters on the deferred value so typing stays responsive on large snapshots.
-  const deferredFilter = useDeferredValue(filter);
   const { entries, isLoadingPages } = ledger;
-  const visible = useMemo(
-    () => filterRepositories(entries, deferredFilter),
-    [entries, deferredFilter]
-  );
-  const bulkRows = visible.filter((entry) => !entry.hasChatroom);
-  const bulkDisabledReason = bulkCreateDisabledReason({ connected, isLoadingPages });
-  const asking = view.kind === 'asking';
-  const rescanIssue = view.kind === 'ready' ? view.rescanIssue : undefined;
   const isEmpty = !isLoadingPages && entries.length === 0;
   const summary = `Snapshot from ${formatLastSeen(snapshot.generatedAt, Date.now())} · ${repositoryCount(snapshot.totalCount)} · not kept in sync`;
   const rescan = (
     <RescanButton
-      asking={asking}
+      asking={view.kind === 'asking'}
       disabled={connected !== true}
       onRescan={() => void ledger.request(true)}
     />
@@ -188,83 +321,25 @@ function LedgerReady({
 
   return (
     <div data-testid="ledger-ready" className="mt-3 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p data-testid="ledger-summary" className="font-mono text-[10px] text-chatroom-text-muted">
-          {summary}
-        </p>
-        {!isEmpty && rescan}
-      </div>
-
-      <RepositoryBanners
+      <LedgerHeader summary={summary} showRescan={!isEmpty} rescan={rescan} />
+      <LedgerNotices
         snapshot={snapshot}
         connected={connected}
         currentRootPaths={currentRootPaths}
+        view={view}
+        isLoadingPages={isLoadingPages}
+        loadedCount={entries.length}
       />
-
-      {rescanIssue && <LedgerNotice>{rescanIssueCopy(rescanIssue)}</LedgerNotice>}
-
-      {isLoadingPages && (
-        <p data-testid="ledger-loading-pages" className="text-xs text-chatroom-text-muted">
-          Loading repositories… {entries.length} of {snapshot.totalCount}
-        </p>
-      )}
-
-      {isEmpty && (
-        <div className="space-y-3">
-          <p data-testid="ledger-empty" className="text-xs text-chatroom-text-muted">
-            No git repositories found under your project roots.
-          </p>
-          {rescan}
-        </div>
-      )}
-
+      {isEmpty && <LedgerEmpty rescan={rescan} />}
       {entries.length > 0 && (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <RepositoryFilterBar value={filter} onChange={setFilter} />
-            </div>
-            {visible.length > 0 && (
-              <BulkCreateButton
-                count={bulkRows.length}
-                disabledReason={bulkDisabledReason}
-                buttonRef={bulkButtonRef}
-                onOpen={() => setBulkPaths(bulkRows.map((entry) => entry.path))}
-              />
-            )}
-          </div>
-          {visible.length === 0 ? (
-            <NoMatch filter={deferredFilter} onClear={() => setFilter('')} />
-          ) : (
-            <VirtualizedScrollList
-              items={visible}
-              height="min(28rem, 60dvh)"
-              estimateSize={() => 72}
-              getItemKey={(_, entry) => entry.path}
-              overscan={8}
-              scrollResetKey={deferredFilter}
-              renderItem={(entry) => (
-                <RepositoryRow
-                  entry={entry}
-                  disabled={connected !== true}
-                  creating={creatingPath === entry.path}
-                  onCreate={onCreate}
-                />
-              )}
-            />
-          )}
-        </>
-      )}
-
-      {bulkPaths !== null && (
-        <BulkCreateDialog
+        <RepositoryListSection
+          entries={entries}
+          isLoadingPages={isLoadingPages}
           machineId={machineId}
           displayName={displayName}
-          paths={bulkPaths}
-          onClose={() => {
-            setBulkPaths(null);
-            bulkButtonRef.current?.focus();
-          }}
+          connected={connected}
+          creatingPath={creatingPath}
+          onCreate={onCreate}
         />
       )}
     </div>
@@ -292,12 +367,81 @@ function RetryBlock({
   );
 }
 
+/** The timed-out or failed view with a retry. Renders nothing for any other view. */
+function LedgerRetry({ view, onRetry }: { view: LedgerView; onRetry: () => void }) {
+  if (view.kind === 'timedOut') {
+    return (
+      <RetryBlock
+        testId="ledger-timed-out"
+        message={TIMED_OUT_COPY}
+        tone="warning"
+        onRetry={onRetry}
+      />
+    );
+  }
+  if (view.kind === 'failed') {
+    return (
+      <RetryBlock
+        testId="ledger-failed"
+        message={`Could not read repositories: ${view.message}`}
+        tone="error"
+        onRetry={onRetry}
+      />
+    );
+  }
+  return null;
+}
+
+interface LedgerBodyProps {
+  ledger: UseRepositoryLedgerResult;
+  machineId: string;
+  displayName: string;
+  connected: boolean | undefined;
+  currentRootPaths: readonly string[] | undefined;
+  creatingPath: string | null;
+  onCreate: (path: string) => void;
+}
+
+/** Picks the body for the ledger state: the snapshot when one is shown, else the no-snapshot view. */
+function LedgerBody({
+  ledger,
+  machineId,
+  displayName,
+  connected,
+  currentRootPaths,
+  creatingPath,
+  onCreate,
+}: LedgerBodyProps) {
+  const { snapshot, view } = ledger;
+  if (snapshot !== null) {
+    return (
+      <LedgerReady
+        ledger={ledger}
+        snapshot={snapshot}
+        view={view}
+        machineId={machineId}
+        displayName={displayName}
+        connected={connected}
+        currentRootPaths={currentRootPaths}
+        creatingPath={creatingPath}
+        onCreate={onCreate}
+      />
+    );
+  }
+  if (view.kind === 'idle') {
+    return <LedgerIdle view={view} onLoad={() => void ledger.request(false)} />;
+  }
+  if (view.kind === 'asking') {
+    return <LedgerAsking displayName={displayName} onCancel={ledger.cancel} />;
+  }
+  return <LedgerRetry view={view} onRetry={() => void ledger.request(false)} />;
+}
+
 /**
  * Repositories section for one expanded machine card: a snapshot loaded on demand from the
  * machine's daemon, listed as fixed-height virtualised rows, with one chatroom per row.
  * The hook discards the snapshot when this component unmounts (collapse or navigation).
  */
-// fallow-ignore-next-line complexity
 export function MachineRepositories({
   machineId,
   displayName,
@@ -326,14 +470,11 @@ export function MachineRepositories({
     [createOne, machineId]
   );
 
-  const { snapshot, view } = ledger;
-  let body: ReactNode = null;
-  if (snapshot !== null) {
-    body = (
-      <LedgerReady
+  return (
+    <div>
+      <h3 className={SECTION_HEADING_CLASS}>Repositories</h3>
+      <LedgerBody
         ledger={ledger}
-        snapshot={snapshot}
-        view={view}
         machineId={machineId}
         displayName={displayName}
         connected={connected}
@@ -341,35 +482,6 @@ export function MachineRepositories({
         creatingPath={creatingPath}
         onCreate={handleCreate}
       />
-    );
-  } else if (view.kind === 'idle') {
-    body = <LedgerIdle view={view} onLoad={() => void ledger.request(false)} />;
-  } else if (view.kind === 'asking') {
-    body = <LedgerAsking displayName={displayName} onCancel={ledger.cancel} />;
-  } else if (view.kind === 'timedOut') {
-    body = (
-      <RetryBlock
-        testId="ledger-timed-out"
-        message={TIMED_OUT_COPY}
-        tone="warning"
-        onRetry={() => void ledger.request(false)}
-      />
-    );
-  } else if (view.kind === 'failed') {
-    body = (
-      <RetryBlock
-        testId="ledger-failed"
-        message={`Could not read repositories: ${view.message}`}
-        tone="error"
-        onRetry={() => void ledger.request(false)}
-      />
-    );
-  }
-
-  return (
-    <div>
-      <h3 className={SECTION_HEADING_CLASS}>Repositories</h3>
-      {body}
     </div>
   );
 }
