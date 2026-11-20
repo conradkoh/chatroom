@@ -7,6 +7,7 @@ import { KeyboardViewportSlider } from './KeyboardInsetSlider';
 import { NestedFixedModalPickerSection } from './NestedFixedModalPickerSection';
 import { StandingInstructionsBarSection } from './StandingInstructionsBarSection';
 import { useHarnessDrawerMetrics } from './useHarnessDrawerMetrics';
+import { WorkspaceBottomBarSection } from './WorkspaceBottomBarSection';
 
 const MODELS = Array.from(
   { length: 24 },
@@ -72,6 +73,8 @@ export function MobilePickerHarness() {
         offsetTopValue={viewportOffsetTop}
         onOffsetTopChange={setViewportOffsetTop}
       />
+
+      <WorkspaceBottomBarSection />
 
       <NestedFixedModalPickerSection />
 

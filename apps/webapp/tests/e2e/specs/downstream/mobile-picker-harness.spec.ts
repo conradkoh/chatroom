@@ -5,19 +5,34 @@ import { TAG_DOWNSTREAM } from '../../support/tags';
 const HARNESS_PATH = '/dev/mobile-picker-harness';
 
 /** Playwright fill() does not reliably fire React onChange on controlled range inputs. */
-async function setHarnessKeyboardInset(page: Page, insetPx: number): Promise<void> {
+async function setHarnessRangeInput(
+  page: Page,
+  testId: string,
+  valuePx: number,
+  label: string
+): Promise<void> {
   await expect(page.getByTestId('keyboard-controls')).toBeVisible();
-  const slider = page.getByTestId('keyboard-inset-slider');
-  await slider.evaluate((el, value) => {
+  await page.getByTestId(testId).evaluate((el, value) => {
     const input = el as HTMLInputElement;
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     setValue?.call(input, String(value));
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, insetPx);
-  await expect
-    .poll(async () => page.getByText(`Keyboard inset: ${insetPx}px`).isVisible())
-    .toBe(true);
+  }, valuePx);
+  await expect.poll(async () => page.getByText(`${label}: ${valuePx}px`).isVisible()).toBe(true);
+}
+
+async function setHarnessKeyboardInset(page: Page, insetPx: number): Promise<void> {
+  await setHarnessRangeInput(page, 'keyboard-inset-slider', insetPx, 'Keyboard inset');
+}
+
+async function setHarnessViewportOffsetTop(page: Page, offsetTopPx: number): Promise<void> {
+  await setHarnessRangeInput(
+    page,
+    'viewport-offset-top-slider',
+    offsetTopPx,
+    'Viewport offset top'
+  );
 }
 
 /** ResponsivePickerShell renders trigger-only until client hydration; clicks are no-ops before then. */
@@ -184,5 +199,81 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
         )
       )
       .toBeGreaterThan(0);
+  });
+
+  const barTransform = (page: Page) =>
+    page.getByTestId('workspace-bottom-bar').evaluate((el) => (el as HTMLElement).style.transform);
+  const barPaddingBottom = (page: Page) =>
+    page
+      .getByTestId('workspace-bottom-bar')
+      .evaluate((el) => (el as HTMLElement).style.paddingBottom);
+
+  test('bottom bar keeps bottom inset with composer focused and no keyboard', async ({ page }) => {
+    await page.getByTestId('bar-harness-composer').focus();
+    const bar = page.getByTestId('workspace-bottom-bar');
+    await expect(bar).toHaveAttribute('data-bottom-inset', 'present');
+    await expect.poll(() => barPaddingBottom(page)).toContain('safe-area-inset-bottom');
+    await expect.poll(() => barTransform(page)).toBe('');
+  });
+
+  test('bottom bar suppresses inset and lifts under Android-style keyboard inset', async ({
+    page,
+  }) => {
+    await setHarnessKeyboardInset(page, 300);
+    await page.getByTestId('bar-harness-composer').focus();
+    await expect(page.getByTestId('workspace-bottom-bar')).toHaveAttribute(
+      'data-bottom-inset',
+      'suppressed'
+    );
+    await expect.poll(() => barPaddingBottom(page)).toBe('');
+    await expect.poll(() => barTransform(page)).toBe('translateY(-300px)');
+  });
+
+  test('bottom bar suppresses inset without lifting under iOS-style viewport offset', async ({
+    page,
+  }) => {
+    await setHarnessViewportOffsetTop(page, 240);
+    await page.getByTestId('bar-harness-composer').focus();
+    await expect(page.getByTestId('workspace-bottom-bar')).toHaveAttribute(
+      'data-bottom-inset',
+      'suppressed'
+    );
+    await expect.poll(() => barPaddingBottom(page)).toBe('');
+    await expect.poll(() => barTransform(page)).toBe('');
+  });
+
+  test('first tap on the bottom bar registers without moving focus or the bar', async ({
+    page,
+  }) => {
+    await setHarnessKeyboardInset(page, 300);
+    const composer = page.getByTestId('bar-harness-composer');
+    await composer.focus();
+    await expect.poll(() => barTransform(page)).toBe('translateY(-300px)');
+    const button = page.getByTestId('bar-harness-button');
+    await button.scrollIntoViewIfNeeded();
+    const barBefore = await page.getByTestId('workspace-bottom-bar').boundingBox();
+    await button.tap();
+    await expect(page.getByTestId('bar-harness-taps')).toHaveText('1');
+    await expect(composer).toBeFocused();
+    expect(await page.getByTestId('workspace-bottom-bar').boundingBox()).toEqual(barBefore);
+  });
+
+  test('bottom bar stays suppressed after composer blur while keyboard still covers it', async ({
+    page,
+  }) => {
+    await setHarnessKeyboardInset(page, 300);
+    const composer = page.getByTestId('bar-harness-composer');
+    await composer.focus();
+    await composer.blur();
+    await expect(page.getByTestId('workspace-bottom-bar')).toHaveAttribute(
+      'data-bottom-inset',
+      'suppressed'
+    );
+    await expect.poll(() => barTransform(page)).toBe('');
+    await setHarnessKeyboardInset(page, 0);
+    await expect(page.getByTestId('workspace-bottom-bar')).toHaveAttribute(
+      'data-bottom-inset',
+      'present'
+    );
   });
 });
