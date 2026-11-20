@@ -16,6 +16,10 @@ export type StatusEvent = {
   errorMessage?: string | undefined;
 };
 
+export type ProjectRoleStatusResult =
+  | { applied: true }
+  | { applied: false; reason: 'room_missing' | 'machine_mismatch' | 'stale_event' };
+
 export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
   if (lastStatus === 'agent.waiting' || lastStatus === 'task.completed')
     return { status: 'waiting' };
@@ -51,6 +55,38 @@ export function statusEventForAgentEvent(lastStatus: string): StatusEvent {
   return { status: 'offline' };
 }
 
+/**
+ * Finds the read-model row for a role. Workspace-scoped rows are looked up
+ * through the workspace index; rows without a workspace fall back to the
+ * chatroom/role index. Shared by the projection and last-seen touch paths so
+ * both resolve the same row.
+ */
+async function findAgentRoleStatusRow(
+  ctx: MutationCtx,
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    workspaceId?: Id<'chatroom_workspaces'> | undefined;
+    role: string;
+  }
+) {
+  return args.workspaceId
+    ? await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_workspace_role', (q) =>
+          q
+            .eq('chatroomId', args.chatroomId)
+            .eq('workspaceId', args.workspaceId)
+            .eq('role', args.role)
+        )
+        .first()
+    : await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+        )
+        .first();
+}
+
 export async function projectAgentRoleStatusReadModel(
   ctx: MutationCtx,
   args: {
@@ -69,10 +105,10 @@ export async function projectAgentRoleStatusReadModel(
     sourceEventAt?: number | undefined;
     sourceRevisionKey?: string | undefined;
   }
-): Promise<void> {
+): Promise<ProjectRoleStatusResult> {
   const role = args.role.trim().toLowerCase();
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!room) return;
+  if (!room) return { applied: false, reason: 'room_missing' };
 
   const launchRequest =
     args.launchRequest ??
@@ -84,21 +120,15 @@ export async function projectAgentRoleStatusReadModel(
   const event = args.event ?? { status: 'offline' as const };
   const now = Date.now();
   const workspaceId = launchRequest?.workspaceId ?? args.workspaceId;
-  const existing = workspaceId
-    ? await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_workspace_role', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('workspaceId', workspaceId).eq('role', role)
-        )
-        .first()
-    : await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
-        .first();
+  const existing = await findAgentRoleStatusRow(ctx, {
+    chatroomId: args.chatroomId,
+    workspaceId,
+    role,
+  });
   // Lifecycle facts are retried by the daemon outbox and can arrive out of
   // order after reconnect. Only accept a newer observation for this role.
   if (args.sourceMachineId && existing?.machineId && existing.machineId !== args.sourceMachineId)
-    return;
+    return { applied: false, reason: 'machine_mismatch' };
   if (
     existing &&
     args.sourceEventAt !== undefined &&
@@ -109,7 +139,7 @@ export async function projectAgentRoleStatusReadModel(
         existing.revisionKey !== undefined &&
         args.sourceRevisionKey <= existing.revisionKey))
   )
-    return;
+    return { applied: false, reason: 'stale_event' };
   const activeTask =
     event.status === 'working'
       ? await findActiveAssignedTaskForRole(ctx, { chatroomId: args.chatroomId, role })
@@ -155,6 +185,7 @@ export async function projectAgentRoleStatusReadModel(
       });
     }
   } else await ctx.db.insert('chatroom_agentRoleStatusReadModel', fields);
+  return { applied: true };
 }
 
 export async function touchAgentRoleStatusLastSeen(
@@ -176,17 +207,11 @@ export async function touchAgentRoleStatusLastSeen(
     role,
   });
   const workspaceId = launchRequest?.workspaceId;
-  const existing = workspaceId
-    ? await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_workspace_role', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('workspaceId', workspaceId).eq('role', role)
-        )
-        .first()
-    : await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', role))
-        .first();
+  const existing = await findAgentRoleStatusRow(ctx, {
+    chatroomId: args.chatroomId,
+    workspaceId,
+    role,
+  });
   if (!existing) return false;
   if (args.machineId && existing.machineId && existing.machineId !== args.machineId) return false;
   if (

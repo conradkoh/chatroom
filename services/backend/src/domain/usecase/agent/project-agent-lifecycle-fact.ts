@@ -2,6 +2,7 @@ import { agentExited as agentExitedUseCase } from './agent-exited';
 import { applyAgentActivityHeartbeat } from './apply-agent-activity-heartbeat';
 import { getLastSentLaunchRequestForRole } from './get-last-sent-launch-request';
 import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
+import { reconcileAgentStatusAfterStop } from './reconcile-agent-status-after-stop';
 import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -84,6 +85,7 @@ export async function projectAgentLifecycleFact(
   skipped?: boolean | undefined;
   clearedCount?: number | undefined;
   reconciledExecutionCount?: number | undefined;
+  reconciledRoleCount?: number | undefined;
   rejectionReason?: string | undefined;
 }> {
   const { machineId, fact } = args;
@@ -182,10 +184,23 @@ export async function projectAgentLifecycleFact(
     if (command.status !== 'processing') {
       return { success: true, skipped: true, rejectionReason: 'command_not_processing' };
     }
+    let reconciledRoleCount = 0;
+    const payload = command.command;
+    if (payload.type === 'agent.stop' && payload.chatroomId === fact.chatroomId) {
+      const reconciled = await reconcileAgentStatusAfterStop(ctx, {
+        machineId,
+        scope: {
+          chatroomId: fact.chatroomId,
+          role: payload.role,
+          workingDir: payload.workingDir,
+        },
+        emittedAt: fact.emittedAt,
+        revisionKey: fact.revisionKey,
+      });
+      reconciledRoleCount = reconciled.reconciledCount;
+    }
     await ctx.db.delete('chatroom_machineCommandInbox', command._id);
-    return {
-      success: true,
-    };
+    return { success: true, reconciledRoleCount };
   }
   const registration = await registerSpawnedAgentIfAuthorized(ctx, {
     ...fact,
