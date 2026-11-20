@@ -45,6 +45,7 @@ const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = 
   'daemon.refreshCapabilities': ['Capabilities Refresh', 'muted'],
   'daemon.pickFolder': ['Pick Folder', 'muted'],
   'daemon.localAction': ['Local Action', 'muted'],
+  'daemon.syncProjectRoots': ['Project Roots Sync', 'muted'],
   'config.requestRemoval': ['Config Request Removal', 'warning'],
   'command.run': ['Command Run', 'warning'],
   'command.stop': ['Command Stop', 'error'],

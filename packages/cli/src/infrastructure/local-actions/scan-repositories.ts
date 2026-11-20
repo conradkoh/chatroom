@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * Bounded async repository scanner for the machine's local repository ledger.
  *
@@ -207,7 +206,7 @@ async function readRepository(repositoryPath: string, root: string): Promise<Led
  * visited are reported as `ok` with zero repositories; `truncated` signals that
  * the ledger is incomplete.
  */
-// fallow-ignore-next-line unused-export complexity
+// fallow-ignore-next-line complexity
 export async function scanRepositories(options: ScanOptions): Promise<ScanResult> {
   const maxDepth = options.maxDepth ?? SCAN_DEFAULTS.maxDepth;
   const maxDirectories = options.maxDirectories ?? SCAN_DEFAULTS.maxDirectories;

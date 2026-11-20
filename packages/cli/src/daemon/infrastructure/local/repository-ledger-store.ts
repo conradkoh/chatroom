@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 /**
  * Atomic local JSON store for the machine's repository ledger.
  *

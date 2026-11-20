@@ -37,11 +37,11 @@ import {
 import { drainPendingFileWriteRequests } from './files/file-write-subscription.js';
 import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
+import { getRepositoryLedgerService } from './repository-ledger-runtime.js';
 import {
   registerWorkspaceGitInboundHandler,
   unregisterWorkspaceGitInboundHandler,
 } from './workspace-git-inbound-registry.js';
-import { onDaemonShutdownEffect } from '../../events/lifecycle/on-daemon-shutdown.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import type { BoundHarness } from '../domain/entities/bound-harness.js';
 import type { SessionHandle } from '../domain/usecase/open-harness-session.js';
@@ -59,6 +59,7 @@ import {
 } from './workspace-git/git-subscription.js';
 import { api } from '../../api.js';
 import { releaseLock } from '../../commands/machine/pid.js';
+import { onDaemonShutdownEffect } from '../../events/lifecycle/on-daemon-shutdown.js';
 import type { WorkspaceStateOutboxRegistry } from '../infrastructure/outbox/workspace-state-outbox.js';
 import {
   DEFAULT_WORKSPACE_SYNC_POLICY,
@@ -310,6 +311,23 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
         return Effect.void;
       })
     );
+
+    // Fire-and-forget: the local ledger refresh must never delay startup or the heartbeat.
+    yield* Effect.sync(() => {
+      try {
+        void getRepositoryLedgerService(session)
+          .refresh('boot')
+          .catch((error: unknown) => {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Repository ledger boot refresh failed: ${getErrorMessage(error)}`
+            );
+          });
+      } catch (error) {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Repository ledger boot refresh failed: ${getErrorMessage(error)}`
+        );
+      }
+    });
 
     agentConfigRegistryHandle = session.agentConfigRegistry;
     yield* Effect.tryPromise({
