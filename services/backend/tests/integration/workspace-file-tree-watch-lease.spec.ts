@@ -1,6 +1,6 @@
 /** Integration coverage for renewable file-tree watch leases. */
 
-import { describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { api, internal } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
@@ -11,6 +11,22 @@ import {
 } from '../helpers/integration';
 
 const WORKING_DIR = '/tmp/watch-lease';
+
+/**
+ * Run every scheduler chain started by the mutation under test (the machine
+ * deletion purge is scheduled, not inline) until no work remains.
+ */
+async function drainScheduler(): Promise<void> {
+  await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 async function setup(sessionKey: string, machineId: string) {
   const { sessionId } = await createTestSession(sessionKey);
@@ -139,6 +155,7 @@ describe('workspace file-tree watch leases', () => {
     });
 
     await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+    await drainScheduler();
 
     const head = await t.run((ctx) =>
       ctx.db

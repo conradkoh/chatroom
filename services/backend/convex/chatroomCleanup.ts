@@ -9,9 +9,8 @@
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import { deleteCliSessionLastUsedAt } from './lib/lastAtProjections';
+import { startMachineDeletion } from '../src/domain/usecase/machine/delete-machine';
 import { deleteMachineAvailableModels } from '../src/domain/usecase/machine/machine-available-models';
-import { deleteObservedWorkspaceViewsForMachine } from '../src/domain/usecase/workspace/project-observed-workspace-view';
-import { deleteWorkspaceGitUnitRows } from '../src/domain/usecase/workspace/workspace-git-unit-rows';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -127,46 +126,32 @@ export const cleanupReadCursors = internalMutation({
 // ─── Machines Cleanup (90-day inactive) ─────────────────────────────────────
 
 /**
- * Delete machines where the dedicated last-seen projection is older than 90 days.
+ * Delete machines whose dedicated last-seen projection is older than 90 days.
  * The projection index is the source of truth for stale recency.
- * Also cleans up ALL related rows across machine-keyed tables:
- * - chatroom_machineLiveness
- * - chatroom_machineStatus
- * - chatroom_machineModelFilters
- * - chatroom_agentLastSentLaunchRequests
- * - chatroom_workspaceGitState (legacy git state blob)
- * - chatroom_workspaceGitHead / Worktree / Upstream / Remotes / PullRequests / Checks (per-unit git state)
- * - chatroom_workspaceFileTree
- * - chatroom_workspaceFileContent
- * - chatroom_workspaceFullDiff
- * - chatroom_workspaceDiffRequests
- * - chatroom_workspaceFileContentRequests
- * - chatroom_workspaceFileTreeRequests
- * - chatroom_workspaceFileTreeWatches
- * - chatroom_workspaceFileTreeReleaseRequests
- * - chatroom_machineFileTreeReleaseHeads
- * - chatroom_workspaceCommitDetail
- * - chatroom_runnableCommands
- * - chatroom_commandRunsV2
- * - chatroom_workspaces
- * - chatroom_workspacePRDiffs
  *
- * Due to the large number of related rows per machine, we process
- * only a small batch of machines per invocation.
+ * Each stale machine is handed to the shared `startMachineDeletion` use case
+ * (the same path as the user-facing `machines.deleteMachine`) with
+ * `initiatedBy: 'system'`, `requireOffline: false` and `inlineBudget: 0`, so the
+ * tombstone is written and machine authority revoked here, and the purge runs
+ * through the scheduler (`machineDeletion.purgeBatch`). What is purged is defined
+ * solely by `MACHINE_SCOPED_TABLES`; workspaces are soft-detached, chatrooms and
+ * messages are preserved. See memory/architecture/machine-management.md.
+ *
+ * Orphan projections (capabilities row without a machine) are cleaned inline.
+ * At most 50 projections are processed per run; the job reschedules itself if
+ * the batch was full.
  */
 export const cleanupMachines = internalMutation({
   args: {},
   handler: async (ctx) => {
     const cutoff = Date.now() - NINETY_DAYS_MS;
 
-    // Stale recency comes from the dedicated projection index. Process only
-    // a few machines per run (each has many related rows).
     const oldMachineProjections = await ctx.db
       .query('chatroom_machineCapabilities')
       .withIndex('by_lastSeenAt', (q) => q.lt('lastSeenAt', cutoff))
       .take(50);
 
-    let deletedMachines = 0;
+    let startedDeletions = 0;
     for (const projection of oldMachineProjections) {
       const machine = await ctx.db
         .query('chatroom_machines')
@@ -178,209 +163,20 @@ export const cleanupMachines = internalMutation({
         await deleteMachineAvailableModels(ctx, projection.machineId);
         continue;
       }
-      const mid = machine.machineId;
 
-      // ── Related rows keyed by machineId (indexed) ──
-
-      const livenessRows = await ctx.db
-        .query('chatroom_machineLiveness')
-        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
-        .collect();
-      for (const row of livenessRows) await ctx.db.delete('chatroom_machineLiveness', row._id);
-
-      const statusRows = await ctx.db
-        .query('chatroom_machineStatus')
-        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
-        .collect();
-      for (const row of statusRows) await ctx.db.delete('chatroom_machineStatus', row._id);
-
-      const modelFilters = await ctx.db
-        .query('chatroom_machineModelFilters')
-        .withIndex('by_machine_harness', (q) => q.eq('machineId', mid))
-        .collect();
-      for (const row of modelFilters) await ctx.db.delete('chatroom_machineModelFilters', row._id);
-
-      const searchConfigFavorites = await ctx.db
-        .query('chatroom_searchConfigFavorites')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of searchConfigFavorites)
-        await ctx.db.delete('chatroom_searchConfigFavorites', row._id);
-
-      const launchRequests = await ctx.db
-        .query('chatroom_agentLastSentLaunchRequests')
-        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
-        .collect();
-      for (const row of launchRequests)
-        await ctx.db.delete('chatroom_agentLastSentLaunchRequests', row._id);
-
-      const roleStatusRows = await ctx.db
-        .query('chatroom_agentRoleStatusReadModel')
-        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
-        .collect();
-      for (const row of roleStatusRows)
-        await ctx.db.delete('chatroom_agentRoleStatusReadModel', row._id);
-      await deleteObservedWorkspaceViewsForMachine(ctx, mid);
-
-      const workspaces = await ctx.db
-        .query('chatroom_workspaces')
-        .withIndex('by_machine', (q) => q.eq('machineId', mid))
-        .collect();
-      for (const row of workspaces) await ctx.db.delete('chatroom_workspaces', row._id);
-
-      // ── Related rows keyed by machineId (filter-based — no direct index) ──
-      // These tables use compound indexes with machineId as the first field
-
-      const gitStates = await ctx.db
-        .query('chatroom_workspaceGitState')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of gitStates) await ctx.db.delete('chatroom_workspaceGitState', row._id);
-
-      // Per-unit git state tables (chatroom_workspaceGitHead, Worktree,
-      // Upstream, Remotes, PullRequests, Checks) for this machine.
-      await deleteWorkspaceGitUnitRows(ctx, mid);
-
-      const fileTrees = await ctx.db
-        .query('chatroom_workspaceFileTree')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fileTrees) await ctx.db.delete('chatroom_workspaceFileTree', row._id);
-
-      const fileTreesV2 = await ctx.db
-        .query('chatroom_workspaceFileTreeV2')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fileTreesV2) await ctx.db.delete('chatroom_workspaceFileTreeV2', row._id);
-
-      const fileContents = await ctx.db
-        .query('chatroom_workspaceFileContent')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fileContents) await ctx.db.delete('chatroom_workspaceFileContent', row._id);
-
-      const fileContentsV2 = await ctx.db
-        .query('chatroom_workspaceFileContentV2')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fileContentsV2)
-        await ctx.db.delete('chatroom_workspaceFileContentV2', row._id);
-
-      const fullDiffs = await ctx.db
-        .query('chatroom_workspaceFullDiff')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fullDiffs) await ctx.db.delete('chatroom_workspaceFullDiff', row._id);
-
-      const fullDiffsV2 = await ctx.db
-        .query('chatroom_workspaceFullDiffV2')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fullDiffsV2) await ctx.db.delete('chatroom_workspaceFullDiffV2', row._id);
-
-      const prDiffs = await ctx.db
-        .query('chatroom_workspacePRDiffs')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of prDiffs) await ctx.db.delete('chatroom_workspacePRDiffs', row._id);
-
-      const diffRequests = await ctx.db
-        .query('chatroom_workspaceDiffRequests')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of diffRequests)
-        await ctx.db.delete('chatroom_workspaceDiffRequests', row._id);
-
-      const fileContentReqs = await ctx.db
-        .query('chatroom_workspaceFileContentRequests')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fileContentReqs)
-        await ctx.db.delete('chatroom_workspaceFileContentRequests', row._id);
-
-      const fileTreeReqs = await ctx.db
-        .query('chatroom_workspaceFileTreeRequests')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fileTreeReqs)
-        await ctx.db.delete('chatroom_workspaceFileTreeRequests', row._id);
-
-      const fileTreeWatches = await ctx.db
-        .query('chatroom_workspaceFileTreeWatches')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fileTreeWatches)
-        await ctx.db.delete('chatroom_workspaceFileTreeWatches', row._id);
-
-      const fileTreeReleases = await ctx.db
-        .query('chatroom_workspaceFileTreeReleaseRequests')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of fileTreeReleases)
-        await ctx.db.delete('chatroom_workspaceFileTreeReleaseRequests', row._id);
-
-      const releaseHeads = await ctx.db
-        .query('chatroom_machineFileTreeReleaseHeads')
-        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
-        .collect();
-      for (const row of releaseHeads)
-        await ctx.db.delete('chatroom_machineFileTreeReleaseHeads', row._id);
-
-      const commitDetails = await ctx.db
-        .query('chatroom_workspaceCommitDetail')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of commitDetails)
-        await ctx.db.delete('chatroom_workspaceCommitDetail', row._id);
-
-      const commitDetailsV2 = await ctx.db
-        .query('chatroom_workspaceCommitDetailV2')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of commitDetailsV2)
-        await ctx.db.delete('chatroom_workspaceCommitDetailV2', row._id);
-
-      const runnableCommands = await ctx.db
-        .query('chatroom_runnableCommands')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of runnableCommands) await ctx.db.delete('chatroom_runnableCommands', row._id);
-
-      const commandRuns = await ctx.db
-        .query('chatroom_commandRunsV2')
-        .filter((q) => q.eq(q.field('machineId'), mid))
-        .collect();
-      for (const row of commandRuns) {
-        // Also delete command output chunks and live tail for each run
-        const chunks = await ctx.db
-          .query('chatroom_commandOutputV2')
-          .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', row._id))
-          .collect();
-        for (const chunk of chunks) await ctx.db.delete('chatroom_commandOutputV2', chunk._id);
-
-        const tail = await ctx.db
-          .query('chatroom_commandRunTailsV2')
-          .withIndex('by_runId', (q) => q.eq('runId', row._id))
-          .first();
-        if (tail) await ctx.db.delete('chatroom_commandRunTailsV2', tail._id);
-
-        await ctx.db.delete('chatroom_commandRunsV2', row._id);
-      }
-
-      // Finally delete the machine itself
-      await ctx.db.delete('chatroom_machines', machine._id);
-      const capability = await ctx.db
-        .query('chatroom_machineCapabilities')
-        .withIndex('by_machineId', (q) => q.eq('machineId', mid))
-        .first();
-      if (capability) await ctx.db.delete('chatroom_machineCapabilities', capability._id);
-      await deleteMachineAvailableModels(ctx, mid);
-      deletedMachines++;
+      const result = await startMachineDeletion(ctx, {
+        machineId: machine.machineId,
+        userId: machine.userId,
+        initiatedBy: 'system',
+        inlineBudget: 0,
+        requireOffline: false,
+      });
+      if (result.status === 'deleted') startedDeletions++;
     }
 
-    if (deletedMachines > 0) {
+    if (startedDeletions > 0) {
       console.warn(
-        `[ChatroomCleanup] Deleted ${deletedMachines} inactive machines (90d+) and all related rows`
+        `[ChatroomCleanup] Started deletion of ${startedDeletions} inactive machines (90d+); purge runs via machineDeletion.purgeBatch`
       );
     }
 

@@ -1,12 +1,13 @@
 /**
  * Machine available-models cleanup
  *
- * `chatroomCleanup.cleanupMachines` must delete the `chatroom_machineAvailableModels`
- * row together with the machine, on both the machine-delete path and the orphan
- * capabilities path.
+ * `chatroomCleanup.cleanupMachines` starts a shared machine deletion for stale
+ * machines, so the `chatroom_machineAvailableModels` row and the capabilities
+ * projection end up removed on the scheduled purge path. Orphan capabilities rows
+ * (no machine) are still cleaned inline together with their models row.
  */
 
-import { describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { api, internal } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
@@ -42,6 +43,22 @@ async function ageCapabilities(machineId: string) {
   });
 }
 
+/**
+ * Run every scheduler chain started by the mutation under test (the machine
+ * deletion purge is scheduled, not inline) until no work remains.
+ */
+async function drainScheduler(): Promise<void> {
+  await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('machine available-models cleanup', () => {
   test('deleting a stale machine deletes its models row', async () => {
     const { sessionId } = await createTestSession('mam-cleanup-machine');
@@ -59,6 +76,7 @@ describe('machine available-models cleanup', () => {
 
     await ageCapabilities(machineId);
     await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+    await drainScheduler();
 
     expect(await readModelsRows(machineId)).toHaveLength(0);
     expect(await readCapabilitiesRows(machineId)).toHaveLength(0);
@@ -82,6 +100,7 @@ describe('machine available-models cleanup', () => {
     });
 
     await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+    await drainScheduler();
 
     expect(await readModelsRows(machineId)).toHaveLength(0);
     expect(await readCapabilitiesRows(machineId)).toHaveLength(0);

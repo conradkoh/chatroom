@@ -803,3 +803,119 @@ describe('system-initiated deletion', () => {
     expect(tombstone?.initiatedBy).toBe('system');
   });
 });
+
+// ─── 8. 90-day cleanup → shared purge ───────────────────────────────────────
+
+describe('chatroomCleanup.cleanupMachines → shared purge', () => {
+  test('purges every registry table, soft-detaches workspaces and preserves chatrooms', async () => {
+    const { sessionId } = await createTestSession('md-cleanup-shared');
+    const machineId = 'machine-md-cleanup-shared';
+
+    await registerMachine(sessionId, machineId);
+    const userId = await userIdFor(sessionId);
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const workspaceId = await registerWorkspace(
+      sessionId,
+      chatroomId,
+      machineId,
+      '/work/cleanup-shared'
+    );
+    await seedMachineGraph(machineId, userId, chatroomId, '/work/cleanup-shared');
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'history that must survive machine deletion',
+      type: 'message',
+    });
+    const participantId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_participants', { chatroomId, role: 'builder' })
+    );
+
+    // Prove the seeded graph is real before cleaning up.
+    const key: PurgeKey = { machineId, userId };
+    const runId = await t.run(async (ctx) => {
+      const run = await ctx.db
+        .query('chatroom_commandRunsV2')
+        .withIndex('by_machine_workingDir', (q) => q.eq('machineId', machineId))
+        .first();
+      if (!run) throw new Error('Seeded command run missing');
+      return run._id;
+    });
+    expect(await countForTable('chatroom_machineCommandInbox', key)).toBeGreaterThanOrEqual(1);
+    expect(await countForTable('chatroom_workspaceFileTreeShardV3', key)).toBe(1);
+    expect(await countForTable('chatroom_commandRunsV2', key)).toBe(1);
+
+    // Selection is driven by the dedicated capabilities recency projection.
+    await t.run(async (ctx) => {
+      const capabilities = await ctx.db
+        .query('chatroom_machineCapabilities')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      expect(capabilities).toBeDefined();
+      await ctx.db.patch(capabilities!._id, {
+        lastSeenAt: Date.now() - 91 * 24 * 60 * 60 * 1000,
+      });
+    });
+
+    await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+    await drainScheduler();
+
+    // (a) Every registry table is empty for the machine.
+    for (const entry of MACHINE_SCOPED_TABLES) {
+      if (entry.table === 'chatroom_machines') continue;
+      expect(await countForTable(entry.table, key), entry.table).toBe(0);
+    }
+    // Command satellites have no machine index; the run delete must remove them.
+    expect(
+      await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_commandOutputV2')
+          .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', runId))
+          .collect()
+      )
+    ).toHaveLength(0);
+    expect(
+      await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_commandRunTailsV2')
+          .withIndex('by_runId', (q) => q.eq('runId', runId))
+          .collect()
+      )
+    ).toHaveLength(0);
+
+    // (b) Workspaces survive, soft-detached.
+    const workspace = await t.run(async (ctx) => ctx.db.get('chatroom_workspaces', workspaceId));
+    expect(workspace).not.toBeNull();
+    expect(workspace!.removedAt).toBeDefined();
+
+    // (c) Chatroom, messages and participants are preserved.
+    expect(await t.run(async (ctx) => ctx.db.get('chatroom_rooms', chatroomId))).not.toBeNull();
+    const messages = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    expect(messages.length).toBeGreaterThan(0);
+    expect(
+      await t.run(async (ctx) => ctx.db.get('chatroom_participants', participantId))
+    ).not.toBeNull();
+
+    // (d) The tombstone records the system initiator and completes.
+    const tombstone = await latestTombstone(machineId);
+    expect(tombstone?.initiatedBy).toBe('system');
+    expect(tombstone?.status).toBe('completed');
+
+    // (e) A second run is a no-op: no second tombstone.
+    await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+    await drainScheduler();
+    const tombstones = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_machineDeletions')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .collect()
+    );
+    expect(tombstones).toHaveLength(1);
+  });
+});
