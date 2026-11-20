@@ -19,6 +19,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Server,
   Settings,
   StopCircle,
   ScrollText,
@@ -54,6 +55,7 @@ interface UseCommandPaletteCommandsProps {
   /** Navigation callbacks */
   onOpenChatroomSwitcher: () => void;
   onCreateNewChatroom?: (() => void) | null;
+  onGoToMachines?: (() => void) | null;
   onOpenFileSelector: () => void;
   /** Workspace action callbacks — conditionally available (legacy single-workspace) */
   onOpenInVSCode?: (() => void) | null;
@@ -132,6 +134,7 @@ export function useCommandPaletteCommands({
   onCreateBacklogItem,
   onOpenChatroomSwitcher,
   onCreateNewChatroom,
+  onGoToMachines,
   onOpenFileSelector,
   onOpenInVSCode,
   onOpenInGitHubDesktop,
@@ -256,6 +259,17 @@ export function useCommandPaletteCommands({
         category: 'Navigate',
         keywords: ['new', 'create', 'chatroom', 'new chatroom'],
         action: onCreateNewChatroom,
+      });
+    }
+
+    if (onGoToMachines) {
+      commands.push({
+        id: 'nav-go-to-machines',
+        label: 'Go to Machines',
+        icon: <Server size={14} />,
+        category: 'Navigate',
+        keywords: ['machines', 'daemon', 'hosts', 'computers'],
+        action: onGoToMachines,
       });
     }
 
@@ -576,6 +590,7 @@ export function useCommandPaletteCommands({
     onCreateBacklogItem,
     onOpenChatroomSwitcher,
     onCreateNewChatroom,
+    onGoToMachines,
     onOpenFileSelector,
     onOpenInVSCode,
     onOpenInGitHubDesktop,

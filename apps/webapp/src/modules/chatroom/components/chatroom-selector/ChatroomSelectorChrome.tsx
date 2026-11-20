@@ -3,25 +3,29 @@
 import { LayoutGrid, List, Search, Star, X } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 
+import { AppSectionTabs } from '../AppSectionTabs';
 import { ChatroomCard } from './ChatroomCard';
 import type { TabType, ViewMode } from './chatroomSelectorModel';
 import type { ChatroomWithStatus } from '../../context/ChatroomListingContext';
 
-/** Page header with the title and the "+ New" action. */
+/** Page header with the section strip, the title and the "+ New" action. */
 export function ChatroomSelectorHeader({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex justify-between items-start mb-6 border-b-2 border-chatroom-border pb-6">
-      <div>
-        <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Chatrooms</h1>
-        <p className="text-chatroom-text-muted text-sm">Select a chatroom or create a new one</p>
+    <>
+      <AppSectionTabs />
+      <div className="flex justify-between items-start mb-6 border-b-2 border-chatroom-border pb-6">
+        <div>
+          <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Chatrooms</h1>
+          <p className="text-chatroom-text-muted text-sm">Select a chatroom or create a new one</p>
+        </div>
+        <button
+          className="bg-chatroom-accent text-chatroom-bg-primary px-4 py-2 font-bold text-xs uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
+          onClick={onCreate}
+        >
+          + New
+        </button>
       </div>
-      <button
-        className="bg-chatroom-accent text-chatroom-bg-primary px-4 py-2 font-bold text-xs uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
-        onClick={onCreate}
-      >
-        + New
-      </button>
-    </div>
+    </>
   );
 }
 

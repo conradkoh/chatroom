@@ -50,6 +50,25 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => mocks.setMachineAlias,
 }));
 
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/app/machines',
+}));
+
+vi.mock('next/link', () => ({
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+  } & Record<string, unknown>) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 function machine(overrides: Partial<UserMachine> & { machineId: string }): UserMachine {
   return { hostname: 'host', os: 'darwin', registeredAt: 0, ...overrides };
 }
@@ -111,6 +130,17 @@ describe('MachinesPage', () => {
     render(<MachinesPage />);
 
     expect(screen.getByRole('heading', { name: 'Machines' })).toBeDefined();
+  });
+
+  it('renders the section tabs with Machines current', () => {
+    mocks.registry = { machines: [] };
+    render(<MachinesPage />);
+
+    expect(screen.getByTestId('app-section-tabs')).toBeDefined();
+    expect(screen.getByTestId('app-section-tab-machines').getAttribute('aria-current')).toBe(
+      'page'
+    );
+    expect(screen.getByTestId('app-section-tab-chatrooms').getAttribute('aria-current')).toBeNull();
   });
 
   it('renders cards in display-name order', () => {
