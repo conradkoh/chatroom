@@ -614,4 +614,110 @@ describe('FileExplorerPanel context-menu copy feedback', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByText(/Copied/)).not.toBeInTheDocument();
   });
+
+  it('clears a copy failure after a successful copy', async () => {
+    const writeText = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('denied'))
+      .mockResolvedValueOnce(undefined);
+    stubClipboard(writeText);
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await copyRelativePathFromContextMenu();
+    expect(await screen.findByTestId('explorer-feedback')).toHaveTextContent(
+      'Failed to copy to clipboard'
+    );
+
+    await copyRelativePathFromContextMenu();
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId('explorer-feedback')).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps a file-op failure when a copy succeeds', async () => {
+    mockConfirmRename.mockRejectedValueOnce(new Error('Name taken'));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    // Let the panel's initial tree-sync attempt land before the rename refresh.
+    await waitFor(() => expect(mockRequestFileTree).toHaveBeenCalled());
+
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /rename/i }));
+    const input = await screen.findByLabelText('New file name');
+    fireEvent.change(input, { target: { value: 'manifest.json' } });
+
+    mockRequestFileTree.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(mockRequestFileTree).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        force: true,
+      })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const slot = screen.getByTestId('explorer-feedback');
+    expect(slot).toHaveTextContent('Failed to rename package.json: Name taken');
+    expect(slot).toHaveAttribute('role', 'alert');
+
+    await copyRelativePathFromContextMenu();
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('package.json'));
+    const slotAfterCopy = screen.getByTestId('explorer-feedback');
+    expect(slotAfterCopy).toHaveTextContent('Failed to rename package.json: Name taken');
+    expect(slotAfterCopy).toHaveAttribute('role', 'alert');
+  });
+
+  it('keeps a file-op failure that replaced a copy failure when a later copy succeeds', async () => {
+    mockConfirmRename.mockRejectedValueOnce(new Error('Name taken'));
+    const failingWrite = vi.fn().mockRejectedValue(new Error('denied'));
+    stubClipboard(failingWrite);
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await waitFor(() => expect(mockRequestFileTree).toHaveBeenCalled());
+
+    await copyRelativePathFromContextMenu();
+    expect(await screen.findByTestId('explorer-feedback')).toHaveTextContent(
+      'Failed to copy to clipboard'
+    );
+
+    const succeedingWrite = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(succeedingWrite);
+
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /rename/i }));
+    const input = await screen.findByLabelText('New file name');
+    fireEvent.change(input, { target: { value: 'manifest.json' } });
+
+    mockRequestFileTree.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(mockRequestFileTree).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        force: true,
+      })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(screen.getByTestId('explorer-feedback')).toHaveTextContent(
+      'Failed to rename package.json: Name taken'
+    );
+
+    await copyRelativePathFromContextMenu();
+
+    await waitFor(() => expect(succeedingWrite).toHaveBeenCalledWith('package.json'));
+    const slot = screen.getByTestId('explorer-feedback');
+    expect(slot).toHaveTextContent('Failed to rename package.json: Name taken');
+    expect(slot).toHaveAttribute('role', 'alert');
+  });
 });

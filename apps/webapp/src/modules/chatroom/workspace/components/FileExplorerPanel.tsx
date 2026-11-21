@@ -292,20 +292,37 @@ export const FileExplorerPanel = memo(
       } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
       const { feedback, error: showExplorerError, clear: clearExplorerFeedback } = useFeedback();
-      // True while the message in the slot is a tree-sync failure. Only tree-sync attempts may clear it.
+      // True while the slot holds a tree-sync failure. Only tree-sync attempts may clear it.
       const treeSyncErrorShownRef = useRef(false);
-      // Every non-tree-sync error (file ops, drops, copies) goes through here so the slot is marked file-op-owned.
+      // True while the slot holds a copy failure. Only a copy success may clear it.
+      const copyErrorShownRef = useRef(false);
+      // File-op and drop errors. Every writer to the slot except tree-sync and copy goes through here.
       const showFileOpError = useCallback(
         (message: string) => {
           treeSyncErrorShownRef.current = false;
+          copyErrorShownRef.current = false;
           showExplorerError(message);
         },
         [showExplorerError]
       );
+      const showCopyError = useCallback(
+        (message: string) => {
+          treeSyncErrorShownRef.current = false;
+          copyErrorShownRef.current = true;
+          showExplorerError(message);
+        },
+        [showExplorerError]
+      );
+      // A successful copy clears only a copy failure. A file-op or tree-sync message in the slot survives.
+      const clearCopyFailureOnSuccess = useCallback(() => {
+        if (!copyErrorShownRef.current) return;
+        copyErrorShownRef.current = false;
+        clearExplorerFeedback();
+      }, [clearExplorerFeedback]);
       const treeSyncFeedback = useMemo<WorkspaceTreeSyncFeedback>(
         () => ({
-          // Clear only a tree-sync failure. A file-op failure in this slot must survive the
-          // explorer's refresh, which runs right after it is shown.
+          // Clear only a tree-sync failure. A file-op or copy failure in this slot must survive
+          // the explorer's refresh, which runs right after it is shown.
           onAttempt: () => {
             if (!treeSyncErrorShownRef.current) return;
             treeSyncErrorShownRef.current = false;
@@ -313,6 +330,7 @@ export const FileExplorerPanel = memo(
           },
           onError: (message) => {
             treeSyncErrorShownRef.current = true;
+            copyErrorShownRef.current = false;
             showExplorerError(message);
           },
         }),
@@ -428,10 +446,9 @@ export const FileExplorerPanel = memo(
               onDelete: () => setDeleteTarget({ path, type: target.type }),
               onNewFile: isDir ? () => openNewFileDialog(path) : undefined,
               onNewFolder: isDir ? () => openNewFolderDialog(path) : undefined,
-              // A copy failure uses the file-op path so tree-sync refreshes do not clear it.
-              // A success clears the slot, which removes a stale copy failure. It shows nothing.
-              onCopied: clearExplorerFeedback,
-              onCopyError: showFileOpError,
+              // A copy failure is copy-owned. A success clears only that failure and shows nothing.
+              onCopied: clearCopyFailureOnSuccess,
+              onCopyError: showCopyError,
             },
             visibility,
           };
@@ -441,8 +458,8 @@ export const FileExplorerPanel = memo(
           openFileOnRemote,
           openRenameDialog,
           trackContextMenuFile,
-          clearExplorerFeedback,
-          showFileOpError,
+          clearCopyFailureOnSuccess,
+          showCopyError,
         ]
       );
 
