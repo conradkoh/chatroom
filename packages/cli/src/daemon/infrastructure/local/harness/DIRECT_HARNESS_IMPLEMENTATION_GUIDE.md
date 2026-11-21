@@ -211,9 +211,6 @@ Create `services/backend/src/domain/entities/harness/my-sdk.config.ts`:
 import type { HarnessCapabilities } from './types';
 
 export const mySdkCapabilities: HarnessCapabilities = {
-  runtimeKind: 'sdk',
-  supportsDaemonMemoryResume: false, // true only if you implement daemon-memory resume like cursor-sdk
-  supportsNativeIntegration: true, // required for Direct Harness UI
   lifecycle: {
     turnCompleted: true,
     outputActivity: true,
@@ -225,7 +222,7 @@ export const mySdkCapabilities: HarnessCapabilities = {
 
 Register in `services/backend/src/domain/entities/harness/types.ts` → `HARNESS_CAPABILITIES`.
 
-Update `types.test.ts` expectations for `supportsNativeIntegration` / `isNativeHarness`.
+Update `types.test.ts` expectations for `isNativeHarness`.
 
 ### 3. CLI registry
 
@@ -306,7 +303,7 @@ If you add new Convex surface area (unlikely for a standard harness), add tests 
 
 ## UI behaviors (no harness code required)
 
-Once `supportsNativeIntegration: true` and capabilities publish succeeds:
+Once the harness capabilities publish succeeds:
 
 - Harness appears in `HarnessHarnessSelect`
 - Agents/models populate from `refreshCapabilities` (daemon calls your `listAgents` / `listProviders`)

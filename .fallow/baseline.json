@@ -553,10 +553,7 @@
     "services/backend/src/domain/entities/backlog-item.ts:isActiveBacklogItem",
     "services/backend/src/domain/entities/backlog-item.ts:canTransitionTo",
     "services/backend/src/domain/entities/harness/claude.model-variants.ts:CLAUDE_EFFORT_VALUES",
-    "services/backend/src/domain/entities/harness/claude.model-variants.ts:CLAUDE_SPAWN_ALIASES",
-    "services/backend/src/domain/entities/harness/claude.model-variants.ts:CLAUDE_BASE_MODEL_IDS",
     "services/backend/src/domain/entities/harness/codex-sdk.model-variants.ts:CODEX_REASONING_LEVEL_VALUES",
-    "services/backend/src/domain/entities/harness/types.ts:getHarnessRuntimeKind",
     "services/backend/src/domain/entities/markdown-content.ts:containsStructuredEnvelope",
     "services/backend/src/domain/entities/markdown-content.ts:containsFencedCode",
     "services/backend/src/domain/entities/markdown-content.ts:decodeHtmlEntities",
@@ -584,7 +581,6 @@
     "services/backend/src/domain/usecase/workspace/project-observed-workspace-view.ts:rebuildObservedWorkspaceViewsForChatroom",
     "services/backend/src/output-encoding.ts:decodeOutput",
     "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-models.ts:decodeCursorVariant",
-    "services/backend/src/domain/entities/harness/model-provider.ts:inferCommandCodeModelProvider",
     "services/backend/src/domain/entities/harness/model-provider.ts:prefixModelWithProvider"
   ],
   "unused_types": [

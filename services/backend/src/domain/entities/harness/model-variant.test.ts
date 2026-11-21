@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { CLAUDE_MODEL_VARIANT_COMBINATIONS, CLAUDE_SPAWN_ALIASES } from './claude.model-variants';
+import { CLAUDE_MODEL_VARIANT_COMBINATIONS } from './claude.model-variants';
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
 import {
   cursorLegacySlugToVariant,
@@ -146,8 +146,6 @@ describe('validateModelVariantParams', () => {
 describe('HARNESS_MODEL_CATALOG', () => {
   const HARNESS_SCHEMAS: Record<CatalogBackedHarness, typeof PLAIN_MODEL_SCHEMA> = {
     'codex-sdk': CODEX_MODEL_VARIANT_COMBINATIONS,
-    copilot: PLAIN_MODEL_SCHEMA,
-    claude: CLAUDE_MODEL_VARIANT_COMBINATIONS,
     'claude-sdk': CLAUDE_MODEL_VARIANT_COMBINATIONS,
   };
 
@@ -196,12 +194,6 @@ describe('HARNESS_MODEL_CATALOG', () => {
         entriesFor(base, levelsWithoutNone)
       );
       expect(codex).not.toContain(`openai/${base}[reasoning=none]`);
-    }
-  });
-
-  test('copilot entries are plain ids (no variants)', () => {
-    for (const entry of HARNESS_MODEL_CATALOG.copilot) {
-      expect(decodeModelVariant(entry).params).toEqual({});
     }
   });
 
@@ -276,10 +268,6 @@ describe('HARNESS_MODEL_CATALOG', () => {
       expect(new Set(baseIds).size).toBe(expectedClaudeBaseIds.length);
       for (const base of expectedClaudeBaseIds) {
         expect(baseIds).toContain(`anthropic/${base}`);
-      }
-      // CLAUDE_SPAWN_ALIASES is now empty — all aliases are catalog-backed.
-      for (const alias of CLAUDE_SPAWN_ALIASES) {
-        expect(baseIds).not.toContain(alias);
       }
       // Unversioned aliases are present (resolved by claude CLI at spawn time).
       expect(baseIds).toContain('anthropic/opus');

@@ -6,12 +6,23 @@
  * migration is idempotent and skips rows without a retired harness.
  */
 
+import migrationsTest from '@convex-dev/migrations/test';
+import { defineSchema } from 'convex/server';
 import type { SessionId } from 'convex-helpers/server/sessions';
+import { convexTest } from 'convex-test';
 import { beforeAll, describe, expect, test } from 'vitest';
 
-import { t } from '../test.setup';
 import { api, internal } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
+import schema from './schema';
+import { modules } from '../test.setup';
+
+// The narrowed schema rejects retired harness names on insert/patch. These rows are
+// seeded to exercise the purge migrations, so this spec runs with schema validation
+// disabled. Production validation still applies at deploy time, which is why the purge
+// must run before the narrowing ships.
+const t = convexTest(defineSchema(schema.tables, { schemaValidation: false }), modules);
+migrationsTest.register(t);
 
 let owner: Doc<'users'>;
 

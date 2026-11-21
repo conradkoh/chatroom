@@ -207,41 +207,10 @@ describe('Native task delivery prompt (integration)', () => {
     expect(fullCliOutput).not.toContain('Classify');
   });
 
-  test('CLI harness delivery still contains get-next-task (regression)', async () => {
-    const { sessionId } = await createTestSession('test-native-delivery-opencode-cli');
+  test('custom agent (no harness configured) delivery still contains get-next-task (regression)', async () => {
+    const { sessionId } = await createTestSession('test-native-delivery-custom-cli');
     const chatroomId = await createTeamChatroom(sessionId, 'duo');
     await joinParticipants(sessionId, chatroomId, ['builder']);
-
-    await t.mutation(api.machines.register, {
-      sessionId,
-      machineId: 'machine-cli-delivery',
-      hostname: 'test-host',
-      os: 'darwin',
-      availableHarnesses: ['opencode'],
-    });
-
-    await t.mutation(api.machines.markDaemonOnline, {
-      sessionId,
-      machineId: 'machine-cli-delivery',
-    });
-    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
-      sessionId,
-      chatroomId,
-      machineId: 'machine-cli-delivery',
-      workingDir: '/test/workspace',
-      hostname: 'test-host',
-      registeredBy: 'builder',
-    });
-    await t.mutation(api.agents.saveConfig, {
-      sessionId,
-      chatroomId,
-      workspaceId,
-      role: 'builder',
-      machineId: 'machine-cli-delivery',
-      agentHarness: 'opencode',
-      model: 'auto',
-      workingDir: '/test/workspace',
-    });
 
     const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,

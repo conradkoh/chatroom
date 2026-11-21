@@ -137,7 +137,7 @@ Canonical vocabulary lives in `services/backend/src/domain/entities/harness/life
 | **Lifecycle** (daemon boundary) | Stable semantics for `AgentProcessManager` | `lifecycle.turn.completed` → `onAgentEnd`, `lifecycle.process.exited` → `onExit` |
 | **Wire** (harness-specific)     | Protocol/SDK signals before adaptation     | Cursor `sdk.cursor.run.completed`                                                |
 
-Declare `runtimeKind`, `lifecycle`, and `wireEvents` in each `*.config.ts` under `services/backend/src/domain/entities/harness/`.
+Declare `lifecycle` and `wireEvents` in each `*.config.ts` under `services/backend/src/domain/entities/harness/`.
 
 ---
 
