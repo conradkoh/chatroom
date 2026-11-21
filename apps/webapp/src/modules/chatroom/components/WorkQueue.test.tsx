@@ -12,20 +12,21 @@ const mocks = vi.hoisted(() => ({
   counts: undefined as
     { pending: number; acknowledged: number; in_progress: number; queued: number } | undefined,
   tasks: undefined as { _id: string; status: string; content: string }[] | undefined,
+  pendingReview: [] as { _id: string }[],
+  queueFrontSubmit: undefined as ((content: string) => Promise<void>) | undefined,
   promote: vi.fn(),
   otherMutation: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastInfo: vi.fn(),
-  toastError: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: (query: unknown) => {
+  useSessionQuery: (query: unknown, args?: { statusFilter?: string }) => {
     const functionName = getFunctionName(query as FunctionReference<'query'>);
     if (functionName === getFunctionName(api.tasks.listTasks)) return mocks.tasks;
     if (functionName === getFunctionName(api.tasks.getTaskCounts)) return mocks.counts;
     if (functionName === getFunctionName(api.messages.listQueued)) return [];
-    if (functionName === getFunctionName(api.backlog.listBacklogItems)) return [];
+    if (functionName === getFunctionName(api.backlog.listBacklogItems)) {
+      return args?.statusFilter === 'pending_user_review' ? mocks.pendingReview : [];
+    }
     if (functionName === getFunctionName(api.scheduledPrompts.listUpcoming)) return [];
     throw new Error(`Unexpected WorkQueue query: ${functionName}`);
   },
@@ -36,19 +37,22 @@ vi.mock('convex-helpers/react/sessions', () => ({
       : mocks.otherMutation,
 }));
 
-vi.mock('sonner', () => ({
-  toast: {
-    success: mocks.toastSuccess,
-    info: mocks.toastInfo,
-    error: mocks.toastError,
-  },
-}));
-
 vi.mock('./sidebar/SidebarSection', () => ({
   SIDEBAR_PREVIEW_LIMIT: 4,
   SidebarSection: {
-    Root: ({ title, children }: { title: string; children: ReactNode }) => (
-      <section aria-label={title}>{children}</section>
+    Root: ({
+      title,
+      action,
+      children,
+    }: {
+      title: string;
+      action?: ReactNode;
+      children: ReactNode;
+    }) => (
+      <section aria-label={title}>
+        {action}
+        {children}
+      </section>
     ),
   },
 }));
@@ -71,7 +75,12 @@ vi.mock('./WorkQueue/QueuedMessagesModal', () => ({ QueuedMessagesModal: () => n
 vi.mock('./WorkQueue/BacklogQueueModal', () => ({ BacklogQueueModal: () => null }));
 vi.mock('./BacklogCreateModal', () => ({ BacklogCreateModal: () => null }));
 vi.mock('./BacklogItemDetailModal', () => ({ BacklogItemDetailModal: () => null }));
-vi.mock('./QueueFrontMessageModal', () => ({ QueueFrontMessageModal: () => null }));
+vi.mock('./QueueFrontMessageModal', () => ({
+  QueueFrontMessageModal: ({ onSubmit }: { onSubmit: (content: string) => Promise<void> }) => {
+    mocks.queueFrontSubmit = onSubmit;
+    return null;
+  },
+}));
 vi.mock('./ReviewPanel', () => ({ ReviewPanel: () => null }));
 vi.mock('./TaskDetailModal', () => ({ TaskDetailModal: () => null }));
 vi.mock('@/components/ui/dropdown-menu', () => ({
@@ -89,11 +98,9 @@ describe('WorkQueue manual queue recovery', () => {
     vi.useFakeTimers();
     mocks.counts = eligibleCounts;
     mocks.tasks = [];
+    mocks.pendingReview = [];
     mocks.promote = vi.fn().mockResolvedValue({ reason: 'success' });
     mocks.otherMutation = vi.fn().mockResolvedValue(undefined);
-    mocks.toastSuccess.mockReset();
-    mocks.toastInfo.mockReset();
-    mocks.toastError.mockReset();
   });
 
   afterEach(() => {
@@ -180,7 +187,7 @@ describe('WorkQueue manual queue recovery', () => {
     expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Starting…' })).toHaveAttribute('aria-busy', 'true');
     await act(async () => resolvePromotion({ reason: 'success' }));
-    expect(mocks.toastSuccess).toHaveBeenCalledWith('Started next queued task');
+    expect(screen.queryByTestId('work-queue-feedback')).not.toBeInTheDocument();
   });
 
   it.each([
@@ -192,7 +199,7 @@ describe('WorkQueue manual queue recovery', () => {
     await elapse(2000);
     fireEvent.click(screen.getByRole('button', { name: 'Start Next' }));
     await act(async () => Promise.resolve());
-    expect(mocks.toastInfo).toHaveBeenCalledWith(message);
+    expect(screen.getByRole('status')).toHaveTextContent(message);
   });
 
   it('reports errors and allows another attempt', async () => {
@@ -203,10 +210,50 @@ describe('WorkQueue manual queue recovery', () => {
     await elapse(2000);
     fireEvent.click(screen.getByRole('button', { name: 'Start Next' }));
     await act(async () => Promise.resolve());
-    expect(mocks.toastError).toHaveBeenCalledWith('network unavailable');
+    expect(screen.getByRole('alert')).toHaveTextContent('network unavailable');
     fireEvent.click(screen.getByRole('button', { name: 'Start Next' }));
     await act(async () => Promise.resolve());
     expect(mocks.promote).toHaveBeenCalledTimes(2);
-    expect(mocks.toastSuccess).toHaveBeenCalledWith('Started next queued task');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('work-queue-feedback')).not.toBeInTheDocument();
+  });
+
+  it('dismisses a start-next failure', async () => {
+    mocks.promote.mockRejectedValue(new Error('network unavailable'));
+    render(<WorkQueue chatroomId={chatroomId} />);
+    await elapse(2000);
+    fireEvent.click(screen.getByRole('button', { name: 'Start Next' }));
+    await act(async () => Promise.resolve());
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows a mark-reviewed failure in the slot', async () => {
+    mocks.pendingReview = [{ _id: 'review-1' }];
+    mocks.otherMutation = vi.fn().mockRejectedValue(new Error('boom'));
+    render(<WorkQueue chatroomId={chatroomId} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark all as reviewed' }));
+    await act(async () => Promise.resolve());
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to mark items as reviewed');
+  });
+
+  it('drops the mark-reviewed success confirmation', async () => {
+    mocks.pendingReview = [{ _id: 'review-1' }];
+    mocks.otherMutation = vi.fn().mockResolvedValue({ completed: 1 });
+    render(<WorkQueue chatroomId={chatroomId} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark all as reviewed' }));
+    await act(async () => Promise.resolve());
+    expect(mocks.otherMutation).toHaveBeenCalledWith({ chatroomId });
+    expect(screen.queryByTestId('work-queue-feedback')).not.toBeInTheDocument();
+  });
+
+  it('adds a front-of-queue message without a success confirmation', async () => {
+    render(<WorkQueue chatroomId={chatroomId} />);
+    await act(async () => {
+      await mocks.queueFrontSubmit?.('hello');
+    });
+    expect(mocks.otherMutation).toHaveBeenCalledWith({ chatroomId, content: 'hello' });
+    expect(screen.queryByTestId('work-queue-feedback')).not.toBeInTheDocument();
   });
 });
