@@ -92,19 +92,6 @@ export type WorkspaceTaskInboxEvent =
 /** Deterministic bootstrap-recovery ladder: 1s doubling to a 30s cap. */
 const BOOTSTRAP_RECOVERY_BACKOFF: BackoffOptions = { baseMs: 1_000, maxMs: 30_000, jitter: 0 };
 
-/**
- * Automatic re-arm delays after a task is parked as `redelivery_exhausted`.
- * The budget is bounded: after the last cycle the task stays parked until a
- * user restart or explicit recovery. In-memory, like the rest of the redelivery
- * tracking, so a daemon restart clears both the timer and the cycle count.
- */
-// Exported so the re-arm tests and docs can reference the schedule; the daemon
-// reads these exports directly.
-// fallow-ignore-next-line unused-export
-export const REARM_DELAYS_MS = [15 * 60_000, 30 * 60_000, 60 * 60_000] as const;
-// fallow-ignore-next-line unused-export
-export const MAX_REARM_CYCLES = REARM_DELAYS_MS.length;
-
 export type TaskServiceNotification =
   | {
       readonly kind: 'bootstrap';
@@ -208,143 +195,30 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   let bootstrapRecoveryPromise: Promise<void> | undefined;
 
   // Turn-end tracking, per (chatroom, role, taskId). In-memory on purpose: a daemon
-  // restart re-bounds the cycle. Two independent budgets:
-  //  - turnFailureCounts: provider failures (failed / timed_out / aborted turns).
-  //    Park after TURN_FAILURE_RETRY_CAP consecutive failures. The caller spaces
-  //    each release with exponential backoff so a provider outage does not burn
-  //    the budget in seconds.
-  //  - uncoveredLadder: completed turns that end without a covering handoff.
-  //    Nudge once per session, then restart the session once, then park.
-  // Parking adds the key to redeliveryExhaustedKeys and records
-  // 'redelivery_exhausted' on the backend once. Only the provider_failure park
-  // arms an automatic re-arm; an uncovered_turn park stays parked because
-  // replaying it could repeat side effects.
-  // Reset on fresh task activity (task_assigned / completed / deleted), on
-  // user.start, and on explicit recovery. Daemon-authored transitions (release,
-  // claim) do NOT reset anything.
-  const TURN_FAILURE_RETRY_CAP = 8;
+  // restart re-bounds the streaks. Two independent counters:
+  //  - turnFailureCounts: consecutive provider failures (failed / timed_out / aborted
+  //    turns). Never parks. Each failure schedules the next release with a backoff
+  //    capped at 60s (agent work manager). From failure RETRY_WARNING_THRESHOLD + 1
+  //    the 'delivery_retrying' warning is recorded, and re-asserted on each later failure.
+  //  - uncoveredLadder: completed turns that end without a covering handoff. Nudge
+  //    once per session, restart the session once, then park. Only this park writes
+  //    'redelivery_exhausted' and stops automatic redelivery, because replaying an
+  //    uncovered turn may repeat side effects.
+  // Reset on fresh task activity (task_assigned / completed / deleted), on user.start,
+  // and on explicit recovery. Daemon-authored transitions (release, claim) reset nothing.
+  const RETRY_WARNING_THRESHOLD = 3;
   const turnFailureCounts = new Map<string, number>();
   const uncoveredLadder = new Map<string, UncoveredTurnLadderEntry>();
   const redeliveryExhaustedKeys = new Set<string>();
-  // Automatic re-arm after exhaustion: cycles already used and the pending timer
-  // per key. Bounded by MAX_REARM_CYCLES and only reset by a user restart or a
-  // task lifecycle end, never by a successful re-arm.
-  const rearmCycleCounts = new Map<string, number>();
-  const rearmTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  // Keys whose retry warning this daemon run wrote, mapped to the taskId. Only these
+  // keys send an explicit clear on a covered or completed turn, so a streak below the
+  // threshold never touches the backend. Lost on restart by design; see scheduleEvent.
+  const retryWarnings = new Map<string, string>();
   // Provider-failure backoff releases still waiting in the agent work manager.
   // Automatic recovery must not release these early; explicit recovery still may.
   const pendingTurnFailureReleases = new Set<string>();
   const redeliveryKey = (chatroomId: string, role: string, taskId: string): string =>
     `${chatroomId}:${role.toLowerCase()}:${taskId}`;
-
-  /** Stops the pending re-arm timer for one key, if any. */
-  const clearRearmTimer = (key: string): void => {
-    const timer = rearmTimers.get(key);
-    if (timer === undefined) return;
-    clearTimeout(timer);
-    rearmTimers.delete(key);
-  };
-
-  /** Cancels the timer and forgets the cycles used. Only user restart / lifecycle end resets the budget. */
-  const resetRearmBudget = (key: string): void => {
-    clearRearmTimer(key);
-    rearmCycleCounts.delete(key);
-  };
-
-  /**
-   * Arms the next bounded re-arm for a parked task. A successful cycle does not
-   * reset the cycle count: the third park after the third cycle stays parked.
-   */
-  const scheduleRedeliveryRearm = (args: {
-    chatroomId: string;
-    role: string;
-    taskId: string;
-    key: string;
-  }): void => {
-    if (inboxStopped) return;
-    const { key } = args;
-    const cycles = rearmCycleCounts.get(key) ?? 0;
-    if (cycles >= MAX_REARM_CYCLES) {
-      console.log(
-        `[NativeDelivery:redelivery-rearm-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} cycles=${MAX_REARM_CYCLES}`
-      );
-      return;
-    }
-    clearRearmTimer(key);
-    const delay = REARM_DELAYS_MS[cycles];
-    const timer = setTimeout(() => {
-      rearmTimers.delete(key);
-      void runRedeliveryRearm({ ...args, delay, cycle: cycles + 1 });
-    }, delay);
-    rearmTimers.set(key, timer);
-  };
-
-  /**
-   * Runs one re-arm cycle: re-check the task is still the in-flight work, then
-   * give it a fresh failure budget and release it for redelivery. Never restarts
-   * the agent process.
-   */
-  const runRedeliveryRearm = async (args: {
-    chatroomId: string;
-    role: string;
-    taskId: string;
-    key: string;
-    delay: number;
-    cycle: number;
-  }): Promise<void> => {
-    const { chatroomId, role, taskId, key } = args;
-    const current = taskInboxState.getForRole(chatroomId, role, taskId);
-    if (!current || current.status !== 'in_progress' || !redeliveryExhaustedKeys.has(key)) {
-      console.log(
-        `[NativeDelivery:redelivery-rearm-skipped] reason=task_not_current chatroom=${chatroomId} role=${role} task=${taskId} status=${current?.status ?? 'missing'}`
-      );
-      return;
-    }
-
-    rearmCycleCounts.set(key, args.cycle);
-    redeliveryExhaustedKeys.delete(key);
-    turnFailureCounts.delete(key);
-
-    try {
-      await gateway.clearDeliveryFailure({
-        sessionId: deps.sessionId,
-        machineId: deps.machineId,
-        taskId,
-      });
-    } catch (error) {
-      console.warn(
-        `[TaskService] redelivery-rearm clear failure failed chatroom=${chatroomId} role=${role} task=${taskId}: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-
-    let released = false;
-    try {
-      const result = await releaseTask({ chatroomId, role, taskId });
-      released = result.released;
-      if (!released) {
-        console.warn(
-          `[TaskService] redelivery-rearm release skipped chatroom=${chatroomId} role=${role} task=${taskId} cycle=${args.cycle}`
-        );
-      }
-    } catch (error) {
-      console.error(
-        `[TaskService] redelivery-rearm release failed chatroom=${chatroomId} role=${role} task=${taskId} cycle=${args.cycle}: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-
-    if (!released) {
-      // The task is still parked. Restore the backend record (it was cleared
-      // optimistically) and try the next cycle rather than stranding it active.
-      redeliveryExhaustedKeys.add(key);
-      await recordExhaustedOnBackend({ chatroomId, role, taskId });
-      scheduleRedeliveryRearm(args);
-      return;
-    }
-
-    console.log(
-      `[NativeDelivery:redelivery-rearm] cycle=${args.cycle}/${MAX_REARM_CYCLES} chatroom=${chatroomId} role=${role} task=${taskId} delayMs=${args.delay}`
-    );
-  };
 
   /** Writes (or re-writes) the backend exhaustion record. Best effort; the in-memory key is authoritative. */
   const recordExhaustedOnBackend = async (args: {
@@ -366,51 +240,93 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     }
   };
 
-  const parkTask = async (
-    args: { chatroomId: string; role: string; taskId: string },
-    reason: 'provider_failure' | 'uncovered_turn',
-    attempts?: number
-  ): Promise<void> => {
-    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
-    redeliveryExhaustedKeys.add(key);
-    await recordExhaustedOnBackend(args);
-    const attemptsSuffix = attempts === undefined ? '' : ` attempts=${attempts}`;
-    const rearmCycles = rearmCycleCounts.get(key) ?? 0;
-    const rearmDelay =
-      reason === 'provider_failure' && rearmCycles < MAX_REARM_CYCLES
-        ? REARM_DELAYS_MS[rearmCycles]
-        : undefined;
-    console.log(
-      `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId}${attemptsSuffix} reason=${reason} rearm=${rearmDelay ?? 'none'} — release/redelivery stopped; user.start or explicit recovery resets`
-    );
-    // Only provider failures are safe to redeliver automatically. A task parked
-    // by the uncovered-turn ladder may repeat side effects if replayed, so it
-    // stays parked until a user restart or explicit recovery.
-    if (reason === 'provider_failure') {
-      scheduleRedeliveryRearm({ ...args, key });
+  /** Writes (or re-asserts; the backend dedupes) the retry warning. Best effort. */
+  const recordRetryWarningOnBackend = async (taskId: string): Promise<void> => {
+    try {
+      await gateway.recordDeliveryFailure({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId,
+        reason: 'delivery_retrying',
+      });
+    } catch (error) {
+      console.warn(
+        `[TaskService] retry-warning record failed task=${taskId}: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   };
 
+  /** Clears the persisted retry warning. Explicit `expectedReason` is required, or the backend keeps it. Best effort. */
+  const clearRetryWarningOnBackend = async (taskId: string): Promise<void> => {
+    try {
+      await gateway.clearDeliveryFailure({
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        taskId,
+        expectedReason: 'delivery_retrying',
+      });
+    } catch (error) {
+      console.warn(
+        `[TaskService] retry-warning clear failed task=${taskId}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  };
+
+  /** Clears the warning only when this run wrote it. Every end-of-streak hook calls this. */
+  const clearRetryWarning = (key: string): void => {
+    const taskId = retryWarnings.get(key);
+    if (taskId === undefined) return;
+    retryWarnings.delete(key);
+    void clearRetryWarningOnBackend(taskId);
+  };
+
   /**
-   * A provider failure. Returns the 1-based attempt number and whether the cap
-   * is exceeded; the caller schedules the release with exponential backoff.
-   * At the cap the task is parked instead of released.
+   * Parks a task after the uncovered-turn ladder is exhausted. Writes
+   * 'redelivery_exhausted' once and stops automatic redelivery. A user.start or
+   * explicit recovery resets it. Provider failures never reach this path.
+   */
+  const parkUncoveredTurn = async (args: {
+    chatroomId: string;
+    role: string;
+    taskId: string;
+  }): Promise<void> => {
+    const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
+    redeliveryExhaustedKeys.add(key);
+    await recordExhaustedOnBackend(args);
+    console.log(
+      `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} reason=uncovered_turn — redelivery stopped; user.start or explicit recovery resets`
+    );
+  };
+
+  /**
+   * A provider failure. Never parks: returns the 1-based attempt number, which the
+   * caller turns into a backoff delay. `parked` is true only when the uncovered-turn
+   * ladder already parked this task; the caller must then schedule no release.
+   * From failure RETRY_WARNING_THRESHOLD + 1 onward the 'delivery_retrying' warning
+   * is recorded, and re-asserted on every later failure.
    */
   const recordTurnFailure = async (args: {
     chatroomId: string;
     role: string;
     taskId: string;
-  }): Promise<{ attempts: number; exceeded: boolean }> => {
+  }): Promise<{ attempts: number; parked: boolean }> => {
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
-    const recordedAttempts = turnFailureCounts.get(key) ?? 0;
     if (redeliveryExhaustedKeys.has(key)) {
-      return { attempts: recordedAttempts, exceeded: true };
+      return { attempts: turnFailureCounts.get(key) ?? 0, parked: true };
     }
-    const attempts = recordedAttempts + 1;
+    // Synchronous before any await: concurrent failures for one key get distinct attempts.
+    const attempts = (turnFailureCounts.get(key) ?? 0) + 1;
     turnFailureCounts.set(key, attempts);
-    if (attempts < TURN_FAILURE_RETRY_CAP) return { attempts, exceeded: false };
-    await parkTask(args, 'provider_failure', attempts);
-    return { attempts, exceeded: true };
+    if (attempts > RETRY_WARNING_THRESHOLD) {
+      retryWarnings.set(key, args.taskId);
+      await recordRetryWarningOnBackend(args.taskId);
+      if (attempts === RETRY_WARNING_THRESHOLD + 1) {
+        console.warn(
+          `[NativeDelivery:delivery-retrying] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} attempts=${attempts} — still retrying, backoff capped at 60s`
+        );
+      }
+    }
+    return { attempts, parked: false };
   };
 
   /**
@@ -429,6 +345,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
     if (redeliveryExhaustedKeys.has(key)) return { action: 'park' };
     turnFailureCounts.delete(key);
+    clearRetryWarning(key);
     const entry = uncoveredLadder.get(key);
     const decision = decideLadderStep(entry, args.sessionKey, {
       nudgeUnavailable: args.nudgeUnavailable ?? false,
@@ -436,7 +353,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     if (decision.action === 'restart-session') {
       uncoveredLadder.set(key, withSessionRestart(entry));
     } else if (decision.action === 'park') {
-      await parkTask(args, 'uncovered_turn');
+      await parkUncoveredTurn(args);
     }
     return decision;
   };
@@ -451,11 +368,12 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     uncoveredLadder.set(key, withNudgeSent(uncoveredLadder.get(key), args.sessionKey));
   };
 
-  /** Covered (handoff-backed) end: clear the ladder entry and the failure counter. Parked marker is kept. */
+  /** Covered (handoff-backed) end: clear the ladder entry, the failure counter, and this run's retry warning. Parked marker is kept. */
   const resetTurnTracking = (args: { chatroomId: string; role: string; taskId: string }): void => {
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
     turnFailureCounts.delete(key);
     uncoveredLadder.delete(key);
+    clearRetryWarning(key);
   };
 
   const isRedeliveryExhausted = (args: {
@@ -473,7 +391,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     turnFailureCounts.delete(key);
     uncoveredLadder.delete(key);
     redeliveryExhaustedKeys.delete(key);
-    resetRearmBudget(key);
+    clearRetryWarning(key);
   };
   const forgetStaleTask = ({
     chatroomId,
@@ -526,11 +444,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     for (const key of [...redeliveryExhaustedKeys]) {
       if (key.startsWith(prefix)) redeliveryExhaustedKeys.delete(key);
     }
-    for (const key of [...rearmTimers.keys()]) {
-      if (key.startsWith(prefix)) resetRearmBudget(key);
-    }
-    for (const key of [...rearmCycleCounts.keys()]) {
-      if (key.startsWith(prefix)) rearmCycleCounts.delete(key);
+    for (const key of [...retryWarnings.keys()]) {
+      if (key.startsWith(prefix)) clearRetryWarning(key);
     }
   };
 
@@ -544,7 +459,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   };
 
   // Keep startup on the shared automatic selector so handoff coverage and the
-  // V2 exhausted-task cap apply to boot recovery as well as agent-loss recovery.
+  // uncovered-turn park apply to boot recovery as well as agent-loss recovery.
   const runBootstrapRecovery = (): Promise<void> => {
     if (inboxStopped || !bootstrapRecoveryPending) return Promise.resolve();
     if (bootstrapRecoveryPromise) return bootstrapRecoveryPromise;
@@ -660,6 +575,8 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
               taskId: event.taskId,
               expectedReason: 'task_not_deliverable',
             });
+            // The in-memory map cannot see a warning persisted by an earlier daemon run.
+            await clearRetryWarningOnBackend(event.taskId);
             deliveredEventIds.add(event.eventId);
             await acknowledgeEvent(event);
             return;
@@ -802,9 +719,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     },
     stopTaskInbox: () => {
       inboxStopped = true;
-      for (const timer of rearmTimers.values()) clearTimeout(timer);
-      rearmTimers.clear();
-      rearmCycleCounts.clear();
       pendingTurnFailureReleases.clear();
       if (bootstrapRecoveryTimer) clearTimeout(bootstrapRecoveryTimer);
       bootstrapRecoveryTimer = undefined;
@@ -918,16 +832,10 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
           if (mode === 'automatic') {
             const tracking = { chatroomId: task.chatroomId, role: taskRole, taskId: task.taskId };
             const key = redeliveryKey(task.chatroomId, taskRole, task.taskId);
-            // Exhausted keys already imply a re-arm cooldown, but check the timer
-            // explicitly so the guard does not depend on that invariant. A
-            // provider-failure backoff release waiting in the work manager is also
-            // off limits to automatic recovery; manual (explicit) recovery
-            // deliberately bypasses both.
-            if (
-              isRedeliveryExhausted(tracking) ||
-              rearmTimers.has(key) ||
-              pendingTurnFailureReleases.has(key)
-            ) {
+            // Parked (uncovered-turn) tasks and provider-failure backoff releases waiting
+            // in the work manager are off limits to automatic recovery; manual
+            // (explicit) recovery bypasses both.
+            if (isRedeliveryExhausted(tracking) || pendingTurnFailureReleases.has(key)) {
               skipped += 1;
               continue;
             }
@@ -1027,7 +935,6 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
         ...(expectedReason ? { expectedReason } : {}),
       }),
     recordTurnFailure,
-    parkTurnFailure: (args) => parkTask(args, 'provider_failure'),
     decideUncoveredTurnEnd,
     confirmNudgeSent,
     resetTurnTracking,

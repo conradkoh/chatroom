@@ -1,7 +1,7 @@
 /**
  * Shared exponential backoff for daemon-owned retry ladders.
  *
- * Callers pass their own bounds: provider-failure redelivery (5s base, 5min cap,
+ * Callers pass their own bounds: provider-failure redelivery (5s base, 60s cap,
  * ±20% jitter), role recovery (1s to 30s, deterministic), bootstrap recovery
  * (1s to 30s, deterministic), and respawn starts (1s base, 10min SDK cap or
  * 30s CLI cap, deterministic). The delay doubles per attempt and is capped so
@@ -11,7 +11,7 @@
 // fallow-ignore-next-line unused-export
 export const REDELIVERY_BACKOFF_BASE_MS = 5_000;
 // fallow-ignore-next-line unused-export
-export const REDELIVERY_BACKOFF_MAX_MS = 5 * 60_000;
+export const REDELIVERY_BACKOFF_MAX_MS = 60_000;
 
 export interface BackoffOptions {
   baseMs: number;
@@ -20,7 +20,7 @@ export interface BackoffOptions {
   jitter?: number;
 }
 
-/** The provider-failure redelivery schedule: 5s base, 5min cap, ±20%. */
+/** The provider-failure redelivery schedule: 5s base, 60s cap, ±20%. */
 export const REDELIVERY_BACKOFF_OPTIONS: BackoffOptions = {
   baseMs: REDELIVERY_BACKOFF_BASE_MS,
   maxMs: REDELIVERY_BACKOFF_MAX_MS,
@@ -31,9 +31,8 @@ export const REDELIVERY_BACKOFF_OPTIONS: BackoffOptions = {
  * Delay before the next attempt.
  *
  * `attempt` is 1-based (the first attempt waits `opts.baseMs`).
- * Returns the capped exponential delay, never negative. With jitter disabled
- * the result is deterministic; with jitter the ratio is applied after the cap,
- * so the result can exceed `opts.maxMs` by the jitter ratio.
+ * Returns the capped exponential delay, never negative, and never above
+ * `opts.maxMs`: jitter is applied before the final clamp.
  */
 export function computeBackoffDelay(
   attempt: number,
@@ -44,5 +43,5 @@ export function computeBackoffDelay(
   const jitterRatio = opts.jitter ?? 0;
   if (jitterRatio <= 0) return Math.max(0, Math.round(exp));
   const jitter = exp * jitterRatio * (random() * 2 - 1);
-  return Math.max(0, Math.round(exp + jitter));
+  return Math.min(opts.maxMs, Math.max(0, Math.round(exp + jitter)));
 }
