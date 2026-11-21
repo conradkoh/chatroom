@@ -5,10 +5,11 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ChevronRight, Loader2, UserCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { buttonVariants } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFeedback } from '@/hooks/useFeedback';
 import { cn } from '@/lib/utils';
 
 export interface AnonymousLoginButtonProps {
@@ -26,32 +27,42 @@ export const AnonymousLoginButton = ({
 }: AnonymousLoginButtonProps) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const { feedback, error, clear } = useFeedback();
   const loginAnon = useSessionMutation(api.auth.loginAnon);
 
   /**
-   * Handles anonymous login button click with error handling and navigation.
+   * Handles anonymous login. A failure is shown under this option until the next attempt.
+   * Success redirects; the redirect is the outcome, so no message is shown.
    */
   const handleClick = useCallback(async () => {
+    clear();
     setIsLoading(true);
     try {
       await loginAnon();
-      toast.success('Logged in anonymously');
       router.push('/app');
-    } catch (error) {
-      console.error('Anonymous login failed:', error);
-      toast.error('Failed to login. Please try again later.');
+    } catch (err) {
+      console.error('Anonymous login failed:', err);
+      error('Failed to login. Please try again later.');
     } finally {
       setIsLoading(false);
     }
-  }, [loginAnon, router]);
+  }, [loginAnon, router, clear, error]);
 
-  // List-style layout
-  if (variant === 'list') {
-    return _renderListVariant(isLoading, handleClick);
-  }
+  const row =
+    variant === 'list'
+      ? _renderListVariant(isLoading, handleClick)
+      : _renderButtonVariant(isLoading, handleClick, className);
 
-  // Button layout (original)
-  return _renderButtonVariant(isLoading, handleClick, className);
+  return (
+    <div>
+      {row}
+      <InlineFeedback
+        variant="text"
+        feedback={feedback}
+        className={variant === 'list' ? 'px-6 pb-3' : 'pt-2'}
+      />
+    </div>
+  );
 };
 
 // Internal helper functions
