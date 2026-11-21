@@ -121,7 +121,7 @@ async function main(): Promise<void> {
 
   const child = Bun.spawn(args, {
     cwd: backendDir,
-    env: buildConvexDevEnv(process.env, isLocalDeployment),
+    env: buildConvexDevEnv(process.env, isLocalDeployment, backendEnv.CONVEX_DEPLOYMENT),
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',
