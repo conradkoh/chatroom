@@ -98,6 +98,7 @@ import type * as lib_hierarchy from "../lib/hierarchy.js";
 import type * as lib_lastAtProjections from "../lib/lastAtProjections.js";
 import type * as lib_omitUndefined from "../lib/omitUndefined.js";
 import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
+import type * as lib_retiredHarnesses from "../lib/retiredHarnesses.js";
 import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
 import type * as lib_taskDeliveryPrompt from "../lib/taskDeliveryPrompt.js";
 import type * as lib_taskEnvelope from "../lib/taskEnvelope.js";
@@ -253,6 +254,7 @@ declare const fullApi: ApiFromModules<{
   "lib/lastAtProjections": typeof lib_lastAtProjections;
   "lib/omitUndefined": typeof lib_omitUndefined;
   "lib/promoteNextTaskDeps": typeof lib_promoteNextTaskDeps;
+  "lib/retiredHarnesses": typeof lib_retiredHarnesses;
   "lib/stdinDecoder": typeof lib_stdinDecoder;
   "lib/taskDeliveryPrompt": typeof lib_taskDeliveryPrompt;
   "lib/taskEnvelope": typeof lib_taskEnvelope;
