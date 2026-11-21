@@ -7,7 +7,6 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -50,7 +49,6 @@ function RecoverAccountForm() {
       event.preventDefault();
       if (!sessionId) {
         setError('Session ID is missing. Cannot recover account.');
-        toast.error('Session ID is missing.');
         return;
       }
       if (!recoveryCode.trim()) {
@@ -65,7 +63,6 @@ function RecoverAccountForm() {
         const result = await verifyCode({ recoveryCode: recoveryCode.trim(), sessionId });
 
         if (result.success && result.user) {
-          toast.success('Account recovered successfully!');
           // Refresh the session ID to reflect the newly associated user
           await refreshSessionId();
           // Redirect to the app page after successful recovery
@@ -79,12 +76,10 @@ function RecoverAccountForm() {
             errorMessage = 'Failed to verify recovery code.';
           }
           setError(errorMessage);
-          toast.error(errorMessage);
         }
       } catch (error) {
         console.error('Error verifying recovery code:', error);
         setError('An unexpected error occurred during recovery.');
-        toast.error('An unexpected error occurred.');
       } finally {
         setIsLoading(false);
       }
@@ -126,7 +121,10 @@ function RecoverAccountForm() {
                 </p>
               </div>
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md dark:bg-red-900/20 dark:border-red-800">
+                <div
+                  role="alert"
+                  className="p-3 bg-red-50 border border-red-200 rounded-md dark:bg-red-900/20 dark:border-red-800"
+                >
                   <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
                 </div>
               )}
