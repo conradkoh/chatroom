@@ -70,7 +70,7 @@ export interface HarnessSessionIdUpdatedInfo {
 export interface SpawnResult {
   pid: number;
   /**
-   * `lifecycle.process.exited` — OS child (CLI binary or SDK keeper) exited.
+   * `lifecycle.process.exited` — OS child or SDK keeper exited.
    * Stop reason is derived from exit code/signal (`agent_process.*`).
    */
   onExit: (
@@ -92,17 +92,13 @@ export interface SpawnResult {
    */
   onLogLine?: ((cb: (line: string) => void) => void) | undefined;
   /**
-   * Compatibility lifecycle notification for one agent turn finishing.
-   *
-   * Wire sources differ by runtime (see `HarnessCapabilities.wireEvents`):
-   * - CLI: e.g. Pi NDJSON `wire.ndjson.agent_end` (SDK harnesses never emit this).
-   * - SDK: e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`.
-   *
-   * Native SDK harnesses should use `onTurnResult` as the authoritative channel.
-   * `onAgentEnd` is retained for CLI harnesses and compatibility observers; it must
-   * be derived from the same finalized result and must not independently drive state.
-   * After `resumeTurn`, the harness MUST be able to emit a subsequent notification
-   * for the new turn. Sticky once-per-process latches are a bug.
+   * Lifecycle notification for one agent turn finishing, from the harness's
+   * wire events (SDK e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`;
+   * see `HarnessCapabilities.wireEvents`). The daemon's native turn-end path
+   * consumes it. Harnesses derive it from the same finalized result as
+   * `onTurnResult` and must not independently drive state. After `resumeTurn`,
+   * the harness MUST be able to emit a subsequent notification for the new turn.
+   * Sticky once-per-process latches are a bug.
    */
   onAgentEnd?: ((cb: () => void) => void) | undefined;
   /** Typed, exactly-once terminal result for each logical turn. */
@@ -152,7 +148,7 @@ export interface RemoteAgentService {
 
   /**
    * Send a prompt into a live in-process session (native task injection).
-   * Native SDK harnesses implement this; CLI harnesses typically omit it.
+   * Native SDK harnesses implement this; Harnesses that cannot accept injected turns omit it.
    *
    * Contract: starts (or queues) one turn. When that turn completes, the
    * harness MUST emit `SpawnResult.onAgentEnd` for it. Implementations may
