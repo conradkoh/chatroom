@@ -10,6 +10,7 @@ import {
   messageExportFilename,
   buildMessageMarkdownDownload,
   exportMessageAsDocx,
+  exportMessageAsPdf,
 } from '../../lib/messageExport';
 import type { Message } from '../../types/message';
 
@@ -53,6 +54,20 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
     }
   }, [exportMessage]);
 
+  const handlePdf = useCallback(async () => {
+    setBusy(true);
+    try {
+      const result = await exportMessageAsPdf(exportMessage);
+      if (result === 'cancelled') return;
+      toast.success(result === 'saved' ? 'Saved PDF' : 'Downloaded PDF');
+    } catch {
+      toast.error('Failed to prepare PDF');
+    } finally {
+      setBusy(false);
+      setOpen(false);
+    }
+  }, [exportMessage]);
+
   return (
     <ResponsivePickerShell
       open={open}
@@ -76,6 +91,9 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
         </PickerOptionRow>
         <PickerOptionRow selected={false} onSelect={handleDocx} disabled={busy}>
           <span>{busy ? 'Preparing DOCX...' : 'Download as DOCX'}</span>
+        </PickerOptionRow>
+        <PickerOptionRow selected={false} onSelect={handlePdf} disabled={busy}>
+          <span>{busy ? 'Preparing PDF...' : 'Download as PDF'}</span>
         </PickerOptionRow>
       </PickerScrollBody>
     </ResponsivePickerShell>
