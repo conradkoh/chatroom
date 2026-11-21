@@ -400,6 +400,13 @@ export default [
     },
   },
 
+  // Documented exemption (docs/developer/ios-native-date-input.md#exemptions): the daemon local-web
+  // client is a loopback-only developer UI with no shared Input or date-picker primitives. Exact path only.
+  {
+    files: ['packages/cli/src/daemon/local-web/client/components/logs/TimeRangeFilter.tsx'],
+    rules: { 'no-restricted-syntax': 'off' },
+  },
+
   // Service-to-service direction — agent process management is the lower
   // runtime boundary; task delivery may depend on its public API, but the
   // agent-process service must not depend on task-service internals or API.

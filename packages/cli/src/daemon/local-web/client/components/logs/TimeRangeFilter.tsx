@@ -85,6 +85,7 @@ export function TimeRangeFilter({ value, onChange, disabled }: Props) {
           <PickerOptionRow selected={p === 'custom'} onSelect={startCustom}>
             Custom range…
           </PickerOptionRow>
+          {/* Native datetime-local is intentional: localhost-only debug UI, see docs/developer/ios-native-date-input.md#exemptions */}
           {p === 'custom' && (
             <div className="space-y-2 border-t border-chatroom-border px-3 py-2">
               <label className="flex flex-col gap-1 text-[11px] text-chatroom-text-muted">
