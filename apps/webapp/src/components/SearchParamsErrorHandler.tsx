@@ -17,7 +17,7 @@ export interface SearchParamsErrorState {
  * URLSearchParams.get() already decodes the value, so it is used as is. The text lives in state,
  * so it stays visible after the param is gone. Call this once per page, above any early return.
  */
-function useSearchParamsError(): SearchParamsErrorState {
+export function useSearchParamsError(): SearchParamsErrorState {
   const searchParams = useSearchParams();
   const { feedback, error, clear } = useFeedback();
 
