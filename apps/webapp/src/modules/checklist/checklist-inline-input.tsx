@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 export interface ChecklistInlineInputProps {
   onSubmit: (text: string) => Promise<boolean>;
   getAndClearFailedText?: () => string | null;
+  /** Called when the user edits the input. The checklist uses it to clear the inline error. */
+  onEdit?: () => void;
   placeholder?: string;
   className?: string;
 }
@@ -28,12 +30,14 @@ export interface ChecklistInlineInputProps {
  *
  * @param onSubmit - Function to handle item submission, returns success status
  * @param getAndClearFailedText - Optional function to recover failed submission text
+ * @param onEdit - Optional callback invoked when the user edits the input
  * @param placeholder - Placeholder text for the input field
  * @param className - Additional CSS classes for the container
  */
 export function ChecklistInlineInput({
   onSubmit,
   getAndClearFailedText,
+  onEdit,
   placeholder = 'Add new item...',
   className,
 }: ChecklistInlineInputProps) {
@@ -47,9 +51,12 @@ export function ChecklistInlineInput({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shouldFocus, setShouldFocus] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [prevGetAndClearFailedText, setPrevGetAndClearFailedText] = useState(getAndClearFailedText);
+  // `useState(fn)` would treat the callback as a lazy initializer, so store it explicitly.
+  const [prevGetAndClearFailedText, setPrevGetAndClearFailedText] = useState(
+    () => getAndClearFailedText
+  );
   if (prevGetAndClearFailedText !== getAndClearFailedText) {
-    setPrevGetAndClearFailedText(getAndClearFailedText);
+    setPrevGetAndClearFailedText(() => getAndClearFailedText);
     if (getAndClearFailedText) {
       const failedText = getAndClearFailedText();
       if (failedText) {
@@ -111,9 +118,13 @@ export function ChecklistInlineInput({
   /**
    * Memoized change handler to prevent unnecessary re-renders.
    */
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setText(e.target.value);
-  }, []);
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setText(e.target.value);
+      onEdit?.();
+    },
+    [onEdit]
+  );
 
   return (
     <div className={className}>

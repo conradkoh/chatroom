@@ -9,6 +9,7 @@ import { ChecklistInlineInput } from './checklist-inline-input';
 import type { ChecklistItemWithOptimistic, ChecklistProps } from './types';
 import { useChecklistSync } from './use-checklist-sync';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -58,6 +59,8 @@ export function Checklist({ title, checklistKey, description, className }: Check
     completedItems,
     completionPercentage,
     isLoading,
+    error,
+    clearError,
     initializeChecklist,
     addItem,
     getAndClearFailedText,
@@ -281,6 +284,12 @@ export function Checklist({ title, checklistKey, description, className }: Check
         {progressSection}
       </CardHeader>
       <CardContent className="pt-0">
+        <InlineFeedback
+          feedback={error}
+          onDismiss={clearError}
+          data-testid="checklist-feedback"
+          className="mb-2"
+        />
         <div className="h-[250px] overflow-y-auto px-1 pb-1">
           {items.length === 0 ? (
             <ChecklistEmptyState isActive={isActive} onAddItem={() => {}} />
@@ -304,6 +313,7 @@ export function Checklist({ title, checklistKey, description, className }: Check
                 <ChecklistInlineInput
                   onSubmit={handleAddItem}
                   getAndClearFailedText={getAndClearFailedText}
+                  onEdit={clearError}
                   placeholder="Add new item..."
                   className="mt-3 px-1"
                 />
