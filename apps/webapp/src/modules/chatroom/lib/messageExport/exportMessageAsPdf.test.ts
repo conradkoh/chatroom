@@ -153,7 +153,7 @@ describe('exportMessageAsPdf', () => {
 
   it('paginates at block boundaries', async () => {
     // Blocks: header P [0,500], HR [500,560], paragraph [560,1000], paragraph [1000,1500]. Root is 1500 tall.
-    // PAGE_HEIGHT_CSS_PX (exportMessageAsPdf.ts) ≈ 1206.7: A4 content height 761.89pt ÷ 0.63147 pt/px.
+    // PAGE_HEIGHT_CSS_PX (exportMessageAsPdf.ts) ≈ 1206.5: A4 content height 761.89pt ÷ 0.63147 pt/px.
     // The 1500px total exceeds one page, so the last block (1000–1500) starts a new page at its top, 1000.
     stubLayout((el) => {
       if (el.classList.contains('chatroom-root')) return { top: 0, bottom: 1500 };
