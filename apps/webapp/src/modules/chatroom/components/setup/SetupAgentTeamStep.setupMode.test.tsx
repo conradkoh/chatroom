@@ -81,7 +81,7 @@ vi.mock('../../../../hooks/useMachineModels', () => ({
   useMachineModels: () => ({
     availableModels: {
       'cursor-sdk': ['cursor-sdk/claude-sonnet', 'cursor-sdk/gpt-4o'],
-      opencode: ['opencode/claude-sonnet'],
+      'opencode-sdk': ['opencode/claude-sonnet'],
     },
     isLoading: false,
   }),
@@ -89,7 +89,7 @@ vi.mock('../../../../hooks/useMachineModels', () => ({
 
 vi.mock('../../../../hooks/useMachineCapabilities', () => ({
   useMachineCapabilities: () => ({
-    availableHarnesses: ['cursor-sdk', 'opencode'],
+    availableHarnesses: ['cursor-sdk', 'opencode-sdk'],
     harnessVersions: {},
     isLoading: false,
   }),

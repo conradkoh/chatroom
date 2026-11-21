@@ -15,7 +15,7 @@ import type { AgentConfig, AgentHarness } from '../../types/machine';
 
 const form: RemoteFormValues = {
   machineId: 'a',
-  harness: 'cursor',
+  harness: 'cursor-sdk',
   model: 'm1',
   workingDir: '/form',
 };
@@ -25,8 +25,8 @@ function mkConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
     machineId: 'b',
     hostname: 'host-b',
     role: 'builder',
-    agentType: 'opencode',
-    availableHarnesses: ['opencode'],
+    agentType: 'opencode-sdk',
+    availableHarnesses: ['opencode-sdk'],
     workingDir: '/running',
     updatedAt: 1,
     model: 'm9',
@@ -42,7 +42,7 @@ describe('deriveDisplayValues', () => {
   it('shows the running agent while one runs', () => {
     expect(deriveDisplayValues(mkConfig(), form)).toEqual({
       machineId: 'b',
-      harness: 'opencode',
+      harness: 'opencode-sdk',
       model: 'm9',
       workingDir: '/running',
     });
@@ -55,7 +55,7 @@ describe('deriveDisplayValues', () => {
 
 describe('deriveModelUnavailable', () => {
   it('is unavailable without a machine', () => {
-    expect(deriveModelUnavailable(null, 'cursor', true)).toBe(true);
+    expect(deriveModelUnavailable(null, 'cursor-sdk', true)).toBe(true);
   });
 
   it('is unavailable without a harness', () => {
@@ -63,11 +63,11 @@ describe('deriveModelUnavailable', () => {
   });
 
   it('is unavailable when the harness has no models', () => {
-    expect(deriveModelUnavailable('a', 'cursor', false)).toBe(true);
+    expect(deriveModelUnavailable('a', 'cursor-sdk', false)).toBe(true);
   });
 
   it('is available with a machine, a harness and models', () => {
-    expect(deriveModelUnavailable('a', 'cursor', true)).toBe(false);
+    expect(deriveModelUnavailable('a', 'cursor-sdk', true)).toBe(false);
   });
 });
 
@@ -145,7 +145,7 @@ describe('currentIsFavorite', () => {
   });
 
   it('asks the favourites about the current entry', () => {
-    const entry = { agentHarness: 'cursor' as AgentHarness, model: 'm1' };
+    const entry = { agentHarness: 'cursor-sdk' as AgentHarness, model: 'm1' };
     const isFavorite = vi.fn((e: typeof entry) => e.model === 'm1');
     expect(currentIsFavorite(entry, isFavorite)).toBe(true);
     expect(isFavorite).toHaveBeenCalledWith(entry);
@@ -158,7 +158,7 @@ describe('deriveRecommendedConfigs', () => {
     scopeKey: 'scope',
     usage: new Map<string, number[]>(),
     favorites: [] as { agentHarness: AgentHarness; model: string }[],
-    availableHarnesses: ['cursor'] as AgentHarness[],
+    availableHarnesses: ['cursor-sdk'] as AgentHarness[],
     displayHarness: null as AgentHarness | null,
     displayModel: null as string | null,
   };
@@ -168,38 +168,38 @@ describe('deriveRecommendedConfigs', () => {
   });
 
   it('leaves out a favourite, since favourites are shown on their own', () => {
-    const favorites = [{ agentHarness: 'cursor' as AgentHarness, model: 'm1' }];
-    const usage = new Map([['cursor|m1', [now]]]);
+    const favorites = [{ agentHarness: 'cursor-sdk' as AgentHarness, model: 'm1' }];
+    const usage = new Map([['cursor-sdk|m1', [now]]]);
     const result = deriveRecommendedConfigs({ ...args, favorites, usage });
-    expect(result).not.toContainEqual({ agentHarness: 'cursor', model: 'm1' });
+    expect(result).not.toContainEqual({ agentHarness: 'cursor-sdk', model: 'm1' });
   });
 
   it('recommends the displayed config only once it has recent usage', () => {
-    const display = { ...args, displayHarness: 'cursor' as AgentHarness, displayModel: 'm3' };
+    const display = { ...args, displayHarness: 'cursor-sdk' as AgentHarness, displayModel: 'm3' };
     expect(deriveRecommendedConfigs(display)).toEqual([]);
-    const used = new Map([['cursor|m3', [now]]]);
+    const used = new Map([['cursor-sdk|m3', [now]]]);
     expect(deriveRecommendedConfigs({ ...display, usage: used })).toContainEqual({
-      agentHarness: 'cursor',
+      agentHarness: 'cursor-sdk',
       model: 'm3',
     });
   });
 
   it('includes recent usage on an installed harness, and leaves out usage on a missing one', () => {
     const usage = new Map<string, number[]>([
-      ['cursor|m2', [now]],
-      ['claude|m5', [now]],
+      ['cursor-sdk|m2', [now]],
+      ['claude-sdk|m5', [now]],
     ]);
     const result = deriveRecommendedConfigs({ ...args, usage });
-    expect(result).toContainEqual({ agentHarness: 'cursor', model: 'm2' });
-    expect(result).not.toContainEqual({ agentHarness: 'claude', model: 'm5' });
+    expect(result).toContainEqual({ agentHarness: 'cursor-sdk', model: 'm2' });
+    expect(result).not.toContainEqual({ agentHarness: 'claude-sdk', model: 'm5' });
   });
 
   it('caps the recommendations at three', () => {
     const usage = new Map<string, number[]>([
-      ['cursor|m1', [now]],
-      ['cursor|m2', [now]],
-      ['cursor|m3', [now]],
-      ['cursor|m4', [now]],
+      ['cursor-sdk|m1', [now]],
+      ['cursor-sdk|m2', [now]],
+      ['cursor-sdk|m3', [now]],
+      ['cursor-sdk|m4', [now]],
     ]);
     expect(deriveRecommendedConfigs({ ...args, usage })).toHaveLength(3);
   });

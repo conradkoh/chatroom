@@ -18,15 +18,15 @@ const ws1: StartCheckWorkspace = {
 
 const builderRequest: StartCheckLaunchRequest = {
   role: 'builder',
-  agentHarness: 'claude',
+  agentHarness: 'claude-sdk',
   model: 'opus',
   workingDir: '/repo',
 };
 
-const opencodeGpt: MachineConfigEntry = { agentHarness: 'opencode', model: 'gpt' };
-const claudeOpus: MachineConfigEntry = { agentHarness: 'claude', model: 'opus' };
+const opencodeGpt: MachineConfigEntry = { agentHarness: 'opencode-sdk', model: 'gpt' };
+const claudeOpus: MachineConfigEntry = { agentHarness: 'claude-sdk', model: 'opus' };
 
-/** Base input: the `builder` request mismatches its top favourite (`opencode/gpt`). */
+/** Base input: the `builder` request mismatches its top favourite (`opencode-sdk/gpt`). */
 function makeInput(
   overrides: Partial<FindFavoriteMismatchesInput> = {}
 ): FindFavoriteMismatchesInput {
@@ -35,7 +35,7 @@ function makeInput(
     workspaces: [ws1],
     requestsByWorkspace: new Map([['ws-1', [builderRequest]]]),
     favoritesByMachineRole: new Map([[favoritesKey('m1', 'builder'), [opencodeGpt]]]),
-    availableHarnessesByMachine: new Map([['m1', ['claude', 'opencode']]]),
+    availableHarnessesByMachine: new Map([['m1', ['claude-sdk', 'opencode-sdk']]]),
     runningRoles: new Set<string>(),
     ...overrides,
   };
@@ -66,8 +66,8 @@ describe('findFavoriteMismatches', () => {
         machineId: 'm1',
         workingDir: '/repo',
         role: 'builder',
-        current: { agentHarness: 'claude', model: 'opus' },
-        favorite: { agentHarness: 'opencode', model: 'gpt' },
+        current: { agentHarness: 'claude-sdk', model: 'opus' },
+        favorite: { agentHarness: 'opencode-sdk', model: 'gpt' },
       },
     ]);
   });
@@ -76,9 +76,9 @@ describe('findFavoriteMismatches', () => {
     const result = findFavoriteMismatches(
       makeInput({
         favoritesByMachineRole: new Map([
-          [favoritesKey('m1', 'builder'), [{ agentHarness: 'claude', model: 'sonnet' }]],
+          [favoritesKey('m1', 'builder'), [{ agentHarness: 'claude-sdk', model: 'sonnet' }]],
         ]),
-        availableHarnessesByMachine: new Map([['m1', ['claude']]]),
+        availableHarnessesByMachine: new Map([['m1', ['claude-sdk']]]),
       })
     );
 
@@ -89,8 +89,8 @@ describe('findFavoriteMismatches', () => {
         machineId: 'm1',
         workingDir: '/repo',
         role: 'builder',
-        current: { agentHarness: 'claude', model: 'opus' },
-        favorite: { agentHarness: 'claude', model: 'sonnet' },
+        current: { agentHarness: 'claude-sdk', model: 'opus' },
+        favorite: { agentHarness: 'claude-sdk', model: 'sonnet' },
       },
     ]);
   });
@@ -129,9 +129,9 @@ describe('findFavoriteMismatches', () => {
     const result = findFavoriteMismatches(
       makeInput({
         favoritesByMachineRole: new Map([
-          [favoritesKey('m1', 'builder'), [{ agentHarness: 'cursor', model: 'x' }]],
+          [favoritesKey('m1', 'builder'), [{ agentHarness: 'cursor-sdk', model: 'x' }]],
         ]),
-        availableHarnessesByMachine: new Map([['m1', ['claude']]]),
+        availableHarnessesByMachine: new Map([['m1', ['claude-sdk']]]),
       })
     );
 
@@ -170,8 +170,8 @@ describe('findFavoriteMismatches', () => {
           [favoritesKey('m2', 'builder'), [opencodeGpt]],
         ]),
         availableHarnessesByMachine: new Map([
-          ['m1', ['claude', 'opencode']],
-          ['m2', ['claude', 'opencode']],
+          ['m1', ['claude-sdk', 'opencode-sdk']],
+          ['m2', ['claude-sdk', 'opencode-sdk']],
         ]),
       })
     );
@@ -183,8 +183,8 @@ describe('findFavoriteMismatches', () => {
         machineId: 'm2',
         workingDir: '/repo2',
         role: 'builder',
-        current: { agentHarness: 'claude', model: 'opus' },
-        favorite: { agentHarness: 'opencode', model: 'gpt' },
+        current: { agentHarness: 'claude-sdk', model: 'opus' },
+        favorite: { agentHarness: 'opencode-sdk', model: 'gpt' },
       },
     ]);
   });
@@ -204,13 +204,13 @@ describe('findFavoriteMismatches', () => {
     };
     const plannerRequest: StartCheckLaunchRequest = {
       role: 'planner',
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'opus',
       workingDir: '/x',
     };
     const builderRequestB: StartCheckLaunchRequest = {
       role: 'builder',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt',
       workingDir: '/x',
     };

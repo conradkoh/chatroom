@@ -73,7 +73,7 @@ describe('getHarnessDisplayName', () => {
 describe('isOpenCodeSdkHarness', () => {
   it('returns true only for opencode-sdk', () => {
     expect(isOpenCodeSdkHarness('opencode-sdk')).toBe(true);
-    expect(isOpenCodeSdkHarness('opencode')).toBe(false);
+    expect(isOpenCodeSdkHarness('legacy-harness')).toBe(false);
     expect(isOpenCodeSdkHarness('cursor-sdk')).toBe(false);
   });
 });
@@ -81,7 +81,7 @@ describe('isOpenCodeSdkHarness', () => {
 describe('isCursorSdkHarness', () => {
   it('returns true only for cursor-sdk', () => {
     expect(isCursorSdkHarness('cursor-sdk')).toBe(true);
-    expect(isCursorSdkHarness('cursor')).toBe(false);
+    expect(isCursorSdkHarness('legacy-harness')).toBe(false);
     expect(isCursorSdkHarness('opencode-sdk')).toBe(false);
   });
 });

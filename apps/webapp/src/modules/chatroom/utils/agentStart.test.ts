@@ -10,7 +10,7 @@ const baseInput: StartAgentInput = {
   machineId: 'machine-a',
   chatroomId,
   role: 'builder',
-  agentHarness: 'cursor',
+  agentHarness: 'cursor-sdk',
   model: 'auto',
   workingDir: '/proj',
 };
@@ -25,7 +25,7 @@ describe('dispatchStartAgent', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        agentHarness: 'cursor',
+        agentHarness: 'cursor-sdk',
         model: 'auto',
         workingDir: '/proj',
       },
@@ -45,7 +45,7 @@ describe('dispatchStartAgent', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        agentHarness: 'cursor',
+        agentHarness: 'cursor-sdk',
         workingDir: '/trimmed',
       },
     });
@@ -63,7 +63,7 @@ describe('dispatchStartAgent', () => {
       payload: {
         chatroomId,
         role: 'builder',
-        agentHarness: 'cursor',
+        agentHarness: 'cursor-sdk',
         model: 'auto',
         workingDir: '/proj',
         allowNewMachine: true,
