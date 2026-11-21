@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 
 import { $ } from 'bun';
 
+import { buildConvexDevEnv } from './convex-dev-env';
 import {
   buildConvexRunArgs,
   type ConvexTarget,
@@ -31,8 +32,23 @@ export async function resolveMigrationTarget(): Promise<ConvexTarget> {
   });
 }
 
+/**
+ * Environment for a `convex run` child. A local deployment never receives TZ, because a local
+ * backend refuses a non-UTC zone. Hosted and production children keep the environment.
+ */
+// Exported for scripts/migrate-lib.spec.ts; spec files are not fallow analysis entries.
+// fallow-ignore-next-line unused-export
+export function convexRunEnv(
+  target: ConvexTarget,
+  baseEnv: Readonly<Record<string, string | undefined>>
+): Record<string, string | undefined> {
+  return buildConvexDevEnv(baseEnv, target.kind === 'local');
+}
+
 function convexRun(target: ConvexTarget, functionName: string) {
-  return $`npx convex ${buildConvexRunArgs(target, functionName)}`.cwd(BACKEND_DIR);
+  return $`npx convex ${buildConvexRunArgs(target, functionName)}`
+    .cwd(BACKEND_DIR)
+    .env(convexRunEnv(target, process.env));
 }
 
 export async function getMigrationStatus(target: ConvexTarget): Promise<MigrationStatus[]> {
