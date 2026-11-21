@@ -117,4 +117,41 @@ describe('useCopyOwnedFeedback', () => {
 
     expect(result.current.feedback?.message).toBe('Could not do X');
   });
+
+  it('shows a truncated copy as a warning', () => {
+    const { result } = renderHook(() => useCopyOwnedFeedback());
+
+    act(() => {
+      result.current.copySucceeded({ truncated: true });
+    });
+
+    expect(result.current.feedback?.tone).toBe('warning');
+    expect(result.current.feedback?.message).toBe('Copied file content (truncated)');
+  });
+
+  it('clears the truncation warning on a later copy that is not truncated', () => {
+    const { result } = renderHook(() => useCopyOwnedFeedback());
+
+    act(() => {
+      result.current.copySucceeded({ truncated: true });
+    });
+    act(() => {
+      result.current.copySucceeded({ truncated: false });
+    });
+
+    expect(result.current.feedback).toBeNull();
+  });
+
+  it('keeps a non-copy error when a truncated copy is not reported', () => {
+    const { result } = renderHook(() => useCopyOwnedFeedback());
+
+    act(() => {
+      result.current.showError('Could not do X');
+    });
+    act(() => {
+      result.current.copySucceeded({ truncated: false });
+    });
+
+    expect(result.current.feedback?.message).toBe('Could not do X');
+  });
 });

@@ -4,6 +4,14 @@ import { useFeedback, type UseFeedbackResult } from './useFeedback';
 
 import type { Feedback } from '@/components/inline-feedback';
 
+/** The warning a truncated file-content copy shows. Shared by every host that reports copies. */
+const TRUNCATED_FILE_COPY_MESSAGE = 'Copied file content (truncated)';
+
+/** What a successful copy reports. `truncated` is true only when copied file content was cut short. */
+export interface CopySucceededInfo {
+  truncated: boolean;
+}
+
 /** A titled draft from a non-copy surface. `null` clears the slot. Structurally equal to `FeedbackDraft`. */
 export type ReportedDraft = Pick<Feedback, 'tone' | 'message' | 'title' | 'items'> | null;
 
@@ -15,15 +23,18 @@ export interface UseCopyOwnedFeedbackResult {
   showCopyError: (message: string) => void;
   /** A non-copy draft (tone, message, title, items), or `null` to clear. Never copy-owned. */
   report: (draft: ReportedDraft) => void;
-  /** Call on copy success. Clears the slot only when a copy failure owns it. */
-  copySucceeded: () => void;
+  /**
+   * Call on copy success. A truncated copy shows the truncation warning and becomes copy-owned.
+   * Any other success clears the slot only when a copy owns it. Calling with no argument counts as not truncated.
+   */
+  copySucceeded: (info?: CopySucceededInfo) => void;
   /** Clears the slot and resets ownership. */
   clear: () => void;
 }
 
 /**
- * One feedback slot where copy failures are copy-owned: a later copy success clears
- * a copy failure, but never a message written by any other surface.
+ * One feedback slot where copy outcomes are copy-owned: a later copy success clears a copy
+ * failure or a truncation warning, but never a message written by any other surface.
  */
 export function useCopyOwnedFeedback(): UseCopyOwnedFeedbackResult {
   const { feedback, show, error, clear } = useFeedback();
@@ -58,10 +69,18 @@ export function useCopyOwnedFeedback(): UseCopyOwnedFeedbackResult {
     },
     [clearOwned, show]
   );
-  const copySucceeded = useCallback(() => {
-    if (!copyOwnsSlotRef.current) return;
-    clearOwned();
-  }, [clearOwned]);
+  const copySucceeded = useCallback(
+    (info?: CopySucceededInfo) => {
+      if (info?.truncated) {
+        copyOwnsSlotRef.current = true;
+        show('warning', TRUNCATED_FILE_COPY_MESSAGE);
+        return;
+      }
+      if (!copyOwnsSlotRef.current) return;
+      clearOwned();
+    },
+    [clearOwned, show]
+  );
 
   return { feedback, showError, showCopyError, report, copySucceeded, clear: clearOwned };
 }

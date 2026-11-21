@@ -56,7 +56,7 @@ import {
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
 import { useCopiedIndicator } from '@/hooks/useCopiedIndicator';
-import { useCopyOwnedFeedback } from '@/hooks/useCopyOwnedFeedback';
+import { useCopyOwnedFeedback, type CopySucceededInfo } from '@/hooks/useCopyOwnedFeedback';
 
 interface FilePreviewDialogProps {
   filePath: string | null;
@@ -364,7 +364,7 @@ const FileContentPanel = memo(function FileContentPanel({
   viewMode: FileViewMode;
   copyContentLabel: string;
   canCopyContent: boolean;
-  onCopied: () => void;
+  onCopied: (info: CopySucceededInfo) => void;
   onCopyError: (message: string) => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -375,10 +375,11 @@ const FileContentPanel = memo(function FileContentPanel({
 
   const handleCopyContent = useCallback(() => {
     if (!contentResult?.content || !canCopyContent) return;
+    const truncated = contentResult.truncated;
     void copyFileContentToClipboard(contentResult.content).then((result) => {
       if (result.ok) {
         markCopied();
-        onCopied();
+        onCopied({ truncated });
       } else {
         onCopyError(result.message);
       }
@@ -583,6 +584,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 relativePath={effectiveFilePath}
                 workingDir={workingDir}
                 content={contentResult?.content ?? null}
+                contentTruncated={contentResult?.truncated}
                 contentDisabled={!canCopyContent}
                 fileContentLabel={copyContentLabel}
                 triggerVariant="more"

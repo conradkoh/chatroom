@@ -143,3 +143,108 @@ describe('FilePreviewDialog copy feedback', () => {
     });
   });
 });
+
+function mockContent(truncated: boolean) {
+  const compressed = gzipSync(Buffer.from('file body')).toString('base64');
+  mockUseSessionQuery.mockReturnValue({
+    data: { compression: 'gzip', content: compressed },
+    encoding: 'utf8',
+    truncated,
+    fetchedAt: 1,
+  });
+}
+
+describe('FilePreviewDialog truncated copy warning', () => {
+  it('shows the truncation warning in the dialog slot after a truncated toolbar copy', async () => {
+    mockContent(true);
+    renderDialog();
+    const button = await findCopyContentButton();
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    const slot = await screen.findByTestId('file-preview-feedback');
+    expect(slot).toHaveAttribute('role', 'status');
+    expect(slot).toHaveTextContent('Copied file content (truncated)');
+    expect(writeText).toHaveBeenCalledWith('file body');
+  });
+
+  it('shows the truncation warning after a truncated dropdown file content copy', async () => {
+    mockContent(true);
+    renderDialog();
+    await findCopyContentButton();
+    fireEvent.click(screen.getByRole('button', { name: 'More copy options' }));
+
+    const item = await screen.findByRole('menuitem', { name: /copy file content/i });
+    await act(async () => {
+      fireEvent.click(item);
+    });
+
+    const slot = await screen.findByTestId('file-preview-feedback');
+    expect(slot).toHaveAttribute('role', 'status');
+    expect(slot).toHaveTextContent('Copied file content (truncated)');
+  });
+
+  it('shows nothing after a complete (not truncated) toolbar copy', async () => {
+    mockContent(false);
+    renderDialog();
+    const button = await findCopyContentButton();
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('file body'));
+    expect(screen.queryByTestId('file-preview-feedback')).toBeNull();
+  });
+
+  it('shows nothing after a relative path copy while the content is truncated', async () => {
+    mockContent(true);
+    renderDialog();
+    await findCopyContentButton();
+    fireEvent.click(screen.getByRole('button', { name: 'More copy options' }));
+
+    const item = await screen.findByRole('menuitem', { name: /copy relative path/i });
+    await act(async () => {
+      fireEvent.click(item);
+    });
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('src/foo.ts'));
+    expect(screen.queryByTestId('file-preview-feedback')).toBeNull();
+  });
+
+  it('clears the truncation warning on Dismiss', async () => {
+    mockContent(true);
+    renderDialog();
+    const button = await findCopyContentButton();
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    await screen.findByTestId('file-preview-feedback');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByTestId('file-preview-feedback')).toBeNull();
+  });
+
+  it('clears the truncation warning on a later relative path copy', async () => {
+    mockContent(true);
+    renderDialog();
+    const button = await findCopyContentButton();
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    await screen.findByTestId('file-preview-feedback');
+
+    fireEvent.click(screen.getByRole('button', { name: 'More copy options' }));
+    const item = await screen.findByRole('menuitem', { name: /copy relative path/i });
+    await act(async () => {
+      fireEvent.click(item);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('file-preview-feedback')).toBeNull();
+    });
+  });
+});
