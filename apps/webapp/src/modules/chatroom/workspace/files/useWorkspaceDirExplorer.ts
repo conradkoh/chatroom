@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { isExplorerSearchMode } from './explorer-tree';
 import { filterFileTreeEntries, fileTreeEntriesToExplorerNodes } from './fileTreeUtils';
 import { useFileTreeWatchEnabled } from './useFileTreeWatch';
+import type { WorkspaceTreeSyncFeedback } from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTree } from './useWorkspaceFileTree';
 import { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
 import { filterExplorerTreeNodes, type ExplorerTreeNode } from '../components/explorerTreeFilter';
@@ -24,6 +25,7 @@ export function useWorkspaceDirExplorer({
   searchQuery = '',
   filterQuery = '',
   refreshSignal = 0,
+  treeSyncFeedback,
 }: {
   machineId: string;
   workingDir: string;
@@ -32,6 +34,8 @@ export function useWorkspaceDirExplorer({
   /** VSCode-style short filter applied to built tree nodes */
   filterQuery?: string;
   refreshSignal?: number;
+  /** Sink for tree-sync failures, owned by the explorer's feedback slot. */
+  treeSyncFeedback?: WorkspaceTreeSyncFeedback;
 }): {
   rootNodes: ExplorerTreeNode[];
   displayNodes: ExplorerTreeNode[];
@@ -64,6 +68,7 @@ export function useWorkspaceDirExplorer({
     machineId,
     workingDir: normalizedWorkingDir,
     enabled: syncEnabled,
+    treeSyncFeedback,
   });
 
   const {
@@ -75,6 +80,7 @@ export function useWorkspaceDirExplorer({
     workingDir: normalizedWorkingDir,
     enabled: syncEnabled,
     includeDirectories: true,
+    treeSyncFeedback,
   });
 
   const trimmedSearch = searchQuery.trim();

@@ -29,7 +29,10 @@ import {
   type FileTreeShardPayload,
 } from './fileTreeUtils';
 import { useFileTreeHydrationRecovery } from './useFileTreeHydrationRecovery';
-import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
+import {
+  useRequestWorkspaceFileTree,
+  type WorkspaceTreeSyncFeedback,
+} from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
 import { useDecompressedQueryJson } from '../hooks/useDecompressedQueryJson';
@@ -54,6 +57,8 @@ export interface UseWorkspaceFileTreeArgs {
   machineId: string;
   workingDir: string;
   enabled?: boolean;
+  /** Sink for tree-sync failures. Omit where there is no feedback surface. */
+  treeSyncFeedback?: WorkspaceTreeSyncFeedback;
 }
 
 export interface UseWorkspaceFileTreeResult {
@@ -82,6 +87,7 @@ export function useWorkspaceFileTree({
   machineId,
   workingDir,
   enabled = true,
+  treeSyncFeedback,
 }: UseWorkspaceFileTreeArgs): UseWorkspaceFileTreeResult {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
@@ -90,6 +96,7 @@ export function useWorkspaceFileTree({
     machineId,
     workingDir: normalizedWorkingDir,
     enabled,
+    treeSyncFeedback,
   });
 
   const checkpointRaw = useSessionQuery(
@@ -221,6 +228,7 @@ export function useWorkspaceFileTree({
     machineId,
     workingDir: normalizedWorkingDir,
     enabled,
+    treeSyncFeedback,
   });
 
   const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
