@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
 import {
   AlertDialog,
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useFeedback, type UseFeedbackResult } from '@/hooks/useFeedback';
 import { cn } from '@/lib/utils';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { LoginCodeGenerator } from '@/modules/auth/LoginCodeGenerator';
@@ -116,6 +118,8 @@ export default function ProfilePage() {
   );
 }
 
+type RecoverySlot = Pick<UseFeedbackResult, 'show' | 'error' | 'clear'>;
+
 /**
  * Displays recovery code management section for account backup and restoration.
  */
@@ -127,29 +131,31 @@ function RecoveryCodeSection() {
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const { feedback, show, error, clear } = useFeedback();
+  const slot = useMemo<RecoverySlot>(() => ({ show, error, clear }), [show, error, clear]);
 
   const handleRevealCode = useCallback(async () => {
     await _handleRevealCode({
       sessionId,
-      setError,
+      slot,
       setIsLoading,
       getOrCreateCode,
       setRecoveryCode,
     });
-  }, [sessionId, getOrCreateCode]);
+  }, [sessionId, slot, getOrCreateCode]);
 
   const handleRegenerateCode = useCallback(async () => {
     await _handleRegenerateCode({
       sessionId,
+      slot,
       setIsRegenerating,
-      setError,
       regenerateCode,
       setRecoveryCode,
       setDialogOpen,
     });
-  }, [sessionId, regenerateCode]);
+  }, [sessionId, slot, regenerateCode]);
 
   const handleCopyCode = useCallback(() => {
     _handleCopyCode(recoveryCode);
@@ -234,14 +240,19 @@ function RecoveryCodeSection() {
           </AlertDialog>
         </div>
       )}
-      {error && <p className="text-destructive text-sm mt-2">{error}</p>}
+      <InlineFeedback
+        feedback={feedback}
+        onDismiss={clear}
+        className="mt-3"
+        data-testid="recovery-feedback"
+      />
     </div>
   );
 }
 
 interface _RevealCodeParams {
   sessionId: ReturnType<typeof useSessionId>[0];
-  setError: (error: string | null) => void;
+  slot: RecoverySlot;
   setIsLoading: (loading: boolean) => void;
   getOrCreateCode: ReturnType<typeof useAction<typeof api.auth.getOrCreateRecoveryCode>>;
   setRecoveryCode: (code: string | null) => void;
@@ -251,29 +262,27 @@ interface _RevealCodeParams {
  * Handles revealing the recovery code with proper error handling and loading states.
  */
 async function _handleRevealCode(params: _RevealCodeParams): Promise<void> {
-  const { sessionId, setError, setIsLoading, getOrCreateCode, setRecoveryCode } = params;
+  const { sessionId, slot, setIsLoading, getOrCreateCode, setRecoveryCode } = params;
+
+  slot.clear();
 
   if (!sessionId) {
-    setError('Session not found. Cannot fetch recovery code.');
-    toast.error('Session not found.');
+    slot.error('Session not found. Cannot fetch recovery code.');
     return;
   }
 
   setIsLoading(true);
-  setError(null);
 
   try {
     const result = await getOrCreateCode({ sessionId });
     if (result.success && result.recoveryCode) {
       setRecoveryCode(result.recoveryCode);
     } else {
-      setError(result.reason || 'Failed to retrieve recovery code.');
-      toast.error(result.reason || 'Failed to retrieve recovery code.');
+      slot.error(result.reason || 'Failed to retrieve recovery code.');
     }
   } catch (error) {
     console.error('Error revealing recovery code:', error);
-    setError('An unexpected error occurred.');
-    toast.error('An unexpected error occurred.');
+    slot.error('An unexpected error occurred.');
   } finally {
     setIsLoading(false);
   }
@@ -281,8 +290,8 @@ async function _handleRevealCode(params: _RevealCodeParams): Promise<void> {
 
 interface _RegenerateCodeParams {
   sessionId: ReturnType<typeof useSessionId>[0];
+  slot: RecoverySlot;
   setIsRegenerating: (regenerating: boolean) => void;
-  setError: (error: string | null) => void;
   regenerateCode: ReturnType<typeof useAction<typeof api.auth.regenerateRecoveryCode>>;
   setRecoveryCode: (code: string | null) => void;
   setDialogOpen: (open: boolean) => void;
@@ -292,17 +301,17 @@ interface _RegenerateCodeParams {
  * Handles regenerating the recovery code with confirmation and error handling.
  */
 async function _handleRegenerateCode(params: _RegenerateCodeParams): Promise<void> {
-  const { sessionId, setIsRegenerating, setError, regenerateCode, setRecoveryCode, setDialogOpen } =
+  const { sessionId, slot, setIsRegenerating, regenerateCode, setRecoveryCode, setDialogOpen } =
     params;
 
+  slot.clear();
+
   if (!sessionId) {
-    setError('Session not found. Cannot regenerate recovery code.');
-    toast.error('Session not found.');
+    slot.error('Session not found. Cannot regenerate recovery code.');
     return;
   }
 
   setIsRegenerating(true);
-  setError(null);
 
   try {
     const result = await regenerateCode({ sessionId });
@@ -310,13 +319,11 @@ async function _handleRegenerateCode(params: _RegenerateCodeParams): Promise<voi
       setRecoveryCode(result.recoveryCode);
       toast.success('Recovery code regenerated successfully!');
     } else {
-      setError(result.reason || 'Failed to regenerate recovery code.');
-      toast.error(result.reason || 'Failed to regenerate recovery code.');
+      slot.error(result.reason || 'Failed to regenerate recovery code.');
     }
   } catch (error) {
     console.error('Error regenerating recovery code:', error);
-    setError('An unexpected error occurred.');
-    toast.error('An unexpected error occurred.');
+    slot.error('An unexpected error occurred.');
   } finally {
     setIsRegenerating(false);
     setDialogOpen(false);
