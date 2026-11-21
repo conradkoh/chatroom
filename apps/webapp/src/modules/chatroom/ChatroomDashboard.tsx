@@ -1409,12 +1409,12 @@ function ChatroomDashboardContent({
   const {
     isRequestingStop,
     isRestartingAllAgents,
+    setIsRestartingAllAgents,
     stopAllRemoteAgents: handleStopAllRemoteAgents,
     restartAllRemoteAgents: handleRestartAllRemoteAgents,
   } = useDashboardAgentBulkActions({
     chatroomId,
     report: reportDashboardFeedback,
-    agents: agentPanelData.agents,
   });
   const isStoppingAgents = isRequestingStop;
 
@@ -1432,6 +1432,16 @@ function ChatroomDashboardContent({
     () => chatroomStatus?.remoteAgentStatus === 'running',
     [chatroomStatus?.remoteAgentStatus]
   );
+
+  useEffect(() => {
+    if (!isRestartingAllAgents) return;
+    const remoteAgents = agentPanelData.agents.filter((a) => a.role.toLowerCase() !== 'user');
+    const anyStarting = remoteAgents.some((a) => a.state === 'starting');
+    const allRunning = remoteAgents.length > 0 && remoteAgents.every((a) => a.state === 'running');
+    if (allRunning || (!anyStarting && remoteAgents.some((a) => a.state === 'running'))) {
+      setIsRestartingAllAgents(false);
+    }
+  }, [isRestartingAllAgents, agentPanelData.agents]);
 
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {

@@ -16,8 +16,6 @@ vi.mock('./useChatroomAgentOperations', () => ({
   }),
 }));
 
-const NO_AGENTS: { role: string; state: string }[] = [];
-
 const PURE_SUCCESS = { requested: [{ role: 'planner' }], skipped: [], failed: [] };
 
 /** Mirrors the dashboard wiring: one strip, one set of bulk actions. */
@@ -26,7 +24,6 @@ function DashboardStripHarness() {
   const actions = useDashboardAgentBulkActions({
     chatroomId: 'room-1',
     report: strip.report,
-    agents: NO_AGENTS,
   });
   return (
     <>
