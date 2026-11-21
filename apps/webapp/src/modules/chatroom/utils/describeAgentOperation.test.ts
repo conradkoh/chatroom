@@ -62,4 +62,43 @@ describe('describeAgentOperation', () => {
       message: 'No saved agent configuration is available.',
     });
   });
+
+  it('shows nothing for a pure successful stop', () => {
+    expect(describeAgentOperation({ requested: [{}], failed: [] }, 'stop')).toBeNull();
+  });
+
+  it('is silent for a stop with nothing requested and nothing failed', () => {
+    expect(describeAgentOperation({ requested: [], failed: [] }, 'stop')).toBeNull();
+  });
+
+  it('describes a partial stop failure', () => {
+    expect(
+      describeAgentOperation(
+        {
+          requested: [{ role: 'planner' }],
+          failed: [{ role: 'builder', error: 'Machine offline' }],
+        },
+        'stop'
+      )
+    ).toEqual({
+      tone: 'error',
+      title: 'Failed to stop 1 agent(s)',
+      message: 'Stop requested for 1 agent(s)',
+      items: ['builder: Machine offline'],
+    });
+  });
+
+  it('describes a total stop failure without a requested line', () => {
+    const result = describeAgentOperation(
+      { requested: [], failed: [{ role: 'builder', error: 'Machine offline' }] },
+      'stop'
+    );
+
+    expect(result).toEqual({
+      tone: 'error',
+      title: 'Failed to stop 1 agent(s)',
+      items: ['builder: Machine offline'],
+    });
+    expect(result?.message).toBeUndefined();
+  });
 });

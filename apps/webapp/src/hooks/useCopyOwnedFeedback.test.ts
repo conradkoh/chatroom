@@ -47,6 +47,58 @@ describe('useCopyOwnedFeedback', () => {
     expect(result.current.feedback?.message).toBe('Could not do X');
   });
 
+  it('report writes a titled draft and keeps it after a copy success', () => {
+    const { result } = renderHook(() => useCopyOwnedFeedback());
+
+    act(() => {
+      result.current.report({
+        tone: 'error',
+        title: 'Failed to stop agents',
+        items: ['Agents: boom'],
+      });
+    });
+    expect(result.current.feedback?.title).toBe('Failed to stop agents');
+    expect(result.current.feedback?.items).toEqual(['Agents: boom']);
+    expect(result.current.feedback?.tone).toBe('error');
+
+    act(() => {
+      result.current.copySucceeded();
+    });
+
+    expect(result.current.feedback?.title).toBe('Failed to stop agents');
+    expect(result.current.feedback?.items).toEqual(['Agents: boom']);
+    expect(result.current.feedback?.tone).toBe('error');
+  });
+
+  it('report(null) clears a copy failure', () => {
+    const { result } = renderHook(() => useCopyOwnedFeedback());
+
+    act(() => {
+      result.current.showCopyError('Failed to copy to clipboard');
+    });
+    act(() => {
+      result.current.report(null);
+    });
+
+    expect(result.current.feedback).toBeNull();
+  });
+
+  it('report over a copy failure is not copy-owned', () => {
+    const { result } = renderHook(() => useCopyOwnedFeedback());
+
+    act(() => {
+      result.current.showCopyError('Failed to copy to clipboard');
+    });
+    act(() => {
+      result.current.report({ tone: 'error', message: 'Could not do X' });
+    });
+    act(() => {
+      result.current.copySucceeded();
+    });
+
+    expect(result.current.feedback?.message).toBe('Could not do X');
+  });
+
   it('keeps a non-copy error written after a clear', () => {
     const { result } = renderHook(() => useCopyOwnedFeedback());
 

@@ -11,7 +11,7 @@ export interface FeedbackDraft {
 /** Writes a draft into a feedback slot. `null` clears the slot. */
 export type ReportFeedback = (draft: FeedbackDraft | null) => void;
 
-export type AgentOperation = 'start' | 'restart';
+export type AgentOperation = 'start' | 'restart' | 'stop';
 
 /** The fields of a chatroom agent operation result that the describer reads. */
 export interface AgentOperationOutcome {
@@ -22,6 +22,7 @@ export interface AgentOperationOutcome {
 const REQUESTED_LABEL: Record<AgentOperation, string> = {
   start: 'Start requested',
   restart: 'Restart requested',
+  stop: 'Stop requested',
 };
 
 const NO_SAVED_CONFIGURATION = 'No saved agent configuration is available.';
@@ -42,11 +43,24 @@ function failedItem({ role, error }: { role?: string; error: string }): string {
 }
 
 /**
+ * Start and restart with nothing requested and nothing failed mean the saved configuration is
+ * missing. A stop in the same state is silent: the agents are already stopped.
+ */
+function reportNothingDone(
+  operation: AgentOperation,
+  requestedCount: number
+): FeedbackDraft | null {
+  if (operation === 'stop' || requestedCount > 0) return null;
+  return { tone: 'error', message: NO_SAVED_CONFIGURATION };
+}
+
+/**
  * Maps one agent operation result to the feedback to show, or `null` when nothing needs showing.
  * - Pure success (requested, nothing failed): `null`. The agent status chips show it.
  * - Some failed: error draft. Title is the headline, `message` is the requested summary (only when
  *   some were requested), `items` is one `role: error` line per failure.
- * - Nothing requested, nothing failed: error draft with the no-saved-configuration notice.
+ * - Nothing requested, nothing failed: for start and restart, an error draft with the
+ *   no-saved-configuration notice; a stop is silent.
  * `appliedCount` is only ever shown inside a partial-failure draft.
  */
 export function describeAgentOperation(
@@ -64,6 +78,5 @@ export function describeAgentOperation(
       items: result.failed.map(failedItem),
     };
   }
-  if (requestedCount > 0) return null;
-  return { tone: 'error', message: NO_SAVED_CONFIGURATION };
+  return reportNothingDone(operation, requestedCount);
 }
