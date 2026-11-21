@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   addImage: vi.fn(),
   output: vi.fn(),
   drawImage: vi.fn(),
+  fillRect: vi.fn(),
 }));
 
 vi.mock('html2canvas-pro', () => ({
@@ -94,9 +95,10 @@ describe('exportMessageAsPdf', () => {
     mocks.html2canvas.mockImplementation(async () => makeCanvas());
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       drawImage: mocks.drawImage,
+      fillRect: mocks.fillRect,
     } as never);
     vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(
-      'data:image/png;base64,AA=='
+      'data:image/jpeg;base64,AA=='
     );
   });
 
@@ -187,6 +189,25 @@ describe('exportMessageAsPdf', () => {
     expect(mocks.html2canvas).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({ scale: 2 })
+    );
+  });
+
+  it('encodes each page as a white-backed JPEG at quality 0.9', async () => {
+    stubLayout([], 1000);
+
+    await exportMessageAsPdf(makeMessage('Short'));
+
+    expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalledWith('image/jpeg', 0.9);
+    expect(mocks.addImage).toHaveBeenCalledWith(
+      'data:image/jpeg;base64,AA==',
+      'JPEG',
+      40,
+      40,
+      expect.any(Number),
+      expect.any(Number)
+    );
+    expect(mocks.fillRect.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.drawImage.mock.invocationCallOrder[0]
     );
   });
 

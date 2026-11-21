@@ -27,6 +27,8 @@ const PAGE_HEIGHT_CSS_PX = CONTENT_HEIGHT_PT / PT_PER_CSS_PX;
 /** Browsers refuse canvases taller than ~16384 px in one dimension. */
 const MAX_CANVAS_PX = 16384;
 const MAX_RASTER_SCALE = 2;
+/** JPEG quality for page images. Keeps 13px body text and Mermaid edges crisp at 100% zoom. */
+const PAGE_IMAGE_QUALITY = 0.9;
 
 /**
  * Exports a message as an image-based (non-selectable text) A4 PDF.
@@ -38,6 +40,7 @@ const MAX_RASTER_SCALE = 2;
  * - Page cuts happen on block boundaries via `computePdfPageSlices`, never mid-block unless a
  *   single block is taller than a page.
  * - Raster scale is clamped so the canvas never exceeds the browser height limit.
+ * - Pages are JPEG (quality 0.9) to keep the file shareable; text stays legible at 100% zoom.
  */
 export async function exportMessageAsPdf(message: Message): Promise<SaveFileResult> {
   const suggestedName = messageExportFilename(message, 'pdf');
@@ -107,8 +110,8 @@ function addSlicesToPdf(
       Math.round(slice.end * scale)
     );
     pdf.addImage(
-      pageCanvas.toDataURL('image/png'),
-      'PNG',
+      pageCanvas.toDataURL('image/jpeg', PAGE_IMAGE_QUALITY),
+      'JPEG',
       PAGE_MARGIN_PT,
       PAGE_MARGIN_PT,
       CONTENT_WIDTH_PT,
@@ -124,6 +127,9 @@ function cropCanvas(source: HTMLCanvasElement, startPx: number, endPx: number): 
   out.height = height;
   const ctx = out.getContext('2d');
   if (!ctx) throw new Error('2D canvas context unavailable');
+  // JPEG has no alpha channel: paint the paper white first so no pixel can encode as black.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, out.width, out.height);
   ctx.drawImage(source, 0, startPx, source.width, height, 0, 0, source.width, height);
   return out;
 }
