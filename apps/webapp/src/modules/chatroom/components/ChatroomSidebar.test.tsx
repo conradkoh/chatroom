@@ -631,6 +631,40 @@ describe('ChatroomSidebar', () => {
     });
   });
 
+  it('a fully successful stop renders no sidebar feedback', async () => {
+    renderSidebar([makeChatroom({ remoteAgentStatus: 'running' })]);
+
+    fireEvent.click(screen.getByTitle('Stop agents and command runs'));
+    await act(async () => {});
+
+    expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
+  });
+
+  it('a fully successful restart renders no sidebar feedback', async () => {
+    renderSidebar([makeChatroom({ remoteAgentStatus: 'running' })]);
+
+    fireEvent.click(screen.getByTitle('Restart agents'));
+    await act(async () => {});
+
+    expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
+  });
+
+  it('a partial restart lists its failed agents under the row', async () => {
+    mockRequestChatroomRestart.mockResolvedValueOnce({
+      requested: [{ role: 'planner' }],
+      skipped: [],
+      failed: [{ role: 'builder', error: 'Machine offline' }],
+    });
+    renderSidebar([makeChatroom({ remoteAgentStatus: 'running' })]);
+
+    fireEvent.click(screen.getByTitle('Restart agents'));
+
+    const box = await screen.findByTestId('sidebar-feedback');
+    expect(box).toHaveAttribute('role', 'alert');
+    expect(within(box).getByText('Failed to restart 1 agent(s)')).toBeInTheDocument();
+    expect(within(box).getByText('builder: Machine offline')).toBeInTheDocument();
+  });
+
   describe('play button with favourites check', () => {
     const clickPlay = () => fireEvent.click(screen.getByLabelText('Start agents'));
 
