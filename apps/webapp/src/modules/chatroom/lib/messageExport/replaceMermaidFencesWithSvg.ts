@@ -22,7 +22,8 @@ export async function replaceMermaidFencesWithSvg(
     matches.map(async (match) => {
       const currentIndex = index++;
       try {
-        const svg = await renderMermaidChartToSvg(match[1]);
+        // Exports land on a white page: always use the light Mermaid theme, whatever the user's colour scheme.
+        const svg = await renderMermaidChartToSvg(match[1], { theme: 'default' });
         diagrams.set(currentIndex, svg);
         return `\n\n${MERMAID_EXPORT_PLACEHOLDER_PREFIX}${currentIndex}\n\n`;
       } catch {

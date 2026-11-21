@@ -33,4 +33,13 @@ describe('renderMermaidChartToSvg', () => {
 
     expect(render).toHaveBeenCalledWith(expect.any(String), 'flowchart TD\nA --> B');
   });
+
+  it('prepends a per-diagram default-theme directive when a theme is requested', async () => {
+    await renderMermaidChartToSvg('flowchart TD\nA --> B', { theme: 'default' });
+
+    expect(render).toHaveBeenLastCalledWith(
+      expect.any(String),
+      '%%{init: {"theme": "default"}}%%\nflowchart TD\nA --> B'
+    );
+  });
 });
