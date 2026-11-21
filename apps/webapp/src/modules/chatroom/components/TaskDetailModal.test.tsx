@@ -2,15 +2,19 @@
  * TaskDetailModal tests — structured handoff rendering + click-to-edit
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TaskDetailModal } from './TaskDetailModal';
 import type { TaskStatus } from '../../../domain/entities/task';
 
+const mocks = vi.hoisted(() => ({
+  redeliverTask: vi.fn(),
+}));
+
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
+  useSessionMutation: () => mocks.redeliverTask,
   useSessionQuery: () => undefined,
 }));
 
@@ -139,6 +143,10 @@ const defaultProps = {
   onForceComplete: vi.fn(),
 };
 
+beforeEach(() => {
+  mocks.redeliverTask.mockReset();
+});
+
 describe('TaskDetailModal — structured handoff', () => {
   beforeEach(() => {
     document.body.style.overflow = '';
@@ -228,5 +236,51 @@ describe('TaskDetailModal — structured handoff', () => {
     render(<TaskDetailModal isOpen task={COMPLETED_PAUSED_DELIVERY_TASK} {...defaultProps} />);
 
     expect(screen.getByText('Delivery paused — restart the agent to resume')).toBeInTheDocument();
+  });
+});
+
+describe('TaskDetailModal — redeliver feedback', () => {
+  const clickRedeliver = () =>
+    act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Redeliver task' }));
+    });
+
+  it('explains an already-pending redelivery as status text on the modal', async () => {
+    mocks.redeliverTask.mockResolvedValue({ skipped: true });
+    render(<TaskDetailModal isOpen task={PLAIN_TASK} {...defaultProps} />);
+
+    await clickRedeliver();
+
+    expect(mocks.redeliverTask).toHaveBeenCalledWith({ taskId: PLAIN_TASK._id });
+    expect(screen.getByRole('status')).toHaveTextContent('Task delivery is already pending');
+  });
+
+  it('stays silent when the redelivery is queued', async () => {
+    mocks.redeliverTask.mockResolvedValue({ skipped: false });
+    render(<TaskDetailModal isOpen task={PLAIN_TASK} {...defaultProps} />);
+
+    await clickRedeliver();
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows a redelivery failure as alert text on the modal', async () => {
+    mocks.redeliverTask.mockRejectedValue(new Error('Redelivery is unavailable'));
+    render(<TaskDetailModal isOpen task={PLAIN_TASK} {...defaultProps} />);
+
+    await clickRedeliver();
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Redelivery is unavailable');
+  });
+
+  it('dismisses the info notice with its Dismiss button', async () => {
+    mocks.redeliverTask.mockResolvedValue({ skipped: true });
+    render(<TaskDetailModal isOpen task={PLAIN_TASK} {...defaultProps} />);
+
+    await clickRedeliver();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });

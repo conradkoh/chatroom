@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
-import { toast } from 'sonner';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { DetailModalMarkdownSurface, detailModalMarkdownProseClassNames } from './detail-modal';
@@ -31,6 +30,7 @@ import {
 import { getStatusBadge } from './WorkQueue/utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +44,7 @@ import {
   FixedModalContent,
   FixedModalHeader,
 } from '@/components/ui/fixed-modal';
+import { useFeedback } from '@/hooks/useFeedback';
 import { cn } from '@/lib/utils';
 
 interface Task {
@@ -63,11 +64,6 @@ interface Task {
 
 const canRedeliverTask = (task: Task | null): task is Task =>
   task !== null && (task.status === 'pending' || task.status === 'acknowledged');
-
-const notifyRedeliveryResult = (skipped: boolean): void => {
-  if (skipped) toast.info('Task delivery is already pending');
-  else toast.success('Task queued for delivery');
-};
 
 interface TaskDetailModalProps {
   isOpen: boolean;
@@ -121,7 +117,7 @@ function TaskDetailForm({
     top: number;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { feedback, show, error: showError, clear } = useFeedback();
   const redeliverTask = useSessionMutation(api.tasks.redeliverTask);
 
   // Attachments context for adding to chat
@@ -142,65 +138,65 @@ function TaskDetailForm({
   const handleSave = useCallback(async () => {
     if (!task || !editedContent.trim()) return;
     setIsLoading(true);
-    setError(null);
+    clear();
     try {
       await onEdit(task._id, editedContent.trim());
       setIsEditing(false);
       setInitialClickCoords(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save changes';
-      setError(message);
+      showError(message);
       // Keep editing mode open so user can retry
     } finally {
       setIsLoading(false);
     }
-  }, [task, editedContent, onEdit]);
+  }, [task, editedContent, onEdit, clear, showError]);
 
   const handleDelete = useCallback(async () => {
     if (!task) return;
     setIsLoading(true);
-    setError(null);
+    clear();
     try {
       await onDelete(task._id);
       onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete task';
-      setError(message);
+      showError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [task, onDelete, onClose]);
+  }, [task, onDelete, onClose, clear, showError]);
 
   const handleRedeliver = useCallback(async () => {
     if (!canRedeliverTask(task)) return;
     setIsLoading(true);
-    setError(null);
+    clear();
     try {
       const result = await redeliverTask({ taskId: task._id });
-      notifyRedeliveryResult(result.skipped);
+      // Success is silent: the queue state shows the redelivery.
+      if (result.skipped) show('info', 'Task delivery is already pending');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to redeliver task';
-      setError(message);
-      toast.error(message);
+      showError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [task, redeliverTask]);
+  }, [task, redeliverTask, clear, show, showError]);
 
   const handleForceComplete = useCallback(async () => {
     if (!task) return;
     setIsLoading(true);
-    setError(null);
+    clear();
     try {
       await onForceComplete(task._id);
       onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to complete task';
-      setError(message);
+      showError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [task, onForceComplete, onClose]);
+  }, [task, onForceComplete, onClose, clear, showError]);
 
   if (!isOpen || !task) {
     return null;
@@ -253,7 +249,10 @@ function TaskDetailForm({
             {isEditing ? (
               <RichTextEditor
                 value={editedContent}
-                onChange={setEditedContent}
+                onChange={(value) => {
+                  setEditedContent(value);
+                  clear();
+                }}
                 placeholder="Write your markdown here..."
                 onCmdEnter={handleSave}
                 initialClickCoords={initialClickCoords}
@@ -305,11 +304,12 @@ function TaskDetailForm({
           </div>
         </FixedModalBody>
 
-        {error && (
-          <div className="px-4 py-2 bg-chatroom-status-error/10 border-t-2 border-chatroom-status-error/30 flex-shrink-0">
-            <p className="text-xs text-chatroom-status-error">{error}</p>
-          </div>
-        )}
+        <InlineFeedback
+          feedback={feedback}
+          onDismiss={clear}
+          data-testid="task-detail-feedback"
+          className="mx-4 my-2 shrink-0"
+        />
 
         {!isProtected && (
           <div className="p-4 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex items-center gap-2 flex-shrink-0">
