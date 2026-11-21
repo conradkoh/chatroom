@@ -64,17 +64,7 @@ vi.mock('@/components/ui/switch', () => ({
 }));
 
 vi.mock('@/components/ui/input', () => ({
-  Input: ({ value, onChange, placeholder, className, type, min, max }: any) => (
-    <input
-      type={type || 'text'}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      min={min}
-      max={max}
-      className={className}
-    />
-  ),
+  Input: (props: any) => <input {...props} type={props.type || 'text'} />,
 }));
 
 const desktopMock = vi.hoisted(() => ({ value: false }));
@@ -197,6 +187,15 @@ const PROMPT_USER_DISABLED = {
   nextRunAt: undefined,
 };
 
+/** Drives the one-time fields by test id. `value` is '' or 'YYYY-MM-DDTHH:mm'. */
+function setRunAt(value: string) {
+  const [d = '', t = ''] = value.split('T');
+  const [h = '', m = ''] = t.split(':');
+  fireEvent.change(screen.getByTestId('scheduled-prompt-run-at-date'), { target: { value: d } });
+  fireEvent.change(screen.getByTestId('scheduled-prompt-run-at-hour'), { target: { value: h } });
+  fireEvent.change(screen.getByTestId('scheduled-prompt-run-at-minute'), { target: { value: m } });
+}
+
 describe('ScheduledPromptsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -304,10 +303,7 @@ describe('ScheduledPromptsTab', () => {
 
     const futureRunAt = Math.floor((Date.now() + 2 * 60 * 60_000) / 60_000) * 60_000;
     const futureValue = utcMsToLocalDateTimeInput(futureRunAt);
-    const dateTimeInput = document.querySelector(
-      'input[type="datetime-local"]'
-    ) as HTMLInputElement;
-    fireEvent.change(dateTimeInput, { target: { value: futureValue } });
+    setRunAt(futureValue);
 
     fireEvent.click(screen.getByText('Create Prompt'));
 
@@ -335,9 +331,7 @@ describe('ScheduledPromptsTab', () => {
     fireEvent.change(screen.getByPlaceholderText('What should the prompt say?'), {
       target: { value: 'No date' },
     });
-    fireEvent.change(document.querySelector('input[type="datetime-local"]') as HTMLInputElement, {
-      target: { value: '' },
-    });
+    setRunAt('');
 
     fireEvent.click(screen.getByText('Create Prompt'));
 
@@ -360,10 +354,7 @@ describe('ScheduledPromptsTab', () => {
     });
 
     const pastValue = utcMsToLocalDateTimeInput(Date.now() - 60_000);
-    const dateTimeInput = document.querySelector(
-      'input[type="datetime-local"]'
-    ) as HTMLInputElement;
-    fireEvent.change(dateTimeInput, { target: { value: pastValue } });
+    setRunAt(pastValue);
 
     fireEvent.click(screen.getByText('Create Prompt'));
 
@@ -443,15 +434,42 @@ describe('ScheduledPromptsTab', () => {
     fireEvent.change(await screen.findByPlaceholderText('Daily Standup'), {
       target: { value: 'Renamed' },
     });
-    fireEvent.change(document.querySelector('input[type="datetime-local"]') as HTMLInputElement, {
-      target: { value: utcMsToLocalDateTimeInput(Date.now() - 60 * 60_000) },
-    });
+    setRunAt(utcMsToLocalDateTimeInput(Date.now() - 60 * 60_000));
     fireEvent.click(screen.getByText('Save Changes'));
 
     await waitFor(() => {
       expect(screen.getByText('Pick a time in the future')).toBeDefined();
     });
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it('prefills the one-time date, hour and minute from an existing row', async () => {
+    desktopMock.value = true;
+    const runAt = new Date(2026, 10, 21, 14, 5).getTime();
+    mocks.list.mockReturnValue([
+      {
+        ...PROMPT_ACTIVE,
+        _id: 'prompt-prefill-once',
+        name: 'Prefill one',
+        prompt: 'Prefill me',
+        scheduleKind: 'once',
+        hourUTC: undefined,
+        minuteUTC: undefined,
+        runAt,
+        disabledReason: undefined,
+        isRunnable: true,
+        nextRunAt: runAt,
+      },
+    ]);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    fireEvent.click(await screen.findByTestId('scheduled-prompt-card'));
+    fireEvent.click(await screen.findByText('Edit'));
+
+    expect(screen.getByTestId('scheduled-prompt-run-at-date')).toHaveValue('2026-11-21');
+    expect(screen.getByTestId('scheduled-prompt-run-at-hour')).toHaveValue(14);
+    expect(screen.getByTestId('scheduled-prompt-run-at-minute')).toHaveValue(5);
   });
 
   it('opens a prefilled one-time form from a composer request', async () => {

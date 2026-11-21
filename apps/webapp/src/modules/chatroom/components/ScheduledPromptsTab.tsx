@@ -29,6 +29,7 @@ import { isModEnterKey } from '../utils/isModEnterKey';
 import { ConversationModeButton, SessionPolicyButton } from './shared/EnvelopePolicyButtons';
 
 import { Button } from '@/components/ui/button';
+import { DateTimeField } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 
 interface ScheduledPromptsTabProps {
@@ -474,15 +475,20 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
         {scheduleKind === 'once' && (
           <div className="space-y-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
+              <label
+                htmlFor="scheduled-prompt-run-at"
+                className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider"
+              >
                 Date and time
               </label>
-              <Input
-                type="datetime-local"
+              <DateTimeField
+                id="scheduled-prompt-run-at"
+                testIdPrefix="scheduled-prompt-run-at"
                 value={runAtLocal}
-                min={utcMsToLocalDateTimeInput(Date.now())}
-                onChange={(e) => setRunAtLocal(e.target.value)}
-                className="text-xs bg-chatroom-bg-primary border-chatroom-border w-64"
+                onChange={setRunAtLocal}
+                min={new Date()}
+                disabled={saving}
+                inputClassName="bg-chatroom-bg-primary border-chatroom-border"
               />
             </div>
             <p className="text-[10px] text-chatroom-text-muted">
