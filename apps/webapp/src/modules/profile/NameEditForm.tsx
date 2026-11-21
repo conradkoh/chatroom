@@ -135,7 +135,11 @@ export function NameEditForm() {
       setError(null);
 
       try {
-        await updateUserName({ newName: name.trim() });
+        const result = await updateUserName({ newName: name.trim() });
+        if (!result.success) {
+          setError(result.message);
+          return;
+        }
         setIsEditing(false);
       } catch (_error) {
         setError('Failed to update name. Please try again.');
