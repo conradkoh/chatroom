@@ -121,11 +121,11 @@ export interface ProcessInfo {
 // ─── Interface ────────────────────────────────────────────────────────────────
 
 export interface RemoteAgentService {
-  /** Unique string identifier (e.g. 'opencode', 'cursor') — used in DB, config, and type unions */
+  /** Unique string identifier (e.g. 'opencode-sdk', 'cursor-sdk') — used in DB, config, and type unions */
   readonly id: string;
   /** Human-readable display name (e.g. 'OpenCode', 'Cursor') — used in UI */
   readonly displayName: string;
-  /** CLI command used to check installation and invoke this harness (e.g. 'opencode', 'agent') */
+  /** CLI command used to check installation and invoke this harness (e.g. 'opencode', 'codex') */
   readonly command: string;
 
   /**
