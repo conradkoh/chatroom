@@ -6,7 +6,6 @@ import { Download, Settings, UserCog } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import {
   ADMIN_ACCESS_PERMISSION,
@@ -48,18 +47,19 @@ export function UserMenu() {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const logout = useSessionMutation(api.auth.logout);
   const { isInstalled, isReady, setDialogOpen } = usePwaInstall();
 
   const handleLogout = useCallback(async () => {
+    setLogoutError(null);
     setIsLoggingOut(true);
     try {
       await logout();
-      toast.success('Logged out successfully');
       router.push('/');
     } catch (error) {
       console.error('Logout failed:', error);
-      toast.error('Failed to logout. Please try again.');
+      setLogoutError('Failed to logout. Please try again.');
     } finally {
       setIsLoggingOut(false);
     }
@@ -90,6 +90,11 @@ export function UserMenu() {
         isInstalled,
         isReady,
         () => setDialogOpen(true)
+      )}
+      {logoutError && (
+        <p role="alert" className="text-sm text-destructive">
+          {logoutError}
+        </p>
       )}
     </>
   );

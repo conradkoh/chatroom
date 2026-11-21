@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { ComponentProps, ReactNode } from 'react';
@@ -8,6 +8,11 @@ import { UserMenu } from './UserMenu';
 
 import { useHasPermission } from '@/application/auth';
 import { useAuthState } from '@/modules/auth/AuthProvider';
+
+const mocks = vi.hoisted(() => ({
+  logout: vi.fn(),
+  push: vi.fn(),
+}));
 
 vi.mock('@/modules/auth/AuthProvider', () => ({ useAuthState: vi.fn() }));
 vi.mock('@/modules/pwa-install', () => ({
@@ -27,9 +32,9 @@ vi.mock('@/application/auth', () => ({
   ADMIN_ACCESS_PERMISSION: 'admin:access',
 }));
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionMutation: vi.fn(() => vi.fn()),
+  useSessionMutation: () => mocks.logout,
 }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock('next/link', () => ({
   default: ({
     href,
@@ -41,10 +46,27 @@ vi.mock('next/link', () => ({
     </a>
   ),
 }));
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+function mockAliceSignedIn() {
+  vi.mocked(useAuthState).mockReturnValue({
+    sessionId: 's',
+    state: 'authenticated',
+    user: { _id: 'u' as Id<'users'>, _creationTime: 0, type: 'anonymous', name: 'Alice' },
+    accessLevel: 'user',
+    permissions: [],
+  });
+}
+
+async function chooseLogoutAndConfirm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Alice' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Log out' }));
+  await user.click(await screen.findByRole('button', { name: 'Log out' }));
+}
 
 describe('UserMenu', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.logout.mockReset();
     vi.mocked(useHasPermission).mockReturnValue(false);
   });
 
@@ -102,5 +124,51 @@ describe('UserMenu', () => {
     await user.click(screen.getByRole('button', { name: 'Carol' }));
     expect(await screen.findByRole('menuitem', { name: 'Admin' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'System Admin' })).toBeInTheDocument();
+  });
+
+  describe('logout', () => {
+    it('shows a failed logout as alert text beside the trigger and does not redirect', async () => {
+      mocks.logout.mockRejectedValueOnce(new Error('boom'));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockAliceSignedIn();
+      const user = userEvent.setup();
+      render(<UserMenu />);
+      await chooseLogoutAndConfirm(user);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to logout. Please try again.'
+      );
+      expect(mocks.push).not.toHaveBeenCalled();
+    });
+
+    it('redirects to / on a successful logout with no message', async () => {
+      mocks.logout.mockResolvedValueOnce(undefined);
+
+      mockAliceSignedIn();
+      const user = userEvent.setup();
+      render(<UserMenu />);
+      await chooseLogoutAndConfirm(user);
+
+      await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/'));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.queryByText('Logged out successfully')).not.toBeInTheDocument();
+    });
+
+    it('clears the failure when the next attempt starts', async () => {
+      mocks.logout.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(undefined);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockAliceSignedIn();
+      const user = userEvent.setup();
+      render(<UserMenu />);
+
+      await chooseLogoutAndConfirm(user);
+      expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+      await chooseLogoutAndConfirm(user);
+
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    });
   });
 });
