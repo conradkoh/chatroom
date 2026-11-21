@@ -33,13 +33,19 @@ const LIGHT_EXPORT_CSS_VARS: Record<string, string> = {
   'color-scheme': 'light',
 };
 
-/** Same feed prose without dark:prose-invert and web-specific overflow utilities. */
-const messageExportProseClassNames = messageFeedProseClassNames
-  .replace(/\bdark:prose-invert\b/, '')
-  .replace(/\boverflow-x-hidden\b/, '')
-  .replace(/\bprose-table:overflow-x-auto\b/, '')
-  .replace(/\s+/g, ' ')
-  .trim();
+/**
+ * Same feed prose without dark:prose-invert and web-specific overflow utilities.
+ * Long words wrap inside table cells instead of being clipped on the page.
+ */
+const messageExportProseClassNames = [
+  messageFeedProseClassNames
+    .replace(/\bdark:prose-invert\b/, '')
+    .replace(/\boverflow-x-hidden\b/, '')
+    .replace(/\bprose-table:overflow-x-auto\b/, '')
+    .replace(/\s+/g, ' ')
+    .trim(),
+  '[&_td]:[overflow-wrap:anywhere] [&_th]:[overflow-wrap:anywhere]',
+].join(' ');
 
 function applyLightExportTheme(el: HTMLElement): void {
   for (const [name, value] of Object.entries(LIGHT_EXPORT_CSS_VARS)) {
@@ -49,11 +55,23 @@ function applyLightExportTheme(el: HTMLElement): void {
   el.style.setProperty('color', '#171717');
 }
 
+/** Export-only. Scales a Mermaid SVG down to the page width and keeps its aspect ratio. */
+const FIT_SVG_STYLE = 'max-width:100%;height:auto;';
+
+function fitSvgToPageWidth(svg: string): string {
+  return svg.replace(/<svg\b([^>]*)>/, (_tag, attrs: string) => {
+    const existing = /\sstyle="([^"]*)"/.exec(attrs);
+    const current = existing ? existing[1].trim().replace(/;?$/, ';') : '';
+    const withoutStyle = existing ? attrs.replace(existing[0], '') : attrs;
+    return `<svg${withoutStyle} style="${current}${FIT_SVG_STYLE}">`;
+  });
+}
+
 function injectMermaidDiagrams(bodyHtml: string, diagrams: Map<number, string>): string {
   let html = bodyHtml;
   for (const [index, svg] of diagrams) {
     const placeholder = `${MERMAID_EXPORT_PLACEHOLDER_PREFIX}${index}`;
-    const diagramHtml = `<div class="export-diagram" style="margin:12px 0;text-align:center;">${svg}</div>`;
+    const diagramHtml = `<div class="export-diagram" style="margin:12px 0;text-align:center;">${fitSvgToPageWidth(svg)}</div>`;
     html = html.replace(new RegExp(`<p>\\s*${placeholder}\\s*</p>`, 'g'), diagramHtml);
     html = html.replace(placeholder, diagramHtml);
   }

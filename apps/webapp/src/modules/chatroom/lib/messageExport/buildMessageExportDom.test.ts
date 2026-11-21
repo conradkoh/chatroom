@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { buildMessageExportDom } from './buildMessageExportDom';
+import { replaceMermaidFencesWithSvg } from './replaceMermaidFencesWithSvg';
 
 vi.mock('./replaceMermaidFencesWithSvg', () => ({
   MERMAID_EXPORT_PLACEHOLDER_PREFIX: 'MERMAID_EXPORT_PLACEHOLDER_',
@@ -29,8 +30,27 @@ describe('buildMessageExportDom', () => {
     const { htmlFragment } = await buildMessageExportDom(message as never, '');
 
     expect(htmlFragment).toContain('<div class="export-diagram"');
-    expect(htmlFragment).toContain('<svg id="diagram"></svg>');
+    expect(htmlFragment).toContain('<svg id="diagram"');
     expect(htmlFragment).not.toContain('MERMAID_EXPORT_PLACEHOLDER_');
+  });
+
+  it('scales a diagram wider than the page down to the page width', async () => {
+    vi.mocked(replaceMermaidFencesWithSvg).mockResolvedValueOnce({
+      markdown: 'MERMAID_EXPORT_PLACEHOLDER_0',
+      diagrams: new Map([
+        [
+          0,
+          '<svg width="2400" height="300" viewBox="0 0 2400 300"><rect width="2400" height="300"/></svg>',
+        ],
+      ]),
+    });
+
+    const { root } = await buildMessageExportDom(message as never, '');
+
+    const svg = root.querySelector('.export-diagram svg') as SVGElement;
+    expect(svg).not.toBeNull();
+    expect(svg.getAttribute('style')).toContain('max-width:100%');
+    expect(svg.getAttribute('style')).toContain('height:auto');
   });
 
   it('exposes the header paragraph and rule as the first page blocks', async () => {
