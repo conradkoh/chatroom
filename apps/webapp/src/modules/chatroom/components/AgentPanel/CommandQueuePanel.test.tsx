@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -167,5 +167,82 @@ describe('CommandQueuePanel', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
 
     await waitFor(() => expect(mocks.deleteAll).toHaveBeenCalledWith({ machineId: 'machine-1' }));
+  });
+
+  it('shows a delete failure in the queue dialog until it is dismissed', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.deleteCommand.mockRejectedValueOnce(new Error('network down'));
+    render(<CommandQueuePanel machineId="machine-1" />);
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Start planner' }));
+
+    const feedback = await screen.findByTestId('command-queue-feedback');
+    expect(feedback).toHaveAttribute('role', 'alert');
+    expect(feedback).toHaveTextContent('Failed to delete command. Please try again.');
+
+    fireEvent.click(within(feedback).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByTestId('command-queue-feedback')).not.toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
+  it.each([
+    [1, 'Removed 1 queued command'],
+    [2, 'Removed 2 queued commands'],
+  ])(
+    'keeps the flush summary for %i removed command(s) in the queue dialog',
+    async (deletedCount, text) => {
+      mocks.deleteAll.mockResolvedValueOnce({ deletedCount });
+      render(<CommandQueuePanel machineId="machine-1" />);
+      fireEvent.click(screen.getByTestId('command-queue-panel'));
+      fireEvent.click(screen.getByRole('button', { name: 'Flush queue' }));
+      fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
+
+      await waitFor(() =>
+        expect(screen.getByTestId('command-queue-feedback')).toHaveTextContent(text)
+      );
+      expect(screen.getByTestId('command-queue-feedback')).toHaveAttribute('role', 'status');
+      expect(screen.queryByTestId('flush-dialog')).not.toBeInTheDocument();
+    }
+  );
+
+  it('keeps a flush failure inside the open flush dialog', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.deleteAll.mockRejectedValueOnce(new Error('timeout'));
+    render(<CommandQueuePanel machineId="machine-1" />);
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
+    fireEvent.click(screen.getByRole('button', { name: 'Flush queue' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
+
+    const flushDialog = await screen.findByTestId('flush-dialog');
+    await waitFor(() =>
+      expect(within(flushDialog).getByTestId('flush-error')).toHaveTextContent(
+        'Failed to flush command queue. Please try again.'
+      )
+    );
+    expect(within(flushDialog).getByTestId('flush-error')).toHaveAttribute('role', 'alert');
+    expect(screen.queryByTestId('command-queue-feedback')).not.toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
+  it('clears a flush failure when the next flush succeeds', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.deleteAll
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ deletedCount: 2 });
+    render(<CommandQueuePanel machineId="machine-1" />);
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
+    fireEvent.click(screen.getByRole('button', { name: 'Flush queue' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
+    await screen.findByTestId('flush-error');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('command-queue-feedback')).toHaveTextContent(
+        'Removed 2 queued commands'
+      )
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    consoleError.mockRestore();
   });
 });
