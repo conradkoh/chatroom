@@ -5,9 +5,10 @@ import { formatLoginCode } from '@workspace/backend/modules/auth/codeUtils';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Check, Copy, Loader2, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { toast } from 'sonner';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
+import { useFeedback, type UseFeedbackResult } from '@/hooks/useFeedback';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 
 type CodeAction =
@@ -58,6 +59,8 @@ export function LoginCodeGenerator() {
 
   const { loginCode, expiresAt, isExpired, isGenerating, isCopied } = state;
 
+  const { feedback, show, error, clear } = useFeedback();
+
   const getTimeRemaining = useCallback(() => _getTimeRemaining(expiresAt), [expiresAt]);
   const [, forceUpdate] = useState(0);
   const timeRemaining = _getTimeRemaining(expiresAt);
@@ -93,7 +96,7 @@ export function LoginCodeGenerator() {
         }
       } else if (loginCode) {
         if (activeCodeQuery.reason === 'no_active_code' && !isExpired) {
-          toast.info('Your login code was used successfully');
+          show('info', 'Your login code was used successfully');
         }
         dispatch({ type: 'CLEAR_CODE' });
       }
@@ -120,8 +123,9 @@ export function LoginCodeGenerator() {
       dispatch,
       createLoginCode,
       getTimeRemaining,
+      feedback: { clear, error },
     });
-  }, [authState, isGenerating, createLoginCode, getTimeRemaining]);
+  }, [authState, isGenerating, createLoginCode, getTimeRemaining, clear, error]);
 
   const handleCopyCode = useCallback(async () => {
     if (!loginCode) return;
@@ -129,16 +133,15 @@ export function LoginCodeGenerator() {
     try {
       await navigator.clipboard.writeText(loginCode);
       dispatch({ type: 'SET_COPIED', value: true });
-      toast.success('Code copied to clipboard');
 
       setTimeout(() => {
         dispatch({ type: 'SET_COPIED', value: false });
       }, 2000);
-    } catch (error) {
-      console.error('Failed to copy code:', error);
-      toast.error('Failed to copy code to clipboard');
+    } catch (copyError) {
+      console.error('Failed to copy code:', copyError);
+      error('Failed to copy code to clipboard');
     }
-  }, [loginCode]);
+  }, [loginCode, error]);
 
   const handleClearCode = useCallback(() => {
     dispatch({ type: 'CLEAR_CODE' });
@@ -248,6 +251,12 @@ export function LoginCodeGenerator() {
             </p>
           </div>
         )}
+        <InlineFeedback
+          feedback={feedback}
+          onDismiss={clear}
+          className="mt-4"
+          data-testid="login-code-feedback"
+        />
       </div>
 
       {!isExpired && (
@@ -285,33 +294,35 @@ interface _HandleGenerateCodeParams {
   dispatch: React.Dispatch<CodeAction>;
   createLoginCode: () => Promise<{ success: boolean; code?: string; expiresAt?: number }>;
   getTimeRemaining: () => string;
+  feedback: Pick<UseFeedbackResult, 'clear' | 'error'>;
 }
 
 /**
  * Handles login code generation with authentication validation and error handling.
  */
 async function _handleGenerateCode(params: _HandleGenerateCodeParams): Promise<void> {
-  const { authState, isGenerating, dispatch, createLoginCode } = params;
-
-  if (authState?.state !== 'authenticated') {
-    toast.error('You must be logged in to generate a login code');
-    return;
-  }
+  const { authState, isGenerating, dispatch, createLoginCode, feedback } = params;
 
   if (isGenerating) return;
+
+  feedback.clear();
+
+  if (authState?.state !== 'authenticated') {
+    feedback.error('You must be logged in to generate a login code');
+    return;
+  }
 
   dispatch({ type: 'SET_GENERATING', value: true });
   try {
     const result = await createLoginCode();
     if (result.success && result.code && result.expiresAt) {
       dispatch({ type: 'SET_CODE', code: result.code, expiresAt: result.expiresAt });
-      toast.success('Login code generated successfully');
     } else {
-      toast.error('Failed to generate login code');
+      feedback.error('Failed to generate login code');
     }
   } catch (error) {
     console.error('Error generating login code:', error);
-    toast.error('An error occurred while generating login code');
+    feedback.error('An error occurred while generating login code');
   } finally {
     dispatch({ type: 'SET_GENERATING', value: false });
   }
