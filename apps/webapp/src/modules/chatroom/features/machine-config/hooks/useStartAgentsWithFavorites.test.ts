@@ -63,20 +63,20 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-/** One builder workspace on machine `m1`, whose launch request uses `claude`/`opus`. */
+/** One builder workspace on machine `m1`, whose launch request uses `claude-sdk`/`opus`. */
 function fixture() {
   return {
     structure: { teamId: 'trio', roles: [{ role: 'builder' }, { role: 'user' }] },
     workspaces: [{ _id: 'ws-1', machineId: 'm1', workingDir: '/repo', hostname: 'laptop' }],
     status: [{ role: 'builder', isRunning: false }],
-    capabilities: { m1: { availableHarnesses: ['claude', 'opencode'] } },
+    capabilities: { m1: { availableHarnesses: ['claude-sdk', 'opencode-sdk'] } },
     favorites: {
       'm1|team_trio#role_builder': {
-        favorites: [{ agentHarness: 'opencode', model: 'gpt' }],
+        favorites: [{ agentHarness: 'opencode-sdk', model: 'gpt' }],
       },
     },
     requests: {
-      'ws-1': [{ role: 'builder', agentHarness: 'claude', model: 'opus', workingDir: '/repo' }],
+      'ws-1': [{ role: 'builder', agentHarness: 'claude-sdk', model: 'opus', workingDir: '/repo' }],
     },
   };
 }
@@ -85,7 +85,7 @@ function fixture() {
 function matchingFixture() {
   const data = fixture();
   data.requests['ws-1'] = [
-    { role: 'builder', agentHarness: 'opencode', model: 'gpt', workingDir: '/repo' },
+    { role: 'builder', agentHarness: 'opencode-sdk', model: 'gpt', workingDir: '/repo' },
   ];
   return data;
 }
@@ -102,19 +102,19 @@ function twoRoleFixture() {
       { role: 'builder', isRunning: false },
       { role: 'reviewer', isRunning: false },
     ],
-    capabilities: { m1: { availableHarnesses: ['claude', 'opencode'] } },
+    capabilities: { m1: { availableHarnesses: ['claude-sdk', 'opencode-sdk'] } },
     favorites: {
       'm1|team_trio#role_builder': {
-        favorites: [{ agentHarness: 'opencode', model: 'gpt' }],
+        favorites: [{ agentHarness: 'opencode-sdk', model: 'gpt' }],
       },
       'm1|team_trio#role_reviewer': {
-        favorites: [{ agentHarness: 'opencode', model: 'opus' }],
+        favorites: [{ agentHarness: 'opencode-sdk', model: 'opus' }],
       },
     },
     requests: {
       'ws-1': [
-        { role: 'builder', agentHarness: 'claude', model: 'opus', workingDir: '/repo' },
-        { role: 'reviewer', agentHarness: 'claude', model: 'sonnet', workingDir: '/repo' },
+        { role: 'builder', agentHarness: 'claude-sdk', model: 'opus', workingDir: '/repo' },
+        { role: 'reviewer', agentHarness: 'claude-sdk', model: 'sonnet', workingDir: '/repo' },
       ],
     },
   };
@@ -182,11 +182,11 @@ describe('useStartAgentsWithFavorites', () => {
     expect(result.current.dialogProps.open).toBe(true);
     expect(result.current.dialogProps.mismatches).toHaveLength(1);
     expect(result.current.dialogProps.mismatches[0].current).toEqual({
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'opus',
     });
     expect(result.current.dialogProps.mismatches[0].favorite).toEqual({
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt',
     });
     expect(start).not.toHaveBeenCalled();
@@ -225,7 +225,7 @@ describe('useStartAgentsWithFavorites', () => {
       workspaceId: 'ws-1',
       role: 'builder',
       machineId: 'm1',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt',
       workingDir: '/repo',
     });

@@ -61,7 +61,7 @@ async function setupWorkspace(suffix: string) {
     machineId: target.machineId,
     hostname: 'test-host',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   const workspaceId = await registerWorkspace(sessionId, target);
   return { sessionId, workspaceId, target };
@@ -272,7 +272,7 @@ describe('patchWorkspaceGitState', () => {
       machineId: target.machineId,
       hostname: 'test-host',
       os: 'linux',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     });
 
     // First workspace is registered then removed, leaving a removed row for the directory.

@@ -90,6 +90,15 @@ vi.mock('../../infrastructure/local-actions/pick-folder.js', () => ({
   pickFolderDialog: vi.fn(() => ({ success: true, path: '/tmp/picked-folder' })),
 }));
 
+// The ledger runtime is the module boundary to the coalescing service. A never-settling
+// refresh proves dispatch does not await it.
+const mockRefresh = vi.hoisted(() => vi.fn());
+const mockServeSnapshot = vi.hoisted(() => vi.fn());
+const mockGetRepositoryLedgerService = vi.hoisted(() => vi.fn());
+vi.mock('./repository-ledger-runtime.js', () => ({
+  getRepositoryLedgerService: mockGetRepositoryLedgerService,
+}));
+
 vi.mock('../infrastructure/git/git-reader.js', () => ({
   isGitRepo: vi.fn().mockResolvedValue(false),
   getBranch: vi.fn().mockResolvedValue({ status: 'not_found' }),
@@ -247,6 +256,8 @@ function createDedupTracker() {
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
     gitCloneIds: new Map<string, number>(),
+    syncProjectRootsIds: new Map<string, number>(),
+    reportRepositoryLedgerIds: new Map<string, number>(),
   };
 }
 
@@ -581,5 +592,177 @@ describe('dispatchCommandEventEffect daemon.gitClone', () => {
       'mock-gitCloneReportResult',
       expect.anything()
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G. daemon.syncProjectRoots (non-blocking coalesced ledger refresh)
+// ---------------------------------------------------------------------------
+
+describe('dispatchCommandEventEffect daemon.syncProjectRoots', () => {
+  function syncProjectRootsEvent(id: string) {
+    return { _id: id, type: 'daemon.syncProjectRoots' } as any;
+  }
+
+  beforeEach(() => {
+    mockRefresh.mockReset();
+    mockRefresh.mockResolvedValue(undefined);
+    mockServeSnapshot.mockReset();
+    mockServeSnapshot.mockReturnValue('started');
+    mockGetRepositoryLedgerService.mockReset();
+    mockGetRepositoryLedgerService.mockReturnValue({
+      refresh: mockRefresh,
+      serveSnapshot: mockServeSnapshot,
+    });
+  });
+
+  it('starts the refresh without awaiting it', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = syncProjectRootsEvent('evt-spr-nonblocking');
+    mockRefresh.mockReturnValue(new Promise(() => {}));
+
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
+      withDeps(createMockDaemonDeps())
+    );
+
+    expect(mockRefresh).toHaveBeenCalledWith('roots-changed');
+    expect(tracker.syncProjectRootsIds.has('evt-spr-nonblocking')).toBe(true);
+  });
+
+  it('refreshes once when the same event id is dispatched twice', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = syncProjectRootsEvent('evt-spr-dedupe');
+    const overrides = withDeps(createMockDaemonDeps());
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a rejected refresh without rejecting the dispatch', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = syncProjectRootsEvent('evt-spr-reject');
+    mockRefresh.mockRejectedValue(new Error('scan failed'));
+
+    await expect(
+      runDispatch(
+        dispatchCommandEventEffect(event, tracker, nativeDelivery),
+        withDeps(createMockDaemonDeps())
+      )
+    ).resolves.toBeUndefined();
+
+    await vi.waitFor(() =>
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Repository ledger refresh failed: scan failed')
+      )
+    );
+  });
+
+  it('logs a synchronous service failure without rejecting the dispatch', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = syncProjectRootsEvent('evt-spr-throw');
+    mockGetRepositoryLedgerService.mockImplementationOnce(() => {
+      throw new Error('service init failed');
+    });
+
+    await expect(
+      runDispatch(
+        dispatchCommandEventEffect(event, tracker, nativeDelivery),
+        withDeps(createMockDaemonDeps())
+      )
+    ).resolves.toBeUndefined();
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Repository ledger refresh failed: service init failed')
+    );
+  });
+
+  it('ignores unknown daemon command types', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = { _id: 'evt-unknown', type: 'daemon.somethingNew' } as any;
+
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
+      withDeps(createMockDaemonDeps())
+    );
+
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H. daemon.reportRepositoryLedger (background snapshot, never blocks)
+// ---------------------------------------------------------------------------
+
+describe('dispatchCommandEventEffect daemon.reportRepositoryLedger', () => {
+  function reportLedgerEvent(id: string) {
+    return {
+      _id: id,
+      type: 'daemon.reportRepositoryLedger',
+      requestId: 'req-ledger-1',
+      rescan: true,
+    } as any;
+  }
+
+  beforeEach(() => {
+    mockServeSnapshot.mockReset();
+    mockServeSnapshot.mockReturnValue('started');
+    mockGetRepositoryLedgerService.mockReset();
+    mockGetRepositoryLedgerService.mockReturnValue({
+      refresh: mockRefresh,
+      serveSnapshot: mockServeSnapshot,
+    });
+  });
+
+  it('starts the snapshot without awaiting it', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportLedgerEvent('evt-rl-nonblocking');
+
+    await runDispatch(
+      dispatchCommandEventEffect(event, tracker, nativeDelivery),
+      withDeps(createMockDaemonDeps())
+    );
+
+    expect(mockServeSnapshot).toHaveBeenCalledWith({
+      requestId: 'req-ledger-1',
+      rescan: true,
+    });
+    expect(tracker.reportRepositoryLedgerIds.has('evt-rl-nonblocking')).toBe(true);
+  });
+
+  it('starts one snapshot when the same event id is dispatched twice', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportLedgerEvent('evt-rl-dedupe');
+    const overrides = withDeps(createMockDaemonDeps());
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(mockServeSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves when serveSnapshot reports a duplicate without starting another job', async () => {
+    const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
+    const tracker = createDedupTracker();
+    const event = reportLedgerEvent('evt-rl-duplicate');
+    mockServeSnapshot.mockReturnValue('duplicate');
+    const overrides = withDeps(createMockDaemonDeps());
+
+    await expect(
+      runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides)
+    ).resolves.toBeUndefined();
+
+    await runDispatch(dispatchCommandEventEffect(event, tracker, nativeDelivery), overrides);
+
+    expect(mockServeSnapshot).toHaveBeenCalledTimes(1);
   });
 });

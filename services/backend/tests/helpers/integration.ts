@@ -123,8 +123,8 @@ export async function registerMachineWithDaemon(
     machineId,
     hostname: 'test-host',
     os: 'darwin',
-    availableHarnesses: ['opencode'],
-    availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+    availableHarnesses: ['opencode-sdk'],
+    availableModels: { 'opencode-sdk': [TEST_MODEL_OPENCODE] },
   });
   await t.mutation(api.machines.markDaemonOnline, {
     sessionId,
@@ -176,7 +176,7 @@ export async function setupRemoteAgentConfig(
     chatroomId,
     role,
     model: TEST_MODEL_OPENCODE_LEGACY,
-    agentHarness: (options?.agentHarness ?? 'opencode') as 'opencode',
+    agentHarness: (options?.agentHarness ?? 'opencode-sdk') as 'opencode-sdk',
     workingDir: options?.workingDir ?? '/test/workspace',
   });
 }
@@ -238,7 +238,7 @@ export async function enableArchitectTeamAgent(
     workspaceId: workspace._id,
     role: 'architect',
     machineId,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     model: 'anthropic/claude-opus-4',
     workingDir: workspace.workingDir,
   });

@@ -148,8 +148,20 @@ export type BackendErrorCode =
   | 'INVALID_WORKING_DIR'
   | 'UNKNOWN_TEAM_STRUCTURE'
   | 'MACHINE_NOT_FOUND'
+  | 'MACHINE_ONLINE'
+  | 'MACHINE_OFFLINE'
+  | 'MACHINE_DELETION_IN_PROGRESS'
   | 'GIT_CLONE_REQUEST_NOT_FOUND'
   | 'GIT_CLONE_PATH_MISMATCH'
+
+  // ── Project roots ─────────────────────────────────────────────────
+  | 'PROJECT_ROOT_DUPLICATE'
+  | 'PROJECT_ROOT_NESTED'
+  | 'PROJECT_ROOT_LIMIT_REACHED'
+  | 'REPOSITORY_LEDGER_REQUEST_NOT_FOUND'
+
+  // ── Bulk create ───────────────────────────────────────────────────
+  | 'BULK_CREATE_LIMIT_EXCEEDED'
 
   // ── Folder picker ─────────────────────────────────────────────────
   | 'FOLDER_PICKER_REQUEST_NOT_FOUND'
@@ -429,10 +441,30 @@ export const BACKEND_ERROR_CODES = {
   UNKNOWN_TEAM_STRUCTURE: 'UNKNOWN_TEAM_STRUCTURE',
   /** Machine is not registered */
   MACHINE_NOT_FOUND: 'MACHINE_NOT_FOUND',
+  /** Machine is online; stop the daemon first */
+  MACHINE_ONLINE: 'MACHINE_ONLINE',
+  /** Machine is offline */
+  MACHINE_OFFLINE: 'MACHINE_OFFLINE',
+  /** Machine is still being deleted; retry shortly */
+  MACHINE_DELETION_IN_PROGRESS: 'MACHINE_DELETION_IN_PROGRESS',
   /** Git clone request not found */
   GIT_CLONE_REQUEST_NOT_FOUND: 'GIT_CLONE_REQUEST_NOT_FOUND',
   /** Reported clone path does not match the requested target path */
   GIT_CLONE_PATH_MISMATCH: 'GIT_CLONE_PATH_MISMATCH',
+
+  // ── Project roots ─────────────────────────────────────────────────
+  /** Project root already exists for this machine */
+  PROJECT_ROOT_DUPLICATE: 'PROJECT_ROOT_DUPLICATE',
+  /** Project root is inside an existing root */
+  PROJECT_ROOT_NESTED: 'PROJECT_ROOT_NESTED',
+  /** Machine already has the maximum number of project roots */
+  PROJECT_ROOT_LIMIT_REACHED: 'PROJECT_ROOT_LIMIT_REACHED',
+  /** Repository ledger request not found for this machine */
+  REPOSITORY_LEDGER_REQUEST_NOT_FOUND: 'REPOSITORY_LEDGER_REQUEST_NOT_FOUND',
+
+  // ── Bulk create ───────────────────────────────────────────────────
+  /** More than BULK_CREATE_MAX_REPOSITORIES working dirs in one call; nothing was created */
+  BULK_CREATE_LIMIT_EXCEEDED: 'BULK_CREATE_LIMIT_EXCEEDED',
 
   // ── Folder picker ─────────────────────────────────────────────────
   /** Folder picker request not found */
@@ -671,8 +703,20 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.INVALID_WORKING_DIR,
   BACKEND_ERROR_CODES.UNKNOWN_TEAM_STRUCTURE,
   BACKEND_ERROR_CODES.MACHINE_NOT_FOUND,
+  BACKEND_ERROR_CODES.MACHINE_ONLINE,
+  BACKEND_ERROR_CODES.MACHINE_OFFLINE,
+  BACKEND_ERROR_CODES.MACHINE_DELETION_IN_PROGRESS,
   BACKEND_ERROR_CODES.GIT_CLONE_REQUEST_NOT_FOUND,
   BACKEND_ERROR_CODES.GIT_CLONE_PATH_MISMATCH,
+
+  // Project roots
+  BACKEND_ERROR_CODES.PROJECT_ROOT_DUPLICATE,
+  BACKEND_ERROR_CODES.PROJECT_ROOT_NESTED,
+  BACKEND_ERROR_CODES.PROJECT_ROOT_LIMIT_REACHED,
+  BACKEND_ERROR_CODES.REPOSITORY_LEDGER_REQUEST_NOT_FOUND,
+
+  // Bulk create
+  BACKEND_ERROR_CODES.BULK_CREATE_LIMIT_EXCEEDED,
 
   // Folder picker
   BACKEND_ERROR_CODES.FOLDER_PICKER_REQUEST_NOT_FOUND,

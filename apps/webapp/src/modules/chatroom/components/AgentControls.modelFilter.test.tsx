@@ -69,7 +69,7 @@ function mkMachine(id: string, hostname: string): MachineInfo {
     machineId: id,
     hostname,
     os: 'linux',
-    availableHarnesses: ['cursor'],
+    availableHarnesses: ['cursor-sdk'],
     harnessVersions: {},
   };
 }
@@ -88,7 +88,7 @@ function RunningModelFilterHarness({
     connectedMachines: machines,
     agentConfigs: runningAgentConfig ? [runningAgentConfig] : [],
     sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
-    teamConfigHarness: 'cursor',
+    teamConfigHarness: 'cursor-sdk',
     teamConfigMachineId: 'a',
     runtimeIsRunning,
   });
@@ -112,11 +112,11 @@ describe('ModelFilter visibility while agent is running', () => {
           machineId: 'a',
           hostname: 'host-a',
           role: 'builder',
-          agentType: 'cursor',
+          agentType: 'cursor-sdk',
           workingDir: '/workspace',
           model: 'openai/gpt-4o',
           spawnedAgentPid: 12345,
-          availableHarnesses: ['cursor'],
+          availableHarnesses: ['cursor-sdk'],
           updatedAt: Date.now(),
         }}
       />
@@ -140,11 +140,11 @@ describe('ModelFilter visibility while agent is running', () => {
           machineId: 'a',
           hostname: 'host-a',
           role: 'builder',
-          agentType: 'cursor',
+          agentType: 'cursor-sdk',
           workingDir: '/workspace',
           model: 'openai/gpt-4o',
           spawnedAgentPid: 12345,
-          availableHarnesses: ['cursor'],
+          availableHarnesses: ['cursor-sdk'],
           updatedAt: Date.now(),
         }}
       />
@@ -163,10 +163,10 @@ describe('ModelFilter visibility while agent is running', () => {
           machineId: 'a',
           hostname: 'host-a',
           role: 'builder',
-          agentType: 'cursor',
+          agentType: 'cursor-sdk',
           workingDir: '/workspace',
           model: 'openai/gpt-4o',
-          availableHarnesses: ['cursor'],
+          availableHarnesses: ['cursor-sdk'],
           updatedAt: Date.now(),
         }}
       />
@@ -200,10 +200,10 @@ describe('ModelFilter visibility while agent is running', () => {
           machineId: 'a',
           hostname: 'host-a',
           role: 'builder',
-          agentType: 'cursor',
+          agentType: 'cursor-sdk',
           workingDir: '/workspace',
           model: 'openai/gpt-4o',
-          availableHarnesses: ['cursor'],
+          availableHarnesses: ['cursor-sdk'],
           updatedAt: Date.now(),
         }}
       />

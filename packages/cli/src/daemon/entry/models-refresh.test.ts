@@ -10,7 +10,7 @@ const SESSION_ID = 'session-1';
 
 /**
  * Client stub returning one canned result per call, in catalog order
- * (codex-sdk, copilot, claude, claude-sdk). An Error entry rejects that call.
+ * (codex-sdk, claude-sdk). An Error entry rejects that call.
  */
 function clientWith(sequence: (string[] | Error)[]) {
   const query = vi.fn();
@@ -34,8 +34,6 @@ describe('fetchHarnessCatalog', () => {
   it('fetches one list per catalog-backed harness, concurrently', async () => {
     const client = clientWith([
       ['gpt-5.6-terra', 'gpt-5.6-terra[reasoning=high]'],
-      ['claude-sonnet-4-6'],
-      ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
       ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
     ]);
 
@@ -43,11 +41,9 @@ describe('fetchHarnessCatalog', () => {
 
     expect(catalog).toEqual({
       'codex-sdk': ['gpt-5.6-terra', 'gpt-5.6-terra[reasoning=high]'],
-      copilot: ['claude-sonnet-4-6'],
-      claude: ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
       'claude-sdk': ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
     });
-    expect(client.query).toHaveBeenCalledTimes(4);
+    expect(client.query).toHaveBeenCalledTimes(2);
     for (const call of client.query.mock.calls) {
       expect(call[1]).toEqual({ sessionId: SESSION_ID });
     }
@@ -55,16 +51,12 @@ describe('fetchHarnessCatalog', () => {
 
   it('skips a harness whose query fails, keeping the others', async () => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const client = clientWith([
-      ['gpt-5.6-terra'],
-      new Error('backend down'),
-      ['claude-sonnet-4-6'],
-    ]);
+    const client = clientWith([['gpt-5.6-terra'], new Error('backend down')]);
 
     const catalog = await fetchHarnessCatalog(client, SESSION_ID);
 
-    expect(catalog).toEqual({ 'codex-sdk': ['gpt-5.6-terra'], claude: ['claude-sonnet-4-6'] });
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('copilot'));
+    expect(catalog).toEqual({ 'codex-sdk': ['gpt-5.6-terra'] });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('claude-sdk'));
   });
 });
 
@@ -72,18 +64,18 @@ describe('applyCatalogOverlay', () => {
   it('replaces local discovery for catalog-backed harnesses, leaves others untouched', () => {
     const discovered: Record<string, string[]> = {
       'codex-sdk': [],
-      copilot: [],
+      'claude-sdk': [],
       'pi-sdk': ['local-model'],
     };
 
     applyCatalogOverlay(discovered, {
       'codex-sdk': ['gpt-5.6-terra'],
-      copilot: ['claude-sonnet-4-6'],
+      'claude-sdk': ['claude-sonnet-4-6'],
     });
 
     expect(discovered).toEqual({
       'codex-sdk': ['gpt-5.6-terra'],
-      copilot: ['claude-sonnet-4-6'],
+      'claude-sdk': ['claude-sonnet-4-6'],
       'pi-sdk': ['local-model'],
     });
   });

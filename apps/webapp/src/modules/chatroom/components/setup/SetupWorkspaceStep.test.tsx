@@ -6,7 +6,7 @@ import { SetupWorkspaceStep } from './SetupWorkspaceStep';
 import type { UserMachine } from '../../types/machine';
 
 vi.mock('@/hooks/useMachineCapabilities', () => ({
-  useMachineCapabilities: () => ({ availableHarnesses: ['cursor'], harnessVersions: {} }),
+  useMachineCapabilities: () => ({ availableHarnesses: ['cursor-sdk'], harnessVersions: {} }),
 }));
 
 vi.mock('@/hooks/useFolderPicker', () => ({

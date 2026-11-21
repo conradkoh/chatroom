@@ -1,9 +1,8 @@
 /**
- * Server-side model catalog (SSOT) for harnesses whose model lists cannot be
- * enumerated locally — the Codex SDK stub (`[]`), hard-coded CLI lists (copilot),
- * etc.
+ * Server-side model catalog (SSOT) for SDK harnesses whose model lists cannot be
+ * enumerated locally: the Codex SDK model list and the Claude SDK model list.
  *
- * Cursor (`cursor`, `cursor-sdk`) models are discovered at runtime via
+ * Cursor (`cursor-sdk`) models are discovered at runtime via
  * `Cursor.models.list()` in the daemon — not curated here.
  *
  * The daemon fetches these lists at boot and on manual refresh via
@@ -24,18 +23,11 @@ import {
   CODEX_MODEL_VARIANT_COMBINATIONS,
   type CodexReasoningLevel,
 } from './codex-sdk.model-variants';
-import {
-  inferCopilotModelProvider,
-  prefixCatalogModels,
-  prefixCatalogModelsWithInfer,
-} from './model-provider';
+import { prefixCatalogModels } from './model-provider';
 import { expandModelVariantCatalog } from './model-variant';
 
 /** Harness ids with a server-curated catalog. */
-export type CatalogBackedHarness = Extract<
-  AgentHarness,
-  'codex-sdk' | 'copilot' | 'claude' | 'claude-sdk'
->;
+export type CatalogBackedHarness = Extract<AgentHarness, 'codex-sdk' | 'claude-sdk'>;
 const claudeModelVariants = () =>
   prefixCatalogModels(
     'anthropic',
@@ -110,18 +102,5 @@ function codexModelVariants(): CodexModelVariantString[] {
 
 export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string[]> = {
   'codex-sdk': codexModelVariants(),
-  copilot: prefixCatalogModelsWithInfer(inferCopilotModelProvider, [
-    'claude-3-5-sonnet-20241022',
-    'claude-3-5-haiku-20241022',
-    'claude-haiku-4.5',
-    'claude-sonnet-4-6',
-    'claude-opus-4-6',
-    'gpt-4o',
-    'gpt-4o-mini',
-    'gpt-4-turbo',
-    'gemini-3-pro-preview',
-    'gemini-2-5-flash',
-  ]),
-  claude: claudeModelVariants(),
   'claude-sdk': claudeModelVariants(),
 };

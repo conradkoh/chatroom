@@ -49,9 +49,9 @@ describe('log store', () => {
       {
         timestamp: 1,
         level: 'info',
-        source: 'harness:claude',
+        source: 'harness:claude-sdk',
         message: 'one',
-        metadata: { chatroomId: 'room-a', role: 'builder', harness: 'claude' },
+        metadata: { chatroomId: 'room-a', role: 'builder', harness: 'claude-sdk' },
       },
       {
         timestamp: 2,
@@ -72,7 +72,7 @@ describe('log store', () => {
     ).toEqual(['three']);
     expect(listLogDimensions(db, 'room-a')).toEqual({
       roles: ['builder'],
-      harnesses: ['claude'],
+      harnesses: ['claude-sdk'],
     });
     expect(listLogDimensions(db, 'room-b')).toEqual({
       roles: ['planner'],

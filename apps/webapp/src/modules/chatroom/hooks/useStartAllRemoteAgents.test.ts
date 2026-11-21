@@ -72,18 +72,18 @@ vi.mock('sonner', () => ({
   },
 }));
 
-/** One builder on machine m1 that runs claude/opus; its top favourite is opencode/gpt → mismatch. */
+/** One builder on machine m1 that runs claude-sdk/opus; its top favourite is opencode-sdk/gpt → mismatch. */
 function mismatchFixture() {
   return {
     structure: { teamId: 'trio', roles: [{ role: 'builder' }, { role: 'user' }] },
     workspaces: [{ _id: 'ws-1', machineId: 'm1', workingDir: '/repo', hostname: 'laptop' }],
     status: [{ role: 'builder', isRunning: false }],
-    capabilities: { m1: { availableHarnesses: ['claude', 'opencode'] } },
+    capabilities: { m1: { availableHarnesses: ['claude-sdk', 'opencode-sdk'] } },
     favorites: {
-      'm1|team_trio#role_builder': { favorites: [{ agentHarness: 'opencode', model: 'gpt' }] },
+      'm1|team_trio#role_builder': { favorites: [{ agentHarness: 'opencode-sdk', model: 'gpt' }] },
     },
     requests: {
-      'ws-1': [{ role: 'builder', agentHarness: 'claude', model: 'opus', workingDir: '/repo' }],
+      'ws-1': [{ role: 'builder', agentHarness: 'claude-sdk', model: 'opus', workingDir: '/repo' }],
     },
   };
 }
@@ -92,7 +92,7 @@ function mismatchFixture() {
 function matchingFixture() {
   const data = mismatchFixture();
   data.requests['ws-1'] = [
-    { role: 'builder', agentHarness: 'opencode', model: 'gpt', workingDir: '/repo' },
+    { role: 'builder', agentHarness: 'opencode-sdk', model: 'gpt', workingDir: '/repo' },
   ];
   return data;
 }

@@ -19,7 +19,7 @@
  *   "agents": {
  *     "<chatroomId>/<role>/<encoded-workingDir>": {
  *       "pid": 12345,
- *       "harness": "opencode",
+ *       "harness": "opencode-sdk",
  *       "startedAt": "ISO string"
  *     }
  *   }

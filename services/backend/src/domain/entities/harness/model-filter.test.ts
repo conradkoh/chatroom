@@ -68,73 +68,73 @@ describe('normalizeModelFilter', () => {
 describe('pruneHiddenFavorites', () => {
   it('removes a favourite whose individual model is hidden for the same harness', () => {
     const favorites = [
-      { agentHarness: 'opencode', model: 'openai/gpt-4' },
-      { agentHarness: 'opencode', model: 'openai/gpt-3.5' },
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-4' },
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-3.5' },
     ];
     const filter: ModelFilter = { hiddenModels: ['openai/gpt-4'], hiddenProviders: [] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter)).toEqual([
-      { agentHarness: 'opencode', model: 'openai/gpt-3.5' },
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter)).toEqual([
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-3.5' },
     ]);
   });
 
   it('removes every favourite under a hidden provider for the same harness', () => {
     const favorites = [
-      { agentHarness: 'opencode', model: 'openai/gpt-4' },
-      { agentHarness: 'opencode', model: 'openai/gpt-3.5' },
-      { agentHarness: 'opencode', model: 'anthropic/claude' },
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-4' },
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-3.5' },
+      { agentHarness: 'opencode-sdk', model: 'anthropic/claude' },
     ];
     const filter: ModelFilter = { hiddenModels: [], hiddenProviders: ['openai'] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter)).toEqual([
-      { agentHarness: 'opencode', model: 'anthropic/claude' },
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter)).toEqual([
+      { agentHarness: 'opencode-sdk', model: 'anthropic/claude' },
     ]);
   });
 
   it('keeps a favourite for a different harness even when the model is hidden', () => {
     const favorites = [{ agentHarness: 'cursor-sdk', model: 'openai/gpt-4' }];
     const filter: ModelFilter = { hiddenModels: ['openai/gpt-4'], hiddenProviders: [] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter)).toBe(favorites);
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter)).toBe(favorites);
   });
 
   it('keeps a visible favourite and preserves the order of the remaining entries', () => {
     const favorites = [
-      { agentHarness: 'opencode', model: 'anthropic/claude' },
-      { agentHarness: 'opencode', model: 'openai/gpt-4' },
-      { agentHarness: 'opencode', model: 'google/gemini' },
+      { agentHarness: 'opencode-sdk', model: 'anthropic/claude' },
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-4' },
+      { agentHarness: 'opencode-sdk', model: 'google/gemini' },
     ];
     const filter: ModelFilter = { hiddenModels: ['openai/gpt-4'], hiddenProviders: [] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter).map((f) => f.model)).toEqual([
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter).map((f) => f.model)).toEqual([
       'anthropic/claude',
       'google/gemini',
     ]);
   });
 
   it('returns the same array instance when nothing is removed', () => {
-    const favorites = [{ agentHarness: 'opencode', model: 'anthropic/claude' }];
+    const favorites = [{ agentHarness: 'opencode-sdk', model: 'anthropic/claude' }];
     const filter: ModelFilter = { hiddenModels: ['openai/gpt-4'], hiddenProviders: [] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter)).toBe(favorites);
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter)).toBe(favorites);
   });
 
   it('keeps an empty favourites list as the same empty instance', () => {
     const favorites: { agentHarness: string; model: string }[] = [];
     const filter: ModelFilter = { hiddenModels: ['openai/gpt-4'], hiddenProviders: [] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter)).toBe(favorites);
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter)).toBe(favorites);
   });
 
   it('removes a favourite whose :: model key is hidden after normalization', () => {
-    const favorites = [{ agentHarness: 'opencode', model: 'openai::gpt-4' }];
+    const favorites = [{ agentHarness: 'opencode-sdk', model: 'openai::gpt-4' }];
     const filter: ModelFilter = { hiddenModels: ['openai/gpt-4'], hiddenProviders: [] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter)).toEqual([]);
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter)).toEqual([]);
   });
 
   it('keeps a favourite under the legacy unprefixed sentinel, which the picker never hides', () => {
-    const favorites = [{ agentHarness: 'opencode', model: 'composer-2.5' }];
+    const favorites = [{ agentHarness: 'opencode-sdk', model: 'composer-2.5' }];
     const filter: ModelFilter = { hiddenModels: [], hiddenProviders: [UNPREFIXED_PROVIDER_KEY] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter)).toBe(favorites);
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter)).toBe(favorites);
   });
 
   it('keeps the favourite when a provider is hidden but the model is an exception', () => {
-    const favorites = [{ agentHarness: 'opencode', model: 'openai/gpt-4' }];
+    const favorites = [{ agentHarness: 'opencode-sdk', model: 'openai/gpt-4' }];
     const filter: ModelFilter = { hiddenModels: ['openai/gpt-4'], hiddenProviders: ['openai'] };
-    expect(pruneHiddenFavorites(favorites, 'opencode', filter)).toBe(favorites);
+    expect(pruneHiddenFavorites(favorites, 'opencode-sdk', filter)).toBe(favorites);
   });
 });

@@ -5,8 +5,20 @@
 import { describe, expect, test } from 'vitest';
 
 import { AGENT_HARNESSES } from '../agent';
-import { CLI_ONLY_WIRE_EVENT_KINDS, isCliOnlyWireEvent } from './lifecycle-events';
-import { getHarnessCapabilities, getHarnessRuntimeKind, isNativeHarness } from './types';
+import { HARNESS_WIRE_EVENT_KINDS } from './lifecycle-events';
+import { getHarnessCapabilities, isNativeHarness } from './types';
+
+describe('AGENT_HARNESSES', () => {
+  test('is exactly the five SDK harnesses', () => {
+    expect([...AGENT_HARNESSES].sort()).toEqual([
+      'claude-sdk',
+      'codex-sdk',
+      'cursor-sdk',
+      'opencode-sdk',
+      'pi-sdk',
+    ]);
+  });
+});
 
 describe('getHarnessCapabilities', () => {
   test('every AgentHarness has a capabilities entry', () => {
@@ -15,96 +27,25 @@ describe('getHarnessCapabilities', () => {
     }
   });
 
-  test('cursor-sdk, opencode-sdk, pi-sdk, claude-sdk, and codex-sdk support native integration', () => {
-    expect(getHarnessCapabilities('cursor-sdk').supportsNativeIntegration).toBe(true);
-    expect(getHarnessCapabilities('opencode-sdk').supportsNativeIntegration).toBe(true);
-    expect(getHarnessCapabilities('pi-sdk').supportsNativeIntegration).toBe(true);
-    expect(getHarnessCapabilities('claude-sdk').supportsNativeIntegration).toBe(true);
-    expect(getHarnessCapabilities('codex-sdk').supportsNativeIntegration).toBe(true);
-  });
-
-  test('all other harnesses do not support native integration', () => {
-    const nonNative = AGENT_HARNESSES.filter(
-      (h) =>
-        h !== 'cursor-sdk' &&
-        h !== 'opencode-sdk' &&
-        h !== 'pi-sdk' &&
-        h !== 'claude-sdk' &&
-        h !== 'codex-sdk'
-    );
-    for (const harness of nonNative) {
-      expect(getHarnessCapabilities(harness).supportsNativeIntegration).toBe(false);
-    }
-  });
-
-  test('supportsNativeIntegration harnesses are exactly cursor-sdk, opencode-sdk, pi-sdk, claude-sdk, and codex-sdk', () => {
-    const native = AGENT_HARNESSES.filter(
-      (h) => getHarnessCapabilities(h).supportsNativeIntegration
-    );
-    expect(native.sort()).toEqual([
-      'claude-sdk',
-      'codex-sdk',
-      'cursor-sdk',
-      'opencode-sdk',
-      'pi-sdk',
-    ]);
-  });
-
-  test('SDK harnesses use runtimeKind sdk', () => {
-    expect(getHarnessRuntimeKind('cursor-sdk')).toBe('sdk');
-    expect(getHarnessRuntimeKind('opencode-sdk')).toBe('sdk');
-    expect(getHarnessRuntimeKind('pi-sdk')).toBe('sdk');
-    expect(getHarnessRuntimeKind('claude-sdk')).toBe('sdk');
-    expect(getHarnessRuntimeKind('codex-sdk')).toBe('sdk');
-  });
-
-  test('CLI harnesses use runtimeKind cli', () => {
-    for (const harness of ['pi', 'opencode', 'cursor', 'claude'] as const) {
-      expect(getHarnessRuntimeKind(harness)).toBe('cli');
-    }
-  });
-
-  test('SDK harnesses never declare CLI-only NDJSON wire events', () => {
-    for (const harness of [
-      'cursor-sdk',
-      'opencode-sdk',
-      'pi-sdk',
-      'claude-sdk',
-      'codex-sdk',
-    ] as const) {
-      const { wireEvents } = getHarnessCapabilities(harness);
-      for (const kind of wireEvents) {
-        expect(isCliOnlyWireEvent(kind)).toBe(false);
+  test('every declared wire event is a catalogued kind', () => {
+    for (const harness of AGENT_HARNESSES) {
+      for (const kind of getHarnessCapabilities(harness).wireEvents) {
+        expect(HARNESS_WIRE_EVENT_KINDS).toContain(kind);
       }
-    }
-  });
-
-  test('Pi CLI is the only harness that emits wire.ndjson.agent_end', () => {
-    const withNdjsonAgentEnd = AGENT_HARNESSES.filter((h) =>
-      getHarnessCapabilities(h).wireEvents.includes('wire.ndjson.agent_end')
-    );
-    expect(withNdjsonAgentEnd).toEqual(['pi']);
-  });
-
-  test('every CLI-only wire kind is marked cliOnly in the catalog', () => {
-    for (const kind of CLI_ONLY_WIRE_EVENT_KINDS) {
-      expect(isCliOnlyWireEvent(kind)).toBe(true);
     }
   });
 });
 
 describe('isNativeHarness', () => {
-  test('returns true for sdk native harnesses', () => {
-    expect(isNativeHarness('cursor-sdk')).toBe(true);
-    expect(isNativeHarness('opencode-sdk')).toBe(true);
-    expect(isNativeHarness('pi-sdk')).toBe(true);
-    expect(isNativeHarness('claude-sdk')).toBe(true);
-    expect(isNativeHarness('codex-sdk')).toBe(true);
+  test('returns true for every AgentHarness', () => {
+    for (const harness of AGENT_HARNESSES) {
+      expect(isNativeHarness(harness)).toBe(true);
+    }
   });
 
-  test('returns false for cli harnesses and undefined', () => {
-    expect(isNativeHarness('cursor')).toBe(false);
-    expect(isNativeHarness('pi')).toBe(false);
+  test('returns false for undefined, null, and unknown names', () => {
     expect(isNativeHarness(undefined)).toBe(false);
+    expect(isNativeHarness(null)).toBe(false);
+    expect(isNativeHarness('legacy-harness')).toBe(false);
   });
 });

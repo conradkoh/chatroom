@@ -44,7 +44,7 @@ export interface StartAgentInput {
 
   /** AI model to use (e.g. "anthropic/claude-sonnet-4"). */
   model: string;
-  /** Agent harness to use (e.g. 'opencode'). */
+  /** Agent harness to use (e.g. 'opencode-sdk'). */
   agentHarness: AgentHarness;
   /** Working directory on the machine (absolute path). */
   workingDir: string;

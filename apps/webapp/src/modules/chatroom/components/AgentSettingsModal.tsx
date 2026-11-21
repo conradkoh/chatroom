@@ -10,8 +10,6 @@ import {
   Monitor,
   Check,
   AlertTriangle,
-  Pencil,
-  X,
   Plug,
   HardDrive,
   Trash2,
@@ -21,11 +19,12 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import Link from 'next/link';
-import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, memo, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 
 import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
 import { ApplyTopFavoriteModelsButton } from '../features/machine-config/components/ApplyTopFavoriteModelsButton';
+import { MachineAliasField } from '../features/machines/components/MachineAliasField';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { WorkspaceInlineAgentListPanel } from './AgentPanel/WorkspaceInlineAgentListPanel';
 import { useWorkspaceAgentDirectory } from '../hooks/useWorkspaceAgentQueries';
@@ -348,7 +347,8 @@ const TeamConfigContent = memo(function TeamConfigContent({
 });
 
 /**
- * Individual machine row with inline alias editing
+ * Individual machine row. Alias editing is delegated to the shared
+ * MachineAliasField so the settings modal and Machines page stay in lockstep.
  */
 const MachineRow = memo(function MachineRow({
   machine,
@@ -361,68 +361,7 @@ const MachineRow = memo(function MachineRow({
     registeredAt: number;
   };
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [aliasValue, setAliasValue] = useState(machine.alias || '');
-  const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
   const { isConnected: daemonConnected } = useDaemonConnected(machine.machineId);
-
-  const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
-
-  // Focus input when editing starts
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleStartEdit = useCallback(() => {
-    setAliasValue(machine.alias || '');
-    setIsEditing(true);
-  }, [machine.alias]);
-
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setAliasValue(machine.alias || '');
-  }, [machine.alias]);
-
-  const handleSaveAlias = useCallback(async () => {
-    const trimmed = aliasValue.trim();
-    // No change — just close
-    if (trimmed === (machine.alias || '')) {
-      setIsEditing(false);
-      return;
-    }
-    setIsSaving(true);
-    try {
-      await setMachineAlias({
-        machineId: machine.machineId,
-        alias: trimmed || undefined, // empty string clears alias
-      });
-      setIsEditing(false);
-    } catch {
-      // Keep editing on error
-    } finally {
-      setIsSaving(false);
-    }
-  }, [aliasValue, machine.alias, machine.machineId, setMachineAlias]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSaveAlias();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        handleCancelEdit();
-      }
-    },
-    [handleSaveAlias, handleCancelEdit]
-  );
-
-  const displayName = machine.alias || machine.hostname;
 
   return (
     <div className="flex items-center gap-3 p-3 border border-chatroom-border bg-chatroom-bg-surface">
@@ -430,45 +369,12 @@ const MachineRow = memo(function MachineRow({
         className={`w-2.5 h-2.5 flex-shrink-0 ${daemonConnected ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted'}`}
       />
       <div className="flex-1 min-w-0">
-        {isEditing ? (
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={inputRef}
-              type="text"
-              value={aliasValue}
-              onChange={(e) => setAliasValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleSaveAlias}
-              maxLength={64}
-              placeholder={machine.hostname}
-              disabled={isSaving}
-              className="flex-1 min-w-0 text-xs font-bold text-chatroom-text-primary bg-chatroom-bg-tertiary border border-chatroom-accent px-1.5 py-0.5 outline-none disabled:opacity-50"
-            />
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={handleCancelEdit}
-              className="flex-shrink-0 p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary"
-              title="Cancel"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        ) : (
-          <div className="group flex items-center gap-1.5">
-            <div className="text-xs font-bold text-chatroom-text-primary truncate">
-              {displayName}
-            </div>
-            <button
-              type="button"
-              onClick={handleStartEdit}
-              className="flex-shrink-0 p-0.5 text-chatroom-text-muted opacity-0 group-hover:opacity-100 hover:text-chatroom-text-primary transition-opacity"
-              title="Edit alias"
-            >
-              <Pencil size={10} />
-            </button>
-          </div>
-        )}
+        <MachineAliasField
+          machineId={machine.machineId}
+          alias={machine.alias}
+          hostname={machine.hostname}
+          compact
+        />
         <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
           {machine.alias ? `${machine.hostname} · ` : ''}
           {daemonConnected ? 'online' : 'offline'} · {machine.os}

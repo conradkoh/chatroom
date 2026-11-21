@@ -7,6 +7,10 @@ import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
+  pathname: '/app',
+  searchParams: {
+    create: null as string | null,
+  } as Record<string, string | null>,
   listing: {
     chatrooms: undefined as ChatroomWithStatus[] | undefined,
     statuses: new Map(),
@@ -16,7 +20,28 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push, back: vi.fn() }),
-  useSearchParams: () => ({ get: () => null }),
+  usePathname: () => mocks.pathname,
+  useSearchParams: () => ({ get: (key: string) => mocks.searchParams[key] ?? null }),
+}));
+
+vi.mock('next/link', () => ({
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+  } & Record<string, unknown>) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+// The wizard replaces the list at `?create=true`; this spec only asserts the strip is absent there.
+vi.mock('../features/new-chatroom/NewChatroomWizard', () => ({
+  NewChatroomWizard: () => <div data-testid="new-chatroom-wizard" />,
 }));
 
 vi.mock('../hooks/useChatroomListingStatuses', () => ({
@@ -62,6 +87,8 @@ function chatroom(id: string, name: string): ChatroomWithStatus {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.pathname = '/app';
+  mocks.searchParams.create = null;
   mocks.listing = { chatrooms: undefined, statuses: new Map(), isLoading: false };
 });
 
@@ -110,5 +137,42 @@ describe('ChatroomSelector browser', () => {
     fireEvent.click(screen.getByRole('button', { name: '+ New' }));
 
     expect(mocks.push).toHaveBeenCalledWith('/app?create=true');
+  });
+});
+
+describe('ChatroomSelector section tabs', () => {
+  it('shows the Chatrooms | Machines strip with a populated list', () => {
+    mocks.listing.chatrooms = [chatroom('room-a', 'Alpha room')];
+    render(<ChatroomSelector onSelect={vi.fn()} />);
+
+    expect(screen.getByTestId('app-section-tabs')).toBeTruthy();
+    expect(screen.getByTestId('app-section-tab-chatrooms').getAttribute('aria-current')).toBe(
+      'page'
+    );
+  });
+
+  it('shows the strip in the empty state', () => {
+    mocks.listing.chatrooms = [];
+    render(<ChatroomSelector onSelect={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: 'Welcome' })).toBeTruthy();
+    expect(screen.getByTestId('app-section-tabs')).toBeTruthy();
+  });
+
+  it('hides the strip while the listing loads', () => {
+    mocks.listing = { chatrooms: [], statuses: new Map(), isLoading: true };
+    render(<ChatroomSelector onSelect={vi.fn()} />);
+
+    expect(screen.getByText('Loading chatrooms...')).toBeTruthy();
+    expect(screen.queryByTestId('app-section-tabs')).toBeNull();
+  });
+
+  it('hides the strip when the create wizard replaces the list', () => {
+    mocks.listing.chatrooms = [chatroom('room-a', 'Alpha room')];
+    mocks.searchParams.create = 'true';
+    render(<ChatroomSelector onSelect={vi.fn()} />);
+
+    expect(screen.getByTestId('new-chatroom-wizard')).toBeTruthy();
+    expect(screen.queryByTestId('app-section-tabs')).toBeNull();
   });
 });

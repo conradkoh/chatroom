@@ -1,9 +1,7 @@
-import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 
 import type { SpawnResult } from './remote-agent-service.js';
 import type { BackendOps } from '../../../../../infrastructure/deps/index.js';
-import type { AgentHarness } from '../../../../../infrastructure/machine/types.js';
 import {
   buildActivityLifecycleFact,
   type AgentLifecycleFact,
@@ -43,13 +41,9 @@ export interface WireTokenActivityReportingOpts {
  */
 export async function emitNativeWaitingAfterSpawn(
   ctx: NativeSpawnPresenceContext,
-  harness: AgentHarness | string,
   opts?: { onError?: ((err: Error) => void) | undefined }
 ): Promise<boolean> {
   if (!isTeamAgentRole(ctx.role)) return false;
-  if (!getHarnessCapabilities(harness as AgentHarness).supportsNativeIntegration) {
-    return false;
-  }
   try {
     if (!ctx.lifecycleOutbox) throw new Error('lifecycle outbox missing');
     await ctx.lifecycleOutbox.enqueue(

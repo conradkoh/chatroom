@@ -4,6 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback } from 'react';
 
+import { AppSectionTabs } from './AppSectionTabs';
 import { ChatroomBrowser } from './chatroom-selector/ChatroomBrowser';
 import type { ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { NewChatroomWizard } from '../features/new-chatroom/NewChatroomWizard';
@@ -31,6 +32,7 @@ function ChatroomLoadingState() {
 function ChatroomEmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
+      <AppSectionTabs />
       {/* Header */}
       <div className="mb-8 border-b-2 border-chatroom-border pb-6">
         <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Welcome</h1>

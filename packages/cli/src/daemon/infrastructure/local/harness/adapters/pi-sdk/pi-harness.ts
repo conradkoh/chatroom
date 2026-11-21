@@ -18,9 +18,9 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
-import { getPiSessionDir } from '../../services/pi/pi-agent-service.js';
-import { parsePiSpawnModel, resolvePiThinkingLevel } from '../../services/pi/pure.js';
 import { formatPiSdkLoadError, importBundledPiSdk } from '../../services/pi-sdk/pi-sdk-package.js';
+import { getPiSessionDir } from '../../services/pi-sdk/pi-session-dir.js';
+import { parsePiSpawnModel, resolvePiThinkingLevel } from '../../services/pi-sdk/pure.js';
 import { requireHarnessModel } from '../../services/require-harness-model.js';
 import { withTimeout } from '../../services/with-timeout.js';
 

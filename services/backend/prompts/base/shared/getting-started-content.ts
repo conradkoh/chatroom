@@ -46,7 +46,7 @@ When \`get-next-task\` delivers a chatroom task, the **full task content is incl
 
 ${getCompactionRecoveryNote({ cliEnvPrefix, chatroomId, role })}
 
-CLI harnesses do not support in-session compaction. After context is lost, the daemon performs a hard restart — you must run \`get-next-task\` again to rejoin the chatroom.
+Agents on the \`get-next-task\` loop do not support in-session compaction. After context is lost, run \`get-next-task\` again to rejoin the chatroom.
 
 ### Register Agent
 Register your agent type before starting work.

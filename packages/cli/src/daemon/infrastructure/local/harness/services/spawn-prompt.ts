@@ -23,10 +23,6 @@ export type SpawnPrompt = string & { readonly [spawnPromptBrand]: true };
 
 /**
  * Default trigger sent when the caller-supplied message is empty.
- *
- * The wording is identical to the constant historically duplicated in the
- * claude/copilot/pi harnesses so the agent's response shape is unchanged
- * across harnesses by this refactor.
  */
 export const DEFAULT_TRIGGER_PROMPT =
   'Please read your system prompt carefully and follow the Getting Started instructions.';

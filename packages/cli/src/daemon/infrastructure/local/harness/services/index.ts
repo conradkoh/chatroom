@@ -4,9 +4,5 @@ export type {
   SpawnResult,
   VersionInfo,
 } from './remote-agent-service.js';
-export { OpenCodeAgentService } from './opencode/index.js';
-export { PiAgentService } from './pi/index.js';
-export { CursorAgentService } from './cursor/index.js';
-export { CopilotAgentService } from './copilot/index.js';
 export { registerHarness, getHarness, getAllHarnesses } from './registry.js';
 export { initHarnessRegistry } from './init-registry.js';

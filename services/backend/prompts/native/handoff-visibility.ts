@@ -1,8 +1,8 @@
 /**
  * Handoff recipient visibility — shared callouts for handoff templates.
  *
- * Native and CLI harnesses run in isolated sessions. Recipients only receive
- * the handoff body. The user additionally sees `notify-user` notices.
+ * Agent harness sessions are isolated. Recipients only receive the handoff
+ * body. The user additionally sees `notify-user` notices.
  */
 
 /** Callout prepended to each handoff template (user or agent recipient). */

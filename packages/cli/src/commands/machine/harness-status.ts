@@ -9,9 +9,8 @@
 
 import { Effect } from 'effect';
 
-import { BaseCLIAgentService } from '../../daemon/infrastructure/local/harness/services/base-cli-agent-service.js';
+import type { DetectionResult } from '../../daemon/infrastructure/local/harness/services/detection-result.js';
 import {
-  DetectionResult,
   isInstalled,
   isNotInstalled,
   isDetectionError,
@@ -20,6 +19,7 @@ import {
   initHarnessRegistry,
   getAllHarnesses,
 } from '../../daemon/infrastructure/local/harness/services/index.js';
+import { requireBaseAgentService } from '../../daemon/infrastructure/local/harness/services/require-base-agent-service.js';
 
 interface HarnessStatusRow {
   id: string;
@@ -45,20 +45,10 @@ export async function harnessStatus(): Promise<void> {
   const detectOne = (
     service: ReturnType<typeof getAllHarnesses>[number]
   ): Effect.Effect<{ id: string; displayName: string; result: DetectionResult }, never> => {
-    if (service instanceof BaseCLIAgentService) {
-      return service
-        .detectInstallationEffect()
-        .pipe(
-          Effect.map((result) => ({ id: service.id, displayName: service.displayName, result }))
-        );
-    }
-    return Effect.promise(() => service.isInstalled().catch(() => false)).pipe(
-      Effect.map((installed) => ({
-        id: service.id,
-        displayName: service.displayName,
-        result: installed ? DetectionResult.Installed() : DetectionResult.NotInstalled(),
-      }))
-    );
+    const base = requireBaseAgentService(service);
+    return base
+      .detectInstallationEffect()
+      .pipe(Effect.map((result) => ({ id: base.id, displayName: base.displayName, result })));
   };
 
   const program = Effect.forEach(services, detectOne, { concurrency: 'unbounded' });

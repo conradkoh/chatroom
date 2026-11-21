@@ -64,6 +64,12 @@ vi.mock('./handlers/process/log-observer-sync.js', () => ({
 vi.mock('../../commands/machine/pid.js', () => ({
   releaseLock: vi.fn(),
 }));
+
+const mockRefresh = vi.hoisted(() => vi.fn());
+const mockGetRepositoryLedgerService = vi.hoisted(() => vi.fn());
+vi.mock('./repository-ledger-runtime.js', () => ({
+  getRepositoryLedgerService: mockGetRepositoryLedgerService,
+}));
 vi.mock('../../events/lifecycle/on-daemon-shutdown.js', async () => {
   const { Effect } = await import('effect');
   return { onDaemonShutdownEffect: Effect.sync(shutdownEffectStarted) };
@@ -74,6 +80,10 @@ describe('createDaemonRuntime', () => {
     vi.clearAllMocks();
     // A test may leave a pending stop behind; each test sets the stop it needs.
     taskInboxStop.mockReset();
+    mockRefresh.mockReset();
+    mockRefresh.mockResolvedValue(undefined);
+    mockGetRepositoryLedgerService.mockReset();
+    mockGetRepositoryLedgerService.mockReturnValue({ refresh: mockRefresh });
   });
 
   /** Builds the runtime, starts it, and resolves once the inbound handlers are registered. */
@@ -180,6 +190,47 @@ describe('createDaemonRuntime', () => {
 
     expect(livenessSweepStop).toHaveBeenCalledTimes(1);
     expect(livenessSweepStop).toHaveBeenCalledBefore(vi.mocked(workspaceService.stopAll));
+  });
+
+  it('refreshes the repository ledger once at boot without delaying startup', async () => {
+    const { runtime, runPromise, workspaceService } = await startRuntime();
+
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockRefresh).toHaveBeenCalledWith('boot');
+    expect(vi.mocked(workspaceService.start)).toHaveBeenCalledBefore(mockRefresh);
+    expect(registerCommandInboundHandler).toHaveBeenCalled();
+
+    await runtime.shutdown();
+    await runPromise;
+  });
+
+  it('does not delay startup when the boot refresh never settles', async () => {
+    mockRefresh.mockReturnValue(new Promise(() => {}));
+
+    const { runtime, runPromise } = await startRuntime();
+
+    expect(mockRefresh).toHaveBeenCalledWith('boot');
+    expect(registerCommandInboundHandler).toHaveBeenCalled();
+
+    await runtime.shutdown();
+    await runPromise;
+  });
+
+  it('only logs a warning when the boot refresh rejects', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockRefresh.mockRejectedValue(new Error('refresh failed'));
+
+    const { runtime, runPromise } = await startRuntime();
+
+    await vi.waitFor(() =>
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Repository ledger boot refresh failed: refresh failed')
+      )
+    );
+    expect(registerCommandInboundHandler).toHaveBeenCalled();
+
+    await runtime.shutdown();
+    await runPromise;
   });
 
   it('gives up on a flush that never settles after shutdownFlushTimeoutMs, then stops the outbox', async () => {

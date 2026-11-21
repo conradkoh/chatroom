@@ -62,8 +62,8 @@ describe('getAgentConfigForStart — no defaults', () => {
       machineId: 'machine-gacfs-disconnected',
       hostname: 'disconnected-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
-      availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+      availableHarnesses: ['opencode-sdk'],
+      availableModels: { 'opencode-sdk': [TEST_MODEL_OPENCODE] },
     });
 
     const result = await t.run(async (ctx) => {
@@ -101,7 +101,7 @@ describe('getAgentConfigForStart — team config fallback', () => {
     });
 
     expect(result!.defaults.machineId).toBe(machineId);
-    expect(result!.defaults.agentHarness).toBe('opencode');
+    expect(result!.defaults.agentHarness).toBe('opencode-sdk');
     expect(result!.defaults.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(result!.defaults.workingDir).toBe('/test/workspace');
   });
@@ -141,14 +141,14 @@ describe('getAgentConfigForStart — machine models', () => {
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
     const machineId = 'machine-gacfs-models-1';
-    const models = { opencode: [TEST_MODEL_OPENCODE] };
+    const models = { 'opencode-sdk': [TEST_MODEL_OPENCODE] };
 
     await t.mutation(api.machines.register, {
       sessionId: sessionId as any,
       machineId,
       hostname: 'models-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: models,
     });
 
@@ -165,14 +165,14 @@ describe('getAgentConfigForStart — machine models', () => {
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
     const ownerId = await getOwnerUserId(chatroomId);
     const machineId = 'machine-gacfs-models-2';
-    const legacyModels = { opencode: ['provider/legacy-model'] };
+    const legacyModels = { 'opencode-sdk': ['provider/legacy-model'] };
 
     await t.mutation(api.machines.register, {
       sessionId: sessionId as any,
       machineId,
       hostname: 'legacy-models-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     });
     await t.run(async (ctx) => {
       const capabilities = await ctx.db

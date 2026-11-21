@@ -36,7 +36,7 @@ import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 describe('DaemonMachineService', () => {
   it('listAgentEntries delegates to underlying MachineStateOps', async () => {
     const expectedEntries = [
-      { chatroomId: 'room-1', role: 'builder', entry: { pid: 1234, harness: 'pi' as any } },
+      { chatroomId: 'room-1', role: 'builder', entry: { pid: 1234, harness: 'pi-sdk' as any } },
     ];
     const ops = {
       clearAgentPid: vi.fn().mockResolvedValue(undefined),

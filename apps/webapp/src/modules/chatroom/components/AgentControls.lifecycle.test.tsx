@@ -45,7 +45,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 
 vi.mock('../../../hooks/useMachineModels', () => ({
   useMachineModels: () => ({
-    availableModels: { cursor: ['openai/gpt-4o'] },
+    availableModels: { 'cursor-sdk': ['openai/gpt-4o'] },
     isLoading: false,
   }),
 }));
@@ -73,7 +73,7 @@ function mkMachine(): MachineInfo {
     machineId: 'machine-a',
     hostname: 'host-a',
     os: 'linux',
-    availableHarnesses: ['cursor'],
+    availableHarnesses: ['cursor-sdk'],
     harnessVersions: {},
   };
 }
@@ -90,10 +90,10 @@ function LifecycleHarness({
     machineId: 'machine-a',
     hostname: 'host-a',
     role: 'architect',
-    agentType: 'cursor',
+    agentType: 'cursor-sdk',
     workingDir: '/workspace',
     model: 'openai/gpt-4o',
-    availableHarnesses: ['cursor'],
+    availableHarnesses: ['cursor-sdk'],
     updatedAt: Date.now(),
   };
   const controls = useAgentControls({
@@ -102,7 +102,7 @@ function LifecycleHarness({
     connectedMachines: machines,
     agentConfigs: [roleConfig],
     sendCommand,
-    teamConfigHarness: 'cursor',
+    teamConfigHarness: 'cursor-sdk',
     teamConfigMachineId: 'machine-a',
     runtimeIsRunning,
   });

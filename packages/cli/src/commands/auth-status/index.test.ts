@@ -35,7 +35,7 @@ function createMockDeps(overrides?: Partial<AuthStatusDeps>): AuthStatusDeps {
       machineId: 'machine-123',
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'] as const,
+      availableHarnesses: ['opencode-sdk'] as const,
       harnessVersions: {},
       registeredAt: '2024-01-01T00:00:00.000Z',
       lastSyncedAt: '2024-01-01T00:00:00.000Z',

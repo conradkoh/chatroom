@@ -78,7 +78,7 @@ function mkMachine(id: string, hostname: string): MachineInfo {
     machineId: id,
     hostname,
     os: 'linux',
-    availableHarnesses: ['cursor'],
+    availableHarnesses: ['cursor-sdk'],
     harnessVersions: {},
   };
 }
@@ -96,10 +96,10 @@ function RehomeHarness({
     machineId: 'b',
     hostname: 'host-b',
     role: 'builder',
-    agentType: 'cursor',
+    agentType: 'cursor-sdk',
     workingDir: '/workspace',
     model: 'openai/gpt-4o',
-    availableHarnesses: ['cursor'],
+    availableHarnesses: ['cursor-sdk'],
     updatedAt: Date.now(),
   };
   const controls = useAgentControls({
@@ -108,7 +108,7 @@ function RehomeHarness({
     connectedMachines: machines,
     agentConfigs: [lastUsed],
     sendCommand,
-    teamConfigHarness: 'cursor',
+    teamConfigHarness: 'cursor-sdk',
     teamConfigMachineId: 'a',
   });
   return (

@@ -57,6 +57,8 @@ function getCommandTitle(command: QueueCommandPayload): string {
       return 'Pick workspace folder';
     case 'daemon.gitClone':
       return 'Clone repository';
+    case 'daemon.syncProjectRoots':
+      return 'Sync project roots';
     case 'daemon.ping':
       return 'Daemon ping';
     default:

@@ -20,7 +20,7 @@ function minimalSignal(): AssignedTaskSignal {
     signalType: 'task',
     revisionKey: 'rev-1',
     machineId: 'machine-1',
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     createdAt: 1_000,
   };
 }
@@ -61,7 +61,7 @@ describe('assignedTaskSignalSchema', () => {
         agentConfig: {
           role: 'builder',
           machineId: 'machine-1',
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
         },
       },
     ])[0]!;

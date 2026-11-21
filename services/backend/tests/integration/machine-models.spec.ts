@@ -51,14 +51,14 @@ describe('chatroom_machineAvailableModels model catalog', () => {
   test('register with availableModels writes models to the models row only', async () => {
     const { sessionId } = await createTestSession('mm-register-create');
     const machineId = 'mm-machine-register-create';
-    const models = { opencode: [TEST_MODEL_PROVIDER_A, 'provider/gpt-4o'] };
+    const models = { 'opencode-sdk': [TEST_MODEL_PROVIDER_A, 'provider/gpt-4o'] };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: models,
     });
 
@@ -71,21 +71,21 @@ describe('chatroom_machineAvailableModels model catalog', () => {
     const capabilities = await readCapabilitiesRow(machineId);
     expect(capabilities).not.toBeNull();
     expect(capabilities).not.toHaveProperty('availableModels');
-    expect(capabilities!.availableHarnesses).toEqual(['opencode']);
+    expect(capabilities!.availableHarnesses).toEqual(['opencode-sdk']);
   });
 
   test('re-registering the same machine updates the models row and keeps one row', async () => {
     const { sessionId } = await createTestSession('mm-register-update');
     const machineId = 'mm-machine-register-update';
-    const modelsV1 = { opencode: [TEST_MODEL_PROVIDER_A] };
-    const modelsV2 = { opencode: [TEST_MODEL_PROVIDER_A, TEST_MODEL_PROVIDER_B] };
+    const modelsV1 = { 'opencode-sdk': [TEST_MODEL_PROVIDER_A] };
+    const modelsV2 = { 'opencode-sdk': [TEST_MODEL_PROVIDER_A, TEST_MODEL_PROVIDER_B] };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: modelsV1,
     });
 
@@ -94,7 +94,7 @@ describe('chatroom_machineAvailableModels model catalog', () => {
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: modelsV2,
     });
 
@@ -109,22 +109,25 @@ describe('chatroom_machineAvailableModels model catalog', () => {
   test('refreshCapabilities with availableModels writes models to the models row only', async () => {
     const { sessionId } = await createTestSession('mm-refresh-update');
     const machineId = 'mm-machine-refresh-update';
-    const modelsV1 = { opencode: [TEST_MODEL_PROVIDER_A] };
-    const modelsV2 = { opencode: [TEST_MODEL_PROVIDER_A, 'provider/gpt-4o'], pi: ['pi-model'] };
+    const modelsV1 = { 'opencode-sdk': [TEST_MODEL_PROVIDER_A] };
+    const modelsV2 = {
+      'opencode-sdk': [TEST_MODEL_PROVIDER_A, 'provider/gpt-4o'],
+      'pi-sdk': ['pi-model'],
+    };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: modelsV1,
     });
 
     await t.mutation(api.machines.refreshCapabilities, {
       sessionId,
       machineId,
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: modelsV2,
     });
 
@@ -139,14 +142,14 @@ describe('chatroom_machineAvailableModels model catalog', () => {
   test('refreshCapabilities with SAME availableModels twice suppresses the second models write', async () => {
     const { sessionId } = await createTestSession('mm-refresh-noop');
     const machineId = 'mm-machine-refresh-noop';
-    const models = { opencode: [TEST_MODEL_PROVIDER_A] };
+    const models = { 'opencode-sdk': [TEST_MODEL_PROVIDER_A] };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: models,
     });
 
@@ -159,7 +162,7 @@ describe('chatroom_machineAvailableModels model catalog', () => {
     await t.mutation(api.machines.refreshCapabilities, {
       sessionId,
       machineId,
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: models,
     });
 
@@ -172,14 +175,14 @@ describe('chatroom_machineAvailableModels model catalog', () => {
   test('refreshCapabilities with availableModels=undefined does NOT clobber the models row', async () => {
     const { sessionId } = await createTestSession('mm-refresh-undefined');
     const machineId = 'mm-machine-refresh-undefined';
-    const models = { opencode: [TEST_MODEL_PROVIDER_A] };
+    const models = { 'opencode-sdk': [TEST_MODEL_PROVIDER_A] };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: models,
     });
 
@@ -187,7 +190,7 @@ describe('chatroom_machineAvailableModels model catalog', () => {
     await t.mutation(api.machines.refreshCapabilities, {
       sessionId,
       machineId,
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       // availableModels intentionally omitted
     });
 
@@ -201,14 +204,14 @@ describe('getMachineModels query', () => {
   test('returns models from the models table when a row exists', async () => {
     const { sessionId } = await createTestSession('gmm-new-table');
     const machineId = 'gmm-machine-new-table';
-    const models = { opencode: [TEST_MODEL_PROVIDER_A], pi: ['pi-model'] };
+    const models = { 'opencode-sdk': [TEST_MODEL_PROVIDER_A], 'pi-sdk': ['pi-model'] };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: models,
     });
 
@@ -219,7 +222,7 @@ describe('getMachineModels query', () => {
   test('falls back to the deprecated capabilities field when the models row is absent', async () => {
     const { sessionId } = await createTestSession('gmm-legacy-fallback');
     const machineId = 'gmm-machine-legacy-fallback';
-    const models = { opencode: ['provider/legacy-model'] };
+    const models = { 'opencode-sdk': ['provider/legacy-model'] };
 
     // Register without models, then simulate a pre-migration row that still has
     // models on the capabilities row.
@@ -228,7 +231,7 @@ describe('getMachineModels query', () => {
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     });
     await t.run(async (ctx) => {
       const capabilities = await ctx.db
@@ -245,14 +248,14 @@ describe('getMachineModels query', () => {
   test('does not read the legacy models field on the machine parent row', async () => {
     const { sessionId } = await createTestSession('gmm-machine-parent-field');
     const machineId = 'gmm-machine-parent-field';
-    const models = { opencode: ['provider/legacy-model'] };
+    const models = { 'opencode-sdk': ['provider/legacy-model'] };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     });
 
     // Manually patch the legacy field on chatroom_machines to simulate a
@@ -279,7 +282,7 @@ describe('getMachineModels query', () => {
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       // No availableModels
     });
 
@@ -298,16 +301,16 @@ describe('getMachineModels query', () => {
   test('listMachines returns exactly the slim machine shape', async () => {
     const { sessionId } = await createTestSession('gmm-list-slim');
     const machineId = 'gmm-machine-list-slim';
-    const harnessVersions = { opencode: { version: '1.2.3', major: 1 } };
+    const harnessVersions = { 'opencode-sdk': { version: '1.2.3', major: 1 } };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       harnessVersions,
-      availableModels: { opencode: [TEST_MODEL_PROVIDER_A] },
+      availableModels: { 'opencode-sdk': [TEST_MODEL_PROVIDER_A] },
     });
     await t.mutation(api.machines.setMachineAlias, { sessionId, machineId, alias: 'slim-box' });
 
@@ -318,7 +321,7 @@ describe('getMachineModels query', () => {
       hostname: 'test-host',
       alias: 'slim-box',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       harnessVersions,
       registeredAt: expect.any(Number),
     });

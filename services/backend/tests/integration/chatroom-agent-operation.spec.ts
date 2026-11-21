@@ -40,7 +40,7 @@ describe('agents.requestChatroomAgentOperation', () => {
       workspaceId,
       role: 'user',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'test-model',
       workingDir: '/workspace/user-role',
     });
@@ -88,7 +88,7 @@ describe('agents.requestChatroomAgentOperation', () => {
       workspaceId,
       role: 'architect',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'test-model',
       workingDir: '/workspace/ephemeral',
     });
@@ -143,7 +143,7 @@ describe('agents.requestChatroomAgentOperation', () => {
       workspaceId,
       role: 'architect',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'test-model',
       workingDir: '/workspace/never-run',
     });

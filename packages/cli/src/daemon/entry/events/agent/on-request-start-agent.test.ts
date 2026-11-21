@@ -23,7 +23,7 @@ function createEvent(
     _id: 'test-id-123' as any,
     chatroomId: 'test-chatroom' as any,
     role: 'builder',
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     model: 'gpt-4',
     workingDir: '/tmp/test',
     reason: AgentStartReasonCode.USER_START,

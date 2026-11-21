@@ -21,7 +21,6 @@ import {
   decodeModelVariant,
   formatModelVariantParamsSuffix,
 } from '@workspace/backend/src/domain/entities/harness/model-variant';
-import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types';
 
 import { getBaseModelId } from '../utils/modelSelection';
 
@@ -115,16 +114,11 @@ export type SendCommandFn = (args: SendCommandArgs) => Promise<unknown>;
 // ─── Constants ──────────────────────────────────────────────────────
 
 export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
-  opencode: 'OpenCode (CLI)',
   'opencode-sdk': 'OpenCode (SDK)',
-  pi: 'Pi',
   'pi-sdk': 'Pi (SDK)',
-  cursor: 'Cursor (CLI)',
   'cursor-sdk': 'Cursor (SDK)',
-  claude: 'Claude Code',
   'claude-sdk': 'Claude (SDK)',
   'codex-sdk': 'Codex (SDK)',
-  commandcode: 'CommandCode',
 };
 
 /** Get display name for a harness. Returns a title-cased fallback for unknown harnesses. */
@@ -135,11 +129,6 @@ export function getHarnessDisplayName(harness: string): string {
 /** Display label for a harness, optionally including daemon-reported version. */
 export function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): string {
   return `${getHarnessDisplayName(harness)}${version ? ` v${version.version}` : ''}`;
-}
-
-/** Whether the harness receives tasks via direct session injection (no get-next-task loop). */
-export function harnessSupportsNativeIntegration(harness: AgentHarness): boolean {
-  return getHarnessCapabilities(harness).supportsNativeIntegration;
 }
 
 /** Check if a harness is the OpenCode SDK harness. */
@@ -185,7 +174,7 @@ function formatModelVersion(slug: string): string {
   );
 }
 
-/** Friendly labels for bare model slugs (cursor-sdk / cursor CLI). */
+/** Friendly labels for bare model slugs (cursor-sdk). */
 const BARE_MODEL_DISPLAY_LABELS: Record<string, string> = {
   auto: 'Auto',
   default: 'Auto',

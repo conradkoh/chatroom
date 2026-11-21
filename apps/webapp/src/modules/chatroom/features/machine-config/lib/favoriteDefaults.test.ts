@@ -87,8 +87,8 @@ describe('favoriteDefaultBlocked', () => {
     machineId: 'a',
     hostname: 'host-a',
     role: 'builder',
-    agentType: 'cursor',
-    availableHarnesses: ['cursor'],
+    agentType: 'cursor-sdk',
+    availableHarnesses: ['cursor-sdk'],
     workingDir: '/p',
     updatedAt: 1,
   } as AgentConfig;

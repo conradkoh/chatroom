@@ -1,7 +1,7 @@
 // fallow-ignore-file code-duplication complexity
 /** Convex functions for machine registration, agent config, and remote command dispatch. */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc, Id } from './_generated/dataModel';
@@ -15,6 +15,7 @@ import {
   agentLifecycleFactValidator,
 } from './validators/agent_lifecycle_fact';
 import { validateWorkingDir } from './workspacePathSecurity';
+import { BACKEND_ERROR_CODES } from '../config/errorCodes';
 import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
@@ -36,12 +37,15 @@ import { getLastSentLaunchRequestForRole } from '../src/domain/usecase/agent/get
 import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
+import { startMachineDeletion } from '../src/domain/usecase/machine/delete-machine';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import {
   getMachineAvailableModels,
   upsertMachineAvailableModels,
 } from '../src/domain/usecase/machine/machine-available-models';
+import { MACHINE_PURGE_BUDGET } from '../src/domain/usecase/machine/machine-scoped-tables';
+import { getMachineUsage as getMachineUsageUseCase } from '../src/domain/usecase/machine/machine-usage';
 import { getActiveTeamStructure } from '../src/domain/usecase/team/active-team-structure';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -251,6 +255,18 @@ export const register = mutation({
 
     // Create new machine registration. Capabilities are stored separately so
     // listMachines remains a lightweight stable-identity query.
+    const pendingDeletion = await ctx.db
+      .query('chatroom_machineDeletions')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .order('desc')
+      .first();
+    if (pendingDeletion?.status === 'purging') {
+      throw new ConvexError({
+        code: BACKEND_ERROR_CODES.MACHINE_DELETION_IN_PROGRESS,
+        message: 'This machine is still being deleted. Retry in a minute.',
+      });
+    }
+
     await ctx.db.insert('chatroom_machines', {
       machineId: args.machineId,
       userId: userId,
@@ -266,6 +282,34 @@ export const register = mutation({
     });
 
     return { machineId: args.machineId, isNew: true };
+  },
+});
+
+/**
+ * Delete an offline machine owned by the caller. Tombstone-first: the machine row
+ * is deleted in the same transaction as the guards, then the rest of its data is
+ * purged in budgeted batches. Repeating the call returns `already_deleted`.
+ */
+export const deleteMachine = mutation({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await requireSession(ctx, args.sessionId);
+    const exists = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    // Only call requireMachineOwner when a row exists: it throws NOT_AUTHORIZED_MACHINE
+    // for other users, but for a missing row we want startMachineDeletion's
+    // already_deleted / MACHINE_NOT_FOUND semantics.
+    if (exists) await requireMachineOwner(ctx, args.sessionId, args.machineId);
+
+    return startMachineDeletion(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      initiatedBy: 'user',
+      inlineBudget: MACHINE_PURGE_BUDGET,
+      requireOffline: true,
+    });
   },
 });
 
@@ -773,6 +817,77 @@ export const listMachineConnectivity = query({
             machineId: machine.machineId,
             connected: machineStatus?.status === 'online',
           };
+        })
+      ),
+    };
+  },
+});
+
+/**
+ * Owner-scoped usage counts per machine. Empty when unauthenticated.
+ */
+export const getMachineUsage = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return { machines: [] };
+    }
+
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return {
+      machines: await Promise.all(
+        machines.map(async (machine) => ({
+          machineId: machine.machineId,
+          ...(await getMachineUsageUseCase(ctx, machine.machineId)),
+        }))
+      ),
+    };
+  },
+});
+
+/**
+ * Last-seen for OFFLINE machines only; null when online. Never reads
+ * chatroom_machineLiveness for online machines (so online rows take no dependency
+ * on the 90-second liveness write). Offline with no liveness row → null.
+ */
+export const listMachineLastSeen = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return { machines: [] };
+    }
+
+    const machines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
+      .collect();
+
+    return {
+      machines: await Promise.all(
+        machines.map(async (machine) => {
+          const status = await ctx.db
+            .query('chatroom_machineStatus')
+            .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+            .first();
+          if (status?.status === 'online') {
+            return { machineId: machine.machineId, lastSeenAt: null };
+          }
+
+          const liveness = await ctx.db
+            .query('chatroom_machineLiveness')
+            .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+            .first();
+          return { machineId: machine.machineId, lastSeenAt: liveness?.lastSeenAt ?? null };
         })
       ),
     };

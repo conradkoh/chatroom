@@ -15,7 +15,7 @@ describe('DaemonEventBus', () => {
       chatroomId: CHATROOM_ID,
       role: 'builder',
       pid: 1234,
-      harness: 'opencode',
+      harness: 'opencode-sdk',
     });
 
     expect(listener).toHaveBeenCalledOnce();
@@ -23,7 +23,7 @@ describe('DaemonEventBus', () => {
       chatroomId: CHATROOM_ID,
       role: 'builder',
       pid: 1234,
-      harness: 'opencode',
+      harness: 'opencode-sdk',
     });
   });
 
@@ -107,7 +107,7 @@ describe('DaemonEventBus', () => {
       chatroomId: CHATROOM_ID,
       role: 'builder',
       pid: 1234,
-      harness: 'opencode',
+      harness: 'opencode-sdk',
     });
 
     expect(listener).not.toHaveBeenCalled();

@@ -37,7 +37,7 @@ export async function seedConnectedMachine(
     machineId,
     hostname,
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   await client.mutation(api.machines.daemonHeartbeat, { sessionId, machineId });
   return machineId;

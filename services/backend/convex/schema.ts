@@ -12,6 +12,10 @@ import {
   gitCloneStatusValidator,
 } from '../src/domain/entities/git-clone-request';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
+import {
+  ledgerEntryValidator,
+  ledgerRootValidator,
+} from '../src/domain/entities/repository-ledger';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
 import {
   commitStatusValidator,
@@ -1188,6 +1192,43 @@ export default defineSchema({
     .index('by_status', ['status']),
 
   /**
+   * Machine deletion job. `machines.deleteMachine` / the 90-day cleanup insert it (status 'purging'),
+   * `machineDeletion.purgeBatch` advances it, `sweepMachineDeletions` restarts dead chains.
+   * Doubles as the register guard (no re-register while 'purging') and the idempotent-repeat signal.
+   */
+  chatroom_machineDeletions: defineTable({
+    machineId: v.string(),
+    userId: v.id('users'),
+    initiatedBy: v.union(v.literal('user'), v.literal('system')),
+    status: v.union(v.literal('purging'), v.literal('completed'), v.literal('failed')),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    batchCount: v.number(),
+    restartCount: v.number(),
+    deletedRowCount: v.number(),
+    detachedWorkspaceCount: v.number(),
+    lastError: v.optional(v.string()),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_status_updatedAt', ['status', 'updatedAt']),
+
+  /**
+   * User-intent project roots for a machine. One row per root so two browser tabs never
+   * overwrite each other's edits; uniqueness/nesting/limit are enforced in the serializable
+   * mutation (`src/domain/usecase/machine/project-roots.ts`). Tiny, low-frequency writes.
+   * The daemon learns about changes through a coalesced `daemon.syncProjectRoots` inbox nudge.
+   */
+  chatroom_machineProjectRoots: defineTable({
+    machineId: v.string(),
+    userId: v.id('users'),
+    path: v.string(), // normalized by normalizeProjectRoot
+    addedAt: v.number(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_machine_path', ['machineId', 'path']),
+
+  /**
    * Model visibility filters for a machine's harness.
    * Machine-level - shared across all users and chatrooms.
    * Hidden models appear greyed-out in the UI but are still visible.
@@ -1197,9 +1238,9 @@ export default defineSchema({
     machineId: v.string(),
     // Harness these filters apply to
     agentHarness: agentHarnessValidator,
-    // Individual model IDs to hide (e.g. "github-copilot/claude-haiku-4.5")
+    // Individual model IDs to hide (e.g. "anthropic/claude-haiku-4-5")
     hiddenModels: v.array(v.string()),
-    // Provider prefixes to hide all models for (e.g. "github-copilot")
+    // Provider prefixes to hide all models for (e.g. "anthropic")
     hiddenProviders: v.array(v.string()),
     // Last updated
     updatedAt: v.number(),
@@ -1457,7 +1498,8 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
   })
     .index('by_batchId', ['batchId'])
-    .index('by_batchId_machineId', ['batchId', 'machineId']),
+    .index('by_batchId_machineId', ['batchId', 'machineId'])
+    .index('by_machineId', ['machineId']),
 
   /**
    * Folder picker requests initiated from the webapp setup wizard.
@@ -1476,13 +1518,15 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
-  }).index('by_userId_created', ['userId', 'createdAt']),
+  })
+    .index('by_userId_created', ['userId', 'createdAt'])
+    .index('by_machineId', ['machineId']),
 
   /**
    * Git clone requests initiated from the New Chatroom wizard.
    * The daemon is the sole writer of progress/result fields.
-   * Read only by id from the initiating tab. Never add list queries or indexes here:
-   * progress fields are high-frequency writes and a list would be invalidated on every update.
+   * Read only by id from the initiating tab. No list queries. `by_machineId` exists only
+   * for the machine-delete purge; never subscribe through it.
    */
   chatroom_gitCloneRequests: defineTable({
     userId: v.id('users'),
@@ -1497,7 +1541,52 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),
-  }),
+  }).index('by_machineId', ['machineId']),
+
+  /**
+   * Transient repository-ledger snapshot requests (`api.repositoryLedger.*`). One row per on-demand
+   * request. Never a durable synced ledger: rows and chunks are removed after `expiresAt` by
+   * `cleanupExpiredLedgerRequests`. Read by id only. `by_machineId_createdAt` serves request reuse
+   * and the machine-delete purge; never subscribe through it.
+   */
+  chatroom_repositoryLedgerRequests: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    rescan: v.boolean(),
+    status: v.union(v.literal('pending'), v.literal('completed'), v.literal('failed')),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    expiresAt: v.number(), // pending: createdAt + command TTL; terminal: completedAt + snapshot TTL
+    errorMessage: v.optional(v.string()),
+    repositoryCount: v.optional(v.number()),
+    /**
+     * Entries the snapshot omits: invalid, over-long or duplicate paths, including entries the daemon
+     * dropped before sending. Entries past LEDGER_MAX_ENTRIES are not counted; they set `truncated`.
+     */
+    invalidPathCount: v.optional(v.number()),
+    truncated: v.optional(v.boolean()),
+    ledgerGeneratedAt: v.optional(v.number()),
+    roots: v.optional(v.array(ledgerRootValidator)),
+    /** Roots the snapshot omits: paths over LEDGER_MAX_PATH_LENGTH, plus roots past LEDGER_MAX_ROOTS. */
+    omittedRootCount: v.optional(v.number()),
+  })
+    .index('by_machineId_createdAt', ['machineId', 'createdAt'])
+    .index('by_expiresAt', ['expiresAt']),
+
+  /**
+   * Snapshot entries, split into chunks so each document stays under 1 MiB. Written atomically with
+   * the terminal request row (slice 3A-2). Transient, like the request row.
+   * `by_machineId` exists only for the machine-delete purge; never subscribe through it.
+   */
+  chatroom_repositoryLedgerChunks: defineTable({
+    requestId: v.id('chatroom_repositoryLedgerRequests'),
+    machineId: v.string(),
+    chunkIndex: v.number(),
+    entries: v.array(ledgerEntryValidator),
+  })
+    .index('by_request_chunk', ['requestId', 'chunkIndex'])
+    .index('by_machineId', ['machineId']),
 
   // ============================================================================
   // EVENT STREAM TABLE
@@ -1576,8 +1665,8 @@ export default defineSchema({
     role: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     workingDir: v.string(),
-    model: v.string(), // e.g. "github-copilot/claude-sonnet-4.5"
-    agentType: v.optional(v.string()), // e.g. "pi", "cursor", "opencode" - optional for backward compat
+    model: v.string(), // e.g. "anthropic/claude-sonnet-4-6"
+    agentType: v.optional(v.string()), // free-form label; optional for backward compat
 
     // Time bucket (start of the hour in ms UTC)
     hourBucket: v.number(),
@@ -2050,6 +2139,7 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
+    .index('by_machine_removedAt', ['machineId', 'removedAt'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 
   // The workspace selected as the primary workspace for a chatroom.

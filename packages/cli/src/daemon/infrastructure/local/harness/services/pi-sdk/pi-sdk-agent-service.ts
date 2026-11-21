@@ -33,8 +33,8 @@ import {
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
-import { getPiSessionDir } from '../pi/pi-agent-service.js';
-import { parsePiSpawnModel, resolvePiThinkingLevel } from '../pi/pure.js';
+import { getPiSessionDir } from './pi-session-dir.js';
+import { parsePiSpawnModel, resolvePiThinkingLevel } from './pure.js';
 import type {
   SpawnContext,
   SpawnOptions,
