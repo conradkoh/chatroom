@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { applyConvexDevEnvDefaults, buildConvexDevEnv } from './convex-dev-env';
+import {
+  applyConvexDevEnvDefaults,
+  buildConvexDevEnv,
+  findConflictingDeploymentEnv,
+} from './convex-dev-env';
 
 const KEYS = [
   'CONVEX_NON_INTERACTIVE',
@@ -94,5 +98,23 @@ describe('buildConvexDevEnv deployment selection', () => {
         configured
       )
     ).toEqual({ CONVEX_DEPLOYMENT: configured, PATH: 'x' });
+  });
+});
+
+describe('findConflictingDeploymentEnv', () => {
+  const configured = 'conradkoh:chatroom-a8c82:dev/conradkoh';
+
+  it('reports nothing when the shell sets no selectors or matches the configured deployment', () => {
+    expect(findConflictingDeploymentEnv({ PATH: 'x' }, configured)).toEqual([]);
+    expect(findConflictingDeploymentEnv({ CONVEX_DEPLOYMENT: configured }, configured)).toEqual([]);
+  });
+
+  it('reports names only, in fixed order, for conflicting selectors', () => {
+    expect(
+      findConflictingDeploymentEnv(
+        { CONVEX_DEPLOY_KEY: 'prod:fake-key', CONVEX_DEPLOYMENT: 'other:project:dev/someone' },
+        configured
+      )
+    ).toEqual(['CONVEX_DEPLOYMENT', 'CONVEX_DEPLOY_KEY']);
   });
 });

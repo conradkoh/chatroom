@@ -10,7 +10,11 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-import { applyConvexDevEnvDefaults, buildConvexDevEnv } from './convex-dev-env';
+import {
+  applyConvexDevEnvDefaults,
+  buildConvexDevEnv,
+  findConflictingDeploymentEnv,
+} from './convex-dev-env';
 
 const repoRoot = resolve(dirname(import.meta.path), '..');
 const backendDir = resolve(repoRoot, 'services/backend');
@@ -41,6 +45,21 @@ export function isLocalConvexUrl(url: string | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The dev server targets only the deployment recorded in services/backend/.env.local.
+ * There is no fallback to the Convex CLI's own selection, so a missing value fails fast.
+ */
+export function requireConfiguredDeployment(value: string | undefined): string {
+  if (!value) {
+    throw new Error(
+      `CONVEX_DEPLOYMENT is not set in ${envPath}. Set it to the dev deployment name ` +
+        '(for example dev:<deployment-name>) and run again. ' +
+        'The Convex CLI selection is not used as a fallback.'
+    );
+  }
+  return value;
 }
 
 function readEnvValue(env: string, name: string): string | undefined {
@@ -103,25 +122,27 @@ async function readBackendVersion(): Promise<string> {
 async function main(): Promise<void> {
   applyConvexDevEnvDefaults();
   const backendEnv = await readBackendEnv();
-  const convexUrl =
-    process.env.VITE_CONVEX_URL || process.env.CONVEX_URL || backendEnv.VITE_CONVEX_URL;
+  const deployment = requireConfiguredDeployment(backendEnv.CONVEX_DEPLOYMENT);
   const isLocalDeployment =
-    isLocalConvexUrl(convexUrl) || backendEnv.CONVEX_DEPLOYMENT.startsWith('local:');
+    deployment.startsWith('local:') || isLocalConvexUrl(backendEnv.VITE_CONVEX_URL);
   const backendVersion = isLocalDeployment ? await readBackendVersion() : undefined;
   const args = buildConvexDevArgs(
-    convexUrl,
+    backendEnv.VITE_CONVEX_URL,
     backendVersion,
     process.argv.slice(2),
     isLocalDeployment
   );
 
+  for (const name of findConflictingDeploymentEnv(process.env, deployment)) {
+    console.warn(`Ignoring inherited ${name} from the shell; using ${deployment} from ${envPath}.`);
+  }
   console.log(
-    `Starting ${isLocalDeployment ? 'local' : 'hosted'} Convex dev${backendVersion ? ` with local backend version ${backendVersion}` : ''}`
+    `Starting ${isLocalDeployment ? 'local' : 'hosted'} Convex dev against deployment ${deployment}${backendVersion ? ` with local backend version ${backendVersion}` : ''}`
   );
 
   const child = Bun.spawn(args, {
     cwd: backendDir,
-    env: buildConvexDevEnv(process.env, isLocalDeployment, backendEnv.CONVEX_DEPLOYMENT),
+    env: buildConvexDevEnv(process.env, isLocalDeployment, deployment),
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',

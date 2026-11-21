@@ -28,6 +28,24 @@ export function applyConvexDevEnvDefaults(): void {
 }
 
 /**
+ * Names (never values) of inherited variables that conflict with the configured
+ * deployment and will be overridden or removed by buildConvexDevEnv. Safe to log.
+ * Order is fixed: CONVEX_DEPLOYMENT first, then the selector names in list order.
+ */
+export function findConflictingDeploymentEnv(
+  baseEnv: Readonly<Record<string, string | undefined>>,
+  configuredDeployment: string
+): string[] {
+  const inheritedDeployment = baseEnv.CONVEX_DEPLOYMENT;
+  const deploymentConflicts =
+    inheritedDeployment && inheritedDeployment !== configuredDeployment
+      ? ['CONVEX_DEPLOYMENT']
+      : [];
+  const selectorConflicts = DEPLOYMENT_SELECTOR_ENV_NAMES.filter((name) => Boolean(baseEnv[name]));
+  return [...deploymentConflicts, ...selectorConflicts];
+}
+
+/**
  * Build the environment for a `convex` child process.
  *
  * - A local Convex backend refuses to start when TZ is set to a non-UTC zone
