@@ -88,6 +88,7 @@ function RecoverAccountForm() {
   );
 
   const handleRecoveryCodeChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setError(null); // Clear the alert when the user edits the code, as LoginWithCode does
     setRecoveryCode(e.target.value);
   }, []);
 

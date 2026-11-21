@@ -79,6 +79,21 @@ describe('RecoverAccountPage', () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
+  it('clears the alert when the user edits the code', async () => {
+    mocks.sessionId = null;
+
+    render(<RecoverAccountPage />);
+    await submitRecoveryCode();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Session ID is missing. Cannot recover account.'
+    );
+
+    await userEvent.type(screen.getByLabelText('Recovery Code'), 'x');
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('refreshes the session and redirects on success with no message', async () => {
     mocks.verifyCode.mockResolvedValueOnce({ success: true, user: { _id: 'u1' } });
 
