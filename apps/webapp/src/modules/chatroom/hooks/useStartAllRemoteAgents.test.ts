@@ -152,6 +152,23 @@ describe('useStartAllRemoteAgents', () => {
       );
     });
 
+    it('lists the skip reasons when the palette start skips every agent', async () => {
+      mocks.requestOperation.mockResolvedValue({
+        requested: [],
+        skipped: [{ role: 'builder', reason: 'Saved machine is not available to the requester' }],
+        failed: [],
+      });
+      const { result } = renderStartAll();
+
+      await act(() => result.current.startAllFromPalette());
+
+      expect(mocks.onFeedback).toHaveBeenLastCalledWith({
+        tone: 'error',
+        title: 'Failed to start 1 agent(s)',
+        items: ['builder: Saved machine is not available to the requester'],
+      });
+    });
+
     it('reports the error message when the start request throws', async () => {
       mocks.requestOperation.mockRejectedValue(new Error('backend down'));
       const { result } = renderStartAll();
