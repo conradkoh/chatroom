@@ -16,7 +16,6 @@ import {
 import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -420,10 +419,18 @@ function FlushCommandDialog({
         />
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isFlushing}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={isFlushing} className="gap-1.5">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isFlushing}
+            className={cn(
+              chatroomIndustrialButtonDestructiveClassName,
+              'gap-1.5 disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
             {isFlushing && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
             Flush queue
-          </AlertDialogAction>
+          </button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
