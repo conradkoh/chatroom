@@ -1,5 +1,5 @@
 'use client';
-/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-initialize-state, @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-initialize-state, @typescript-eslint/no-explicit-any */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
@@ -78,11 +78,11 @@ import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
-import { useChatroomAgentOperations } from './hooks/useChatroomAgentOperations';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useChatroomStatus } from './hooks/useChatroomStatus';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
+import { useDashboardAgentBulkActions } from './hooks/useDashboardAgentBulkActions';
 import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
 import { useStartAllRemoteAgents } from './hooks/useStartAllRemoteAgents';
 import { StartInNewSessionPreferenceProvider } from './hooks/useStartInNewSessionPreference';
@@ -1107,9 +1107,6 @@ function ChatroomDashboardContent({
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData();
-  const { stopAgents, restartAgents } = useChatroomAgentOperations();
-  const [isRequestingStop, setIsRequestingStop] = useState(false);
-  const isStoppingAgents = isRequestingStop;
   const lifecycle = agentPanelData.lifecycle;
 
   // Per-role "last used" config derived from the persisted teamAgentConfigs
@@ -1385,6 +1382,7 @@ function ChatroomDashboardContent({
     showCopyError: showDashboardCopyError,
     copySucceeded: dashboardCopySucceeded,
     clear: clearDashboardFeedback,
+    report: reportDashboardFeedback,
   } = useCopyOwnedFeedback();
   const dashboardCopyHandlers = useMemo(
     () => ({ onCopied: dashboardCopySucceeded, onCopyError: showDashboardCopyError }),
@@ -1405,40 +1403,20 @@ function ChatroomDashboardContent({
 
   // Start all remote agents. The command palette starts unprompted; the agents-sidebar play
   // control runs the favourites check first. See hooks/useStartAllRemoteAgents.ts.
-  const startAll = useStartAllRemoteAgents({ chatroomId });
+  const startAll = useStartAllRemoteAgents({ chatroomId, onFeedback: reportDashboardFeedback });
 
-  // Stop all remote agents immediately from the quick-action button.
-  const handleStopAllRemoteAgents = useCallback(async () => {
-    setIsRequestingStop(true);
-    try {
-      await stopAgents(chatroomId as Id<'chatroom_rooms'>);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to stop agents');
-    } finally {
-      setIsRequestingStop(false);
-    }
-  }, [chatroomId, stopAgents]);
-
-  // Restart all remote agents through the atomic backend restart path.
-  const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
-  const handleRestartAllRemoteAgents = useCallback(async () => {
-    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    setIsRestartingAllAgents(true);
-    try {
-      const result = await restartAgents(chatroomIdTyped);
-      if (result.failed.length > 0) {
-        toast.error(`Failed to restart ${result.failed.length} agent(s)`);
-      } else if (result.requested.length > 0) {
-        toast.success(`Restart requested for ${result.requested.length} agent(s)`);
-      } else {
-        toast.error('No saved agent configuration is available.');
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to restart agents');
-    } finally {
-      // Stay latched until status returns to running; the daemon mutation is async.
-    }
-  }, [chatroomId, restartAgents]);
+  // Stop-all and restart-all report through the dashboard strip. See hooks/useDashboardAgentBulkActions.ts.
+  const {
+    isRequestingStop,
+    isRestartingAllAgents,
+    stopAllRemoteAgents: handleStopAllRemoteAgents,
+    restartAllRemoteAgents: handleRestartAllRemoteAgents,
+  } = useDashboardAgentBulkActions({
+    chatroomId,
+    report: reportDashboardFeedback,
+    agents: agentPanelData.agents,
+  });
+  const isStoppingAgents = isRequestingStop;
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
@@ -1455,18 +1433,9 @@ function ChatroomDashboardContent({
     [chatroomStatus?.remoteAgentStatus]
   );
 
-  useEffect(() => {
-    if (!isRestartingAllAgents) return;
-    const remoteAgents = agentPanelData.agents.filter((a) => a.role.toLowerCase() !== 'user');
-    const anyStarting = remoteAgents.some((a) => a.state === 'starting');
-    const allRunning = remoteAgents.length > 0 && remoteAgents.every((a) => a.state === 'running');
-    if (allRunning || (!anyStarting && remoteAgents.some((a) => a.state === 'running'))) {
-      setIsRestartingAllAgents(false);
-    }
-  }, [isRestartingAllAgents, agentPanelData.agents]);
-
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {
+      reportDashboardFeedback(null);
       if (
         !ensureRestartAgentRolesConfigured([role], roleConfigMap, () =>
           handleCmdOpenSettings('agents')
@@ -1484,16 +1453,25 @@ function ChatroomDashboardContent({
           agentViewsByRole,
           chatroomIdTyped,
           agentPanelData.sendCommand,
-          (failed) => {
-            if (failed.length > 0) toast.error(`Failed to restart ${role}`);
-            else toast.success(`Restart requested for ${role}`);
-          }
+          (failed) =>
+            reportDashboardFeedback(
+              failed.length > 0 ? { tone: 'error', message: `Failed to restart ${role}` } : null
+            )
         );
+      } catch {
+        reportDashboardFeedback({ tone: 'error', message: `Failed to restart ${role}` });
       } finally {
         setRestartingAgentRole(null);
       }
     },
-    [agentPanelData, agentViewsByRole, roleConfigMap, chatroomId, handleCmdOpenSettings]
+    [
+      agentPanelData,
+      agentViewsByRole,
+      roleConfigMap,
+      chatroomId,
+      handleCmdOpenSettings,
+      reportDashboardFeedback,
+    ]
   );
 
   const sourceControlPanel = useMemo(
