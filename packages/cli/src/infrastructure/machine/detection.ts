@@ -11,7 +11,6 @@
 import { Effect } from 'effect';
 
 import type { AgentHarness, HarnessVersionInfo } from './types.js';
-import { requireBaseAgentService } from '../../daemon/infrastructure/local/harness/services/require-base-agent-service.js';
 import type { DetectionResult } from '../../daemon/infrastructure/local/harness/services/detection-result.js';
 import {
   isInstalled,
@@ -22,6 +21,7 @@ import {
   getAllHarnesses,
   getHarness,
 } from '../../daemon/infrastructure/local/harness/services/index.js';
+import { requireBaseAgentService } from '../../daemon/infrastructure/local/harness/services/require-base-agent-service.js';
 
 /**
  * Detect the version of a specific agent harness.

@@ -9,7 +9,6 @@
 
 import { Effect } from 'effect';
 
-import { requireBaseAgentService } from '../../daemon/infrastructure/local/harness/services/require-base-agent-service.js';
 import type { DetectionResult } from '../../daemon/infrastructure/local/harness/services/detection-result.js';
 import {
   isInstalled,
@@ -20,6 +19,7 @@ import {
   initHarnessRegistry,
   getAllHarnesses,
 } from '../../daemon/infrastructure/local/harness/services/index.js';
+import { requireBaseAgentService } from '../../daemon/infrastructure/local/harness/services/require-base-agent-service.js';
 
 interface HarnessStatusRow {
   id: string;
