@@ -5,10 +5,10 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import { AdminListSkeleton } from '@/app/app/admin/AdminListSkeleton';
 import { SYSTEM_ADMIN_ACCESS_PERMISSION, useHasPermission } from '@/application/auth';
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useFeedback } from '@/hooks/useFeedback';
 import { getErrorMessage } from '@/lib/convexError';
 
 type EffectiveRole = 'standard_user' | 'admin' | 'system_admin';
@@ -41,20 +42,21 @@ export default function UserRolesPage() {
   const assignableRoles = (Object.keys(ROLE_LABELS) as EffectiveRole[]).filter(
     (r) => canManageSystemAdmins || r !== 'system_admin'
   );
+  const { feedback, error, clear } = useFeedback();
 
   const handleRoleChange = useCallback(
     async (userId: Id<'users'>, effectiveRole: EffectiveRole) => {
+      clear();
       setSavingUserId(userId);
       try {
         await updateRoles({ userId, effectiveRole });
-        toast.success('User role updated');
-      } catch (error) {
-        toast.error(getErrorMessage(error, 'Failed to update role'));
+      } catch (roleError) {
+        error(getErrorMessage(roleError, 'Failed to update role'));
       } finally {
         setSavingUserId(null);
       }
     },
-    [updateRoles]
+    [updateRoles, clear, error]
   );
 
   const isLoading = users === undefined;
@@ -79,6 +81,12 @@ export default function UserRolesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <InlineFeedback
+            feedback={feedback}
+            onDismiss={clear}
+            data-testid="users-feedback"
+            className="mb-3"
+          />
           {isLoading ? (
             <AdminListSkeleton />
           ) : users.length === 0 ? (
