@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { playwrightArgs, runPrePushE2eWithSpawn } from './run-pre-push-e2e';
+import { playwrightArgs, runPrePushE2eWithSpawn, type SpawnSyncFn } from './run-pre-push-e2e';
 import { TEMPLATE_REPO_URL } from './template-repo';
 import { TAG_DOWNSTREAM, TAG_UPSTREAM } from '../apps/webapp/tests/e2e/support/tags';
 
@@ -41,7 +41,7 @@ describe('runPrePushE2eWithSpawn (exit propagation)', () => {
       success: true,
     });
     expect(
-      runPrePushE2eWithSpawn('origin', TEMPLATE_REPO_URL, spawnSync as typeof Bun.spawnSync)
+      runPrePushE2eWithSpawn('origin', TEMPLATE_REPO_URL, spawnSync as unknown as SpawnSyncFn)
     ).toBe(0);
   });
 
@@ -56,7 +56,7 @@ describe('runPrePushE2eWithSpawn (exit propagation)', () => {
       runPrePushE2eWithSpawn(
         'origin',
         'https://github.com/someone-else/next-convex-starter-app.git',
-        spawnSync as typeof Bun.spawnSync
+        spawnSync as unknown as SpawnSyncFn
       )
     ).toBe(1);
   });
@@ -69,7 +69,7 @@ describe('runPrePushE2eWithSpawn (exit propagation)', () => {
       success: false,
     });
     expect(
-      runPrePushE2eWithSpawn('origin', TEMPLATE_REPO_URL, spawnSync as typeof Bun.spawnSync)
+      runPrePushE2eWithSpawn('origin', TEMPLATE_REPO_URL, spawnSync as unknown as SpawnSyncFn)
     ).toBe(2);
   });
 
@@ -79,7 +79,7 @@ describe('runPrePushE2eWithSpawn (exit propagation)', () => {
       capturedArgv = [...argv];
       return { exitCode: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), success: true };
     };
-    runPrePushE2eWithSpawn('origin', TEMPLATE_REPO_URL, spawnSync as typeof Bun.spawnSync);
+    runPrePushE2eWithSpawn('origin', TEMPLATE_REPO_URL, spawnSync as unknown as SpawnSyncFn);
     expect(capturedArgv).toEqual(playwrightArgs(TAG_UPSTREAM));
   });
 
@@ -92,7 +92,7 @@ describe('runPrePushE2eWithSpawn (exit propagation)', () => {
     runPrePushE2eWithSpawn(
       'origin',
       'https://github.com/someone-else/next-convex-starter-app.git',
-      spawnSync as typeof Bun.spawnSync
+      spawnSync as unknown as SpawnSyncFn
     );
     expect(capturedArgv).toEqual(playwrightArgs(TAG_DOWNSTREAM));
   });

@@ -683,7 +683,7 @@ async function resolveBrandingValues(
 async function setupBranding(
   nonInteractive = false,
   brandingOptions: BrandingOptions = {}
-): Promise<void> {
+): Promise<boolean> {
   console.log('\n🎨 Branding Setup');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
