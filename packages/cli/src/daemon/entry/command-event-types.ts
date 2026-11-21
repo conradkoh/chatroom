@@ -7,7 +7,9 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'daemon.localAction',
   'daemon.pickFolder',
   'daemon.gitClone',
+  'daemon.syncProjectRoots',
   'daemon.refreshCapabilities',
+  'daemon.reportRepositoryLedger',
 ] as const;
 
 export type DaemonCommandEventType = (typeof DAEMON_COMMAND_EVENT_TYPES)[number];

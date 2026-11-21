@@ -1497,6 +1497,10 @@ function ChatroomDashboardContent({
     router.push('/app?create=true');
   }, [router]);
 
+  const handleGoToMachines = useCallback(() => {
+    router.push('/app/machines');
+  }, [router]);
+
   const handleOpenFileSelector = useCallback(() => {
     openDialog('file-selector');
   }, [openDialog]);
@@ -1568,6 +1572,7 @@ function ChatroomDashboardContent({
     onOpenPendingReview: handleCmdOpenPendingReview,
     onOpenChatroomSwitcher: handleOpenChatroomSwitcher,
     onCreateNewChatroom: handleCreateNewChatroom,
+    onGoToMachines: handleGoToMachines,
     onOpenFileSelector: handleOpenFileSelector,
     onOpenInVSCode: handleOpenInVSCode,
     onOpenInGitHubDesktop: handleOpenInGitHubDesktop,

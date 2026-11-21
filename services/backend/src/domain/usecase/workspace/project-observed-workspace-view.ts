@@ -62,14 +62,3 @@ export async function rebuildObservedWorkspaceViewsForChatroom(
   for (const machineId of [...new Set(workspaces.map((ws) => ws.machineId))])
     await rebuildObservedWorkspaceView(ctx, machineId, chatroomId);
 }
-
-export async function deleteObservedWorkspaceViewsForMachine(
-  ctx: MutationCtx,
-  machineId: string
-): Promise<void> {
-  const rows = await ctx.db
-    .query('chatroom_machineObservedWorkspaceViews')
-    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-    .collect();
-  for (const row of rows) await ctx.db.delete('chatroom_machineObservedWorkspaceViews', row._id);
-}

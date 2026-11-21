@@ -62,6 +62,15 @@ neither focused before.
 | `picker`            | The `FolderPickerState` from `useSetupWorkspaceFolderPicker.ts`.         |
 | `hint`              | Optional content under the input row, for example the clone target hint. |
 
+Four optional props extend the field without changing the defaults above:
+
+| Prop            | Meaning                                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `actions`       | Extra control rendered after Browse in the input row, for example an "Add root" submit button.                                |
+| `invalid`       | Marks the input invalid: `aria-invalid` plus the error border, instead of the normal and accent-focus border.                 |
+| `inputRef`      | Ref to the text input, for callers that restore focus after a mutation.                                                       |
+| `stackOnMobile` | Below `sm`, stacks input, Browse and `actions` vertically and makes Browse full width; from `sm` the row is horizontal again. |
+
 The `picker` state shows three things. While a pick is pending it shows `waitingText`. After a timeout
 it shows the timeout hint and the retry prompt. Otherwise it shows the picker's error.
 

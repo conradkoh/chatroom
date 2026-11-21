@@ -59,6 +59,13 @@ crons.interval('cleanup read cursors', { hours: 24 }, internal.chatroomCleanup.c
 // Chatroom cleanup — inactive machines 90d+ (daily)
 crons.interval('cleanup machines', { hours: 24 }, internal.chatroomCleanup.cleanupMachines);
 
+// Machine deletion — restart dead purge chains (every 5 minutes)
+crons.interval(
+  'sweep machine deletions',
+  { minutes: 5 },
+  internal.machineDeletion.sweepMachineDeletions
+);
+
 // Chatroom cleanup — orphaned participants (daily)
 crons.interval('cleanup participants', { hours: 24 }, internal.chatroomCleanup.cleanupParticipants);
 
@@ -98,6 +105,13 @@ crons.interval(
   'cleanup connection close requests',
   { minutes: 5 },
   internal.connectionCleanup.cleanupExpiredConnectionCloseRequests
+);
+
+// Repository ledger snapshots — remove expired requests and their chunks (every 5 minutes)
+crons.interval(
+  'cleanup expired repository ledger requests',
+  { minutes: 5 },
+  internal.repositoryLedger.cleanupExpiredLedgerRequests
 );
 
 // Scheduled prompts — fire due prompts every minute

@@ -11,10 +11,11 @@
  * 2. Removing one workspace does NOT purge configs if the machine has another active workspace
  * 3. Removing a workspace does NOT affect configs for other machines
  * 4. Removing a workspace purges only its own unit rows and legacy blob row
- * 5. Machine cleanup purges all unit rows for that machine only
+ * 5. Machine cleanup starts a shared machine deletion: every unit row for that
+ *    machine is purged and its workspaces are soft-detached, not deleted
  */
 
-import { describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -133,6 +134,32 @@ async function blobRows(machineId: string, workingDir?: string) {
     return rows.filter((row) => workingDir === undefined || row.workingDir === workingDir);
   });
 }
+
+/** Workspace rows for a machine. */
+async function workspacesFor(machineId: string) {
+  return t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine', (q) => q.eq('machineId', machineId))
+      .collect()
+  );
+}
+
+/**
+ * Run every scheduler chain started by the mutation under test (the machine
+ * deletion purge is scheduled, not inline) until no work remains.
+ */
+async function drainScheduler(): Promise<void> {
+  await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -269,14 +296,25 @@ describe('workspace git unit row purge', () => {
     expect(await blobRows(otherMachineId, dirA)).toHaveLength(1);
   });
 
-  test('machine cleanup purges all unit rows for that machine only', async () => {
+  test('machine cleanup purges all unit rows for that machine only and soft-detaches its workspaces', async () => {
     const { sessionId: sid } = await createTestSession('test-git-unit-cleanup');
     const chatroomId = await createDuoTeamChatroom(sid);
     const machineId = 'machine-git-unit-cleanup';
     const otherMachineId = 'machine-git-unit-cleanup-other';
     await registerMachineWithDaemon(sid, machineId);
     await registerMachineWithDaemon(sid, otherMachineId);
-    await registerWorkspace(sid, chatroomId, machineId, '/test/git-unit-cleanup-a');
+    const workspaceId = await registerWorkspace(
+      sid,
+      chatroomId,
+      machineId,
+      '/test/git-unit-cleanup-a'
+    );
+    const survivorWorkspaceId = await registerWorkspace(
+      sid,
+      chatroomId,
+      otherMachineId,
+      '/test/git-unit-cleanup-a'
+    );
 
     // Two workingDirs on the machine being cleaned up, one on the survivor.
     for (const [machine, dir] of [
@@ -299,6 +337,7 @@ describe('workspace git unit row purge', () => {
     });
 
     await t.mutation(internal.chatroomCleanup.cleanupMachines, {});
+    await drainScheduler();
 
     for (const table of UNIT_TABLES) {
       expect(await unitRows(table, machineId)).toHaveLength(0);
@@ -306,6 +345,18 @@ describe('workspace git unit row purge', () => {
     }
     expect(await blobRows(machineId)).toHaveLength(0);
     expect(await blobRows(otherMachineId)).toHaveLength(1);
+
+    // The cleaned machine's workspace survives, soft-detached (not hard-deleted).
+    const cleanedWorkspaces = await workspacesFor(machineId);
+    expect(cleanedWorkspaces).toHaveLength(1);
+    expect(cleanedWorkspaces[0]!._id).toBe(workspaceId);
+    expect(cleanedWorkspaces[0]!.removedAt).toBeDefined();
+
+    // The surviving machine's workspace is untouched.
+    const survivorWorkspaces = await workspacesFor(otherMachineId);
+    expect(survivorWorkspaces).toHaveLength(1);
+    expect(survivorWorkspaces[0]!._id).toBe(survivorWorkspaceId);
+    expect(survivorWorkspaces[0]!.removedAt).toBeUndefined();
   });
 });
 

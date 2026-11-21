@@ -13,6 +13,7 @@ import {
 } from '../src/domain/entities/team-presets';
 import { insertChatroomWithTeam } from '../src/domain/usecase/chatroom/create-chatroom';
 import { createChatroomWithWorkspace } from '../src/domain/usecase/chatroom/create-chatroom-with-workspace';
+import { createChatroomsForWorkingDirs } from '../src/domain/usecase/chatroom/create-chatrooms-for-working-dirs';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
@@ -82,6 +83,28 @@ export const createWithWorkspace = mutation({
       teamStructureId: args.teamStructureId,
       machineId: args.machineId,
       workingDir: args.workingDir,
+    });
+  },
+});
+
+/**
+ * Creates one chatroom per working dir through the single creation use case. Owner check runs
+ * once; the use case handles skip, dedupe and per-item failures. One transaction, so repeated or
+ * concurrent clicks are idempotent (OCC). Never starts an agent.
+ */
+export const createManyWithWorkspace = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDirs: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Checks the session and that the caller owns the machine, once for the whole batch.
+    const auth = await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return createChatroomsForWorkingDirs(ctx, {
+      ownerId: auth.userId,
+      machineId: args.machineId,
+      workingDirs: args.workingDirs,
     });
   },
 });

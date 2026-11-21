@@ -19,6 +19,7 @@ import type {
   DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
+import { getRepositoryLedgerService } from './repository-ledger-runtime.js';
 import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 import type { AgentWorkManager } from '../services/service-interfaces.js';
@@ -52,6 +53,8 @@ export interface DedupTracker {
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
   gitCloneIds: Map<string, number>;
+  syncProjectRootsIds: Map<string, number>;
+  reportRepositoryLedgerIds: Map<string, number>;
 }
 
 /** Union of services required to dispatch any command event. */
@@ -76,6 +79,8 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
   evictStaleEntries(tracker.gitCloneIds, evictBefore);
+  evictStaleEntries(tracker.syncProjectRootsIds, evictBefore);
+  evictStaleEntries(tracker.reportRepositoryLedgerIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 
@@ -88,6 +93,8 @@ export function createDedupTracker(): DedupTracker {
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
     gitCloneIds: new Map<string, number>(),
+    syncProjectRootsIds: new Map<string, number>(),
+    reportRepositoryLedgerIds: new Map<string, number>(),
   };
 }
 
@@ -279,6 +286,51 @@ function handleGitCloneCommandEffect(
   });
 }
 
+function logLedgerRefreshWarning(error: unknown): void {
+  console.warn(
+    `[${formatTimestamp()}] ⚠️  Repository ledger refresh failed: ${getErrorMessage(error)}`
+  );
+}
+
+function handleSyncProjectRootsEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.syncProjectRootsIds.has(eventId)) return;
+    tracker.syncProjectRootsIds.set(eventId, Date.now());
+    const session = yield* DaemonSessionService;
+    // Not awaited: the inbox serializes command work, and a scan must never stall the chain.
+    try {
+      void getRepositoryLedgerService(session)
+        .refresh('roots-changed')
+        .catch(logLedgerRefreshWarning);
+    } catch (error) {
+      logLedgerRefreshWarning(error);
+    }
+  });
+}
+
+function handleReportRepositoryLedgerEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, DaemonSessionService> {
+  return Effect.gen(function* () {
+    const eventId = event._id.toString();
+    if (tracker.reportRepositoryLedgerIds.has(eventId)) return;
+    tracker.reportRepositoryLedgerIds.set(eventId, Date.now());
+    const typedEvent = event as Extract<CommandEvent, { type: 'daemon.reportRepositoryLedger' }>;
+    const session = yield* DaemonSessionService;
+    // Not awaited: the job runs in the background. serveSnapshot starts it synchronously and never throws.
+    // 'duplicate' means a job for this requestId is already running, so there is nothing to do.
+    getRepositoryLedgerService(session).serveSnapshot({
+      requestId: typedEvent.requestId,
+      rescan: typedEvent.rescan,
+    });
+  });
+}
+
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -337,6 +389,8 @@ const commandEventHandlers: {
   'daemon.localAction': handleLocalActionCommandEffect,
   'daemon.pickFolder': handlePickFolderCommandEffect,
   'daemon.gitClone': handleGitCloneCommandEffect,
+  'daemon.syncProjectRoots': handleSyncProjectRootsEffect,
+  'daemon.reportRepositoryLedger': handleReportRepositoryLedgerEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
 };
 

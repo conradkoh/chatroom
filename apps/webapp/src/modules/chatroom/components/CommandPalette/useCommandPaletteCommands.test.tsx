@@ -85,6 +85,33 @@ describe('useCommandPaletteCommands', () => {
     expect(result.current.some((command) => command.id === 'nav-new-chatroom')).toBe(false);
   });
 
+  it('adds a Go to Machines navigation command when a callback is provided', () => {
+    const onGoToMachines = vi.fn();
+
+    const { result } = renderHook(() =>
+      useCommandPaletteCommands({
+        ...baseProps,
+        onGoToMachines,
+      })
+    );
+
+    const command = result.current.find((candidate) => candidate.id === 'nav-go-to-machines');
+    expect(command).toMatchObject({
+      label: 'Go to Machines',
+      category: 'Navigate',
+      keywords: ['machines', 'daemon', 'hosts', 'computers'],
+    });
+
+    command?.action();
+    expect(onGoToMachines).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the Go to Machines command when no callback is provided', () => {
+    const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+    expect(result.current.some((command) => command.id === 'nav-go-to-machines')).toBe(false);
+  });
+
   it('adds New Backlog Item command when callback is provided', () => {
     const onCreateBacklogItem = vi.fn();
 
