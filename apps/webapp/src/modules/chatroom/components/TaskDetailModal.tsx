@@ -23,7 +23,11 @@ import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared'
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import { modalMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
-import { describeDeliveryFailure, type DeliveryFailureReason } from './WorkQueue/delivery-failure';
+import {
+  describeDeliveryFailure,
+  isDeliveryFailureVisible,
+  type DeliveryFailureReason,
+} from './WorkQueue/delivery-failure';
 import { getStatusBadge } from './WorkQueue/utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
@@ -228,6 +232,7 @@ function TaskDetailForm({
               <span className="text-[10px] text-chatroom-text-muted">→ {task.assignedTo}</span>
             )}
             {task.deliveryFailure &&
+              isDeliveryFailureVisible(task.status, task.deliveryFailure.reason) &&
               (() => {
                 const failure = describeDeliveryFailure(task.deliveryFailure.reason);
                 return (

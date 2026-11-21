@@ -1,6 +1,6 @@
 import { AlertCircle, Trash2 } from 'lucide-react';
 
-import { describeDeliveryFailure } from './delivery-failure';
+import { describeDeliveryFailure, isDeliveryFailureVisible } from './delivery-failure';
 import { TaskNewSessionToggle } from './TaskNewSessionToggle';
 import type { Task } from './types';
 import { getStatusBadge } from './utils';
@@ -80,6 +80,7 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
 
         {/* Delivery failure — full-width line at the bottom of the task */}
         {task.deliveryFailure &&
+          isDeliveryFailureVisible(task.status, task.deliveryFailure.reason) &&
           (() => {
             const failure = describeDeliveryFailure(task.deliveryFailure.reason);
             return (

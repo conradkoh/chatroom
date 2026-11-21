@@ -32,7 +32,7 @@ describe('TaskItem', () => {
     expect(screen.getByText('Delivery failed: no agent config')).toBeInTheDocument();
   });
 
-  it('renders a paused delivery when the agent finished without a handoff', () => {
+  it('renders a paused delivery when automatic redelivery has stopped', () => {
     render(
       <TaskItem
         task={makeTask({
@@ -41,10 +41,39 @@ describe('TaskItem', () => {
       />
     );
 
-    expect(
-      screen.getByText('Delivery paused — agent finished without a handoff')
-    ).toBeInTheDocument();
+    const paused = screen.getByTitle(
+      'Automatic redelivery stopped for this task (repeated failures or a turn without a handoff). Restart the agent to resume.'
+    );
+    expect(paused).toHaveTextContent('Delivery paused — restart the agent to resume');
     expect(screen.queryByText(/redelivery/i)).not.toBeInTheDocument();
+  });
+
+  it('hides the retrying warning on a completed task', () => {
+    render(
+      <TaskItem
+        task={makeTask({
+          status: 'completed',
+          deliveryFailure: { reason: 'delivery_retrying', occurredAt: Date.now() },
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByText('Retrying delivery — something may be wrong')
+    ).not.toBeInTheDocument();
+  });
+
+  it('still shows other failure reasons on a completed task', () => {
+    render(
+      <TaskItem
+        task={makeTask({
+          status: 'completed',
+          deliveryFailure: { reason: 'no_agent_config', occurredAt: Date.now() },
+        })}
+      />
+    );
+
+    expect(screen.getByText('Delivery failed: no agent config')).toBeInTheDocument();
   });
 
   it('renders a retrying warning with its tooltip when delivery keeps failing', () => {

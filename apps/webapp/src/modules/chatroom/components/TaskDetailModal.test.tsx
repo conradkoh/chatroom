@@ -122,6 +122,16 @@ const PAUSED_DELIVERY_TASK = {
   deliveryFailure: { reason: 'redelivery_exhausted' as const, occurredAt: 4000 },
 };
 
+const COMPLETED_RETRYING_DELIVERY_TASK = {
+  ...RETRYING_DELIVERY_TASK,
+  status: 'completed' as TaskStatus,
+};
+
+const COMPLETED_PAUSED_DELIVERY_TASK = {
+  ...PAUSED_DELIVERY_TASK,
+  status: 'completed' as TaskStatus,
+};
+
 const defaultProps = {
   onClose: vi.fn(),
   onEdit: vi.fn(),
@@ -195,11 +205,28 @@ describe('TaskDetailModal — structured handoff', () => {
     expect(warning).toHaveTextContent('Retrying delivery — something may be wrong');
   });
 
-  it('renders a paused delivery when the agent finished without a handoff', () => {
+  it('renders a paused delivery when automatic redelivery has stopped', () => {
     render(<TaskDetailModal isOpen task={PAUSED_DELIVERY_TASK} {...defaultProps} />);
 
+    expect(screen.getByText('Delivery paused — restart the agent to resume')).toBeInTheDocument();
     expect(
-      screen.getByText('Delivery paused — agent finished without a handoff')
+      screen.getByTitle(
+        'Automatic redelivery stopped for this task (repeated failures or a turn without a handoff). Restart the agent to resume.'
+      )
     ).toBeInTheDocument();
+  });
+
+  it('hides the retrying warning on a completed task', () => {
+    render(<TaskDetailModal isOpen task={COMPLETED_RETRYING_DELIVERY_TASK} {...defaultProps} />);
+
+    expect(
+      screen.queryByText('Retrying delivery — something may be wrong')
+    ).not.toBeInTheDocument();
+  });
+
+  it('still shows a paused delivery on a completed task', () => {
+    render(<TaskDetailModal isOpen task={COMPLETED_PAUSED_DELIVERY_TASK} {...defaultProps} />);
+
+    expect(screen.getByText('Delivery paused — restart the agent to resume')).toBeInTheDocument();
   });
 });
