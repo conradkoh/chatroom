@@ -150,7 +150,10 @@ describe('detectAvailableHarnesses', () => {
     const notInstalledService = new FakeNotInstalledService(
       createMockDeps({
         execSync: vi.fn(() => {
-          const err = new Error('not found') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+          const err = new Error('not found') as Error & {
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
+          };
           err.status = 1;
           err.stderr = Buffer.from('');
           throw err;
@@ -175,7 +178,10 @@ describe('detectAvailableHarnesses', () => {
     const brokenService = new FakeDetectionErrorService(
       createMockDeps({
         execSync: vi.fn(() => {
-          const err = new Error('some error') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+          const err = new Error('some error') as Error & {
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
+          };
           err.status = 127;
           err.stderr = Buffer.from('error');
           throw err;
@@ -211,7 +217,10 @@ describe('detectAvailableHarnesses', () => {
     const notInstalledService = new FakeNotInstalledService(
       createMockDeps({
         execSync: vi.fn(() => {
-          const err = new Error('not found') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+          const err = new Error('not found') as Error & {
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
+          };
           err.status = 1;
           err.stderr = Buffer.from('');
           throw err;

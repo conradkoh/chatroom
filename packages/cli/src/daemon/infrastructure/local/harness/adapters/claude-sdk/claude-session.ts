@@ -27,7 +27,7 @@ export interface ClaudeSdkSessionOptions {
   readonly systemPrompt?: string | undefined;
   readonly providerSessionId?: string | undefined;
   readonly resumeOnFirstQuery?: boolean | undefined;
-  readonly onClose?:( (sessionId: string) => void) | undefined;
+  readonly onClose?: ((sessionId: string) => void) | undefined;
 }
 
 export class ClaudeSdkSession implements DirectHarnessSession {
@@ -43,7 +43,7 @@ export class ClaudeSdkSession implements DirectHarnessSession {
   private readonly query: QueryFn;
   private readonly defaultModel?: string | undefined;
   private readonly storedSystemPrompt?: string | undefined;
-  private readonly onClose?:( (sessionId: string) => void) | undefined;
+  private readonly onClose?: ((sessionId: string) => void) | undefined;
   private readonly listeners = new Set<(event: DirectHarnessSessionEvent) => void>();
   private closed = false;
   private providerSessionId?: string | undefined;
