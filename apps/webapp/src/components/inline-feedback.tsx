@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file complexity unused-export
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -51,6 +50,108 @@ const TONE: Record<FeedbackTone, { box: string; text: string; Icon: LucideIcon }
   },
 };
 
+/** Errors interrupt; every other tone is polite. */
+function toneRole(tone: FeedbackTone): 'alert' | 'status' {
+  return tone === 'error' ? 'alert' : 'status';
+}
+
+/** Props win over the per-feedback flag, which wins over the default. */
+function resolveIcon(feedback: Feedback, icon: boolean | undefined): boolean {
+  return icon ?? feedback.icon ?? true;
+}
+
+function FeedbackText({
+  feedback,
+  testId,
+  className,
+}: {
+  feedback: Feedback;
+  testId: string;
+  className?: string;
+}) {
+  return (
+    <p
+      key={feedback.id}
+      role={toneRole(feedback.tone)}
+      data-testid={testId}
+      className={cn('break-words text-xs', TONE[feedback.tone].text, className)}
+    >
+      {feedback.message}
+    </p>
+  );
+}
+
+/** Renders nothing, rather than an empty list, when there are no items. */
+function FeedbackItemList({ items }: { items?: string[] }) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <ul className="list-disc space-y-0.5 pl-4">
+      {items.map((item, index) => (
+        <li key={`${index}-${item}`}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function FeedbackDetails({ feedback }: { feedback: Feedback }) {
+  const { title, message, items } = feedback;
+
+  return (
+    <div className="min-w-0 flex-1 space-y-1 break-words">
+      {title && <p className="font-semibold">{title}</p>}
+      {message && <p>{message}</p>}
+      <FeedbackItemList items={items} />
+    </div>
+  );
+}
+
+function DismissButton({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onDismiss}
+      aria-label="Dismiss"
+      className="-m-1 shrink-0 p-1 opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current"
+    >
+      <X size={12} aria-hidden />
+    </button>
+  );
+}
+
+function FeedbackBox({
+  feedback,
+  showIcon,
+  onDismiss,
+  testId,
+  className,
+}: {
+  feedback: Feedback;
+  showIcon: boolean;
+  onDismiss?: () => void;
+  testId: string;
+  className?: string;
+}) {
+  const { Icon } = TONE[feedback.tone];
+
+  return (
+    <div
+      key={feedback.id}
+      role={toneRole(feedback.tone)}
+      data-testid={testId}
+      className={cn(
+        'flex min-w-0 items-start gap-2 rounded-none border p-3 text-xs',
+        TONE[feedback.tone].box,
+        className
+      )}
+    >
+      {showIcon && <Icon size={14} aria-hidden className="mt-0.5 shrink-0" />}
+      <FeedbackDetails feedback={feedback} />
+      {onDismiss && <DismissButton onDismiss={onDismiss} />}
+    </div>
+  );
+}
+
 export function InlineFeedback({
   feedback,
   onDismiss,
@@ -61,59 +162,17 @@ export function InlineFeedback({
 }: InlineFeedbackProps) {
   if (!feedback) return null;
 
-  const { id, tone, message, title, items } = feedback;
-  const role = tone === 'error' ? 'alert' : 'status';
-  const styles = TONE[tone];
-
   if (variant === 'text') {
-    return (
-      <p
-        key={id}
-        role={role}
-        data-testid={testId}
-        className={cn('break-words text-xs', styles.text, className)}
-      >
-        {message}
-      </p>
-    );
+    return <FeedbackText feedback={feedback} testId={testId} className={className} />;
   }
 
-  const showIcon = icon ?? feedback.icon ?? true;
-  const { Icon } = styles;
-
   return (
-    <div
-      key={id}
-      role={role}
-      data-testid={testId}
-      className={cn(
-        'flex min-w-0 items-start gap-2 rounded-none border p-3 text-xs',
-        styles.box,
-        className
-      )}
-    >
-      {showIcon && <Icon size={14} aria-hidden className="mt-0.5 shrink-0" />}
-      <div className="min-w-0 flex-1 space-y-1 break-words">
-        {title && <p className="font-semibold">{title}</p>}
-        {message && <p>{message}</p>}
-        {items && items.length > 0 && (
-          <ul className="list-disc space-y-0.5 pl-4">
-            {items.map((item, index) => (
-              <li key={`${index}-${item}`}>{item}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-      {onDismiss && (
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-          className="-m-1 shrink-0 p-1 opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current"
-        >
-          <X size={12} aria-hidden />
-        </button>
-      )}
-    </div>
+    <FeedbackBox
+      feedback={feedback}
+      showIcon={resolveIcon(feedback, icon)}
+      onDismiss={onDismiss}
+      testId={testId}
+      className={className}
+    />
   );
 }

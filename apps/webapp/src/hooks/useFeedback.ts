@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { useCallback, useRef, useState } from 'react';
 
 import type { Feedback, FeedbackTone } from '@/components/inline-feedback';
