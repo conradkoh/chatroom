@@ -178,18 +178,18 @@ describe('MachineList / MachineCard', () => {
 
   it('renders harness chips and dims them for offline machines', () => {
     mocks.capabilities = {
-      'machine-1': { availableHarnesses: ['opencode', 'claude'], harnessVersions: {} },
+      'machine-1': { availableHarnesses: ['opencode-sdk', 'claude-sdk'], harnessVersions: {} },
     };
     renderRow(makeRow({ connected: false, lastSeenAt: null }));
 
     const chips = screen.getAllByTestId('machine-harness-chip');
-    expect(chips.map((chip) => chip.textContent)).toEqual(['opencode', 'claude']);
+    expect(chips.map((chip) => chip.textContent)).toEqual(['opencode-sdk', 'claude-sdk']);
     expect(screen.getByTestId('machine-harness-chips').className).toContain('opacity-60');
   });
 
   it('does not dim harness chips for online machines', () => {
     mocks.capabilities = {
-      'machine-1': { availableHarnesses: ['opencode'], harnessVersions: {} },
+      'machine-1': { availableHarnesses: ['opencode-sdk'], harnessVersions: {} },
     };
     renderRow(makeRow({ connected: true }));
 
