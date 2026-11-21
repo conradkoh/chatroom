@@ -113,19 +113,6 @@ vi.mock('../hooks/useWorkspaceUploadJobs', () => ({
   }),
 }));
 
-vi.mock('../hooks/useExplorerFileDrop', () => ({
-  useExplorerFileDrop: () => ({
-    dropHighlightPath: null,
-    uploadDialogOpen: false,
-    pendingUpload: null,
-    remainingCount: 0,
-    handleDragOver: vi.fn(),
-    handleDragLeave: vi.fn(),
-    handleDrop: vi.fn(),
-    handleUploadDialogOpenChange: vi.fn(),
-  }),
-}));
-
 vi.mock('sonner', () => ({
   toast: {
     error: vi.fn(),
@@ -195,6 +182,12 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   Element.prototype.scrollIntoView = vi.fn();
+  // jsdom has no layout, so the drop hook's hit-testing needs an explicit stub.
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockReturnValue(null),
+  });
   __resetWorkspaceFileTreeStoreForTests();
   upsertWorkspaceFileTree(
     WORKSPACE_KEY,
@@ -213,6 +206,13 @@ beforeEach(() => {
   mockRequestMkdir.mockResolvedValue({ requestId: 'req-mkdir-1' });
   mockConfirmMkdir.mockResolvedValue(undefined);
 });
+
+async function submitNewFile(path: string) {
+  fireEvent.click(screen.getByLabelText('New file'));
+  const input = await screen.findByPlaceholderText('docs/notes.md');
+  fireEvent.change(input, { target: { value: path } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+}
 
 describe('FileExplorerPanel create/delete integration', () => {
   it('refreshes the explorer after a new file is created', async () => {
@@ -361,5 +361,115 @@ describe('FileExplorerPanel create/delete integration', () => {
     await waitFor(() => {
       expect(mockRequestMkdir).toHaveBeenCalledWith('src/components');
     });
+  });
+
+  it('shows a create failure in the explorer feedback slot', async () => {
+    mockCreateFile.mockRejectedValueOnce(new Error('Disk full'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await submitNewFile('notes.md');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to create notes.md: Disk full');
+    expect(screen.getByTestId('explorer-feedback')).toContainElement(alert);
+  });
+
+  it('dismisses the explorer feedback slot', async () => {
+    mockCreateFile.mockRejectedValueOnce(new Error('Disk full'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await submitNewFile('notes.md');
+    expect(await screen.findByTestId('explorer-feedback')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByTestId('explorer-feedback')).toBeNull();
+  });
+
+  it('shows a delete failure in the explorer feedback slot', async () => {
+    mockConfirmDelete.mockRejectedValueOnce(new Error('Permission denied'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /^delete$/i }));
+
+    const alert = await screen.findByTestId('explorer-feedback');
+    expect(alert).toHaveTextContent('Failed to delete package.json: Permission denied');
+    expect(alert).toHaveAttribute('role', 'alert');
+  });
+
+  it('shows a rename failure in the explorer feedback slot', async () => {
+    mockConfirmRename.mockRejectedValueOnce(new Error('Name taken'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /rename/i }));
+    const input = await screen.findByLabelText('New file name');
+    fireEvent.change(input, { target: { value: 'manifest.json' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const alert = await screen.findByTestId('explorer-feedback');
+    expect(alert).toHaveTextContent('Failed to rename package.json: Name taken');
+  });
+
+  it('shows a new-folder failure in the explorer feedback slot', async () => {
+    mockConfirmMkdir.mockRejectedValueOnce(new Error('Folder already exists'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.contextMenu(screen.getByTitle('src'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /new folder/i }));
+    const input = await screen.findByLabelText('Folder name in src');
+    fireEvent.change(input, { target: { value: 'components' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const alert = await screen.findByTestId('explorer-feedback');
+    expect(alert).toHaveTextContent('Folder already exists');
+  });
+
+  it('shows a blocked drop reason in the explorer feedback slot', async () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    fireEvent.drop(screen.getByTitle('package.json'), {
+      dataTransfer: {
+        types: ['Files'],
+        files: [new File(['x'], '.env', { type: 'text/plain' })],
+      },
+    });
+
+    const alert = await screen.findByTestId('explorer-feedback');
+    expect(alert).toHaveTextContent(
+      'Cannot upload to this location (.git and sensitive paths are blocked)'
+    );
+  });
+
+  it('shows no feedback after a successful create', async () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    await submitNewFile('notes.md');
+
+    await waitFor(() => {
+      expect(mockCreateFile).toHaveBeenCalledWith('notes.md', '');
+      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
+    });
+    expect(screen.queryByTestId('explorer-feedback')).toBeNull();
+  });
+
+  it('clears a previous failure when the New file dialog is reopened', async () => {
+    mockCreateFile.mockRejectedValueOnce(new Error('Disk full'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await submitNewFile('notes.md');
+    expect(await screen.findByTestId('explorer-feedback')).toHaveTextContent(
+      'Failed to create notes.md: Disk full'
+    );
+
+    fireEvent.click(screen.getByLabelText('New file'));
+
+    expect(screen.queryByTestId('explorer-feedback')).toBeNull();
   });
 });

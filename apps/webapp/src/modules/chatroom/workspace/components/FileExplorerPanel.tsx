@@ -39,6 +39,7 @@ import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 import { useWorkspaceUploadJobs } from '../hooks/useWorkspaceUploadJobs';
 import { basename } from '../utils/diff-parser';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +56,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useFeedback } from '@/hooks/useFeedback';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -288,6 +290,7 @@ export const FileExplorerPanel = memo(
         type: 'file' | 'directory';
       } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
+      const { feedback, error: showExplorerError, clear: clearExplorerFeedback } = useFeedback();
       const { trackContextMenuFile, getMenuContentStateForPath } = useWorkspaceFileMenuContent(
         machineId ?? null,
         workingDir ?? null
@@ -300,7 +303,7 @@ export const FileExplorerPanel = memo(
         machineId: machineId ?? '',
         workingDir: workingDir ?? '',
       });
-      const explorerFileOps = useExplorerNewFileOps(fileTabs);
+      const explorerFileOps = useExplorerNewFileOps(fileTabs, showExplorerError);
       const { openFileOnRemote } = useOpenFileOnRemote(machineId ?? '', workingDir ?? '');
       const {
         dropHighlightPath,
@@ -311,17 +314,25 @@ export const FileExplorerPanel = memo(
         handleDragLeave,
         handleDrop,
         handleUploadDialogOpenChange,
-      } = useExplorerFileDrop();
+      } = useExplorerFileDrop({ onBlocked: showExplorerError });
 
-      const openNewFileDialog = useCallback((defaultDir = '') => {
-        setNewFileDefaultDir(defaultDir);
-        setNewFileOpen(true);
-      }, []);
+      const openNewFileDialog = useCallback(
+        (defaultDir = '') => {
+          clearExplorerFeedback();
+          setNewFileDefaultDir(defaultDir);
+          setNewFileOpen(true);
+        },
+        [clearExplorerFeedback]
+      );
 
-      const openNewFolderDialog = useCallback((defaultDir = '') => {
-        setNewFolderDefaultDir(defaultDir);
-        setNewFolderOpen(true);
-      }, []);
+      const openNewFolderDialog = useCallback(
+        (defaultDir = '') => {
+          clearExplorerFeedback();
+          setNewFolderDefaultDir(defaultDir);
+          setNewFolderOpen(true);
+        },
+        [clearExplorerFeedback]
+      );
 
       useEffect(() => {
         setRootExpanded(readRootExpanded(rootExpandedStorageKey));
@@ -335,10 +346,14 @@ export const FileExplorerPanel = memo(
         });
       }, [rootExpandedStorageKey]);
 
-      const openRenameDialog = useCallback((path: string, type: 'file' | 'directory') => {
-        setRenameTarget({ path, type });
-        setRenameOpen(true);
-      }, []);
+      const openRenameDialog = useCallback(
+        (path: string, type: 'file' | 'directory') => {
+          clearExplorerFeedback();
+          setRenameTarget({ path, type });
+          setRenameOpen(true);
+        },
+        [clearExplorerFeedback]
+      );
 
       // fallow-ignore-next-line complexity
       const buildFileMenuProps = useCallback(
@@ -422,6 +437,7 @@ export const FileExplorerPanel = memo(
         if (!deleteTarget) return;
         const path = deleteTarget.path;
         setDeleteTarget(null);
+        clearExplorerFeedback();
 
         try {
           const { requestId } = await requestDelete(path);
@@ -437,15 +453,17 @@ export const FileExplorerPanel = memo(
           );
         } catch (err) {
           const message = err instanceof Error ? err.message : 'File delete failed';
-          toast.error(message);
+          showExplorerError(message);
         }
       }, [
+        clearExplorerFeedback,
         confirmDelete,
         deleteTarget,
         explorerFileOps,
         onFileDeleted,
         requestDelete,
         refreshExplorer,
+        showExplorerError,
       ]);
 
       if (!machineId || !workingDir) {
@@ -518,7 +536,7 @@ export const FileExplorerPanel = memo(
             workingDir={workingDir}
             defaultDir={newFolderDefaultDir}
             onCreated={() => refreshExplorer()}
-            onCreateFailed={(_dirPath, error) => toast.error(error)}
+            onCreateFailed={(_dirPath, message) => showExplorerError(message)}
             onCreateConfirmed={() => refreshExplorer()}
             onExplorerRefresh={refreshExplorer}
           />
@@ -615,6 +633,17 @@ export const FileExplorerPanel = memo(
             </div>
           </div>
 
+          {feedback ? (
+            <div className="shrink-0 border-b border-chatroom-border-strong">
+              <InlineFeedback
+                feedback={feedback}
+                onDismiss={clearExplorerFeedback}
+                data-testid="explorer-feedback"
+                className="mx-2 my-1.5"
+              />
+            </div>
+          ) : null}
+
           {/* Tree content */}
           <div
             className={`flex flex-1 flex-col min-h-0 overflow-hidden ${
@@ -622,7 +651,10 @@ export const FileExplorerPanel = memo(
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            onDrop={(event) => {
+              clearExplorerFeedback();
+              handleDrop(event);
+            }}
             onContextMenu={(event) => {
               if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
               const props = buildFileMenuProps({ kind: 'root' });
