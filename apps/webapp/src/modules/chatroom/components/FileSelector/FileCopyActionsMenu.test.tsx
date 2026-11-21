@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -7,10 +6,6 @@ import {
   CopyFileNameButton,
   CopyFileContentButton,
 } from './FileCopyActionsMenu';
-
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
 
 const writeText = vi.fn();
 
@@ -55,13 +50,12 @@ describe('FileCopyActionsMenu', () => {
     expect(screen.getByText('Copy File Content')).toBeInTheDocument();
   });
 
-  it('copies file name to clipboard and shows toast on "Copy File Name" click', async () => {
+  it('copies file name to clipboard on "Copy File Name" click', async () => {
     render(<FileCopyActionsMenu {...defaultProps} />);
     openDropdown();
     fireEvent.click(screen.getByText('Copy File Name'));
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('foo.ts');
-      expect(toast.success).toHaveBeenCalledWith('Copied file name');
     });
   });
 
@@ -98,7 +92,6 @@ describe('FileCopyActionsMenu', () => {
     fireEvent.click(screen.getByText('Copy Relative Path'));
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('src/foo.ts');
-      expect(toast.success).toHaveBeenCalledWith('Copied relative path');
     });
   });
 
@@ -196,7 +189,6 @@ describe('CopyFileNameButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy file name/i }));
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('foo.ts');
-      expect(toast.success).toHaveBeenCalledWith('Copied file name');
     });
   });
 });
@@ -223,7 +215,6 @@ describe('CopyFileContentButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy file content/i }));
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('hello');
-      expect(toast.success).toHaveBeenCalledWith('Copied file content');
     });
   });
 });

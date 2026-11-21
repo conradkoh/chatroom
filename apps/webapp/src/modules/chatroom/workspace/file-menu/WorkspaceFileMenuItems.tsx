@@ -37,7 +37,6 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
     relativePath,
     workingDir,
     content,
-    contentTruncated = false,
     contentDisabled = false,
     fileContentLabel = 'Copy File Content',
   } = state;
@@ -135,7 +134,7 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
         icon={Copy}
         onSelect={() => {
           if (content && !contentDisabled) {
-            void copyFileContentToClipboard(content, { truncated: contentTruncated });
+            void copyFileContentToClipboard(content);
           }
         }}
         disabled={contentDisabled || !content}

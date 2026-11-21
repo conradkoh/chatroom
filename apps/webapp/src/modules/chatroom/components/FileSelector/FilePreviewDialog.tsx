@@ -413,9 +413,7 @@ const FileContentPanel = memo(function FileContentPanel({
           copyLabel={copyContentLabel}
           onCopy={() => {
             if (contentResult.content && canCopyContent) {
-              void copyFileContentToClipboard(contentResult.content, {
-                truncated: contentResult.truncated,
-              });
+              void copyFileContentToClipboard(contentResult.content);
             }
           }}
           disabled={!canCopyContent}

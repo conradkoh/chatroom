@@ -63,21 +63,20 @@ export const CopyFileNameButton = memo(function CopyFileNameButton({
 
 export const CopyFileContentButton = memo(function CopyFileContentButton({
   content,
-  truncated = false,
   disabled = false,
   label,
   className,
 }: {
   content: string | null;
-  truncated?: boolean;
+  truncated?: boolean; // no longer read here; slice 2e removes this prop
   disabled?: boolean;
   label: string;
   className?: string;
 }) {
   const handleCopy = useCallback(() => {
     if (!content || disabled) return;
-    void copyFileContentToClipboard(content, { truncated });
-  }, [content, disabled, truncated]);
+    void copyFileContentToClipboard(content);
+  }, [content, disabled]);
 
   return (
     <button
