@@ -37,6 +37,17 @@
       "cache": false,
       "persistent": true
     },
+    "@workspace/backend#dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": [
+        "SKIP_DEV_MIGRATIONS",
+        "CONVEX_DEPLOY_KEY",
+        "CONVEX_DEPLOYMENT",
+        "CONVEX_URL",
+        "VITE_CONVEX_URL"
+      ]
+    },
     "e2e": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
