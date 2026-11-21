@@ -31,6 +31,7 @@ import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFil
 import { WorkspaceUploadProgressList } from './WorkspaceUploadProgressList';
 import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
 import type { WorkspaceFileMenuProps, WorkspaceFileMenuVisibility } from '../file-menu';
+import type { WorkspaceTreeSyncFeedback } from '../files/useRequestWorkspaceFileTree';
 import { useExplorerFileDrop } from '../hooks/useExplorerFileDrop';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
@@ -291,6 +292,10 @@ export const FileExplorerPanel = memo(
       } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
       const { feedback, error: showExplorerError, clear: clearExplorerFeedback } = useFeedback();
+      const treeSyncFeedback = useMemo<WorkspaceTreeSyncFeedback>(
+        () => ({ onAttempt: clearExplorerFeedback, onError: showExplorerError }),
+        [clearExplorerFeedback, showExplorerError]
+      );
       const { trackContextMenuFile, getMenuContentStateForPath } = useWorkspaceFileMenuContent(
         machineId ?? null,
         workingDir ?? null
@@ -684,6 +689,7 @@ export const FileExplorerPanel = memo(
                 selectedPath={effectiveSelectedPath}
                 filterQuery={filterQuery}
                 dropHighlightPath={dropHighlightPath}
+                treeSyncFeedback={treeSyncFeedback}
                 onNodeContextMenu={(node, event) => {
                   const target: ExplorerContextTarget = {
                     kind: 'node',
