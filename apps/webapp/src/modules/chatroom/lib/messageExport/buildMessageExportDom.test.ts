@@ -33,6 +33,12 @@ describe('buildMessageExportDom', () => {
     expect(htmlFragment).not.toContain('MERMAID_EXPORT_PLACEHOLDER_');
   });
 
+  it('exposes the header paragraph and rule as the first page blocks', async () => {
+    const { pageBlocks } = await buildMessageExportDom(message as never, '');
+
+    expect(pageBlocks.map((el) => el.tagName).slice(0, 2)).toEqual(['P', 'HR']);
+  });
+
   it('applies the caller root style first, then the light export theme, and returns a detached root', async () => {
     const { root } = await buildMessageExportDom(message as never, 'position:fixed;left:-9999px;');
 

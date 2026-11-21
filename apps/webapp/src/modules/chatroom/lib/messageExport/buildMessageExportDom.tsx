@@ -65,6 +65,8 @@ export type MessageExportDom = {
   htmlFragment: string;
   /** Detached `.chatroom-root` element with `htmlFragment` as content. NOT attached to the document. */
   root: HTMLDivElement;
+  /** Top-level blocks in document order: header line, rule, then each markdown block. Used for PDF page breaks. */
+  pageBlocks: HTMLElement[];
 };
 
 /**
@@ -114,5 +116,11 @@ export async function buildMessageExportDom(
   root.style.cssText = rootStyle;
   applyLightExportTheme(root);
   root.innerHTML = htmlFragment;
-  return { htmlFragment, root };
+  const outer = root.firstElementChild as HTMLElement; // the div from htmlFragment
+  const proseBody = outer.lastElementChild as HTMLElement; // the markdown body div
+  const pageBlocks = [
+    ...Array.from(outer.children).slice(0, -1), // header <p>, <hr>
+    ...Array.from(proseBody.children), // markdown blocks, diagram wrappers included
+  ] as HTMLElement[];
+  return { htmlFragment, root, pageBlocks };
 }
