@@ -99,6 +99,57 @@ describe('Discussion inline failures', () => {
     expect(within(dialog).getByLabelText('Your Thoughts')).toHaveValue('Hello');
   });
 
+  it('keeps the add dialog open while the contribution is submitting', async () => {
+    const user = userEvent.setup();
+    let rejectAdd!: (error: Error) => void;
+    mocks.mutations['discussions:addDiscussionMessage'] = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectAdd = reject;
+        })
+    );
+    renderDiscussion();
+
+    await user.click(await screen.findByRole('button', { name: /Add Contribution/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Your Name'), 'Ann');
+    await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
+
+    await user.keyboard('{Escape}');
+    expect(dialog).toBeInTheDocument();
+
+    rejectAdd(new Error('Message too long'));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to add message');
+    expect(alert).toHaveTextContent('Message too long');
+    expect(within(dialog).getByLabelText('Your Thoughts')).toHaveValue('Hello');
+  });
+
+  it('clears the add error when the name is edited', async () => {
+    const user = userEvent.setup();
+    mocks.mutations['discussions:addDiscussionMessage'] = vi
+      .fn()
+      .mockRejectedValue(new Error('Message too long'));
+    renderDiscussion();
+
+    await user.click(await screen.findByRole('button', { name: /Add Contribution/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    const name = within(dialog).getByLabelText('Your Name');
+    await user.type(name, 'Ann');
+    await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
+
+    await within(dialog).findByRole('alert');
+    await user.type(name, 'B');
+
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+  });
+
   it('closes the contribution dialog and shows no confirmation on success', async () => {
     const user = userEvent.setup();
     mocks.mutations['discussions:addDiscussionMessage'] = vi.fn().mockResolvedValue(undefined);
@@ -112,6 +163,7 @@ describe('Discussion inline failures', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
@@ -177,6 +229,28 @@ describe('Discussion inline failures', () => {
     expect(alert).toHaveTextContent('Server rejected');
     expect(dialog).toBeInTheDocument();
     expect(input).toHaveValue('Ship it');
+  });
+
+  it('clears the conclude error when a conclusion is edited', async () => {
+    const user = userEvent.setup();
+    mocks.mutations['discussions:concludeDiscussion'] = vi
+      .fn()
+      .mockRejectedValue(new Error('Server rejected'));
+    renderDiscussion();
+
+    await openActionsMenu(user);
+    await user.click(await screen.findByRole('button', { name: /Conclude Discussion/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByPlaceholderText('Enter a conclusion');
+    await user.type(input, 'Ship it');
+    await user.click(within(dialog).getByRole('button', { name: 'Conclude Discussion' }));
+
+    await within(dialog).findByRole('alert');
+    await user.type(input, '!');
+
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
   });
 
   it('shows a reopen failure at the top of the panel', async () => {

@@ -53,6 +53,8 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
   const [messageToDelete, setMessageToDelete] = useState<Id<'discussionMessages'> | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  // The dialog whose submit is in flight. Its dialog must not close until the submit settles.
+  const [pendingScope, setPendingScope] = useState<DiscussionErrorScope | null>(null);
 
   // References
   const menuRef = useRef<HTMLDivElement>(null);
@@ -141,11 +143,16 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
 
   // Handle message submission
   const handleMessageSubmit = async (name: string, message: string) => {
-    const success = await addMessage(name, message);
-    if (success) {
-      setShowFormDialog(false);
+    setPendingScope('add');
+    try {
+      const success = await addMessage(name, message);
+      if (success) {
+        setShowFormDialog(false);
+      }
+      return success || false;
+    } finally {
+      setPendingScope(null);
     }
-    return success || false;
   };
 
   // Handle message deletion
@@ -165,22 +172,32 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
 
   // Handle conclusion submission
   const handleConclusionSubmit = async (conclusions: { text: string; tags: string[] }[]) => {
-    const success = await concludeDiscussion(conclusions);
-    if (success) {
-      setShowConclusionDialog(false);
-      setShowMenu(false);
+    setPendingScope('conclude');
+    try {
+      const success = await concludeDiscussion(conclusions);
+      if (success) {
+        setShowConclusionDialog(false);
+        setShowMenu(false);
+      }
+      return success || false;
+    } finally {
+      setPendingScope(null);
     }
-    return success || false;
   };
 
   // Handle conclusion update
   const handleConclusionUpdate = async (conclusions: { text: string; tags: string[] }[]) => {
-    const success = await updateConclusions(conclusions);
-    if (success) {
-      setShowEditConclusionDialog(false);
-      setShowMenu(false);
+    setPendingScope('update-conclusions');
+    try {
+      const success = await updateConclusions(conclusions);
+      if (success) {
+        setShowEditConclusionDialog(false);
+        setShowMenu(false);
+      }
+      return success || false;
+    } finally {
+      setPendingScope(null);
     }
-    return success || false;
   };
 
   // Handle reopening the discussion
@@ -445,6 +462,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       <Dialog
         open={showFormDialog}
         onOpenChange={(open) => {
+          if (!open && pendingScope === 'add') return;
           if (!open) clearError();
           setShowFormDialog(open);
         }}
@@ -473,6 +491,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       <Dialog
         open={showConclusionDialog}
         onOpenChange={(open) => {
+          if (!open && pendingScope === 'conclude') return;
           if (!open) clearError();
           setShowConclusionDialog(open);
         }}
@@ -501,6 +520,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       <Dialog
         open={showEditConclusionDialog}
         onOpenChange={(open) => {
+          if (!open && pendingScope === 'update-conclusions') return;
           if (!open) clearError();
           setShowEditConclusionDialog(open);
         }}
