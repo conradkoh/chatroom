@@ -5,8 +5,8 @@ import { useQuery } from 'convex/react';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ChevronDown, X } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { useFeedback } from '@/hooks/useFeedback';
 import { useAuthState, useCurrentUser } from '@/modules/auth/AuthProvider';
 import { ConnectButton } from '@/modules/auth/ConnectButton';
 import {
@@ -95,6 +96,18 @@ export function NameEditForm() {
   const disconnectGoogle = useSessionMutation(api.auth.google.disconnectGoogle);
   const createConnectRequest = useSessionMutation(api.auth.google.createConnectRequest);
 
+  // Inline feedback slots
+  const {
+    feedback: connectFeedback,
+    error: showConnectError,
+    clear: clearConnectFeedback,
+  } = useFeedback();
+  const {
+    feedback: disconnectFeedback,
+    error: showDisconnectError,
+    clear: clearDisconnectFeedback,
+  } = useFeedback();
+
   const prevUserNameRef = useRef(currentUser?.name);
   if (prevUserNameRef.current !== currentUser?.name) {
     prevUserNameRef.current = currentUser?.name;
@@ -124,7 +137,6 @@ export function NameEditForm() {
       try {
         await updateUserName({ newName: name.trim() });
         setIsEditing(false);
-        toast.success('Name updated successfully');
       } catch (_error) {
         setError('Failed to update name. Please try again.');
       } finally {
@@ -148,6 +160,7 @@ export function NameEditForm() {
 
   // Handle Google connection
   const handleGoogleConnect = useCallback(async () => {
+    clearConnectFeedback();
     setIsConnectingGoogle(true);
     try {
       // Generate redirect URI from current window location
@@ -169,28 +182,27 @@ export function NameEditForm() {
 
       redirectToGoogleOAuth(authUrl);
     } catch (_error) {
-      toast.error('Failed to connect Google account');
+      showConnectError('Failed to connect Google account');
       setIsConnectingGoogle(false);
     }
-  }, [googleAuthAvailable?.clientId, createConnectRequest]);
+  }, [googleAuthAvailable?.clientId, createConnectRequest, clearConnectFeedback, showConnectError]);
 
   // Handle disconnect confirmation
-  const showDisconnectConfirmation = useCallback((providerId: string, providerName: string) => {
-    setDisconnectDialog({
-      isOpen: true,
-      providerId,
-      providerName,
-      isDisconnecting: false,
-    });
-  }, []);
+  const showDisconnectConfirmation = useCallback(
+    (providerId: string, providerName: string) => {
+      clearDisconnectFeedback();
+      setDisconnectDialog({ isOpen: true, providerId, providerName, isDisconnecting: false });
+    },
+    [clearDisconnectFeedback]
+  );
 
   // Handle disconnect
   const handleDisconnect = useCallback(async () => {
     if (disconnectDialog.providerId === 'google') {
+      clearDisconnectFeedback();
       setDisconnectDialog((prev) => ({ ...prev, isDisconnecting: true }));
       try {
         await disconnectGoogle();
-        toast.success('Google account disconnected successfully');
         setDisconnectDialog({
           isOpen: false,
           providerId: '',
@@ -198,21 +210,22 @@ export function NameEditForm() {
           isDisconnecting: false,
         });
       } catch (_error) {
-        toast.error('Failed to disconnect Google account');
+        showDisconnectError('Failed to disconnect Google account');
         setDisconnectDialog((prev) => ({ ...prev, isDisconnecting: false }));
       }
     }
-  }, [disconnectDialog.providerId, disconnectGoogle]);
+  }, [disconnectDialog.providerId, disconnectGoogle, clearDisconnectFeedback, showDisconnectError]);
 
   // Close disconnect dialog
   const closeDisconnectDialog = useCallback(() => {
+    clearDisconnectFeedback();
     setDisconnectDialog({
       isOpen: false,
       providerId: '',
       providerName: '',
       isDisconnecting: false,
     });
-  }, []);
+  }, [clearDisconnectFeedback]);
 
   // Memoized Google provider info
   const googleProvider = useMemo(
@@ -255,6 +268,13 @@ export function NameEditForm() {
         ? _renderEditForm(name, error, isLoading, handleNameChange, handleSubmit, handleCancel)
         : _renderDisplayView(currentUser, googleAccountContext)}
 
+      {/* Google connect failure: Account Information slot */}
+      <InlineFeedback
+        feedback={connectFeedback}
+        onDismiss={clearConnectFeedback}
+        data-testid="google-connect-feedback"
+      />
+
       {/* Disconnect confirmation dialog */}
       <AlertDialog open={disconnectDialog.isOpen} onOpenChange={closeDisconnectDialog}>
         <AlertDialogContent>
@@ -265,12 +285,22 @@ export function NameEditForm() {
               can reconnect it later if needed.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <InlineFeedback
+            feedback={disconnectFeedback}
+            onDismiss={clearDisconnectFeedback}
+            className="mt-2"
+            data-testid="google-disconnect-feedback"
+          />
           <AlertDialogFooter>
             <AlertDialogCancel disabled={disconnectDialog.isDisconnecting}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDisconnect}
+              onClick={(event) => {
+                // Base UI closes the dialog on click. Keep it open while disconnecting and on failure.
+                event.preventBaseUIHandler();
+                void handleDisconnect();
+              }}
               disabled={disconnectDialog.isDisconnecting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -529,7 +559,11 @@ function _renderEditForm(
           placeholder="Enter your display name"
           disabled={isLoading}
         />
-        {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+        {error && (
+          <p role="alert" className="mt-1 text-sm text-destructive">
+            {error}
+          </p>
+        )}
         {_renderFormHelperText()}
       </div>
 
