@@ -823,6 +823,7 @@
     "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-sdk-agent-service.ts:CursorSdkAgentService.getVersion",
     "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-sdk-agent-service.ts:CursorSdkAgentService.resumeTurn",
     "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-sdk-agent-service.ts:CursorSdkAgentService.spawn",
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-sdk-agent-service.ts:OpenCodeSdkAgentService.id",
     "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-sdk-agent-service.ts:OpenCodeSdkAgentService.displayName",
     "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-sdk-agent-service.ts:OpenCodeSdkAgentService.spawn",
     "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-sdk-agent-service.ts:OpenCodeSdkAgentService.resumeTurn",
