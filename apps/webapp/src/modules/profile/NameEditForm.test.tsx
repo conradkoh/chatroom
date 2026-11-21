@@ -89,7 +89,7 @@ async function openDisconnectDialog() {
 describe('NameEditForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.updateName.mockResolvedValue(undefined);
+    mocks.updateName.mockResolvedValue({ success: true, message: 'Name updated successfully' });
     mocks.createConnectRequest.mockResolvedValue({ connectId: 'connect-1' });
     mocks.disconnectGoogle.mockResolvedValue(undefined);
     user = userEvent.setup();
@@ -129,6 +129,29 @@ describe('NameEditForm', () => {
 
     await user.type(input, '!');
 
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('a name the backend rejects keeps the editor open and shows the reason under the field', async () => {
+    mocks.updateName.mockResolvedValueOnce({
+      success: false,
+      reason: 'name_too_short',
+      message: 'Name must be at least 3 characters long',
+    });
+    mockSignedIn(aliceWithoutGoogle);
+
+    render(<NameEditForm />);
+    const input = await startEditing();
+    await user.clear(input);
+    await user.type(input, 'Al');
+    await user.click(screen.getByRole('button', { name: 'Save Name' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Name must be at least 3 characters long'
+    );
+    expect(screen.getByRole('button', { name: 'Save Name' })).toBeInTheDocument();
+
+    await user.type(input, 'x');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
