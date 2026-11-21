@@ -19,8 +19,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
+import { InlineFeedback, type FeedbackTone } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,7 +28,11 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { type FeedbackExtra, useFeedback } from '@/hooks/useFeedback';
 import { useAppInfo } from '@/modules/app/useAppInfo';
+import { CopyButton } from '@/modules/chatroom/components/CopyButton';
+
+type Report = (tone: FeedbackTone, message: string, extra?: FeedbackExtra) => void;
 
 /**
  * Displays Google Authentication configuration page with OAuth setup, testing, and management capabilities.
@@ -45,6 +49,7 @@ export default function GoogleAuthConfigPage() {
   const [isFormLoading, setIsFormLoading] = useState(false);
   const [clientSecretFocused, setClientSecretFocused] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
+  const { feedback, show, error, clear } = useFeedback();
 
   // Convex queries and mutations
   const configData = useSessionQuery(api.system.auth.google.getConfig);
@@ -92,12 +97,14 @@ export default function GoogleAuthConfigPage() {
 
   const handleToggleEnabled = useCallback(
     async (newEnabled: boolean) => {
-      await _handleToggleEnabled(newEnabled, toggleEnabled, setEnabled);
+      clear();
+      await _handleToggleEnabled(newEnabled, toggleEnabled, setEnabled, show);
     },
-    [toggleEnabled]
+    [toggleEnabled, clear, show]
   );
 
   const handleSave = useCallback(async () => {
+    clear();
     await _handleSave({
       isFormLoading,
       setIsFormLoading,
@@ -109,8 +116,11 @@ export default function GoogleAuthConfigPage() {
       enabled,
       updateConfig,
       setIsConfigured,
+      report: show,
     });
   }, [
+    clear,
+    show,
     isFormLoading,
     redirectUris,
     projectId,
@@ -122,16 +132,21 @@ export default function GoogleAuthConfigPage() {
   ]);
 
   const handleTest = useCallback(async () => {
-    await _handleTest(clientId, clientSecret, testConfig);
-  }, [clientId, clientSecret, testConfig]);
+    clear();
+    await _handleTest(clientId, clientSecret, testConfig, show);
+  }, [clear, show, clientId, clientSecret, testConfig]);
 
   const handleReset = useCallback(async () => {
-    await _handleReset(resetConfig, setProjectId, setClientId, setClientSecret, setIsConfigured);
-  }, [resetConfig]);
-
-  const handleCopyToClipboard = useCallback(async (text: string) => {
-    await _copyToClipboard(text);
-  }, []);
+    clear();
+    await _handleReset(
+      resetConfig,
+      setProjectId,
+      setClientId,
+      setClientSecret,
+      setIsConfigured,
+      show
+    );
+  }, [clear, show, resetConfig]);
 
   // Show loading state while data is being fetched
   if (isPageLoading) {
@@ -508,9 +523,12 @@ export default function GoogleAuthConfigPage() {
               {javascriptOrigins.map((origin) => (
                 <div key={origin} className="flex gap-2">
                   <Input value={origin} readOnly className="font-mono text-sm" />
-                  <Button variant="outline" size="sm" onClick={() => handleCopyToClipboard(origin)}>
-                    Copy
-                  </Button>
+                  <CopyButton
+                    text={origin}
+                    label="Copy"
+                    copiedLabel="Copied!"
+                    onCopyError={error}
+                  />
                 </div>
               ))}
             </div>
@@ -537,9 +555,7 @@ export default function GoogleAuthConfigPage() {
               {redirectUris.map((uri) => (
                 <div key={uri} className="flex gap-2">
                   <Input value={uri} readOnly className="font-mono text-sm" />
-                  <Button variant="outline" size="sm" onClick={() => handleCopyToClipboard(uri)}>
-                    Copy
-                  </Button>
+                  <CopyButton text={uri} label="Copy" copiedLabel="Copied!" onCopyError={error} />
                 </div>
               ))}
             </div>
@@ -577,6 +593,13 @@ export default function GoogleAuthConfigPage() {
               </Button>
             )}
           </div>
+
+          <InlineFeedback
+            feedback={feedback}
+            onDismiss={clear}
+            data-testid="google-auth-feedback"
+            className="mt-4"
+          />
         </CardContent>
       </Card>
 
@@ -642,19 +665,6 @@ export default function GoogleAuthConfigPage() {
       </Card>
     </div>
   );
-}
-
-/**
- * Copies text to clipboard and shows success/error toast notification.
- */
-async function _copyToClipboard(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard!');
-  } catch (error: unknown) {
-    console.error('Failed to copy to clipboard:', error);
-    toast.error('Failed to copy to clipboard');
-  }
 }
 
 /**
@@ -780,15 +790,15 @@ function _handleClientSecretBlur(setClientSecretFocused: (focused: boolean) => v
 async function _handleToggleEnabled(
   newEnabled: boolean,
   toggleEnabled: (params: { enabled: boolean }) => Promise<{ success: boolean; message: string }>,
-  setEnabled: (enabled: boolean) => void
+  setEnabled: (enabled: boolean) => void,
+  report: Report
 ): Promise<void> {
   try {
     await toggleEnabled({ enabled: newEnabled });
     setEnabled(newEnabled);
-    toast.success(`Google Auth ${newEnabled ? 'enabled' : 'disabled'} successfully`);
   } catch (error: unknown) {
     console.error('Failed to toggle Google Auth:', error);
-    toast.error('Failed to toggle Google Auth. Please try again.');
+    report('error', 'Failed to toggle Google Auth. Please try again.');
   }
 }
 
@@ -809,6 +819,7 @@ interface _SaveConfigParams {
     redirectUris: string[];
   }) => Promise<{ success: boolean; message: string }>;
   setIsConfigured: (configured: boolean) => void;
+  report: Report;
 }
 
 /**
@@ -826,6 +837,7 @@ async function _handleSave(params: _SaveConfigParams): Promise<void> {
     enabled,
     updateConfig,
     setIsConfigured,
+    report,
   } = params;
 
   if (isFormLoading) return;
@@ -833,19 +845,19 @@ async function _handleSave(params: _SaveConfigParams): Promise<void> {
   setIsFormLoading(true);
   try {
     if (redirectUris.length === 0) {
-      toast.error('No redirect URIs available. Please refresh the page.');
+      report('error', 'No redirect URIs available. Please refresh the page.');
       return;
     }
 
     if (!clientId.trim()) {
-      toast.error('Client ID is required');
+      report('error', 'Client ID is required');
       return;
     }
 
     // Check if client secret is required (new configuration or replacing existing)
     const hasExistingSecret = configData?.hasClientSecret;
     if (!hasExistingSecret && !clientSecret.trim()) {
-      toast.error('Client Secret is required for new configuration');
+      report('error', 'Client Secret is required for new configuration');
       return;
     }
 
@@ -857,11 +869,10 @@ async function _handleSave(params: _SaveConfigParams): Promise<void> {
       redirectUris: redirectUris,
     });
 
-    toast.success('Google Auth configuration saved successfully');
     setIsConfigured(true);
   } catch (error: unknown) {
     console.error('Failed to save Google Auth configuration:', error);
-    toast.error('Failed to save configuration. Please try again.');
+    report('error', 'Failed to save configuration. Please try again.');
   } finally {
     setIsFormLoading(false);
   }
@@ -878,11 +889,12 @@ async function _handleTest(
     success: boolean;
     message: string;
     details?: { issues?: string[] };
-  }>
+  }>,
+  report: Report
 ): Promise<void> {
   // Client ID is mandatory
   if (!clientId.trim()) {
-    toast.error('Please enter a Client ID to test the configuration');
+    report('error', 'Please enter a Client ID to test the configuration');
     return;
   }
 
@@ -899,13 +911,13 @@ async function _handleTest(
     const result = await testConfig(params);
 
     if (result.success) {
-      toast.success(`✅ Configuration is valid: ${result.message}`);
+      report('success', `✅ Configuration is valid: ${result.message}`, { icon: false });
     } else {
-      toast.error(`❌ Configuration failed: ${result.message}`);
+      report('error', `❌ Configuration failed: ${result.message}`, { icon: false });
     }
   } catch (error: unknown) {
     console.error('Failed to test Google Auth configuration:', error);
-    toast.error('Failed to test configuration. Please try again.');
+    report('error', 'Failed to test configuration. Please try again.');
   }
 }
 
@@ -917,7 +929,8 @@ async function _handleReset(
   setProjectId: (id: string) => void,
   setClientId: (id: string) => void,
   setClientSecret: (secret: string) => void,
-  setIsConfigured: (configured: boolean) => void
+  setIsConfigured: (configured: boolean) => void,
+  report: Report
 ): Promise<void> {
   if (
     !confirm(
@@ -929,7 +942,6 @@ async function _handleReset(
 
   try {
     await resetConfig({});
-    toast.success('Google Auth configuration has been reset');
     // Note: enabled state is preserved and handled separately
     setProjectId('');
     setClientId('');
@@ -937,6 +949,6 @@ async function _handleReset(
     setIsConfigured(false);
   } catch (error: unknown) {
     console.error('Failed to reset Google Auth configuration:', error);
-    toast.error('Failed to reset configuration. Please try again.');
+    report('error', 'Failed to reset configuration. Please try again.');
   }
 }
