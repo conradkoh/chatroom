@@ -5,7 +5,7 @@ import { useFeedback, type UseFeedbackResult } from './useFeedback';
 import type { Feedback } from '@/components/inline-feedback';
 
 /** The warning a truncated file-content copy shows. Shared by every host that reports copies. */
-const TRUNCATED_FILE_COPY_MESSAGE = 'Copied file content (truncated)';
+export const TRUNCATED_FILE_COPY_MESSAGE = 'Copied file content (truncated)';
 
 /** What a successful copy reports. `truncated` is true only when copied file content was cut short. */
 export interface CopySucceededInfo {

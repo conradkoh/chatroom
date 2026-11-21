@@ -9,6 +9,7 @@ import {
   __resetWorkspaceFileTreeWatchCoordinatorForTests,
   acquireFileTreeWatch,
 } from '../files/workspaceFileTreeWatchCoordinator';
+import { useFileContent } from '../hooks/useFileContent';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import {
   __resetWorkspaceFileTreeStoreForTests,
@@ -205,6 +206,7 @@ afterEach(() => {
   __resetWorkspaceFileTreeWatchCoordinatorForTests();
   __resetWorkspaceFileTreeRefreshCoordinatorForTests();
   __resetWorkspaceFileTreeDeltaSyncCoordinatorForTests();
+  vi.mocked(useFileContent).mockReturnValue(null);
 });
 
 async function submitNewFile(path: string) {
@@ -719,5 +721,54 @@ describe('FileExplorerPanel context-menu copy feedback', () => {
     const slot = screen.getByTestId('explorer-feedback');
     expect(slot).toHaveTextContent('Failed to rename package.json: Name taken');
     expect(slot).toHaveAttribute('role', 'alert');
+  });
+});
+
+describe('FileExplorerPanel truncated file copy warning', () => {
+  function stubClipboard(writeText: (text: string) => Promise<void>) {
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  }
+
+  function mockFileContent(truncated: boolean) {
+    vi.mocked(useFileContent).mockReturnValue({
+      content: 'file body',
+      encoding: 'utf8',
+      truncated,
+      fetchedAt: 1,
+    });
+  }
+
+  async function copyFileContentFromContextMenu() {
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /copy file content/i }));
+  }
+
+  it('shows the truncation warning as a status in explorer-feedback', async () => {
+    mockFileContent(true);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await copyFileContentFromContextMenu();
+
+    const slot = await screen.findByTestId('explorer-feedback');
+    expect(slot).toHaveAttribute('role', 'status');
+    expect(slot).toHaveTextContent('Copied file content (truncated)');
+    expect(writeText).toHaveBeenCalledWith('file body');
+  });
+
+  it('shows nothing after a complete file content copy', async () => {
+    mockFileContent(false);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await copyFileContentFromContextMenu();
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('file body'));
+    expect(screen.queryByTestId('explorer-feedback')).not.toBeInTheDocument();
   });
 });

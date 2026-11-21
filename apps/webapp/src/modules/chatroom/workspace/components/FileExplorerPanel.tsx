@@ -57,6 +57,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { TRUNCATED_FILE_COPY_MESSAGE, type CopySucceededInfo } from '@/hooks/useCopyOwnedFeedback';
 import { useFeedback } from '@/hooks/useFeedback';
 
 export interface FileExplorerPanelHandle {
@@ -291,16 +292,21 @@ export const FileExplorerPanel = memo(
         type: 'file' | 'directory';
       } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
-      const { feedback, error: showExplorerError, clear: clearExplorerFeedback } = useFeedback();
+      const {
+        feedback,
+        error: showExplorerError,
+        show: showExplorerFeedback,
+        clear: clearExplorerFeedback,
+      } = useFeedback();
       // True while the slot holds a tree-sync failure. Only tree-sync attempts may clear it.
       const treeSyncErrorShownRef = useRef(false);
-      // True while the slot holds a copy failure. Only a copy success may clear it.
-      const copyErrorShownRef = useRef(false);
+      // True while the slot holds a copy failure or a truncated-copy warning. Only a copy may clear it.
+      const copyFeedbackShownRef = useRef(false);
       // File-op and drop errors. Every writer to the slot except tree-sync and copy goes through here.
       const showFileOpError = useCallback(
         (message: string) => {
           treeSyncErrorShownRef.current = false;
-          copyErrorShownRef.current = false;
+          copyFeedbackShownRef.current = false;
           showExplorerError(message);
         },
         [showExplorerError]
@@ -308,17 +314,26 @@ export const FileExplorerPanel = memo(
       const showCopyError = useCallback(
         (message: string) => {
           treeSyncErrorShownRef.current = false;
-          copyErrorShownRef.current = true;
+          copyFeedbackShownRef.current = true;
           showExplorerError(message);
         },
         [showExplorerError]
       );
-      // A successful copy clears only a copy failure. A file-op or tree-sync message in the slot survives.
-      const clearCopyFailureOnSuccess = useCallback(() => {
-        if (!copyErrorShownRef.current) return;
-        copyErrorShownRef.current = false;
-        clearExplorerFeedback();
-      }, [clearExplorerFeedback]);
+      // A truncated copy shows the warning. Any other copy success clears only copy-owned feedback.
+      const copySucceeded = useCallback(
+        (info?: CopySucceededInfo) => {
+          if (info?.truncated) {
+            treeSyncErrorShownRef.current = false;
+            copyFeedbackShownRef.current = true;
+            showExplorerFeedback('warning', TRUNCATED_FILE_COPY_MESSAGE);
+            return;
+          }
+          if (!copyFeedbackShownRef.current) return;
+          copyFeedbackShownRef.current = false;
+          clearExplorerFeedback();
+        },
+        [clearExplorerFeedback, showExplorerFeedback]
+      );
       const treeSyncFeedback = useMemo<WorkspaceTreeSyncFeedback>(
         () => ({
           // Clear only a tree-sync failure. A file-op or copy failure in this slot must survive
@@ -330,7 +345,7 @@ export const FileExplorerPanel = memo(
           },
           onError: (message) => {
             treeSyncErrorShownRef.current = true;
-            copyErrorShownRef.current = false;
+            copyFeedbackShownRef.current = false;
             showExplorerError(message);
           },
         }),
@@ -446,8 +461,8 @@ export const FileExplorerPanel = memo(
               onDelete: () => setDeleteTarget({ path, type: target.type }),
               onNewFile: isDir ? () => openNewFileDialog(path) : undefined,
               onNewFolder: isDir ? () => openNewFolderDialog(path) : undefined,
-              // A copy failure is copy-owned. A success clears only that failure and shows nothing.
-              onCopied: clearCopyFailureOnSuccess,
+              // A copy outcome is copy-owned. A truncated copy shows the warning; any other success clears only copy-owned feedback.
+              onCopied: copySucceeded,
               onCopyError: showCopyError,
             },
             visibility,
@@ -458,7 +473,7 @@ export const FileExplorerPanel = memo(
           openFileOnRemote,
           openRenameDialog,
           trackContextMenuFile,
-          clearCopyFailureOnSuccess,
+          copySucceeded,
           showCopyError,
         ]
       );
