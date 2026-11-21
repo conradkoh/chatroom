@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useRef } from 'react';
 import { WorkspaceTabBarItem, WorkspaceTabBarShell } from './WorkspaceTabBar';
 import { setWorkspaceTabDragData } from '../constants/workspaceTabDrag';
 import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
+import type { WorkspaceFileCopyInfo } from '../file-menu';
 import type { EditorTab } from '../hooks/useFileTabs';
 import { editorTabKey } from '../hooks/useFileTabs';
 import {
@@ -25,8 +26,8 @@ interface FileTabBarProps {
   onToggleExpanded?: (filePath: string) => void;
   onTogglePreviewExpanded?: (filePath: string) => void;
   onOpenFileOnRemote?: (filePath: string) => void;
-  /** Called after a file-tab copy command succeeds. */
-  onCopied?: () => void;
+  /** Called after a file-tab copy command succeeds, with what was copied. The dashboard shows the truncation warning. */
+  onCopied?: (info: WorkspaceFileCopyInfo) => void;
   /** Called with the failure message when a file-tab copy command fails. */
   onCopyError?: (message: string) => void;
   enableDragSplit?: boolean;

@@ -390,7 +390,7 @@ interface ExplorerContentProps {
   agenticFocusToken: number;
   /** Sinks for file-tab copy commands; the dashboard strip owns the feedback slot. */
   copyHandlers: {
-    onCopied: () => void;
+    onCopied: (info: { truncated: boolean }) => void;
     onCopyError: (message: string) => void;
   };
 }
