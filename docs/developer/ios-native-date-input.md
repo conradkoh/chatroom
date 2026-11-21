@@ -21,9 +21,9 @@ Use custom Popover + Calendar pickers (see the date-picker story in the Componen
 The policy is enforced in four layers:
 
 - **CI** — `.github/workflows/ci.yml` runs `pnpm lint` and `pnpm typecheck` on pull requests to `master`. Whether a failure blocks a merge depends on branch protection requiring the `tests` check; branch protection has not been verified.
-- **Raw inputs** — `react/forbid-elements` in `eslint.config.mjs` bans `<input>` elements in product code. Render inputs through `Input` from `@/components/ui/input`.
+- **Raw inputs** — `react/forbid-elements` in `eslint.config.mjs` reports raw `<input>` elements as a **warning**, not an error. Render new inputs through `Input` from `@/components/ui/input`, or `DateInput` / `DateTimeField` from `@/components/ui/date-picker` for dates. Existing raw inputs for file, range, radio, checkbox, search and text controls, plus `Input` test mocks, are tracked tech debt. `Input` bakes industrial styling into every render, so those controls are not migrated by this policy. Do not add new raw inputs.
 - **Imports** — `no-restricted-imports` bans `@base-ui/react/input`, the `Input` and `Field` exports of the `@base-ui/react` root barrel, and `@base-ui/react/field`, outside `input.tsx`. It also bans importing `NativeTemporalInput` from `@/components/ui/input` or any relative path that resolves to it, outside the developer harness. `NativeTemporalInput` is only for the developer harness and diagnostics and must not appear in product UI.
-- **Temporal types** — `no-restricted-syntax` rejects literal temporal `type` values (`date`, `datetime-local`, `month`, `time`, `week`) on any JSX element, including the `type={'date'}` expression form. `Input`'s `type` union also excludes them at compile time. Use `DatePickerField` from `@/components/ui/date-picker` instead.
+- **Temporal types** — `no-restricted-syntax` rejects literal temporal `type` values (`date`, `datetime-local`, `month`, `time`, `week`) on any JSX element, including the `type={'date'}` expression form. `Input`'s `type` union also excludes them at compile time. This rule is an **error**. Use `DateInput`, `DateTimeField`, or `DatePickerField` from `@/components/ui/date-picker` instead. Exempted files are listed under [Exemptions](#exemptions).
 
 ### Known gaps
 
@@ -32,6 +32,14 @@ The policy is enforced in four layers:
 - Third-party components that render their own `<input>` are outside these rules.
 - `@ts-expect-error` or `as any` on `Input` defeats the compile-time type restriction.
 - Imperative DOM changes (`ref.current.type = …`, `setAttribute`) bypass both lint and types.
+
+## Exemptions
+
+Each exemption is one exact file, declared as an exact-path override in `eslint.config.mjs`. Do not add globs or directory-wide exemptions.
+
+| File                                                                           | Rule(s) disabled                        | Rationale                                                                                                                                                                       | Revisit when                                                   |
+| ------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `packages/cli/src/daemon/local-web/client/components/logs/TimeRangeFilter.tsx` | `no-restricted-syntax` (temporal types) | Loopback-only (`127.0.0.1`) developer log viewer. It is a separate Vite app with no `Input` or date-picker primitives. Native `datetime-local` is keyboard-typeable on desktop. | The daemon UI is served beyond loopback or targeted at mobile. |
 
 ---
 
@@ -91,6 +99,23 @@ Use `DatePickerField` for date fields in product forms:
 
 ```tsx
 <DatePickerField id="start" label="Start date" date={date} onSelect={setDate} />
+```
+
+Use `DateInput` for a single date with typed text and a calendar popover. It emits a local-midnight `Date`, or `undefined` while the text is partial or invalid:
+
+```tsx
+import { DateInput } from '@/components/ui/date-picker';
+
+<DateInput aria-label="Start date" value={start} onChange={setStart} min={new Date()} />;
+```
+
+Use `DateTimeField` for a date plus hour and minute. It emits `'YYYY-MM-DDTHH:mm'`, or `''` while incomplete. Pass `id` and point a `<label htmlFor>` at it:
+
+```tsx
+import { DateTimeField } from '@/components/ui/date-picker';
+
+<label htmlFor="run-at">Run at</label>;
+<DateTimeField id="run-at" value={runAtLocal} onChange={setRunAtLocal} min={new Date()} />;
 ```
 
 Do **not** render native temporal inputs in product UI. The flex wrapper and `data-native-date-input` styles exist only for the developer harness and diagnostic comparisons.
