@@ -571,3 +571,47 @@ describe('FileExplorerPanel file-op feedback survival', () => {
     );
   });
 });
+
+describe('FileExplorerPanel context-menu copy feedback', () => {
+  function stubClipboard(writeText: (text: string) => Promise<void>) {
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  }
+
+  async function copyRelativePathFromContextMenu() {
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /copy relative path/i }));
+  }
+
+  it('shows a copy failure as an alert in explorer-feedback', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    stubClipboard(writeText);
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await copyRelativePathFromContextMenu();
+
+    const slot = await screen.findByTestId('explorer-feedback');
+    // The box variant puts role="alert" on the slot element itself, not a descendant.
+    expect(slot).toHaveAttribute('role', 'alert');
+    expect(slot).toHaveTextContent('Failed to copy to clipboard');
+    expect(writeText).toHaveBeenCalledWith('package.json');
+  });
+
+  it('shows nothing after a successful copy', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await copyRelativePathFromContextMenu();
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('package.json');
+    });
+    expect(screen.queryByTestId('explorer-feedback')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Copied/)).not.toBeInTheDocument();
+  });
+});
