@@ -29,6 +29,15 @@ export interface FileCopyActionsMenuProps {
   onOpenInExplorer?: () => void;
   /** When provided, shows "Open File on Remote" in Path section. */
   onOpenFileOnRemote?: () => void;
+  /** Receives a copy failure message. The host shows it in its own slot. */
+  onCopyError?: (message: string) => void;
+  /** Called after a copy succeeds. Hosts may clear their own copy failure. Never show copy text here. */
+  onCopied?: () => void;
+}
+
+interface CopyHostCallbacks {
+  onCopied?: () => void;
+  onCopyError?: (message: string) => void;
 }
 
 const copyContentButtonClassName =
@@ -37,16 +46,20 @@ const copyContentButtonClassName =
 export const CopyFileNameButton = memo(function CopyFileNameButton({
   relativePath,
   className,
-}: {
-  relativePath: string;
-  className?: string;
-}) {
+  onCopied,
+  onCopyError,
+}: { relativePath: string; className?: string } & CopyHostCallbacks) {
   const { copied, markCopied } = useCopiedIndicator();
   const handleCopy = useCallback(() => {
     void copyFileNameToClipboard(relativePath).then((result) => {
-      if (result.ok) markCopied();
+      if (result.ok) {
+        markCopied();
+        onCopied?.();
+      } else {
+        onCopyError?.(result.message);
+      }
     });
-  }, [relativePath, markCopied]);
+  }, [relativePath, markCopied, onCopied, onCopyError]);
 
   return (
     <button
@@ -73,19 +86,26 @@ export const CopyFileContentButton = memo(function CopyFileContentButton({
   disabled = false,
   label,
   className,
+  onCopied,
+  onCopyError,
 }: {
   content: string | null;
   disabled?: boolean;
   label: string;
   className?: string;
-}) {
+} & CopyHostCallbacks) {
   const { copied, markCopied } = useCopiedIndicator();
   const handleCopy = useCallback(() => {
     if (!content || disabled) return;
     void copyFileContentToClipboard(content).then((result) => {
-      if (result.ok) markCopied();
+      if (result.ok) {
+        markCopied();
+        onCopied?.();
+      } else {
+        onCopyError?.(result.message);
+      }
     });
-  }, [content, disabled, markCopied]);
+  }, [content, disabled, markCopied, onCopied, onCopyError]);
 
   return (
     <button
@@ -118,6 +138,8 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   triggerVariant = 'copy',
   onOpenInExplorer,
   onOpenFileOnRemote,
+  onCopyError,
+  onCopied,
 }: FileCopyActionsMenuProps) {
   return (
     <WorkspaceFileActionsMenu
@@ -130,7 +152,7 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
         contentDisabled,
         fileContentLabel,
       }}
-      handlers={{ onOpenInExplorer, onOpenFileOnRemote }}
+      handlers={{ onOpenInExplorer, onOpenFileOnRemote, onCopyError, onCopied }}
       visibility={{
         copyFileName: showFileName,
         copyRelativePath: true,

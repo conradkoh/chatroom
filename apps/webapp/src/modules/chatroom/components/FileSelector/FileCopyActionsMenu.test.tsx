@@ -87,6 +87,23 @@ describe('FileCopyActionsMenu', () => {
     expect(trigger.querySelector('svg.lucide-check')).toBeNull();
   });
 
+  it('reports a rejected copy to onCopyError and leaves the trigger on the copy icon', async () => {
+    const onCopyError = vi.fn();
+    writeText.mockRejectedValueOnce(new Error('denied'));
+
+    render(<FileCopyActionsMenu {...defaultProps} onCopyError={onCopyError} />);
+    openDropdown();
+    const trigger = screen.getByRole('button', { name: /copy file/i });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Copy File Name'));
+    });
+
+    expect(onCopyError).toHaveBeenCalledTimes(1);
+    expect(onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
+    expect(trigger.querySelector('svg.lucide-check')).toBeNull();
+  });
+
   it('disables Copy Full Path when workingDir is null', () => {
     render(<FileCopyActionsMenu {...defaultProps} workingDir={null} />);
     openDropdown();
@@ -267,5 +284,26 @@ describe('CopyFileContentButton', () => {
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('hello');
     });
+  });
+
+  it('reports a rejected copy to onCopyError', async () => {
+    const onCopyError = vi.fn();
+    writeText.mockRejectedValueOnce(new Error('denied'));
+
+    render(
+      <CopyFileContentButton
+        content="hello"
+        label="Copy File Content"
+        className="flex"
+        onCopyError={onCopyError}
+      />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /copy file content/i }));
+    });
+
+    expect(onCopyError).toHaveBeenCalledTimes(1);
+    expect(onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
   });
 });

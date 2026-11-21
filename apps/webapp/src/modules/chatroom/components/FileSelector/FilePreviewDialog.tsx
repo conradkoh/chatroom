@@ -46,6 +46,7 @@ import { type FileContentResult } from '../../workspace/hooks/useFileContent';
 import { useRequestWorkspaceFileContent } from '../../workspace/hooks/useRequestWorkspaceFileContent';
 import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   FixedModal,
   FixedModalContent,
@@ -54,6 +55,8 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
+import { useCopiedIndicator } from '@/hooks/useCopiedIndicator';
+import { useCopyOwnedFeedback } from '@/hooks/useCopyOwnedFeedback';
 
 interface FilePreviewDialogProps {
   filePath: string | null;
@@ -352,6 +355,8 @@ const FileContentPanel = memo(function FileContentPanel({
   viewMode,
   copyContentLabel,
   canCopyContent,
+  onCopied,
+  onCopyError,
 }: {
   filePath: string | null;
   contentResult: FileContentResult | null | undefined;
@@ -359,11 +364,26 @@ const FileContentPanel = memo(function FileContentPanel({
   viewMode: FileViewMode;
   copyContentLabel: string;
   canCopyContent: boolean;
+  onCopied: () => void;
+  onCopyError: (message: string) => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   useContainedSelectAll(contentRef);
   const { peekHighlightForFile } = usePendingFileHighlight();
   const fileHighlight = filePath ? peekHighlightForFile(filePath) : null;
+  const { copied, markCopied } = useCopiedIndicator();
+
+  const handleCopyContent = useCallback(() => {
+    if (!contentResult?.content || !canCopyContent) return;
+    void copyFileContentToClipboard(contentResult.content).then((result) => {
+      if (result.ok) {
+        markCopied();
+        onCopied();
+      } else {
+        onCopyError(result.message);
+      }
+    });
+  }, [contentResult, canCopyContent, markCopied, onCopied, onCopyError]);
 
   if (!filePath) {
     return (
@@ -411,11 +431,8 @@ const FileContentPanel = memo(function FileContentPanel({
       {showToolbar && (
         <FileContentActionBar
           copyLabel={copyContentLabel}
-          onCopy={() => {
-            if (contentResult.content && canCopyContent) {
-              void copyFileContentToClipboard(contentResult.content);
-            }
-          }}
+          onCopy={handleCopyContent}
+          copied={copied}
           disabled={!canCopyContent}
         />
       )}
@@ -486,11 +503,18 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const [viewMode, setViewMode] = useState<FileViewMode>(() =>
     getDefaultViewMode(effectiveFilePath ?? '')
   );
+  const {
+    feedback: copyFeedback,
+    showCopyError,
+    copySucceeded,
+    clear: clearCopyFeedback,
+  } = useCopyOwnedFeedback();
 
-  // Reset view mode when file changes
+  // Reset view mode and copy feedback when the previewed file changes.
   useEffect(() => {
     setViewMode(getDefaultViewMode(effectiveFilePath ?? ''));
-  }, [effectiveFilePath]);
+    clearCopyFeedback();
+  }, [effectiveFilePath, clearCopyFeedback]);
 
   const isMarkdown = effectiveFilePath ? isMarkdownFile(effectiveFilePath) : false;
   const isCsv = effectiveFilePath ? isCsvFile(effectiveFilePath) : false;
@@ -573,6 +597,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 onOpenFileOnRemote={
                   onOpenFileOnRemote ? () => void onOpenFileOnRemote(effectiveFilePath) : undefined
                 }
+                onCopyError={showCopyError}
+                onCopied={copySucceeded}
               />
             )}
             {contentResult?.truncated && (
@@ -649,9 +675,17 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
               viewMode={viewMode}
               copyContentLabel={copyContentLabel}
               canCopyContent={canCopyContent}
+              onCopied={copySucceeded}
+              onCopyError={showCopyError}
             />
           </FixedModalBody>
         </div>
+        <InlineFeedback
+          feedback={copyFeedback}
+          onDismiss={clearCopyFeedback}
+          data-testid="file-preview-feedback"
+          className="mx-4 mb-2 shrink-0"
+        />
       </FixedModalContent>
     </FixedModal>
   );
