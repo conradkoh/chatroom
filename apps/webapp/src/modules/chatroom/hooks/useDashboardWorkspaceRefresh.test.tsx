@@ -8,14 +8,20 @@ import { useCopyOwnedFeedback } from '@/hooks/useCopyOwnedFeedback';
 
 const REFRESH_COOLDOWN_MS = 5000;
 const WORKSPACE = { machineId: 'machine-1', workingDir: '/work' };
+const IN_PROGRESS = 'Refresh already in progress — please wait a moment';
 
 const requestGitRefresh = vi.fn();
 
+interface Workspace {
+  machineId: string | undefined;
+  workingDir: string | undefined;
+}
+
 /** Mirrors the dashboard wiring: one strip, one refresh handler. */
-function RefreshStripHarness() {
+function RefreshStripHarness({ workspace = WORKSPACE }: { workspace?: Workspace }) {
   const strip = useCopyOwnedFeedback();
   const refresh = useDashboardWorkspaceRefresh({
-    ...WORKSPACE,
+    ...workspace,
     requestGitRefresh,
     report: strip.report,
     cooldownMs: REFRESH_COOLDOWN_MS,
@@ -39,7 +45,7 @@ async function clickRefresh() {
 }
 
 describe('the refresh cooldown boundary', () => {
-  let now = 5000;
+  let now = 0;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,22 +57,31 @@ describe('the refresh cooldown boundary', () => {
     vi.restoreAllMocks();
   });
 
-  // The ref starts at 0, so a first click at these times is exactly the (lastAt=0, now, 5000) case.
-  it.each([
-    { clickAt: 4999, sends: false },
-    { clickAt: 5000, sends: true },
-  ])(
-    'a first refresh at $clickAt ms against a 5000 ms cooldown sends: $sends',
-    async ({ clickAt, sends }) => {
-      now = clickAt;
-      render(<RefreshStripHarness />);
+  it('a first refresh sends even at clock zero', async () => {
+    now = 0;
+    render(<RefreshStripHarness />);
 
+    await clickRefresh();
+
+    expect(requestGitRefresh).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(IN_PROGRESS)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { secondClickAt: 14999, sends: false },
+    { secondClickAt: 15000, sends: true },
+  ])(
+    'a second refresh at $secondClickAt ms, after a sent refresh at 10000 ms against a 5000 ms cooldown, sends: $sends',
+    async ({ secondClickAt, sends }) => {
+      now = 10000;
+      render(<RefreshStripHarness />);
       await clickRefresh();
 
-      expect(requestGitRefresh).toHaveBeenCalledTimes(sends ? 1 : 0);
-      expect(
-        screen.queryByText('Refresh already in progress — please wait a moment') !== null
-      ).toBe(!sends);
+      now = secondClickAt;
+      await clickRefresh();
+
+      expect(requestGitRefresh).toHaveBeenCalledTimes(sends ? 2 : 1);
+      expect(screen.queryByText(IN_PROGRESS) !== null).toBe(!sends);
     }
   );
 });
@@ -107,9 +122,7 @@ describe('useDashboardWorkspaceRefresh', () => {
 
     const box = screen.getByTestId('dashboard-feedback');
     expect(box).toHaveAttribute('role', 'status');
-    expect(
-      screen.getByText('Refresh already in progress — please wait a moment')
-    ).toBeInTheDocument();
+    expect(screen.getByText(IN_PROGRESS)).toBeInTheDocument();
     expect(requestGitRefresh).toHaveBeenCalledTimes(1);
   });
 
@@ -164,5 +177,71 @@ describe('useDashboardWorkspaceRefresh', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
 
     expect(screen.queryByTestId('dashboard-feedback')).not.toBeInTheDocument();
+  });
+
+  it('a skipped refresh with no workspace sends nothing and does not start the cooldown', async () => {
+    const { rerender } = render(
+      <RefreshStripHarness workspace={{ machineId: undefined, workingDir: undefined }} />
+    );
+
+    await clickRefresh();
+
+    expect(requestGitRefresh).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('dashboard-feedback')).not.toBeInTheDocument();
+
+    rerender(<RefreshStripHarness />);
+    await clickRefresh();
+
+    expect(requestGitRefresh).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(IN_PROGRESS)).not.toBeInTheDocument();
+  });
+
+  it('a failed refresh does not block the next click', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    requestGitRefresh.mockRejectedValueOnce(new Error('backend down'));
+    render(<RefreshStripHarness />);
+    await clickRefresh();
+    expect(screen.getByText('Failed to refresh workspace state')).toBeInTheDocument();
+
+    await clickRefresh(); // same instant, still inside the cooldown window
+
+    expect(requestGitRefresh).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(IN_PROGRESS)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dashboard-feedback')).not.toBeInTheDocument();
+  });
+
+  it('a refresh still in flight blocks a second click at the same instant', async () => {
+    let finish!: () => void;
+    requestGitRefresh.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      })
+    );
+    render(<RefreshStripHarness />);
+    await clickRefresh();
+
+    await clickRefresh();
+
+    expect(requestGitRefresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(IN_PROGRESS)).toBeInTheDocument();
+    await act(async () => finish());
+  });
+
+  it('a refresh still in flight blocks a click after the cooldown window has passed', async () => {
+    let finish!: () => void;
+    requestGitRefresh.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      })
+    );
+    render(<RefreshStripHarness />);
+    await clickRefresh();
+
+    now += REFRESH_COOLDOWN_MS + 1000;
+    await clickRefresh();
+
+    expect(requestGitRefresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(IN_PROGRESS)).toBeInTheDocument();
+    await act(async () => finish());
   });
 });

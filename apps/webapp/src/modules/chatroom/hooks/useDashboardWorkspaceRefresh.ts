@@ -11,36 +11,21 @@ export interface DashboardWorkspaceRefreshOptions {
   requestGitRefresh: (args: { machineId: string; workingDir: string }) => Promise<unknown>;
   /** The dashboard strip's report. Every call clears it first. */
   report: ReportFeedback;
-  /** Minimum time between requests. A call inside this window reports info and sends nothing. */
+  /** Minimum time between requests that were sent. A call inside this window reports info and sends nothing. */
   cooldownMs: number;
 }
 
-/** True when a request at `now` falls inside the cooldown that started at `lastAt`. */
-function isWithinRefreshCooldown(lastAt: number, now: number, cooldownMs: number): boolean {
-  return now - lastAt < cooldownMs;
-}
-
-/**
- * Sends the refresh request when a workspace is known. A missing workspace is a no-op, as before;
- * a rejection is reported by the caller.
- */
-async function requestWorkspaceRefresh({
-  machineId,
-  workingDir,
-  requestGitRefresh,
-}: Pick<
-  DashboardWorkspaceRefreshOptions,
-  'machineId' | 'workingDir' | 'requestGitRefresh'
->): Promise<void> {
-  if (!machineId || !workingDir) return;
-  await requestGitRefresh({ machineId, workingDir });
+/** True when a request at `now` falls inside the cooldown that started at `startedAt`. */
+function isWithinRefreshCooldown(startedAt: number, now: number, cooldownMs: number): boolean {
+  return now - startedAt < cooldownMs;
 }
 
 /**
  * Dashboard manual workspace-state refresh. Each call clears the strip, then:
- * - inside the cooldown window: info notice, no request;
- * - request succeeds (or there is no workspace, as before): nothing;
- * - request throws: error notice, and the error is logged.
+ * - no workspace (machine or working dir missing): nothing, and no cooldown is started;
+ * - a request is already in flight, or one was sent within the cooldown window: info notice, no request;
+ * - otherwise the request is sent and the cooldown starts at dispatch time;
+ *   - request throws: the cooldown is cleared so the user can retry, error notice, and the error is logged.
  */
 export function useDashboardWorkspaceRefresh({
   machineId,
@@ -49,21 +34,35 @@ export function useDashboardWorkspaceRefresh({
   report,
   cooldownMs,
 }: DashboardWorkspaceRefreshOptions): () => Promise<void> {
-  const lastRefreshRef = useRef(0);
+  /** Dispatch time of the last request sent. `null` = none sent yet, or the last one failed. */
+  const lastStartedAtRef = useRef<number | null>(null);
+  /** True while a request is awaiting its response. */
+  const inFlightRef = useRef(false);
 
+  // fallow-ignore-next-line complexity
   return useCallback(async () => {
     report(null);
+    if (!machineId || !workingDir) return;
+
     const now = Date.now();
-    if (isWithinRefreshCooldown(lastRefreshRef.current, now, cooldownMs)) {
+    const lastStartedAt = lastStartedAtRef.current;
+    const inCooldown =
+      lastStartedAt !== null && isWithinRefreshCooldown(lastStartedAt, now, cooldownMs);
+    if (inFlightRef.current || inCooldown) {
       report({ tone: 'info', message: 'Refresh already in progress — please wait a moment' });
       return;
     }
-    lastRefreshRef.current = now;
+
+    lastStartedAtRef.current = now;
+    inFlightRef.current = true;
     try {
-      await requestWorkspaceRefresh({ machineId, workingDir, requestGitRefresh });
+      await requestGitRefresh({ machineId, workingDir });
     } catch (err) {
+      lastStartedAtRef.current = null;
       report({ tone: 'error', message: 'Failed to refresh workspace state' });
       console.error('Refresh workspace state failed:', err);
+    } finally {
+      inFlightRef.current = false;
     }
   }, [cooldownMs, machineId, workingDir, report, requestGitRefresh]);
 }
