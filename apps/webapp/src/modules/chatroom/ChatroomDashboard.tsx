@@ -83,6 +83,8 @@ import { useChatroomStatus } from './hooks/useChatroomStatus';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useDashboardAgentBulkActions } from './hooks/useDashboardAgentBulkActions';
+import { useDashboardSavedCommandDelete } from './hooks/useDashboardSavedCommandDelete';
+import { useDashboardWorkspaceRefresh } from './hooks/useDashboardWorkspaceRefresh';
 import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
 import { useStartAllRemoteAgents } from './hooks/useStartAllRemoteAgents';
 import { StartInNewSessionPreferenceProvider } from './hooks/useStartInNewSessionPreference';
@@ -843,6 +845,14 @@ function ChatroomDashboardContent({
     conversationNavigationRef.current?.goToLatestAnchor();
   }, []);
 
+  const {
+    feedback: dashboardFeedback,
+    showCopyError: showDashboardCopyError,
+    copySucceeded: dashboardCopySucceeded,
+    clear: clearDashboardFeedback,
+    report: reportDashboardFeedback,
+  } = useCopyOwnedFeedback();
+
   const handleExplorerSelectionToComposer = useCallback(
     ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
       if (!explorerSplitViewEnabled) {
@@ -996,7 +1006,6 @@ function ChatroomDashboardContent({
   // Send message mutation (used to execute saved commands)
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
-  const lastRefreshRef = useRef(0);
 
   useHandoffGitRefresh(
     chatroomId,
@@ -1005,19 +1014,10 @@ function ChatroomDashboardContent({
     REFRESH_COOLDOWN_MS
   );
 
-  const handleConfirmedDelete = useCallback(
-    async (commandId: string) => {
-      try {
-        await deleteSavedCommandMutation({
-          commandId: commandId as Id<'chatroom_savedCommands'>,
-        });
-      } catch (error) {
-        console.error('Failed to delete saved command:', error);
-        toast.error('Failed to delete command. Please try again.');
-      }
-    },
-    [deleteSavedCommandMutation]
-  );
+  const handleConfirmedDelete = useDashboardSavedCommandDelete({
+    deleteSavedCommand: deleteSavedCommandMutation,
+    report: reportDashboardFeedback,
+  });
 
   const { armedKey: confirmingDeleteCommandId, request: deleteRequest } = useTwoTapConfirm<string>(
     handleConfirmedDelete,
@@ -1377,13 +1377,6 @@ function ChatroomDashboardContent({
   }, [gitHubRepoUrl]);
 
   // ─── Multi-workspace command palette commands ──────────────────────────────
-  const {
-    feedback: dashboardFeedback,
-    showCopyError: showDashboardCopyError,
-    copySucceeded: dashboardCopySucceeded,
-    clear: clearDashboardFeedback,
-    report: reportDashboardFeedback,
-  } = useCopyOwnedFeedback();
   const dashboardCopyHandlers = useMemo(
     () => ({ onCopied: dashboardCopySucceeded, onCopyError: showDashboardCopyError }),
     [dashboardCopySucceeded, showDashboardCopyError]
@@ -1557,26 +1550,13 @@ function ChatroomDashboardContent({
     [commandRunner]
   );
 
-  const handleRefreshWorkspaceState = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) {
-      toast('Refresh already in progress — please wait a moment');
-      return;
-    }
-    lastRefreshRef.current = now;
-    try {
-      if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
-        await requestGitRefreshMutation({
-          machineId: activeWorkspace.machineId,
-          workingDir: activeWorkspace.workingDir,
-        });
-      }
-      toast.success('Workspace state refresh requested');
-    } catch (err) {
-      toast.error('Failed to refresh workspace state');
-      console.error('Refresh workspace state failed:', err);
-    }
-  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, requestGitRefreshMutation]);
+  const handleRefreshWorkspaceState = useDashboardWorkspaceRefresh({
+    machineId: activeWorkspace?.machineId ?? undefined,
+    workingDir: activeWorkspace?.workingDir ?? undefined,
+    requestGitRefresh: requestGitRefreshMutation,
+    report: reportDashboardFeedback,
+    cooldownMs: REFRESH_COOLDOWN_MS,
+  });
 
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
