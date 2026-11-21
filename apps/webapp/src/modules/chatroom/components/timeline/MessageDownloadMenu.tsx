@@ -51,7 +51,8 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
       const result = await exportMessageAsDocx(exportMessage);
       if (result === 'cancelled') return;
       toast.success(result === 'saved' ? 'Saved DOCX' : 'Downloaded DOCX');
-    } catch {
+    } catch (error) {
+      console.error('[MessageDownloadMenu] DOCX export failed', error);
       toast.error('Failed to prepare DOCX');
     } finally {
       setBusyAction(null);
@@ -65,7 +66,8 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
       const result = await exportMessageAsPdf(exportMessage);
       if (result === 'cancelled') return;
       toast.success(result === 'saved' ? 'Saved PDF' : 'Downloaded PDF');
-    } catch {
+    } catch (error) {
+      console.error('[MessageDownloadMenu] PDF export failed', error);
       toast.error('Failed to prepare PDF');
     } finally {
       setBusyAction(null);

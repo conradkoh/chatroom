@@ -84,17 +84,58 @@ describe('MessageDownloadMenu', () => {
 
   it('toasts an error, closes the menu, and resets busy when the PDF export fails', async () => {
     const user = userEvent.setup();
-    vi.mocked(exportMessageAsPdf).mockRejectedValueOnce(new Error('boom'));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = new Error('boom');
+    vi.mocked(exportMessageAsPdf).mockRejectedValueOnce(error);
 
     render(<MessageDownloadMenu message={makeMessage()} />);
     await user.click(screen.getByTitle('Download message'));
     await user.click(screen.getByText('Download as PDF'));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to prepare PDF'));
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('PDF'), error);
     expect(screen.queryByText('Download as PDF')).not.toBeInTheDocument();
 
     await user.click(screen.getByTitle('Download message'));
     expect(screen.getByText('Download as PDF')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Download as PDF' })).toBeEnabled();
+  });
+
+  it('closes the menu without a toast and leaves rows enabled after the PDF save is cancelled', async () => {
+    const user = userEvent.setup();
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(exportMessageAsPdf).mockResolvedValueOnce('cancelled');
+
+    render(<MessageDownloadMenu message={makeMessage()} />);
+    await user.click(screen.getByTitle('Download message'));
+    await user.click(screen.getByText('Download as PDF'));
+
+    await waitFor(() => expect(screen.queryByText('Download as PDF')).not.toBeInTheDocument());
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTitle('Download message'));
+    expect(screen.getByRole('option', { name: 'Download as PDF' })).toBeEnabled();
+    expect(screen.getByRole('option', { name: 'Download as DOCX' })).toBeEnabled();
+  });
+
+  it('closes the menu without a toast and leaves rows enabled after the DOCX save is cancelled', async () => {
+    const user = userEvent.setup();
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(exportMessageAsDocx).mockResolvedValueOnce('cancelled');
+
+    render(<MessageDownloadMenu message={makeMessage()} />);
+    await user.click(screen.getByTitle('Download message'));
+    await user.click(screen.getByText('Download as DOCX'));
+
+    await waitFor(() => expect(screen.queryByText('Download as DOCX')).not.toBeInTheDocument());
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTitle('Download message'));
+    expect(screen.getByRole('option', { name: 'Download as DOCX' })).toBeEnabled();
     expect(screen.getByRole('option', { name: 'Download as PDF' })).toBeEnabled();
   });
 
