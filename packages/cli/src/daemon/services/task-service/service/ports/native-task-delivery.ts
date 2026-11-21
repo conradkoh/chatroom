@@ -11,7 +11,14 @@ export type TaskDeliveryFailureReason =
   | 'injection_not_confirmed'
   | 'task_not_deliverable'
   | 'assigned_elsewhere'
-  | 'redelivery_exhausted';
+  | 'redelivery_exhausted'
+  | 'delivery_retrying';
+
+/**
+ * Reasons the backend accepts for an explicit clear. An unconditional clear never
+ * removes `delivery_retrying`; only `expectedReason: 'delivery_retrying'` does.
+ */
+export type ClearableDeliveryFailureReason = 'task_not_deliverable' | 'delivery_retrying';
 
 export interface NativeTaskDeliveryGateway {
   recordDeliveryFailure(args: {
@@ -24,7 +31,7 @@ export interface NativeTaskDeliveryGateway {
     sessionId: string;
     machineId: string;
     taskId: string;
-    expectedReason?: TaskDeliveryFailureReason;
+    expectedReason?: ClearableDeliveryFailureReason;
   }): Promise<boolean>;
   listActiveTaskStatuses(args: {
     sessionId: string;

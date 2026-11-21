@@ -8,7 +8,8 @@ export type TaskDeliveryFailureReason =
   | 'injection_not_confirmed'
   | 'task_not_deliverable'
   | 'assigned_elsewhere'
-  | 'redelivery_exhausted';
+  | 'redelivery_exhausted'
+  | 'delivery_retrying';
 
 // fallow-ignore-next-line complexity
 export async function recordTaskDeliveryFailure(
@@ -22,6 +23,11 @@ export async function recordTaskDeliveryFailure(
 ): Promise<{ recorded: boolean }> {
   const task = await ctx.db.get('chatroom_tasks', args.taskId);
   if (!task || !(await isTaskRoutedToMachine(ctx, task, args.machineId))) {
+    return { recorded: false };
+  }
+  // A completed task has nothing left to warn about; refusing here prevents a stale
+  // warning from racing task completion.
+  if (args.reason === 'delivery_retrying' && task.status === 'completed') {
     return { recorded: false };
   }
   if (task.deliveryFailure?.reason === args.reason) return { recorded: false };

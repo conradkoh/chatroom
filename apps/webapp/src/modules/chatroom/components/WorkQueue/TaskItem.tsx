@@ -1,5 +1,6 @@
 import { AlertCircle, Trash2 } from 'lucide-react';
 
+import { describeDeliveryFailure, isDeliveryFailureVisible } from './delivery-failure';
 import { TaskNewSessionToggle } from './TaskNewSessionToggle';
 import type { Task } from './types';
 import { getStatusBadge } from './utils';
@@ -77,18 +78,23 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
           </div>
         )}
 
-        {/* Delivery failure error — full-width line at the bottom of the task */}
-        {task.deliveryFailure && (
-          <div className="mt-2">
-            <span
-              className="inline-flex items-center gap-1 text-[9px] text-chatroom-status-warning"
-              title={`Delivery failed: ${task.deliveryFailure.reason}`}
-            >
-              <AlertCircle size={10} />
-              Delivery failed: {task.deliveryFailure.reason.replaceAll('_', ' ')}
-            </span>
-          </div>
-        )}
+        {/* Delivery failure — full-width line at the bottom of the task */}
+        {task.deliveryFailure &&
+          isDeliveryFailureVisible(task.status, task.deliveryFailure.reason) &&
+          (() => {
+            const failure = describeDeliveryFailure(task.deliveryFailure.reason);
+            return (
+              <div className="mt-2">
+                <span
+                  className="inline-flex items-center gap-1 text-[9px] text-chatroom-status-warning"
+                  title={failure.title}
+                >
+                  <AlertCircle size={10} />
+                  {failure.text}
+                </span>
+              </div>
+            );
+          })()}
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>

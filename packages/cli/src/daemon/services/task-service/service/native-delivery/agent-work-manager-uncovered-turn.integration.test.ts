@@ -11,10 +11,6 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { AssignedTaskWithContent } from '../../../../domain/entities/assigned-task.js';
 import {
-  computeBackoffDelay,
-  REDELIVERY_BACKOFF_OPTIONS,
-} from '../../../../domain/usecase/compute-backoff-delay.js';
-import {
   AgentWorkManager,
   createAgentTaskStateService,
   type AgentStartedEvent,
@@ -313,33 +309,32 @@ describe('uncovered-turn ladder, end to end', () => {
     d.dispose();
   });
 
-  test('(c) eight failed turns park at the raised failure cap, with no nudge and no restart', async () => {
+  test('(c) failed turns retry indefinitely with a 60s-capped backoff, never park, nudge or restart', async () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const delayAfter = [
+      5_000, 10_000, 20_000, 40_000, 60_000, 60_000, 60_000, 60_000, 60_000, 60_000, 60_000, 60_000,
+    ];
     try {
       const d = createDaemon();
       await d.start();
       await vi.advanceTimersByTimeAsync(0);
       expect(d.injections()).toHaveLength(1);
 
-      // The cap is 8 provider failures; each release waits the attempt's backoff
-      // before the task becomes pending again and is redelivered.
-      for (let attempt = 1; attempt <= 8; attempt += 1) {
+      // Provider failures never park: each release waits the attempt's backoff
+      // (capped at 60s) before the task becomes pending again and is redelivered.
+      for (let attempt = 1; attempt <= 12; attempt += 1) {
         await d.turnEnded('failed', `fail-${attempt}`);
-        if (attempt < 8) {
-          expect(d.exhaustedWrites()).toHaveLength(0);
-          await vi.advanceTimersByTimeAsync(
-            computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS, () => 0.5)
-          );
-          await vi.advanceTimersByTimeAsync(0);
-          // A start redelivers the now-pending task (as the next daemon pass would).
-          await d.start();
-          await vi.advanceTimersByTimeAsync(0);
-          expect(d.injections()).toHaveLength(attempt + 1);
-        }
+        expect(d.exhaustedWrites()).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(delayAfter[attempt - 1]!);
+        await vi.advanceTimersByTimeAsync(0);
+        // A start redelivers the now-pending task (as the next daemon pass would).
+        await d.start();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(d.injections()).toHaveLength(attempt + 1);
       }
 
-      expect(d.exhaustedWrites()).toHaveLength(1);
+      expect(d.exhaustedWrites()).toHaveLength(0);
       expect(d.nudges()).toHaveLength(0);
       expect(d.agents.starts).toHaveLength(0);
       d.dispose();
