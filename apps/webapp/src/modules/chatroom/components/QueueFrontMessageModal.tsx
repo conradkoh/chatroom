@@ -1,10 +1,10 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
 import { detailModalRichTextEditorProseClassNames } from './detail-modal';
 import { RichTextEditor } from './detail-modal-shared';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   FixedModal,
   FixedModalBody,
@@ -12,6 +12,7 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
+import { useFeedback } from '@/hooks/useFeedback';
 
 export function QueueFrontMessageModal({
   isOpen,
@@ -24,35 +25,47 @@ export function QueueFrontMessageModal({
 }) {
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const { feedback, error: showError, clear } = useFeedback();
   useEffect(() => {
     if (!isOpen) {
       setContent('');
       setSubmitting(false);
+      clear();
     }
-  }, [isOpen]);
+  }, [isOpen, clear]);
   const submit = useCallback(async () => {
     if (!content.trim() || submitting) return;
+    clear();
     setSubmitting(true);
     try {
       await onSubmit(content.trim());
       onClose();
-    } catch (error) {
-      console.error('Failed to add message to front of queue:', error);
-      toast.error('Failed to add message to front of queue');
+    } catch (err) {
+      console.error('Failed to add message to front of queue:', err);
+      showError('Failed to add message to front of queue');
     } finally {
       setSubmitting(false);
     }
-  }, [content, submitting, onSubmit, onClose]);
+  }, [content, submitting, onSubmit, onClose, clear, showError]);
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl" className="sm:max-h-[80vh]">
       <FixedModalContent>
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>Add to Front of Queue</FixedModalTitle>
         </FixedModalHeader>
+        <InlineFeedback
+          feedback={feedback}
+          onDismiss={clear}
+          data-testid="queue-front-feedback"
+          className="mx-4 mt-3 shrink-0"
+        />
         <FixedModalBody className="flex flex-col p-0 overflow-hidden">
           <RichTextEditor
             value={content}
-            onChange={setContent}
+            onChange={(value) => {
+              setContent(value);
+              clear();
+            }}
             placeholder="Write a message..."
             autoFocus
             onCmdEnter={submit}
