@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { WorkspaceUploadProgressList } from './WorkspaceUploadProgressList';
 import type { WorkspaceUploadJob } from '../utils/workspaceUploadProgress';
@@ -59,5 +59,38 @@ describe('WorkspaceUploadProgressList', () => {
     );
     expect(screen.getByText('Upload failed')).toBeInTheDocument();
     expect(screen.getByText('Disk full')).toBeInTheDocument();
+  });
+
+  it('shows the error message in the error text colour', () => {
+    render(
+      <WorkspaceUploadProgressList jobs={[job({ phase: 'error', errorMessage: 'Disk full' })]} />
+    );
+    expect(screen.getByText('Disk full')).toHaveClass('text-chatroom-status-error');
+  });
+
+  it('renders a Dismiss control on error rows that calls onDismiss with the job id', () => {
+    const onDismiss = vi.fn();
+    render(
+      <WorkspaceUploadProgressList
+        jobs={[job({ id: 'job-1', phase: 'error', errorMessage: 'Disk full' })]}
+        onDismiss={onDismiss}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismiss).toHaveBeenCalledWith('job-1');
+  });
+
+  it('renders no Dismiss control when onDismiss is not passed', () => {
+    render(
+      <WorkspaceUploadProgressList jobs={[job({ phase: 'error', errorMessage: 'Disk full' })]} />
+    );
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+  });
+
+  it('renders no Dismiss control on rows that are not in error', () => {
+    render(
+      <WorkspaceUploadProgressList jobs={[job({ phase: 'uploading' })]} onDismiss={vi.fn()} />
+    );
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
   });
 });

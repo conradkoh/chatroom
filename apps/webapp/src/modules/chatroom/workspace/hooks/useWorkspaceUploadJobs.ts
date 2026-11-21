@@ -111,5 +111,5 @@ export function useWorkspaceUploadJobs({
     [errorDismissMs, onUploadComplete, onUploadFailed, scheduleDismiss, uploadFile]
   );
 
-  return { jobs, startUpload };
+  return { jobs, startUpload, dismissJob: removeJob };
 }
