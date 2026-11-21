@@ -32,11 +32,11 @@ export async function resolveMigrationTarget(): Promise<ConvexTarget> {
   });
 }
 
+// Exported for scripts/migrate-lib.spec.ts; spec files are not fallow analysis entries.
 /**
  * Environment for a `convex run` child. A local deployment never receives TZ, because a local
  * backend refuses a non-UTC zone. Hosted and production children keep the environment.
  */
-// Exported for scripts/migrate-lib.spec.ts; spec files are not fallow analysis entries.
 // fallow-ignore-next-line unused-export
 export function convexRunEnv(
   target: ConvexTarget,
