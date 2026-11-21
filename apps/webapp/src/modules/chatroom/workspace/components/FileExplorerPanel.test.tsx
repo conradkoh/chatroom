@@ -5,10 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileExplorerPanel, type FileExplorerPanelHandle } from './FileExplorerPanel';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
   useSessionQuery: () => null,

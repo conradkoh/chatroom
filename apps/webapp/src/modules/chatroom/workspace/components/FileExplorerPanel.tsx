@@ -22,7 +22,6 @@ import {
   useState,
 } from 'react';
 import { VscCollapseAll } from 'react-icons/vsc';
-import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
 import { NewFolderDialog } from './NewFolderDialog';
@@ -450,14 +449,15 @@ export const FileExplorerPanel = memo(
 
       useImperativeHandle(ref, () => ({ refresh: refreshExplorer }), [refreshExplorer]);
 
-      const { jobs, startUpload } = useWorkspaceUploadJobs({
+      const { jobs, startUpload, dismissJob } = useWorkspaceUploadJobs({
         machineId,
         workingDir,
         onUploadComplete: (filePath) => {
           refreshExplorer();
           explorerFileOps.onFileCreated(filePath);
         },
-        onUploadFailed: (_filePath, error) => toast.error(error),
+        // A failed upload is reported only by its progress row, which persists until dismissed.
+        errorDismissMs: false,
       });
 
       // fallow-ignore-next-line complexity
@@ -730,7 +730,9 @@ export const FileExplorerPanel = memo(
             ) : null}
           </div>
 
-          {jobs.length > 0 ? <WorkspaceUploadProgressList jobs={jobs} /> : null}
+          {jobs.length > 0 ? (
+            <WorkspaceUploadProgressList jobs={jobs} onDismiss={dismissJob} />
+          ) : null}
 
           {contextMenu}
         </div>

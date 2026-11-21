@@ -100,13 +100,6 @@ vi.mock('../hooks/useWorkspaceUploadJobs', () => ({
   }),
 }));
 
-vi.mock('sonner', () => ({
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-  },
-}));
-
 vi.mock('convex-helpers/react/sessions', () => ({
   // Stable identities: a new function per render would re-run the real tree-sync effects.
   // Reference `api` only inside the returned function, not at factory time.
