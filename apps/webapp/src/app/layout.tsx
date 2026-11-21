@@ -7,7 +7,6 @@ import './globals.css';
 import { AppMain } from '@/app/AppMain';
 import { ConvexClientProvider } from '@/app/ConvexClientProvider';
 import { Navigation } from '@/components/Navigation';
-import { Toaster } from '@/components/ui/sonner';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
 import { AuthProvider } from '@/modules/auth/AuthProvider';
 import { PwaInstallProvider, InstallAppMobileBanner } from '@/modules/pwa-install';
@@ -47,7 +46,7 @@ export const metadata: Metadata = {
 
 /**
  * Root layout component that wraps the entire application with providers and global structure.
- * Sets up authentication, theming, navigation, and toast notifications for all pages.
+ * Sets up authentication, theming, and navigation for all pages.
  */
 export default function RootLayout({
   children,
@@ -88,7 +87,6 @@ export default function RootLayout({
             </AppInfoProvider>
           </ConvexQueryCacheProvider>
         </ConvexClientProvider>
-        <Toaster />
         {/* React Grab for development */}
         {process.env.NODE_ENV === 'development' && (
           <Script

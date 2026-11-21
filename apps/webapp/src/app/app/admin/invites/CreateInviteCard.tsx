@@ -3,10 +3,13 @@
 import { formatLoginCode } from '@workspace/backend/modules/auth/codeUtils';
 import { Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import { getErrorMessage } from '@/app/app/admin/convexError';
-import { CreateInviteForm, type ExpiryMode } from '@/app/app/admin/invites/CreateInviteForm';
+import {
+  CreateInviteForm,
+  type ExpiryMode,
+  type InviteCopyState,
+} from '@/app/app/admin/invites/CreateInviteForm';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -24,7 +27,10 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { useIsMobile } from '@/hooks/useIsMobile';
+
+const INVITE_COPY_KEY = 'invite';
 
 export type CreateInviteInput = {
   inviteeName: string;
@@ -44,25 +50,45 @@ export function CreateInviteCard({ onCreate }: CreateInviteCardProps) {
   const [expiryMode, setExpiryMode] = useState<ExpiryMode>('30days');
   const [isCreating, setIsCreating] = useState(false);
   const [lastCreatedCode, setLastCreatedCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { copiedKey, failedKey, copy } = useCopyToClipboard();
+
+  const copyState: InviteCopyState =
+    copiedKey === INVITE_COPY_KEY ? 'copied' : failedKey === INVITE_COPY_KEY ? 'failed' : 'idle';
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isCreating && !nextOpen) return;
+    setError(null);
     setOpen(nextOpen);
   };
 
-  const handleCopyCode = useCallback(async (code: string) => {
-    try {
-      await navigator.clipboard.writeText(formatLoginCode(code));
-      toast.success('Invite code copied to clipboard');
-    } catch (error) {
-      console.error('Failed to copy invite code:', error);
-      toast.error('Failed to copy invite code to clipboard');
-    }
-  }, []);
+  // Any field edit clears the create error, so the message never describes stale input.
+  const handleInviteeNameChange = (value: string) => {
+    setError(null);
+    setInviteeName(value);
+  };
+
+  const handleInviteeEmailChange = (value: string) => {
+    setError(null);
+    setInviteeEmail(value);
+  };
+
+  const handleExpiryModeChange = (value: ExpiryMode) => {
+    setError(null);
+    setExpiryMode(value);
+  };
+
+  const handleCopyCode = useCallback(
+    (code: string) => {
+      void copy(formatLoginCode(code), INVITE_COPY_KEY);
+    },
+    [copy]
+  );
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      setError(null);
       setIsCreating(true);
       try {
         const invite = await onCreate({
@@ -74,9 +100,9 @@ export function CreateInviteCard({ onCreate }: CreateInviteCardProps) {
         setInviteeEmail('');
         setExpiryMode('30days');
         setLastCreatedCode(invite.code);
-        toast.success('Invite created');
-      } catch (error) {
-        toast.error(getErrorMessage(error, 'Operation failed'));
+      } catch (caughtError) {
+        // Typed values are kept on failure so the user can retry without retyping.
+        setError(getErrorMessage(caughtError, 'Operation failed'));
       } finally {
         setIsCreating(false);
       }
@@ -91,9 +117,11 @@ export function CreateInviteCard({ onCreate }: CreateInviteCardProps) {
       expiryMode={expiryMode}
       isCreating={isCreating}
       lastCreatedCode={lastCreatedCode}
-      onInviteeNameChange={setInviteeName}
-      onInviteeEmailChange={setInviteeEmail}
-      onExpiryModeChange={setExpiryMode}
+      error={error}
+      copyState={copyState}
+      onInviteeNameChange={handleInviteeNameChange}
+      onInviteeEmailChange={handleInviteeEmailChange}
+      onExpiryModeChange={handleExpiryModeChange}
       onSubmit={handleSubmit}
       onCopyCode={handleCopyCode}
     />

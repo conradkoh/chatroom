@@ -11,9 +11,15 @@ interface DiscussionFormProps {
   initialName?: string;
   onSubmit: (name: string, message: string) => Promise<boolean>;
   onCancel?: () => void;
+  error?: string | null;
 }
 
-export function DiscussionForm({ initialName = '', onSubmit, onCancel }: DiscussionFormProps) {
+export function DiscussionForm({
+  initialName = '',
+  onSubmit,
+  onCancel,
+  error,
+}: DiscussionFormProps) {
   const [name, setName] = useState(initialName);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -77,6 +83,12 @@ export function DiscussionForm({ initialName = '', onSubmit, onCancel }: Discuss
           className="w-full min-h-[100px]"
         />
       </div>
+
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="flex justify-end space-x-2">
         {onCancel && (

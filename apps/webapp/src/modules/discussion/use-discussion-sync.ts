@@ -2,7 +2,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 // Define the discussion state type
 type DiscussionState = {
@@ -45,9 +44,29 @@ type DiscussionConclusion = {
   _creationTime?: number;
 };
 
+export type DiscussionErrorScope =
+  'create' | 'add' | 'delete' | 'conclude' | 'updateConclusions' | 'reopen';
+
+export interface DiscussionError {
+  scope: DiscussionErrorScope;
+  message: string;
+}
+
+/** Builds the inline message `Title: detail`, or just `Title` when the error has no message. */
+function toDiscussionError(
+  scope: DiscussionErrorScope,
+  title: string,
+  error: unknown
+): DiscussionError {
+  const detail = (error as Error | undefined)?.message;
+  return { scope, message: detail ? `${title}: ${detail}` : title };
+}
+
 export function useDiscussionSync({ key, title }: { key: string; title: string }) {
   // Store user's name for messages
   const [userName, setUserName] = useState<string>('');
+  const [error, setError] = useState<DiscussionError | null>(null);
+  const clearError = useCallback(() => setError(null), []);
 
   // Get discussion state from backend
   const discussionState = useSessionQuery(
@@ -82,6 +101,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
   // Create discussion if it doesn't exist
   const createDiscussion = useCallback(async () => {
+    setError(null);
     if (!key || !title) return;
 
     try {
@@ -90,15 +110,14 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
         title,
       });
     } catch (error) {
-      toast.error('Failed to create discussion', {
-        description: (error as Error).message,
-      });
+      setError(toDiscussionError('create', 'Failed to create discussion', error));
     }
   }, [key, title, createDiscussionMutation]);
 
   // Add message to discussion
   const addMessage = useCallback(
     async (name: string, message: string) => {
+      setError(null);
       if (!key || !name || !message) return;
 
       try {
@@ -113,9 +132,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
         return true;
       } catch (error) {
-        toast.error('Failed to add message', {
-          description: (error as Error).message,
-        });
+        setError(toDiscussionError('add', 'Failed to add message', error));
         return false;
       }
     },
@@ -125,6 +142,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
   // Delete message from discussion
   const deleteMessage = useCallback(
     async (messageId: Id<'discussionMessages'>) => {
+      setError(null);
       if (!messageId) return false;
 
       try {
@@ -132,12 +150,9 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
           messageId,
         });
 
-        toast.success('Message deleted');
         return true;
       } catch (error) {
-        toast.error('Failed to delete message', {
-          description: (error as Error).message,
-        });
+        setError(toDiscussionError('delete', 'Failed to delete message', error));
         return false;
       }
     },
@@ -147,6 +162,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
   // Conclude discussion
   const concludeDiscussion = useCallback(
     async (conclusions: { text: string; tags: string[] }[]) => {
+      setError(null);
       if (!key) return;
 
       try {
@@ -155,12 +171,9 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
           conclusions,
         });
 
-        toast.success('Discussion concluded');
         return true;
       } catch (error) {
-        toast.error('Failed to conclude discussion', {
-          description: (error as Error).message,
-        });
+        setError(toDiscussionError('conclude', 'Failed to conclude discussion', error));
         return false;
       }
     },
@@ -170,6 +183,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
   // Update conclusions for an existing discussion
   const updateConclusions = useCallback(
     async (conclusions: { text: string; tags: string[] }[]) => {
+      setError(null);
       if (!key) return;
 
       try {
@@ -178,12 +192,9 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
           conclusions,
         });
 
-        toast.success('Conclusions updated');
         return true;
       } catch (error) {
-        toast.error('Failed to update conclusions', {
-          description: (error as Error).message,
-        });
+        setError(toDiscussionError('updateConclusions', 'Failed to update conclusions', error));
         return false;
       }
     },
@@ -192,6 +203,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
   // Reopen discussion
   const reopenDiscussion = useCallback(async () => {
+    setError(null);
     if (!key) return;
 
     try {
@@ -199,12 +211,9 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
         discussionKey: key,
       });
 
-      toast.success('Discussion reopened');
       return true;
     } catch (error) {
-      toast.error('Failed to reopen discussion', {
-        description: (error as Error).message,
-      });
+      setError(toDiscussionError('reopen', 'Failed to reopen discussion', error));
       return false;
     }
   }, [key, reopenDiscussionMutation]);
@@ -242,5 +251,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
     reopenDiscussion,
     initializeDiscussion,
     getLatestMessages,
+    error,
+    clearError,
   };
 }

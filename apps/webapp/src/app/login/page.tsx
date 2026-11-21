@@ -11,7 +11,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 
-import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
 import { Button } from '@/components/ui/button';
 import { AnonymousLoginButton } from '@/modules/auth/AnonymousLoginButton';
 import { useAuthState } from '@/modules/auth/AuthProvider';
@@ -105,7 +104,6 @@ function _renderInviteSignupOption() {
 export default function LoginPage() {
   return (
     <Suspense fallback={_renderLoadingState()}>
-      <SearchParamsErrorHandler />
       <LoginPageContent />
     </Suspense>
   );

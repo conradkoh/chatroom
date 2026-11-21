@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import { Input } from '@/components/ui/input';
+
+const ADD_FAILED_MESSAGE = 'Failed to add item. Text restored for retry.';
 
 /**
  * Props for the ChecklistInlineInput component.
@@ -37,27 +39,25 @@ export function ChecklistInlineInput({
   placeholder = 'Add new item...',
   className,
 }: ChecklistInlineInputProps) {
-  const [text, setText] = useState(() => {
-    if (getAndClearFailedText) {
-      const failedText = getAndClearFailedText();
-      if (failedText) return failedText;
-    }
-    return '';
-  });
+  const [text, setText] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shouldFocus, setShouldFocus] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [prevGetAndClearFailedText, setPrevGetAndClearFailedText] = useState(getAndClearFailedText);
-  if (prevGetAndClearFailedText !== getAndClearFailedText) {
-    setPrevGetAndClearFailedText(getAndClearFailedText);
-    if (getAndClearFailedText) {
-      const failedText = getAndClearFailedText();
-      if (failedText) {
-        setText(failedText);
-        _focusAndPositionCursor(inputRef, failedText);
-      }
+  const errorId = useId();
+
+  // Restore failed text after mount. Reading it clears the hook's stored text,
+  // which updates the parent's state, so this must not run during render.
+  // A restored failure keeps its field message.
+  useLayoutEffect(() => {
+    if (!getAndClearFailedText) return;
+    const failedText = getAndClearFailedText();
+    if (failedText) {
+      setText(failedText);
+      setSubmitError(ADD_FAILED_MESSAGE);
+      _focusAndPositionCursor(inputRef, failedText);
     }
-  }
+  }, [getAndClearFailedText]);
 
   // Focus after successful submission (when text is cleared)
   useLayoutEffect(() => {
@@ -76,6 +76,7 @@ export function ChecklistInlineInput({
     if (!text.trim()) return;
 
     const currentText = text.trim();
+    setSubmitError(null);
     setIsSubmitting(true);
 
     // Clear the text immediately to allow new input
@@ -85,9 +86,10 @@ export function ChecklistInlineInput({
     try {
       const success = await onSubmit(currentText);
       if (!success) {
-        // If submission failed, restore the text
+        // If submission failed, restore the text and explain why on the field
         setText(currentText);
         setShouldFocus(true);
+        setSubmitError(ADD_FAILED_MESSAGE);
       }
     } finally {
       setIsSubmitting(false);
@@ -113,6 +115,7 @@ export function ChecklistInlineInput({
    */
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value);
+    setSubmitError(null);
   }, []);
 
   return (
@@ -123,8 +126,15 @@ export function ChecklistInlineInput({
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
+        aria-invalid={submitError ? true : undefined}
+        aria-describedby={submitError ? errorId : undefined}
         className="border-dashed border-gray-300 focus:border-solid focus:border-gray-400 focus:ring-2 focus:ring-offset-1"
       />
+      {submitError && (
+        <p id={errorId} role="alert" className="mt-1 text-xs text-destructive">
+          {submitError}
+        </p>
+      )}
     </div>
   );
 }

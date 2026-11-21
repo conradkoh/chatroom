@@ -3,13 +3,13 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Users } from 'lucide-react';
+import { AlertCircle, Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import { AdminListSkeleton } from '@/app/app/admin/AdminListSkeleton';
 import { getErrorMessage } from '@/app/app/admin/convexError';
 import { SYSTEM_ADMIN_ACCESS_PERMISSION, useHasPermission } from '@/application/auth';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -37,6 +37,7 @@ export default function UserRolesPage() {
   const users = useSessionQuery(api.admin.users.listUsers);
   const updateRoles = useSessionMutation(api.admin.users.updateUserRoles);
   const [savingUserId, setSavingUserId] = useState<Id<'users'> | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
   const canManageSystemAdmins = useHasPermission(SYSTEM_ADMIN_ACCESS_PERMISSION);
   const assignableRoles = (Object.keys(ROLE_LABELS) as EffectiveRole[]).filter(
     (r) => canManageSystemAdmins || r !== 'system_admin'
@@ -44,12 +45,12 @@ export default function UserRolesPage() {
 
   const handleRoleChange = useCallback(
     async (userId: Id<'users'>, effectiveRole: EffectiveRole) => {
+      setRoleError(null);
       setSavingUserId(userId);
       try {
         await updateRoles({ userId, effectiveRole });
-        toast.success('User role updated');
       } catch (error) {
-        toast.error(getErrorMessage(error, 'Failed to update role'));
+        setRoleError(getErrorMessage(error, 'Failed to update role'));
       } finally {
         setSavingUserId(null);
       }
@@ -67,6 +68,13 @@ export default function UserRolesPage() {
           View and assign roles for all users
         </p>
       </div>
+
+      {roleError && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{roleError}</AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>

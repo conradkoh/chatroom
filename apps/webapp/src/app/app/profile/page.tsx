@@ -3,12 +3,10 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useAction } from 'convex/react';
 import { useSessionId } from 'convex-helpers/react/sessions';
-import { CopyIcon, RefreshCw } from 'lucide-react';
+import { Check, CopyIcon, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense, useCallback, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
-import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +20,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { cn } from '@/lib/utils';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { LoginCodeGenerator } from '@/modules/auth/LoginCodeGenerator';
@@ -105,7 +104,6 @@ function ProfilePageLoading() {
 export default function ProfilePage() {
   return (
     <Suspense fallback={<ProfilePageLoading />}>
-      <SearchParamsErrorHandler />
       <ProfilePageContent />
     </Suspense>
   );
@@ -146,22 +144,9 @@ function RecoveryCodeSection() {
     });
   }, [sessionId, regenerateCode]);
 
-  const handleCopyCode = useCallback(() => {
-    _handleCopyCode(recoveryCode);
-  }, [recoveryCode]);
-
-  const handleTextareaClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement>) => {
-    // Select all text when clicked for easy copying
-    e.currentTarget.select();
-  }, []);
-
   const buttonText = useMemo(() => {
     return isLoading ? 'Revealing...' : 'Reveal Recovery Code';
   }, [isLoading]);
-
-  const regenerateButtonText = useMemo(() => {
-    return isRegenerating ? 'Regenerating...' : 'Regenerate Code';
-  }, [isRegenerating]);
 
   return (
     <div className="mt-6 border-t pt-6">
@@ -170,67 +155,166 @@ function RecoveryCodeSection() {
         Keep this recovery code in a safe place. It's the only way to regain access to your
         anonymous account if you lose access.
       </p>
-      {!recoveryCode ? (
+      {recoveryCode ? (
+        <RecoveryCodeDisplay
+          recoveryCode={recoveryCode}
+          isRegenerating={isRegenerating}
+          dialogOpen={dialogOpen}
+          onDialogOpenChange={setDialogOpen}
+          onRegenerate={handleRegenerateCode}
+        />
+      ) : (
         <Button onClick={handleRevealCode} disabled={isLoading}>
           {buttonText}
         </Button>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex flex-col space-y-2">
-            <Textarea
-              value={recoveryCode}
-              readOnly
-              className="font-mono text-sm whitespace-normal break-all h-auto min-h-[100px] resize-none"
-              onClick={handleTextareaClick}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyCode}
-              aria-label="Copy recovery code"
-              title="Copy to clipboard"
-              className="self-end"
-            >
-              <CopyIcon className="h-4 w-4 mr-2" />
-              Copy Code
-            </Button>
-          </div>
-
-          <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <AlertDialogTrigger
-              className={cn(buttonVariants({ variant: 'outline' }), 'flex items-center gap-2')}
-              disabled={isRegenerating}
-            >
-              <RefreshCw className="h-4 w-4" />
-              {regenerateButtonText}
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Regenerating your recovery code will{' '}
-                  <span className="font-bold text-destructive">invalidate your old code</span>. This
-                  action cannot be undone. Your old recovery code will no longer work!
-                  <br />
-                  <br />
-                  Make sure to save your new code in a secure location after regenerating.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleRegenerateCode}
-                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                >
-                  Regenerate
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
       )}
-      {error && <p className="text-destructive text-sm mt-2">{error}</p>}
+      {error && (
+        <p role="alert" className="text-destructive text-sm mt-2">
+          {error}
+        </p>
+      )}
     </div>
+  );
+}
+
+interface RecoveryCodeDisplayProps {
+  recoveryCode: string;
+  isRegenerating: boolean;
+  dialogOpen: boolean;
+  onDialogOpenChange: (open: boolean) => void;
+  onRegenerate: () => void;
+}
+
+/**
+ * The revealed recovery code: copy control and regenerate dialog.
+ */
+function RecoveryCodeDisplay({
+  recoveryCode,
+  isRegenerating,
+  dialogOpen,
+  onDialogOpenChange,
+  onRegenerate,
+}: RecoveryCodeDisplayProps) {
+  return (
+    <div className="space-y-4">
+      {/* Keyed by code: a regenerated code starts with no copy feedback from the old one. */}
+      <RecoveryCodeCopy key={recoveryCode} recoveryCode={recoveryCode} />
+
+      <RegenerateRecoveryCodeDialog
+        open={dialogOpen}
+        onOpenChange={onDialogOpenChange}
+        isRegenerating={isRegenerating}
+        onRegenerate={onRegenerate}
+      />
+    </div>
+  );
+}
+
+interface RecoveryCodeCopyProps {
+  recoveryCode: string;
+}
+
+/**
+ * Read-only recovery code field, copy control, and copy-failure message.
+ * Owns the copy feedback state. The parent keys it by code so feedback resets on regenerate.
+ */
+function RecoveryCodeCopy({ recoveryCode }: RecoveryCodeCopyProps) {
+  const { copiedKey, failedKey, copy } = useCopyToClipboard();
+
+  const handleTextareaClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement>) => {
+    // Select all text when clicked for easy copying
+    e.currentTarget.select();
+  }, []);
+
+  const handleCopyCode = useCallback(() => {
+    void copy(recoveryCode, 'recovery');
+  }, [copy, recoveryCode]);
+
+  return (
+    <div className="flex flex-col space-y-2">
+      <Textarea
+        value={recoveryCode}
+        readOnly
+        className="font-mono text-sm whitespace-normal break-all h-auto min-h-[100px] resize-none"
+        onClick={handleTextareaClick}
+      />
+      <CopyRecoveryCodeButton isCopied={copiedKey === 'recovery'} onCopy={handleCopyCode} />
+      {failedKey === 'recovery' && (
+        <p role="alert" className="self-end text-sm text-destructive">
+          Failed to copy code.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Copy button for the recovery code. Shows Check + "Copied" while `isCopied`.
+ */
+function CopyRecoveryCodeButton({ isCopied, onCopy }: { isCopied: boolean; onCopy: () => void }) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onCopy}
+      aria-label="Copy recovery code"
+      title="Copy to clipboard"
+      className="self-end"
+    >
+      {isCopied ? <Check className="h-4 w-4 mr-2" /> : <CopyIcon className="h-4 w-4 mr-2" />}
+      {isCopied ? 'Copied' : 'Copy Code'}
+    </Button>
+  );
+}
+
+interface RegenerateRecoveryCodeDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isRegenerating: boolean;
+  onRegenerate: () => void;
+}
+
+/**
+ * Confirmation dialog for regenerating the recovery code (invalidates the old one).
+ */
+function RegenerateRecoveryCodeDialog({
+  open,
+  onOpenChange,
+  isRegenerating,
+  onRegenerate,
+}: RegenerateRecoveryCodeDialogProps) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogTrigger
+        className={cn(buttonVariants({ variant: 'outline' }), 'flex items-center gap-2')}
+        disabled={isRegenerating}
+      >
+        <RefreshCw className="h-4 w-4" />
+        {isRegenerating ? 'Regenerating...' : 'Regenerate Code'}
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Regenerating your recovery code will{' '}
+            <span className="font-bold text-destructive">invalidate your old code</span>. This
+            action cannot be undone. Your old recovery code will no longer work!
+            <br />
+            <br />
+            Make sure to save your new code in a secure location after regenerating.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onRegenerate}
+            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+          >
+            Regenerate
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -250,7 +334,6 @@ async function _handleRevealCode(params: _RevealCodeParams): Promise<void> {
 
   if (!sessionId) {
     setError('Session not found. Cannot fetch recovery code.');
-    toast.error('Session not found.');
     return;
   }
 
@@ -263,12 +346,10 @@ async function _handleRevealCode(params: _RevealCodeParams): Promise<void> {
       setRecoveryCode(result.recoveryCode);
     } else {
       setError(result.reason || 'Failed to retrieve recovery code.');
-      toast.error(result.reason || 'Failed to retrieve recovery code.');
     }
   } catch (error) {
     console.error('Error revealing recovery code:', error);
     setError('An unexpected error occurred.');
-    toast.error('An unexpected error occurred.');
   } finally {
     setIsLoading(false);
   }
@@ -292,7 +373,6 @@ async function _handleRegenerateCode(params: _RegenerateCodeParams): Promise<voi
 
   if (!sessionId) {
     setError('Session not found. Cannot regenerate recovery code.');
-    toast.error('Session not found.');
     return;
   }
 
@@ -303,34 +383,14 @@ async function _handleRegenerateCode(params: _RegenerateCodeParams): Promise<voi
     const result = await regenerateCode({ sessionId });
     if (result.success && result.recoveryCode) {
       setRecoveryCode(result.recoveryCode);
-      toast.success('Recovery code regenerated successfully!');
     } else {
       setError(result.reason || 'Failed to regenerate recovery code.');
-      toast.error(result.reason || 'Failed to regenerate recovery code.');
     }
   } catch (error) {
     console.error('Error regenerating recovery code:', error);
     setError('An unexpected error occurred.');
-    toast.error('An unexpected error occurred.');
   } finally {
     setIsRegenerating(false);
     setDialogOpen(false);
-  }
-}
-
-/**
- * Handles copying the recovery code to clipboard with user feedback.
- */
-function _handleCopyCode(recoveryCode: string | null): void {
-  if (recoveryCode) {
-    navigator.clipboard
-      .writeText(recoveryCode)
-      .then(() => {
-        toast.success('Recovery code copied to clipboard!');
-      })
-      .catch((error) => {
-        console.error('Failed to copy text: ', error);
-        toast.error('Failed to copy code.');
-      });
   }
 }

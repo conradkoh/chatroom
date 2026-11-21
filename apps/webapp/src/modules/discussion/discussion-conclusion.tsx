@@ -23,6 +23,7 @@ interface ConclusionFormProps {
   existingConclusion?: {
     conclusions: { text: string; tags: string[] }[];
   } | null;
+  error?: string | null;
 }
 
 interface ConclusionInput {
@@ -31,7 +32,12 @@ interface ConclusionInput {
   tag: string; // Only one tag per conclusion
 }
 
-export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: ConclusionFormProps) {
+export function ConclusionForm({
+  onSubmit,
+  onCancel,
+  existingConclusion,
+  error,
+}: ConclusionFormProps) {
   const [conclusions, setConclusions] = useState<ConclusionInput[]>([
     { id: createId(), text: '', tag: 'task' },
   ]);
@@ -185,6 +191,12 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
       <Button type="button" variant="outline" className="w-full" onClick={addConclusion}>
         <Plus className="h-4 w-4 mr-2" /> Add Another Conclusion
       </Button>
+
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="flex justify-end space-x-2 mt-2">
         {onCancel && (

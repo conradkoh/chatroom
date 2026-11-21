@@ -2,6 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
+  AlertCircle,
   Check,
   Edit,
   Loader2,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -32,7 +34,10 @@ import {
 import { cn } from '@/lib/utils';
 import { ConclusionForm } from '@/modules/discussion/discussion-conclusion';
 import { DiscussionForm } from '@/modules/discussion/discussion-form';
-import { useDiscussionSync } from '@/modules/discussion/use-discussion-sync';
+import {
+  useDiscussionSync,
+  type DiscussionErrorScope,
+} from '@/modules/discussion/use-discussion-sync';
 
 interface DiscussionProps {
   title: string;
@@ -67,10 +72,21 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
     updateConclusions,
     reopenDiscussion,
     initializeDiscussion,
+    error,
+    clearError,
   } = useDiscussionSync({
     key: discussionKey,
     title,
   });
+
+  // Open or close a dialog and clear any previous failure so a stale message never reappears.
+  const toggleDialog = (setOpen: (open: boolean) => void, open: boolean) => {
+    clearError();
+    setOpen(open);
+  };
+
+  const scoped = (s: DiscussionErrorScope) => (error?.scope === s ? error.message : null);
+  const cardError = scoped('create') ?? scoped('reopen');
 
   // Set loading state based on data availability
   useEffect(() => {
@@ -132,15 +148,16 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
   };
 
   // Handle message deletion
-  const handleDeleteMessage = async (messageId: Id<'discussionMessages'>) => {
+  const handleDeleteMessage = (messageId: Id<'discussionMessages'>) => {
     setMessageToDelete(messageId);
-    setShowDeleteConfirm(true);
+    toggleDialog(setShowDeleteConfirm, true);
   };
 
   // Confirm and perform message deletion
   const confirmDeleteMessage = async () => {
-    if (messageToDelete) {
-      await deleteMessage(messageToDelete as Id<'discussionMessages'>);
+    if (!messageToDelete) return;
+    const ok = await deleteMessage(messageToDelete);
+    if (ok) {
       setShowDeleteConfirm(false);
       setMessageToDelete(null);
     }
@@ -324,7 +341,10 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
               size="icon"
               className="h-8 w-8"
               aria-label="Discussion actions"
-              onClick={() => setShowMenu(!showMenu)}
+              onClick={() => {
+                if (!showMenu) clearError();
+                setShowMenu(!showMenu);
+              }}
               ref={menuButtonRef}
               disabled={isLoading}
             >
@@ -341,7 +361,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                     type="button"
                     className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
                     onClick={() => {
-                      setShowFormDialog(true);
+                      toggleDialog(setShowFormDialog, true);
                       setShowMenu(false);
                     }}
                   >
@@ -355,7 +375,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                     type="button"
                     className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
                     onClick={() => {
-                      setShowConclusionDialog(true);
+                      toggleDialog(setShowConclusionDialog, true);
                       setShowMenu(false);
                     }}
                   >
@@ -369,7 +389,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                     type="button"
                     className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
                     onClick={() => {
-                      setShowEditConclusionDialog(true);
+                      toggleDialog(setShowEditConclusionDialog, true);
                       setShowMenu(false);
                     }}
                   >
@@ -393,6 +413,15 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </div>
         </div>
 
+        {cardError && (
+          <div className="px-3 pt-3">
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertDescription>{cardError}</AlertDescription>
+            </Alert>
+          </div>
+        )}
+
         <div className="relative">
           {/* Discussion content with fixed height container */}
           <div className="p-3 h-[250px] overflow-y-auto">{renderContent()}</div>
@@ -404,7 +433,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => setShowFormDialog(true)}
+                  onClick={() => toggleDialog(setShowFormDialog, true)}
                   className="w-full"
                 >
                   <Plus className="h-4 w-4 mr-1" /> Add Contribution
@@ -418,7 +447,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       </div>
 
       {/* Dialog for adding a new message */}
-      <Dialog open={showFormDialog} onOpenChange={setShowFormDialog}>
+      <Dialog open={showFormDialog} onOpenChange={(open) => toggleDialog(setShowFormDialog, open)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Your Contribution</DialogTitle>
@@ -429,13 +458,17 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           <DiscussionForm
             initialName={userName}
             onSubmit={handleMessageSubmit}
-            onCancel={() => setShowFormDialog(false)}
+            onCancel={() => toggleDialog(setShowFormDialog, false)}
+            error={scoped('add')}
           />
         </DialogContent>
       </Dialog>
 
       {/* Dialog for concluding discussion */}
-      <Dialog open={showConclusionDialog} onOpenChange={setShowConclusionDialog}>
+      <Dialog
+        open={showConclusionDialog}
+        onOpenChange={(open) => toggleDialog(setShowConclusionDialog, open)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Conclude Discussion</DialogTitle>
@@ -445,14 +478,18 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </DialogHeader>
           <ConclusionForm
             onSubmit={handleConclusionSubmit}
-            onCancel={() => setShowConclusionDialog(false)}
+            onCancel={() => toggleDialog(setShowConclusionDialog, false)}
             existingConclusion={conclusion}
+            error={scoped('conclude')}
           />
         </DialogContent>
       </Dialog>
 
       {/* Dialog for editing conclusions */}
-      <Dialog open={showEditConclusionDialog} onOpenChange={setShowEditConclusionDialog}>
+      <Dialog
+        open={showEditConclusionDialog}
+        onOpenChange={(open) => toggleDialog(setShowEditConclusionDialog, open)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Conclusions</DialogTitle>
@@ -462,14 +499,18 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </DialogHeader>
           <ConclusionForm
             onSubmit={handleConclusionUpdate}
-            onCancel={() => setShowEditConclusionDialog(false)}
+            onCancel={() => toggleDialog(setShowEditConclusionDialog, false)}
             existingConclusion={conclusion}
+            error={scoped('updateConclusions')}
           />
         </DialogContent>
       </Dialog>
 
       {/* Dialog for delete confirmation */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <Dialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => toggleDialog(setShowDeleteConfirm, open)}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Delete Message</DialogTitle>
@@ -477,8 +518,13 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
               Are you sure you want to delete this message? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {scoped('delete') && (
+            <p role="alert" className="mt-2 text-sm text-destructive">
+              {scoped('delete')}
+            </p>
+          )}
           <div className="flex justify-end space-x-2 mt-4">
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+            <Button variant="outline" onClick={() => toggleDialog(setShowDeleteConfirm, false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDeleteMessage}>

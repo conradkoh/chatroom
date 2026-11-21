@@ -1,7 +1,15 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { CheckCheck, GripVertical, Loader2, MoreVertical, RotateCcw, Trash2 } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCheck,
+  GripVertical,
+  Loader2,
+  MoreVertical,
+  RotateCcw,
+  Trash2,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ChecklistEmptyState } from './checklist-empty-state';
@@ -9,6 +17,7 @@ import { ChecklistInlineInput } from './checklist-inline-input';
 import type { ChecklistItemWithOptimistic, ChecklistProps } from './types';
 import { useChecklistSync } from './use-checklist-sync';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -66,6 +75,7 @@ export function Checklist({ title, checklistKey, description, className }: Check
     concludeChecklist,
     reopenChecklist,
     clearCompleted,
+    error,
     reorderItems,
   } = useChecklistSync({
     key: checklistKey,
@@ -272,7 +282,10 @@ export function Checklist({ title, checklistKey, description, className }: Check
             {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
           </div>
           <DropdownMenu>
-            <DropdownMenuTrigger className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+            <DropdownMenuTrigger
+              aria-label="Checklist actions"
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            >
               <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
             {dropdownMenuContent}
@@ -280,7 +293,13 @@ export function Checklist({ title, checklistKey, description, className }: Check
         </div>
         {progressSection}
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 space-y-3">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         <div className="h-[250px] overflow-y-auto px-1 pb-1">
           {items.length === 0 ? (
             <ChecklistEmptyState isActive={isActive} onAddItem={() => {}} />
