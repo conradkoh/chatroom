@@ -26,6 +26,8 @@ const PT_PER_CSS_PX = CONTENT_WIDTH_PT / EXPORT_WIDTH_PX;
 const PAGE_HEIGHT_CSS_PX = CONTENT_HEIGHT_PT / PT_PER_CSS_PX;
 /** Browsers refuse canvases taller than ~16384 px in one dimension. */
 const MAX_CANVAS_PX = 16384;
+/** Browsers also cap total canvas pixels (iOS Safari ~16.7 Mpx). Width is EXPORT_WIDTH_PX * scale. */
+const MAX_CANVAS_AREA_PX = 16_777_216;
 const MAX_RASTER_SCALE = 2;
 /** JPEG quality for page images. Keeps 13px body text and Mermaid edges crisp at 100% zoom. */
 const PAGE_IMAGE_QUALITY = 0.9;
@@ -39,7 +41,7 @@ const PAGE_IMAGE_QUALITY = 0.9;
  * - The export root is off-screen but visible: html2canvas skips `visibility:hidden` elements.
  * - Page cuts happen on block boundaries via `computePdfPageSlices`, never mid-block unless a
  *   single block is taller than a page.
- * - Raster scale is clamped so the canvas never exceeds the browser height limit.
+ * - Raster scale is clamped so the canvas never exceeds the browser height or area limits.
  * - Pages are JPEG (quality 0.9) to keep the file shareable; text stays legible at 100% zoom.
  */
 export async function exportMessageAsPdf(message: Message): Promise<SaveFileResult> {
@@ -63,7 +65,11 @@ export async function exportMessageAsPdf(message: Message): Promise<SaveFileResu
       import('jspdf'),
     ]);
     const heightPx = root.scrollHeight;
-    const scale = Math.min(MAX_RASTER_SCALE, MAX_CANVAS_PX / heightPx);
+    const scale = Math.min(
+      MAX_RASTER_SCALE,
+      MAX_CANVAS_PX / heightPx,
+      Math.sqrt(MAX_CANVAS_AREA_PX / (EXPORT_WIDTH_PX * heightPx))
+    );
     const canvas = await html2canvas(root, {
       scale,
       backgroundColor: '#ffffff', // PDF paper, not a theme colour

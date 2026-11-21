@@ -181,6 +181,20 @@ describe('exportMessageAsPdf', () => {
     );
   });
 
+  it('clamps raster scale so the canvas area stays under the browser limit', async () => {
+    stubLayout([], 8000);
+
+    await exportMessageAsPdf(makeMessage('Tall'));
+
+    const { scale } = mocks.html2canvas.mock.calls[0][1] as { scale: number };
+    expect(scale).toBeCloseTo(1.6031, 3);
+    // The browser allocates an integer-sized canvas: width*scale and height*scale rounded.
+    // The exact float product is 16777216.000000004 (one ulp over), which no canvas can express.
+    const canvasWidth = Math.round(816 * scale);
+    const canvasHeight = Math.round(8000 * scale);
+    expect(canvasWidth * canvasHeight).toBeLessThanOrEqual(16_777_216);
+  });
+
   it('rasterises short messages at the maximum scale', async () => {
     stubLayout([], 1000);
 
