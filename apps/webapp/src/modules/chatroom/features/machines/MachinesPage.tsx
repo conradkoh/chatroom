@@ -21,21 +21,19 @@ import { ErrorBoundary } from '../../components/ErrorBoundary';
 export function MachinesPage() {
   return (
     <div
-      className="chatroom-root min-h-screen bg-chatroom-bg-primary p-4 text-chatroom-text-primary sm:p-6"
+      className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6"
       data-testid="machines-page"
     >
-      <div className="mx-auto w-full max-w-5xl">
-        <AppSectionTabs />
-        <div className="mb-6 border-b-2 border-chatroom-border pb-6">
-          <h1 className="mb-2 text-lg font-bold uppercase tracking-widest">Machines</h1>
-          <p className="text-sm text-chatroom-text-muted">
-            Computers running the daemon for your account
-          </p>
-        </div>
-        <ErrorBoundary fallback={<MachinesLoadError />}>
-          <MachinesContent />
-        </ErrorBoundary>
+      <AppSectionTabs />
+      <div className="mb-6 border-b-2 border-chatroom-border pb-6">
+        <h1 className="mb-2 text-lg font-bold uppercase tracking-widest">Machines</h1>
+        <p className="text-sm text-chatroom-text-muted">
+          Computers running the daemon for your account
+        </p>
       </div>
+      <ErrorBoundary fallback={<MachinesLoadError />}>
+        <MachinesContent />
+      </ErrorBoundary>
     </div>
   );
 }
