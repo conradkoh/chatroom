@@ -1219,6 +1219,7 @@ describe('TaskService provider-failure retries (plan V2, amended 2026-11)', () =
 
 describe('TaskService retry warning (delivery_retrying)', () => {
   const args = { chatroomId: 'room-1', role: 'builder', taskId: 'task-1' };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
 
   const recordCalls = (mutation: ReturnType<typeof vi.fn>) =>
     mutation.mock.calls.filter(
@@ -1281,6 +1282,8 @@ describe('TaskService retry warning (delivery_retrying)', () => {
       taskId: 'task-1',
       expectedReason: 'delivery_retrying',
     });
+    await settle();
+    expect(clearCalls(mutation)).toHaveLength(1);
   });
 
   test('a hung warning write does not hold up recordTurnFailure', async () => {
@@ -1338,15 +1341,77 @@ describe('TaskService retry warning (delivery_retrying)', () => {
     await vi.waitFor(() => expect(calls).toEqual(['record', 'clear']));
   });
 
-  test('a covered turn after only 2 failures issues no clear', async () => {
-    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+  test('the first covered turn in a run probes once even with two failures, and the next issues none', async () => {
+    const mutation = vi.fn().mockResolvedValue({ cleared: false });
     const service = trackerService(mutation);
     await service.recordTurnFailure(args);
     await service.recordTurnFailure(args);
 
     service.resetTurnTracking(args);
-    await Promise.resolve();
+    await vi.waitFor(() => expect(clearCalls(mutation)).toHaveLength(1));
+    expect(clearCalls(mutation)[0][1]).toMatchObject({
+      taskId: 'task-1',
+      expectedReason: 'delivery_retrying',
+    });
 
+    service.resetTurnTracking(args);
+    await settle();
+    expect(clearCalls(mutation)).toHaveLength(1);
+  });
+
+  test('a covered turn with zero failures sends one probe clear and the second sends none', async () => {
+    const mutation = vi.fn().mockResolvedValue({ cleared: false });
+    const service = trackerService(mutation);
+
+    service.resetTurnTracking(args);
+    await vi.waitFor(() => expect(clearCalls(mutation)).toHaveLength(1));
+    service.resetTurnTracking(args);
+    await settle();
+    expect(clearCalls(mutation)).toHaveLength(1);
+  });
+
+  test('decideUncoveredTurnEnd probes once across repeated uncovered turns', async () => {
+    const mutation = vi.fn().mockResolvedValue({ cleared: false });
+    const service = trackerService(mutation);
+
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+      action: 'nudge',
+    });
+    await vi.waitFor(() => expect(clearCalls(mutation)).toHaveLength(1));
+
+    // The nudge step only commits once delivery confirms it (as in production),
+    // so the second uncovered end for the same session takes the restart step.
+    service.confirmNudgeSent({ ...args, sessionKey: '1:a' });
+    expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '1:a' })).toEqual({
+      action: 'restart-session',
+    });
+    await settle();
+    expect(clearCalls(mutation)).toHaveLength(1);
+  });
+
+  test('forgetStaleTask re-arms the probe so the next covered turn clears again', async () => {
+    const mutation = vi.fn().mockResolvedValue({ cleared: false });
+    const service = trackerService(mutation);
+
+    service.resetTurnTracking(args);
+    await vi.waitFor(() => expect(clearCalls(mutation)).toHaveLength(1));
+    service.resetTurnTracking(args);
+    await settle();
+    expect(clearCalls(mutation)).toHaveLength(1);
+
+    service.forgetStaleTask(args);
+    service.resetTurnTracking(args);
+    await vi.waitFor(() => expect(clearCalls(mutation)).toHaveLength(2));
+  });
+
+  test('recording failures never sends a clear', async () => {
+    const mutation = vi.fn().mockResolvedValue({ recorded: true });
+    const service = trackerService(mutation);
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      await service.recordTurnFailure(args);
+    }
+    await vi.waitFor(() => expect(recordCalls(mutation)).toHaveLength(2));
     expect(clearCalls(mutation)).toHaveLength(0);
   });
 

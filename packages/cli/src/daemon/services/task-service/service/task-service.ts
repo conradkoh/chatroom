@@ -210,10 +210,14 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   const turnFailureCounts = new Map<string, number>();
   const uncoveredLadder = new Map<string, UncoveredTurnLadderEntry>();
   const redeliveryExhaustedKeys = new Set<string>();
-  // Keys whose retry warning this daemon run wrote, mapped to the taskId. Only these
-  // keys send an explicit clear on a covered or completed turn, so a streak below the
-  // threshold never touches the backend. Lost on restart by design; see scheduleEvent.
+  // Keys whose retry warning this daemon run wrote, mapped to the taskId. A covered or
+  // completed turn clears these. A warning persisted by an earlier run is cleared by the
+  // first covered or completed turn for the task in this run (one probe per task per
+  // run, see warningProbed) or by task end.
   const retryWarnings = new Map<string, string>();
+  // Keys whose probe clear this run has already sent or decided. Stops a covered turn
+  // from writing to the backend on every turn. Deleted when the task ends or is reassigned.
+  const warningProbed = new Set<string>();
   // Retry-warning writes (record and clear) run one at a time, in call order.
   // Callers do not await them: the release path must never wait on the backend.
   let retryWarningWrites: Promise<void> = Promise.resolve();
@@ -287,6 +291,23 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   };
 
   /**
+   * Clears the warning on a covered or completed turn. A warning this run wrote is
+   * cleared from the map. Otherwise the first such turn for the task in this run sends
+   * one probe clear, in case an earlier run persisted a warning. Fire-and-forget through
+   * the ordered queue; never awaited.
+   */
+  const clearRetryWarningAfterTurn = (key: string, taskId: string): void => {
+    if (retryWarnings.has(key)) {
+      clearRetryWarning(key);
+      warningProbed.add(key);
+      return;
+    }
+    if (warningProbed.has(key)) return;
+    warningProbed.add(key);
+    enqueueRetryWarningWrite(() => clearRetryWarningOnBackend(taskId));
+  };
+
+  /**
    * Parks a task after the uncovered-turn ladder is exhausted. Writes
    * 'redelivery_exhausted' once and stops automatic redelivery. A user.start or
    * explicit recovery resets it. Provider failures never reach this path.
@@ -351,7 +372,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
     if (redeliveryExhaustedKeys.has(key)) return { action: 'park' };
     turnFailureCounts.delete(key);
-    clearRetryWarning(key);
+    clearRetryWarningAfterTurn(key, args.taskId);
     const entry = uncoveredLadder.get(key);
     const decision = decideLadderStep(entry, args.sessionKey, {
       nudgeUnavailable: args.nudgeUnavailable ?? false,
@@ -379,7 +400,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
     turnFailureCounts.delete(key);
     uncoveredLadder.delete(key);
-    clearRetryWarning(key);
+    clearRetryWarningAfterTurn(key, args.taskId);
   };
 
   const isRedeliveryExhausted = (args: {
@@ -397,6 +418,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     turnFailureCounts.delete(key);
     uncoveredLadder.delete(key);
     redeliveryExhaustedKeys.delete(key);
+    warningProbed.delete(key);
     clearRetryWarning(key);
   };
   const forgetStaleTask = ({
