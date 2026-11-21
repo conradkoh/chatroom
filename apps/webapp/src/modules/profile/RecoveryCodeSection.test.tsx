@@ -2,18 +2,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import ProfilePage from './page';
-
-/**
- * Sibling profile sections are stubbed rather than provider-wrapped: ThemeSettings throws
- * outside ThemeProvider, FileStorageSettings needs paginated Convex queries, and the other
- * two sections belong to separate inline-feedback slices. This keeps the seam on
- * RecoveryCodeSection, the surface under test. The feedback primitives run for real.
- */
-vi.mock('@/modules/profile/NameEditForm', () => ({ NameEditForm: () => null }));
-vi.mock('@/modules/auth/LoginCodeGenerator', () => ({ LoginCodeGenerator: () => null }));
-vi.mock('@/modules/theme/ThemeSettings', () => ({ ThemeSettings: () => null }));
-vi.mock('@/modules/profile/FileStorageSettings', () => ({ FileStorageSettings: () => null }));
+import { RecoveryCodeSection } from './RecoveryCodeSection';
 
 const mocks = vi.hoisted(() => ({
   getOrCreate: vi.fn(),
@@ -22,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   sessionId: 'session-1' as string | null,
 }));
 
+// Data port: the two recovery actions.
 vi.mock('convex/react', async () => {
   const { getFunctionName } = await import('convex/server');
   return {
@@ -29,24 +19,12 @@ vi.mock('convex/react', async () => {
       getFunctionName(ref as never) === 'auth:regenerateRecoveryCode'
         ? mocks.regenerate
         : mocks.getOrCreate,
-    useQuery: () => undefined,
-    useMutation: () => vi.fn(),
   };
 });
 
+// Data port: the session id.
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => [mocks.sessionId, vi.fn()],
-  useSessionQuery: () => undefined,
-  useSessionMutation: () => vi.fn(),
-}));
-
-vi.mock('@/modules/auth/AuthProvider', () => ({
-  useAuthState: () => ({ state: 'authenticated', user: { _id: 'user-1', type: 'full' } }),
-  useCurrentUser: () => ({ _id: 'user-1', type: 'full' }),
-}));
-
-vi.mock('next/navigation', () => ({
-  useSearchParams: () => new URLSearchParams(),
 }));
 
 let user: ReturnType<typeof userEvent.setup>;
@@ -60,7 +38,7 @@ async function regenerateCode() {
   await user.click(await screen.findByRole('button', { name: 'Regenerate' }));
 }
 
-describe('ProfilePage recovery code section', () => {
+describe('RecoveryCodeSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.sessionId = 'session-1';
@@ -82,7 +60,7 @@ describe('ProfilePage recovery code section', () => {
   it('shows a rejected reveal once as alert text in recovery-feedback', async () => {
     mocks.getOrCreate.mockResolvedValueOnce({ success: false, reason: 'Code is unavailable.' });
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
 
     const alert = screen.getByRole('alert');
@@ -95,7 +73,7 @@ describe('ProfilePage recovery code section', () => {
   it('uses the fallback text when a reveal rejection has no reason', async () => {
     mocks.getOrCreate.mockResolvedValueOnce({ success: false });
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
 
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to retrieve recovery code.');
@@ -105,7 +83,7 @@ describe('ProfilePage recovery code section', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     mocks.getOrCreate.mockRejectedValueOnce(new Error('boom'));
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
 
     expect(screen.getByRole('alert')).toHaveTextContent('An unexpected error occurred.');
@@ -117,7 +95,7 @@ describe('ProfilePage recovery code section', () => {
       reason: 'Regeneration is blocked.',
     });
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
     await regenerateCode();
 
@@ -129,7 +107,7 @@ describe('ProfilePage recovery code section', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     mocks.getOrCreate.mockRejectedValueOnce(new Error('boom'));
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
     expect(screen.getByRole('alert')).toHaveTextContent('An unexpected error occurred.');
 
@@ -142,7 +120,7 @@ describe('ProfilePage recovery code section', () => {
   it('clears the slot on Dismiss', async () => {
     mocks.getOrCreate.mockResolvedValueOnce({ success: false, reason: 'Code is unavailable.' });
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
 
     const slot = screen.getByTestId('recovery-feedback');
@@ -154,7 +132,7 @@ describe('ProfilePage recovery code section', () => {
   it('shows the regenerate success as status text and replaces the textarea', async () => {
     mocks.regenerate.mockResolvedValueOnce({ success: true, recoveryCode: 'NEW-CODE' });
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
     await regenerateCode();
 
@@ -167,7 +145,7 @@ describe('ProfilePage recovery code section', () => {
   it('clears the regenerate status on Dismiss', async () => {
     mocks.regenerate.mockResolvedValueOnce({ success: true, recoveryCode: 'NEW-CODE' });
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
     await regenerateCode();
 
@@ -178,7 +156,7 @@ describe('ProfilePage recovery code section', () => {
   });
 
   it('copies the code with no message and flips Copy Code to a check icon for 2 s', async () => {
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
 
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -202,7 +180,7 @@ describe('ProfilePage recovery code section', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     mocks.writeText.mockRejectedValueOnce(new Error('denied'));
 
-    render(<ProfilePage />);
+    render(<RecoveryCodeSection />);
     await revealCode();
 
     await user.click(screen.getByRole('button', { name: 'Copy recovery code' }));
