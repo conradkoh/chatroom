@@ -112,6 +112,16 @@ const PLAIN_TASK = {
   queuePosition: 2,
 };
 
+const RETRYING_DELIVERY_TASK = {
+  ...PLAIN_TASK,
+  deliveryFailure: { reason: 'delivery_retrying' as const, occurredAt: 4000 },
+};
+
+const PAUSED_DELIVERY_TASK = {
+  ...PLAIN_TASK,
+  deliveryFailure: { reason: 'redelivery_exhausted' as const, occurredAt: 4000 },
+};
+
 const defaultProps = {
   onClose: vi.fn(),
   onEdit: vi.fn(),
@@ -174,5 +184,22 @@ describe('TaskDetailModal — structured handoff', () => {
     fireEvent.click(screen.getByTestId('handoff-raw-toggle'));
 
     expect(screen.queryByText('Save')).not.toBeInTheDocument();
+  });
+
+  it('renders a retrying warning with its tooltip when delivery keeps failing', () => {
+    render(<TaskDetailModal isOpen task={RETRYING_DELIVERY_TASK} {...defaultProps} />);
+
+    const warning = screen.getByTitle(
+      'Delivery has failed more than 3 times and is still being retried (up to once a minute). Check the agent and its provider.'
+    );
+    expect(warning).toHaveTextContent('Retrying delivery — something may be wrong');
+  });
+
+  it('renders a paused delivery when the agent finished without a handoff', () => {
+    render(<TaskDetailModal isOpen task={PAUSED_DELIVERY_TASK} {...defaultProps} />);
+
+    expect(
+      screen.getByText('Delivery paused — agent finished without a handoff')
+    ).toBeInTheDocument();
   });
 });
