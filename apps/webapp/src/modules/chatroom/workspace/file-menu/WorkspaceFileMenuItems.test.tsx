@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkspaceFileMenuProps } from './types';
@@ -113,5 +113,55 @@ describe('WorkspaceFileMenuItems', () => {
       state: { ...defaultState, fileContentLabel: 'Copy as Markdown' },
     });
     expect(screen.getByText('Copy as Markdown')).toBeInTheDocument();
+  });
+});
+
+describe('WorkspaceFileMenuItems copy reporting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('reports truncated file content to onCopied as truncated', async () => {
+    const onCopied = vi.fn();
+    renderMenu({
+      state: { ...defaultState, contentTruncated: true },
+      handlers: { onCopied },
+    });
+    fireEvent.click(screen.getByText('Copy File Content'));
+    await vi.waitFor(() => {
+      expect(onCopied).toHaveBeenCalledWith({ truncated: true });
+    });
+    expect(writeText).toHaveBeenCalledWith('file body');
+    expect(screen.queryByText(/truncated/i)).not.toBeInTheDocument();
+  });
+
+  it('reports complete file content to onCopied as not truncated', async () => {
+    const onCopied = vi.fn();
+    renderMenu({
+      state: { ...defaultState, contentTruncated: false },
+      handlers: { onCopied },
+    });
+    fireEvent.click(screen.getByText('Copy File Content'));
+    await vi.waitFor(() => {
+      expect(onCopied).toHaveBeenCalledWith({ truncated: false });
+    });
+  });
+
+  it('reports a file name copy as not truncated even when the content is truncated', async () => {
+    const onCopied = vi.fn();
+    renderMenu({
+      state: { ...defaultState, contentTruncated: true },
+      handlers: { onCopied },
+    });
+    fireEvent.click(screen.getByText('Copy File Name'));
+    await vi.waitFor(() => {
+      expect(onCopied).toHaveBeenCalledWith({ truncated: false });
+    });
+    expect(writeText).toHaveBeenCalledWith('foo.ts');
   });
 });

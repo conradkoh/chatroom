@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
 
-import type { WorkspaceFileMenuProps } from './types';
+import type { WorkspaceFileCopyInfo, WorkspaceFileMenuProps } from './types';
 import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
 import {
   copyFileContentToClipboard,
@@ -38,14 +38,18 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
     relativePath,
     workingDir,
     content,
+    contentTruncated,
     contentDisabled = false,
     fileContentLabel = 'Copy File Content',
   } = state;
 
   // A success never shows text here. The host decides what, if anything, to show.
-  const reportCopy = (copy: Promise<CopyResult>) => {
+  const reportCopy = (
+    copy: Promise<CopyResult>,
+    info: WorkspaceFileCopyInfo = { truncated: false }
+  ) => {
     void copy.then((result) => {
-      if (result.ok) handlers.onCopied?.();
+      if (result.ok) handlers.onCopied?.(info);
       else handlers.onCopyError?.(result.message);
     });
   };
@@ -143,7 +147,9 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
         icon={Copy}
         onSelect={() => {
           if (content && !contentDisabled) {
-            reportCopy(copyFileContentToClipboard(content));
+            reportCopy(copyFileContentToClipboard(content), {
+              truncated: contentTruncated === true,
+            });
           }
         }}
         disabled={contentDisabled || !content}

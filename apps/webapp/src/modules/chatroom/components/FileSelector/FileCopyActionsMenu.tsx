@@ -3,7 +3,7 @@
 import { Check, Copy } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
-import { WorkspaceFileActionsMenu } from '../../workspace/file-menu';
+import { WorkspaceFileActionsMenu, type WorkspaceFileCopyInfo } from '../../workspace/file-menu';
 import {
   copyFileContentToClipboard,
   copyFileNameToClipboard,
@@ -16,6 +16,8 @@ export interface FileCopyActionsMenuProps {
   relativePath: string;
   workingDir: string | null;
   content: string | null;
+  /** True when `content` is a truncated copy of the file. Reported through onCopied; never shown here. */
+  contentTruncated?: boolean;
   contentDisabled?: boolean;
   className?: string;
   /** When false, omits "Copy File Name" from the dropdown (use inline CopyFileNameButton). */
@@ -31,8 +33,8 @@ export interface FileCopyActionsMenuProps {
   onOpenFileOnRemote?: () => void;
   /** Receives a copy failure message. The host shows it in its own slot. */
   onCopyError?: (message: string) => void;
-  /** Called after a copy succeeds. Hosts may clear their own copy failure. Never show copy text here. */
-  onCopied?: () => void;
+  /** Called after a copy succeeds, with what was copied. Hosts may clear their own copy failure. Never show copy text here. */
+  onCopied?: (info: WorkspaceFileCopyInfo) => void;
 }
 
 interface CopyHostCallbacks {
@@ -130,6 +132,7 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   relativePath,
   workingDir,
   content,
+  contentTruncated,
   contentDisabled,
   className,
   showFileName = true,
@@ -149,6 +152,7 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
         relativePath,
         workingDir,
         content,
+        contentTruncated,
         contentDisabled,
         fileContentLabel,
       }}

@@ -219,6 +219,38 @@ describe('FileCopyActionsMenu', () => {
   });
 });
 
+describe('FileCopyActionsMenu content copy reporting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('forwards truncation of copied file content to onCopied', async () => {
+    const onCopied = vi.fn();
+    render(<FileCopyActionsMenu {...defaultProps} contentTruncated onCopied={onCopied} />);
+    openDropdown();
+    fireEvent.click(screen.getByText('Copy File Content'));
+    await vi.waitFor(() => {
+      expect(onCopied).toHaveBeenCalledWith({ truncated: true });
+    });
+    expect(writeText).toHaveBeenCalledWith('file body');
+  });
+
+  it('reports complete file content to onCopied as not truncated', async () => {
+    const onCopied = vi.fn();
+    render(<FileCopyActionsMenu {...defaultProps} contentTruncated={false} onCopied={onCopied} />);
+    openDropdown();
+    fireEvent.click(screen.getByText('Copy File Content'));
+    await vi.waitFor(() => {
+      expect(onCopied).toHaveBeenCalledWith({ truncated: false });
+    });
+  });
+});
+
 describe('CopyFileNameButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();

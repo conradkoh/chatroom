@@ -3,7 +3,7 @@
 import { Check, Copy, MoreHorizontal } from 'lucide-react';
 import { memo, useMemo } from 'react';
 
-import type { WorkspaceFileMenuProps } from './types';
+import type { WorkspaceFileCopyInfo, WorkspaceFileMenuProps } from './types';
 import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
 
 import {
@@ -36,9 +36,9 @@ export const WorkspaceFileActionsMenu = memo(function WorkspaceFileActionsMenu({
   const menuHandlers = useMemo(
     () => ({
       ...handlers,
-      onCopied: () => {
+      onCopied: (info: WorkspaceFileCopyInfo) => {
         markCopied();
-        handlers.onCopied?.();
+        handlers.onCopied?.(info);
       },
     }),
     [handlers, markCopied]
