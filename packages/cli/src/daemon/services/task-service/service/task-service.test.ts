@@ -1090,12 +1090,13 @@ describe('TaskService provider-failure retries (plan V2, amended 2026-11)', () =
       action: 'park',
     });
     expect(service.isRedeliveryExhausted(args)).toBe(true);
-    expect(redeliveryExhaustedWrites(mutation)).toHaveLength(1);
+    await vi.waitFor(() => expect(redeliveryExhaustedWrites(mutation)).toHaveLength(1));
 
     // Further decisions stay parked and do not write the failure again.
     expect(await service.decideUncoveredTurnEnd({ ...args, sessionKey: '3:c' })).toEqual({
       action: 'park',
     });
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(redeliveryExhaustedWrites(mutation)).toHaveLength(1);
   });
 
@@ -1514,5 +1515,50 @@ describe('TaskService retry warning (delivery_retrying)', () => {
 
     await vi.waitFor(() => expect(clearCalls(mutation)).toHaveLength(1));
     expect(await service.recordTurnFailure(args)).toEqual({ attempts: 1, parked: false });
+  });
+
+  test('a stalled warning record is followed by its clear, and the redelivery_exhausted park record lands last', async () => {
+    const writes: string[] = [];
+    let releaseWarningRecord: () => void = () => {};
+    const warningRecordSettled = new Promise<void>((resolve) => {
+      releaseWarningRecord = resolve;
+    });
+    const mutation = vi.fn().mockImplementation(async (_ref: unknown, callArgs: unknown) => {
+      const write = callArgs as { reason?: string; expectedReason?: string };
+      if (write.reason === 'delivery_retrying') {
+        writes.push('record:delivery_retrying');
+        await warningRecordSettled;
+        return { recorded: true };
+      }
+      if (write.expectedReason === 'delivery_retrying') {
+        writes.push('clear:delivery_retrying');
+        return { cleared: true };
+      }
+      if (write.reason === 'redelivery_exhausted') {
+        writes.push('record:redelivery_exhausted');
+        return { recorded: true };
+      }
+      return { ok: true };
+    });
+    const service = trackerService(mutation as ReturnType<typeof vi.fn>);
+
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      await service.recordTurnFailure(args);
+    }
+    await vi.waitFor(() => expect(writes).toEqual(['record:delivery_retrying']));
+
+    await parkUncoveredTurn(service, args);
+    expect(service.isRedeliveryExhausted(args)).toBe(true);
+
+    releaseWarningRecord();
+    await vi.waitFor(() =>
+      expect(writes).toEqual([
+        'record:delivery_retrying',
+        'clear:delivery_retrying',
+        'record:redelivery_exhausted',
+      ])
+    );
+    await settle();
+    expect(writes).toHaveLength(3);
   });
 });

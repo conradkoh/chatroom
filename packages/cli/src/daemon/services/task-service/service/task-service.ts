@@ -308,18 +308,16 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   };
 
   /**
-   * Parks a task after the uncovered-turn ladder is exhausted. Writes
-   * 'redelivery_exhausted' once and stops automatic redelivery. A user.start or
-   * explicit recovery resets it. Provider failures never reach this path.
+   * Parks a task after the uncovered-turn ladder is exhausted. The park key is set
+   * synchronously. The 'redelivery_exhausted' record is enqueued on the same ordered
+   * queue as retry-warning records and clears, so a stalled 'delivery_retrying' record
+   * or its clear can never land after it. Fire-and-forget; never awaited. A user.start
+   * or explicit recovery resets it. Provider failures never reach this path.
    */
-  const parkUncoveredTurn = async (args: {
-    chatroomId: string;
-    role: string;
-    taskId: string;
-  }): Promise<void> => {
+  const parkUncoveredTurn = (args: { chatroomId: string; role: string; taskId: string }): void => {
     const key = redeliveryKey(args.chatroomId, args.role, args.taskId);
     redeliveryExhaustedKeys.add(key);
-    await recordExhaustedOnBackend(args);
+    enqueueRetryWarningWrite(() => recordExhaustedOnBackend(args));
     console.log(
       `[NativeDelivery:redelivery-exhausted] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} reason=uncovered_turn — redelivery stopped; user.start or explicit recovery resets`
     );
@@ -380,7 +378,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     if (decision.action === 'restart-session') {
       uncoveredLadder.set(key, withSessionRestart(entry));
     } else if (decision.action === 'park') {
-      await parkUncoveredTurn(args);
+      parkUncoveredTurn(args);
     }
     return decision;
   };
