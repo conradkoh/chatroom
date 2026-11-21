@@ -19,11 +19,16 @@ vi.mock('./useChatroomAgentOperations', () => ({
 const PURE_SUCCESS = { requested: [{ role: 'planner' }], skipped: [], failed: [] };
 
 /** Mirrors the dashboard wiring: one strip, one set of bulk actions. */
-function DashboardStripHarness() {
+function DashboardStripHarness({
+  isAnyRemoteAgentStarting = false,
+}: {
+  isAnyRemoteAgentStarting?: boolean;
+}) {
   const strip = useCopyOwnedFeedback();
   const actions = useDashboardAgentBulkActions({
     chatroomId: 'room-1',
     report: strip.report,
+    isAnyRemoteAgentStarting,
   });
   return (
     <>
@@ -35,6 +40,7 @@ function DashboardStripHarness() {
       />
       <button onClick={() => void actions.stopAllRemoteAgents()}>Stop all</button>
       <button onClick={() => void actions.restartAllRemoteAgents()}>Restart all</button>
+      <span data-testid="restart-latch">{String(actions.isRestartingAllAgents)}</span>
     </>
   );
 }
@@ -152,5 +158,79 @@ describe('useDashboardAgentBulkActions', () => {
       resolveStop(PURE_SUCCESS);
     });
     expect(screen.queryByTestId('dashboard-feedback')).not.toBeInTheDocument();
+  });
+
+  it('sends the restart request for the chatroom', async () => {
+    render(<DashboardStripHarness />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart all' }));
+    await act(async () => {});
+
+    expect(mocks.restart).toHaveBeenCalledWith('room-1');
+  });
+
+  it.each([
+    ['success', PURE_SUCCESS],
+    [
+      'partial failure',
+      {
+        requested: [{ role: 'planner' }],
+        skipped: [],
+        failed: [{ role: 'builder', error: 'Machine offline' }],
+      },
+    ],
+    [
+      'total failure',
+      { requested: [], skipped: [], failed: [{ role: 'builder', error: 'Machine offline' }] },
+    ],
+    ['empty result', { requested: [], skipped: [], failed: [] }],
+  ])('the restart latch releases after a %s when no agent is starting', async (_label, result) => {
+    mocks.restart.mockResolvedValueOnce(result);
+    render(<DashboardStripHarness />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart all' }));
+    await act(async () => {});
+
+    expect(screen.getByTestId('restart-latch')).toHaveTextContent('false');
+  });
+
+  it('the restart latch releases after a thrown error when no agent is starting', async () => {
+    mocks.restart.mockRejectedValueOnce(new Error('backend down'));
+    render(<DashboardStripHarness />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart all' }));
+    await act(async () => {});
+
+    expect(screen.getByTestId('restart-latch')).toHaveTextContent('false');
+  });
+
+  it('the restart latch is set while the request is in flight', async () => {
+    let resolveRestart: (value: typeof PURE_SUCCESS) => void = () => {};
+    mocks.restart.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRestart = resolve;
+        })
+    );
+    render(<DashboardStripHarness />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart all' }));
+    expect(screen.getByTestId('restart-latch')).toHaveTextContent('true');
+
+    await act(async () => {
+      resolveRestart(PURE_SUCCESS);
+    });
+    expect(screen.getByTestId('restart-latch')).toHaveTextContent('false');
+  });
+
+  it('the restart latch stays set while an agent is starting and releases once none is', async () => {
+    const { rerender } = render(<DashboardStripHarness isAnyRemoteAgentStarting />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart all' }));
+    await act(async () => {});
+    expect(screen.getByTestId('restart-latch')).toHaveTextContent('true');
+
+    rerender(<DashboardStripHarness isAnyRemoteAgentStarting={false} />);
+    expect(screen.getByTestId('restart-latch')).toHaveTextContent('false');
   });
 });

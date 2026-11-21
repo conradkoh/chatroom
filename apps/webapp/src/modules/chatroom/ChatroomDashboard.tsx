@@ -1400,15 +1400,18 @@ function ChatroomDashboardContent({
   const startAll = useStartAllRemoteAgents({ chatroomId, onFeedback: reportDashboardFeedback });
 
   // Stop-all and restart-all report through the dashboard strip. See hooks/useDashboardAgentBulkActions.ts.
+  const isAnyRemoteAgentStarting = agentPanelData.agents.some(
+    (a) => a.role.toLowerCase() !== 'user' && a.state === 'starting'
+  );
   const {
     isRequestingStop,
     isRestartingAllAgents,
-    setIsRestartingAllAgents,
     stopAllRemoteAgents: handleStopAllRemoteAgents,
     restartAllRemoteAgents: handleRestartAllRemoteAgents,
   } = useDashboardAgentBulkActions({
     chatroomId,
     report: reportDashboardFeedback,
+    isAnyRemoteAgentStarting,
   });
   const isStoppingAgents = isRequestingStop;
 
@@ -1426,16 +1429,6 @@ function ChatroomDashboardContent({
     () => chatroomStatus?.remoteAgentStatus === 'running',
     [chatroomStatus?.remoteAgentStatus]
   );
-
-  useEffect(() => {
-    if (!isRestartingAllAgents) return;
-    const remoteAgents = agentPanelData.agents.filter((a) => a.role.toLowerCase() !== 'user');
-    const anyStarting = remoteAgents.some((a) => a.state === 'starting');
-    const allRunning = remoteAgents.length > 0 && remoteAgents.every((a) => a.state === 'running');
-    if (allRunning || (!anyStarting && remoteAgents.some((a) => a.state === 'running'))) {
-      setIsRestartingAllAgents(false);
-    }
-  }, [isRestartingAllAgents, agentPanelData.agents]);
 
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {
