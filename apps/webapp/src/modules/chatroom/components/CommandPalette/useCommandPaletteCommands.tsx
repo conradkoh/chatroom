@@ -28,7 +28,6 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { SiGithub } from 'react-icons/si';
-import { toast } from 'sonner';
 
 import type { CommandItem, SettingsTab } from './types';
 import { useCommandFavorites } from '../../features/run-command/hooks/useCommandFavorites';
@@ -400,7 +399,6 @@ export function useCommandPaletteCommands({
         keywords: ['reset', 'clear', 'stats', 'usage', 'frecency'],
         action: () => {
           clearUsage();
-          toast.success('Command stats cleared');
         },
       });
     }
