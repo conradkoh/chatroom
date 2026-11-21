@@ -11,6 +11,7 @@ import {
 } from './agent-process-manager.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../../infrastructure/local/harness/bound-harness-registry.js';
 import type { SpawnResult } from '../../../infrastructure/local/harness/services/remote-agent-service.js';
+import { createSpawnPrompt } from '../../../infrastructure/local/harness/services/spawn-prompt.js';
 import {
   createAgentLifecycleOutboxRegistry,
   agentLifecycleKey,
@@ -487,6 +488,27 @@ describe('AgentProcessManager', () => {
 
       const currentAgentEndCb = currentOnAgentEndRegistrar.mock.calls[0][0] as () => void;
       await triggerAgentEnd(manager, currentAgentEndCb);
+    });
+
+    test('substitutes the native bootstrap prompt when backend returns an empty initialMessage', async () => {
+      // Use case-level regression guard: composeInitMessage in the backend currently
+      // returns '' for every role. The manager must wrap that via createSpawnPrompt
+      // before calling service.spawn so harnesses never receive an empty user message.
+      // Without this, the opencode-sdk harness sends parts:[{text:''}] which
+      // some providers (e.g. MiniMax) reject with `messages must not be empty`.
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        prompt: true,
+        rolePrompt: 'You are a builder',
+        initialMessage: '',
+      });
+
+      await manager.ensureRunning(createOpts());
+
+      const service = deps.agentServices.get('opencode-sdk')!;
+      expect(service.spawn).toHaveBeenCalledOnce();
+      const spawnArgs = (service.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(spawnArgs.prompt).toBe(createSpawnPrompt(undefined, { nativeBootstrap: true }));
+      expect(spawnArgs.systemPrompt).toBe('You are a builder');
     });
 
     test('opencode-sdk spawn passes harnessSessionId to lifecycle outbox', async () => {
