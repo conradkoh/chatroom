@@ -294,7 +294,7 @@ export const FileExplorerPanel = memo(
       const { feedback, error: showExplorerError, clear: clearExplorerFeedback } = useFeedback();
       // True while the message in the slot is a tree-sync failure. Only tree-sync attempts may clear it.
       const treeSyncErrorShownRef = useRef(false);
-      // Every file-op and drop error goes through here so the slot is marked file-op-owned.
+      // Every non-tree-sync error (file ops, drops, copies) goes through here so the slot is marked file-op-owned.
       const showFileOpError = useCallback(
         (message: string) => {
           treeSyncErrorShownRef.current = false;
@@ -428,11 +428,22 @@ export const FileExplorerPanel = memo(
               onDelete: () => setDeleteTarget({ path, type: target.type }),
               onNewFile: isDir ? () => openNewFileDialog(path) : undefined,
               onNewFolder: isDir ? () => openNewFolderDialog(path) : undefined,
+              // A copy failure uses the file-op path so tree-sync refreshes do not clear it.
+              // A success clears the slot, which removes a stale copy failure. It shows nothing.
+              onCopied: clearExplorerFeedback,
+              onCopyError: showFileOpError,
             },
             visibility,
           };
         },
-        [workingDir, openFileOnRemote, openRenameDialog, trackContextMenuFile]
+        [
+          workingDir,
+          openFileOnRemote,
+          openRenameDialog,
+          trackContextMenuFile,
+          clearExplorerFeedback,
+          showFileOpError,
+        ]
       );
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.

@@ -21,6 +21,10 @@ export interface WorkspaceFileMenuHandlers {
   onCloseOthers?: () => void;
   onNewFile?: () => void;
   onNewFolder?: () => void;
+  /** Called after a copy item succeeds. Hosts may show nothing. Never add copy text here. */
+  onCopied?: () => void;
+  /** Called with the failure message when a copy item fails. Undefined means the failure is not shown. */
+  onCopyError?: (message: string) => void;
 }
 
 export interface WorkspaceFileMenuVisibility {
