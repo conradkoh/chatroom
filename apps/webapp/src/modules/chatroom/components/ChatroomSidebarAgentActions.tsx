@@ -4,9 +4,11 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2, Play, RefreshCw, Square } from 'lucide-react';
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { StartWithFavoritesDialog } from '../features/machine-config/components/StartWithFavoritesDialog';
+import { useStartAgentsWithFavorites } from '../features/machine-config/hooks/useStartAgentsWithFavorites';
 import { useChatroomAgentOperations } from '../hooks/useChatroomAgentOperations';
 
 type ChatroomId = Id<'chatroom_rooms'>;
@@ -29,18 +31,27 @@ interface AgentActionButtonsProps {
   isRunning: boolean;
   isSubmittingStop: boolean;
   isStarting: boolean;
+  startTitle: string;
   isRestarting: boolean;
   onStop: (event: React.MouseEvent) => void;
   onStart: (event: React.MouseEvent) => void;
   onRestart: (event: React.MouseEvent) => void;
+  startButtonRef: React.RefObject<HTMLButtonElement | null>;
 }
 
-function reportAgentOperation(result: AgentOperationResult, operation: 'start' | 'restart') {
+function reportAgentOperation(
+  result: AgentOperationResult,
+  operation: 'start' | 'restart',
+  appliedCount = 0
+) {
   if (result.failed.length > 0) {
     toast.error(`Failed to ${operation} ${result.failed.length} agent(s)`);
   } else if (result.requested.length > 0) {
+    const requestedText = `${operation[0].toUpperCase()}${operation.slice(1)} requested for ${result.requested.length} agent(s)`;
     toast.success(
-      `${operation[0].toUpperCase()}${operation.slice(1)} requested for ${result.requested.length} agent(s)`
+      appliedCount > 0
+        ? `Applied favourites to ${appliedCount} agent(s). ${requestedText}.`
+        : requestedText
     );
   } else {
     toast.error('No saved agent configuration is available.');
@@ -83,12 +94,15 @@ function StopButton({
 
 function StartButton({
   isStarting,
+  startTitle,
   onStart,
-}: Pick<AgentActionButtonsProps, 'isStarting' | 'onStart'>) {
+  startButtonRef,
+}: Pick<AgentActionButtonsProps, 'isStarting' | 'startTitle' | 'onStart' | 'startButtonRef'>) {
   return (
     <button
+      ref={startButtonRef}
       onClick={onStart}
-      title="Start with last configuration"
+      title={startTitle}
       aria-label="Start agents"
       aria-busy={isStarting}
       disabled={isStarting}
@@ -129,15 +143,24 @@ function AgentActionButtons({
   isRunning,
   isSubmittingStop,
   isStarting,
+  startTitle,
   isRestarting,
   onStop,
   onStart,
   onRestart,
+  startButtonRef,
 }: AgentActionButtonsProps) {
   return (
     <>
       {canStop && <StopButton isSubmittingStop={isSubmittingStop} onStop={onStop} />}
-      {showStart && <StartButton isStarting={isStarting} onStart={onStart} />}
+      {showStart && (
+        <StartButton
+          isStarting={isStarting}
+          startTitle={startTitle}
+          onStart={onStart}
+          startButtonRef={startButtonRef}
+        />
+      )}
       {isRunning && (
         <RestartButton
           isRestarting={isRestarting}
@@ -172,11 +195,27 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
   isRunning,
 }: ChatroomSidebarAgentActionsProps) {
   const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
+  const startButtonRef = useRef<HTMLButtonElement>(null);
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
   const [isSubmittingStop, setIsSubmittingStop] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const id = chatroomId as ChatroomId;
+
+  // Runs after the favourites check resolves or is skipped. The controller does not catch errors, so this does.
+  const start = useCallback(
+    async ({ appliedCount }: { appliedCount: number }) => {
+      try {
+        reportAgentOperation(await startAgents(id), 'start', appliedCount);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to start agents');
+      }
+    },
+    [id, startAgents]
+  );
+  const { phase, isBusy, requestStart, dialogProps } = useStartAgentsWithFavorites({
+    chatroomId,
+    start,
+  });
 
   const handleStop = useCallback(
     (event: React.MouseEvent) =>
@@ -193,14 +232,12 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
   );
 
   const handleStart = useCallback(
-    (event: React.MouseEvent) =>
-      runSidebarAgentAction(
-        event,
-        setIsStarting,
-        async () => reportAgentOperation(await startAgents(id), 'start'),
-        'Failed to start agents'
-      ),
-    [id, startAgents]
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
+      event.preventDefault();
+      requestStart();
+    },
+    [requestStart]
   );
 
   const handleRestart = useCallback(
@@ -215,16 +252,23 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
   );
 
   return (
-    <AgentActionButtons
-      canStop={canStop}
-      showStart={showStart}
-      isRunning={isRunning}
-      isSubmittingStop={isSubmittingStop}
-      isStarting={isStarting}
-      isRestarting={isRestarting}
-      onStop={handleStop}
-      onStart={handleStart}
-      onRestart={handleRestart}
-    />
+    <>
+      <AgentActionButtons
+        canStop={canStop}
+        showStart={showStart}
+        isRunning={isRunning}
+        isSubmittingStop={isSubmittingStop}
+        isStarting={isBusy}
+        startTitle={
+          phase === 'checking' ? 'Checking favourite models…' : 'Start with last configuration'
+        }
+        isRestarting={isRestarting}
+        onStop={handleStop}
+        onStart={handleStart}
+        onRestart={handleRestart}
+        startButtonRef={startButtonRef}
+      />
+      <StartWithFavoritesDialog {...dialogProps} finalFocusRef={startButtonRef} />
+    </>
   );
 });

@@ -1,9 +1,10 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import {
   deriveChatroomState,
   isChatroomStopAvailable,
 } from '@workspace/shared/domain/chatroom-activity-status';
+import type * as ConvexReact from 'convex/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +30,21 @@ const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockPush = vi.fn();
+const mockSaveConfig = vi.fn();
+// Convex boundary for the favourites check. `useQueries` answers by query name.
+const mockQueryData: Record<string, unknown> = {};
+let mockQueriesPending = false;
+
+vi.mock('convex/react', async (importOriginal) => ({
+  ...(await importOriginal<typeof ConvexReact>()),
+  useQueries: (queries: Record<string, { query: { name: string } }>) =>
+    Object.fromEntries(
+      Object.entries(queries).map(([key, { query }]) => [
+        key,
+        mockQueriesPending ? undefined : mockQueryData[query.name],
+      ])
+    ),
+}));
 
 vi.mock('../hooks/useChatroomAgentOperations', () => ({
   useChatroomAgentOperations: () => ({
@@ -68,6 +84,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionId: () => ['session-1', () => {}],
   useSessionMutation: (mutationRef: unknown) => {
     const ref = mutationRef as { name?: string };
     if (ref && typeof ref === 'object' && 'name' in ref) {
@@ -84,6 +101,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'stopAllCommandRunsForChatroom') {
         return mockStopAllCommandRuns;
       }
+      if (name === 'saveConfig') {
+        return mockSaveConfig;
+      }
     }
     return () => {};
   },
@@ -96,15 +116,26 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getLifecycleImpacts: { name: 'getLifecycleImpacts' },
       markAsUnread: { name: 'markAsUnread' },
       markAsRead: { name: 'markAsRead' },
+      getTeamStructureForChatroom: { name: 'getTeamStructureForChatroom' },
+    },
+    workspaces: {
+      listWorkspacesForChatroom: { name: 'listWorkspacesForChatroom' },
     },
     machines: {
       sendCommand: { name: 'sendCommand' },
+      getMachineCapabilities: { name: 'getMachineCapabilities' },
     },
     commands: {
       stopAllCommandRunsForChatroom: { name: 'stopAllCommandRunsForChatroom' },
     },
+    machineConfigFavorites: {
+      getMachineConfigFavorites: { name: 'getMachineConfigFavorites' },
+    },
     agents: {
       requestChatroomAgentOperation: { name: 'requestChatroomAgentOperation' },
+      saveConfig: { name: 'saveConfig' },
+      listStatus: { name: 'listStatus' },
+      listLastSentLaunchRequests: { name: 'listLastSentLaunchRequests' },
     },
   },
 }));
@@ -180,13 +211,36 @@ const makeCompletedChatroom = (): ChatroomWithStatus =>
     name: 'Completed Chat',
   });
 
-const renderSidebar = (chatrooms: ChatroomWithStatus[]) => {
+const renderSidebar = (chatrooms: ChatroomWithStatus[], activeChatroomId = chatrooms[0]?._id) => {
   (useChatroomListing as ReturnType<typeof vi.fn>).mockReturnValue({
     chatrooms,
     isLoading: false,
   });
-  return render(<ChatroomSidebar activeChatroomId={chatrooms[0]?._id} />);
+  return render(<ChatroomSidebar activeChatroomId={activeChatroomId} />);
 };
+
+const CURRENT = { agentHarness: 'opencode', model: 'claude-opus-4-8[effort=high]' };
+const FAVOURITE = { agentHarness: 'pi', model: 'gpt-5.6-terra[reasoning=high]' };
+
+function setStartCheckData(favourites: unknown[]) {
+  mockQueryData.getTeamStructureForChatroom = {
+    teamId: 'team-1',
+    roles: [{ role: 'builder' }, { role: 'user' }],
+  };
+  mockQueryData.listWorkspacesForChatroom = [
+    {
+      _id: 'ws-1',
+      machineId: 'machine-1',
+      workingDir: '/repo',
+      hostname: 'host-1',
+      machineAlias: 'laptop',
+    },
+  ];
+  mockQueryData.listStatus = [];
+  mockQueryData.listLastSentLaunchRequests = [{ role: 'builder', ...CURRENT, workingDir: '/repo' }];
+  mockQueryData.getMachineCapabilities = { availableHarnesses: ['opencode', 'pi'] };
+  mockQueryData.getMachineConfigFavorites = { favorites: favourites };
+}
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -215,6 +269,10 @@ describe('ChatroomSidebar', () => {
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
     mockPush.mockReset();
+    mockSaveConfig.mockReset();
+    mockSaveConfig.mockResolvedValue(undefined);
+    mockQueriesPending = false;
+    setStartCheckData([]);
     mockStatuses.clear();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
   });
@@ -530,6 +588,159 @@ describe('ChatroomSidebar', () => {
       expect(mockStopAllCommandRuns).toHaveBeenCalledWith({
         chatroomId: chatroom._id,
       });
+    });
+  });
+
+  describe('play button with favourites check', () => {
+    const clickPlay = () => fireEvent.click(screen.getByLabelText('Start agents'));
+
+    /**
+     * Renders the sidebar with the mocked start-check queries pending, starts the flow, reproduces the browser's
+     * focus loss from a disabled control, then resolves the queries and re-renders.
+     *
+     * The re-render changes `activeChatroomId` (ChatroomSidebar is memoised) and `canStop` (so the memoised
+     * `ChatroomSidebarAgentActions` re-runs `useQueries`); identical props would bail out and the mocked
+     * queries would never re-run.
+     */
+    const renderWithDeferredCheck = () => {
+      mockQueriesPending = true;
+      setStartCheckData([FAVOURITE]);
+      const chatroom = makeChatroom({ remoteAgentStatus: 'stopped' });
+      const { rerender } = renderSidebar([chatroom]);
+      const play = screen.getByLabelText('Start agents');
+      play.focus();
+      clickPlay();
+      expect(play).toBeDisabled();
+      // Browsers move focus to <body> when the focused control becomes disabled; jsdom keeps focus and refuses
+      // to blur a disabled control, so move focus to the body explicitly. The popup records <body> as the
+      // element focused before open, which is why returning to the play button needs an explicit finalFocus.
+      act(() => {
+        document.body.setAttribute('tabindex', '-1');
+        document.body.focus();
+        document.body.removeAttribute('tabindex');
+      });
+      expect(play).not.toHaveFocus();
+      mockQueriesPending = false;
+      // Both ChatroomSidebar and ChatroomSidebarAgentActions are memoised, so resolving the mocked queries needs
+      // a re-render with a changed prop that reaches the actions. Flip `canStop` while keeping the activity
+      // status (and so the row's section) unchanged; the Start button keeps the same element and ref.
+      mockStatuses.set(chatroom._id, {
+        ...makeStatus(chatroom._id, 'active', 'stopped'),
+        canStop: false,
+      });
+      (useChatroomListing as ReturnType<typeof vi.fn>).mockReturnValue({
+        chatrooms: [chatroom],
+        isLoading: false,
+      });
+      rerender(<ChatroomSidebar activeChatroomId="chr-other" />);
+    };
+
+    it('starts immediately with no dialog when every agent is on its top favourite', async () => {
+      setStartCheckData([CURRENT]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
+      expect(screen.queryByTestId('start-favourites-dialog')).not.toBeInTheDocument();
+      expect(mockSaveConfig).not.toHaveBeenCalled();
+      expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+    });
+
+    it('opens the dialog listing current → favourite and starts nothing until the user chooses', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      const dialog = await screen.findByTestId('start-favourites-dialog');
+      const rows = within(dialog).getAllByTestId('start-favourites-row');
+      expect(rows).toHaveLength(1);
+      expect(within(rows[0]).getByText('opencode · Claude Opus 4.8 [high]')).toBeInTheDocument();
+      expect(within(rows[0]).getByText('pi · Gpt 5.6 Terra [high]')).toBeInTheDocument();
+      expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+      expect(mockSaveConfig).not.toHaveBeenCalled();
+    });
+
+    it('Start with current starts without saving', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      fireEvent.click(await screen.findByTestId('start-favourites-current'));
+      await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
+      expect(mockSaveConfig).not.toHaveBeenCalled();
+      expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+    });
+
+    it('Use favourites & start saves the favourite before starting and reports it', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      fireEvent.click(await screen.findByTestId('start-favourites-use'));
+      await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
+      expect(mockSaveConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatroomId: 'chr-1',
+          workspaceId: 'ws-1',
+          role: 'builder',
+          machineId: 'machine-1',
+          workingDir: '/repo',
+          agentHarness: 'pi',
+          model: 'gpt-5.6-terra[reasoning=high]',
+        })
+      );
+      expect(mockSaveConfig.mock.invocationCallOrder[0]).toBeLessThan(
+        mockRequestChatroomStart.mock.invocationCallOrder[0]
+      );
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        'Applied favourites to 1 agent(s). Start requested for 1 agent(s).'
+      );
+    });
+
+    it('Cancel starts and saves nothing', async () => {
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      fireEvent.click(await screen.findByTestId('start-favourites-cancel'));
+      await waitFor(() =>
+        expect(screen.queryByTestId('start-favourites-dialog')).not.toBeInTheDocument()
+      );
+      expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+      expect(mockSaveConfig).not.toHaveBeenCalled();
+    });
+
+    it('clicks, keys and context menus inside the dialog do not select the chatroom row or open its menu', async () => {
+      setStartCheckData([FAVOURITE]);
+      // Render the row inactive: selection is a no-op for the active chatroom, so it could not observe propagation.
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })], 'chr-other');
+      clickPlay();
+      const row = await screen.findByTestId('start-favourites-row');
+      fireEvent.click(row);
+      fireEvent.keyDown(row, { key: 'Enter' });
+      fireEvent.contextMenu(row);
+      expect(mockPush).not.toHaveBeenCalled();
+      expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+      expect(screen.queryByText('Archive Chat')).not.toBeInTheDocument();
+    });
+
+    it('play button is disabled with aria-busy and a checking title while the check runs', () => {
+      mockQueriesPending = true;
+      setStartCheckData([FAVOURITE]);
+      renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+      clickPlay();
+      const button = screen.getByTitle('Checking favourite models…');
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute('aria-busy', 'true');
+      expect(mockRequestChatroomStart).not.toHaveBeenCalled();
+    });
+
+    it('returns focus to the play button after Cancel', async () => {
+      renderWithDeferredCheck();
+      fireEvent.click(await screen.findByTestId('start-favourites-cancel'));
+      await waitFor(() => expect(screen.getByLabelText('Start agents')).toHaveFocus());
+    });
+
+    it('returns focus to the play button after Start with current', async () => {
+      renderWithDeferredCheck();
+      fireEvent.click(await screen.findByTestId('start-favourites-current'));
+      await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
+      await waitFor(() => expect(screen.getByLabelText('Start agents')).toHaveFocus());
     });
   });
 });

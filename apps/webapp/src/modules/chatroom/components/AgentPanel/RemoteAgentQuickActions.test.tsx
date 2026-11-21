@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { createRef } from 'react';
 import { describe, expect, test, vi } from 'vitest';
 
 import { RemoteAgentQuickActions } from './RemoteAgentQuickActions';
@@ -125,6 +126,20 @@ describe('RemoteAgentQuickActions', () => {
     expect(screen.getByTitle('Stop agents')).toBeDisabled();
     expect(screen.getByTitle('Start agents')).toBeDisabled();
     expect(screen.getByTitle('Restart agents')).toBeDisabled();
+  });
+
+  test('attaches startButtonRef to the Start button', () => {
+    const ref = createRef<HTMLButtonElement>();
+    render(
+      <RemoteAgentQuickActions
+        hasRunningAgents={false}
+        canStop={false}
+        onStart={() => {}}
+        startButtonRef={ref}
+      />
+    );
+
+    expect(ref.current).toBe(screen.getByRole('button', { name: 'Start agents' }));
   });
 
   test('click handlers fire on enabled buttons', () => {

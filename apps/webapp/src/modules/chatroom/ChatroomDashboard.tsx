@@ -70,6 +70,7 @@ import {
 import { PendingFileHighlightProvider } from './context/PendingFileHighlightContext';
 import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
+import { StartWithFavoritesDialog } from './features/machine-config/components/StartWithFavoritesDialog';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
 import { useExplorerSidebarWidth } from './hooks/persistence/useExplorerSidebarWidth';
 import { useExplorerSplitPanelSizes } from './hooks/persistence/useExplorerSplitPanelSizes';
@@ -83,6 +84,7 @@ import { useChatroomStatus } from './hooks/useChatroomStatus';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
+import { useStartAllRemoteAgents } from './hooks/useStartAllRemoteAgents';
 import { StartInNewSessionPreferenceProvider } from './hooks/useStartInNewSessionPreference';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
@@ -759,6 +761,7 @@ function ChatroomDashboardContent({
     chatroomId as Id<'chatroom_rooms'>
   );
   const fileExplorerPanelRef = useRef<FileExplorerPanelHandle>(null);
+  const startAllButtonRef = useRef<HTMLButtonElement>(null);
   const [agenticFocusToken, setAgenticFocusToken] = useState(0);
   const requestAgenticFocus = useCallback(() => setAgenticFocusToken((n) => n + 1), []);
 
@@ -1092,7 +1095,7 @@ function ChatroomDashboardContent({
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData();
-  const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
+  const { stopAgents, restartAgents } = useChatroomAgentOperations();
   const [isRequestingStop, setIsRequestingStop] = useState(false);
   const isStoppingAgents = isRequestingStop;
   const lifecycle = agentPanelData.lifecycle;
@@ -1375,24 +1378,9 @@ function ChatroomDashboardContent({
     [sendAction, handleSwitchToSourceControl]
   );
 
-  // Start all remote agents handler
-  const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
-
-  const handleStartAllRemoteAgents = useCallback(async () => {
-    setIsStartingAllAgents(true);
-    try {
-      const result = await startAgents(chatroomId as Id<'chatroom_rooms'>);
-      if (result.failed.length > 0) {
-        toast.error(`Failed to start ${result.failed.length} agent(s)`);
-      } else if (result.requested.length > 0) {
-        toast.success(`Start requested for ${result.requested.length} agent(s)`);
-      } else if (result.skipped.length > 0) {
-        toast.error('No saved agent configuration is available.');
-      }
-    } finally {
-      setIsStartingAllAgents(false);
-    }
-  }, [chatroomId, startAgents]);
+  // Start all remote agents. The command palette starts unprompted; the agents-sidebar play
+  // control runs the favourites check first. See hooks/useStartAllRemoteAgents.ts.
+  const startAll = useStartAllRemoteAgents({ chatroomId });
 
   // Stop all remote agents immediately from the quick-action button.
   const handleStopAllRemoteAgents = useCallback(async () => {
@@ -1608,7 +1596,7 @@ function ChatroomDashboardContent({
         : null,
     workspaceCommands,
     onStartAllRemoteAgents:
-      isStartingAllAgents || isAnyAgentRestartInProgress ? null : handleStartAllRemoteAgents,
+      startAll.isBusy || isAnyAgentRestartInProgress ? null : startAll.startAllFromPalette,
     onStopAllRemoteAgents:
       isStoppingAgents || isAnyAgentRestartInProgress ? null : handleStopAllRemoteAgents,
     onRestartAllRemoteAgents: isAnyAgentRestartInProgress ? null : handleRestartAllRemoteAgents,
@@ -2038,13 +2026,14 @@ function ChatroomDashboardContent({
                         onOpenAgents={handleOpenAgents}
                         hasRunningRemoteAgents={hasRunningRemoteAgents}
                         canStopRemoteAgents={chatroomStatus?.canStop ?? false}
-                        onStartAllRemoteAgents={handleStartAllRemoteAgents}
+                        onStartAllRemoteAgents={startAll.requestStartAllFromAgentsSidebar}
                         onStopAllRemoteAgents={handleStopAllRemoteAgents}
                         onRestartAllRemoteAgents={handleRestartAllRemoteAgents}
                         isStoppingAgents={isStoppingAgents}
                         isStartingAllAgents={
-                          isStartingAllAgents || chatroomStatus?.remoteAgentStatus === undefined
+                          startAll.isBusy || chatroomStatus?.remoteAgentStatus === undefined
                         }
+                        startAllButtonRef={startAllButtonRef}
                       />
                       <WorkQueue
                         chatroomId={chatroomId as Id<'chatroom_rooms'>}
@@ -2056,6 +2045,10 @@ function ChatroomDashboardContent({
                   <WorkspaceBottomBar onSwitchToSourceControl={handleSwitchToSourceControl} />
                 </div>
 
+                <StartWithFavoritesDialog
+                  {...startAll.dialogProps}
+                  finalFocusRef={startAllButtonRef}
+                />
                 <PromptModal
                   isOpen={modalState.isOpen}
                   onClose={handleCloseModal}

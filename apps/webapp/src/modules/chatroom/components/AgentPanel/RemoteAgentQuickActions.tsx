@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2, Play, RefreshCw, Square } from 'lucide-react';
-import { memo } from 'react';
+import { memo, type RefObject } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,8 @@ export interface RemoteAgentQuickActionsProps {
   onRestart?: () => void;
   disabled?: boolean;
   isStarting?: boolean;
+  /** Receives the Start button element so the favourites dialog can return focus to it. */
+  startButtonRef?: RefObject<HTMLButtonElement | null>;
 }
 
 const baseBtn =
@@ -28,6 +30,7 @@ export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
   disabled = false,
   isStarting = false,
   isStopping = false,
+  startButtonRef,
 }: RemoteAgentQuickActionsProps) {
   const treatAsRunning = hasRunningAgents;
   const startEnabled = !treatAsRunning && !disabled && !!onStart && !isStopping;
@@ -42,6 +45,7 @@ export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
       data-testid="remote-agent-quick-actions"
     >
       <button
+        ref={startButtonRef}
         type="button"
         onClick={onStart}
         disabled={!startEnabled || isStarting}
