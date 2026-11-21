@@ -27,7 +27,7 @@ import globals from 'globals';
  * - @typescript-eslint/no-inferrable-types - Disallow explicit types for inferrable values
  * - no-else-return - Disallow unnecessary else blocks
  * - @typescript-eslint/array-type - Enforce consistent array type syntax
- * - no-restricted-syntax (native temporal inputs) - Use DatePicker/DatePickerField instead of native date/time inputs
+ * - no-restricted-syntax (native temporal inputs) - Use DateInput, DateTimeField, or DatePickerField from @/components/ui/date-picker instead of native date/time inputs
  */
 
 /** @type {import('eslint').Linter.Config[]} */
@@ -364,24 +364,29 @@ export default [
           selector:
             "JSXAttribute[name.name='type'][value.value=/^(date|datetime-local|month|time|week)$/]",
           message:
-            'Native date/time inputs are not allowed. Use DatePicker or DatePickerField from @/components/ui/date-picker.',
+            'Native date/time inputs are not allowed. Use DateInput, DateTimeField, DatePicker, or DatePickerField from @/components/ui/date-picker.',
         },
         {
           selector:
             "JSXAttribute[name.name='type'] > JSXExpressionContainer > Literal[value=/^(date|datetime-local|month|time|week)$/]",
           message:
-            'Native date/time inputs are not allowed. Use DatePicker or DatePickerField from @/components/ui/date-picker.',
+            'Native date/time inputs are not allowed. Use DateInput, DateTimeField, DatePicker, or DatePickerField from @/components/ui/date-picker.',
         },
       ],
     },
   },
 
   // Raw <input> elements bypass Input's non-temporal type restriction. Render inputs through Input.
+  // Warning, not error: Input bakes industrial styling (chatroomIndustrialInputClassName, h-9 w-full
+  // text-base) into every render, so migrating the existing file, range, radio, checkbox, search,
+  // text and test-mock inputs would restyle product UI without a visual check. Tracked as tech debt;
+  // see docs/developer/ios-native-date-input.md#enforcement. Temporal inputs remain an error
+  // (no-restricted-syntax above).
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
     rules: {
       'react/forbid-elements': [
-        'error',
+        'warn',
         {
           forbid: [
             {
