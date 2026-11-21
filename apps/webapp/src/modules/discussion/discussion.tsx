@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -32,7 +33,10 @@ import {
 import { cn } from '@/lib/utils';
 import { ConclusionForm } from '@/modules/discussion/discussion-conclusion';
 import { DiscussionForm } from '@/modules/discussion/discussion-form';
-import { useDiscussionSync } from '@/modules/discussion/use-discussion-sync';
+import {
+  useDiscussionSync,
+  type DiscussionErrorScope,
+} from '@/modules/discussion/use-discussion-sync';
 
 interface DiscussionProps {
   title: string;
@@ -67,10 +71,23 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
     updateConclusions,
     reopenDiscussion,
     initializeDiscussion,
+    error,
+    clearError,
   } = useDiscussionSync({
     key: discussionKey,
     title,
   });
+
+  /**
+   * The hook holds one error. It is shown only on the surface whose scope it belongs to.
+   * Feedback ids are fixed because every mutation clears the error first, so each new failure mounts a fresh box.
+   */
+  const feedbackFor = (scope: DiscussionErrorScope): Feedback | null =>
+    error && error.scope === scope
+      ? { id: 1, tone: 'error', title: error.title, message: error.message }
+      : null;
+
+  const panelFeedback = feedbackFor('create') ?? feedbackFor('delete') ?? feedbackFor('reopen');
 
   // Set loading state based on data availability
   useEffect(() => {
@@ -393,6 +410,13 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </div>
         </div>
 
+        <InlineFeedback
+          feedback={panelFeedback}
+          onDismiss={clearError}
+          data-testid="discussion-feedback"
+          className="mx-3 mt-3"
+        />
+
         <div className="relative">
           {/* Discussion content with fixed height container */}
           <div className="p-3 h-[250px] overflow-y-auto">{renderContent()}</div>
@@ -418,7 +442,13 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       </div>
 
       {/* Dialog for adding a new message */}
-      <Dialog open={showFormDialog} onOpenChange={setShowFormDialog}>
+      <Dialog
+        open={showFormDialog}
+        onOpenChange={(open) => {
+          if (!open) clearError();
+          setShowFormDialog(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Your Contribution</DialogTitle>
@@ -429,13 +459,24 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           <DiscussionForm
             initialName={userName}
             onSubmit={handleMessageSubmit}
-            onCancel={() => setShowFormDialog(false)}
+            onCancel={() => {
+              setShowFormDialog(false);
+              clearError();
+            }}
+            error={feedbackFor('add')}
+            onClearError={clearError}
           />
         </DialogContent>
       </Dialog>
 
       {/* Dialog for concluding discussion */}
-      <Dialog open={showConclusionDialog} onOpenChange={setShowConclusionDialog}>
+      <Dialog
+        open={showConclusionDialog}
+        onOpenChange={(open) => {
+          if (!open) clearError();
+          setShowConclusionDialog(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Conclude Discussion</DialogTitle>
@@ -445,14 +486,25 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </DialogHeader>
           <ConclusionForm
             onSubmit={handleConclusionSubmit}
-            onCancel={() => setShowConclusionDialog(false)}
+            onCancel={() => {
+              setShowConclusionDialog(false);
+              clearError();
+            }}
             existingConclusion={conclusion}
+            error={feedbackFor('conclude')}
+            onClearError={clearError}
           />
         </DialogContent>
       </Dialog>
 
       {/* Dialog for editing conclusions */}
-      <Dialog open={showEditConclusionDialog} onOpenChange={setShowEditConclusionDialog}>
+      <Dialog
+        open={showEditConclusionDialog}
+        onOpenChange={(open) => {
+          if (!open) clearError();
+          setShowEditConclusionDialog(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Conclusions</DialogTitle>
@@ -462,8 +514,13 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </DialogHeader>
           <ConclusionForm
             onSubmit={handleConclusionUpdate}
-            onCancel={() => setShowEditConclusionDialog(false)}
+            onCancel={() => {
+              setShowEditConclusionDialog(false);
+              clearError();
+            }}
             existingConclusion={conclusion}
+            error={feedbackFor('update-conclusions')}
+            onClearError={clearError}
           />
         </DialogContent>
       </Dialog>

@@ -3,6 +3,7 @@
 import { Plus, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
+import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -23,6 +24,10 @@ interface ConclusionFormProps {
   existingConclusion?: {
     conclusions: { text: string; tags: string[] }[];
   } | null;
+  /** Error for this form's surface, or null. */
+  error?: Feedback | null;
+  /** Clears the error on dismiss and on any edit. */
+  onClearError?: () => void;
 }
 
 interface ConclusionInput {
@@ -31,7 +36,13 @@ interface ConclusionInput {
   tag: string; // Only one tag per conclusion
 }
 
-export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: ConclusionFormProps) {
+export function ConclusionForm({
+  onSubmit,
+  onCancel,
+  existingConclusion,
+  error,
+  onClearError,
+}: ConclusionFormProps) {
   const [conclusions, setConclusions] = useState<ConclusionInput[]>([
     { id: createId(), text: '', tag: 'task' },
   ]);
@@ -81,6 +92,7 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
   };
 
   const addConclusion = () => {
+    onClearError?.();
     const newId = createId();
     setConclusions([...conclusions, { id: newId, text: '', tag: 'task' }]);
 
@@ -96,6 +108,7 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
   };
 
   const removeConclusion = (id: string) => {
+    onClearError?.();
     delete inputRefs.current[id];
     const newConclusions = conclusions.filter((c) => c.id !== id);
     if (newConclusions.length === 0) {
@@ -105,10 +118,12 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
   };
 
   const handleTextChange = (id: string, value: string) => {
+    onClearError?.();
     setConclusions(conclusions.map((c) => (c.id === id ? { ...c, text: value } : c)));
   };
 
   const handleTagChange = (id: string, value: string) => {
+    onClearError?.();
     setConclusions(conclusions.map((c) => (c.id === id ? { ...c, tag: value } : c)));
   };
 
@@ -185,6 +200,12 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
       <Button type="button" variant="outline" className="w-full" onClick={addConclusion}>
         <Plus className="h-4 w-4 mr-2" /> Add Another Conclusion
       </Button>
+
+      <InlineFeedback
+        feedback={error ?? null}
+        onDismiss={onClearError}
+        data-testid="discussion-conclusion-feedback"
+      />
 
       <div className="flex justify-end space-x-2 mt-2">
         {onCancel && (
