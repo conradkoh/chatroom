@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { useAuthState, useCurrentUser } from '@/modules/auth/AuthProvider';
 import { ConnectButton } from '@/modules/auth/ConnectButton';
 import {
@@ -517,14 +518,14 @@ function _renderEditForm(
         <label htmlFor="name" className="block text-sm font-medium">
           Display Name
         </label>
-        <input
+        <Input
           type="text"
           id="name"
           value={name}
           onChange={handleNameChange}
-          className={`mt-1 block w-full px-3 py-2 border ${
+          className={`mt-1 block w-full border ${
             error ? 'border-destructive' : 'border-input'
-          } rounded-md shadow-sm focus:outline-none focus:ring-ring focus:border-ring`}
+          } rounded-md`}
           placeholder="Enter your display name"
           disabled={isLoading}
         />

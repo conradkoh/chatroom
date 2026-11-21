@@ -7,6 +7,12 @@ import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 import {
+  applyLandingPageBranding,
+  applyLayoutBranding,
+  applyManifestBranding,
+  applyNavigationBranding,
+} from './branding';
+import {
   formatDeploymentEnv,
   getProductionConvexUrl,
   readVercelProjectConfig,
@@ -556,51 +562,29 @@ function needsBrandingUpdate(status: BrandingStatus): boolean {
 
 function updateManifest(appName: string, appShortName: string, appDescription: string): void {
   const filePath = BRANDING_CONFIG.files.manifest;
-  let content = readFileSync(filePath, 'utf8');
-
-  content = content.replace(/name: ['"].*?['"]/, `name: '${appName}'`);
-  content = content.replace(/short_name: ['"].*?['"]/, `short_name: '${appShortName}'`);
-  content = content.replace(/description: ['"].*?['"]/, `description: '${appDescription}'`);
-
-  writeFileSync(filePath, content);
+  const content = readFileSync(filePath, 'utf8');
+  writeFileSync(
+    filePath,
+    applyManifestBranding(content, { appName, appShortName, appDescription })
+  );
 }
 
 function updateLayout(appName: string, appDescription: string): void {
   const filePath = BRANDING_CONFIG.files.layout;
-  let content = readFileSync(filePath, 'utf8');
-
-  content = content.replace(/title: ['"].*?['"]/, `title: '${appName}'`);
-  content = content.replace(/description: ['"].*?['"]/, `description: '${appDescription}'`);
-  content = content.replace(/appleWebApp:\s*\{[^}]*title: ['"].*?['"]/s, (match) =>
-    match.replace(/title: ['"].*?['"]/, `title: '${appName}'`)
-  );
-  content = content.replace(/applicationName: ['"].*?['"]/, `applicationName: '${appName}'`);
-
-  writeFileSync(filePath, content);
+  const content = readFileSync(filePath, 'utf8');
+  writeFileSync(filePath, applyLayoutBranding(content, { appName, appDescription }));
 }
 
 function updateNavigation(appShortName: string): void {
   const filePath = BRANDING_CONFIG.files.navigation;
-  let content = readFileSync(filePath, 'utf8');
-
-  content = content.replace(
-    /<span className="font-bold text-lg">.*?<\/span>/,
-    `<span className="font-bold text-lg">${appShortName}</span>`
-  );
-
-  writeFileSync(filePath, content);
+  const content = readFileSync(filePath, 'utf8');
+  writeFileSync(filePath, applyNavigationBranding(content, appShortName));
 }
 
 function updateLandingPage(landingPageTitle: string): void {
   const filePath = BRANDING_CONFIG.files.landingPage;
-  let content = readFileSync(filePath, 'utf8');
-
-  content = content.replace(
-    /(<main[^>]*>[\s\S]*?)\bConvex \+ Next Starter App\b/,
-    `$1${landingPageTitle}`
-  );
-
-  writeFileSync(filePath, content);
+  const content = readFileSync(filePath, 'utf8');
+  writeFileSync(filePath, applyLandingPageBranding(content, landingPageTitle));
 }
 
 function updatePackageJson(packageName: string): void {

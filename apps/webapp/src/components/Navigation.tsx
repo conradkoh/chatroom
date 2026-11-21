@@ -9,6 +9,10 @@ import { UserMenu } from '@/components/UserMenu';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { useHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
+// Brand label shown in the header. Keep as a single literal: scripts/branding.ts
+// rewrites `const APP_SHORT_NAME = '...';` during branding setup.
+const APP_SHORT_NAME = 'Chatroom';
+
 /**
  * Main navigation header component with authentication state handling.
  * Implements Industrial Design System styling with portal support.
@@ -49,7 +53,7 @@ export function Navigation() {
               className="flex items-center whitespace-nowrap"
             >
               <span className="text-sm font-bold uppercase tracking-widest text-foreground">
-                Chatroom
+                {APP_SHORT_NAME}
               </span>
             </Link>
           )}

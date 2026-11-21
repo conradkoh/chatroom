@@ -135,12 +135,24 @@ Builtin role lifecycle and team membership belong in shared role metadata; promp
 ### Running the Project
 
 ```bash
-# Start dev server
+# Start dev: pushes Convex code, runs pending migrations, starts the watcher and the webapp
 pnpm dev
 
 # Run initial setup
 pnpm setup
 ```
+
+`pnpm dev` starts the backend dev wrapper (`services/backend` → `scripts/start-convex-dev.ts`) alongside the webapp. The wrapper resolves the development deployment from the process environment first, then `services/backend/.env.local`, and then:
+
+1. **Refuses to start** when `CONVEX_DEPLOYMENT` selects a `prod:` deployment (dev never runs against production), or when `CONVEX_DEPLOY_KEY` is set in the process environment or in `services/backend/.env.local`. It prints the reason, exits non-zero, and starts nothing.
+2. Runs `convex dev --once` to push the code. If the push fails, it skips migrations with a warning and still starts the watcher.
+3. Starts the `convex dev` watcher.
+4. Runs pending migrations against that same deployment in the background, once the deployment accepts `convex run` (bounded wait of 120 seconds). It prints the migration plan and the result. A failed migration prints a warning naming the migration and the target; the watcher keeps running. For a local deployment the wait probes the target URL (`CONVEX_URL`), or else `ports.cloud` in `services/backend/.convex/local/default/config.json`; if neither is known, migrations are skipped with a warning and nothing is run.
+
+These cases skip migrations and still start the watcher:
+
+- **Unconfigured** (no development deployment yet): `convex dev` runs its normal setup, and migrations are skipped with a message.
+- **`SKIP_DEV_MIGRATIONS=1`**: migrations are skipped for that run only.
 
 ### Version Updates
 
@@ -193,15 +205,18 @@ chatroom debug --chatroom-id <id>
 
 ### Database migrations
 
-Run pending Convex data migrations as a **one-off command** while `pnpm dev` is already running — do not restart the dev server.
+`pnpm dev` runs pending Convex data migrations for you, against the development deployment it uses (see [Running the Project](#running-the-project)). After pulling schema changes, start `pnpm dev` and let it run them.
+
+Use `pnpm migrate` as a manual one-off runner: to re-run migrations after a failure reported by `pnpm dev`, or to run them without restarting the dev server. For a local deployment, run it while `pnpm dev` is already running.
 
 ```bash
-# From repo root (local dev — same logic as production CI)
+# From repo root — targets the same deployment `convex dev` uses
 pnpm migrate
 ```
 
 - Uses `scripts/migrate-lib.ts` → `migrations:runAll`.
-- Local when `CONVEX_DEPLOY_KEY` is unset; production when set (CI only).
+- Targets the development deployment in `services/backend/.env.local` (local or hosted) when `CONVEX_DEPLOY_KEY` is unset. Targets production (`--prod`) when `CONVEX_DEPLOY_KEY` is set in the process environment (CI only). Refuses to run when `CONVEX_DEPLOY_KEY` is set only in `services/backend/.env.local`. The first printed line, `🎯 Migration target: …`, shows which one ran.
+- Exits non-zero when a migration fails.
 - Idempotent — safe to re-run.
 
 ### Testing

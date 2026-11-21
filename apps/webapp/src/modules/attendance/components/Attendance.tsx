@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -175,10 +176,10 @@ const AttendanceContentInner = ({
         ) : (
           <>
             <div className="mb-4">
-              <input
+              <Input
                 type="text"
                 placeholder="Search names..."
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full border rounded-md"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -407,10 +408,10 @@ const AttendanceContentInner = ({
             </DialogTitle>
           </DialogHeader>
           <div className="mb-4">
-            <input
+            <Input
               type="text"
               placeholder="Search names..."
-              className="w-full px-3 py-2 border rounded-md"
+              className="w-full border rounded-md"
               value={modalSearchQuery}
               onChange={(e) => setModalSearchQuery(e.target.value)}
             />

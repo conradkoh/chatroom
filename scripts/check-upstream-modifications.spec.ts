@@ -56,9 +56,13 @@ function createForkWithUpstreamFiles(root: string, files: Record<string, string>
   git(root, 'update-ref', 'refs/remotes/upstream/master', 'HEAD');
 }
 
-function runGate(root: string): { status: number | null; output: string } {
+function runGate(
+  root: string,
+  extraEnv: NodeJS.ProcessEnv = {}
+): { status: number | null; output: string } {
   const env: NodeJS.ProcessEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' };
   delete env.UPSTREAM_MODIFY_ACKNOWLEDGED;
+  Object.assign(env, extraEnv);
   const result = spawnSync(process.execPath, [GATE_SCRIPT], {
     cwd: root,
     encoding: 'utf8',
@@ -73,6 +77,10 @@ const BASELINE_FILES = {
   'src/app.ts': 'export const app = 1;\n',
   'services/backend/convex/schema.ts': 'export default {};\n',
   'services/backend/convex/sessions.ts': 'export const sessions = 1;\n',
+  'pnpm-lock.yaml': 'lockfileVersion: 9\n',
+  'README.md': '# readme\n',
+  '.github/workflows/ci.yml': 'name: ci\n',
+  'eslint.config.mjs': 'export default [];\n',
 };
 
 describe('check-upstream-modifications gate', () => {
@@ -130,6 +138,58 @@ describe('check-upstream-modifications gate', () => {
 
     expect(status).toBe(1);
     expect(output).toContain('src/app.ts');
+    expect(output).toContain('If this is a general fix');
+    expect(output).not.toContain('Pre-commit blocked');
+  });
+
+  it('allows a staged pnpm-lock.yaml without a notice', () => {
+    writeRepoFile(root, 'pnpm-lock.yaml', 'lockfileVersion: 9\n# updated\n');
+    git(root, 'add', 'pnpm-lock.yaml');
+
+    const { status, output } = runGate(root);
+
+    expect(status).toBe(0);
+    expect(output).not.toContain('Heads up');
+  });
+
+  it('warns but does not block a staged README', () => {
+    writeRepoFile(root, 'README.md', '# readme\n\nupdated\n');
+    git(root, 'add', 'README.md');
+
+    const { status, output } = runGate(root);
+
+    expect(status).toBe(0);
+    expect(output).toContain('Heads up');
+    expect(output).toContain('README.md');
+  });
+
+  it('warns but does not block a staged workflow file', () => {
+    writeRepoFile(root, '.github/workflows/ci.yml', 'name: ci\non: push\n');
+    git(root, 'add', '.github/workflows/ci.yml');
+
+    const { status, output } = runGate(root);
+
+    expect(status).toBe(0);
+    expect(output).toContain('.github/workflows/ci.yml');
+  });
+
+  it('warns but does not block a staged eslint config', () => {
+    writeRepoFile(root, 'eslint.config.mjs', 'export default [{ rules: {} }];\n');
+    git(root, 'add', 'eslint.config.mjs');
+
+    const { status, output } = runGate(root);
+
+    expect(status).toBe(0);
+    expect(output).toContain('eslint.config.mjs');
+  });
+
+  it('lets an acknowledged blocked file through', () => {
+    writeRepoFile(root, 'src/app.ts', 'export const app = 2;\n');
+    git(root, 'add', 'src/app.ts');
+
+    const { status } = runGate(root, { UPSTREAM_MODIFY_ACKNOWLEDGED: '1' });
+
+    expect(status).toBe(0);
   });
 
   it('blocks only the non-package.json files when both kinds are staged', () => {

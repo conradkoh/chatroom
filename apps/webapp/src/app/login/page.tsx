@@ -9,7 +9,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
 import { Button } from '@/components/ui/button';
 import type { SignupConfig } from '@/modules/app/signupConfig';
-import { useGoogleAuthAvailable, useSignupConfig } from '@/modules/app/useAppInfo';
+import { useSignupConfig } from '@/modules/app/useAppInfo';
 import { AnonymousLoginButton } from '@/modules/auth/AnonymousLoginButton';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { GoogleLoginButton } from '@/modules/auth/GoogleLoginButton';
@@ -32,7 +32,6 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const authState = useAuthState();
-  const googleAuthAvailable = useGoogleAuthAvailable();
   const signupConfig = useSignupConfig();
   const [sessionId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null
@@ -77,7 +76,7 @@ function LoginPageContent() {
   }
 
   const returnTo = searchParams.get('returnTo');
-  return _renderLoginForm(googleAuthAvailable, signupConfig, sessionId, returnTo);
+  return _renderLoginForm(signupConfig, sessionId, returnTo);
 }
 
 function _renderSignupDisabledBanner() {
@@ -182,7 +181,6 @@ function _renderDisabledState() {
  */
 // fallow-ignore-next-line complexity
 function _renderLoginForm(
-  googleAuthAvailable: boolean | null,
   signupConfig: SignupConfig | null,
   sessionId: string | null,
   returnTo: string | null
@@ -192,7 +190,7 @@ function _renderLoginForm(
       <div className="w-full max-w-md space-y-6">
         {signupConfig !== null && !signupConfig.signupAllowed && _renderSignupDisabledBanner()}
         {_renderHeader()}
-        {_renderLoginOptions({ googleAuthAvailable, signupConfig, sessionId, returnTo })}
+        {_renderLoginOptions({ signupConfig, sessionId, returnTo })}
         {signupConfig?.inviteOnlyMode && _renderInviteOnlyHint()}
         {_renderFooter()}
       </div>
@@ -217,20 +215,22 @@ function _renderHeader() {
  */
 // fallow-ignore-next-line complexity
 function _renderLoginOptions(options: {
-  googleAuthAvailable: boolean | null;
   signupConfig: SignupConfig | null;
   sessionId: string | null;
   returnTo: string | null;
 }) {
-  const { googleAuthAvailable, signupConfig, sessionId, returnTo } = options;
+  const { signupConfig, sessionId, returnTo } = options;
 
   return (
     <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
       <div className="divide-y divide-border">
-        {/* Google Login */}
-        {googleAuthAvailable && (
-          <GoogleLoginButton variant="ghost" showChevron={true} returnTo={returnTo} />
-        )}
+        {/* Google Login — owns its initializing/unavailable presentation */}
+        <GoogleLoginButton
+          variant="ghost"
+          showChevron={true}
+          returnTo={returnTo}
+          hideWhenUnavailable
+        />
 
         {/* Login with Code */}
         {_renderCodeLoginOption()}

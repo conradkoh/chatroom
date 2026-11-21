@@ -25,7 +25,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { Input } from '@/components/ui/input';
+import { Input, NativeTemporalInput, type NativeTemporalInputType } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/modules/theme/ThemeProvider';
@@ -121,14 +121,19 @@ function Field({
 }: {
   id: string;
   label: string;
-  type?: string;
+  type?: NativeTemporalInputType;
   value: string;
   onChange: (v: string) => void;
   wrapInput?: boolean;
   showState?: boolean;
 }) {
   const input = (
-    <Input id={id} type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+    <NativeTemporalInput
+      id={id}
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
   );
   return (
     <div className="min-w-0 flex-1 space-y-2">

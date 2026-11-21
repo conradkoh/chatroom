@@ -4,6 +4,7 @@ import { DateTime } from 'luxon';
 import { useMemo, useState } from 'react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 const TIMEZONES = ['America/New_York', 'Europe/London', 'Asia/Singapore', 'UTC'] as const;
 
@@ -35,8 +36,8 @@ export default function LuxonTestPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <input
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            <Input
+              className="w-full rounded-md border border-border bg-background dark:bg-background text-sm"
               value={isoInput}
               onChange={(e) => setIsoInput(e.target.value)}
               aria-label="ISO datetime input"

@@ -55,6 +55,8 @@ pnpm dev
 - Web app: **http://localhost:3000**
 - Convex dev sync runs as part of the backend package’s dev script.
 
+`pnpm dev` runs pending Convex data migrations for you, against the development deployment it uses (see [Running the Project](AGENTS.md#running-the-project)).
+
 ### 4. Quality checks (optional)
 
 ```bash

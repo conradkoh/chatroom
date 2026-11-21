@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { Input } from './input';
 import { Label } from './label';
 
 describe('Label', () => {
@@ -8,7 +9,7 @@ describe('Label', () => {
     render(
       <>
         <Label htmlFor="email">Email</Label>
-        <input id="email" />
+        <Input id="email" />
       </>
     );
     const label = screen.getByText('Email');
