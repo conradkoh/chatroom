@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   saveConfig: vi.fn(),
   /** Key count of every `useQueries` call, in order. */
   queryCalls: [] as number[],
+  /** The map object passed to every `useQueries` call, in order. */
+  queryMaps: [] as Record<string, unknown>[],
   resolve: (query: string, args: Record<string, any>): unknown => {
     const d = mocks.data;
     switch (query) {
@@ -32,6 +34,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('convex/react', () => ({
   useQueries: (queries: Record<string, { query: string; args: Record<string, any> }>) => {
+    mocks.queryMaps.push(queries);
     mocks.queryCalls.push(Object.keys(queries).length);
     return Object.fromEntries(
       Object.entries(queries).map(([key, { query, args }]) => [key, mocks.resolve(query, args)])
@@ -135,6 +138,7 @@ describe('useStartAgentsWithFavorites', () => {
     mocks.saveConfig.mockReset();
     mocks.saveConfig.mockResolvedValue(undefined);
     mocks.queryCalls = [];
+    mocks.queryMaps = [];
   });
 
   afterEach(() => {
@@ -458,5 +462,59 @@ describe('useStartAgentsWithFavorites', () => {
 
     expect(start).toHaveBeenCalledWith({ appliedCount: 0 });
     expect(phases).not.toContain('prompt');
+  });
+
+  it('passes one shared map to useQueries on every idle render', () => {
+    const { rerender } = renderFlow();
+    mocks.queryMaps = [];
+
+    rerender();
+    rerender();
+
+    expect(mocks.queryMaps.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(mocks.queryMaps).size).toBe(1);
+  });
+
+  it('keeps each active query map stable across renders while the check is pending', () => {
+    mocks.data = {}; // core stage pending: no structure, workspaces or status yet
+    const { result, rerender } = renderFlow();
+    act(() => result.current.requestStart());
+    expect(result.current.phase).toBe('checking');
+    mocks.queryMaps = [];
+
+    rerender();
+    // Core map has three keys; the detail stage is still the idle map.
+    expect(mocks.queryCalls.slice(-2)).toEqual([3, 0]);
+    const first = [...mocks.queryMaps];
+    mocks.queryMaps = [];
+    rerender();
+
+    expect(first.length).toBeGreaterThan(0);
+    expect(mocks.queryMaps).toHaveLength(first.length);
+    mocks.queryMaps.forEach((map, index) => expect(map).toBe(first[index]));
+  });
+
+  it('keeps the detail query map stable across renders while the detail stage is pending', () => {
+    mocks.data = {
+      ...fixture(),
+      capabilities: undefined,
+      favorites: undefined,
+      requests: undefined,
+    };
+    const { result, rerender } = renderFlow();
+    act(() => result.current.requestStart());
+    expect(result.current.phase).toBe('checking');
+    mocks.queryMaps = [];
+
+    rerender();
+    // Core is ready; the detail map has three keys, all still pending.
+    expect(mocks.queryCalls.slice(-2)).toEqual([3, 3]);
+    const first = [...mocks.queryMaps];
+    mocks.queryMaps = [];
+    rerender();
+
+    expect(first.length).toBeGreaterThan(0);
+    expect(mocks.queryMaps).toHaveLength(first.length);
+    mocks.queryMaps.forEach((map, index) => expect(map).toBe(first[index]));
   });
 });
