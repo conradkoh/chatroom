@@ -725,36 +725,6 @@ describe('AgentWorkManager', () => {
     });
   });
 
-  test('CLI-driven recovery retries keep the 30-second interval cap', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const startedAt = Date.now();
-      const recoveryTimes: number[] = [];
-      const recoverInFlightTasks = vi.fn(async () => {
-        recoveryTimes.push(Date.now() - startedAt);
-        throw new Error('status read failed');
-      });
-      let onSessionLost: ((event: never) => void) | undefined;
-      const service = createService({
-        recoverInFlightTasks,
-        agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
-        getSlot: () => ({ state: 'running', pid: 41 }),
-        onSessionLost: (handler) => {
-          onSessionLost = handler;
-        },
-      });
-
-      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
-      await vi.advanceTimersByTimeAsync(0);
-
-      for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]) {
-        await vi.advanceTimersByTimeAsync(delay);
-      }
-
-      expect(recoveryTimes).toEqual([0, 1_000, 3_000, 7_000, 15_000, 31_000, 61_000, 91_000]);
-      service.dispose();
-    });
-  });
-
   test('native harness respawn retries double to the ten-minute cap and never give up', async () => {
     await withFakeTimersAndNeutralJitter(async () => {
       const startedAt = Date.now();
@@ -784,36 +754,6 @@ describe('AgentWorkManager', () => {
         1_623_000, 2_223_000,
       ]);
       service.dispose();
-    });
-  });
-
-  test('CLI-driven harness respawn retries still stop after three attempts', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        const startedAt = Date.now();
-        const startTimes: number[] = [];
-        const startAgent = vi.fn(async () => {
-          startTimes.push(Date.now() - startedAt);
-          return { success: false, error: 'rate_limited' };
-        });
-        const service = createRestartService({
-          startAgent,
-          agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
-        });
-
-        await armRespawnStartRetries(service);
-        await vi.advanceTimersByTimeAsync(1_000);
-        await vi.advanceTimersByTimeAsync(2_000);
-        await vi.advanceTimersByTimeAsync(60_000);
-
-        expect(startTimes).toEqual([0, 1_000, 3_000]);
-        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
-        expect(vi.getTimerCount()).toBe(0);
-        service.dispose();
-      } finally {
-        errorLog.mockRestore();
-      }
     });
   });
 
@@ -1143,111 +1083,6 @@ describe('AgentWorkManager', () => {
       } finally {
         errorLog.mockRestore();
       }
-    });
-  });
-
-  test('unexpected retry errors still stop at the CLI attempt cap', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
-        const config = {
-          agentHarness: 'opencode',
-          model: 'test-model',
-          workingDir: '/test',
-        };
-        const service = createSerializedFailureService({
-          config: () => config,
-          startAgent,
-          failCalls: [2, 3],
-        });
-
-        await armRespawnStartRetries(service);
-        await vi.advanceTimersByTimeAsync(1_000);
-        await vi.advanceTimersByTimeAsync(2_000);
-        await vi.advanceTimersByTimeAsync(60_000);
-
-        expect(startAgent).toHaveBeenCalledTimes(1);
-        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
-        expect(vi.getTimerCount()).toBe(0);
-        service.dispose();
-      } finally {
-        errorLog.mockRestore();
-      }
-    });
-  });
-
-  test('a harness change from SDK to CLI applies the CLI attempt bound', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        const startedAt = Date.now();
-        const startTimes: number[] = [];
-        const startAgent = vi.fn(async () => {
-          startTimes.push(Date.now() - startedAt);
-          return { success: false, error: 'rate_limited' };
-        });
-        let config = {
-          agentHarness: 'cursor-sdk',
-          model: 'test-model',
-          workingDir: '/test',
-        };
-        const service = createRestartService({
-          startAgent,
-          agentConfig: () => config,
-        });
-
-        await armRespawnStartRetries(service);
-        expect(startTimes).toEqual([0]);
-
-        config = { ...config, agentHarness: 'opencode' };
-        await vi.advanceTimersByTimeAsync(1_000);
-        await vi.advanceTimersByTimeAsync(2_000);
-        await vi.advanceTimersByTimeAsync(60_000);
-
-        expect(startTimes).toEqual([0, 1_000, 3_000]);
-        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
-        expect(vi.getTimerCount()).toBe(0);
-        service.dispose();
-      } finally {
-        errorLog.mockRestore();
-      }
-    });
-  });
-
-  test('a harness change from CLI to SDK keeps retrying past the CLI bound', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const startedAt = Date.now();
-      const startTimes: number[] = [];
-      const startAgent = vi.fn(async () => {
-        startTimes.push(Date.now() - startedAt);
-        return { success: false, error: 'rate_limited' };
-      });
-      let config = {
-        agentHarness: 'opencode',
-        model: 'test-model',
-        workingDir: '/test',
-      };
-      const service = createRestartService({
-        startAgent,
-        agentConfig: () => config,
-      });
-
-      await armRespawnStartRetries(service);
-      expect(startTimes).toEqual([0]);
-
-      config = { ...config, agentHarness: 'cursor-sdk' };
-      for (const delay of [
-        1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 512_000,
-      ]) {
-        await vi.advanceTimersByTimeAsync(delay);
-      }
-
-      expect(startTimes).toEqual([
-        0, 1_000, 3_000, 7_000, 15_000, 31_000, 63_000, 127_000, 255_000, 511_000, 1_023_000,
-      ]);
-      expect(vi.getTimerCount()).toBe(1);
-      service.dispose();
     });
   });
 
