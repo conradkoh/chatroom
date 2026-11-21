@@ -543,3 +543,38 @@ describe('FileExplorerPanel tree sync feedback', () => {
     await waitFor(() => expect(screen.queryByTestId('explorer-feedback')).toBeNull());
   });
 });
+
+describe('FileExplorerPanel file-op feedback survival', () => {
+  it('keeps a rename failure visible after the explorer refresh', async () => {
+    mockConfirmRename.mockRejectedValueOnce(new Error('Name taken'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    // Let the panel's initial tree-sync attempt land, then isolate the refresh
+    // that follows the rename failure.
+    await waitFor(() => expect(mockRequestFileTree).toHaveBeenCalled());
+
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /rename/i }));
+    const input = await screen.findByLabelText('New file name');
+    fireEvent.change(input, { target: { value: 'manifest.json' } });
+
+    mockRequestFileTree.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    // The assertion must come after the refresh attempt, or it proves nothing.
+    await waitFor(() =>
+      expect(mockRequestFileTree).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        force: true,
+      })
+    );
+    // Let the refresh effect's feedback updates settle before asserting; a
+    // same-tick assertion can observe the message before it is wiped.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(screen.getByTestId('explorer-feedback')).toHaveTextContent(
+      'Failed to rename package.json: Name taken'
+    );
+  });
+});

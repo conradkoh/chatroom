@@ -18,6 +18,7 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { VscCollapseAll } from 'react-icons/vsc';
@@ -292,8 +293,30 @@ export const FileExplorerPanel = memo(
       } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
       const { feedback, error: showExplorerError, clear: clearExplorerFeedback } = useFeedback();
+      // True while the message in the slot is a tree-sync failure. Only tree-sync attempts may clear it.
+      const treeSyncErrorShownRef = useRef(false);
+      // Every file-op and drop error goes through here so the slot is marked file-op-owned.
+      const showFileOpError = useCallback(
+        (message: string) => {
+          treeSyncErrorShownRef.current = false;
+          showExplorerError(message);
+        },
+        [showExplorerError]
+      );
       const treeSyncFeedback = useMemo<WorkspaceTreeSyncFeedback>(
-        () => ({ onAttempt: clearExplorerFeedback, onError: showExplorerError }),
+        () => ({
+          // Clear only a tree-sync failure. A file-op failure in this slot must survive the
+          // explorer's refresh, which runs right after it is shown.
+          onAttempt: () => {
+            if (!treeSyncErrorShownRef.current) return;
+            treeSyncErrorShownRef.current = false;
+            clearExplorerFeedback();
+          },
+          onError: (message) => {
+            treeSyncErrorShownRef.current = true;
+            showExplorerError(message);
+          },
+        }),
         [clearExplorerFeedback, showExplorerError]
       );
       const { trackContextMenuFile, getMenuContentStateForPath } = useWorkspaceFileMenuContent(
@@ -308,7 +331,7 @@ export const FileExplorerPanel = memo(
         machineId: machineId ?? '',
         workingDir: workingDir ?? '',
       });
-      const explorerFileOps = useExplorerNewFileOps(fileTabs, showExplorerError);
+      const explorerFileOps = useExplorerNewFileOps(fileTabs, showFileOpError);
       const { openFileOnRemote } = useOpenFileOnRemote(machineId ?? '', workingDir ?? '');
       const {
         dropHighlightPath,
@@ -319,7 +342,7 @@ export const FileExplorerPanel = memo(
         handleDragLeave,
         handleDrop,
         handleUploadDialogOpenChange,
-      } = useExplorerFileDrop({ onBlocked: showExplorerError });
+      } = useExplorerFileDrop({ onBlocked: showFileOpError });
 
       const openNewFileDialog = useCallback(
         (defaultDir = '') => {
@@ -458,7 +481,7 @@ export const FileExplorerPanel = memo(
           );
         } catch (err) {
           const message = err instanceof Error ? err.message : 'File delete failed';
-          showExplorerError(message);
+          showFileOpError(message);
         }
       }, [
         clearExplorerFeedback,
@@ -468,7 +491,7 @@ export const FileExplorerPanel = memo(
         onFileDeleted,
         requestDelete,
         refreshExplorer,
-        showExplorerError,
+        showFileOpError,
       ]);
 
       if (!machineId || !workingDir) {
@@ -541,7 +564,7 @@ export const FileExplorerPanel = memo(
             workingDir={workingDir}
             defaultDir={newFolderDefaultDir}
             onCreated={() => refreshExplorer()}
-            onCreateFailed={(_dirPath, message) => showExplorerError(message)}
+            onCreateFailed={(_dirPath, message) => showFileOpError(message)}
             onCreateConfirmed={() => refreshExplorer()}
             onExplorerRefresh={refreshExplorer}
           />
