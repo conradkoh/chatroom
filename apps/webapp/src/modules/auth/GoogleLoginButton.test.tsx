@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -179,5 +179,39 @@ describe('GoogleLoginButton', () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows the start failure inline and clears it on the next click', async () => {
+    mocks.useGoogleAuthAvailable.mockReturnValue(true);
+    mocks.useQuery.mockReturnValue({ enabled: true, clientId: 'test-client-id' });
+    mocks.createLoginRequest.mockRejectedValueOnce(new Error('network down'));
+
+    render(<GoogleLoginButton variant="ghost" showChevron={true} returnTo="/app" />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to start Google login. Please try again.'
+    );
+    expect(mocks.redirectToGoogleOAuth).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+    await waitFor(() => expect(mocks.redirectToGoogleOAuth).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows the start failure inline in the outline variant too', async () => {
+    mocks.useGoogleAuthAvailable.mockReturnValue(true);
+    mocks.useQuery.mockReturnValue({ enabled: true, clientId: 'test-client-id' });
+    mocks.createLoginRequest.mockRejectedValueOnce(new Error('network down'));
+
+    render(<GoogleLoginButton />);
+
+    await userEvent.click(screen.getByRole('button', { name: /Continue with Google/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to start Google login. Please try again.'
+    );
   });
 });

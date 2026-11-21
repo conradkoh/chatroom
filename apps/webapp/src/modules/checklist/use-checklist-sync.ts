@@ -10,8 +10,6 @@ import type {
   OptimisticChecklistItem,
 } from './types';
 
-import { useFeedback } from '@/hooks/useFeedback';
-
 /**
  * Props for the useChecklistSync hook.
  */
@@ -39,7 +37,7 @@ interface _ChecklistStats {
  * - Optimistic updates for immediate UI feedback
  * - Automatic retry mechanism for failed operations
  * - Real-time synchronization with server state
- * - Comprehensive error handling with inline error feedback (`error` / `clearError` for card-level failures, `addError` / `clearAddError` for add failures)
+ * - Comprehensive error handling exposed through `error` / `clearError` (card-level) and `addError` / `clearAddError` (add input)
  *
  * @param key - Unique identifier for the checklist
  * @param title - Display title for the checklist
@@ -49,20 +47,19 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [optimisticItems, setOptimisticItems] = useState<OptimisticChecklistItem[]>([]);
   const [lastFailedText, setLastFailedText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const clearError = useCallback(() => setError(null), []);
+  const [addError, setAddError] = useState<string | null>(null);
+  const clearAddError = useCallback(() => setAddError(null), []);
+  // Every action clears both slots first, so a new outcome replaces the previous one.
+  const clearAllFeedback = useCallback(() => {
+    setError(null);
+    setAddError(null);
+  }, []);
   const [deletingItemIds, setDeletingItemIds] = useState<Set<Id<'checklistItems'>>>(new Set());
   const [optimisticToggles, setOptimisticToggles] = useState<Map<Id<'checklistItems'>, boolean>>(
     new Map()
   );
-
-  // Inline error slot for failed card-level mutations (toggle, delete, conclude, reopen, clear, reorder, initialize).
-  const { feedback, error: showError, clear: clearError } = useFeedback();
-  // Separate slot for add failures. Rendered directly above the add input, not in the card slot.
-  const { feedback: addFeedback, error: showAddError, clear: clearAddError } = useFeedback();
-  // Every mutation calls this first: a new action dismisses the previous outcome in both slots.
-  const clearAllFeedback = useCallback(() => {
-    clearError();
-    clearAddError();
-  }, [clearError, clearAddError]);
 
   // Queries
   const checklistState = useSessionQuery(api.checklists.getChecklistState, { key }) as
@@ -168,10 +165,10 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         await createChecklistMutation({ key, title });
       } catch (error) {
         console.error('Failed to initialize checklist:', error);
-        showError('Failed to initialize checklist');
+        setError('Failed to initialize checklist');
       }
     }
-  }, [exists, checklistState, createChecklistMutation, key, title, clearAllFeedback, showError]);
+  }, [exists, checklistState, createChecklistMutation, key, title, clearAllFeedback]);
 
   /**
    * Adds a new item to the checklist with optimistic updates.
@@ -183,7 +180,6 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
     async (text: string): Promise<boolean> => {
       clearAllFeedback();
       if (!text.trim()) {
-        showAddError('Item text is required');
         return false;
       }
 
@@ -228,11 +224,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         // Store the failed text for recovery
         setLastFailedText(text.trim());
 
-        showAddError('Failed to add item. Text restored for retry.');
+        setAddError('Failed to add item. Text restored for retry.');
         return false;
       }
     },
-    [addItemMutation, key, items, clearAllFeedback, showAddError]
+    [addItemMutation, key, items, clearAllFeedback]
   );
 
   /**
@@ -258,7 +254,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
       // Find the current item to get its current state
       const currentItem = (serverItems ?? []).find((item) => item._id === itemId);
       if (!currentItem) {
-        showError('Item not found');
+        setError('Item not found');
         return false;
       }
 
@@ -283,11 +279,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
           newMap.delete(itemId);
           return newMap;
         });
-        showError('Failed to update item. Please try again.');
+        setError('Failed to update item. Please try again.');
         return false;
       }
     },
-    [toggleItemMutation, serverItems, clearAllFeedback, showError]
+    [toggleItemMutation, serverItems, clearAllFeedback]
   );
 
   /**
@@ -314,11 +310,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
           newSet.delete(itemId);
           return newSet;
         });
-        showError('Failed to delete item. Please try again.');
+        setError('Failed to delete item. Please try again.');
         return false;
       }
     },
-    [deleteItemMutation, clearAllFeedback, showError]
+    [deleteItemMutation, clearAllFeedback]
   );
 
   /**
@@ -333,10 +329,10 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
       return true;
     } catch (error) {
       console.error('Failed to conclude checklist:', error);
-      showError('Failed to conclude checklist. Please try again.');
+      setError('Failed to conclude checklist. Please try again.');
       return false;
     }
-  }, [concludeChecklistMutation, key, clearAllFeedback, showError]);
+  }, [concludeChecklistMutation, key, clearAllFeedback]);
 
   /**
    * Reopens a concluded checklist, making it active again.
@@ -350,10 +346,10 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
       return true;
     } catch (error) {
       console.error('Failed to reopen checklist:', error);
-      showError('Failed to reopen checklist. Please try again.');
+      setError('Failed to reopen checklist. Please try again.');
       return false;
     }
-  }, [reopenChecklistMutation, key, clearAllFeedback, showError]);
+  }, [reopenChecklistMutation, key, clearAllFeedback]);
 
   /**
    * Clears all completed items from the checklist with optimistic updates.
@@ -394,10 +390,10 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         }
         return newSet;
       });
-      showError('Failed to clear completed items. Please try again.');
+      setError('Failed to clear completed items. Please try again.');
       return false;
     }
-  }, [clearCompletedMutation, key, serverItems, deletingItemIds, clearAllFeedback, showError]);
+  }, [clearCompletedMutation, key, serverItems, deletingItemIds, clearAllFeedback]);
 
   /**
    * Reorders checklist items by updating their order values.
@@ -410,7 +406,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
     async (draggedItemId: Id<'checklistItems'>, targetIndex: number): Promise<boolean> => {
       clearAllFeedback();
       if (!isActive) {
-        showError('Cannot reorder items in concluded checklist');
+        setError('Cannot reorder items in concluded checklist');
         return false;
       }
 
@@ -446,11 +442,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         return true;
       } catch (error) {
         console.error('Failed to reorder items:', error);
-        showError('Failed to reorder items. Please try again.');
+        setError('Failed to reorder items. Please try again.');
         return false;
       }
     },
-    [reorderItemsMutation, key, items, isActive, clearAllFeedback, showError]
+    [reorderItemsMutation, key, items, isActive, clearAllFeedback]
   );
 
   return {
@@ -463,16 +459,18 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
     isConcluded,
     exists,
     isLoading,
-    error: feedback, // inline error for the last failed card-level mutation, or null
-    clearError, // dismisses the card-level error
-    addError: addFeedback, // inline error for the last failed add, or null; shown above the add input
-    clearAddError, // dismisses the add error, and clears it when the add input is edited
 
     // Statistics
     totalItems: statistics.totalItems,
     completedItems: statistics.completedItems,
     pendingItems: statistics.pendingItems,
     completionPercentage: statistics.completionPercentage,
+
+    // Error
+    error,
+    clearError,
+    addError,
+    clearAddError,
 
     // Actions
     initializeChecklist,

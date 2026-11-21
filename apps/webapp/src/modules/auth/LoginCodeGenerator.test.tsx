@@ -1,172 +1,186 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LoginCodeGenerator } from './LoginCodeGenerator';
 
 /**
- * Boundary mocks only: Convex session hooks, the auth state, and the browser clipboard.
- * The component under test and its feedback primitives run for real.
+ * Boundary mocks only: Convex session query/mutation, the auth state provider,
+ * and the browser clipboard.
+ * The component and its reducer run for real.
  */
 const mocks = vi.hoisted(() => ({
+  useAuthState: vi.fn(),
+  useSessionQuery: vi.fn(),
   createLoginCode: vi.fn(),
-  activeCode: { success: false, reason: 'no_active_code' } as unknown,
-  writeText: vi.fn(),
 }));
 
+vi.mock('@/modules/auth/AuthProvider', () => ({ useAuthState: mocks.useAuthState }));
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: mocks.useSessionQuery,
   useSessionMutation: () => mocks.createLoginCode,
-  useSessionQuery: () => mocks.activeCode,
 }));
 
-vi.mock('@/modules/auth/AuthProvider', () => ({
-  useAuthState: () => ({ state: 'authenticated', user: { _id: 'user-1', type: 'full' } }),
-}));
+const USED = { success: false, reason: 'no_active_code' };
 
-const CODE_LIFETIME_MS = 60_000;
-
-/**
- * The component syncs the active code during render by comparing query identity, so the
- * code only lands after the query object changes. Render once with "no code", then rerender
- * with the active code.
- */
-function renderWithActiveCode(code = 'ABCD1234') {
-  const view = render(<LoginCodeGenerator />);
-  mocks.activeCode = { success: true, code, expiresAt: Date.now() + CODE_LIFETIME_MS };
-  view.rerender(<LoginCodeGenerator />);
-  return view;
+function activeCode(expiresAt = Date.now() + 60_000) {
+  return { success: true, code: 'ABCD2345', expiresAt };
 }
 
-describe('LoginCodeGenerator', () => {
-  beforeEach(() => {
-    mocks.activeCode = { success: false, reason: 'no_active_code' };
-    mocks.createLoginCode.mockReset();
-    mocks.writeText.mockReset();
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: mocks.writeText },
+function mockClipboard(writeText: ReturnType<typeof vi.fn>) {
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.useAuthState.mockReturnValue({ state: 'authenticated', user: { _id: 'user1' } });
+  mocks.useSessionQuery.mockReturnValue(undefined);
+  mocks.createLoginCode.mockResolvedValue({
+    success: true,
+    code: 'WXYZ2345',
+    expiresAt: Date.now() + 60_000,
+  });
+  mockClipboard(vi.fn().mockResolvedValue(undefined));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe('LoginCodeGenerator feedback', () => {
+  it('shows the used-code status line once the active code is consumed', () => {
+    const { rerender } = render(<LoginCodeGenerator />);
+    mocks.useSessionQuery.mockReturnValue(activeCode());
+    rerender(<LoginCodeGenerator />);
+    mocks.useSessionQuery.mockReturnValue(USED);
+    rerender(<LoginCodeGenerator />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Your login code was used successfully');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('does not show the used-code status line when the code expired before the query changed', () => {
+    vi.useFakeTimers();
+    const { rerender } = render(<LoginCodeGenerator />);
+    mocks.useSessionQuery.mockReturnValue(activeCode(Date.now() + 1_000));
+    rerender(<LoginCodeGenerator />);
+    act(() => {
+      vi.advanceTimersByTime(2_000);
     });
+    expect(screen.getByText('Expired')).toBeInTheDocument();
+
+    mocks.useSessionQuery.mockReturnValue(USED);
+    rerender(<LoginCodeGenerator />);
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+  it('clears the used-code status line on the next generate', async () => {
+    const { rerender } = render(<LoginCodeGenerator />);
+    mocks.useSessionQuery.mockReturnValue(activeCode());
+    rerender(<LoginCodeGenerator />);
+    mocks.useSessionQuery.mockReturnValue(USED);
+    rerender(<LoginCodeGenerator />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Generate a login code' }));
+
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
   });
 
-  it('shows the used-code status as role=status and clears it on the next generate attempt', async () => {
-    const view = renderWithActiveCode();
-    mocks.activeCode = { success: false, reason: 'no_active_code' };
-    view.rerender(<LoginCodeGenerator />);
-
-    const slot = screen.getByTestId('login-code-feedback');
-    expect(slot).toHaveAttribute('role', 'status');
-    expect(slot).toHaveTextContent('Your login code was used successfully');
-
-    mocks.createLoginCode.mockResolvedValueOnce({
-      success: true,
-      code: 'WXYZ5678',
-      expiresAt: Date.now() + CODE_LIFETIME_MS,
-    });
-    fireEvent.click(screen.getByLabelText('Generate a login code'));
-    await act(async () => {});
-
-    expect(screen.queryByTestId('login-code-feedback')).toBeNull();
-  });
-
-  it('dismisses the used-code status with its Dismiss button', () => {
-    const view = renderWithActiveCode();
-    mocks.activeCode = { success: false, reason: 'no_active_code' };
-    view.rerender(<LoginCodeGenerator />);
-
-    const slot = screen.getByTestId('login-code-feedback');
-    fireEvent.click(within(slot).getByRole('button', { name: 'Dismiss' }));
-
-    expect(screen.queryByTestId('login-code-feedback')).toBeNull();
-  });
-
-  it('shows a rejected generation as one role=alert and no status', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.createLoginCode.mockRejectedValueOnce(new Error('boom'));
-
+  it('shows one generate alert when the server reports a failed result', async () => {
+    mocks.createLoginCode.mockResolvedValue({ success: false });
     render(<LoginCodeGenerator />);
-    fireEvent.click(screen.getByLabelText('Generate a login code'));
 
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('An error occurred while generating login code');
+    await userEvent.click(screen.getByRole('button', { name: 'Generate a login code' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to generate login code');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 
-  it('shows an unsuccessful generation as role=alert text', async () => {
-    mocks.createLoginCode.mockResolvedValueOnce({ success: false });
-
+  it('shows the generic generate alert when the mutation throws', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.createLoginCode.mockRejectedValue(new Error('network down'));
     render(<LoginCodeGenerator />);
-    fireEvent.click(screen.getByLabelText('Generate a login code'));
 
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Failed to generate login code');
+    await userEvent.click(screen.getByRole('button', { name: 'Generate a login code' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'An error occurred while generating login code'
+    );
   });
 
-  it('shows no feedback text when generation succeeds', async () => {
-    mocks.createLoginCode.mockResolvedValueOnce({
-      success: true,
-      code: 'ABCD1234',
-      expiresAt: Date.now() + CODE_LIFETIME_MS,
-    });
-
+  it('clears the generate alert when the next generate starts', async () => {
+    mocks.createLoginCode
+      .mockResolvedValueOnce({ success: false })
+      .mockReturnValueOnce(new Promise(() => {}));
     render(<LoginCodeGenerator />);
-    fireEvent.click(screen.getByLabelText('Generate a login code'));
 
-    await screen.findByLabelText('Copy login code to clipboard');
-    expect(screen.queryByTestId('login-code-feedback')).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Generate a login code' }));
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Generate a login code' }));
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
 
-  it('flips the copy icon to Check for 2 s on success and shows no text', async () => {
+  it('shows one copy alert when the clipboard write is rejected and keeps the code visible', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockClipboard(vi.fn().mockRejectedValue(new Error('denied')));
+    const { rerender } = render(<LoginCodeGenerator />);
+    mocks.useSessionQuery.mockReturnValue(activeCode());
+    rerender(<LoginCodeGenerator />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy login code to clipboard' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to copy code to clipboard');
+    expect(
+      screen.getByRole('button', { name: 'Copy login code to clipboard' })
+    ).toBeInTheDocument();
+  });
+
+  it('clears a copy alert when the code is consumed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockClipboard(vi.fn().mockRejectedValue(new Error('denied')));
+    const { rerender } = render(<LoginCodeGenerator />);
+    mocks.useSessionQuery.mockReturnValue(activeCode());
+    rerender(<LoginCodeGenerator />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy login code to clipboard' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to copy code to clipboard');
+
+    mocks.useSessionQuery.mockReturnValue(USED);
+    rerender(<LoginCodeGenerator />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Your login code was used successfully');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('copy success shows the Check icon for 2 s with no alert', async () => {
     vi.useFakeTimers();
-    mocks.writeText.mockResolvedValueOnce(undefined);
-
-    renderWithActiveCode();
-
-    const copyButton = screen.getByLabelText('Copy login code to clipboard');
-    expect(copyButton.querySelector('svg')).toHaveClass('lucide-copy');
+    const { rerender } = render(<LoginCodeGenerator />);
+    mocks.useSessionQuery.mockReturnValue(activeCode());
+    rerender(<LoginCodeGenerator />);
+    const copyButton = screen.getByRole('button', { name: 'Copy login code to clipboard' });
 
     fireEvent.click(copyButton);
     await act(async () => {});
 
-    expect(copyButton.querySelector('svg')).toHaveClass('lucide-check');
-    expect(screen.queryByTestId('login-code-feedback')).toBeNull();
+    expect(copyButton.querySelector('.lucide-check')).not.toBeNull();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     act(() => {
-      vi.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(2_000);
     });
-
-    expect(copyButton.querySelector('svg')).toHaveClass('lucide-copy');
-    expect(screen.queryByTestId('login-code-feedback')).toBeNull();
+    expect(copyButton.querySelector('.lucide-check')).toBeNull();
   });
 
-  it('shows a clipboard rejection as role=alert text and keeps the copy icon', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.writeText.mockRejectedValueOnce(new Error('denied'));
+  it('shows no alert after a successful generate', async () => {
+    render(<LoginCodeGenerator />);
 
-    renderWithActiveCode();
+    await userEvent.click(screen.getByRole('button', { name: 'Generate a login code' }));
 
-    const copyButton = screen.getByLabelText('Copy login code to clipboard');
-    fireEvent.click(copyButton);
-
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Failed to copy code to clipboard');
-    expect(copyButton.querySelector('svg')).toHaveClass('lucide-copy');
-  });
-
-  it('Dismiss clears a copy failure', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.writeText.mockRejectedValueOnce(new Error('denied'));
-
-    renderWithActiveCode();
-    fireEvent.click(screen.getByLabelText('Copy login code to clipboard'));
-
-    const slot = await screen.findByTestId('login-code-feedback');
-    fireEvent.click(within(slot).getByRole('button', { name: 'Dismiss' }));
-
-    expect(screen.queryByTestId('login-code-feedback')).toBeNull();
+    expect(await screen.findByText(/Valid for/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

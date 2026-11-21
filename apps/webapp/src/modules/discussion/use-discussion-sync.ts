@@ -47,18 +47,28 @@ type DiscussionConclusion = {
 };
 
 export type DiscussionErrorScope =
-  'create' | 'add' | 'delete' | 'conclude' | 'update-conclusions' | 'reopen';
+  'create' | 'add' | 'delete' | 'conclude' | 'updateConclusions' | 'reopen';
 
-/** The latest failed discussion mutation. `title` is the existing failure copy; `message` is the cause, or '' when there is none. */
 export interface DiscussionError {
   scope: DiscussionErrorScope;
-  title: string;
   message: string;
+}
+
+/** Builds the inline message `Title: detail`, or just `Title` when the error has no message. */
+function toDiscussionError(
+  scope: DiscussionErrorScope,
+  title: string,
+  error: unknown
+): DiscussionError {
+  const detail = getErrorMessage(error, '');
+  return { scope, message: detail ? `${title}: ${detail}` : title };
 }
 
 export function useDiscussionSync({ key, title }: { key: string; title: string }) {
   // Store user's name for messages
   const [userName, setUserName] = useState<string>('');
+  const [error, setError] = useState<DiscussionError | null>(null);
+  const clearError = useCallback(() => setError(null), []);
 
   // Get discussion state from backend
   const discussionState = useSessionQuery(
@@ -86,14 +96,6 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
   const deleteMessageMutation = useSessionMutation(api.discussions.deleteDiscussionMessage);
   const updateConclusionsMutation = useSessionMutation(api.discussions.updateConclusions);
 
-  const [discussionError, setDiscussionError] = useState<DiscussionError | null>(null);
-
-  const clearError = useCallback(() => setDiscussionError(null), []);
-
-  const reportError = useCallback((scope: DiscussionErrorScope, title: string, cause: unknown) => {
-    setDiscussionError({ scope, title, message: getErrorMessage(cause, '') });
-  }, []);
-
   // Check if discussion exists
   const exists = discussionState?.exists || false;
   const isActive = discussionState?.isActive || false;
@@ -101,7 +103,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
   // Create discussion if it doesn't exist
   const createDiscussion = useCallback(async () => {
-    clearError();
+    setError(null);
     if (!key || !title) return;
 
     try {
@@ -110,14 +112,14 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
         title,
       });
     } catch (error) {
-      reportError('create', 'Failed to create discussion', error);
+      setError(toDiscussionError('create', 'Failed to create discussion', error));
     }
-  }, [key, title, createDiscussionMutation, clearError, reportError]);
+  }, [key, title, createDiscussionMutation]);
 
   // Add message to discussion
   const addMessage = useCallback(
     async (name: string, message: string) => {
-      clearError();
+      setError(null);
       if (!key || !name || !message) return;
 
       try {
@@ -132,17 +134,17 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
         return true;
       } catch (error) {
-        reportError('add', 'Failed to add message', error);
+        setError(toDiscussionError('add', 'Failed to add message', error));
         return false;
       }
     },
-    [key, addMessageMutation, clearError, reportError]
+    [key, addMessageMutation]
   );
 
   // Delete message from discussion
   const deleteMessage = useCallback(
     async (messageId: Id<'discussionMessages'>) => {
-      clearError();
+      setError(null);
       if (!messageId) return false;
 
       try {
@@ -152,17 +154,17 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
         return true;
       } catch (error) {
-        reportError('delete', 'Failed to delete message', error);
+        setError(toDiscussionError('delete', 'Failed to delete message', error));
         return false;
       }
     },
-    [deleteMessageMutation, clearError, reportError]
+    [deleteMessageMutation]
   );
 
   // Conclude discussion
   const concludeDiscussion = useCallback(
     async (conclusions: { text: string; tags: string[] }[]) => {
-      clearError();
+      setError(null);
       if (!key) return;
 
       try {
@@ -173,17 +175,17 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
         return true;
       } catch (error) {
-        reportError('conclude', 'Failed to conclude discussion', error);
+        setError(toDiscussionError('conclude', 'Failed to conclude discussion', error));
         return false;
       }
     },
-    [key, concludeDiscussionMutation, clearError, reportError]
+    [key, concludeDiscussionMutation]
   );
 
   // Update conclusions for an existing discussion
   const updateConclusions = useCallback(
     async (conclusions: { text: string; tags: string[] }[]) => {
-      clearError();
+      setError(null);
       if (!key) return;
 
       try {
@@ -194,16 +196,16 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
         return true;
       } catch (error) {
-        reportError('update-conclusions', 'Failed to update conclusions', error);
+        setError(toDiscussionError('updateConclusions', 'Failed to update conclusions', error));
         return false;
       }
     },
-    [key, updateConclusionsMutation, clearError, reportError]
+    [key, updateConclusionsMutation]
   );
 
   // Reopen discussion
   const reopenDiscussion = useCallback(async () => {
-    clearError();
+    setError(null);
     if (!key) return;
 
     try {
@@ -213,10 +215,10 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
 
       return true;
     } catch (error) {
-      reportError('reopen', 'Failed to reopen discussion', error);
+      setError(toDiscussionError('reopen', 'Failed to reopen discussion', error));
       return false;
     }
-  }, [key, reopenDiscussionMutation, clearError, reportError]);
+  }, [key, reopenDiscussionMutation]);
 
   // Initialize discussion if it doesn't exist yet
   const initializeDiscussion = useCallback(async () => {
@@ -251,7 +253,7 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
     reopenDiscussion,
     initializeDiscussion,
     getLatestMessages,
-    error: discussionError, // latest failed discussion mutation, or null
-    clearError, // dismisses it
+    error,
+    clearError,
   };
 }

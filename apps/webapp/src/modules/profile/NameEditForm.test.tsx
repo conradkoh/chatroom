@@ -1,105 +1,100 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NameEditForm } from './NameEditForm';
 
-import { useAuthState, useCurrentUser } from '@/modules/auth/AuthProvider';
 import type * as GoogleOAuthModule from '@/modules/auth/google-oauth';
 
 const mocks = vi.hoisted(() => ({
-  updateName: vi.fn(),
-  createConnectRequest: vi.fn(),
+  user: undefined as unknown,
+  updateUserName: vi.fn(),
   disconnectGoogle: vi.fn(),
-  redirect: vi.fn(),
+  createConnectRequest: vi.fn(),
+  redirectToGoogleOAuth: vi.fn(),
 }));
 
-// Data port: the Google config query.
-vi.mock('convex/react', () => ({
-  useQuery: () => ({ enabled: true, clientId: 'client-1' }),
-}));
-
-// Data port: the Convex mutations, keyed by their generated function names.
-vi.mock('convex-helpers/react/sessions', async () => {
-  const { getFunctionName } = await import('convex/server');
-  return {
-    useSessionMutation: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'auth:updateUserName') return mocks.updateName;
-      if (name === 'auth/google:createConnectRequest') return mocks.createConnectRequest;
-      if (name === 'auth/google:disconnectGoogle') return mocks.disconnectGoogle;
-      throw new Error(`Unexpected mutation in NameEditForm test: ${name}`);
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: {
+    auth: {
+      updateUserName: 'auth:updateUserName',
+      google: {
+        getConfig: 'auth:google:getConfig',
+        disconnectGoogle: 'auth:google:disconnectGoogle',
+        createConnectRequest: 'auth:google:createConnectRequest',
+      },
     },
-  };
-});
-
-// Data port: the signed-in user.
-vi.mock('@/modules/auth/AuthProvider', () => ({
-  useAuthState: vi.fn(),
-  useCurrentUser: vi.fn(),
+  },
 }));
-
-// Browser-navigation port: the redirect to Google. Everything else is real.
+vi.mock('convex/react', () => ({
+  useQuery: () => ({ enabled: true, clientId: 'test-client-id' }),
+}));
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: (ref: string) =>
+    ({
+      'auth:updateUserName': mocks.updateUserName,
+      'auth:google:disconnectGoogle': mocks.disconnectGoogle,
+      'auth:google:createConnectRequest': mocks.createConnectRequest,
+    })[ref],
+}));
+vi.mock('@/modules/auth/AuthProvider', () => ({
+  useAuthState: () => ({ state: 'authenticated', authMethod: 'google', user: mocks.user }),
+  useCurrentUser: () => mocks.user,
+}));
 vi.mock('@/modules/auth/google-oauth', async (importOriginal) => {
   const actual = await importOriginal<typeof GoogleOAuthModule>();
-  return { ...actual, redirectToGoogleOAuth: mocks.redirect };
+  return { ...actual, redirectToGoogleOAuth: mocks.redirectToGoogleOAuth };
 });
 
-const aliceWithoutGoogle = {
-  _id: 'u' as Id<'users'>,
+const anonymousUser = { _id: 'user-1', _creationTime: 0, type: 'anonymous', name: 'Ada' };
+const googleUser = {
+  _id: 'user-1',
   _creationTime: 0,
-  type: 'anonymous' as const,
-  name: 'Alice',
+  type: 'full',
+  name: 'Ada',
+  email: 'ada@example.com',
+  google: { email: 'ada@example.com' },
 };
 
-const aliceWithGoogle = {
-  _id: 'u' as Id<'users'>,
-  _creationTime: 0,
-  type: 'full' as const,
-  name: 'Alice',
-  email: 'alice@example.com',
-  google: { id: 'google-1', email: 'alice@gmail.com', name: 'Alice' },
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
 };
-
-let user: ReturnType<typeof userEvent.setup>;
-
-function mockSignedIn(userDoc: typeof aliceWithoutGoogle | typeof aliceWithGoogle) {
-  vi.mocked(useCurrentUser).mockReturnValue(userDoc);
-  vi.mocked(useAuthState).mockReturnValue({
-    sessionId: 'session-1',
-    state: 'authenticated',
-    user: userDoc,
-    accessLevel: 'user',
-    permissions: [],
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
   });
+  return { promise, resolve, reject };
 }
 
-async function startEditing() {
-  await user.click(screen.getByRole('button', { name: 'Edit Name' }));
-  return screen.getByRole('textbox');
-}
-
-async function openDisconnectDialog() {
+async function openDisconnectDialog(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /Connected/ }));
-  await user.click(await screen.findByRole('menuitem', { name: /Disconnect/ }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Disconnect' }));
   return screen.findByRole('alertdialog');
 }
 
-describe('NameEditForm', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.updateName.mockResolvedValue({ success: true, message: 'Name updated successfully' });
-    mocks.createConnectRequest.mockResolvedValue({ connectId: 'connect-1' });
-    mocks.disconnectGoogle.mockResolvedValue(undefined);
-    user = userEvent.setup();
-  });
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.user = anonymousUser;
+  mocks.createConnectRequest.mockResolvedValue({ connectId: 'connect-1' });
+  mocks.disconnectGoogle.mockResolvedValue(undefined);
+});
+
+describe('NameEditForm name edits', () => {
+  async function startEditing(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Edit Name' }));
+    return screen.getByRole('textbox');
+  }
 
   it('name save closes the form and shows no success text', async () => {
-    mockSignedIn(aliceWithoutGoogle);
-
+    mocks.updateUserName.mockResolvedValue({ success: true, message: 'Name updated successfully' });
     render(<NameEditForm />);
-    const input = await startEditing();
+    const user = userEvent.setup();
+    const input = await startEditing(user);
     await user.clear(input);
     await user.type(input, 'Bob Smith');
 
@@ -108,17 +103,16 @@ describe('NameEditForm', () => {
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: 'Save Name' })).not.toBeInTheDocument()
     );
-    expect(mocks.updateName).toHaveBeenCalledWith({ newName: 'Bob Smith' });
+    expect(mocks.updateUserName).toHaveBeenCalledWith({ newName: 'Bob Smith' });
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('a rejected name save shows the alert under the field and the next edit clears it', async () => {
-    mocks.updateName.mockRejectedValueOnce(new Error('boom'));
-    mockSignedIn(aliceWithoutGoogle);
-
+    mocks.updateUserName.mockRejectedValue(new Error('boom'));
     render(<NameEditForm />);
-    const input = await startEditing();
+    const user = userEvent.setup();
+    const input = await startEditing(user);
     await user.type(input, 'Bob Smith');
 
     await user.click(screen.getByRole('button', { name: 'Save Name' }));
@@ -133,17 +127,17 @@ describe('NameEditForm', () => {
   });
 
   it('a name the backend rejects keeps the editor open and shows the reason under the field', async () => {
-    mocks.updateName.mockResolvedValueOnce({
+    mocks.updateUserName.mockResolvedValue({
       success: false,
       reason: 'name_too_short',
       message: 'Name must be at least 3 characters long',
     });
-    mockSignedIn(aliceWithoutGoogle);
-
     render(<NameEditForm />);
-    const input = await startEditing();
+    const user = userEvent.setup();
+    const input = await startEditing(user);
     await user.clear(input);
     await user.type(input, 'Al');
+
     await user.click(screen.getByRole('button', { name: 'Save Name' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -154,53 +148,65 @@ describe('NameEditForm', () => {
     await user.type(input, 'x');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+});
 
-  it('a rejected Google connect shows the alert in the account slot and the next attempt clears it', async () => {
-    mocks.createConnectRequest.mockRejectedValueOnce(new Error('boom'));
-    mockSignedIn(aliceWithoutGoogle);
-
+describe('NameEditForm Google connect feedback', () => {
+  it('shows one alert under the Google row when connect is rejected', async () => {
+    mocks.createConnectRequest.mockRejectedValue(new Error('boom'));
     render(<NameEditForm />);
-    await user.click(screen.getByRole('button', { name: 'Connect' }));
-
-    const slot = await screen.findByTestId('google-connect-feedback');
-    expect(slot).toHaveAttribute('role', 'alert');
-    expect(slot).toHaveTextContent('Failed to connect Google account');
+    const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Connect' }));
 
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to connect Google account');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    const googleSection = within(alert.parentElement as HTMLElement);
+    expect(googleSection.getByRole('button', { name: 'Connect' })).toBeEnabled();
+    expect(mocks.redirectToGoogleOAuth).not.toHaveBeenCalled();
+  });
+
+  it('clears the connect alert when the next attempt starts', async () => {
+    const second = deferred<{ connectId: string }>();
+    mocks.createConnectRequest
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockReturnValueOnce(second.promise);
+    render(<NameEditForm />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Connect' }));
+    await screen.findByRole('alert');
+
+    await user.click(screen.getByRole('button', { name: 'Connect' }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(mocks.redirect).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Connecting...' })).toBeDisabled();
+
+    second.reject(new Error('boom again'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to connect Google account');
   });
 
-  it('a successful Google connect shows no message', async () => {
-    mockSignedIn(aliceWithoutGoogle);
-
+  it('shows no alert when connect succeeds', async () => {
     render(<NameEditForm />);
+    const user = userEvent.setup();
+
     await user.click(screen.getByRole('button', { name: 'Connect' }));
 
-    await waitFor(() => expect(mocks.redirect).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.redirectToGoogleOAuth).toHaveBeenCalledWith(
+        expect.stringContaining('https://accounts.google.com/')
+      )
+    );
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+});
 
-  it('Dismiss clears the connect failure', async () => {
-    mocks.createConnectRequest.mockRejectedValueOnce(new Error('boom'));
-    mockSignedIn(aliceWithoutGoogle);
-
-    render(<NameEditForm />);
-    await user.click(screen.getByRole('button', { name: 'Connect' }));
-
-    const slot = await screen.findByTestId('google-connect-feedback');
-    await user.click(within(slot).getByRole('button', { name: 'Dismiss' }));
-
-    expect(screen.queryByTestId('google-connect-feedback')).not.toBeInTheDocument();
-  });
-
+describe('NameEditForm Google disconnect feedback', () => {
   it('a successful Google disconnect closes the dialog with no message', async () => {
-    mockSignedIn(aliceWithGoogle);
-
+    mocks.user = googleUser;
     render(<NameEditForm />);
-    const dialog = await openDisconnectDialog();
+    const user = userEvent.setup();
+    const dialog = await openDisconnectDialog(user);
+
     await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
 
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
@@ -208,24 +214,57 @@ describe('NameEditForm', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('a rejected Google disconnect keeps the dialog open with the alert inside it, and the next attempt clears it', async () => {
-    mocks.disconnectGoogle.mockRejectedValueOnce(new Error('boom'));
-    mockSignedIn(aliceWithGoogle);
-
+  it('keeps the dialog open and shows one alert inside it when disconnect is rejected', async () => {
+    mocks.user = googleUser;
+    mocks.disconnectGoogle.mockRejectedValue(new Error('boom'));
     render(<NameEditForm />);
-    const dialog = await openDisconnectDialog();
+    const user = userEvent.setup();
+    const dialog = await openDisconnectDialog(user);
+
     await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
 
-    const openDialog = await screen.findByRole('alertdialog');
-    expect(within(openDialog).getByRole('alert')).toHaveTextContent(
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Failed to disconnect Google account'
     );
-    const retry = within(openDialog).getByRole('button', { name: 'Disconnect' });
-    expect(retry).toBeEnabled();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Disconnect' })).toBeEnabled();
+  });
 
-    await user.click(retry);
+  it('clears the disconnect alert when the action is retried, then closes with no alert on success', async () => {
+    const second = deferred<void>();
+    mocks.user = googleUser;
+    mocks.disconnectGoogle
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockReturnValueOnce(second.promise);
+    render(<NameEditForm />);
+    const user = userEvent.setup();
+    const dialog = await openDisconnectDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
+    await within(dialog).findByRole('alert');
 
+    await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Disconnecting...' })).toBeDisabled();
+
+    second.resolve();
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('clears the disconnect alert when the dialog is cancelled and reopened', async () => {
+    mocks.user = googleUser;
+    mocks.disconnectGoogle.mockRejectedValue(new Error('boom'));
+    render(<NameEditForm />);
+    const user = userEvent.setup();
+    const dialog = await openDisconnectDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
+    await within(dialog).findByRole('alert');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+
+    const reopened = await openDisconnectDialog(user);
+    expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument();
   });
 });

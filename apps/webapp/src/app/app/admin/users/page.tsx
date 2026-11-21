@@ -3,12 +3,12 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Users } from 'lucide-react';
+import { AlertCircle, Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { AdminListSkeleton } from '@/app/app/admin/AdminListSkeleton';
 import { SYSTEM_ADMIN_ACCESS_PERMISSION, useHasPermission } from '@/application/auth';
-import { InlineFeedback } from '@/components/inline-feedback';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useFeedback } from '@/hooks/useFeedback';
 import { getErrorMessage } from '@/lib/convexError';
 
 type EffectiveRole = 'standard_user' | 'admin' | 'system_admin';
@@ -38,25 +37,25 @@ export default function UserRolesPage() {
   const users = useSessionQuery(api.admin.users.listUsers);
   const updateRoles = useSessionMutation(api.admin.users.updateUserRoles);
   const [savingUserId, setSavingUserId] = useState<Id<'users'> | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
   const canManageSystemAdmins = useHasPermission(SYSTEM_ADMIN_ACCESS_PERMISSION);
   const assignableRoles = (Object.keys(ROLE_LABELS) as EffectiveRole[]).filter(
     (r) => canManageSystemAdmins || r !== 'system_admin'
   );
-  const { feedback, error, clear } = useFeedback();
 
   const handleRoleChange = useCallback(
     async (userId: Id<'users'>, effectiveRole: EffectiveRole) => {
-      clear();
+      setRoleError(null);
       setSavingUserId(userId);
       try {
         await updateRoles({ userId, effectiveRole });
-      } catch (roleError) {
-        error(getErrorMessage(roleError, 'Failed to update role'));
+      } catch (error) {
+        setRoleError(getErrorMessage(error, 'Failed to update role'));
       } finally {
         setSavingUserId(null);
       }
     },
-    [updateRoles, clear, error]
+    [updateRoles]
   );
 
   const isLoading = users === undefined;
@@ -70,6 +69,13 @@ export default function UserRolesPage() {
         </p>
       </div>
 
+      {roleError && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{roleError}</AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -81,12 +87,6 @@ export default function UserRolesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <InlineFeedback
-            feedback={feedback}
-            onDismiss={clear}
-            data-testid="users-feedback"
-            className="mb-3"
-          />
           {isLoading ? (
             <AdminListSkeleton />
           ) : users.length === 0 ? (

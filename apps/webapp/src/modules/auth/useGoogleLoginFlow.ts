@@ -7,7 +7,6 @@ import { useCallback, useState } from 'react';
 
 import { buildGoogleOAuthUrl, createOAuthState, redirectToGoogleOAuth } from './google-oauth';
 
-import { useFeedback } from '@/hooks/useFeedback';
 import { useGoogleAuthAvailable } from '@/modules/app/useAppInfo';
 
 /**
@@ -46,24 +45,25 @@ function deriveGoogleLoginStatus(
 
 export function useGoogleLoginFlow(returnTo?: string | null) {
   const [isLoading, setIsLoading] = useState(false);
-  const { feedback: error, error: showError, clear: clearError } = useFeedback();
+  const [error, setError] = useState<string | null>(null);
   const googleAuthAvailable = useGoogleAuthAvailable();
   const googleConfig = useQuery(api.auth.google.getConfig);
   const createLoginRequest = useSessionMutation(api.auth.google.createLoginRequest);
 
   const status = deriveGoogleLoginStatus(googleAuthAvailable, googleConfig);
 
+  const clearError = useCallback(() => setError(null), []);
+
   // fallow-ignore-next-line complexity
   const startGoogleLogin = useCallback(async () => {
     // While initializing the button is disabled; a click here must stay silent
-    // so the user never sees a misleading "not configured" message.
+    // so the user never sees a misleading "not configured" error.
     if (status === 'initializing') return;
 
     // Every attempt starts from a clean slate: the previous failure leaves the row.
     clearError();
-
     if (status === 'unavailable' || !googleConfig?.clientId) {
-      showError('Google authentication is currently disabled or not configured');
+      setError('Google authentication is currently disabled or not configured');
       return;
     }
 
@@ -82,10 +82,10 @@ export function useGoogleLoginFlow(returnTo?: string | null) {
 
       redirectToGoogleOAuth(authUrl);
     } catch {
-      showError('Failed to start Google login. Please try again.');
+      setError('Failed to start Google login. Please try again.');
       setIsLoading(false);
     }
-  }, [status, googleConfig, createLoginRequest, returnTo, clearError, showError]);
+  }, [status, googleConfig, createLoginRequest, returnTo, clearError]);
 
   return {
     startGoogleLogin,

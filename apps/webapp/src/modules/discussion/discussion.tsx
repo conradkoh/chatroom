@@ -2,6 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
+  AlertCircle,
   Check,
   Edit,
   Loader2,
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -53,7 +54,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
   const [messageToDelete, setMessageToDelete] = useState<Id<'discussionMessages'> | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  // The dialog whose submit is in flight. Its dialog must not close until the submit settles.
+  // The dialog whose submit is in flight. That dialog ignores close requests until the submit settles.
   const [pendingScope, setPendingScope] = useState<DiscussionErrorScope | null>(null);
 
   // References
@@ -80,16 +81,22 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
     title,
   });
 
-  /**
-   * The hook holds one error. It is shown only on the surface whose scope it belongs to.
-   * Feedback ids are fixed because every mutation clears the error first, so each new failure mounts a fresh box.
-   */
-  const feedbackFor = (scope: DiscussionErrorScope): Feedback | null =>
-    error && error.scope === scope
-      ? { id: 1, tone: 'error', title: error.title, message: error.message }
-      : null;
+  // Open or close a dialog and clear any previous failure so a stale message never reappears.
+  const toggleDialog = (setOpen: (open: boolean) => void, open: boolean) => {
+    clearError();
+    setOpen(open);
+  };
 
-  const panelFeedback = feedbackFor('create') ?? feedbackFor('delete') ?? feedbackFor('reopen');
+  // A dialog ignores close requests while its own submit is pending, so the draft is never lost mid-submit.
+  const dialogOpenChange =
+    (scope: DiscussionErrorScope, setOpen: (open: boolean) => void) => (open: boolean) => {
+      if (!open && pendingScope === scope) return;
+      toggleDialog(setOpen, open);
+    };
+
+  const scoped = (s: DiscussionErrorScope) => (error?.scope === s ? error.message : null);
+  // Create, delete, and reopen failures show at the panel top.
+  const panelError = scoped('create') ?? scoped('delete') ?? scoped('reopen');
 
   // Set loading state based on data availability
   useEffect(() => {
@@ -156,18 +163,18 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
   };
 
   // Handle message deletion
-  const handleDeleteMessage = async (messageId: Id<'discussionMessages'>) => {
+  const handleDeleteMessage = (messageId: Id<'discussionMessages'>) => {
     setMessageToDelete(messageId);
-    setShowDeleteConfirm(true);
+    toggleDialog(setShowDeleteConfirm, true);
   };
 
   // Confirm and perform message deletion
   const confirmDeleteMessage = async () => {
-    if (messageToDelete) {
-      await deleteMessage(messageToDelete as Id<'discussionMessages'>);
-      setShowDeleteConfirm(false);
-      setMessageToDelete(null);
-    }
+    if (!messageToDelete) return;
+    await deleteMessage(messageToDelete);
+    // A failure shows at the panel top, so the dialog closes on either outcome.
+    setShowDeleteConfirm(false);
+    setMessageToDelete(null);
   };
 
   // Handle conclusion submission
@@ -187,7 +194,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
 
   // Handle conclusion update
   const handleConclusionUpdate = async (conclusions: { text: string; tags: string[] }[]) => {
-    setPendingScope('update-conclusions');
+    setPendingScope('updateConclusions');
     try {
       const success = await updateConclusions(conclusions);
       if (success) {
@@ -358,7 +365,10 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
               size="icon"
               className="h-8 w-8"
               aria-label="Discussion actions"
-              onClick={() => setShowMenu(!showMenu)}
+              onClick={() => {
+                if (!showMenu) clearError();
+                setShowMenu(!showMenu);
+              }}
               ref={menuButtonRef}
               disabled={isLoading}
             >
@@ -375,7 +385,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                     type="button"
                     className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
                     onClick={() => {
-                      setShowFormDialog(true);
+                      toggleDialog(setShowFormDialog, true);
                       setShowMenu(false);
                     }}
                   >
@@ -389,7 +399,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                     type="button"
                     className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
                     onClick={() => {
-                      setShowConclusionDialog(true);
+                      toggleDialog(setShowConclusionDialog, true);
                       setShowMenu(false);
                     }}
                   >
@@ -403,7 +413,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                     type="button"
                     className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
                     onClick={() => {
-                      setShowEditConclusionDialog(true);
+                      toggleDialog(setShowEditConclusionDialog, true);
                       setShowMenu(false);
                     }}
                   >
@@ -427,12 +437,14 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </div>
         </div>
 
-        <InlineFeedback
-          feedback={panelFeedback}
-          onDismiss={clearError}
-          data-testid="discussion-feedback"
-          className="mx-3 mt-3"
-        />
+        {panelError && (
+          <div className="px-3 pt-3">
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertDescription>{panelError}</AlertDescription>
+            </Alert>
+          </div>
+        )}
 
         <div className="relative">
           {/* Discussion content with fixed height container */}
@@ -445,7 +457,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => setShowFormDialog(true)}
+                  onClick={() => toggleDialog(setShowFormDialog, true)}
                   className="w-full"
                 >
                   <Plus className="h-4 w-4 mr-1" /> Add Contribution
@@ -459,14 +471,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       </div>
 
       {/* Dialog for adding a new message */}
-      <Dialog
-        open={showFormDialog}
-        onOpenChange={(open) => {
-          if (!open && pendingScope === 'add') return;
-          if (!open) clearError();
-          setShowFormDialog(open);
-        }}
-      >
+      <Dialog open={showFormDialog} onOpenChange={dialogOpenChange('add', setShowFormDialog)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Your Contribution</DialogTitle>
@@ -477,11 +482,8 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           <DiscussionForm
             initialName={userName}
             onSubmit={handleMessageSubmit}
-            onCancel={() => {
-              setShowFormDialog(false);
-              clearError();
-            }}
-            error={feedbackFor('add')}
+            onCancel={() => toggleDialog(setShowFormDialog, false)}
+            error={scoped('add')}
             onClearError={clearError}
           />
         </DialogContent>
@@ -490,11 +492,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       {/* Dialog for concluding discussion */}
       <Dialog
         open={showConclusionDialog}
-        onOpenChange={(open) => {
-          if (!open && pendingScope === 'conclude') return;
-          if (!open) clearError();
-          setShowConclusionDialog(open);
-        }}
+        onOpenChange={dialogOpenChange('conclude', setShowConclusionDialog)}
       >
         <DialogContent>
           <DialogHeader>
@@ -505,12 +503,9 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </DialogHeader>
           <ConclusionForm
             onSubmit={handleConclusionSubmit}
-            onCancel={() => {
-              setShowConclusionDialog(false);
-              clearError();
-            }}
+            onCancel={() => toggleDialog(setShowConclusionDialog, false)}
             existingConclusion={conclusion}
-            error={feedbackFor('conclude')}
+            error={scoped('conclude')}
             onClearError={clearError}
           />
         </DialogContent>
@@ -519,11 +514,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       {/* Dialog for editing conclusions */}
       <Dialog
         open={showEditConclusionDialog}
-        onOpenChange={(open) => {
-          if (!open && pendingScope === 'update-conclusions') return;
-          if (!open) clearError();
-          setShowEditConclusionDialog(open);
-        }}
+        onOpenChange={dialogOpenChange('updateConclusions', setShowEditConclusionDialog)}
       >
         <DialogContent>
           <DialogHeader>
@@ -534,19 +525,19 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
           </DialogHeader>
           <ConclusionForm
             onSubmit={handleConclusionUpdate}
-            onCancel={() => {
-              setShowEditConclusionDialog(false);
-              clearError();
-            }}
+            onCancel={() => toggleDialog(setShowEditConclusionDialog, false)}
             existingConclusion={conclusion}
-            error={feedbackFor('update-conclusions')}
+            error={scoped('updateConclusions')}
             onClearError={clearError}
           />
         </DialogContent>
       </Dialog>
 
       {/* Dialog for delete confirmation */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <Dialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => toggleDialog(setShowDeleteConfirm, open)}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Delete Message</DialogTitle>
@@ -555,7 +546,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end space-x-2 mt-4">
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+            <Button variant="outline" onClick={() => toggleDialog(setShowDeleteConfirm, false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDeleteMessage}>

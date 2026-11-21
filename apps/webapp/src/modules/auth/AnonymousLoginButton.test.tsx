@@ -4,10 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AnonymousLoginButton } from './AnonymousLoginButton';
 
-/**
- * Boundary mocks only: the Convex session mutation and the Next router.
- * The component under test is exercised for real.
- */
 const mocks = vi.hoisted(() => ({
   loginAnon: vi.fn(),
   push: vi.fn(),
@@ -21,57 +17,67 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push }),
 }));
 
-const ROW_NAME = 'Continue anonymously without creating an account';
-
-describe('AnonymousLoginButton (list variant)', () => {
+describe('AnonymousLoginButton', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mocks.loginAnon.mockReset();
+    mocks.push.mockReset();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('shows a failed anonymous login as text under its row and does not redirect', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.loginAnon.mockRejectedValueOnce(new Error('boom'));
-
+  it('shows the failure inline in the list variant and does not navigate', async () => {
+    mocks.loginAnon.mockRejectedValueOnce(new Error('offline'));
     render(<AnonymousLoginButton variant="list" />);
 
-    const row = screen.getByRole('button', { name: ROW_NAME });
-    await userEvent.click(row);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Continue anonymously without creating an account' })
+    );
 
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Failed to login. Please try again later.');
-    expect(alert.parentElement).toContainElement(row);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to login. Please try again later.'
+    );
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it('clears the failure at the next attempt and redirects on success', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.loginAnon.mockRejectedValueOnce(new Error('boom'));
+  it('shows the failure inline in the button variant', async () => {
+    mocks.loginAnon.mockRejectedValueOnce(new Error('offline'));
+    render(<AnonymousLoginButton />);
 
+    await userEvent.click(screen.getByRole('button', { name: 'Login Anonymously' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to login. Please try again later.'
+    );
+  });
+
+  it('navigates to /app on success and shows no message', async () => {
+    mocks.loginAnon.mockResolvedValueOnce(undefined);
     render(<AnonymousLoginButton variant="list" />);
 
-    await userEvent.click(screen.getByRole('button', { name: ROW_NAME }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Continue anonymously without creating an account' })
+    );
 
-    await userEvent.click(screen.getByRole('button', { name: ROW_NAME }));
-
-    expect(mocks.loginAnon).toHaveBeenCalledTimes(2);
     expect(mocks.push).toHaveBeenCalledWith('/app');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('shows no message on success; the redirect is the outcome', async () => {
-    mocks.loginAnon.mockResolvedValueOnce(undefined);
-
+  it('clears the failure when the next attempt starts', async () => {
+    mocks.loginAnon.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined);
     render(<AnonymousLoginButton variant="list" />);
+    const button = screen.getByRole('button', {
+      name: 'Continue anonymously without creating an account',
+    });
 
-    await userEvent.click(screen.getByRole('button', { name: ROW_NAME }));
+    await userEvent.click(button);
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+    await userEvent.click(button);
 
     expect(mocks.push).toHaveBeenCalledWith('/app');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });

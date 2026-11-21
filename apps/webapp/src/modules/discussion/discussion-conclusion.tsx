@@ -3,7 +3,6 @@
 import { Plus, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
-import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -24,9 +23,7 @@ interface ConclusionFormProps {
   existingConclusion?: {
     conclusions: { text: string; tags: string[] }[];
   } | null;
-  /** Error for this form's surface, or null. */
-  error?: Feedback | null;
-  /** Clears the error on dismiss and on any edit. */
+  error?: string | null;
   onClearError?: () => void;
 }
 
@@ -201,11 +198,11 @@ export function ConclusionForm({
         <Plus className="h-4 w-4 mr-2" /> Add Another Conclusion
       </Button>
 
-      <InlineFeedback
-        feedback={error ?? null}
-        onDismiss={onClearError}
-        data-testid="discussion-conclusion-feedback"
-      />
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="flex justify-end space-x-2 mt-2">
         {onCancel && (

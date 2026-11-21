@@ -1,119 +1,125 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Discussion } from './discussion';
 
+/**
+ * Boundary mocks only: Convex session query/mutation. The component, the sync
+ * hook, the dialogs, and the forms all run for real.
+ */
 const mocks = vi.hoisted(() => ({
-  state: undefined as unknown,
-  messages: undefined as unknown,
-  conclusion: undefined as unknown,
+  useSessionQuery: vi.fn(),
+  useSessionMutation: vi.fn(),
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
+  state: { exists: true, isActive: true } as Record<string, unknown>,
+  messages: [] as Record<string, unknown>[],
+  conclusion: null as Record<string, unknown> | null,
 }));
 
-// Data port: the Convex query/mutation adapters, keyed by generated function names.
-vi.mock('convex-helpers/react/sessions', async () => {
-  const { getFunctionName } = await import('convex/server');
-  return {
-    useSessionQuery: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'discussions:getDiscussionState') return mocks.state;
-      if (name === 'discussions:getDiscussionMessages') return mocks.messages;
-      if (name === 'discussions:getDiscussionConclusion') return mocks.conclusion;
-      throw new Error(`Unexpected query in Discussion test: ${name}`);
-    },
-    useSessionMutation: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      // Stable per name so hook dependency arrays do not churn.
-      mocks.mutations[name] ??= vi.fn().mockResolvedValue(undefined);
-      return mocks.mutations[name];
-    },
-  };
-});
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: mocks.useSessionQuery,
+  useSessionMutation: mocks.useSessionMutation,
+}));
 
-const ACTIVE_STATE = {
-  key: 'd',
-  title: 'Topic',
-  isActive: true,
-  createdAt: 1,
-  exists: true,
+type FunctionReference = Parameters<typeof getFunctionName>[0];
+type User = ReturnType<typeof userEvent.setup>;
+
+const message = {
+  _id: 'm1',
+  discussionKey: 'k',
+  name: 'Ada',
+  message: 'Hi',
+  timestamp: 1,
 };
 
-const CONCLUDED_STATE = { ...ACTIVE_STATE, isActive: false };
-
-const MESSAGES = [
-  { _id: 'm1', discussionKey: 'd', name: 'Ann', message: 'First thought', timestamp: 1 },
-];
-
-const CONCLUSION = {
-  _id: 'c1',
-  discussionKey: 'd',
-  conclusions: [{ text: 'Ship it', tags: ['decision'] }],
-  createdAt: 1,
-};
+function functionName(reference: FunctionReference): string {
+  return getFunctionName(reference).split(':').pop() ?? '';
+}
 
 function renderDiscussion() {
-  return render(<Discussion title="Topic" discussionKey="d" />);
+  render(<Discussion title="Team Feedback" discussionKey="k" />);
 }
 
-/** The panel's feedback slot sits above the message list, outside any dialog. */
-function panelFeedback() {
-  return screen.getByTestId('discussion-feedback');
+/** Waits for the loading timer so the card actions are interactive. */
+async function waitForCardLoaded() {
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Discussion actions' })).toBeEnabled()
+  );
 }
 
-/** The actions trigger stays disabled until the first query settles. */
-async function openActionsMenu(user: ReturnType<typeof userEvent.setup>) {
-  const button = await screen.findByRole('button', { name: 'Discussion actions' });
-  await waitFor(() => expect(button).toBeEnabled());
-  await user.click(button);
+async function openDeleteDialog(user: User) {
+  const messageCard = screen.getByText('Hi').parentElement;
+  if (!messageCard) throw new Error('Message card not found');
+
+  await user.click(within(messageCard).getByRole('button'));
+  await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+  return screen.findByRole('dialog');
 }
 
-describe('Discussion inline failures', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    Object.keys(mocks.mutations).forEach((k) => delete mocks.mutations[k]);
-    mocks.state = ACTIVE_STATE;
-    mocks.messages = MESSAGES;
-    mocks.conclusion = null;
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+beforeEach(() => {
+  mocks.mutations = {
+    createDiscussion: vi.fn().mockResolvedValue(undefined),
+    addDiscussionMessage: vi.fn().mockResolvedValue(undefined),
+    deleteDiscussionMessage: vi.fn().mockResolvedValue(undefined),
+    concludeDiscussion: vi.fn().mockResolvedValue(undefined),
+    updateConclusions: vi.fn().mockResolvedValue(undefined),
+    reopenDiscussion: vi.fn().mockResolvedValue(undefined),
+  };
+  mocks.useSessionMutation.mockImplementation((reference: FunctionReference) => {
+    return mocks.mutations[functionName(reference)];
   });
 
-  it('keeps the unsent contribution and shows the add failure inside the dialog', async () => {
+  mocks.state = { exists: true, isActive: true };
+  mocks.messages = [message];
+  mocks.conclusion = null;
+  mocks.useSessionQuery.mockImplementation((reference: FunctionReference, args: unknown) => {
+    if (args === 'skip') return undefined;
+    const name = functionName(reference);
+    if (name === 'getDiscussionState') return mocks.state;
+    if (name === 'getDiscussionMessages') return mocks.messages;
+    if (name === 'getDiscussionConclusion') return mocks.conclusion;
+    return undefined;
+  });
+});
+
+describe('Discussion inline failures', () => {
+  it('keeps an add failure in the dialog with the typed text', async () => {
+    mocks.mutations.addDiscussionMessage.mockRejectedValueOnce(new Error('Network down'));
     const user = userEvent.setup();
-    mocks.mutations['discussions:addDiscussionMessage'] = vi
-      .fn()
-      .mockRejectedValue(new Error('Message too long'));
     renderDiscussion();
+    await waitForCardLoaded();
 
-    await user.click(await screen.findByRole('button', { name: /Add Contribution/ }));
-
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Your Name'), 'Ann');
+    await user.type(within(dialog).getByLabelText('Your Name'), 'Ada');
     await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
     await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
 
     const alert = await within(dialog).findByRole('alert');
-    expect(alert).toHaveTextContent('Failed to add message');
-    expect(alert).toHaveTextContent('Message too long');
     expect(dialog).toBeInTheDocument();
+    expect(alert).toHaveTextContent('Failed to add message: Network down');
+    expect(within(dialog).getByLabelText('Your Name')).toHaveValue('Ada');
     expect(within(dialog).getByLabelText('Your Thoughts')).toHaveValue('Hello');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 
   it('keeps the add dialog open while the contribution is submitting', async () => {
-    const user = userEvent.setup();
     let rejectAdd!: (error: Error) => void;
-    mocks.mutations['discussions:addDiscussionMessage'] = vi.fn().mockImplementation(
+    mocks.mutations.addDiscussionMessage.mockImplementationOnce(
       () =>
         new Promise<void>((_resolve, reject) => {
           rejectAdd = reject;
         })
     );
+    const user = userEvent.setup();
     renderDiscussion();
+    await waitForCardLoaded();
 
-    await user.click(await screen.findByRole('button', { name: /Add Contribution/ }));
-
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Your Name'), 'Ann');
+    await user.type(within(dialog).getByLabelText('Your Name'), 'Ada');
     await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
     await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
 
@@ -121,25 +127,21 @@ describe('Discussion inline failures', () => {
     expect(dialog).toBeInTheDocument();
 
     rejectAdd(new Error('Message too long'));
-
     const alert = await within(dialog).findByRole('alert');
-    expect(alert).toHaveTextContent('Failed to add message');
-    expect(alert).toHaveTextContent('Message too long');
+    expect(alert).toHaveTextContent('Failed to add message: Message too long');
     expect(within(dialog).getByLabelText('Your Thoughts')).toHaveValue('Hello');
   });
 
   it('clears the add error when the name is edited', async () => {
+    mocks.mutations.addDiscussionMessage.mockRejectedValueOnce(new Error('Message too long'));
     const user = userEvent.setup();
-    mocks.mutations['discussions:addDiscussionMessage'] = vi
-      .fn()
-      .mockRejectedValue(new Error('Message too long'));
     renderDiscussion();
+    await waitForCardLoaded();
 
-    await user.click(await screen.findByRole('button', { name: /Add Contribution/ }));
-
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
     const dialog = await screen.findByRole('dialog');
     const name = within(dialog).getByLabelText('Your Name');
-    await user.type(name, 'Ann');
+    await user.type(name, 'Ada');
     await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
     await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
 
@@ -150,96 +152,93 @@ describe('Discussion inline failures', () => {
     expect(dialog).toBeInTheDocument();
   });
 
-  it('closes the contribution dialog and shows no confirmation on success', async () => {
-    const user = userEvent.setup();
-    mocks.mutations['discussions:addDiscussionMessage'] = vi.fn().mockResolvedValue(undefined);
+  it('shows a create failure as a card alert outside any dialog', async () => {
+    mocks.state = { exists: false, isActive: false };
+    mocks.messages = [];
+    mocks.mutations.createDiscussion.mockRejectedValueOnce(new Error('Boom'));
     renderDiscussion();
 
-    await user.click(await screen.findByRole('button', { name: /Add Contribution/ }));
-
-    const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Your Name'), 'Ann');
-    await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
-    await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
-
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to create discussion: Boom');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows a delete failure at the top of the panel', async () => {
+  it('shows a reopen failure as a card alert outside any dialog', async () => {
+    mocks.state = { exists: true, isActive: false };
+    mocks.conclusion = {
+      _id: 'c1',
+      discussionKey: 'k',
+      conclusions: [{ text: 'Done', tags: ['task'] }],
+      createdAt: 1,
+    };
+    mocks.mutations.reopenDiscussion.mockRejectedValueOnce(new Error('Nope'));
     const user = userEvent.setup();
-    mocks.mutations['discussions:deleteDiscussionMessage'] = vi
-      .fn()
-      .mockRejectedValue(new Error('nope'));
     renderDiscussion();
+    await waitForCardLoaded();
 
-    expect(await screen.findByText('First thought')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Discussion actions' }));
+    await user.click(screen.getByRole('button', { name: 'Reopen Discussion' }));
 
-    const actions = document.querySelector('.lucide-ellipsis')?.closest('button');
-    expect(actions).not.toBeNull();
-    await user.click(actions as HTMLButtonElement);
-    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
-
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
-
-    await waitFor(() => expect(panelFeedback()).toHaveTextContent('Failed to delete message'));
-    expect(screen.getByText('First thought')).toBeVisible();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to reopen discussion: Nope');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows no success text after a delete', async () => {
+  it('keeps a conclude failure in the dialog with the typed conclusion', async () => {
+    mocks.mutations.concludeDiscussion.mockRejectedValueOnce(new Error('Offline'));
     const user = userEvent.setup();
-    mocks.mutations['discussions:deleteDiscussionMessage'] = vi.fn().mockResolvedValue(undefined);
     renderDiscussion();
+    await waitForCardLoaded();
 
-    expect(await screen.findByText('First thought')).toBeInTheDocument();
-
-    const actions = document.querySelector('.lucide-ellipsis')?.closest('button');
-    expect(actions).not.toBeNull();
-    await user.click(actions as HTMLButtonElement);
-    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    await user.click(screen.getByRole('button', { name: 'Discussion actions' }));
+    await user.click(screen.getByRole('button', { name: 'Conclude Discussion' }));
 
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await user.type(within(dialog).getByPlaceholderText('Enter a conclusion'), 'Ship it');
+    await user.click(within(dialog).getByRole('button', { name: 'Conclude Discussion' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.queryByText('Message deleted')).not.toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    const alert = await within(dialog).findByRole('alert');
+    expect(dialog).toBeInTheDocument();
+    expect(alert).toHaveTextContent('Failed to conclude discussion: Offline');
+    expect(within(dialog).getByPlaceholderText('Enter a conclusion')).toHaveValue('Ship it');
   });
 
-  it('shows a conclude failure inside the conclude dialog and keeps the entries', async () => {
+  it('keeps the conclude dialog open while the conclusion is submitting', async () => {
+    let rejectConclude!: (error: Error) => void;
+    mocks.mutations.concludeDiscussion.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectConclude = reject;
+        })
+    );
     const user = userEvent.setup();
-    mocks.mutations['discussions:concludeDiscussion'] = vi
-      .fn()
-      .mockRejectedValue(new Error('Server rejected'));
     renderDiscussion();
+    await waitForCardLoaded();
 
-    await openActionsMenu(user);
-    await user.click(await screen.findByRole('button', { name: /Conclude Discussion/ }));
-
+    await user.click(screen.getByRole('button', { name: 'Discussion actions' }));
+    await user.click(screen.getByRole('button', { name: 'Conclude Discussion' }));
     const dialog = await screen.findByRole('dialog');
     const input = within(dialog).getByPlaceholderText('Enter a conclusion');
     await user.type(input, 'Ship it');
     await user.click(within(dialog).getByRole('button', { name: 'Conclude Discussion' }));
 
-    const alert = await within(dialog).findByRole('alert');
-    expect(alert).toHaveTextContent('Failed to conclude discussion');
-    expect(alert).toHaveTextContent('Server rejected');
+    await user.keyboard('{Escape}');
     expect(dialog).toBeInTheDocument();
+
+    rejectConclude(new Error('Offline'));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to conclude discussion: Offline');
     expect(input).toHaveValue('Ship it');
   });
 
   it('clears the conclude error when a conclusion is edited', async () => {
+    mocks.mutations.concludeDiscussion.mockRejectedValueOnce(new Error('Offline'));
     const user = userEvent.setup();
-    mocks.mutations['discussions:concludeDiscussion'] = vi
-      .fn()
-      .mockRejectedValue(new Error('Server rejected'));
     renderDiscussion();
+    await waitForCardLoaded();
 
-    await openActionsMenu(user);
-    await user.click(await screen.findByRole('button', { name: /Conclude Discussion/ }));
+    await user.click(screen.getByRole('button', { name: 'Discussion actions' }));
+    await user.click(screen.getByRole('button', { name: 'Conclude Discussion' }));
 
     const dialog = await screen.findByRole('dialog');
     const input = within(dialog).getByPlaceholderText('Enter a conclusion');
@@ -253,41 +252,52 @@ describe('Discussion inline failures', () => {
     expect(dialog).toBeInTheDocument();
   });
 
-  it('shows a reopen failure at the top of the panel', async () => {
+  it('shows a delete failure at the top of the panel and closes the delete dialog', async () => {
+    mocks.mutations.deleteDiscussionMessage.mockRejectedValueOnce(new Error('Denied'));
     const user = userEvent.setup();
-    mocks.state = CONCLUDED_STATE;
-    mocks.conclusion = CONCLUSION;
-    mocks.mutations['discussions:reopenDiscussion'] = vi.fn().mockRejectedValue(new Error('nope'));
     renderDiscussion();
+    await waitForCardLoaded();
 
-    await openActionsMenu(user);
-    await user.click(await screen.findByRole('button', { name: /Reopen Discussion/ }));
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(panelFeedback()).toHaveTextContent('Failed to reopen discussion'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to delete message: Denied');
+    expect(screen.getByText('Hi')).toBeVisible();
   });
 
-  it('shows a create failure at the top of the panel when the discussion does not exist yet', async () => {
-    mocks.state = { ...ACTIVE_STATE, exists: false, isActive: false };
-    mocks.mutations['discussions:createDiscussion'] = vi.fn().mockRejectedValue(new Error('nope'));
+  it('closes the delete dialog after a successful deletion', async () => {
+    const user = userEvent.setup();
     renderDiscussion();
+    await waitForCardLoaded();
 
-    await waitFor(() => expect(panelFeedback()).toHaveTextContent('Failed to create discussion'));
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Message deleted')).not.toBeInTheDocument();
   });
 
-  it('dismisses the panel error with Dismiss', async () => {
+  it('clears the previous failure when the dialog is reopened', async () => {
+    mocks.mutations.addDiscussionMessage.mockRejectedValueOnce(new Error('Network down'));
     const user = userEvent.setup();
-    mocks.state = CONCLUDED_STATE;
-    mocks.conclusion = CONCLUSION;
-    mocks.mutations['discussions:reopenDiscussion'] = vi.fn().mockRejectedValue(new Error('nope'));
     renderDiscussion();
+    await waitForCardLoaded();
 
-    await openActionsMenu(user);
-    await user.click(await screen.findByRole('button', { name: /Reopen Discussion/ }));
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
+    let dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Your Name'), 'Ada');
+    await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
+    await within(dialog).findByRole('alert');
 
-    await waitFor(() => expect(panelFeedback()).toHaveTextContent('Failed to reopen discussion'));
-    await user.click(within(panelFeedback()).getByRole('button', { name: 'Dismiss' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
-    expect(screen.queryByTestId('discussion-feedback')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
+    dialog = await screen.findByRole('dialog');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

@@ -1,221 +1,398 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import GoogleAuthConfigPage from './page';
 
 const mocks = vi.hoisted(() => ({
-  config: null as unknown,
-  updateConfig: vi.fn(),
+  config: undefined as unknown,
   toggleEnabled: vi.fn(),
+  updateConfig: vi.fn(),
   testConfig: vi.fn(),
   resetConfig: vi.fn(),
-  writeText: vi.fn(),
 }));
 
-// Data port: the Google Auth functions, keyed by their generated function names.
-vi.mock('convex-helpers/react/sessions', async () => {
-  const { getFunctionName } = await import('convex/server');
-  return {
-    useSessionQuery: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'system/auth/google:getConfig') return mocks.config;
-      throw new Error(`Unexpected query in GoogleAuthConfigPage test: ${name}`);
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: {
+    system: {
+      auth: {
+        google: {
+          getConfig: 'system/auth/google:getConfig',
+          toggleEnabled: 'system/auth/google:toggleEnabled',
+          updateConfig: 'system/auth/google:updateConfig',
+          testConfig: 'system/auth/google:testConfig',
+          resetConfig: 'system/auth/google:resetConfig',
+        },
+      },
     },
-    useSessionMutation: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'system/auth/google:updateConfig') return mocks.updateConfig;
-      if (name === 'system/auth/google:toggleEnabled') return mocks.toggleEnabled;
-      if (name === 'system/auth/google:resetConfig') return mocks.resetConfig;
-      throw new Error(`Unexpected mutation in GoogleAuthConfigPage test: ${name}`);
-    },
-    useSessionAction: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'system/auth/google:testConfig') return mocks.testConfig;
-      throw new Error(`Unexpected action in GoogleAuthConfigPage test: ${name}`);
-    },
-  };
-});
-
-// Data port: app info only serves the page loading gate here.
+  },
+}));
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: () => mocks.config,
+  useSessionMutation: (ref: string) =>
+    ({
+      'system/auth/google:toggleEnabled': mocks.toggleEnabled,
+      'system/auth/google:updateConfig': mocks.updateConfig,
+      'system/auth/google:resetConfig': mocks.resetConfig,
+    })[ref],
+  useSessionAction: () => mocks.testConfig,
+}));
 vi.mock('@/modules/app/useAppInfo', () => ({
-  useAppInfo: () => ({ isLoading: false, appInfo: null, error: null, refetch: vi.fn() }),
+  useAppInfo: () => ({ isLoading: false }),
 }));
 
-const existingConfig = {
-  type: 'google',
+const origin = window.location.origin;
+const redirectUri = `${origin}/api/auth/google/callback`;
+const VALID_CLIENT_ID = '123456789012-abcdefg.apps.googleusercontent.com';
+const configured = {
   enabled: false,
   projectId: '',
-  clientId: '123-abc.apps.googleusercontent.com',
-  clientSecret: undefined,
-  hasClientSecret: true,
+  clientId: VALID_CLIENT_ID,
   isConfigured: true,
-  redirectUris: [],
-  configuredBy: 'admin',
-  configuredAt: 0,
+  hasClientSecret: true,
 };
 
-const CLIENT_ID = '123-abc.apps.googleusercontent.com';
+beforeEach(() => {
+  mocks.config = {
+    enabled: false,
+    projectId: '',
+    clientId: '',
+    isConfigured: false,
+    hasClientSecret: false,
+  };
+  mocks.toggleEnabled.mockReset().mockResolvedValue({ success: true, message: '' });
+  mocks.updateConfig.mockReset().mockResolvedValue({ success: true, message: '' });
+  mocks.testConfig.mockReset().mockResolvedValue({ success: true, message: 'ok' });
+  mocks.resetConfig.mockReset().mockResolvedValue({ success: true, message: '' });
+});
 
-let user: ReturnType<typeof userEvent.setup>;
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
-async function typeClientId() {
-  await user.type(screen.getByLabelText('Google Client ID'), CLIENT_ID);
+/** The Copy button in the read-only row that shows `value`. */
+function copyButtonFor(value: string) {
+  const input = screen.getByDisplayValue(value);
+  return within(input.parentElement as HTMLElement).getByRole('button');
 }
 
-async function typeClientSecret() {
-  await user.type(screen.getByLabelText('Google Client Secret'), 'secret');
+function getToggle() {
+  return screen.getByRole('switch');
 }
 
-async function clickSave() {
-  await user.click(screen.getByRole('button', { name: /Save Configuration/ }));
+function saveButton() {
+  return screen.getByRole('button', { name: 'Save Configuration' });
 }
 
-async function clickTest() {
-  await user.click(screen.getByRole('button', { name: /Test Configuration/ }));
+function testButton() {
+  return screen.getByRole('button', { name: 'Test Configuration' });
 }
 
-describe('GoogleAuthConfigPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.config = null;
-    mocks.updateConfig.mockResolvedValue({ success: true, message: 'Saved' });
-    mocks.toggleEnabled.mockResolvedValue({ success: true, message: 'Toggled' });
-    mocks.testConfig.mockResolvedValue({ success: true, message: 'OK' });
-    mocks.resetConfig.mockResolvedValue({ success: true, message: 'Reset' });
-    mocks.writeText.mockResolvedValue(undefined);
-    user = userEvent.setup({ writeToClipboard: false });
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: mocks.writeText },
+function resetButton() {
+  return screen.getByRole('button', { name: 'Reset Configuration' });
+}
+
+function clientIdInput() {
+  return screen.getByLabelText('Google Client ID');
+}
+
+function clientSecretInput() {
+  return screen.getByLabelText('Google Client Secret');
+}
+
+function alerts() {
+  return screen.queryAllByRole('alert');
+}
+
+describe('GoogleAuthConfigPage copy rows', () => {
+  it('swaps Copy to Copied with a check icon for 2 seconds, then reverts; other rows are unaffected', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    render(<GoogleAuthConfigPage />);
+
+    await user.click(copyButtonFor(origin));
+
+    expect(writeText).toHaveBeenCalledWith(origin);
+    const copied = await screen.findByRole('button', { name: 'Copied' });
+    expect(copied.querySelector('.lucide-check')).not.toBeNull();
+    expect(copyButtonFor(redirectUri)).toHaveAccessibleName('Copy');
+
+    await waitFor(() => expect(copyButtonFor(origin)).toHaveAccessibleName('Copy'), {
+      timeout: 3000,
     });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('renders a valid test result verbatim as status text with no icon', async () => {
-    mocks.testConfig.mockResolvedValueOnce({ success: true, message: 'OK' });
-
+  it('shows the copy failure under that row and clears it on the next copy', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {}); // the hook logs the rejection
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, 'writeText')
+      .mockRejectedValueOnce(new Error('denied'))
+      .mockResolvedValueOnce(undefined);
     render(<GoogleAuthConfigPage />);
-    await typeClientId();
-    await clickTest();
 
-    const status = await screen.findByTestId('google-auth-feedback');
-    expect(status).toHaveAttribute('role', 'status');
-    expect(status).toHaveTextContent('✅ Configuration is valid: OK');
-    // `icon: false` drops the tone icon; the Dismiss X below lives inside its button.
-    expect(status.querySelector(':scope > svg')).toBeNull();
-    expect(screen.queryByRole('alert')).toBeNull();
+    await user.click(copyButtonFor(origin));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to copy to clipboard');
+    expect(alert.parentElement).toContainElement(screen.getByDisplayValue(origin));
+    expect(copyButtonFor(origin)).toHaveAccessibleName('Copy');
+
+    await user.click(copyButtonFor(origin));
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+});
+
+describe('GoogleAuthConfigPage enable toggle', () => {
+  it('shows one alert under the switch row when the toggle is rejected, and the switch stays off', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.toggleEnabled.mockReset().mockRejectedValueOnce(new Error('boom'));
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+
+    await user.click(getToggle());
+
+    expect(mocks.toggleEnabled).toHaveBeenCalledWith({ enabled: true });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to toggle Google Auth. Please try again.');
+    expect(alert.previousElementSibling).toContainElement(getToggle());
+    expect(getToggle()).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('renders a failed test result verbatim as alert text with no icon', async () => {
-    mocks.testConfig.mockResolvedValueOnce({ success: false, message: 'Bad secret' });
-
+  it('clears the alert when the next toggle starts', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.toggleEnabled
+      .mockReset()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ success: true, message: '' });
+    const user = userEvent.setup();
     render(<GoogleAuthConfigPage />);
-    await typeClientId();
-    await clickTest();
+    await user.click(getToggle());
+    await screen.findByRole('alert');
 
-    const alert = await screen.findByTestId('google-auth-feedback');
-    expect(alert).toHaveAttribute('role', 'alert');
-    expect(alert).toHaveTextContent('❌ Configuration failed: Bad secret');
-    expect(alert.querySelector(':scope > svg')).toBeNull();
+    await user.click(getToggle());
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('clears the test result when the next Save starts', async () => {
-    mocks.testConfig.mockResolvedValueOnce({ success: true, message: 'OK' });
-
+  it('shows no message when the toggle succeeds', async () => {
+    const user = userEvent.setup();
     render(<GoogleAuthConfigPage />);
-    await typeClientId();
-    await typeClientSecret();
-    await clickTest();
-    expect(await screen.findByTestId('google-auth-feedback')).toBeInTheDocument();
 
-    await clickSave();
+    await user.click(getToggle());
 
-    await waitFor(() => expect(mocks.updateConfig).toHaveBeenCalled());
-    expect(screen.queryByTestId('google-auth-feedback')).toBeNull();
+    await waitFor(() => expect(getToggle()).toHaveAttribute('aria-checked', 'true'));
+    expect(screen.getByText('Users can sign in with Google')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+});
 
-  it('shows a missing Client ID as alert text with the default icon', async () => {
+describe('GoogleAuthConfigPage save validation', () => {
+  it('shows both field messages at once, marks both inputs invalid, and does not save', async () => {
+    const user = userEvent.setup();
     render(<GoogleAuthConfigPage />);
-    await clickSave();
 
-    const alert = await screen.findByTestId('google-auth-feedback');
-    expect(alert).toHaveAttribute('role', 'alert');
-    expect(alert).toHaveTextContent('Client ID is required');
-    expect(alert.querySelector(':scope > svg')).not.toBeNull();
+    await user.click(saveButton());
+
+    expect(await screen.findByText('Client ID is required')).toBeInTheDocument();
+    expect(screen.getByText('Client Secret is required for new configuration')).toBeInTheDocument();
+    expect(clientIdInput()).toHaveAttribute('aria-invalid', 'true');
+    expect(clientIdInput()).toHaveAttribute('aria-describedby', 'clientId-error');
+    expect(clientSecretInput()).toHaveAttribute('aria-invalid', 'true');
+    expect(clientSecretInput()).toHaveAttribute('aria-describedby', 'clientSecret-error');
+    // Two field messages, no action Alert: each failure is reported once
+    expect(alerts()).toHaveLength(2);
     expect(mocks.updateConfig).not.toHaveBeenCalled();
   });
 
-  it('shows a failed toggle as alert text', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.toggleEnabled.mockRejectedValueOnce(new Error('toggle boom'));
-
+  it('clears a field message when that field is edited, and leaves the other one', async () => {
+    const user = userEvent.setup();
     render(<GoogleAuthConfigPage />);
-    await user.click(screen.getByRole('switch'));
+    await user.click(saveButton());
+    await screen.findByText('Client ID is required');
 
-    const alert = await screen.findByTestId('google-auth-feedback');
-    expect(alert).toHaveAttribute('role', 'alert');
-    expect(alert).toHaveTextContent('Failed to toggle Google Auth. Please try again.');
+    await user.type(clientIdInput(), '1');
+
+    expect(screen.queryByText('Client ID is required')).not.toBeInTheDocument();
+    expect(clientIdInput()).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByText('Client Secret is required for new configuration')).toBeInTheDocument();
+    expect(alerts()).toHaveLength(1);
   });
 
-  it('shows a failed save as alert text', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.updateConfig.mockRejectedValueOnce(new Error('save boom'));
-
+  it('reports the Client ID when Test is clicked with an empty Client ID', async () => {
+    const user = userEvent.setup();
     render(<GoogleAuthConfigPage />);
-    await typeClientId();
-    await typeClientSecret();
-    await clickSave();
+    await user.type(clientSecretInput(), 'secret');
 
-    const alert = await screen.findByTestId('google-auth-feedback');
-    expect(alert).toHaveAttribute('role', 'alert');
+    await user.click(testButton());
+
+    expect(
+      await screen.findByText('Please enter a Client ID to test the configuration')
+    ).toBeInTheDocument();
+    expect(clientIdInput()).toHaveAttribute('aria-invalid', 'true');
+    expect(mocks.testConfig).not.toHaveBeenCalled();
+    expect(alerts()).toHaveLength(1);
+  });
+});
+
+describe('GoogleAuthConfigPage test configuration', () => {
+  it('shows a default Alert with the message when the test succeeds', async () => {
+    mocks.testConfig.mockResolvedValueOnce({ success: true, message: 'Client reachable' });
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+    await user.type(clientIdInput(), VALID_CLIENT_ID);
+
+    await user.click(testButton());
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Configuration is valid: Client reachable');
+    expect(alert).not.toHaveClass('text-destructive');
+  });
+
+  it('shows a destructive Alert when the test reports success: false', async () => {
+    mocks.testConfig.mockResolvedValueOnce({ success: false, message: 'Invalid client' });
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+    await user.type(clientIdInput(), VALID_CLIENT_ID);
+
+    await user.click(testButton());
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Configuration failed: Invalid client');
+    expect(alert).toHaveClass('text-destructive');
+  });
+
+  it('shows a destructive Alert when the test call throws', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.testConfig.mockRejectedValueOnce(new Error('network'));
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+    await user.type(clientIdInput(), VALID_CLIENT_ID);
+
+    await user.click(testButton());
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to test configuration. Please try again.');
+    expect(alert).toHaveClass('text-destructive');
+  });
+
+  it('disables Test with a spinner while the test is pending, then re-enables it', async () => {
+    let finish!: (value: { success: boolean; message: string }) => void;
+    mocks.testConfig.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+    await user.type(clientIdInput(), VALID_CLIENT_ID);
+
+    await user.click(testButton());
+
+    expect(testButton()).toBeDisabled();
+    expect(testButton().querySelector('.animate-spin')).not.toBeNull();
+
+    await act(async () => {
+      finish({ success: true, message: 'ok' });
+    });
+
+    await waitFor(() => expect(testButton()).toBeEnabled());
+    expect(testButton().querySelector('.animate-spin')).toBeNull();
+  });
+
+  it('clears the result Alert when a Client ID edit happens', async () => {
+    mocks.testConfig.mockResolvedValueOnce({ success: false, message: 'Invalid client' });
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+    await user.type(clientIdInput(), VALID_CLIENT_ID);
+    await user.click(testButton());
+    await screen.findByRole('alert');
+
+    await user.type(clientIdInput(), 'x');
+
+    expect(alerts()).toHaveLength(0);
+  });
+
+  it('clears the result Alert at the start of the next Save', async () => {
+    mocks.config = { ...configured };
+    mocks.testConfig.mockResolvedValueOnce({ success: false, message: 'Invalid client' });
+    let finishSave!: (value: { success: boolean; message: string }) => void;
+    mocks.updateConfig.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishSave = resolve;
+      })
+    );
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+    await user.click(testButton());
+    await screen.findByRole('alert');
+
+    await user.click(saveButton());
+
+    expect(alerts()).toHaveLength(0);
+    await act(async () => {
+      finishSave({ success: true, message: '' });
+    });
+  });
+});
+
+describe('GoogleAuthConfigPage save result', () => {
+  it('shows a default Alert when saving an already-configured configuration succeeds', async () => {
+    mocks.config = { ...configured };
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+
+    await user.click(saveButton());
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Google Auth configuration saved successfully');
+    expect(alert).not.toHaveClass('text-destructive');
+    expect(mocks.updateConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: VALID_CLIENT_ID })
+    );
+  });
+
+  it('shows a destructive Alert when save fails', async () => {
+    mocks.config = { ...configured };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.updateConfig.mockRejectedValueOnce(new Error('boom'));
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+
+    await user.click(saveButton());
+
+    const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Failed to save configuration. Please try again.');
+    expect(alert).toHaveClass('text-destructive');
+  });
+});
+
+describe('GoogleAuthConfigPage reset', () => {
+  it('resets silently: no message, and the fields clear', async () => {
+    mocks.config = { ...configured };
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<GoogleAuthConfigPage />);
+
+    await user.click(resetButton());
+
+    await waitFor(() => expect(clientIdInput()).toHaveValue(''));
+    expect(alerts()).toHaveLength(0);
+    expect(mocks.resetConfig).toHaveBeenCalled();
   });
 
-  it('shows a failed reset as alert text', async () => {
+  it('shows a destructive Alert when reset fails', async () => {
+    mocks.config = { ...configured };
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.config = existingConfig;
-    mocks.resetConfig.mockRejectedValueOnce(new Error('reset boom'));
-
+    mocks.resetConfig.mockRejectedValueOnce(new Error('boom'));
+    const user = userEvent.setup();
     render(<GoogleAuthConfigPage />);
-    await user.click(await screen.findByRole('button', { name: /Reset Configuration/ }));
 
-    const alert = await screen.findByTestId('google-auth-feedback');
-    expect(alert).toHaveAttribute('role', 'alert');
+    await user.click(resetButton());
+
+    const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Failed to reset configuration. Please try again.');
-  });
-
-  it('renders nothing when save, toggle and reset succeed', async () => {
-    mocks.config = existingConfig;
-
-    render(<GoogleAuthConfigPage />);
-    await user.click(screen.getByRole('switch'));
-    await waitFor(() => expect(mocks.toggleEnabled).toHaveBeenCalled());
-
-    await typeClientSecret();
-    await clickSave();
-    await waitFor(() => expect(mocks.updateConfig).toHaveBeenCalled());
-
-    await user.click(screen.getByRole('button', { name: /Reset Configuration/ }));
-    await waitFor(() => expect(mocks.resetConfig).toHaveBeenCalled());
-
-    expect(screen.queryByTestId('google-auth-feedback')).toBeNull();
-    expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
-  });
-
-  it('shows a rejected clipboard write as alert text through CopyButton', async () => {
-    mocks.writeText.mockRejectedValueOnce(new Error('denied'));
-
-    render(<GoogleAuthConfigPage />);
-    await user.click(screen.getAllByRole('button', { name: 'Copy' })[0]);
-
-    const alert = await screen.findByTestId('google-auth-feedback');
-    expect(alert).toHaveAttribute('role', 'alert');
-    expect(alert).toHaveTextContent('Failed to copy to clipboard');
+    expect(alert).toHaveClass('text-destructive');
   });
 });

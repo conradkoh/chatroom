@@ -6,139 +6,230 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import InvitesPage from './page';
 
+import { useIsMobile } from '@/hooks/useIsMobile';
+
 const mocks = vi.hoisted(() => ({
-  invites: [] as InviteSummary[],
+  invites: undefined as unknown,
   createInvite: vi.fn(),
   disableInvite: vi.fn(),
   enableInvite: vi.fn(),
   deleteInvite: vi.fn(),
 }));
 
-// Data port: the invite admin functions, keyed by their generated function names.
-vi.mock('convex-helpers/react/sessions', async () => {
-  const { getFunctionName } = await import('convex/server');
-  return {
-    useSessionQuery: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'admin/invites:listInvites') return mocks.invites;
-      throw new Error(`Unexpected query in InvitesPage test: ${name}`);
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: {
+    admin: {
+      invites: {
+        listInvites: 'admin/invites:listInvites',
+        createInvite: 'admin/invites:createInvite',
+        disableInvite: 'admin/invites:disableInvite',
+        enableInvite: 'admin/invites:enableInvite',
+        deleteInvite: 'admin/invites:deleteInvite',
+      },
     },
-    useSessionMutation: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'admin/invites:createInvite') return mocks.createInvite;
-      if (name === 'admin/invites:disableInvite') return mocks.disableInvite;
-      if (name === 'admin/invites:enableInvite') return mocks.enableInvite;
-      if (name === 'admin/invites:deleteInvite') return mocks.deleteInvite;
-      throw new Error(`Unexpected mutation in InvitesPage test: ${name}`);
-    },
-  };
-});
-
-vi.mock('@/hooks/useIsMobile', () => ({
-  useIsMobile: () => false,
+  },
 }));
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: () => mocks.invites,
+  useSessionMutation: (ref: string) =>
+    ({
+      'admin/invites:createInvite': mocks.createInvite,
+      'admin/invites:disableInvite': mocks.disableInvite,
+      'admin/invites:enableInvite': mocks.enableInvite,
+      'admin/invites:deleteInvite': mocks.deleteInvite,
+    })[ref],
+}));
+vi.mock('@/hooks/useIsMobile', () => ({ useIsMobile: vi.fn() }));
 
-function makeInvite(overrides: Partial<InviteSummary> = {}): InviteSummary {
-  return {
-    _id: 'invite-1' as Id<'invites'>,
-    code: 'ABCD2345',
-    inviteeName: 'Jane Doe',
-    inviteeEmail: 'jane@example.com',
-    createdAt: 0,
-    expiresAt: 1000,
-    disabled: false,
-    usedAt: undefined,
-    status: 'active',
-    ...overrides,
-  };
+const activeInvite: InviteSummary = {
+  _id: 'invite-1' as Id<'invites'>,
+  code: 'ABCDEFGH',
+  inviteeName: 'Ada',
+  inviteeEmail: 'ada@example.com',
+  createdAt: 0,
+  disabled: false,
+  status: 'active',
+};
+const disabledInvite: InviteSummary = {
+  ...activeInvite,
+  _id: 'invite-2' as Id<'invites'>,
+  inviteeEmail: 'grace@example.com',
+  disabled: true,
+  status: 'disabled',
+};
+
+function getRow(rowText: string) {
+  const row = screen.getByText(rowText).parentElement?.parentElement;
+  if (!row) throw new Error(`No invite row for ${rowText}`);
+  return within(row);
 }
 
-let user: ReturnType<typeof userEvent.setup>;
+async function openDeleteDialog(user: ReturnType<typeof userEvent.setup>, index = 0) {
+  await user.click(screen.getAllByRole('button', { name: 'Delete invite' })[index]);
+  return screen.findByRole('alertdialog');
+}
 
-describe('InvitesPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.invites = [makeInvite()];
-    mocks.createInvite.mockResolvedValue({ code: 'WXYZ2345' });
-    mocks.disableInvite.mockResolvedValue(undefined);
-    mocks.enableInvite.mockResolvedValue(undefined);
-    mocks.deleteInvite.mockResolvedValue(undefined);
-    user = userEvent.setup();
-  });
+beforeEach(() => {
+  vi.mocked(useIsMobile).mockReturnValue(false);
+  mocks.invites = [activeInvite, disabledInvite];
+  mocks.createInvite.mockReset().mockResolvedValue(undefined);
+  mocks.disableInvite.mockReset().mockResolvedValue(undefined);
+  mocks.enableInvite.mockReset().mockResolvedValue(undefined);
+  mocks.deleteInvite.mockReset().mockResolvedValue(undefined);
+});
 
-  it('shows a failed disable as alert text in invites-feedback', async () => {
-    mocks.disableInvite.mockRejectedValueOnce(new Error('boom'));
-
+describe('InvitesPage disable and enable failure feedback', () => {
+  it('shows one alert above the list when disable is rejected', async () => {
+    mocks.disableInvite.mockRejectedValueOnce(new Error('Cannot disable'));
+    const user = userEvent.setup();
     render(<InvitesPage />);
-    await user.click(screen.getByRole('button', { name: 'Disable' }));
+
+    await user.click(getRow('Ada · ada@example.com').getByRole('button', { name: 'Disable' }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveAttribute('data-testid', 'invites-feedback');
-    expect(alert).toHaveTextContent('boom');
+    expect(alert).toHaveTextContent('Cannot disable');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(
+      alert.compareDocumentPosition(screen.getByText('All Invites')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('falls back to the default message when the rejection is not an Error', async () => {
+    mocks.disableInvite.mockRejectedValueOnce('boom');
+    const user = userEvent.setup();
+    render(<InvitesPage />);
+
+    await user.click(getRow('Ada · ada@example.com').getByRole('button', { name: 'Disable' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Operation failed');
+  });
+
+  it('shows the same list alert when enable is rejected', async () => {
+    mocks.invites = [disabledInvite];
+    mocks.enableInvite.mockRejectedValueOnce(new Error('Cannot enable'));
+    const user = userEvent.setup();
+    render(<InvitesPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Enable' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot enable');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 
-  it('shows a failed enable as alert text in invites-feedback', async () => {
-    mocks.invites = [makeInvite({ disabled: true, status: 'disabled' })];
-    mocks.enableInvite.mockRejectedValueOnce(new Error('nope'));
-
+  it('clears the list alert when the next action starts', async () => {
+    mocks.disableInvite.mockRejectedValueOnce(new Error('Cannot disable'));
+    const user = userEvent.setup();
     render(<InvitesPage />);
-    await user.click(screen.getByRole('button', { name: 'Enable' }));
+    const disable = getRow('Ada · ada@example.com').getByRole('button', { name: 'Disable' });
 
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveAttribute('data-testid', 'invites-feedback');
-    expect(alert).toHaveTextContent('nope');
+    await user.click(disable);
+    await screen.findByRole('alert');
+
+    await user.click(disable);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('renders no alert or status text when enable succeeds', async () => {
-    mocks.invites = [makeInvite({ disabled: true, status: 'disabled' })];
+  it('renders no message and leaves the row to the live query on successful disable', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<InvitesPage />);
 
-    render(<InvitesPage />);
-    await user.click(screen.getByRole('button', { name: 'Enable' }));
+    await user.click(getRow('Ada · ada@example.com').getByRole('button', { name: 'Disable' }));
 
-    await waitFor(() => expect(mocks.enableInvite).toHaveBeenCalled());
-    expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
+    await waitFor(() => expect(mocks.disableInvite).toHaveBeenCalledWith({ inviteId: 'invite-1' }));
+    mocks.invites = [{ ...activeInvite, disabled: true, status: 'disabled' }, disabledInvite];
+    rerender(<InvitesPage />);
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(
+      getRow('Ada · ada@example.com').getByRole('button', { name: 'Enable' })
+    ).toBeInTheDocument();
   });
+});
 
-  it('clears the list slot when the next action starts', async () => {
-    mocks.disableInvite.mockRejectedValueOnce(new Error('boom'));
-
+describe('InvitesPage delete failure feedback', () => {
+  it('keeps the dialog open with one alert inside it when delete is rejected', async () => {
+    mocks.deleteInvite.mockRejectedValueOnce(new Error('Cannot delete'));
+    const user = userEvent.setup();
     render(<InvitesPage />);
-    await user.click(screen.getByRole('button', { name: 'Disable' }));
-    expect(await screen.findByTestId('invites-feedback')).toBeInTheDocument();
-
-    mocks.disableInvite.mockImplementation(() => new Promise(() => {}));
-    await user.click(screen.getByRole('button', { name: 'Disable' }));
-
-    expect(screen.queryByTestId('invites-feedback')).toBeNull();
-  });
-
-  it('keeps the delete dialog open and shows the failure inside it', async () => {
-    mocks.deleteInvite.mockRejectedValueOnce(new Error('delete failed'));
-
-    render(<InvitesPage />);
-    await user.click(screen.getByRole('button', { name: 'Delete invite' }));
-    const dialog = await screen.findByRole('alertdialog');
+    const dialog = await openDeleteDialog(user);
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
-    const alert = await screen.findByTestId('delete-invite-feedback');
-    expect(alert).toHaveTextContent('delete failed');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Cannot delete');
+    expect(within(dialog).getAllByRole('alert')).toHaveLength(1);
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
-    expect(within(screen.getByRole('alertdialog')).getByTestId('delete-invite-feedback')).toBe(
-      alert
-    );
   });
 
-  it('closes the delete dialog when the delete succeeds', async () => {
+  it('clears the dialog alert when the delete is retried', async () => {
+    mocks.deleteInvite.mockRejectedValueOnce(new Error('Cannot delete'));
+    const user = userEvent.setup();
     render(<InvitesPage />);
-    await user.click(screen.getByRole('button', { name: 'Delete invite' }));
-    await screen.findByRole('alertdialog');
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await within(dialog).findByRole('alert');
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
-    expect(screen.queryByRole('alert')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('clears the dialog alert and target when the dialog is cancelled', async () => {
+    mocks.deleteInvite.mockRejectedValueOnce(new Error('Cannot delete'));
+    const user = userEvent.setup();
+    render(<InvitesPage />);
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await within(dialog).findByRole('alert');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+
+    const reopened = await openDeleteDialog(user, 1);
+    expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument();
+    expect(reopened).toHaveTextContent('grace@example.com');
+    expect(reopened).not.toHaveTextContent('ada@example.com');
+  });
+
+  it('keeps the dialog open and shows the failure when Escape is pressed mid-delete', async () => {
+    let rejectDelete!: (e: unknown) => void;
+    mocks.deleteInvite.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectDelete = reject;
+      })
+    );
+    const user = userEvent.setup();
+    render(<InvitesPage />);
+    const dialog = await openDeleteDialog(user);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(within(dialog).getByRole('button', { name: 'Deleting...' })).toBeDisabled();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+
+    rejectDelete(new Error('Cannot delete'));
+    await waitFor(() =>
+      expect(within(dialog).getByRole('alert')).toHaveTextContent('Cannot delete')
+    );
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+
+  it('renders no message and leaves the row to the live query on successful delete', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<InvitesPage />);
+    const dialog = await openDeleteDialog(user);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(mocks.deleteInvite).toHaveBeenCalledWith({ inviteId: 'invite-1' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+
+    mocks.invites = [disabledInvite];
+    rerender(<InvitesPage />);
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ada · ada@example.com')).not.toBeInTheDocument();
   });
 });

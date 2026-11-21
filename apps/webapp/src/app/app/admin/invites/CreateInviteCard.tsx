@@ -2,10 +2,13 @@
 
 import { formatLoginCode } from '@workspace/backend/modules/auth/codeUtils';
 import { Plus } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 
-import { CreateInviteForm, type ExpiryMode } from '@/app/app/admin/invites/CreateInviteForm';
-import { InlineFeedback } from '@/components/inline-feedback';
+import {
+  CreateInviteForm,
+  type ExpiryMode,
+  type InviteCopyState,
+} from '@/app/app/admin/invites/CreateInviteForm';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,9 +26,11 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { useFeedback } from '@/hooks/useFeedback';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { getErrorMessage } from '@/lib/convexError';
+
+const INVITE_COPY_KEY = 'invite';
 
 export type CreateInviteInput = {
   inviteeName: string;
@@ -37,8 +42,6 @@ type CreateInviteCardProps = {
   onCreate: (input: CreateInviteInput) => Promise<{ code: string }>;
 };
 
-const COPY_FLIP_MS = 2000;
-
 export function CreateInviteCard({ onCreate }: CreateInviteCardProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -47,42 +50,45 @@ export function CreateInviteCard({ onCreate }: CreateInviteCardProps) {
   const [expiryMode, setExpiryMode] = useState<ExpiryMode>('30days');
   const [isCreating, setIsCreating] = useState(false);
   const [lastCreatedCode, setLastCreatedCode] = useState<string | null>(null);
-  const [isCopied, setIsCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { feedback, error, clear } = useFeedback();
+  const [error, setError] = useState<string | null>(null);
+  const { copiedKey, failedKey, copy } = useCopyToClipboard();
 
-  useEffect(() => {
-    return () => {
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    };
-  }, []);
+  const copyState: InviteCopyState =
+    copiedKey === INVITE_COPY_KEY ? 'copied' : failedKey === INVITE_COPY_KEY ? 'failed' : 'idle';
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isCreating && !nextOpen) return;
-    if (!nextOpen) clear();
+    setError(null);
     setOpen(nextOpen);
   };
 
+  // Any field edit clears the create error, so the message never describes stale input.
+  const handleInviteeNameChange = (value: string) => {
+    setError(null);
+    setInviteeName(value);
+  };
+
+  const handleInviteeEmailChange = (value: string) => {
+    setError(null);
+    setInviteeEmail(value);
+  };
+
+  const handleExpiryModeChange = (value: ExpiryMode) => {
+    setError(null);
+    setExpiryMode(value);
+  };
+
   const handleCopyCode = useCallback(
-    async (code: string) => {
-      clear();
-      try {
-        await navigator.clipboard.writeText(formatLoginCode(code));
-        if (copiedTimer.current) clearTimeout(copiedTimer.current);
-        setIsCopied(true);
-        copiedTimer.current = setTimeout(() => setIsCopied(false), COPY_FLIP_MS);
-      } catch (copyError) {
-        console.error('Failed to copy invite code:', copyError);
-        error('Failed to copy invite code to clipboard');
-      }
+    (code: string) => {
+      void copy(formatLoginCode(code), INVITE_COPY_KEY);
     },
-    [clear, error]
+    [copy]
   );
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      clear();
+      setError(null);
       setIsCreating(true);
       try {
         const invite = await onCreate({
@@ -94,47 +100,31 @@ export function CreateInviteCard({ onCreate }: CreateInviteCardProps) {
         setInviteeEmail('');
         setExpiryMode('30days');
         setLastCreatedCode(invite.code);
-      } catch (submitError) {
-        error(getErrorMessage(submitError, 'Operation failed'));
+      } catch (caughtError) {
+        // Typed values are kept on failure so the user can retry without retyping.
+        setError(getErrorMessage(caughtError, 'Operation failed'));
       } finally {
         setIsCreating(false);
       }
     },
-    [inviteeEmail, inviteeName, expiryMode, onCreate, clear, error]
-  );
-
-  const feedbackSlot = (
-    <InlineFeedback
-      feedback={feedback}
-      onDismiss={clear}
-      data-testid="invite-create-feedback"
-      className="mt-4"
-    />
+    [inviteeEmail, inviteeName, expiryMode, onCreate]
   );
 
   const form = (
-    <>
-      <CreateInviteForm
-        inviteeName={inviteeName}
-        inviteeEmail={inviteeEmail}
-        expiryMode={expiryMode}
-        isCreating={isCreating}
-        isCopied={isCopied}
-        lastCreatedCode={lastCreatedCode}
-        onInviteeNameChange={(value) => {
-          clear();
-          setInviteeName(value);
-        }}
-        onInviteeEmailChange={(value) => {
-          clear();
-          setInviteeEmail(value);
-        }}
-        onExpiryModeChange={setExpiryMode}
-        onSubmit={handleSubmit}
-        onCopyCode={handleCopyCode}
-      />
-      {feedbackSlot}
-    </>
+    <CreateInviteForm
+      inviteeName={inviteeName}
+      inviteeEmail={inviteeEmail}
+      expiryMode={expiryMode}
+      isCreating={isCreating}
+      lastCreatedCode={lastCreatedCode}
+      error={error}
+      copyState={copyState}
+      onInviteeNameChange={handleInviteeNameChange}
+      onInviteeEmailChange={handleInviteeEmailChange}
+      onExpiryModeChange={handleExpiryModeChange}
+      onSubmit={handleSubmit}
+      onCopyCode={handleCopyCode}
+    />
   );
 
   const triggerButton = (

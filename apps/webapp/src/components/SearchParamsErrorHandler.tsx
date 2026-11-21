@@ -1,14 +1,14 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { InlineFeedback } from '@/components/inline-feedback';
-import type { Feedback } from '@/components/inline-feedback';
-import { useFeedback } from '@/hooks/useFeedback';
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
 
 export interface SearchParamsErrorState {
-  feedback: Feedback | null;
+  /** Decoded ?error= text, or null when nothing is shown. */
+  message: string | null;
   clear: () => void;
 }
 
@@ -19,30 +19,53 @@ export interface SearchParamsErrorState {
  */
 export function useSearchParamsError(): SearchParamsErrorState {
   const searchParams = useSearchParams();
-  const { feedback, error, clear } = useFeedback();
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const message = searchParams.get('error');
-    if (!message) return;
-    error(message);
+    const value = searchParams.get('error');
+    if (!value) return;
+    setMessage(value);
     const url = new URL(window.location.href);
     url.searchParams.delete('error');
     window.history.replaceState({}, '', url.toString());
-  }, [searchParams, error]);
+  }, [searchParams]);
 
-  return { feedback, clear };
+  const clear = useCallback(() => setMessage(null), []);
+
+  return { message, clear };
+}
+
+/** Page-level failure for ?error=. Renders nothing when there is no message. */
+export function SearchParamsErrorAlert({
+  message,
+  onDismiss,
+  className,
+}: {
+  message: string | null;
+  onDismiss: () => void;
+  className?: string;
+}) {
+  if (message === null) return null;
+
+  return (
+    <Alert variant="destructive" className={className} data-testid="url-error">
+      <AlertDescription>{message}</AlertDescription>
+      <AlertAction>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current"
+        >
+          <X size={12} aria-hidden />
+        </button>
+      </AlertAction>
+    </Alert>
+  );
 }
 
 /** Renders the ?error= alert in place. Mount it at a stable root, never inside a branch. */
 export function SearchParamsErrorHandler({ className }: { className?: string }) {
-  const { feedback, clear } = useSearchParamsError();
-
-  return (
-    <InlineFeedback
-      feedback={feedback}
-      onDismiss={clear}
-      className={className}
-      data-testid="url-error"
-    />
-  );
+  const { message, clear } = useSearchParamsError();
+  return <SearchParamsErrorAlert message={message} onDismiss={clear} className={className} />;
 }

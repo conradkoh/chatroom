@@ -5,7 +5,6 @@ import { ChevronRight } from 'lucide-react';
 import { GoogleIcon } from './GoogleIcon';
 import { useGoogleLoginFlow } from './useGoogleLoginFlow';
 
-import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 
 export interface GoogleLoginButtonProps {
@@ -47,15 +46,7 @@ export const GoogleLoginButton = ({
     return null;
   }
 
-  const isRow = variant === 'ghost' && showChevron;
-
-  // The failure line sits directly under the control, inside the same wrapper, so the
-  // parent's divider falls between rows and never between a control and its message.
-  const errorLine = (
-    <InlineFeedback variant="text" feedback={error} className={isRow ? 'px-6 pb-3' : 'pt-2'} />
-  );
-
-  if (isRow) {
+  if (variant === 'ghost' && showChevron) {
     return (
       <div>
         <button
@@ -89,7 +80,11 @@ export const GoogleLoginButton = ({
             <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
           )}
         </button>
-        {errorLine}
+        {error && (
+          <p role="alert" className="px-6 pb-3 text-sm text-destructive">
+            {error}
+          </p>
+        )}
       </div>
     );
   }
@@ -125,7 +120,11 @@ export const GoogleLoginButton = ({
           </>
         )}
       </Button>
-      {errorLine}
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   );
 };

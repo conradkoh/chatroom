@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -88,8 +89,8 @@ function RecoverAccountForm() {
   );
 
   const handleRecoveryCodeChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setError(null); // Clear the alert when the user edits the code, as LoginWithCode does
     setRecoveryCode(e.target.value);
+    setError(null);
   }, []);
 
   return (
@@ -122,12 +123,9 @@ function RecoverAccountForm() {
                 </p>
               </div>
               {error && (
-                <div
-                  role="alert"
-                  className="p-3 bg-red-50 border border-red-200 rounded-md dark:bg-red-900/20 dark:border-red-800"
-                >
-                  <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-                </div>
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
             </CardContent>
             <CardFooter className="flex flex-col space-y-4 pt-2 px-6">

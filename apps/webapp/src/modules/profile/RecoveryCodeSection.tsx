@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useAction } from 'convex/react';
 import { useSessionId } from 'convex-helpers/react/sessions';
 import { Check, CopyIcon, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { InlineFeedback } from '@/components/inline-feedback';
 import {
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { useFeedback, type UseFeedbackResult } from '@/hooks/useFeedback';
 import { cn } from '@/lib/utils';
 
@@ -36,18 +37,14 @@ export function RecoveryCodeSection() {
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { copiedKey, copy } = useCopyToClipboard();
+  // Keyed by the code itself, so a regenerated code starts uncopied. Only read when a code exists.
+  const isCopied = copiedKey === recoveryCode;
 
   const { feedback, show, error, clear } = useFeedback();
   const slot = useMemo<RecoverySlot>(() => ({ show, error, clear }), [show, error, clear]);
-
-  useEffect(() => {
-    return () => {
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    };
-  }, []);
 
   const handleRevealCode = useCallback(async () => {
     await _handleRevealCode({
@@ -72,16 +69,10 @@ export function RecoveryCodeSection() {
 
   const handleCopyCode = useCallback(async () => {
     if (!recoveryCode) return;
-    try {
-      await navigator.clipboard.writeText(recoveryCode);
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
-      setIsCopied(true);
-      copiedTimer.current = setTimeout(() => setIsCopied(false), 2000);
-    } catch (copyError) {
-      console.error('Failed to copy text: ', copyError);
-      error('Failed to copy code.');
-    }
-  }, [recoveryCode, error]);
+    slot.clear();
+    const copied = await copy(recoveryCode, recoveryCode);
+    if (!copied) slot.error('Failed to copy code.');
+  }, [recoveryCode, copy, slot]);
 
   const handleTextareaClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement>) => {
     // Select all text when clicked for easy copying
@@ -129,7 +120,7 @@ export function RecoveryCodeSection() {
               ) : (
                 <CopyIcon className="h-4 w-4 mr-2" />
               )}
-              Copy Code
+              {isCopied ? 'Copied' : 'Copy Code'}
             </Button>
           </div>
 
@@ -242,6 +233,8 @@ async function _handleRegenerateCode(params: _RegenerateCodeParams): Promise<voi
   try {
     const result = await regenerateCode({ sessionId });
     if (result.success && result.recoveryCode) {
+      // Drop any copy-failure message so it does not outlive the code it referred to.
+      slot.clear();
       setRecoveryCode(result.recoveryCode);
       slot.show('success', 'Recovery code regenerated successfully!');
     } else {

@@ -8,7 +8,9 @@ import {
 } from 'convex-helpers/react/sessions';
 import {
   AlertCircle,
+  Check,
   CheckCircle,
+  Copy,
   ExternalLink,
   Eye,
   EyeOff,
@@ -20,7 +22,7 @@ import {
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { InlineFeedback, type FeedbackTone } from '@/components/inline-feedback';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,11 +30,11 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { type FeedbackExtra, useFeedback } from '@/hooks/useFeedback';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { useAppInfo } from '@/modules/app/useAppInfo';
-import { CopyButton } from '@/modules/chatroom/components/CopyButton';
 
-type Report = (tone: FeedbackTone, message: string, extra?: FeedbackExtra) => void;
+type ActionResult = { variant: 'default' | 'destructive'; message: string };
+type FieldErrors = { clientId?: string; clientSecret?: string; redirectUris?: string };
 
 /**
  * Displays Google Authentication configuration page with OAuth setup, testing, and management capabilities.
@@ -49,7 +51,10 @@ export default function GoogleAuthConfigPage() {
   const [isFormLoading, setIsFormLoading] = useState(false);
   const [clientSecretFocused, setClientSecretFocused] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
-  const { feedback, show, error, clear } = useFeedback();
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
 
   // Convex queries and mutations
   const configData = useSessionQuery(api.system.auth.google.getConfig);
@@ -57,6 +62,7 @@ export default function GoogleAuthConfigPage() {
   const toggleEnabled = useSessionMutation(api.system.auth.google.toggleEnabled);
   const testConfig = useSessionAction(api.system.auth.google.testConfig);
   const resetConfig = useSessionMutation(api.system.auth.google.resetConfig);
+  const { copiedKey, failedKey, copy } = useCopyToClipboard();
 
   // Computed values - generate redirect URIs on frontend
   const redirectUris = useMemo(() => {
@@ -97,14 +103,12 @@ export default function GoogleAuthConfigPage() {
 
   const handleToggleEnabled = useCallback(
     async (newEnabled: boolean) => {
-      clear();
-      await _handleToggleEnabled(newEnabled, toggleEnabled, setEnabled, show);
+      await _handleToggleEnabled(newEnabled, toggleEnabled, setEnabled, setToggleError);
     },
-    [toggleEnabled, clear, show]
+    [toggleEnabled]
   );
 
   const handleSave = useCallback(async () => {
-    clear();
     await _handleSave({
       isFormLoading,
       setIsFormLoading,
@@ -116,11 +120,10 @@ export default function GoogleAuthConfigPage() {
       enabled,
       updateConfig,
       setIsConfigured,
-      report: show,
+      setFieldErrors,
+      setActionResult,
     });
   }, [
-    clear,
-    show,
     isFormLoading,
     redirectUris,
     projectId,
@@ -132,21 +135,34 @@ export default function GoogleAuthConfigPage() {
   ]);
 
   const handleTest = useCallback(async () => {
-    clear();
-    await _handleTest(clientId, clientSecret, testConfig, show);
-  }, [clear, show, clientId, clientSecret, testConfig]);
+    await _handleTest({
+      clientId,
+      clientSecret,
+      testConfig,
+      setFieldErrors,
+      setActionResult,
+      setIsTesting,
+    });
+  }, [clientId, clientSecret, testConfig]);
 
   const handleReset = useCallback(async () => {
-    clear();
-    await _handleReset(
+    await _handleReset({
       resetConfig,
       setProjectId,
       setClientId,
       setClientSecret,
       setIsConfigured,
-      show
-    );
-  }, [clear, show, resetConfig]);
+      setFieldErrors,
+      setActionResult,
+    });
+  }, [resetConfig]);
+
+  const handleCopy = useCallback(
+    (text: string) => {
+      void copy(text, text);
+    },
+    [copy]
+  );
 
   // Show loading state while data is being fetched
   if (isPageLoading) {
@@ -334,6 +350,11 @@ export default function GoogleAuthConfigPage() {
               onCheckedChange={handleToggleEnabled}
             />
           </div>
+          {toggleError && (
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {toggleError}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -408,7 +429,10 @@ export default function GoogleAuthConfigPage() {
               id="projectId"
               placeholder="e.g., my-awesome-project"
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e) => {
+                setProjectId(e.target.value);
+                setActionResult(null);
+              }}
             />
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
@@ -442,10 +466,16 @@ export default function GoogleAuthConfigPage() {
               id="clientId"
               placeholder="e.g., 123456789012-abcdefghijklmnop.apps.googleusercontent.com"
               value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+              onChange={(e) => {
+                setClientId(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, clientId: undefined }));
+                setActionResult(null);
+              }}
               className={_getClientIdValidationClass(clientId)}
+              aria-invalid={fieldErrors.clientId ? true : undefined}
+              aria-describedby={fieldErrors.clientId ? 'clientId-error' : undefined}
             />
-            {_renderClientIdValidation(clientId)}
+            {_renderClientIdValidation(clientId, fieldErrors.clientId)}
           </div>
 
           {/* Client Secret */}
@@ -478,10 +508,16 @@ export default function GoogleAuthConfigPage() {
                     : 'Enter your Google Client Secret'
                 }
                 value={clientSecretDisplayValue}
-                onChange={(e) => setClientSecret(e.target.value)}
+                onChange={(e) => {
+                  setClientSecret(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, clientSecret: undefined }));
+                  setActionResult(null);
+                }}
                 onFocus={handleClientSecretFocus}
                 onBlur={handleClientSecretBlur}
                 className="pr-10"
+                aria-invalid={fieldErrors.clientSecret ? true : undefined}
+                aria-describedby={fieldErrors.clientSecret ? 'clientSecret-error' : undefined}
               />
               <Button
                 type="button"
@@ -501,6 +537,11 @@ export default function GoogleAuthConfigPage() {
                 </span>
               </Button>
             </div>
+            {fieldErrors.clientSecret && (
+              <p id="clientSecret-error" role="alert" className="text-xs text-destructive">
+                {fieldErrors.clientSecret}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               {configData?.hasClientSecret
                 ? 'A client secret is already configured. Click to enter a new secret, or leave empty to keep the current one.'
@@ -521,15 +562,13 @@ export default function GoogleAuthConfigPage() {
 
             <div className="space-y-2">
               {javascriptOrigins.map((origin) => (
-                <div key={origin} className="flex gap-2">
-                  <Input value={origin} readOnly className="font-mono text-sm" />
-                  <CopyButton
-                    text={origin}
-                    label="Copy"
-                    copiedLabel="Copied!"
-                    onCopyError={error}
-                  />
-                </div>
+                <CopyValueRow
+                  key={origin}
+                  value={origin}
+                  isCopied={copiedKey === origin}
+                  isFailed={failedKey === origin}
+                  onCopy={handleCopy}
+                />
               ))}
             </div>
 
@@ -553,12 +592,21 @@ export default function GoogleAuthConfigPage() {
 
             <div className="space-y-2">
               {redirectUris.map((uri) => (
-                <div key={uri} className="flex gap-2">
-                  <Input value={uri} readOnly className="font-mono text-sm" />
-                  <CopyButton text={uri} label="Copy" copiedLabel="Copied!" onCopyError={error} />
-                </div>
+                <CopyValueRow
+                  key={uri}
+                  value={uri}
+                  isCopied={copiedKey === uri}
+                  isFailed={failedKey === uri}
+                  onCopy={handleCopy}
+                />
               ))}
             </div>
+
+            {fieldErrors.redirectUris && (
+              <p role="alert" className="text-xs text-destructive">
+                {fieldErrors.redirectUris}
+              </p>
+            )}
 
             {redirectUris.length === 0 && (
               <p className="text-sm text-muted-foreground">
@@ -568,6 +616,13 @@ export default function GoogleAuthConfigPage() {
           </div>
 
           <Separator />
+
+          {actionResult && (
+            <Alert variant={actionResult.variant}>
+              {actionResult.variant === 'destructive' ? <AlertCircle /> : <CheckCircle />}
+              <AlertDescription>{actionResult.message}</AlertDescription>
+            </Alert>
+          )}
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3">
@@ -581,8 +636,12 @@ export default function GoogleAuthConfigPage() {
             </Button>
 
             {(clientId.trim() || clientSecret.trim()) && (
-              <Button variant="outline" onClick={handleTest}>
-                <TestTube className="mr-2 h-4 w-4" />
+              <Button variant="outline" onClick={handleTest} disabled={isTesting}>
+                {isTesting ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <TestTube className="mr-2 h-4 w-4" />
+                )}
                 Test Configuration
               </Button>
             )}
@@ -593,13 +652,6 @@ export default function GoogleAuthConfigPage() {
               </Button>
             )}
           </div>
-
-          <InlineFeedback
-            feedback={feedback}
-            onDismiss={clear}
-            data-testid="google-auth-feedback"
-            className="mt-4"
-          />
         </CardContent>
       </Card>
 
@@ -667,6 +719,36 @@ export default function GoogleAuthConfigPage() {
   );
 }
 
+interface CopyValueRowProps {
+  value: string;
+  isCopied: boolean;
+  isFailed: boolean;
+  onCopy: (value: string) => void;
+}
+
+/**
+ * Read-only value with a Copy control. Success swaps to Check + "Copied" (the hook resets it after 2 s).
+ * A failed copy shows an inline message under this row until the next copy.
+ */
+function CopyValueRow({ value, isCopied, isFailed, onCopy }: CopyValueRowProps) {
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-2">
+        <Input value={value} readOnly className="font-mono text-sm" />
+        <Button variant="outline" size="sm" onClick={() => onCopy(value)}>
+          {isCopied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
+          {isCopied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+      {isFailed && (
+        <p role="alert" className="text-xs text-destructive">
+          Failed to copy to clipboard
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Validates Google Client ID format.
  */
@@ -700,12 +782,22 @@ function _getClientIdValidationClass(clientId: string): string {
 }
 
 /**
- * Renders Client ID validation message and help text.
+ * Renders the Client ID field message (required / cleared), format hint, and help text.
  */
-function _renderClientIdValidation(clientId: string) {
+function _renderClientIdValidation(clientId: string, fieldError: string | undefined) {
   const validation = _validateClientIdFormat(clientId);
   return (
     <div className="space-y-1">
+      {fieldError && (
+        <p
+          id="clientId-error"
+          role="alert"
+          className="flex items-center gap-1 text-xs text-destructive"
+        >
+          <AlertCircle className="h-3 w-3" />
+          {fieldError}
+        </p>
+      )}
       {!validation.isValid && validation.message && (
         <p className="text-xs text-amber-600 flex items-center gap-1">
           <AlertCircle className="h-3 w-3" />
@@ -791,14 +883,15 @@ async function _handleToggleEnabled(
   newEnabled: boolean,
   toggleEnabled: (params: { enabled: boolean }) => Promise<{ success: boolean; message: string }>,
   setEnabled: (enabled: boolean) => void,
-  report: Report
+  setToggleError: (message: string | null) => void
 ): Promise<void> {
+  setToggleError(null);
   try {
     await toggleEnabled({ enabled: newEnabled });
     setEnabled(newEnabled);
   } catch (error: unknown) {
     console.error('Failed to toggle Google Auth:', error);
-    report('error', 'Failed to toggle Google Auth. Please try again.');
+    setToggleError('Failed to toggle Google Auth. Please try again.');
   }
 }
 
@@ -819,7 +912,31 @@ interface _SaveConfigParams {
     redirectUris: string[];
   }) => Promise<{ success: boolean; message: string }>;
   setIsConfigured: (configured: boolean) => void;
-  report: Report;
+  setFieldErrors: (errors: FieldErrors) => void;
+  setActionResult: (result: ActionResult | null) => void;
+}
+
+/**
+ * Collects every missing required field at once, so the user sees all of them in one pass.
+ */
+function _validateSaveInput(input: {
+  redirectUris: string[];
+  clientId: string;
+  clientSecret: string;
+  hasExistingSecret: boolean | undefined;
+}): FieldErrors {
+  const errors: FieldErrors = {};
+  if (input.redirectUris.length === 0) {
+    errors.redirectUris = 'No redirect URIs available. Please refresh the page.';
+  }
+  if (!input.clientId.trim()) {
+    errors.clientId = 'Client ID is required';
+  }
+  // A secret is required for a new configuration; an existing stored secret is kept if this is empty
+  if (!input.hasExistingSecret && !input.clientSecret.trim()) {
+    errors.clientSecret = 'Client Secret is required for new configuration';
+  }
+  return errors;
 }
 
 /**
@@ -837,30 +954,24 @@ async function _handleSave(params: _SaveConfigParams): Promise<void> {
     enabled,
     updateConfig,
     setIsConfigured,
-    report,
+    setFieldErrors,
+    setActionResult,
   } = params;
 
   if (isFormLoading) return;
 
+  setActionResult(null);
+  const errors = _validateSaveInput({
+    redirectUris,
+    clientId,
+    clientSecret,
+    hasExistingSecret: configData?.hasClientSecret,
+  });
+  setFieldErrors(errors);
+  if (Object.keys(errors).length > 0) return;
+
   setIsFormLoading(true);
   try {
-    if (redirectUris.length === 0) {
-      report('error', 'No redirect URIs available. Please refresh the page.');
-      return;
-    }
-
-    if (!clientId.trim()) {
-      report('error', 'Client ID is required');
-      return;
-    }
-
-    // Check if client secret is required (new configuration or replacing existing)
-    const hasExistingSecret = configData?.hasClientSecret;
-    if (!hasExistingSecret && !clientSecret.trim()) {
-      report('error', 'Client Secret is required for new configuration');
-      return;
-    }
-
     await updateConfig({
       enabled, // Keep current enabled state
       projectId: projectId.trim() || undefined,
@@ -869,35 +980,51 @@ async function _handleSave(params: _SaveConfigParams): Promise<void> {
       redirectUris: redirectUris,
     });
 
+    setActionResult({
+      variant: 'default',
+      message: 'Google Auth configuration saved successfully',
+    });
     setIsConfigured(true);
   } catch (error: unknown) {
     console.error('Failed to save Google Auth configuration:', error);
-    report('error', 'Failed to save configuration. Please try again.');
+    setActionResult({
+      variant: 'destructive',
+      message: 'Failed to save configuration. Please try again.',
+    });
   } finally {
     setIsFormLoading(false);
   }
 }
 
-/**
- * Handles configuration test using the provided clientId and optional clientSecret.
- * If no clientSecret is provided, the backend will use the saved one.
- */
-async function _handleTest(
-  clientId: string,
-  clientSecret: string,
+interface _TestConfigParams {
+  clientId: string;
+  clientSecret: string;
   testConfig: (params: { clientId: string; clientSecret?: string }) => Promise<{
     success: boolean;
     message: string;
     details?: { issues?: string[] };
-  }>,
-  report: Report
-): Promise<void> {
-  // Client ID is mandatory
+  }>;
+  setFieldErrors: (errors: FieldErrors) => void;
+  setActionResult: (result: ActionResult | null) => void;
+  setIsTesting: (testing: boolean) => void;
+}
+
+/**
+ * Tests the provided clientId and optional clientSecret. A missing Client ID is a field message;
+ * the result of the call is one actionResult Alert. If no clientSecret is provided, the backend uses the saved one.
+ */
+async function _handleTest(args: _TestConfigParams): Promise<void> {
+  const { clientId, clientSecret, testConfig, setFieldErrors, setActionResult, setIsTesting } =
+    args;
+
+  setActionResult(null);
   if (!clientId.trim()) {
-    report('error', 'Please enter a Client ID to test the configuration');
+    setFieldErrors({ clientId: 'Please enter a Client ID to test the configuration' });
     return;
   }
+  setFieldErrors({});
 
+  setIsTesting(true);
   try {
     const params: { clientId: string; clientSecret?: string } = {
       clientId: clientId.trim(),
@@ -910,28 +1037,47 @@ async function _handleTest(
 
     const result = await testConfig(params);
 
-    if (result.success) {
-      report('success', `✅ Configuration is valid: ${result.message}`, { icon: false });
-    } else {
-      report('error', `❌ Configuration failed: ${result.message}`, { icon: false });
-    }
+    setActionResult(
+      result.success
+        ? { variant: 'default', message: `Configuration is valid: ${result.message}` }
+        : { variant: 'destructive', message: `Configuration failed: ${result.message}` }
+    );
   } catch (error: unknown) {
     console.error('Failed to test Google Auth configuration:', error);
-    report('error', 'Failed to test configuration. Please try again.');
+    setActionResult({
+      variant: 'destructive',
+      message: 'Failed to test configuration. Please try again.',
+    });
+  } finally {
+    setIsTesting(false);
   }
 }
 
+interface _ResetConfigParams {
+  resetConfig: (params: Record<string, never>) => Promise<{ success: boolean; message: string }>;
+  setProjectId: (id: string) => void;
+  setClientId: (id: string) => void;
+  setClientSecret: (secret: string) => void;
+  setIsConfigured: (configured: boolean) => void;
+  setFieldErrors: (errors: FieldErrors) => void;
+  setActionResult: (result: ActionResult | null) => void;
+}
+
 /**
- * Handles configuration reset with confirmation dialog.
+ * Handles configuration reset with confirmation dialog. Success is silent: the cleared fields and
+ * the flipped status show it. Failure is one destructive Alert.
  */
-async function _handleReset(
-  resetConfig: (params: Record<string, never>) => Promise<{ success: boolean; message: string }>,
-  setProjectId: (id: string) => void,
-  setClientId: (id: string) => void,
-  setClientSecret: (secret: string) => void,
-  setIsConfigured: (configured: boolean) => void,
-  report: Report
-): Promise<void> {
+async function _handleReset(args: _ResetConfigParams): Promise<void> {
+  const {
+    resetConfig,
+    setProjectId,
+    setClientId,
+    setClientSecret,
+    setIsConfigured,
+    setFieldErrors,
+    setActionResult,
+  } = args;
+
   if (
     !confirm(
       'Are you sure you want to reset the Google Auth configuration? This action cannot be undone.'
@@ -939,6 +1085,10 @@ async function _handleReset(
   ) {
     return;
   }
+
+  // Clear previous feedback only once the reset is actually attempted
+  setActionResult(null);
+  setFieldErrors({});
 
   try {
     await resetConfig({});
@@ -949,6 +1099,9 @@ async function _handleReset(
     setIsConfigured(false);
   } catch (error: unknown) {
     console.error('Failed to reset Google Auth configuration:', error);
-    report('error', 'Failed to reset configuration. Please try again.');
+    setActionResult({
+      variant: 'destructive',
+      message: 'Failed to reset configuration. Please try again.',
+    });
   }
 }

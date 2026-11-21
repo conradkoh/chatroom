@@ -1,99 +1,155 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { UserSummary } from '@workspace/backend/convex/admin/users';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import UserRolesPage from './page';
 
 const mocks = vi.hoisted(() => ({
-  users: [] as UserSummary[],
+  users: undefined as unknown,
+  canManageSystemAdmins: true,
   updateUserRoles: vi.fn(),
 }));
 
-// Data port: the user admin functions, keyed by their generated function names.
-vi.mock('convex-helpers/react/sessions', async () => {
-  const { getFunctionName } = await import('convex/server');
-  return {
-    useSessionQuery: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'admin/users:listUsers') return mocks.users;
-      throw new Error(`Unexpected query in UserRolesPage test: ${name}`);
+vi.mock('@workspace/backend/convex/_generated/api', () => ({
+  api: {
+    admin: {
+      users: {
+        listUsers: 'admin/users:listUsers',
+        updateUserRoles: 'admin/users:updateUserRoles',
+      },
     },
-    useSessionMutation: (ref: Parameters<typeof getFunctionName>[0]) => {
-      const name = getFunctionName(ref);
-      if (name === 'admin/users:updateUserRoles') return mocks.updateUserRoles;
-      throw new Error(`Unexpected mutation in UserRolesPage test: ${name}`);
-    },
-  };
-});
-
-// Data port: the permission that decides whether system_admin is assignable.
+  },
+}));
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: () => mocks.users,
+  useSessionMutation: (ref: string) =>
+    ({
+      'admin/users:updateUserRoles': mocks.updateUserRoles,
+    })[ref],
+}));
 vi.mock('@/application/auth', () => ({
   SYSTEM_ADMIN_ACCESS_PERMISSION: 'system_admin:access',
-  useHasPermission: () => true,
+  useHasPermission: () => mocks.canManageSystemAdmins,
 }));
 
-const alice: UserSummary = {
+const ada = {
   _id: 'user-1' as Id<'users'>,
-  name: 'Alice',
-  email: 'alice@example.com',
+  name: 'Ada',
+  email: 'ada@example.com',
   type: 'full',
-  accessLevel: 'user',
-  roleNames: [],
   effectiveRole: 'standard_user',
 };
+const grace = {
+  _id: 'user-2' as Id<'users'>,
+  name: 'Grace',
+  email: 'grace@example.com',
+  type: 'full',
+  effectiveRole: 'admin',
+};
 
-let user: ReturnType<typeof userEvent.setup>;
+beforeAll(() => {
+  // Radix Select relies on pointer-capture and scrolling APIs that jsdom does not implement.
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.releasePointerCapture = () => {};
+  Element.prototype.scrollIntoView = () => {};
+});
 
-async function chooseRole(name: 'Admin' | 'System Administrator') {
-  await user.click(screen.getByRole('combobox'));
-  await user.click(await screen.findByRole('option', { name }));
+beforeEach(() => {
+  mocks.users = [ada, grace];
+  mocks.canManageSystemAdmins = true;
+  mocks.updateUserRoles.mockReset().mockResolvedValue(undefined);
+});
+
+function getRow(name: string) {
+  const row = screen.getByText(name).parentElement?.parentElement;
+  if (!row) throw new Error(`No user row for ${name}`);
+  return within(row);
 }
 
-describe('UserRolesPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.users = [alice];
-    mocks.updateUserRoles.mockResolvedValue(undefined);
-    user = userEvent.setup();
-  });
+async function chooseRole(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+  roleLabel: string
+) {
+  await user.click(getRow(name).getByRole('combobox'));
+  await user.click(await screen.findByRole('option', { name: roleLabel }));
+}
 
-  it('shows a failed role update as alert text in users-feedback', async () => {
-    mocks.updateUserRoles.mockRejectedValueOnce(new Error('role boom'));
-
+describe('UserRolesPage role update failure feedback', () => {
+  it('shows one destructive alert above the list when a role update is rejected', async () => {
+    mocks.updateUserRoles.mockRejectedValueOnce(new Error('Cannot change role'));
+    const user = userEvent.setup();
     render(<UserRolesPage />);
-    await chooseRole('Admin');
 
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveAttribute('data-testid', 'users-feedback');
-    expect(alert).toHaveTextContent('role boom');
+    await chooseRole(user, 'Ada', 'Admin');
+
     expect(mocks.updateUserRoles).toHaveBeenCalledWith({
-      userId: alice._id,
+      userId: 'user-1',
       effectiveRole: 'admin',
     });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Cannot change role');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(
+      alert.compareDocumentPosition(screen.getByText('All Users')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
-  it('renders no alert or status text when the role update succeeds', async () => {
+  it('falls back to the default message when the rejection is not an Error', async () => {
+    mocks.updateUserRoles.mockRejectedValueOnce('boom');
+    const user = userEvent.setup();
     render(<UserRolesPage />);
-    await chooseRole('Admin');
 
-    await waitFor(() => expect(mocks.updateUserRoles).toHaveBeenCalled());
-    expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
+    await chooseRole(user, 'Ada', 'Admin');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to update role');
   });
 
-  it('clears the slot when the next role update starts', async () => {
-    mocks.updateUserRoles.mockRejectedValueOnce(new Error('role boom'));
-
+  it('clears the alert as soon as the next role change starts', async () => {
+    mocks.updateUserRoles.mockRejectedValueOnce(new Error('Cannot change role'));
+    let resolveNext!: () => void;
+    mocks.updateUserRoles.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveNext = resolve;
+      })
+    );
+    const user = userEvent.setup();
     render(<UserRolesPage />);
-    await chooseRole('Admin');
-    expect(await screen.findByTestId('users-feedback')).toBeInTheDocument();
+    await chooseRole(user, 'Ada', 'Admin');
+    await screen.findByRole('alert');
 
-    mocks.updateUserRoles.mockImplementation(() => new Promise(() => {}));
-    await chooseRole('System Administrator');
+    await chooseRole(user, 'Ada', 'System Administrator');
 
-    expect(screen.queryByTestId('users-feedback')).toBeNull();
+    // Cleared while the second request is still pending, not after it settles.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    resolveNext();
+    await waitFor(() =>
+      expect(mocks.updateUserRoles).toHaveBeenLastCalledWith({
+        userId: 'user-1',
+        effectiveRole: 'system_admin',
+      })
+    );
+  });
+
+  it('shows no message on success and reflects the new role from the live query', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<UserRolesPage />);
+
+    await chooseRole(user, 'Ada', 'Admin');
+    await waitFor(() =>
+      expect(mocks.updateUserRoles).toHaveBeenCalledWith({
+        userId: 'user-1',
+        effectiveRole: 'admin',
+      })
+    );
+
+    mocks.users = [{ ...ada, effectiveRole: 'admin' }, grace];
+    rerender(<UserRolesPage />);
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // The trigger's value span carries the role label; its sibling icon contributes a caret glyph.
+    expect(getRow('Ada').getByText('Admin')).toBeInTheDocument();
   });
 });

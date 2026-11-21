@@ -4,13 +4,13 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { InviteSummary } from '@workspace/backend/convex/admin/invites';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { AlertCircle } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { CreateInviteCard } from '@/app/app/admin/invites/CreateInviteCard';
 import { DeleteInviteDialog } from '@/app/app/admin/invites/DeleteInviteDialog';
 import { InviteListCard } from '@/app/app/admin/invites/InviteListCard';
-import { InlineFeedback } from '@/components/inline-feedback';
-import { useFeedback } from '@/hooks/useFeedback';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getErrorMessage } from '@/lib/convexError';
 
 export default function InvitesPage() {
@@ -21,19 +21,10 @@ export default function InvitesPage() {
   const deleteInvite = useSessionMutation(api.admin.invites.deleteInvite);
 
   const [actioningInviteId, setActioningInviteId] = useState<Id<'invites'> | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InviteSummary | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const {
-    feedback: listFeedback,
-    error: reportListError,
-    clear: clearListFeedback,
-  } = useFeedback();
-  const {
-    feedback: deleteFeedback,
-    error: reportDeleteError,
-    clear: clearDeleteFeedback,
-  } = useFeedback();
 
   const handleCreate = useCallback(
     (input: Parameters<typeof createInvite>[0]) => createInvite(input),
@@ -42,47 +33,63 @@ export default function InvitesPage() {
 
   const handleDisable = useCallback(
     async (inviteId: Id<'invites'>) => {
-      clearListFeedback();
+      setListError(null);
       setActioningInviteId(inviteId);
       try {
         await disableInvite({ inviteId });
       } catch (error) {
-        reportListError(getErrorMessage(error, 'Operation failed'));
+        setListError(getErrorMessage(error, 'Operation failed'));
       } finally {
         setActioningInviteId(null);
       }
     },
-    [disableInvite, clearListFeedback, reportListError]
+    [disableInvite]
   );
 
   const handleEnable = useCallback(
     async (inviteId: Id<'invites'>) => {
-      clearListFeedback();
+      setListError(null);
       setActioningInviteId(inviteId);
       try {
         await enableInvite({ inviteId });
       } catch (error) {
-        reportListError(getErrorMessage(error, 'Operation failed'));
+        setListError(getErrorMessage(error, 'Operation failed'));
       } finally {
         setActioningInviteId(null);
       }
     },
-    [enableInvite, clearListFeedback, reportListError]
+    [enableInvite]
+  );
+
+  const handleDeleteRequest = useCallback((invite: InviteSummary) => {
+    setDeleteError(null);
+    setDeleteTarget(invite);
+  }, []);
+
+  const handleDeleteOpenChange = useCallback(
+    (open: boolean) => {
+      // Ignore close requests (Escape, overlay click) while the delete is in flight so the
+      // failure message stays visible. Cancel is disabled for the same reason.
+      if (open || isDeleting) return;
+      setDeleteError(null);
+      setDeleteTarget(null);
+    },
+    [isDeleting]
   );
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    clearDeleteFeedback();
+    setDeleteError(null);
     setIsDeleting(true);
     try {
       await deleteInvite({ inviteId: deleteTarget._id });
       setDeleteTarget(null);
     } catch (error) {
-      reportDeleteError(getErrorMessage(error, 'Operation failed'));
+      setDeleteError(getErrorMessage(error, 'Operation failed'));
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteInvite, deleteTarget, clearDeleteFeedback, reportDeleteError]);
+  }, [deleteInvite, deleteTarget]);
 
   return (
     <div className="pt-6 space-y-4 md:space-y-6">
@@ -96,29 +103,26 @@ export default function InvitesPage() {
         <CreateInviteCard onCreate={handleCreate} />
       </div>
 
-      <InlineFeedback
-        feedback={listFeedback}
-        onDismiss={clearListFeedback}
-        data-testid="invites-feedback"
-      />
+      {listError && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{listError}</AlertDescription>
+        </Alert>
+      )}
 
       <InviteListCard
         invites={invites}
         actioningInviteId={actioningInviteId}
         onDisable={handleDisable}
         onEnable={handleEnable}
-        onDelete={setDeleteTarget}
+        onDelete={handleDeleteRequest}
       />
 
       <DeleteInviteDialog
         deleteTarget={deleteTarget}
         isDeleting={isDeleting}
-        feedback={deleteFeedback}
-        onOpenChange={(open) => {
-          if (open) return;
-          setDeleteTarget(null);
-          clearDeleteFeedback();
-        }}
+        error={deleteError}
+        onOpenChange={handleDeleteOpenChange}
         onConfirm={handleDelete}
       />
     </div>

@@ -2,7 +2,6 @@
 
 import { useCallback, useRef, useState } from 'react';
 
-import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,9 +11,7 @@ interface DiscussionFormProps {
   initialName?: string;
   onSubmit: (name: string, message: string) => Promise<boolean>;
   onCancel?: () => void;
-  /** Error for this form's surface (scope `add`), or null. */
-  error?: Feedback | null;
-  /** Clears the error on dismiss and on any edit. */
+  error?: string | null;
   onClearError?: () => void;
 }
 
@@ -95,11 +92,11 @@ export function DiscussionForm({
         />
       </div>
 
-      <InlineFeedback
-        feedback={error ?? null}
-        onDismiss={onClearError}
-        data-testid="discussion-add-feedback"
-      />
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="flex justify-end space-x-2">
         {onCancel && (

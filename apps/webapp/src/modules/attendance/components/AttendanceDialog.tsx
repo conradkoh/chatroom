@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { AttendanceStatus } from '../types';
 
-import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,7 +26,6 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { useFeedback } from '@/hooks/useFeedback';
 import { useCurrentUser } from '@/modules/auth/AuthProvider';
 
 interface AttendanceDialogProps {
@@ -84,13 +82,8 @@ export function AttendanceDialog({
   const [loading, setLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [enteredName, setEnteredName] = useState(personName || '');
-
-  const { feedback: nameFeedback, error: showNameError, clear: clearNameFeedback } = useFeedback();
-  const {
-    feedback: actionFeedback,
-    error: showActionError,
-    clear: clearActionFeedback,
-  } = useFeedback();
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const recordAttendance = useSessionMutation(api.attendance.recordAttendance);
   const deleteAttendanceRecord = useSessionMutation(api.attendance.deleteAttendanceRecord);
@@ -117,20 +110,25 @@ export function AttendanceDialog({
     setEnteredName(personName || '');
   }
 
+  const handleClose = useCallback(() => {
+    setNameError(null);
+    setActionError(null);
+    onClose();
+  }, [onClose]);
+
   const handleSubmit = useCallback(async () => {
     const isNameFieldShown = !isAuthenticated || !personName;
     const nameToUse = isNameFieldShown ? enteredName : personName;
 
-    clearNameFeedback();
-    clearActionFeedback();
-
+    setActionError(null);
+    setNameError(null);
     if (!nameToUse.trim()) {
       // Normally the name comes from the field. The guard covers a whitespace-only
       // personName, where the field is hidden and the message must still be visible.
       if (isNameFieldShown) {
-        showNameError('Please enter your name');
+        setNameError('Please enter your name');
       } else {
-        showActionError('Please enter your name');
+        setActionError('Please enter your name');
       }
       return;
     }
@@ -165,27 +163,23 @@ export function AttendanceDialog({
         onSuccess();
       }
 
-      onClose();
+      handleClose();
     } catch (error) {
       console.error('Failed to record attendance:', error);
-      showActionError('Failed to record attendance. Please try again.');
+      setActionError('Failed to record attendance. Please try again.');
     } finally {
       setLoading(false);
     }
   }, [
     attendanceKey,
-    clearActionFeedback,
-    clearNameFeedback,
     isAuthenticated,
-    onClose,
+    handleClose,
     onSuccess,
     personName,
     enteredName,
     reason,
     recordAttendance,
     respondAs,
-    showActionError,
-    showNameError,
     status,
     remarks,
     isManuallyJoined,
@@ -209,20 +203,20 @@ export function AttendanceDialog({
   const handleDelete = useCallback(async () => {
     if (!existingRecord) return;
 
-    clearActionFeedback();
+    setActionError(null);
     setDeleteLoading(true);
     try {
       await deleteAttendanceRecord({
         recordId: existingRecord._id as Id<'attendanceRecords'>,
       });
-      onClose();
+      handleClose();
     } catch (error) {
       console.error('Failed to delete attendance record:', error);
-      showActionError('Failed to delete attendance record. Please try again.');
+      setActionError('Failed to delete attendance record. Please try again.');
     } finally {
       setDeleteLoading(false);
     }
-  }, [existingRecord, deleteAttendanceRecord, onClose, clearActionFeedback, showActionError]);
+  }, [existingRecord, deleteAttendanceRecord, handleClose]);
 
   // Check if current user can modify this record
   const canDelete =
@@ -233,7 +227,7 @@ export function AttendanceDialog({
       !existingRecord.userId);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-[450px] p-6">
         <DialogHeader className="mb-4">
           <DialogTitle className="text-xl">Record Attendance</DialogTitle>
@@ -260,17 +254,18 @@ export function AttendanceDialog({
                   value={enteredName}
                   onChange={(e) => {
                     setEnteredName(e.target.value);
-                    clearNameFeedback();
+                    setNameError(null);
                   }}
                   placeholder="Enter your name"
                   className="w-full"
-                  aria-invalid={nameFeedback ? true : undefined}
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={nameError ? 'name-error' : undefined}
                 />
-                <InlineFeedback
-                  feedback={nameFeedback}
-                  variant="text"
-                  data-testid="attendance-name-feedback"
-                />
+                {nameError && (
+                  <p id="name-error" role="alert" className="text-xs text-destructive">
+                    {nameError}
+                  </p>
+                )}
               </div>
             )}
 
@@ -387,16 +382,15 @@ export function AttendanceDialog({
           <Separator className="my-4" />
         </div>
 
-        <InlineFeedback
-          feedback={actionFeedback}
-          onDismiss={clearActionFeedback}
-          className="mb-3"
-          data-testid="attendance-action-feedback"
-        />
+        {actionError && (
+          <p role="alert" className="mb-2 text-sm text-destructive">
+            {actionError}
+          </p>
+        )}
 
         <DialogFooter className="flex justify-between items-end pt-2">
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} size="sm">
+            <Button variant="outline" onClick={handleClose} size="sm">
               Cancel
             </Button>
             <Button onClick={handleSubmit} disabled={loading} size="sm">

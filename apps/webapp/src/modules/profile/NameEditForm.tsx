@@ -6,7 +6,6 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ChevronDown, X } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { InlineFeedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +24,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { useFeedback } from '@/hooks/useFeedback';
 import { useAuthState, useCurrentUser } from '@/modules/auth/AuthProvider';
 import { ConnectButton } from '@/modules/auth/ConnectButton';
 import {
@@ -54,6 +52,7 @@ interface _GoogleAccountContext {
   showDisconnectConfirmation: (providerId: string, providerName: string) => void;
   handleGoogleConnect: () => Promise<void>;
   isConnectingGoogle: boolean;
+  googleConnectError: string | null;
   googleAuthAvailable: boolean;
   authMethod: string | undefined;
   googleProvider: _GoogleProviderInfo;
@@ -82,6 +81,7 @@ export function NameEditForm() {
 
   // State for Google connection
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
+  const [googleConnectError, setGoogleConnectError] = useState<string | null>(null);
 
   // State for disconnect confirmation dialog
   const [disconnectDialog, setDisconnectDialog] = useState<_DisconnectDialogState>({
@@ -90,23 +90,12 @@ export function NameEditForm() {
     providerName: '',
     isDisconnecting: false,
   });
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
   // Convex mutations
   const updateUserName = useSessionMutation(api.auth.updateUserName);
   const disconnectGoogle = useSessionMutation(api.auth.google.disconnectGoogle);
   const createConnectRequest = useSessionMutation(api.auth.google.createConnectRequest);
-
-  // Inline feedback slots
-  const {
-    feedback: connectFeedback,
-    error: showConnectError,
-    clear: clearConnectFeedback,
-  } = useFeedback();
-  const {
-    feedback: disconnectFeedback,
-    error: showDisconnectError,
-    clear: clearDisconnectFeedback,
-  } = useFeedback();
 
   const prevUserNameRef = useRef(currentUser?.name);
   if (prevUserNameRef.current !== currentUser?.name) {
@@ -164,8 +153,8 @@ export function NameEditForm() {
 
   // Handle Google connection
   const handleGoogleConnect = useCallback(async () => {
-    clearConnectFeedback();
     setIsConnectingGoogle(true);
+    setGoogleConnectError(null);
     try {
       // Generate redirect URI from current window location
       if (typeof window === 'undefined') {
@@ -186,24 +175,26 @@ export function NameEditForm() {
 
       redirectToGoogleOAuth(authUrl);
     } catch (_error) {
-      showConnectError('Failed to connect Google account');
+      setGoogleConnectError('Failed to connect Google account');
       setIsConnectingGoogle(false);
     }
-  }, [googleAuthAvailable?.clientId, createConnectRequest, clearConnectFeedback, showConnectError]);
+  }, [googleAuthAvailable?.clientId, createConnectRequest]);
 
   // Handle disconnect confirmation
-  const showDisconnectConfirmation = useCallback(
-    (providerId: string, providerName: string) => {
-      clearDisconnectFeedback();
-      setDisconnectDialog({ isOpen: true, providerId, providerName, isDisconnecting: false });
-    },
-    [clearDisconnectFeedback]
-  );
+  const showDisconnectConfirmation = useCallback((providerId: string, providerName: string) => {
+    setDisconnectError(null);
+    setDisconnectDialog({
+      isOpen: true,
+      providerId,
+      providerName,
+      isDisconnecting: false,
+    });
+  }, []);
 
   // Handle disconnect
   const handleDisconnect = useCallback(async () => {
     if (disconnectDialog.providerId === 'google') {
-      clearDisconnectFeedback();
+      setDisconnectError(null);
       setDisconnectDialog((prev) => ({ ...prev, isDisconnecting: true }));
       try {
         await disconnectGoogle();
@@ -214,22 +205,22 @@ export function NameEditForm() {
           isDisconnecting: false,
         });
       } catch (_error) {
-        showDisconnectError('Failed to disconnect Google account');
+        setDisconnectError('Failed to disconnect Google account');
         setDisconnectDialog((prev) => ({ ...prev, isDisconnecting: false }));
       }
     }
-  }, [disconnectDialog.providerId, disconnectGoogle, clearDisconnectFeedback, showDisconnectError]);
+  }, [disconnectDialog.providerId, disconnectGoogle]);
 
   // Close disconnect dialog
   const closeDisconnectDialog = useCallback(() => {
-    clearDisconnectFeedback();
+    setDisconnectError(null);
     setDisconnectDialog({
       isOpen: false,
       providerId: '',
       providerName: '',
       isDisconnecting: false,
     });
-  }, [clearDisconnectFeedback]);
+  }, []);
 
   // Memoized Google provider info
   const googleProvider = useMemo(
@@ -256,6 +247,7 @@ export function NameEditForm() {
     showDisconnectConfirmation,
     handleGoogleConnect,
     isConnectingGoogle,
+    googleConnectError,
     googleAuthAvailable: !!isGoogleAuthAvailable,
     authMethod,
     googleProvider,
@@ -272,13 +264,6 @@ export function NameEditForm() {
         ? _renderEditForm(name, error, isLoading, handleNameChange, handleSubmit, handleCancel)
         : _renderDisplayView(currentUser, googleAccountContext)}
 
-      {/* Google connect failure: Account Information slot */}
-      <InlineFeedback
-        feedback={connectFeedback}
-        onDismiss={clearConnectFeedback}
-        data-testid="google-connect-feedback"
-      />
-
       {/* Disconnect confirmation dialog */}
       <AlertDialog open={disconnectDialog.isOpen} onOpenChange={closeDisconnectDialog}>
         <AlertDialogContent>
@@ -289,12 +274,11 @@ export function NameEditForm() {
               can reconnect it later if needed.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <InlineFeedback
-            feedback={disconnectFeedback}
-            onDismiss={clearDisconnectFeedback}
-            className="mt-2"
-            data-testid="google-disconnect-feedback"
-          />
+          {disconnectError && (
+            <p role="alert" className="text-sm text-destructive">
+              {disconnectError}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={disconnectDialog.isDisconnecting}>
               Cancel
@@ -388,6 +372,7 @@ function _renderUserTypeInfo(
     showDisconnectConfirmation,
     handleGoogleConnect,
     isConnectingGoogle,
+    googleConnectError,
     googleAuthAvailable,
     authMethod,
     googleProvider,
@@ -412,6 +397,7 @@ function _renderUserTypeInfo(
         showDisconnectConfirmation,
         handleGoogleConnect,
         isConnectingGoogle,
+        googleConnectError,
         googleAuthAvailable,
         googleProvider,
         handleDisconnectClick
@@ -452,6 +438,7 @@ function _renderThirdPartyAccounts(
   _showDisconnectConfirmation: (providerId: string, providerName: string) => void,
   handleGoogleConnect: () => Promise<void>,
   isConnectingGoogle: boolean,
+  googleConnectError: string | null,
   googleAuthAvailable: boolean,
   googleProvider: {
     id: string;
@@ -514,6 +501,11 @@ function _renderThirdPartyAccounts(
               )}
             </div>
           </div>
+        )}
+        {googleConnectError && (
+          <p role="alert" className="text-xs text-destructive">
+            {googleConnectError}
+          </p>
         )}
       </div>
     </div>

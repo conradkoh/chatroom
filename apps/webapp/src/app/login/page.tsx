@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 
-import { InlineFeedback } from '@/components/inline-feedback';
 import {
+  SearchParamsErrorAlert,
   type SearchParamsErrorState,
   useSearchParamsError,
 } from '@/components/SearchParamsErrorHandler';
@@ -144,7 +144,9 @@ function _renderLoadingState(urlError?: SearchParamsErrorState) {
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
-      {urlError && <div className="mt-6 w-full max-w-md">{_renderUrlError(urlError)}</div>}
+      {urlError && urlError.message !== null && (
+        <div className="mt-6 w-full max-w-md">{_renderUrlError(urlError)}</div>
+      )}
     </main>
   );
 }
@@ -153,13 +155,7 @@ function _renderLoadingState(urlError?: SearchParamsErrorState) {
  * The one slot for the decoded ?error= message. Every login-page branch renders it.
  */
 function _renderUrlError(urlError: SearchParamsErrorState) {
-  return (
-    <InlineFeedback
-      feedback={urlError.feedback}
-      onDismiss={urlError.clear}
-      data-testid="url-error"
-    />
-  );
+  return <SearchParamsErrorAlert message={urlError.message} onDismiss={urlError.clear} />;
 }
 
 /**

@@ -14,7 +14,6 @@ import {
 } from '@/application/auth';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -22,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,8 +45,8 @@ export function UserMenu() {
   const showAdminLink = useHasPermission(ADMIN_ACCESS_PERMISSION);
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const logout = useSessionMutation(api.auth.logout);
   const { isInstalled, isReady, setDialogOpen } = usePwaInstall();
 
@@ -66,12 +65,20 @@ export function UserMenu() {
   }, [logout, router]);
 
   const showLogoutConfirmation = useCallback(() => {
+    setLogoutError(null);
     setShowLogoutConfirm(true);
   }, []);
 
-  const handleLogoutConfirmChange = useCallback((open: boolean) => {
-    setShowLogoutConfirm(open);
-  }, []);
+  const handleLogoutConfirmChange = useCallback(
+    (open: boolean) => {
+      // Ignore close requests (Cancel, Escape, overlay click) while logout is in flight so a
+      // rejection lands in a dialog that is still open and the failure stays visible.
+      if (isLoggingOut) return;
+      setLogoutError(null);
+      setShowLogoutConfirm(open);
+    },
+    [isLoggingOut]
+  );
 
   return !authState || authState.state !== 'authenticated' ? null : (
     <>
@@ -79,7 +86,8 @@ export function UserMenu() {
         showLogoutConfirm,
         handleLogoutConfirmChange,
         handleLogout,
-        isLoggingOut
+        isLoggingOut,
+        logoutError
       )}
       {_renderUserDropdownMenu(
         authState,
@@ -90,11 +98,6 @@ export function UserMenu() {
         isInstalled,
         isReady,
         () => setDialogOpen(true)
-      )}
-      {logoutError && (
-        <p role="alert" className="text-sm text-destructive">
-          {logoutError}
-        </p>
       )}
     </>
   );
@@ -125,12 +128,17 @@ function InstallAppMenuItem({
 
 /**
  * Renders the logout confirmation dialog.
+ *
+ * The failure message renders inside this dialog rather than the dropdown,
+ * because selecting a dropdown item closes the menu. The dialog stays open on
+ * failure so the message remains visible next to the retry action.
  */
 function _renderLogoutConfirmDialog(
   showLogoutConfirm: boolean,
   handleLogoutConfirmChange: (open: boolean) => void,
   handleLogout: () => void,
-  isLoggingOut: boolean
+  isLoggingOut: boolean,
+  logoutError: string | null
 ) {
   return (
     <AlertDialog open={showLogoutConfirm} onOpenChange={handleLogoutConfirmChange}>
@@ -141,15 +149,25 @@ function _renderLogoutConfirmDialog(
             You will be redirected to the home page after logging out.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {logoutError && (
+          <p role="alert" className="text-sm text-destructive">
+            {logoutError}
+          </p>
+        )}
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
+          <AlertDialogCancel disabled={isLoggingOut}>Cancel</AlertDialogCancel>
+          {/* A plain Button rather than the alert-dialog action primitive: that one
+              closes the dialog on click, and the dialog must stay open while logout
+              is in flight so a failure shows inside it. */}
+          <Button
+            type="button"
+            variant="destructive"
             onClick={handleLogout}
             disabled={isLoggingOut}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {isLoggingOut ? 'Logging out...' : 'Log out'}
-          </AlertDialogAction>
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

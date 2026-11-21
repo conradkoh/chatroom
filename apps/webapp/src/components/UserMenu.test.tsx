@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { ComponentProps, ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UserMenu } from './UserMenu';
 
@@ -46,27 +46,38 @@ vi.mock('next/link', () => ({
     </a>
   ),
 }));
+vi.mock('@/modules/pwa-install', () => ({
+  usePwaInstall: vi.fn(() => ({
+    isInstalled: false,
+    isReady: true,
+    setDialogOpen: vi.fn(),
+  })),
+}));
 
-function mockAliceSignedIn() {
-  vi.mocked(useAuthState).mockReturnValue({
+/**
+ * Builds an authenticated auth state so the menu renders.
+ */
+function authenticatedState(name: string): ReturnType<typeof useAuthState> {
+  return {
     sessionId: 's',
     state: 'authenticated',
-    user: { _id: 'u' as Id<'users'>, _creationTime: 0, type: 'anonymous', name: 'Alice' },
+    user: { _id: 'u' as Id<'users'>, _creationTime: 0, type: 'anonymous', name },
     accessLevel: 'user',
     permissions: [],
-  });
+  };
 }
 
-async function chooseLogoutAndConfirm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Alice' }));
+/**
+ * Opens the user dropdown and the logout confirm dialog.
+ */
+async function openLogoutDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Dana' }));
   await user.click(await screen.findByRole('menuitem', { name: 'Log out' }));
-  await user.click(await screen.findByRole('button', { name: 'Log out' }));
+  return screen.findByRole('alertdialog');
 }
 
 describe('UserMenu', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.logout.mockReset();
     vi.mocked(useHasPermission).mockReturnValue(false);
   });
 
@@ -127,48 +138,99 @@ describe('UserMenu', () => {
   });
 
   describe('logout', () => {
-    it('shows a failed logout as alert text beside the trigger and does not redirect', async () => {
-      mocks.logout.mockRejectedValueOnce(new Error('boom'));
-      vi.spyOn(console, 'error').mockImplementation(() => {});
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
-      mockAliceSignedIn();
+    beforeEach(() => {
+      vi.mocked(useHasPermission).mockReturnValue(false);
+      mocks.logout.mockReset();
+      mocks.push.mockReset();
+      mocks.logout.mockResolvedValue(undefined);
+      vi.mocked(useAuthState).mockReturnValue(authenticatedState('Dana'));
+      consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('shows the logout failure inside the still-open confirm dialog', async () => {
+      mocks.logout.mockRejectedValueOnce(new Error('network'));
       const user = userEvent.setup();
       render(<UserMenu />);
-      await chooseLogoutAndConfirm(user);
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
+      const dialog = await openLogoutDialog(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Log out' }));
+
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(
         'Failed to logout. Please try again.'
       );
+      expect(screen.getAllByRole('alert')).toHaveLength(1);
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
       expect(mocks.push).not.toHaveBeenCalled();
     });
 
-    it('redirects to / on a successful logout with no message', async () => {
-      mocks.logout.mockResolvedValueOnce(undefined);
-
-      mockAliceSignedIn();
+    it('clears the message on retry and navigates on success', async () => {
+      mocks.logout.mockRejectedValueOnce(new Error('network'));
       const user = userEvent.setup();
       render(<UserMenu />);
-      await chooseLogoutAndConfirm(user);
+
+      const dialog = await openLogoutDialog(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Log out' }));
+      expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+
+      await user.click(within(dialog).getByRole('button', { name: 'Log out' }));
 
       await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/'));
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-      expect(screen.queryByText('Logged out successfully')).not.toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
     });
 
-    it('clears the failure when the next attempt starts', async () => {
-      mocks.logout.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(undefined);
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      mockAliceSignedIn();
+    it('clears the message when the dialog closes', async () => {
+      mocks.logout.mockRejectedValueOnce(new Error('network'));
       const user = userEvent.setup();
       render(<UserMenu />);
 
-      await chooseLogoutAndConfirm(user);
-      expect(await screen.findByRole('alert')).toBeInTheDocument();
+      const dialog = await openLogoutDialog(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Log out' }));
+      expect(within(dialog).getByRole('alert')).toBeInTheDocument();
 
-      await chooseLogoutAndConfirm(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
 
-      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+      await openLogoutDialog(user);
+
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('blocks Cancel, Escape, and overlay dismissal while logging out, then shows the failure', async () => {
+      let rejectLogout!: (reason: unknown) => void;
+      mocks.logout.mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectLogout = reject;
+        })
+      );
+      const user = userEvent.setup();
+      render(<UserMenu />);
+
+      const dialog = await openLogoutDialog(user);
+      await user.click(within(dialog).getByRole('button', { name: 'Log out' }));
+      expect(within(dialog).getByRole('button', { name: 'Logging out...' })).toBeDisabled();
+      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+
+      await user.keyboard('{Escape}');
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+
+      const overlay = document.querySelector('[data-slot="alert-dialog-overlay"]');
+      expect(overlay).not.toBeNull();
+      await user.click(overlay as Element);
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+
+      rejectLogout(new Error('network'));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+        'Failed to logout. Please try again.'
+      );
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+      expect(mocks.push).not.toHaveBeenCalled();
     });
   });
 });
