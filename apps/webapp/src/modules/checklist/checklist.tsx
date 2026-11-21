@@ -61,6 +61,8 @@ export function Checklist({ title, checklistKey, description, className }: Check
     isLoading,
     error,
     clearError,
+    addError,
+    clearAddError,
     initializeChecklist,
     addItem,
     getAndClearFailedText,
@@ -309,18 +311,25 @@ export function Checklist({ title, checklistKey, description, className }: Check
                   onDrop={(e: React.DragEvent) => handleDrop(e, index)}
                 />
               ))}
-              {isActive && (
-                <ChecklistInlineInput
-                  onSubmit={handleAddItem}
-                  getAndClearFailedText={getAndClearFailedText}
-                  onEdit={clearError}
-                  placeholder="Add new item..."
-                  className="mt-3 px-1"
-                />
-              )}
             </ul>
           )}
         </div>
+        {items.length > 0 && isActive && (
+          <div className="mt-3 px-1">
+            <InlineFeedback
+              feedback={addError}
+              onDismiss={clearAddError}
+              data-testid="checklist-add-feedback"
+              className="mb-2"
+            />
+            <ChecklistInlineInput
+              onSubmit={handleAddItem}
+              getAndClearFailedText={getAndClearFailedText}
+              onEdit={clearAddError}
+              placeholder="Add new item..."
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

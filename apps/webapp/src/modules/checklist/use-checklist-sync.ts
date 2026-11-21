@@ -39,7 +39,7 @@ interface _ChecklistStats {
  * - Optimistic updates for immediate UI feedback
  * - Automatic retry mechanism for failed operations
  * - Real-time synchronization with server state
- * - Comprehensive error handling with inline error feedback (`error` / `clearError`)
+ * - Comprehensive error handling with inline error feedback (`error` / `clearError` for card-level failures, `addError` / `clearAddError` for add failures)
  *
  * @param key - Unique identifier for the checklist
  * @param title - Display title for the checklist
@@ -54,8 +54,15 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
     new Map()
   );
 
-  // Inline error slot for failed mutations. Every mutation calls clearError() first.
+  // Inline error slot for failed card-level mutations (toggle, delete, conclude, reopen, clear, reorder, initialize).
   const { feedback, error: showError, clear: clearError } = useFeedback();
+  // Separate slot for add failures. Rendered directly above the add input, not in the card slot.
+  const { feedback: addFeedback, error: showAddError, clear: clearAddError } = useFeedback();
+  // Every mutation calls this first: a new action dismisses the previous outcome in both slots.
+  const clearAllFeedback = useCallback(() => {
+    clearError();
+    clearAddError();
+  }, [clearError, clearAddError]);
 
   // Queries
   const checklistState = useSessionQuery(api.checklists.getChecklistState, { key }) as
@@ -156,7 +163,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const initializeChecklist = useCallback(async () => {
     if (!exists && checklistState !== undefined) {
-      clearError();
+      clearAllFeedback();
       try {
         await createChecklistMutation({ key, title });
       } catch (error) {
@@ -164,7 +171,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         showError('Failed to initialize checklist');
       }
     }
-  }, [exists, checklistState, createChecklistMutation, key, title, clearError, showError]);
+  }, [exists, checklistState, createChecklistMutation, key, title, clearAllFeedback, showError]);
 
   /**
    * Adds a new item to the checklist with optimistic updates.
@@ -174,9 +181,9 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const addItem = useCallback(
     async (text: string): Promise<boolean> => {
-      clearError();
+      clearAllFeedback();
       if (!text.trim()) {
-        showError('Item text is required');
+        showAddError('Item text is required');
         return false;
       }
 
@@ -221,11 +228,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         // Store the failed text for recovery
         setLastFailedText(text.trim());
 
-        showError('Failed to add item. Text restored for retry.');
+        showAddError('Failed to add item. Text restored for retry.');
         return false;
       }
     },
-    [addItemMutation, key, items, clearError, showError]
+    [addItemMutation, key, items, clearAllFeedback, showAddError]
   );
 
   /**
@@ -247,7 +254,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const toggleItem = useCallback(
     async (itemId: Id<'checklistItems'>): Promise<boolean> => {
-      clearError();
+      clearAllFeedback();
       // Find the current item to get its current state
       const currentItem = (serverItems ?? []).find((item) => item._id === itemId);
       if (!currentItem) {
@@ -280,7 +287,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         return false;
       }
     },
-    [toggleItemMutation, serverItems, clearError, showError]
+    [toggleItemMutation, serverItems, clearAllFeedback, showError]
   );
 
   /**
@@ -291,7 +298,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const deleteItem = useCallback(
     async (itemId: Id<'checklistItems'>): Promise<boolean> => {
-      clearError();
+      clearAllFeedback();
       // Add to deleting set immediately for optimistic UI
       setDeletingItemIds((prev) => new Set(prev).add(itemId));
 
@@ -311,7 +318,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         return false;
       }
     },
-    [deleteItemMutation, clearError, showError]
+    [deleteItemMutation, clearAllFeedback, showError]
   );
 
   /**
@@ -320,7 +327,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    * @returns Promise resolving to true if successful, false otherwise
    */
   const concludeChecklist = useCallback(async (): Promise<boolean> => {
-    clearError();
+    clearAllFeedback();
     try {
       await concludeChecklistMutation({ checklistKey: key });
       return true;
@@ -329,7 +336,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
       showError('Failed to conclude checklist. Please try again.');
       return false;
     }
-  }, [concludeChecklistMutation, key, clearError, showError]);
+  }, [concludeChecklistMutation, key, clearAllFeedback, showError]);
 
   /**
    * Reopens a concluded checklist, making it active again.
@@ -337,7 +344,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    * @returns Promise resolving to true if successful, false otherwise
    */
   const reopenChecklist = useCallback(async (): Promise<boolean> => {
-    clearError();
+    clearAllFeedback();
     try {
       await reopenChecklistMutation({ checklistKey: key });
       return true;
@@ -346,7 +353,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
       showError('Failed to reopen checklist. Please try again.');
       return false;
     }
-  }, [reopenChecklistMutation, key, clearError, showError]);
+  }, [reopenChecklistMutation, key, clearAllFeedback, showError]);
 
   /**
    * Clears all completed items from the checklist with optimistic updates.
@@ -354,7 +361,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    * @returns Promise resolving to true if successful, false otherwise
    */
   const clearCompleted = useCallback(async (): Promise<boolean> => {
-    clearError();
+    clearAllFeedback();
     // Get completed items to delete optimistically
     const completedItemIds = (serverItems ?? [])
       .filter((item) => item.isCompleted && !deletingItemIds.has(item._id))
@@ -390,7 +397,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
       showError('Failed to clear completed items. Please try again.');
       return false;
     }
-  }, [clearCompletedMutation, key, serverItems, deletingItemIds, clearError, showError]);
+  }, [clearCompletedMutation, key, serverItems, deletingItemIds, clearAllFeedback, showError]);
 
   /**
    * Reorders checklist items by updating their order values.
@@ -401,7 +408,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const reorderItems = useCallback(
     async (draggedItemId: Id<'checklistItems'>, targetIndex: number): Promise<boolean> => {
-      clearError();
+      clearAllFeedback();
       if (!isActive) {
         showError('Cannot reorder items in concluded checklist');
         return false;
@@ -443,7 +450,7 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         return false;
       }
     },
-    [reorderItemsMutation, key, items, isActive, clearError, showError]
+    [reorderItemsMutation, key, items, isActive, clearAllFeedback, showError]
   );
 
   return {
@@ -456,8 +463,10 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
     isConcluded,
     exists,
     isLoading,
-    error: feedback, // inline error for the last failed mutation, or null
-    clearError, // dismisses the error
+    error: feedback, // inline error for the last failed card-level mutation, or null
+    clearError, // dismisses the card-level error
+    addError: addFeedback, // inline error for the last failed add, or null; shown above the add input
+    clearAddError, // dismisses the add error, and clears it when the add input is edited
 
     // Statistics
     totalItems: statistics.totalItems,

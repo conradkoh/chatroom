@@ -161,5 +161,66 @@ describe('Checklist inline failures', () => {
     const feedbackBox = screen.getByTestId('checklist-feedback');
     expect(feedbackBox).toHaveAttribute('role', 'alert');
     expect(within(feedbackBox).getByText('Failed to update item. Please try again.')).toBeVisible();
+    // The card-level failure is not the add slot.
+    expect(screen.queryByTestId('checklist-add-feedback')).not.toBeInTheDocument();
+  });
+
+  it('shows the add failure directly above the add input with a long list', async () => {
+    const user = userEvent.setup();
+    mocks.items = Array.from({ length: 40 }, (_, i) => ({
+      ...ITEM,
+      _id: `item-${i}`,
+      text: `Item ${i}`,
+      order: i,
+    }));
+    mocks.mutations['checklists:addChecklistItem'] = vi.fn().mockRejectedValue(new Error('boom'));
+    renderChecklist();
+
+    const input = await screen.findByPlaceholderText('Add new item...');
+    await user.type(input, 'Buy milk');
+    await user.keyboard('{Enter}');
+
+    const feedback = await screen.findByTestId('checklist-add-feedback');
+    expect(feedback).toHaveAttribute('role', 'alert');
+    expect(feedback).toHaveTextContent('Failed to add item. Text restored for retry.');
+    // Adjacent: the feedback is the sibling immediately before the element that holds the input.
+    expect(feedback.nextElementSibling).toContainElement(input);
+    // Not inside the scrolling list region, for either the feedback or the input.
+    expect(feedback.closest('.overflow-y-auto')).toBeNull();
+    expect(input.closest('.overflow-y-auto')).toBeNull();
+    // Inside the card.
+    expect(feedback.closest('[data-slot="card"]')).toContainElement(input);
+  });
+
+  it('dismisses the add failure from its own slot', async () => {
+    const user = userEvent.setup();
+    mocks.mutations['checklists:addChecklistItem'] = vi.fn().mockRejectedValue(new Error('boom'));
+    renderChecklist();
+
+    const input = await screen.findByPlaceholderText('Add new item...');
+    await user.type(input, 'Buy milk');
+    await user.keyboard('{Enter}');
+
+    await screen.findByTestId('checklist-add-feedback');
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByTestId('checklist-add-feedback')).not.toBeInTheDocument();
+  });
+
+  it('clears the add failure when the next checklist action runs', async () => {
+    const user = userEvent.setup();
+    mocks.mutations['checklists:addChecklistItem'] = vi.fn().mockRejectedValue(new Error('boom'));
+    renderChecklist();
+
+    const input = await screen.findByPlaceholderText('Add new item...');
+    await user.type(input, 'Buy milk');
+    await user.keyboard('{Enter}');
+
+    await screen.findByTestId('checklist-add-feedback');
+    await user.click(await screen.findByRole('checkbox'));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('checklist-add-feedback')).not.toBeInTheDocument()
+    );
   });
 });
