@@ -3,10 +3,9 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useAction } from 'convex/react';
 import { useSessionId } from 'convex-helpers/react/sessions';
-import { CopyIcon, RefreshCw } from 'lucide-react';
+import { Check, CopyIcon, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-import { Suspense, useCallback, useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { InlineFeedback } from '@/components/inline-feedback';
 import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
@@ -131,10 +130,18 @@ function RecoveryCodeSection() {
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { feedback, show, error, clear } = useFeedback();
   const slot = useMemo<RecoverySlot>(() => ({ show, error, clear }), [show, error, clear]);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    };
+  }, []);
 
   const handleRevealCode = useCallback(async () => {
     await _handleRevealCode({
@@ -157,9 +164,18 @@ function RecoveryCodeSection() {
     });
   }, [sessionId, slot, regenerateCode]);
 
-  const handleCopyCode = useCallback(() => {
-    _handleCopyCode(recoveryCode);
-  }, [recoveryCode]);
+  const handleCopyCode = useCallback(async () => {
+    if (!recoveryCode) return;
+    try {
+      await navigator.clipboard.writeText(recoveryCode);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      setIsCopied(true);
+      copiedTimer.current = setTimeout(() => setIsCopied(false), 2000);
+    } catch (copyError) {
+      console.error('Failed to copy text: ', copyError);
+      error('Failed to copy code.');
+    }
+  }, [recoveryCode, error]);
 
   const handleTextareaClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement>) => {
     // Select all text when clicked for easy copying
@@ -202,7 +218,11 @@ function RecoveryCodeSection() {
               title="Copy to clipboard"
               className="self-end"
             >
-              <CopyIcon className="h-4 w-4 mr-2" />
+              {isCopied ? (
+                <Check className="h-4 w-4 mr-2" />
+              ) : (
+                <CopyIcon className="h-4 w-4 mr-2" />
+              )}
               Copy Code
             </Button>
           </div>
@@ -327,22 +347,5 @@ async function _handleRegenerateCode(params: _RegenerateCodeParams): Promise<voi
   } finally {
     setIsRegenerating(false);
     setDialogOpen(false);
-  }
-}
-
-/**
- * Handles copying the recovery code to clipboard with user feedback.
- */
-function _handleCopyCode(recoveryCode: string | null): void {
-  if (recoveryCode) {
-    navigator.clipboard
-      .writeText(recoveryCode)
-      .then(() => {
-        toast.success('Recovery code copied to clipboard!');
-      })
-      .catch((error) => {
-        console.error('Failed to copy text: ', error);
-        toast.error('Failed to copy code.');
-      });
   }
 }
