@@ -58,6 +58,12 @@ describe('getHarnessCapabilities', () => {
     expect(getHarnessRuntimeKind('codex-sdk')).toBe('sdk');
   });
 
+  test('CLI harnesses use runtimeKind cli', () => {
+    for (const harness of ['pi', 'opencode', 'cursor', 'claude'] as const) {
+      expect(getHarnessRuntimeKind(harness)).toBe('cli');
+    }
+  });
+
   test('SDK harnesses never declare CLI-only NDJSON wire events', () => {
     for (const harness of [
       'cursor-sdk',
@@ -71,6 +77,13 @@ describe('getHarnessCapabilities', () => {
         expect(isCliOnlyWireEvent(kind)).toBe(false);
       }
     }
+  });
+
+  test('Pi CLI is the only harness that emits wire.ndjson.agent_end', () => {
+    const withNdjsonAgentEnd = AGENT_HARNESSES.filter((h) =>
+      getHarnessCapabilities(h).wireEvents.includes('wire.ndjson.agent_end')
+    );
+    expect(withNdjsonAgentEnd).toEqual(['pi']);
   });
 
   test('every CLI-only wire kind is marked cliOnly in the catalog', () => {
@@ -89,7 +102,9 @@ describe('isNativeHarness', () => {
     expect(isNativeHarness('codex-sdk')).toBe(true);
   });
 
-  test('returns false for undefined', () => {
+  test('returns false for cli harnesses and undefined', () => {
+    expect(isNativeHarness('cursor')).toBe(false);
+    expect(isNativeHarness('pi')).toBe(false);
     expect(isNativeHarness(undefined)).toBe(false);
   });
 });

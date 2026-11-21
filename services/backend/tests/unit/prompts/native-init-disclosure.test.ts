@@ -1,5 +1,5 @@
 /**
- * Native init — template and command disclosure.
+ * Native init vs CLI init — template and command disclosure.
  *
  * Init teaches commands and workflow; eager templates are inlined on each
  * native task delivery (see native-workflow-disclosure.test.ts).
@@ -70,6 +70,22 @@ function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string
   });
 }
 
+function cliInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
+  const config = TEAM_CONFIGS[team];
+  return composeSystemPrompt({
+    chatroomId: 'test-chatroom-id',
+    role,
+    teamId: config.teamId,
+    teamName: config.teamName,
+    teamRoles: config.teamRoles,
+    teamEntryPoint: config.teamEntryPoint,
+    convexUrl: CONVEX_URL,
+    // `undefined` is not a native harness, so composeSystemPrompt takes the
+    // still-live CLI branch without relying on a retired CLI harness literal.
+    agentHarness: undefined,
+  });
+}
+
 describe('Native init — slim session model (no CLI listen loop)', () => {
   for (const scenario of NATIVE_INIT_SCENARIOS) {
     test(`${scenario.team}/${scenario.role} omits get-next-task and Level A/B`, () => {
@@ -96,6 +112,14 @@ describe('Init — templates deferred to task delivery', () => {
     assertNativeInitTemplateDisclosure(nativeInitPrompt('duo', 'planner'));
   });
 
+  test('CLI init also defers templates to task delivery (no init preview)', () => {
+    const prompt = cliInitPrompt('duo', 'planner');
+    expect(prompt).not.toContain('Begin With the End in Mind');
+    expect(prompt).not.toContain('Planner → User report');
+    // CLI discovery intentionally advertises the pair-keyed view-template command.
+    expect(prompt).toContain('chatroom handoff view-template');
+  });
+
   test('architect and UI/UX init preserve their disclosure contract', () => {
     for (const role of ['architect', 'uiux-engineer']) {
       const prompt = nativeInitPrompt('duo', role);
@@ -119,8 +143,20 @@ describe('Native init — commands reference', () => {
     expect(prompt).not.toContain('chatroom get-next-task');
   });
 
+  test('CLI init advertises notify-user with its heredoc delimiter', () => {
+    const prompt = cliInitPrompt('duo', 'builder');
+    expect(prompt).toContain('chatroom notify-user');
+    expect(prompt).toContain('CHATROOM_NOTIFY_END');
+    expect(prompt).toContain('chatroom get-next-task');
+  });
+
   test('init prompts no longer claim progress reports are invisible to the user', () => {
-    const prompts = [nativeInitPrompt('duo', 'builder'), nativeInitPrompt('duo', 'planner')];
+    const prompts = [
+      nativeInitPrompt('duo', 'builder'),
+      nativeInitPrompt('duo', 'planner'),
+      cliInitPrompt('duo', 'planner'),
+      cliInitPrompt('solo', 'solo'),
+    ];
     for (const prompt of prompts) {
       expect(prompt).not.toContain('progress reports');
       expect(prompt).not.toContain('all other messages are invisible');

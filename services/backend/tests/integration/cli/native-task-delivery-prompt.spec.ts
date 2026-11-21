@@ -207,6 +207,74 @@ describe('Native task delivery prompt (integration)', () => {
     expect(fullCliOutput).not.toContain('Classify');
   });
 
+  test('CLI harness delivery still contains get-next-task (regression)', async () => {
+    const { sessionId } = await createTestSession('test-native-delivery-opencode-cli');
+    const chatroomId = await createTeamChatroom(sessionId, 'duo');
+    await joinParticipants(sessionId, chatroomId, ['builder']);
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId: 'machine-cli-delivery',
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+    });
+
+    await t.mutation(api.machines.markDaemonOnline, {
+      sessionId,
+      machineId: 'machine-cli-delivery',
+    });
+    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId: 'machine-cli-delivery',
+      workingDir: '/test/workspace',
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    });
+    await t.mutation(api.agents.saveConfig, {
+      sessionId,
+      chatroomId,
+      workspaceId,
+      role: 'builder',
+      machineId: 'machine-cli-delivery',
+      agentHarness: 'opencode',
+      model: 'auto',
+      workingDir: '/test/workspace',
+    });
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      content: 'Implement feature',
+      targetRole: 'builder',
+      type: 'message',
+    });
+
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'CLI task delivery',
+      createdBy: 'planner',
+      sourceMessageId: messageId,
+    });
+
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+      messageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(fullCliOutput).toContain('get-next-task');
+    expect(fullCliOutput).toContain('<handoffs>');
+    expect(fullCliOutput).toContain('you MUST run the handoff command');
+    expect(fullCliOutput).toContain('When you finish this task, run `handoff` once');
+  });
+
   test('explicit Chat envelope keeps builder capability and suppresses enhancer at the prompt boundary', async () => {
     const { sessionId } = await createTestSession('test-chat-env-planner');
     const chatroomId = await createTeamChatroom(sessionId, 'duo');

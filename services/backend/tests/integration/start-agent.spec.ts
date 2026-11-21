@@ -390,10 +390,10 @@ describe('startAgent — teamRoleKey collision regression', () => {
 
 describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
   test('agentType is stored on the launch snapshot keyed by chatroom._id', async () => {
-    // Regression test: messages.ts must build the teamRoleKey using the correct
-    // format: `chatroom_<chatroom._id>#team_<teamId>#role_<role>`.
-    // If messages.ts uses a different format than startAgent, getInitPrompt would
-    // fail to find the config and return agentType='unset'.
+    // Regression test: startAgent must persist the launch snapshot under the
+    // requestKey format `${chatroomId}:${teamStructureId}:${role}` that
+    // `getLastSentLaunchRequestForRole`/`launchRequestKey` compute.
+    // If the formats diverge, the lookup misses and the snapshot is absent.
 
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-init-prompt-agenttype-1');
@@ -432,7 +432,8 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
 
     // ===== VERIFY =====
     // The launch snapshot must be keyed the same way startAgent writes it
-    // (`chatroom_${chatroom._id}#team_${teamId}#role_builder`) and carry
+    // (`${chatroomId}:${teamStructureId}:${role}`, computed by
+    // `launchRequestKey` in record-last-sent-launch-request.ts) and carry
     // agentType='remote'. A key mismatch would leave the snapshot absent.
     const request = await t.run(async (ctx) => {
       return ctx.db
@@ -443,6 +444,66 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
 
     expect(request).toBeDefined();
     expect(request!.agentType).toBe('remote');
+  });
+
+  test('agentType lookup returns the native init prompt when queried via getInitPrompt', async () => {
+    // Query-side regression test: messages.ts resolves the launch snapshot
+    // through `getLastSentLaunchRequestForRole`, which builds its requestKey as
+    // `${chatroomId}:${teamStructureId}:${role}`. If startAgent writes a
+    // different key, the lookup misses, agentHarness stays undefined, and
+    // getInitPrompt falls back to the CLI branch.
+    // The native prompt no longer renders agentType, so this asserts the branch
+    // the lookup selects: native markers replace the CLI-only commands.
+
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-init-prompt-agenttype-query');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const machineId = 'machine-init-prompt-agenttype-query';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // Join participants so getInitPrompt can read presence
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
+
+    // ===== ACTION =====
+    // Start a remote agent — this writes a canonical launch request snapshot.
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').first();
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      return startAgent(
+        ctx,
+        {
+          machineId,
+          chatroomId,
+          role: 'builder',
+          userId: user!._id,
+          model: TEST_MODEL_OPENCODE_LEGACY,
+          agentHarness: 'opencode-sdk',
+          workingDir: '/test/workspace',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
+        },
+        machine!
+      );
+    });
+
+    // ===== VERIFY =====
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+    // Native-system-prompt marker; only reached when the launch-snapshot lookup
+    // supplies the SDK agentHarness.
+    expect(initPrompt.prompt).toContain('Do not run `register-agent`');
+    // CLI-only command advertised by the fallback branch.
+    expect(initPrompt.prompt).not.toContain('chatroom get-next-task');
   });
 
   test('agentType is unset when no config exists for chatroom+role', async () => {
