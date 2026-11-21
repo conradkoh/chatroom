@@ -77,14 +77,22 @@ async function readBackendVersion(): Promise<string> {
   return config.backendVersion;
 }
 
-function spawnConvexDev(args: string[], isLocalDeployment: boolean) {
-  return Bun.spawn(args, {
+/** Options for a `convex dev` child. A local deployment never receives TZ (see buildConvexDevEnv). */
+export function convexDevSpawnOptions(
+  isLocalDeployment: boolean,
+  baseEnv: Readonly<Record<string, string | undefined>>
+) {
+  return {
     cwd: backendDir,
-    env: buildConvexDevEnv(process.env, isLocalDeployment),
+    env: buildConvexDevEnv(baseEnv, isLocalDeployment),
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',
-  });
+  } as const;
+}
+
+function spawnConvexDev(args: string[], isLocalDeployment: boolean) {
+  return Bun.spawn(args, convexDevSpawnOptions(isLocalDeployment, process.env));
 }
 
 async function main(): Promise<void> {
