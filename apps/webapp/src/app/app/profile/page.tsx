@@ -317,7 +317,7 @@ async function _handleRegenerateCode(params: _RegenerateCodeParams): Promise<voi
     const result = await regenerateCode({ sessionId });
     if (result.success && result.recoveryCode) {
       setRecoveryCode(result.recoveryCode);
-      toast.success('Recovery code regenerated successfully!');
+      slot.show('success', 'Recovery code regenerated successfully!');
     } else {
       slot.error(result.reason || 'Failed to regenerate recovery code.');
     }

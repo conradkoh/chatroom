@@ -142,4 +142,30 @@ describe('ProfilePage recovery code section', () => {
 
     expect(screen.queryByTestId('recovery-feedback')).toBeNull();
   });
+
+  it('shows the regenerate success as status text and replaces the textarea', async () => {
+    mocks.regenerate.mockResolvedValueOnce({ success: true, recoveryCode: 'NEW-CODE' });
+
+    render(<ProfilePage />);
+    await revealCode();
+    await regenerateCode();
+
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent('Recovery code regenerated successfully!');
+    expect(screen.getByRole('textbox')).toHaveValue('NEW-CODE');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('clears the regenerate status on Dismiss', async () => {
+    mocks.regenerate.mockResolvedValueOnce({ success: true, recoveryCode: 'NEW-CODE' });
+
+    render(<ProfilePage />);
+    await revealCode();
+    await regenerateCode();
+
+    const slot = await screen.findByTestId('recovery-feedback');
+    await userEvent.click(within(slot).getByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByRole('status')).toBeNull();
+  });
 });
