@@ -113,7 +113,7 @@ describe('runRestartOrchestrator', () => {
     await runRestartOrchestrator(deps as any, {
       chatroomId: 'test-chatroom',
       role: 'builder',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt-4',
       workingDir: '/tmp/test',
       correlationId: 'test-correlation',
@@ -144,7 +144,7 @@ describe('runRestartOrchestrator', () => {
     await runRestartOrchestrator(deps as any, {
       chatroomId: 'test-chatroom',
       role: 'builder',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt-4',
       workingDir: '/tmp/test',
       correlationId: 'stop-failure',
@@ -164,7 +164,7 @@ describe('runRestartOrchestrator', () => {
     const event = {
       chatroomId: 'test-chatroom',
       role: 'builder',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt-4',
       workingDir: '/tmp/test',
       correlationId: 'release-retry',
@@ -199,7 +199,7 @@ describe('runRestartOrchestrator', () => {
     await runRestartOrchestrator(deps as any, {
       chatroomId: 'test-chatroom',
       role: 'builder',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt-4',
       workingDir: '/tmp/test',
       correlationId: 'test-correlation',

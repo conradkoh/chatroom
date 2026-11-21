@@ -12,17 +12,17 @@ import {
 
 describe('buildAgentLogPrefix', () => {
   it('builds prefix with role only', () => {
-    expect(buildAgentLogPrefix('cursor', { role: 'builder' })).toBe('[cursor:builder');
+    expect(buildAgentLogPrefix('cursor-sdk', { role: 'builder' })).toBe('[cursor-sdk:builder');
   });
 
   it('includes chatroom suffix when chatroomId is set', () => {
-    expect(buildAgentLogPrefix('pi', { role: 'solo', chatroomId: 'abcdefghijklmnop' })).toBe(
-      '[pi:solo@klmnop'
+    expect(buildAgentLogPrefix('pi-sdk', { role: 'solo', chatroomId: 'abcdefghijklmnop' })).toBe(
+      '[pi-sdk:solo@klmnop'
     );
   });
 
   it('defaults role to unknown', () => {
-    expect(buildAgentLogPrefix('claude', {})).toBe('[claude:unknown');
+    expect(buildAgentLogPrefix('claude-sdk', {})).toBe('[claude-sdk:unknown');
   });
 });
 

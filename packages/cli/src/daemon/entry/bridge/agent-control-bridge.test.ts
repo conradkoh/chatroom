@@ -7,7 +7,7 @@ const input: StartAgentInput = {
   commandId: 'cmd-1',
   chatroomId: 'room-1',
   role: 'builder',
-  agentHarness: 'opencode',
+  agentHarness: 'opencode-sdk',
   model: 'model-1',
   workingDir: '/workspace',
   reason: 'user.start',

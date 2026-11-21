@@ -7,7 +7,7 @@ const baseInput: StartAgentInput = {
   commandId: 'cmd-1',
   chatroomId: 'room-1',
   role: 'builder',
-  agentHarness: 'cursor',
+  agentHarness: 'cursor-sdk',
   model: 'gpt-4',
   workingDir: '/workspace',
   reason: AgentStartReasonCode.USER_START,
