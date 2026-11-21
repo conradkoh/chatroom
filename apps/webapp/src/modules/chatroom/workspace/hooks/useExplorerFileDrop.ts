@@ -3,7 +3,6 @@
 
 import { getBlockedUploadTargetReason } from '@workspace/backend/src/domain/constants/workspace-upload-path-policy';
 import { useCallback, useRef, useState, type DragEvent } from 'react';
-import { toast } from 'sonner';
 
 import type { ExplorerDropTarget } from '../utils/explorerDropTarget';
 import {
@@ -23,7 +22,7 @@ function joinUploadPath(targetDir: string, fileName: string): string {
   return `${targetDir.replace(/\/$/, '')}/${trimmedName}`;
 }
 
-export function useExplorerFileDrop() {
+export function useExplorerFileDrop({ onBlocked }: { onBlocked: (reason: string) => void }) {
   const [dropHighlightPath, setDropHighlightPath] = useState<string | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
@@ -83,7 +82,7 @@ export function useExplorerFileDrop() {
         joinUploadPath(target.targetDir, files[0]?.name ?? '')
       );
       if (blockedReason) {
-        toast.error(blockedReason);
+        onBlocked(blockedReason);
         return;
       }
 
@@ -91,7 +90,7 @@ export function useExplorerFileDrop() {
       queueRef.current = files;
       openNextUploadDialog();
     },
-    [openNextUploadDialog, resolveDropTarget]
+    [onBlocked, openNextUploadDialog, resolveDropTarget]
   );
 
   const handleUploadDialogOpenChange = useCallback(
