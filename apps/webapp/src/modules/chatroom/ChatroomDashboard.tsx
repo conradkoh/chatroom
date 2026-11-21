@@ -852,8 +852,9 @@ function ChatroomDashboardContent({
 
   const handleExplorerSelectionToComposer = useCallback(
     ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
-      // Decided from the state at prefill time, before this handler opens the split view.
-      const notice = getSelectionPrefillNotice({ activeView, explorerSplitViewEnabled });
+      // This handler always opens the explorer split view below, so the notice is decided
+      // from the post-open layout.
+      const notice = getSelectionPrefillNotice({ activeView, explorerSplitViewEnabled: true });
       reportDashboardFeedback(null);
       if (!explorerSplitViewEnabled) {
         setExplorerSplitViewEnabled(true);
