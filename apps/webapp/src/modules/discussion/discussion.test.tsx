@@ -252,7 +252,7 @@ describe('Discussion inline failures', () => {
     expect(dialog).toBeInTheDocument();
   });
 
-  it('shows a delete failure at the top of the panel and closes the delete dialog', async () => {
+  it('keeps the delete dialog open on failure and shows the error inside it', async () => {
     mocks.mutations.deleteDiscussionMessage.mockRejectedValueOnce(new Error('Denied'));
     const user = userEvent.setup();
     renderDiscussion();
@@ -261,9 +261,9 @@ describe('Discussion inline failures', () => {
     const dialog = await openDeleteDialog(user);
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    const alert = await screen.findByRole('alert');
+    const alert = await within(dialog).findByRole('alert');
     expect(alert).toHaveTextContent('Failed to delete message: Denied');
+    expect(dialog).toBeInTheDocument();
     expect(screen.getByText('Hi')).toBeVisible();
   });
 

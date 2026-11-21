@@ -95,8 +95,8 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
     };
 
   const scoped = (s: DiscussionErrorScope) => (error?.scope === s ? error.message : null);
-  // Create, delete, and reopen failures show at the panel top.
-  const panelError = scoped('create') ?? scoped('delete') ?? scoped('reopen');
+  // Create and reopen failures show at the panel top. Delete failures show inside the delete dialog.
+  const panelError = scoped('create') ?? scoped('reopen');
 
   // Set loading state based on data availability
   useEffect(() => {
@@ -171,10 +171,11 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
   // Confirm and perform message deletion
   const confirmDeleteMessage = async () => {
     if (!messageToDelete) return;
-    await deleteMessage(messageToDelete);
-    // A failure shows at the panel top, so the dialog closes on either outcome.
-    setShowDeleteConfirm(false);
-    setMessageToDelete(null);
+    const ok = await deleteMessage(messageToDelete);
+    if (ok) {
+      setShowDeleteConfirm(false);
+      setMessageToDelete(null);
+    }
   };
 
   // Handle conclusion submission
@@ -545,6 +546,11 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
               Are you sure you want to delete this message? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {scoped('delete') && (
+            <p role="alert" className="mt-2 text-sm text-destructive">
+              {scoped('delete')}
+            </p>
+          )}
           <div className="flex justify-end space-x-2 mt-4">
             <Button variant="outline" onClick={() => toggleDialog(setShowDeleteConfirm, false)}>
               Cancel
