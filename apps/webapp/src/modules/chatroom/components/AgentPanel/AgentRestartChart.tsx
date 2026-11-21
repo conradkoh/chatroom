@@ -8,6 +8,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } 
 
 import { getHarnessModelKeyLabel } from '../../types/machine';
 
+import { DateInput } from '@/components/ui/date-picker';
+
 // ─── Color palette for model bars ───────────────────────────────────────────
 
 const MODEL_COLORS = [
@@ -34,13 +36,6 @@ interface AgentRestartChartProps {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatDateInput(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 const SHORT_MONTH = [
   'Jan',
@@ -168,20 +163,22 @@ export function AgentRestartChart({
     setSelectedPreset(preset);
   }, []);
 
-  const handleStartChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const parsed = new Date(e.target.value + 'T00:00:00');
-    if (!isNaN(parsed.getTime())) {
-      setDateRange((prev) => ({ ...prev, start: parsed }));
-      setSelectedPreset('custom');
-    }
+  const handleStartChange = useCallback((date: Date | undefined) => {
+    // Partial or invalid text: keep the last applied range.
+    if (!date) return;
+    // parseIsoDate gives local 00:00:00, the same as the old 'YYYY-MM-DDT00:00:00' parse.
+    setDateRange((prev) => ({ ...prev, start: date }));
+    setSelectedPreset('custom');
   }, []);
 
-  const handleEndChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const parsed = new Date(e.target.value + 'T23:59:59');
-    if (!isNaN(parsed.getTime())) {
-      setDateRange((prev) => ({ ...prev, end: parsed }));
-      setSelectedPreset('custom');
-    }
+  const handleEndChange = useCallback((date: Date | undefined) => {
+    if (!date) return;
+    // Local 23:59:59 of the picked day, the same as the old 'YYYY-MM-DDT23:59:59' parse.
+    setDateRange((prev) => ({
+      ...prev,
+      end: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59),
+    }));
+    setSelectedPreset('custom');
   }, []);
 
   const data = useSessionQuery(
@@ -305,7 +302,7 @@ export function AgentRestartChart({
   return (
     <div className="mt-2 space-y-1.5">
       {/* Control row: presets + date inputs */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <div className="flex items-center gap-1">
           <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted mr-1">
             Restarts
@@ -325,18 +322,22 @@ export function AgentRestartChart({
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <input
-            type="date"
-            value={formatDateInput(dateRange.start)}
+          <DateInput
+            size="compact"
+            value={dateRange.start}
             onChange={handleStartChange}
-            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
+            aria-label="Range start date"
+            data-testid="restart-chart-start"
+            inputClassName="bg-chatroom-bg-tertiary border-chatroom-border text-foreground"
           />
           <span className="text-[9px] text-muted-foreground">–</span>
-          <input
-            type="date"
-            value={formatDateInput(dateRange.end)}
+          <DateInput
+            size="compact"
+            value={dateRange.end}
             onChange={handleEndChange}
-            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
+            aria-label="Range end date"
+            data-testid="restart-chart-end"
+            inputClassName="bg-chatroom-bg-tertiary border-chatroom-border text-foreground"
           />
         </div>
       </div>
