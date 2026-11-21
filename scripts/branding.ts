@@ -20,18 +20,18 @@ export type LayoutBrandingValues = {
 
 export function applyManifestBranding(content: string, v: ManifestBrandingValues): string {
   return content
-    .replace(/name: ['"].*?['"]/, `name: '${v.appName}'`)
-    .replace(/short_name: ['"].*?['"]/, `short_name: '${v.appShortName}'`)
-    .replace(/description: ['"].*?['"]/, `description: '${v.appDescription}'`);
+    .replace(/\bname: ['"].*?['"]/, `name: '${v.appName}'`)
+    .replace(/\bshort_name: ['"].*?['"]/, `short_name: '${v.appShortName}'`)
+    .replace(/\bdescription: ['"].*?['"]/, `description: '${v.appDescription}'`);
 }
 
 export function applyLayoutBranding(content: string, v: LayoutBrandingValues): string {
-  let out = content.replace(/title: ['"].*?['"]/, `title: '${v.appName}'`);
-  out = out.replace(/description: ['"].*?['"]/, `description: '${v.appDescription}'`);
-  out = out.replace(/appleWebApp:\s*\{[^}]*title: ['"].*?['"]/s, (match) =>
-    match.replace(/title: ['"].*?['"]/, `title: '${v.appName}'`)
+  let out = content.replace(/\btitle: ['"].*?['"]/, `title: '${v.appName}'`);
+  out = out.replace(/\bdescription: ['"].*?['"]/, `description: '${v.appDescription}'`);
+  out = out.replace(/\bappleWebApp:\s*\{[^}]*\btitle: ['"].*?['"]/s, (match) =>
+    match.replace(/\btitle: ['"].*?['"]/, `title: '${v.appName}'`)
   );
-  return out.replace(/applicationName: ['"].*?['"]/, `applicationName: '${v.appName}'`);
+  return out.replace(/\bapplicationName: ['"].*?['"]/, `applicationName: '${v.appName}'`);
 }
 
 export function applyNavigationBranding(content: string, appShortName: string): string {

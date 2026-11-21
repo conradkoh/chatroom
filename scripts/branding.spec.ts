@@ -72,6 +72,20 @@ describe('applyManifestBranding', () => {
     expect(output).toContain("start_url: '/app',");
   });
 
+  it('does not let short_name capture the name rewrite when it comes first', () => {
+    const fixture = [
+      'export default function manifest() {',
+      '  return {',
+      "    short_name: 'Old',",
+      "    name: 'Old App',",
+      '  };',
+      '}',
+    ].join('\n');
+    const output = applyManifestBranding(fixture, values);
+    expect(output).toContain(`name: '${values.appName}',`);
+    expect(output).toContain(`short_name: '${values.appShortName}',`);
+  });
+
   it('is idempotent', () => {
     const once = applyManifestBranding(manifestFixture, values);
     expect(applyManifestBranding(once, values)).toBe(once);
@@ -91,6 +105,14 @@ describe('applyLayoutBranding', () => {
     const fixture = layoutFixture.replace("title: 'Old App',", 'title: getAppTitle(),');
     const output = applyLayoutBranding(fixture, values);
     expect(output).toContain('title: getAppTitle(),');
+  });
+
+  it('does not rewrite a key that merely ends in title, such as subtitle', () => {
+    const fixture = layoutFixture.replace(
+      "  title: 'Old App',",
+      "  subtitle: 'Keep me',\n  title: 'Old App',"
+    );
+    expect(applyLayoutBranding(fixture, values)).toContain("subtitle: 'Keep me',");
   });
 
   it('is idempotent', () => {
