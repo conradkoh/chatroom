@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
-import { exportMessageAsPdf } from '../../lib/messageExport';
+import { exportMessageAsDocx, exportMessageAsPdf } from '../../lib/messageExport';
 import type { Message } from '../../types/message';
 
 const mockUseIsDesktop = vi.fn(() => true);
@@ -47,6 +47,7 @@ function deferred<T>() {
 describe('MessageDownloadMenu', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReturnValue(true);
+    vi.mocked(exportMessageAsDocx).mockResolvedValue('saved');
     vi.mocked(exportMessageAsPdf).mockResolvedValue('saved');
   });
 
@@ -108,8 +109,28 @@ describe('MessageDownloadMenu', () => {
 
     const busyRow = screen.getByRole('option', { name: 'Preparing PDF...' });
     expect(busyRow).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'Download as DOCX' })).toBeDisabled();
+    expect(screen.queryByText('Preparing DOCX...')).not.toBeInTheDocument();
 
     pending.resolve('saved');
     await waitFor(() => expect(screen.queryByText('Preparing PDF...')).not.toBeInTheDocument());
+  });
+
+  it('shows the busy label only on the DOCX row while the DOCX export is pending', async () => {
+    const user = userEvent.setup();
+    const pending = deferred<'saved'>();
+    vi.mocked(exportMessageAsDocx).mockReturnValueOnce(pending.promise);
+
+    render(<MessageDownloadMenu message={makeMessage()} />);
+    await user.click(screen.getByTitle('Download message'));
+    await user.click(screen.getByText('Download as DOCX'));
+
+    expect(screen.getByRole('option', { name: 'Preparing DOCX...' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'Download as PDF' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'Download as Markdown' })).toBeDisabled();
+    expect(screen.queryByText('Preparing PDF...')).not.toBeInTheDocument();
+
+    pending.resolve('saved');
+    await waitFor(() => expect(screen.queryByText('Preparing DOCX...')).not.toBeInTheDocument());
   });
 });
