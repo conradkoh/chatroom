@@ -195,8 +195,9 @@ const flushTimers = (): Promise<void> => new Promise((resolve) => setTimeout(res
 const runningSlot = () => ({ state: 'running' as const, pid: 42, harnessSessionId: 'sess-1' });
 
 /**
- * Runs a fake-timer test with Math.random pinned to its neutral value so a
- * jittered backoff delay is exactly its capped exponential value.
+ * Runs a fake-timer test with Math.random pinned to its neutral value (0.5), so a
+ * jittered backoff delay is exactly its neutral value: the capped exponential below
+ * the cap, and 54s at the 60s cap.
  */
 const withFakeTimersAndNeutralJitter = async (fn: () => Promise<void> | void): Promise<void> => {
   vi.useFakeTimers();
@@ -1386,9 +1387,10 @@ describe('AgentWorkManager', () => {
         recordTurnFailure: async () => ({ attempts: ++attempts, parked: false }),
         taskInboxState: inbox,
       });
+      // Neutral jitter (0.5). Attempts 5+ are capped at 60s and jitter downward, so they sit at 54s.
       const delayAfter = [
-        5_000, 10_000, 20_000, 40_000, 60_000, 60_000, 60_000, 60_000, 60_000, 60_000, 60_000,
-        60_000,
+        5_000, 10_000, 20_000, 40_000, 54_000, 54_000, 54_000, 54_000, 54_000, 54_000, 54_000,
+        54_000,
       ];
 
       for (let attempt = 1; attempt <= 12; attempt += 1) {
@@ -1398,8 +1400,8 @@ describe('AgentWorkManager', () => {
       }
 
       expect(releaseTimes).toEqual([
-        5_000, 15_000, 35_000, 75_000, 135_000, 195_000, 255_000, 315_000, 375_000, 435_000,
-        495_000, 555_000,
+        5_000, 15_000, 35_000, 75_000, 129_000, 183_000, 237_000, 291_000, 345_000, 399_000,
+        453_000, 507_000,
       ]);
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(12);
       expect(attempts).toBe(12);
