@@ -3,10 +3,10 @@ import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2, Trash2, UserCog, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { AttendanceStatus } from '../types';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { useFeedback } from '@/hooks/useFeedback';
 import { useCurrentUser } from '@/modules/auth/AuthProvider';
 
 interface AttendanceDialogProps {
@@ -84,6 +85,13 @@ export function AttendanceDialog({
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [enteredName, setEnteredName] = useState(personName || '');
 
+  const { feedback: nameFeedback, error: showNameError, clear: clearNameFeedback } = useFeedback();
+  const {
+    feedback: actionFeedback,
+    error: showActionError,
+    clear: clearActionFeedback,
+  } = useFeedback();
+
   const recordAttendance = useSessionMutation(api.attendance.recordAttendance);
   const deleteAttendanceRecord = useSessionMutation(api.attendance.deleteAttendanceRecord);
 
@@ -110,10 +118,20 @@ export function AttendanceDialog({
   }
 
   const handleSubmit = useCallback(async () => {
-    const nameToUse = !isAuthenticated || !personName ? enteredName : personName;
+    const isNameFieldShown = !isAuthenticated || !personName;
+    const nameToUse = isNameFieldShown ? enteredName : personName;
+
+    clearNameFeedback();
+    clearActionFeedback();
 
     if (!nameToUse.trim()) {
-      toast.error('Please enter your name');
+      // Normally the name comes from the field. The guard covers a whitespace-only
+      // personName, where the field is hidden and the message must still be visible.
+      if (isNameFieldShown) {
+        showNameError('Please enter your name');
+      } else {
+        showActionError('Please enter your name');
+      }
       return;
     }
 
@@ -130,7 +148,6 @@ export function AttendanceDialog({
           self: true,
           isManuallyJoined,
         });
-        toast.success('Your attendance has been recorded');
       } else {
         await recordAttendance({
           attendanceKey,
@@ -141,7 +158,6 @@ export function AttendanceDialog({
           self: false,
           isManuallyJoined,
         });
-        toast.success(`Attendance recorded for ${nameToUse}`);
       }
 
       // Call onSuccess callback if provided
@@ -152,12 +168,14 @@ export function AttendanceDialog({
       onClose();
     } catch (error) {
       console.error('Failed to record attendance:', error);
-      toast.error('Failed to record attendance. Please try again.');
+      showActionError('Failed to record attendance. Please try again.');
     } finally {
       setLoading(false);
     }
   }, [
     attendanceKey,
+    clearActionFeedback,
+    clearNameFeedback,
     isAuthenticated,
     onClose,
     onSuccess,
@@ -166,6 +184,8 @@ export function AttendanceDialog({
     reason,
     recordAttendance,
     respondAs,
+    showActionError,
+    showNameError,
     status,
     remarks,
     isManuallyJoined,
@@ -189,22 +209,20 @@ export function AttendanceDialog({
   const handleDelete = useCallback(async () => {
     if (!existingRecord) return;
 
-    const nameToUse = !isAuthenticated || !personName ? enteredName : personName;
-
+    clearActionFeedback();
     setDeleteLoading(true);
     try {
       await deleteAttendanceRecord({
         recordId: existingRecord._id as Id<'attendanceRecords'>,
       });
-      toast.success(`Deleted attendance record for ${nameToUse}`);
       onClose();
     } catch (error) {
       console.error('Failed to delete attendance record:', error);
-      toast.error('Failed to delete attendance record. Please try again.');
+      showActionError('Failed to delete attendance record. Please try again.');
     } finally {
       setDeleteLoading(false);
     }
-  }, [existingRecord, isAuthenticated, personName, enteredName, deleteAttendanceRecord, onClose]);
+  }, [existingRecord, deleteAttendanceRecord, onClose, clearActionFeedback, showActionError]);
 
   // Check if current user can modify this record
   const canDelete =
@@ -240,9 +258,18 @@ export function AttendanceDialog({
                 <Input
                   id="name-input"
                   value={enteredName}
-                  onChange={(e) => setEnteredName(e.target.value)}
+                  onChange={(e) => {
+                    setEnteredName(e.target.value);
+                    clearNameFeedback();
+                  }}
                   placeholder="Enter your name"
                   className="w-full"
+                  aria-invalid={nameFeedback ? true : undefined}
+                />
+                <InlineFeedback
+                  feedback={nameFeedback}
+                  variant="text"
+                  data-testid="attendance-name-feedback"
                 />
               </div>
             )}
@@ -359,6 +386,13 @@ export function AttendanceDialog({
           </div>
           <Separator className="my-4" />
         </div>
+
+        <InlineFeedback
+          feedback={actionFeedback}
+          onDismiss={clearActionFeedback}
+          className="mb-3"
+          data-testid="attendance-action-feedback"
+        />
 
         <DialogFooter className="flex justify-between items-end pt-2">
           <div className="flex gap-2">
