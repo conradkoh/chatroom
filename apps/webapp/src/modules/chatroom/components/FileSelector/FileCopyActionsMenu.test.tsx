@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   FileCopyActionsMenu,
@@ -32,6 +32,10 @@ describe('FileCopyActionsMenu', () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders trigger button with copy icon', () => {
     render(<FileCopyActionsMenu {...defaultProps} />);
     expect(screen.getByRole('button', { name: /copy file/i })).toBeInTheDocument();
@@ -56,6 +60,31 @@ describe('FileCopyActionsMenu', () => {
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('foo.ts');
     });
+  });
+
+  it('flips the trigger to a check icon for 2 s after "Copy File Name" succeeds', async () => {
+    vi.useFakeTimers();
+    render(<FileCopyActionsMenu {...defaultProps} />);
+    openDropdown();
+    const trigger = screen.getByRole('button', { name: /copy file/i });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Copy File Name'));
+    });
+
+    expect(writeText).toHaveBeenCalledWith('foo.ts');
+    expect(trigger.querySelector('svg.lucide-check')).not.toBeNull();
+    expect(screen.queryByText(/Copied/)).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(trigger.querySelector('svg.lucide-check')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(trigger.querySelector('svg.lucide-check')).toBeNull();
   });
 
   it('disables Copy Full Path when workingDir is null', () => {
@@ -189,6 +218,29 @@ describe('CopyFileNameButton', () => {
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('foo.ts');
     });
+  });
+
+  it('flips to a check icon for 2 s after a successful copy', async () => {
+    vi.useFakeTimers();
+    render(<CopyFileNameButton relativePath="src/foo.ts" />);
+    const button = screen.getByRole('button', { name: /copy file name/i });
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    expect(writeText).toHaveBeenCalledWith('foo.ts');
+    expect(button.querySelector('svg.lucide-check')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(button.querySelector('svg.lucide-check')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(button.querySelector('svg.lucide-check')).toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
 import { WorkspaceFileActionsMenu } from '../../workspace/file-menu';
@@ -9,6 +9,7 @@ import {
   copyFileNameToClipboard,
 } from '../../workspace/utils/clipboard';
 
+import { useCopiedIndicator } from '@/hooks/useCopiedIndicator';
 import { cn } from '@/lib/utils';
 
 export interface FileCopyActionsMenuProps {
@@ -40,9 +41,12 @@ export const CopyFileNameButton = memo(function CopyFileNameButton({
   relativePath: string;
   className?: string;
 }) {
+  const { copied, markCopied } = useCopiedIndicator();
   const handleCopy = useCallback(() => {
-    void copyFileNameToClipboard(relativePath);
-  }, [relativePath]);
+    void copyFileNameToClipboard(relativePath).then((result) => {
+      if (result.ok) markCopied();
+    });
+  }, [relativePath, markCopied]);
 
   return (
     <button
@@ -55,7 +59,11 @@ export const CopyFileNameButton = memo(function CopyFileNameButton({
       aria-label="Copy file name"
       title="Copy file name"
     >
-      <Copy className="h-3.5 w-3.5" aria-hidden />
+      {copied ? (
+        <Check className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <Copy className="h-3.5 w-3.5" aria-hidden />
+      )}
     </button>
   );
 });
@@ -71,10 +79,13 @@ export const CopyFileContentButton = memo(function CopyFileContentButton({
   label: string;
   className?: string;
 }) {
+  const { copied, markCopied } = useCopiedIndicator();
   const handleCopy = useCallback(() => {
     if (!content || disabled) return;
-    void copyFileContentToClipboard(content);
-  }, [content, disabled]);
+    void copyFileContentToClipboard(content).then((result) => {
+      if (result.ok) markCopied();
+    });
+  }, [content, disabled, markCopied]);
 
   return (
     <button
@@ -85,7 +96,11 @@ export const CopyFileContentButton = memo(function CopyFileContentButton({
       aria-label={label}
       title={label}
     >
-      <Copy className="h-3.5 w-3.5" aria-hidden />
+      {copied ? (
+        <Check className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <Copy className="h-3.5 w-3.5" aria-hidden />
+      )}
       {label}
     </button>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -9,6 +9,8 @@ export interface FileContentActionBarProps {
   copyLabel: string;
   onCopy: () => void;
   disabled?: boolean;
+  /** Shows a check icon instead of the copy icon for the 2 s success window. */
+  copied?: boolean;
   leading?: ReactNode;
   trailing?: ReactNode;
   className?: string;
@@ -18,6 +20,7 @@ export function FileContentActionBar({
   copyLabel,
   onCopy,
   disabled = false,
+  copied = false,
   leading,
   trailing,
   className,
@@ -43,7 +46,7 @@ export function FileContentActionBar({
         title={copyLabel}
         aria-label={copyLabel}
       >
-        <Copy size={14} aria-hidden />
+        {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
         Copy
       </button>
       {trailing}
