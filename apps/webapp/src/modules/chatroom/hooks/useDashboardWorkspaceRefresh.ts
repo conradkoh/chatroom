@@ -15,6 +15,27 @@ export interface DashboardWorkspaceRefreshOptions {
   cooldownMs: number;
 }
 
+/** True when a request at `now` falls inside the cooldown that started at `lastAt`. */
+function isWithinRefreshCooldown(lastAt: number, now: number, cooldownMs: number): boolean {
+  return now - lastAt < cooldownMs;
+}
+
+/**
+ * Sends the refresh request when a workspace is known. A missing workspace is a no-op, as before;
+ * a rejection is reported by the caller.
+ */
+async function requestWorkspaceRefresh({
+  machineId,
+  workingDir,
+  requestGitRefresh,
+}: Pick<
+  DashboardWorkspaceRefreshOptions,
+  'machineId' | 'workingDir' | 'requestGitRefresh'
+>): Promise<void> {
+  if (!machineId || !workingDir) return;
+  await requestGitRefresh({ machineId, workingDir });
+}
+
 /**
  * Dashboard manual workspace-state refresh. Each call clears the strip, then:
  * - inside the cooldown window: info notice, no request;
@@ -30,21 +51,16 @@ export function useDashboardWorkspaceRefresh({
 }: DashboardWorkspaceRefreshOptions): () => Promise<void> {
   const lastRefreshRef = useRef(0);
 
-  // Each branch is a distinct, tested outcome (cooldown, request, failure) and fallow reads no
-  // coverage data for this file, so its CRAP score is pessimistic.
-  // fallow-ignore-next-line complexity
   return useCallback(async () => {
     report(null);
     const now = Date.now();
-    if (now - lastRefreshRef.current < cooldownMs) {
+    if (isWithinRefreshCooldown(lastRefreshRef.current, now, cooldownMs)) {
       report({ tone: 'info', message: 'Refresh already in progress — please wait a moment' });
       return;
     }
     lastRefreshRef.current = now;
     try {
-      if (machineId && workingDir) {
-        await requestGitRefresh({ machineId, workingDir });
-      }
+      await requestWorkspaceRefresh({ machineId, workingDir, requestGitRefresh });
     } catch (err) {
       report({ tone: 'error', message: 'Failed to refresh workspace state' });
       console.error('Refresh workspace state failed:', err);
