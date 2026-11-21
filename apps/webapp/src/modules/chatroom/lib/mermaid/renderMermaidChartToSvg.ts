@@ -2,8 +2,19 @@ import { decodeHtmlEntities } from '@workspace/shared/utilities/markdown';
 
 let mermaidInitialized = false;
 
+export type MermaidRenderOptions = {
+  /**
+   * Forces a Mermaid theme for this one render via a per-diagram directive.
+   * Omit it for the in-app diagram, which keeps the app's theme.
+   */
+  theme?: 'default' | 'dark';
+};
+
 // fallow-ignore-next-line complexity
-export async function renderMermaidChartToSvg(chart: string): Promise<string> {
+export async function renderMermaidChartToSvg(
+  chart: string,
+  options: MermaidRenderOptions = {}
+): Promise<string> {
   const mermaid = (await import('mermaid')).default;
   if (!mermaidInitialized) {
     const isDark =
@@ -34,7 +45,11 @@ export async function renderMermaidChartToSvg(chart: string): Promise<string> {
 
   const id = `mermaid-export-${Math.random().toString(36).slice(2, 10)}`;
   const normalizedChart = decodeHtmlEntities(chart.trim());
-  const { svg } = await mermaid.render(id, normalizedChart);
+  // A per-diagram init directive themes this render only; `mermaid.initialize` is global state.
+  const source = options.theme
+    ? `%%{init: {"theme": "${options.theme}"}}%%\n${normalizedChart}`
+    : normalizedChart;
+  const { svg } = await mermaid.render(id, source);
 
   let cleanedSvg = svg;
   cleanedSvg = cleanedSvg.replace(

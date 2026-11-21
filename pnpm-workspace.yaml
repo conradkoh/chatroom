@@ -49,6 +49,7 @@ allowBuilds:
   '@google/genai': false
   '@sentry/cli': true
   bun: true
+  core-js: false
   esbuild: true
   koffi: false
   protobufjs: false

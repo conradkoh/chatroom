@@ -1,6 +1,6 @@
 {
   "name": "@workspace/webapp",
-  "version": "1.146.0",
+  "version": "1.147.0",
   "private": true,
   "scripts": {
     "dev": "dotenv -e .env.local -- next dev",
@@ -43,6 +43,8 @@
     "convex": "^1.45.0",
     "convex-helpers": "^0.1.120",
     "dom-docx": "^0.1.12",
+    "html2canvas-pro": "^2.6.4",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.511.0",
     "luxon": "^3.6.1",
     "mermaid": "^11.14.0",
