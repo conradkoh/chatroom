@@ -2,8 +2,19 @@ import { isTaskRoutedToMachine } from './is-task-routed-to-machine';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 
-function hasExpectedFailureReason(reason: string, expectedReason: string | undefined): boolean {
-  return expectedReason === undefined || reason === expectedReason;
+type ClearableDeliveryFailureReason = 'task_not_deliverable' | 'delivery_retrying';
+
+/**
+ * An unconditional clear resolves transport failures only. A `delivery_retrying`
+ * warning is resolved solely by an explicit clear: a successful injection is not a
+ * successful turn, so an unconditional clear would flap the warning on every retry.
+ */
+function hasExpectedFailureReason(
+  reason: string,
+  expectedReason: ClearableDeliveryFailureReason | undefined
+): boolean {
+  if (expectedReason === undefined) return reason !== 'delivery_retrying';
+  return reason === expectedReason;
 }
 
 async function getRoutedTaskDeliveryFailure(
@@ -21,7 +32,7 @@ export async function clearTaskDeliveryFailure(
   args: {
     taskId: Id<'chatroom_tasks'>;
     machineId: string;
-    expectedReason?: string | undefined;
+    expectedReason?: ClearableDeliveryFailureReason | undefined;
   }
 ): Promise<{ cleared: boolean }> {
   const deliveryFailure = await getRoutedTaskDeliveryFailure(ctx, args);

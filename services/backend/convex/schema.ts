@@ -772,7 +772,8 @@ export default defineSchema({
           v.literal('injection_not_confirmed'),
           v.literal('task_not_deliverable'),
           v.literal('assigned_elsewhere'),
-          v.literal('redelivery_exhausted')
+          v.literal('redelivery_exhausted'),
+          v.literal('delivery_retrying')
         ),
         occurredAt: v.number(),
       })

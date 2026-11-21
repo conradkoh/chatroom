@@ -22,7 +22,9 @@ export const clearDeliveryFailure = mutation({
     ...SessionIdArg,
     machineId: v.string(),
     taskId: v.id('chatroom_tasks'),
-    expectedReason: v.optional(v.literal('task_not_deliverable')),
+    expectedReason: v.optional(
+      v.union(v.literal('task_not_deliverable'), v.literal('delivery_retrying'))
+    ),
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
@@ -45,7 +47,8 @@ export const recordDeliveryFailure = mutation({
       v.literal('injection_not_confirmed'),
       v.literal('task_not_deliverable'),
       v.literal('assigned_elsewhere'),
-      v.literal('redelivery_exhausted')
+      v.literal('redelivery_exhausted'),
+      v.literal('delivery_retrying')
     ),
   },
   handler: async (ctx, args) => {
