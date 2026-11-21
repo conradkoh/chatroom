@@ -5,11 +5,12 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { InviteSummary } from '@workspace/backend/convex/admin/invites';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import { CreateInviteCard } from '@/app/app/admin/invites/CreateInviteCard';
 import { DeleteInviteDialog } from '@/app/app/admin/invites/DeleteInviteDialog';
 import { InviteListCard } from '@/app/app/admin/invites/InviteListCard';
+import { InlineFeedback } from '@/components/inline-feedback';
+import { useFeedback } from '@/hooks/useFeedback';
 import { getErrorMessage } from '@/lib/convexError';
 
 export default function InvitesPage() {
@@ -23,6 +24,17 @@ export default function InvitesPage() {
   const [deleteTarget, setDeleteTarget] = useState<InviteSummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const {
+    feedback: listFeedback,
+    error: reportListError,
+    clear: clearListFeedback,
+  } = useFeedback();
+  const {
+    feedback: deleteFeedback,
+    error: reportDeleteError,
+    clear: clearDeleteFeedback,
+  } = useFeedback();
+
   const handleCreate = useCallback(
     (input: Parameters<typeof createInvite>[0]) => createInvite(input),
     [createInvite]
@@ -30,47 +42,47 @@ export default function InvitesPage() {
 
   const handleDisable = useCallback(
     async (inviteId: Id<'invites'>) => {
+      clearListFeedback();
       setActioningInviteId(inviteId);
       try {
         await disableInvite({ inviteId });
-        toast.success('Invite disabled');
       } catch (error) {
-        toast.error(getErrorMessage(error, 'Operation failed'));
+        reportListError(getErrorMessage(error, 'Operation failed'));
       } finally {
         setActioningInviteId(null);
       }
     },
-    [disableInvite]
+    [disableInvite, clearListFeedback, reportListError]
   );
 
   const handleEnable = useCallback(
     async (inviteId: Id<'invites'>) => {
+      clearListFeedback();
       setActioningInviteId(inviteId);
       try {
         await enableInvite({ inviteId });
-        toast.success('Invite enabled');
       } catch (error) {
-        toast.error(getErrorMessage(error, 'Operation failed'));
+        reportListError(getErrorMessage(error, 'Operation failed'));
       } finally {
         setActioningInviteId(null);
       }
     },
-    [enableInvite]
+    [enableInvite, clearListFeedback, reportListError]
   );
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
+    clearDeleteFeedback();
     setIsDeleting(true);
     try {
       await deleteInvite({ inviteId: deleteTarget._id });
-      toast.success('Invite deleted');
       setDeleteTarget(null);
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Operation failed'));
+      reportDeleteError(getErrorMessage(error, 'Operation failed'));
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteInvite, deleteTarget]);
+  }, [deleteInvite, deleteTarget, clearDeleteFeedback, reportDeleteError]);
 
   return (
     <div className="pt-6 space-y-4 md:space-y-6">
@@ -84,6 +96,12 @@ export default function InvitesPage() {
         <CreateInviteCard onCreate={handleCreate} />
       </div>
 
+      <InlineFeedback
+        feedback={listFeedback}
+        onDismiss={clearListFeedback}
+        data-testid="invites-feedback"
+      />
+
       <InviteListCard
         invites={invites}
         actioningInviteId={actioningInviteId}
@@ -95,7 +113,12 @@ export default function InvitesPage() {
       <DeleteInviteDialog
         deleteTarget={deleteTarget}
         isDeleting={isDeleting}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        feedback={deleteFeedback}
+        onOpenChange={(open) => {
+          if (open) return;
+          setDeleteTarget(null);
+          clearDeleteFeedback();
+        }}
         onConfirm={handleDelete}
       />
     </div>

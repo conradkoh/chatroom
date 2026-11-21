@@ -1,7 +1,7 @@
 'use client';
 
 import { formatLoginCode } from '@workspace/backend/modules/auth/codeUtils';
-import { Copy } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ export type CreateInviteFormProps = {
   inviteeEmail: string;
   expiryMode: ExpiryMode;
   isCreating: boolean;
+  isCopied: boolean;
   lastCreatedCode: string | null;
   onInviteeNameChange: (value: string) => void;
   onInviteeEmailChange: (value: string) => void;
@@ -28,6 +29,7 @@ export function CreateInviteForm({
   inviteeEmail,
   expiryMode,
   isCreating,
+  isCopied,
   lastCreatedCode,
   onInviteeNameChange,
   onInviteeEmailChange,
@@ -100,7 +102,7 @@ export function CreateInviteForm({
               size="sm"
               onClick={() => onCopyCode(lastCreatedCode)}
             >
-              <Copy className="mr-2 h-4 w-4" />
+              {isCopied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
               Copy
             </Button>
           </div>

@@ -2,6 +2,7 @@
 
 import type { InviteSummary } from '@workspace/backend/convex/admin/invites';
 
+import { type Feedback, InlineFeedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +17,8 @@ import {
 type DeleteInviteDialogProps = {
   deleteTarget: InviteSummary | null;
   isDeleting: boolean;
+  /** Delete failure. Rendered inside the open dialog. */
+  feedback: Feedback | null;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 };
@@ -23,6 +26,7 @@ type DeleteInviteDialogProps = {
 export function DeleteInviteDialog({
   deleteTarget,
   isDeleting,
+  feedback,
   onOpenChange,
   onConfirm,
 }: DeleteInviteDialogProps) {
@@ -36,10 +40,16 @@ export function DeleteInviteDialog({
             undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <InlineFeedback feedback={feedback} data-testid="delete-invite-feedback" className="mt-2" />
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            onClick={(event) => {
+              // The action is a close button; keep the dialog open so a delete failure can be
+              // shown in the slot above.
+              event.preventBaseUIHandler();
+              onConfirm();
+            }}
             disabled={isDeleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
