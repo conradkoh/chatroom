@@ -36,7 +36,6 @@ export function useWorkspaceFileMenuContent(machineId: string | null, workingDir
 
       return {
         content,
-        contentTruncated: pathMatches ? menuFileContent?.truncated : undefined,
         contentDisabled: !canCopy,
         fileContentLabel: isMarkdownFile(filePath) ? 'Copy as Markdown' : 'Copy File Content',
       };

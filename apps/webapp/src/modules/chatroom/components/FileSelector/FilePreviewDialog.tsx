@@ -559,7 +559,6 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 relativePath={effectiveFilePath}
                 workingDir={workingDir}
                 content={contentResult?.content ?? null}
-                truncated={contentResult?.truncated}
                 contentDisabled={!canCopyContent}
                 fileContentLabel={copyContentLabel}
                 triggerVariant="more"

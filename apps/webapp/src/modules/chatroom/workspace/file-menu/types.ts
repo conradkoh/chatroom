@@ -3,14 +3,13 @@ export interface WorkspaceFileMenuState {
   workingDir: string | null;
   nodeType?: 'file' | 'directory';
   content?: string | null;
-  contentTruncated?: boolean;
   contentDisabled?: boolean;
   fileContentLabel?: string;
 }
 
 export type WorkspaceFileMenuContentState = Pick<
   WorkspaceFileMenuState,
-  'content' | 'contentTruncated' | 'contentDisabled' | 'fileContentLabel'
+  'content' | 'contentDisabled' | 'fileContentLabel'
 >;
 
 export interface WorkspaceFileMenuHandlers {

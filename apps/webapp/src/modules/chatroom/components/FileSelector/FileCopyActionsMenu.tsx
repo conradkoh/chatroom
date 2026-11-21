@@ -15,7 +15,6 @@ export interface FileCopyActionsMenuProps {
   relativePath: string;
   workingDir: string | null;
   content: string | null;
-  truncated?: boolean;
   contentDisabled?: boolean;
   className?: string;
   /** When false, omits "Copy File Name" from the dropdown (use inline CopyFileNameButton). */
@@ -68,7 +67,6 @@ export const CopyFileContentButton = memo(function CopyFileContentButton({
   className,
 }: {
   content: string | null;
-  truncated?: boolean; // no longer read here; slice 2e removes this prop
   disabled?: boolean;
   label: string;
   className?: string;
@@ -97,7 +95,6 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   relativePath,
   workingDir,
   content,
-  truncated,
   contentDisabled,
   className,
   showFileName = true,
@@ -115,7 +112,6 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
         relativePath,
         workingDir,
         content,
-        contentTruncated: truncated,
         contentDisabled,
         fileContentLabel,
       }}
