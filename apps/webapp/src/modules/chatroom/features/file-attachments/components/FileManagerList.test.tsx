@@ -216,6 +216,23 @@ describe('FileManagerList', () => {
     expect(deleteButton('a.png')).toBeInTheDocument();
   });
 
+  it('shows a download failure inline in the list slot and leaves the button idle', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 500 }))
+    );
+
+    renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Download a.png' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't download a.png. Try again."
+    );
+    expect(screen.getByRole('button', { name: 'Download a.png' })).toBeEnabled();
+
+    vi.unstubAllGlobals();
+  });
+
   it('shows an inline list error with Retry and re-subscribes', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     let failing = true;

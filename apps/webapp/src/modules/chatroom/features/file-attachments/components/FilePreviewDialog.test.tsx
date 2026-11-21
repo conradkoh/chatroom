@@ -90,6 +90,29 @@ describe('FilePreviewDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a download failure inline and leaves the download button idle', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 500 }))
+    );
+
+    render(
+      <FilePreviewDialog
+        open
+        onClose={vi.fn()}
+        file={{ ...FILE, filename: 'shot.png', mimeType: 'image/png' }}
+        url="https://files.example/shot.png"
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText('Download shot.png'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't download shot.png. Try again."
+    );
+    expect(screen.getByLabelText('Download shot.png')).toBeEnabled();
+  });
+
   it('shows an image error with Retry', async () => {
     render(
       <FilePreviewDialog

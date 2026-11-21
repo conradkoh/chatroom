@@ -22,11 +22,12 @@ import { FileAttachmentRow, FileKindIcon, type FileRowKind } from './FileAttachm
 import { FilePreviewDialog } from './FilePreviewDialog';
 import { ErrorBoundary } from '../../../components/ErrorBoundary';
 import { useTwoTapConfirm } from '../../../hooks/useTwoTapConfirm';
-import { useAttachmentDownload } from '../hooks/useAttachmentDownload';
+import { downloadErrorFeedback, useAttachmentDownload } from '../hooks/useAttachmentDownload';
 import { useFileAttachmentUrls, type FileUrlState } from '../hooks/useFileAttachmentUrls';
 import { getFileAttachmentErrorMessage } from '../lib/fileAttachmentErrors';
 import { fileExtensionLabel, formatFileSize } from '../lib/formatFileSize';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fileOpenAction, performFileOpen, type FileOpenAction } from '@/lib/fileOpenAction';
@@ -300,23 +301,25 @@ function FileManagerRow({
   showChatroom,
   armed,
   deleting,
+  downloading,
+  download,
   onDelete,
 }: {
   file: FileListItem;
   showChatroom: boolean;
   armed: boolean;
   deleting: boolean;
+  downloading: boolean;
+  download: DownloadFn;
   onDelete: (id: AttachmentId) => void;
 }) {
   const urlState = useFileAttachmentUrls([file._id]);
-  const { downloadingId, download } = useAttachmentDownload();
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const url = resolveUrl(urlState, file._id);
   const missing = isMissing(urlState, url);
   const kind = rowKind(missing, file.mimeType);
   const action = fileOpenAction(kind);
-  const downloading = downloadingId === file._id;
   const handleDownload = () => downloadIfReady(url, file, download);
   const handlePreview = () => setPreviewOpen(true);
   const handleOpen = performFileOpen(action, url, {
@@ -439,6 +442,8 @@ function FileManagerListContent({ chatroomId }: { chatroomId?: Id<'chatroom_room
   );
   const files = paginated.results as FileListItem[];
   const { deletingId, armedKey, request } = useDeleteFile(files);
+  // Called before the early returns below so hook order stays stable.
+  const { downloadingId, downloadError, download, clearDownloadError } = useAttachmentDownload();
 
   if (paginated.status === 'LoadingFirstPage') return <ListSkeleton />;
   if (files.length === 0) return <EmptyState chatroomScope={chatroomId !== undefined} />;
@@ -451,6 +456,11 @@ function FileManagerListContent({ chatroomId }: { chatroomId?: Id<'chatroom_room
         </span>
         <SortToggle sort={sort} onChange={setSort} />
       </div>
+      <InlineFeedback
+        feedback={downloadErrorFeedback(downloadError)}
+        onDismiss={clearDownloadError}
+        data-testid="file-list-feedback"
+      />
       <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
         {files.map((file) => (
           <li key={file._id} className="min-w-0">
@@ -459,6 +469,8 @@ function FileManagerListContent({ chatroomId }: { chatroomId?: Id<'chatroom_room
               showChatroom={chatroomId === undefined}
               armed={armedKey === file._id}
               deleting={deletingId === file._id}
+              downloading={downloadingId === file._id}
+              download={download}
               onDelete={request}
             />
           </li>
