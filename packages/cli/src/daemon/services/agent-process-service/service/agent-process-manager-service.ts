@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 import { DaemonStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
-import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 
 import { assertStartSucceeded, assertStopSucceeded } from './operation-result-assertions.js';
 import type { AgentProcessCommandBus } from './ports/agent-process-command-bus.js';
@@ -442,9 +441,6 @@ export function createAgentProcessManagerService(
   ): Promise<AgentProcessSlotView | null> => {
     assertNotAborted(input.signal);
     const effectiveInput = applyAgentConfigOverrides(input);
-    if (!getHarnessCapabilities(effectiveInput.agentHarness).supportsNativeIntegration) {
-      throw new Error('not_native_harness');
-    }
     const deadline = Date.now() + (input.timeoutMs ?? NATIVE_DELIVERY_SLOT_WAIT_MS);
     let warnedConfigMismatch = false;
     let lastRestartPid: number | undefined;

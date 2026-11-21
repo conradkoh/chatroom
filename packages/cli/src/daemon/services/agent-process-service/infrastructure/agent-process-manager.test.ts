@@ -490,36 +490,6 @@ describe('AgentProcessManager', () => {
       await triggerAgentEnd(manager, currentAgentEndCb);
     });
 
-    test('onAgentEnd kills process for non-resumable harness', async () => {
-      const onAgentEndRegistrar = vi.fn();
-      const service = {
-        ...createMockService(),
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: onAgentEndRegistrar,
-        }),
-      };
-      deps.agentServices = new Map([['opencode', service]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(createOpts({ agentHarness: 'opencode' }));
-
-      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-      await triggerAgentEnd(manager, agentEndCb);
-
-      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
-      // CLI harnesses (opencode, cursor, etc.) do not support native integration —
-      // turn-end kills the process instead of emitting native:waiting.
-      const nativeWaitingEnqueues = vi
-        .mocked(deps.lifecycleOutbox.enqueue)
-        .mock.calls.filter(
-          ([fact]) => fact.kind === 'activity' && fact.action === 'native:waiting'
-        );
-      expect(nativeWaitingEnqueues).toHaveLength(0);
-    });
-
     test('substitutes DEFAULT_TRIGGER_PROMPT when backend returns empty initialMessage', async () => {
       // Use case-level regression guard: composeInitMessage in the backend currently
       // returns '' for every role. The manager must wrap that via createSpawnPrompt
@@ -1500,13 +1470,6 @@ describe('AgentProcessManager', () => {
         expect(slot?.nativeTurnPhase).toBe('idle');
       }
     );
-
-    test('non-native harness does not set nativeTurnPhase', async () => {
-      await manager.ensureRunning(createOpts());
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE);
-      expect(slot?.nativeTurnPhase).toBeUndefined();
-    });
 
     test('active native turn is reconciled as process_exited when the child exits first', async () => {
       type SpawnExitCallback = Parameters<NonNullable<SpawnResult['onExit']>>[0];
