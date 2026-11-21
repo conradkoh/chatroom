@@ -92,6 +92,13 @@ git show HEAD
 - [ ] React hooks used correctly (deps arrays, memoization)
 - [ ] No inline workarounds or hacks
 
+**Readability & Comments:**
+- [ ] Names say what the thing is or does; no generic names (data, result, temp, handle) and no names that contradict the behaviour
+- [ ] Structure is easy to follow without help: no deep nesting, unexplained compound conditions, or steps that cannot be told apart
+- [ ] Code follows the language's idioms and the conventions of the surrounding code
+- [ ] Comments explain intent or the reason for a choice; none restate the code, and none are stale or misleading
+- [ ] Exported functions, types, and modules carry documentation comments where the surrounding code uses them
+
 **Codebase Consistency:**
 - [ ] Follows existing patterns in the codebase
 - [ ] Uses existing components/utilities where applicable
@@ -109,6 +116,7 @@ git show HEAD
 - Explain WHY it's a problem (not just that it's wrong)
 - Provide the EXACT fix or approach you want to see
 - If multiple issues, number them clearly
+- Readability and comment findings use the same format: name the file and line, explain how the name, structure, or comment hurts the next reader, and give the exact rename, restructure, or rewritten comment
 
 Example of BAD feedback:
 > "The code could be cleaner"
