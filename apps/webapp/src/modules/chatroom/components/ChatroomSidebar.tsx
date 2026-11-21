@@ -18,9 +18,11 @@ import {
   getChatroomActivityIndicatorClasses,
   getChatroomActivityIndicatorLoadingClasses,
 } from '../utils/activityStatusDisplay';
+import type { ReportFeedback } from '../utils/describeAgentOperation';
 import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
 import { getChatroomDisplayName, isChatroomCompleted } from '../viewModels/chatroomViewModel';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -28,6 +30,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import type { ChatroomStatus } from '@/domain/entities/chatroom-status';
+import { useFeedback } from '@/hooks/useFeedback';
 
 interface ChatroomSidebarItemProps {
   chatroom: ChatroomWithStatus;
@@ -42,6 +45,7 @@ interface ChatroomSidebarItemTriggerProps {
   isActive: boolean;
   showStart: boolean;
   onSelect: (chatroomId: string) => void;
+  report: ReportFeedback;
 }
 
 function ChatroomSidebarItemIdentity({
@@ -78,6 +82,7 @@ function ChatroomSidebarItemTrigger({
   isActive,
   showStart,
   onSelect,
+  report,
 }: ChatroomSidebarItemTriggerProps) {
   return (
     <ContextMenuTrigger
@@ -105,6 +110,7 @@ function ChatroomSidebarItemTrigger({
         canStop={Boolean(chatroomStatus?.canStop)}
         showStart={showStart}
         isRunning={chatroomStatus?.remoteAgentStatus === 'running'}
+        report={report}
       />
     </ContextMenuTrigger>
   );
@@ -156,6 +162,14 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
   const { status: chatroomStatus } = useChatroomStatus(chatroom._id);
+  const { feedback, show, clear } = useFeedback();
+  const report = useCallback<ReportFeedback>(
+    (draft) => {
+      if (draft === null) clear();
+      else show(draft.tone, draft.message, { title: draft.title, items: draft.items });
+    },
+    [clear, show]
+  );
 
   const handleArchive = useCallback(() => {
     setArchiveDialogOpen(true);
@@ -194,6 +208,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           isActive={isActive}
           showStart={Boolean(showStartButton)}
           onSelect={onSelect}
+          report={report}
         />
         <ChatroomSidebarItemMenu
           isCompleted={isCompleted}
@@ -202,6 +217,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           onArchive={handleArchive}
         />
       </ContextMenu>
+
+      <InlineFeedback
+        feedback={feedback}
+        onDismiss={clear}
+        data-testid="sidebar-feedback"
+        className="mx-2 my-1"
+      />
 
       <LifecycleConfirmDialog
         open={archiveDialogOpen}

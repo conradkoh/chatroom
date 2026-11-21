@@ -5,24 +5,24 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2, Play, RefreshCw, Square } from 'lucide-react';
 import React, { memo, useCallback, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { StartWithFavoritesDialog } from '../features/machine-config/components/StartWithFavoritesDialog';
 import { useStartAgentsWithFavorites } from '../features/machine-config/hooks/useStartAgentsWithFavorites';
 import { useChatroomAgentOperations } from '../hooks/useChatroomAgentOperations';
+import {
+  describeAgentOperation,
+  type FeedbackDraft,
+  type ReportFeedback,
+} from '../utils/describeAgentOperation';
 
 type ChatroomId = Id<'chatroom_rooms'>;
-type AgentOperationResult = {
-  failed: readonly unknown[];
-  requested: readonly unknown[];
-  skipped: readonly unknown[];
-};
 
 interface ChatroomSidebarAgentActionsProps {
   chatroomId: string;
   canStop: boolean;
   showStart: boolean;
   isRunning: boolean;
+  report: ReportFeedback;
 }
 
 interface AgentActionButtonsProps {
@@ -39,30 +39,11 @@ interface AgentActionButtonsProps {
   startButtonRef: React.RefObject<HTMLButtonElement | null>;
 }
 
-function reportAgentOperation(
-  result: AgentOperationResult,
-  operation: 'start' | 'restart',
-  appliedCount = 0
-) {
-  if (result.failed.length > 0) {
-    toast.error(`Failed to ${operation} ${result.failed.length} agent(s)`);
-  } else if (result.requested.length > 0) {
-    const requestedText = `${operation[0].toUpperCase()}${operation.slice(1)} requested for ${result.requested.length} agent(s)`;
-    toast.success(
-      appliedCount > 0
-        ? `Applied favourites to ${appliedCount} agent(s). ${requestedText}.`
-        : requestedText
-    );
-  } else {
-    toast.error('No saved agent configuration is available.');
-  }
-}
-
 async function stopAgentsAndCommands(
   chatroomId: ChatroomId,
   stopAgents: (id: ChatroomId) => Promise<unknown>,
   stopAllCommandRuns: (args: { chatroomId: ChatroomId }) => Promise<unknown>
-) {
+): Promise<string[]> {
   const [agentStop, commandStop] = await Promise.allSettled([
     Promise.resolve().then(() => stopAgents(chatroomId)),
     Promise.resolve().then(() => stopAllCommandRuns({ chatroomId })),
@@ -70,7 +51,7 @@ async function stopAgentsAndCommands(
   return [
     agentStop.status === 'rejected' ? `Agents: ${String(agentStop.reason)}` : null,
     commandStop.status === 'rejected' ? `Command runs: ${String(commandStop.reason)}` : null,
-  ].filter(Boolean);
+  ].filter((failure): failure is string => failure !== null);
 }
 
 function StopButton({
@@ -172,18 +153,27 @@ function AgentActionButtons({
   );
 }
 
+function stopFeedback(failures: string[]): FeedbackDraft | null {
+  return failures.length > 0
+    ? { tone: 'error', title: 'Failed to stop agents', items: failures }
+    : null;
+}
+
 function runSidebarAgentAction(
   event: React.MouseEvent,
   setBusy: React.Dispatch<React.SetStateAction<boolean>>,
-  action: () => Promise<void>,
+  report: ReportFeedback,
+  action: () => Promise<FeedbackDraft | null>,
   fallbackMessage: string
 ) {
   event.stopPropagation();
   event.preventDefault();
+  report(null);
   setBusy(true);
   return action()
+    .then((draft) => report(draft))
     .catch((error) => {
-      toast.error(error instanceof Error ? error.message : fallbackMessage);
+      report({ tone: 'error', message: error instanceof Error ? error.message : fallbackMessage });
     })
     .finally(() => setBusy(false));
 }
@@ -193,6 +183,7 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
   canStop,
   showStart,
   isRunning,
+  report,
 }: ChatroomSidebarAgentActionsProps) {
   const { startAgents, stopAgents, restartAgents } = useChatroomAgentOperations();
   const startButtonRef = useRef<HTMLButtonElement>(null);
@@ -205,12 +196,15 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
   const start = useCallback(
     async ({ appliedCount }: { appliedCount: number }) => {
       try {
-        reportAgentOperation(await startAgents(id), 'start', appliedCount);
+        report(describeAgentOperation(await startAgents(id), 'start', appliedCount));
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to start agents');
+        report({
+          tone: 'error',
+          message: error instanceof Error ? error.message : 'Failed to start agents',
+        });
       }
     },
-    [id, startAgents]
+    [id, report, startAgents]
   );
   const { phase, isBusy, requestStart, dialogProps } = useStartAgentsWithFavorites({
     chatroomId,
@@ -222,22 +216,21 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
       runSidebarAgentAction(
         event,
         setIsSubmittingStop,
-        async () => {
-          const failures = await stopAgentsAndCommands(id, stopAgents, stopAllCommandRuns);
-          if (failures.length > 0) toast.error(failures.join('; '));
-        },
+        report,
+        async () => stopFeedback(await stopAgentsAndCommands(id, stopAgents, stopAllCommandRuns)),
         'Failed to stop agents'
       ),
-    [id, stopAgents, stopAllCommandRuns]
+    [id, report, stopAgents, stopAllCommandRuns]
   );
 
   const handleStart = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation();
       event.preventDefault();
+      report(null);
       requestStart();
     },
-    [requestStart]
+    [report, requestStart]
   );
 
   const handleRestart = useCallback(
@@ -245,10 +238,11 @@ export const ChatroomSidebarAgentActions = memo(function ChatroomSidebarAgentAct
       runSidebarAgentAction(
         event,
         setIsRestarting,
-        async () => reportAgentOperation(await restartAgents(id), 'restart'),
+        report,
+        async () => describeAgentOperation(await restartAgents(id), 'restart'),
         'Failed to restart agents'
       ),
-    [id, restartAgents]
+    [id, report, restartAgents]
   );
 
   return (

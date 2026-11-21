@@ -27,8 +27,6 @@ const mockRequestChatroomRestart = vi
 const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
 const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
-const mockToastSuccess = vi.fn();
-const mockToastError = vi.fn();
 const mockPush = vi.fn();
 const mockSaveConfig = vi.fn();
 // Convex boundary for the favourites check. `useQueries` answers by query name.
@@ -52,13 +50,6 @@ vi.mock('../hooks/useChatroomAgentOperations', () => ({
     stopAgents: mockRequestChatroomStop,
     restartAgents: mockRequestChatroomRestart,
   }),
-}));
-
-vi.mock('sonner', () => ({
-  toast: {
-    success: (...args: unknown[]) => mockToastSuccess(...args),
-    error: (...args: unknown[]) => mockToastError(...args),
-  },
 }));
 
 vi.mock('./LifecycleConfirmDialog', () => ({
@@ -266,8 +257,6 @@ describe('ChatroomSidebar', () => {
     mockStopAllCommandRuns.mockResolvedValue({ stoppedCount: 0 });
     mockMarkAsUnread.mockReset();
     mockMarkAsRead.mockReset();
-    mockToastSuccess.mockReset();
-    mockToastError.mockReset();
     mockPush.mockReset();
     mockSaveConfig.mockReset();
     mockSaveConfig.mockResolvedValue(undefined);
@@ -525,7 +514,8 @@ describe('ChatroomSidebar', () => {
     await waitFor(() => {
       expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1');
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+    await act(async () => {});
+    expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
   });
 
   it('reports a neutral message when no saved agent configuration exists', async () => {
@@ -534,9 +524,58 @@ describe('ChatroomSidebar', () => {
 
     fireEvent.click(screen.getByTitle('Start with last configuration'));
 
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith('No saved agent configuration is available.');
+    const box = await screen.findByTestId('sidebar-feedback');
+    expect(box).toHaveAttribute('role', 'alert');
+    expect(box).toHaveTextContent('No saved agent configuration is available.');
+  });
+
+  it('shows a partial start failure under the row with one item per failed agent', async () => {
+    mockRequestChatroomStart.mockResolvedValueOnce({
+      requested: [{ role: 'planner' }],
+      skipped: [],
+      failed: [{ role: 'builder', error: 'Machine offline' }],
     });
+    renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+
+    fireEvent.click(screen.getByTitle('Start with last configuration'));
+
+    const box = await screen.findByTestId('sidebar-feedback');
+    expect(box).toHaveAttribute('role', 'alert');
+    expect(within(box).getByText('Failed to start 1 agent(s)')).toBeInTheDocument();
+    expect(within(box).getByText('Start requested for 1 agent(s)')).toBeInTheDocument();
+    expect(within(box).getByText('builder: Machine offline')).toBeInTheDocument();
+  });
+
+  it('keeps the box when the row is clicked, and Dismiss removes it', async () => {
+    mockRequestChatroomStart.mockResolvedValueOnce({
+      requested: [],
+      skipped: [],
+      failed: [{ role: 'builder', error: 'Machine offline' }],
+    });
+    renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+    fireEvent.click(screen.getByTitle('Start with last configuration'));
+    await screen.findByTestId('sidebar-feedback');
+
+    fireEvent.click(screen.getByRole('button', { name: /test chat/i }));
+    expect(screen.getByTestId('sidebar-feedback')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
+  });
+
+  it('clears the previous box when the next start is attempted', async () => {
+    mockRequestChatroomStart.mockResolvedValueOnce({
+      requested: [],
+      skipped: [],
+      failed: [{ role: 'builder', error: 'Machine offline' }],
+    });
+    renderSidebar([makeChatroom({ remoteAgentStatus: 'stopped' })]);
+    fireEvent.click(screen.getByTitle('Start with last configuration'));
+    await screen.findByTestId('sidebar-feedback');
+
+    fireEvent.click(screen.getByTitle('Start with last configuration'));
+    await act(async () => {});
+    expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
   });
 
   it('keeps restart available for a running chatroom', async () => {
@@ -561,7 +600,8 @@ describe('ChatroomSidebar', () => {
     await waitFor(() => {
       expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1');
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+    await act(async () => {});
+    expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
   });
 
   it('shows stop for a projected active chatroom even when the daemon summary is stopped', () => {
@@ -642,7 +682,8 @@ describe('ChatroomSidebar', () => {
       await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
       expect(screen.queryByTestId('start-favourites-dialog')).not.toBeInTheDocument();
       expect(mockSaveConfig).not.toHaveBeenCalled();
-      expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+      await act(async () => {});
+      expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
     });
 
     it('opens the dialog listing current → favourite and starts nothing until the user chooses', async () => {
@@ -667,7 +708,8 @@ describe('ChatroomSidebar', () => {
       fireEvent.click(await screen.findByTestId('start-favourites-current'));
       await waitFor(() => expect(mockRequestChatroomStart).toHaveBeenCalledWith('chr-1'));
       expect(mockSaveConfig).not.toHaveBeenCalled();
-      expect(mockToastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+      await act(async () => {});
+      expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
     });
 
     it('Use favourites & start saves the favourite before starting and reports it', async () => {
@@ -690,9 +732,8 @@ describe('ChatroomSidebar', () => {
       expect(mockSaveConfig.mock.invocationCallOrder[0]).toBeLessThan(
         mockRequestChatroomStart.mock.invocationCallOrder[0]
       );
-      expect(mockToastSuccess).toHaveBeenCalledWith(
-        'Applied favourites to 1 agent(s). Start requested for 1 agent(s).'
-      );
+      await act(async () => {});
+      expect(screen.queryByTestId('sidebar-feedback')).not.toBeInTheDocument();
     });
 
     it('Cancel starts and saves nothing', async () => {
