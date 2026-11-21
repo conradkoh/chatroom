@@ -173,8 +173,8 @@
       "packages/cli/src/daemon/infrastructure/local/harness/services/claude-sdk/**",
       "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/**",
       "packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/**",
-      // Shared opencode CLI binary harness base used by opencode-sdk
-      "packages/cli/src/daemon/infrastructure/local/harness/services/opencode/binary-agent-service.ts",
+      // Shared OpenCode binary-command base used by opencode-sdk
+      "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/binary-agent-service.ts",
       "services/backend/convex/auth.ts",
       "services/backend/convex/auth/**",
       // Transitional: /app/system-admin is an intentional copy of /app/admin
