@@ -12,7 +12,7 @@ function joinWorkingDirPath(workingDir: string, relativePath: string): string {
   return `${base}${separator}${relativePath.replace(/^[/\\]+/, '')}`;
 }
 
-async function copyTextToClipboard(text: string): Promise<CopyResult> {
+export async function copyTextToClipboard(text: string): Promise<CopyResult> {
   try {
     await navigator.clipboard.writeText(text);
     return { ok: true };

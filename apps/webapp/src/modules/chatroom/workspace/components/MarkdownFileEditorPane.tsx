@@ -3,7 +3,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { memo, useCallback, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { MarkdownFileEditorHeader } from './MarkdownFileEditorHeader';
 import {
@@ -15,6 +14,10 @@ import { pendingOptimisticNewFilePaths } from '../hooks/pendingOptimisticNewFile
 import { useRemoteSelectionContextMenu } from '../hooks/useExplorerSelectionKeyboard';
 import { useMarkdownFileEditor } from '../hooks/useMarkdownFileEditor';
 import { useMarkdownFileEditorPaneActions } from '../hooks/useMarkdownFileEditorPaneActions';
+
+import { InlineFeedback } from '@/components/inline-feedback';
+import { useCopiedIndicator } from '@/hooks/useCopiedIndicator';
+import { useCopyOwnedFeedback } from '@/hooks/useCopyOwnedFeedback';
 
 const EMPTY_FILE_PLACEHOLDER = 'This file is empty.';
 
@@ -46,13 +49,20 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
   const [isDismissingError, setIsDismissingError] = useState(false);
   const isWorkspaceRegistrationError = error === 'Workspace is not registered on this machine.';
 
+  const { feedback, showError, showCopyError, copySucceeded, clear } = useCopyOwnedFeedback();
+  const { copied, markCopied } = useCopiedIndicator();
+  const handleCopied = useCallback(() => {
+    markCopied();
+    copySucceeded();
+  }, [markCopied, copySucceeded]);
+
   const handleDismissError = useCallback(async () => {
     if (!isWorkspaceRegistrationError || isDismissingError) return;
     setIsDismissingError(true);
     try {
       await purgeFileContentEntry({ machineId, workingDir, filePath });
     } catch {
-      toast.error('Could not dismiss workspace registration error');
+      showError('Could not dismiss workspace registration error');
     } finally {
       setIsDismissingError(false);
     }
@@ -62,12 +72,15 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
     isWorkspaceRegistrationError,
     machineId,
     purgeFileContentEntry,
+    showError,
     workingDir,
   ]);
   const { handleKeyDown, handleCopyMarkdown } = useMarkdownFileEditorPaneActions({
     editorContainerRef,
     contentRef,
     save,
+    onCopied: handleCopied,
+    onCopyError: showCopyError,
   });
 
   if (encoding === 'binary') {
@@ -90,10 +103,17 @@ export const MarkdownFileEditorPane = memo(function MarkdownFileEditorPane({
         isDirty={isDirty}
         saving={saving}
         error={error}
+        copied={copied}
         onCopy={() => void handleCopyMarkdown()}
         onOpenPreview={onOpenPreview}
         onDismissError={isWorkspaceRegistrationError ? () => void handleDismissError() : undefined}
         isDismissingError={isDismissingError}
+      />
+      <InlineFeedback
+        feedback={feedback}
+        onDismiss={clear}
+        data-testid="markdown-pane-feedback"
+        className="mx-4 my-2 shrink-0"
       />
       <SelectionMatchTextarea
         content={content}

@@ -1,18 +1,25 @@
 'use client';
 
 import { useCallback, type KeyboardEvent, type RefObject } from 'react';
-import { toast } from 'sonner';
+
+import { copyTextToClipboard } from '../utils/clipboard';
+
+const MARKDOWN_COPY_FAILED_MESSAGE = 'Failed to copy markdown';
 
 interface UseMarkdownFileEditorPaneActionsArgs {
   editorContainerRef: RefObject<HTMLDivElement | null>;
   contentRef: RefObject<string>;
   save: () => Promise<void>;
+  onCopied: () => void;
+  onCopyError: (message: string) => void;
 }
 
 export function useMarkdownFileEditorPaneActions({
   editorContainerRef,
   contentRef,
   save,
+  onCopied,
+  onCopyError,
 }: UseMarkdownFileEditorPaneActionsArgs) {
   const handleKeyDown = useCallback(
     // fallow-ignore-next-line complexity
@@ -31,13 +38,10 @@ export function useMarkdownFileEditorPaneActions({
   );
 
   const handleCopyMarkdown = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(contentRef.current);
-      toast.success('Copied markdown to clipboard');
-    } catch {
-      toast.error('Failed to copy markdown');
-    }
-  }, [contentRef]);
+    const result = await copyTextToClipboard(contentRef.current);
+    if (result.ok) onCopied();
+    else onCopyError(MARKDOWN_COPY_FAILED_MESSAGE);
+  }, [contentRef, onCopied, onCopyError]);
 
   return { handleKeyDown, handleCopyMarkdown };
 }
