@@ -1,11 +1,17 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileExplorerPanel } from './FileExplorerPanel';
+import { __resetWorkspaceFileTreeDeltaSyncCoordinatorForTests } from '../files/workspaceFileTreeDeltaSyncCoordinator';
+import { __resetWorkspaceFileTreeRefreshCoordinatorForTests } from '../files/workspaceFileTreeRefreshCoordinator';
+import {
+  __resetWorkspaceFileTreeWatchCoordinatorForTests,
+  acquireFileTreeWatch,
+} from '../files/workspaceFileTreeWatchCoordinator';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import {
   __resetWorkspaceFileTreeStoreForTests,
-  getWorkspaceFileTreeEntries,
   toWorkspaceFileTreeKey,
   upsertWorkspaceFileTree,
 } from '../stores/workspaceFileTreeStore';
@@ -35,8 +41,6 @@ vi.mock('@tanstack/react-virtual', () => ({
   }),
 }));
 
-const treeRefresh = vi.hoisted(() => vi.fn());
-
 const mockCreateFile = vi.hoisted(() => vi.fn());
 const mockRequestDelete = vi.hoisted(() => vi.fn());
 const mockConfirmDelete = vi.hoisted(() => vi.fn());
@@ -44,25 +48,8 @@ const mockRequestRename = vi.hoisted(() => vi.fn());
 const mockConfirmRename = vi.hoisted(() => vi.fn());
 const mockRequestMkdir = vi.hoisted(() => vi.fn());
 const mockConfirmMkdir = vi.hoisted(() => vi.fn());
-
-vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
-  useWorkspaceFileTreeEntries: ({
-    machineId,
-    workingDir,
-  }: {
-    machineId: string;
-    workingDir: string;
-  }) => {
-    const treeEntries = getWorkspaceFileTreeEntries(toWorkspaceFileTreeKey(machineId, workingDir));
-    return {
-      entries: [],
-      treeEntries,
-      isLoading: false,
-      hasTree: treeEntries.length > 0,
-      refresh: treeRefresh,
-    };
-  },
-}));
+const mockRequestFileTree = vi.hoisted(() => vi.fn());
+const idleMutation = vi.hoisted(() => vi.fn());
 
 vi.mock('../hooks/useWorkspaceFileCreate', () => ({
   useWorkspaceFileCreate: () => ({
@@ -121,13 +108,20 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
+  // Stable identities: a new function per render would re-run the real tree-sync effects.
+  // Reference `api` only inside the returned function, not at factory time.
+  useSessionMutation: (ref: unknown) =>
+    ref === api.workspaceFiles.requestFileTree ? mockRequestFileTree : idleMutation,
   useSessionQuery: () => null,
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    workspaceFiles: { requestFileContent: {}, getFileContentV2: {} },
+    workspaceFiles: {
+      requestFileContent: {},
+      getFileContentV2: {},
+      requestFileTree: {},
+    },
   },
 }));
 
@@ -189,6 +183,11 @@ beforeEach(() => {
     value: vi.fn().mockReturnValue(null),
   });
   __resetWorkspaceFileTreeStoreForTests();
+  // Tree-sync state is module-level; reset it so each test's first attempt is actually sent.
+  __resetWorkspaceFileTreeRefreshCoordinatorForTests();
+  __resetWorkspaceFileTreeDeltaSyncCoordinatorForTests();
+  __resetWorkspaceFileTreeWatchCoordinatorForTests();
+  acquireFileTreeWatch('machine-1', '/workspace', vi.fn());
   upsertWorkspaceFileTree(
     WORKSPACE_KEY,
     [
@@ -198,6 +197,8 @@ beforeEach(() => {
     1
   );
 
+  mockRequestFileTree.mockReset().mockResolvedValue(undefined);
+  idleMutation.mockReset().mockResolvedValue(undefined);
   mockCreateFile.mockResolvedValue(undefined);
   mockRequestDelete.mockResolvedValue({ requestId: 'req-delete-1' });
   mockConfirmDelete.mockResolvedValue(undefined);
@@ -205,6 +206,12 @@ beforeEach(() => {
   mockConfirmRename.mockResolvedValue(undefined);
   mockRequestMkdir.mockResolvedValue({ requestId: 'req-mkdir-1' });
   mockConfirmMkdir.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  __resetWorkspaceFileTreeWatchCoordinatorForTests();
+  __resetWorkspaceFileTreeRefreshCoordinatorForTests();
+  __resetWorkspaceFileTreeDeltaSyncCoordinatorForTests();
 });
 
 async function submitNewFile(path: string) {
@@ -221,7 +228,7 @@ describe('FileExplorerPanel create/delete integration', () => {
     render(<FileExplorerPanel {...defaultProps} onFileCreated={onFileCreated} />);
 
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
-    treeRefresh.mockClear();
+    mockRequestFileTree.mockClear();
 
     fireEvent.click(screen.getByLabelText('New file'));
 
@@ -233,7 +240,11 @@ describe('FileExplorerPanel create/delete integration', () => {
     expect(mockCreateFile).toHaveBeenCalledWith('notes.md', '');
 
     await waitFor(() => {
-      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
+      expect(mockRequestFileTree).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        force: true,
+      });
     });
 
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
@@ -257,7 +268,11 @@ describe('FileExplorerPanel create/delete integration', () => {
     await waitFor(() => {
       expect(mockRequestDelete).toHaveBeenCalledWith('package.json');
       expect(onFileDeleted).toHaveBeenCalledWith('package.json');
-      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
+      expect(mockRequestFileTree).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        force: true,
+      });
     });
 
     await waitFor(() => {
@@ -304,7 +319,7 @@ describe('FileExplorerPanel create/delete integration', () => {
     await waitFor(() => {
       expect(screen.getByTitle('package.json')).toBeInTheDocument();
     });
-    treeRefresh.mockClear();
+    mockRequestFileTree.mockClear();
 
     fireEvent.click(screen.getByLabelText('New file'));
     const input = await screen.findByPlaceholderText('docs/notes.md');
@@ -313,12 +328,16 @@ describe('FileExplorerPanel create/delete integration', () => {
 
     await waitFor(() => {
       expect(mockCreateFile).toHaveBeenCalledWith('docs/new-note.md', '');
-      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
+      expect(mockRequestFileTree).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        force: true,
+      });
     });
 
-    const callsAfterSettle = treeRefresh.mock.calls.length;
+    const callsAfterSettle = mockRequestFileTree.mock.calls.length;
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(treeRefresh.mock.calls.length).toBe(callsAfterSettle);
+    expect(mockRequestFileTree.mock.calls.length).toBe(callsAfterSettle);
     expect(screen.getByTitle('package.json')).toBeInTheDocument();
   });
 
@@ -342,7 +361,11 @@ describe('FileExplorerPanel create/delete integration', () => {
 
     await waitFor(() => {
       expect(mockConfirmMkdir).toHaveBeenCalledWith('req-mkdir-1');
-      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
+      expect(mockRequestFileTree).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        force: true,
+      });
     });
   });
 
@@ -454,7 +477,11 @@ describe('FileExplorerPanel create/delete integration', () => {
 
     await waitFor(() => {
       expect(mockCreateFile).toHaveBeenCalledWith('notes.md', '');
-      expect(treeRefresh).toHaveBeenCalledWith({ force: true });
+      expect(mockRequestFileTree).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        force: true,
+      });
     });
     expect(screen.queryByTestId('explorer-feedback')).toBeNull();
   });
@@ -471,5 +498,48 @@ describe('FileExplorerPanel create/delete integration', () => {
     fireEvent.click(screen.getByLabelText('New file'));
 
     expect(screen.queryByTestId('explorer-feedback')).toBeNull();
+  });
+});
+
+describe('FileExplorerPanel tree sync feedback', () => {
+  it('shows a tree-sync failure in the explorer feedback slot', async () => {
+    mockRequestFileTree.mockImplementation(() =>
+      Promise.reject(new Error('Authentication required'))
+    );
+
+    render(<FileExplorerPanel {...defaultProps} />);
+
+    const slot = await screen.findByTestId('explorer-feedback');
+    expect(slot).toHaveTextContent('Authentication required');
+    expect(slot).toHaveAttribute('role', 'alert');
+  });
+
+  it('dismisses a tree-sync failure', async () => {
+    mockRequestFileTree.mockImplementation(() =>
+      Promise.reject(new Error('Authentication required'))
+    );
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    expect(await screen.findByTestId('explorer-feedback')).toHaveTextContent(
+      'Authentication required'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(screen.queryByTestId('explorer-feedback')).toBeNull();
+  });
+
+  it('clears a tree-sync failure on the next attempt', async () => {
+    mockRequestFileTree.mockImplementation(() =>
+      Promise.reject(new Error('Authentication required'))
+    );
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await screen.findByTestId('explorer-feedback');
+
+    mockRequestFileTree.mockImplementation(() => Promise.resolve());
+    fireEvent.click(screen.getByLabelText('Refresh files'));
+
+    await waitFor(() => expect(screen.queryByTestId('explorer-feedback')).toBeNull());
   });
 });
