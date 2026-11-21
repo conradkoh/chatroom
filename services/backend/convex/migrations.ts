@@ -10,6 +10,11 @@ import {
   isVerboseFileTreeDeltaOp,
 } from './lib/fileTreeDeltaOps';
 import {
+  isRetiredCliHarness,
+  withoutRetiredHarnessNames,
+  withoutRetiredHarnesses,
+} from './lib/retiredHarnesses';
+import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
@@ -1013,6 +1018,99 @@ export const purgeRetiredMachineRegistry = migrations.define({
   },
 });
 
+// --- Retired CLI harness data purge (run before the schema narrowing ships) ---
+// Each migration is idempotent: rows without a retired harness return undefined
+// and are skipped. Rows are read through Record<string, unknown> because the
+// schema still accepts the retired literals in PR-A.
+
+/** Delete model filters saved for a retired CLI harness. */
+export const purgeRetiredCliHarnessModelFilters = migrations.define({
+  table: 'chatroom_machineModelFilters',
+  migrateOne: async (ctx, row) => {
+    if (isRetiredCliHarness((row as Record<string, unknown>).agentHarness)) {
+      await ctx.db.delete('chatroom_machineModelFilters', row._id);
+    }
+  },
+});
+
+/** Delete launch-request snapshots for a retired CLI harness. The user reconfigures the role. */
+export const purgeRetiredCliHarnessLaunchRequests = migrations.define({
+  table: 'chatroom_agentLastSentLaunchRequests',
+  migrateOne: async (ctx, row) => {
+    if (isRetiredCliHarness((row as Record<string, unknown>).agentHarness)) {
+      await ctx.db.delete('chatroom_agentLastSentLaunchRequests', row._id);
+    }
+  },
+});
+
+/** Drop retired entries from machine config favorites. The list may become []. */
+export const purgeRetiredCliHarnessFavorites = migrations.define({
+  table: 'chatroom_machineConfigFavorites',
+  migrateOne: async (_ctx, row) => {
+    const kept = withoutRetiredHarnesses(row.favorites);
+    if (kept.length !== row.favorites.length) {
+      return migrationPatch<Doc<'chatroom_machineConfigFavorites'>>({ favorites: kept });
+    }
+  },
+});
+
+/**
+ * Drop retired harnesses from the machine capability snapshot. Batches are small
+ * because these rows can be large (see the 16 MiB precedent above).
+ */
+export const purgeRetiredCliHarnessCapabilities = migrations.define({
+  table: 'chatroom_machineCapabilities',
+  batchSize: 10,
+  migrateOne: async (_ctx, row) => {
+    const patch: Record<string, unknown> = {};
+    if (row.availableHarnesses !== undefined) {
+      const kept = withoutRetiredHarnessNames(row.availableHarnesses);
+      if (kept.length !== row.availableHarnesses.length) patch.availableHarnesses = kept;
+    }
+    if (row.harnessVersions !== undefined) {
+      const entries = Object.entries(row.harnessVersions);
+      const kept = entries.filter(([name]) => !isRetiredCliHarness(name));
+      if (kept.length !== entries.length) patch.harnessVersions = Object.fromEntries(kept);
+    }
+    if (Object.keys(patch).length > 0) {
+      return migrationPatch<Doc<'chatroom_machineCapabilities'>>(patch);
+    }
+  },
+});
+
+/** Delete queued launch/restart commands that target a retired CLI harness. stop and other commands are kept. */
+export const purgeRetiredCliHarnessCommandInbox = migrations.define({
+  table: 'chatroom_machineCommandInbox',
+  migrateOne: async (ctx, row) => {
+    const command = (row as { command?: { type?: unknown; agentHarness?: unknown } }).command;
+    const launchesHarness =
+      command?.type === 'agent.requestStart' || command?.type === 'agent.restart';
+    if (launchesHarness && isRetiredCliHarness(command?.agentHarness)) {
+      await ctx.db.delete('chatroom_machineCommandInbox', row._id);
+    }
+  },
+});
+
+/** Delete deprecated desired-config rows for a retired CLI harness. */
+export const purgeRetiredCliHarnessDesiredConfigs = migrations.define({
+  table: 'chatroom_agentDesiredConfigs',
+  migrateOne: async (ctx, row) => {
+    if (isRetiredCliHarness((row as Record<string, unknown>).agentHarness)) {
+      await ctx.db.delete('chatroom_agentDesiredConfigs', row._id);
+    }
+  },
+});
+
+/** Delete deprecated runtime-state rows for a retired CLI harness. */
+export const purgeRetiredCliHarnessRuntimeStates = migrations.define({
+  table: 'chatroom_agentRuntimeStates',
+  migrateOne: async (ctx, row) => {
+    if (isRetiredCliHarness((row as Record<string, unknown>).actualHarness)) {
+      await ctx.db.delete('chatroom_agentRuntimeStates', row._id);
+    }
+  },
+});
+
 /**
  * Run all migrations in order.
  * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
@@ -1085,6 +1183,14 @@ const allMigrationReferences = [
   internal.migrations.purgeRetiredAgentViewMetadata,
   internal.migrations.purgeRetiredMachineIdentity,
   internal.migrations.purgeRetiredMachineRegistry,
+  // Retired CLI harness data purge (run before the schema narrowing ships)
+  internal.migrations.purgeRetiredCliHarnessModelFilters,
+  internal.migrations.purgeRetiredCliHarnessLaunchRequests,
+  internal.migrations.purgeRetiredCliHarnessFavorites,
+  internal.migrations.purgeRetiredCliHarnessCapabilities,
+  internal.migrations.purgeRetiredCliHarnessCommandInbox,
+  internal.migrations.purgeRetiredCliHarnessDesiredConfigs,
+  internal.migrations.purgeRetiredCliHarnessRuntimeStates,
   // Active task header projection backfill (reads full task docs — run last)
   internal.migrations.backfillActiveTaskHeaders,
 ] as unknown as MigrationFunctionReference[];
