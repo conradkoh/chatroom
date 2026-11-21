@@ -15,9 +15,32 @@ export interface DashboardWorkspaceRefreshOptions {
   cooldownMs: number;
 }
 
-/** True when a request at `now` falls inside the cooldown that started at `startedAt`. */
-function isWithinRefreshCooldown(startedAt: number, now: number, cooldownMs: number): boolean {
-  return now - startedAt < cooldownMs;
+/** A workspace identity with both parts known, so a refresh request can be addressed to it. */
+interface RefreshTarget {
+  machineId: string;
+  workingDir: string;
+}
+
+/** The refresh target, or `null` when either part of the workspace identity is missing. */
+function getRefreshTarget(
+  machineId: string | undefined,
+  workingDir: string | undefined
+): RefreshTarget | null {
+  if (!machineId || !workingDir) return null;
+  return { machineId, workingDir };
+}
+
+/**
+ * True when a click at `now` must not send: a request is in flight, or a request was sent
+ * within the cooldown window. `lastStartedAt` is `null` when none was sent or the last one failed.
+ */
+function isRefreshBlocked(
+  { inFlight, lastStartedAt }: { inFlight: boolean; lastStartedAt: number | null },
+  now: number,
+  cooldownMs: number
+): boolean {
+  if (inFlight) return true;
+  return lastStartedAt !== null && now - lastStartedAt < cooldownMs;
 }
 
 /**
@@ -39,16 +62,19 @@ export function useDashboardWorkspaceRefresh({
   /** True while a request is awaiting its response. */
   const inFlightRef = useRef(false);
 
-  // fallow-ignore-next-line complexity
   return useCallback(async () => {
     report(null);
-    if (!machineId || !workingDir) return;
+    const target = getRefreshTarget(machineId, workingDir);
+    if (!target) return;
 
     const now = Date.now();
-    const lastStartedAt = lastStartedAtRef.current;
-    const inCooldown =
-      lastStartedAt !== null && isWithinRefreshCooldown(lastStartedAt, now, cooldownMs);
-    if (inFlightRef.current || inCooldown) {
+    if (
+      isRefreshBlocked(
+        { inFlight: inFlightRef.current, lastStartedAt: lastStartedAtRef.current },
+        now,
+        cooldownMs
+      )
+    ) {
       report({ tone: 'info', message: 'Refresh already in progress — please wait a moment' });
       return;
     }
@@ -56,7 +82,7 @@ export function useDashboardWorkspaceRefresh({
     lastStartedAtRef.current = now;
     inFlightRef.current = true;
     try {
-      await requestGitRefresh({ machineId, workingDir });
+      await requestGitRefresh(target);
     } catch (err) {
       lastStartedAtRef.current = null;
       report({ tone: 'error', message: 'Failed to refresh workspace state' });
