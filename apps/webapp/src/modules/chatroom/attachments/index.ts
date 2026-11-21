@@ -47,8 +47,7 @@ export {
   dispatchComposerTextPrefill,
   subscribeComposerPrefill,
   subscribeComposerTextPrefill,
-  PREFILL_TOAST_MESSAGE,
-  SAVED_COMMAND_PREFILL_TOAST_MESSAGE,
+  SELECTION_PREFILL_NOTICE,
   // fallow-ignore-next-line unused-type
   type ComposerPrefillDetail,
   // fallow-ignore-next-line unused-type

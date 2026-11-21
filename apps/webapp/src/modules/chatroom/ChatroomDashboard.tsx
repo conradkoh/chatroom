@@ -24,14 +24,11 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { toast } from 'sonner';
 
 import {
   AttachmentsProvider,
   dispatchComposerPrefill,
   dispatchComposerTextPrefill,
-  PREFILL_TOAST_MESSAGE,
-  SAVED_COMMAND_PREFILL_TOAST_MESSAGE,
 } from './attachments';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
@@ -93,6 +90,10 @@ import type { AgentConfig } from './types/machine';
 import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
 import { ensureRestartAgentRolesConfigured, runAgentRestartBatch } from './utils/agentBulkStart';
 import { isFocusModeActive } from './utils/focusMode';
+import {
+  getSelectionPrefillNotice,
+  isMessagesComposerVisible,
+} from './utils/selectionPrefillNotice';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { EditorSplitDropOverlay } from './workspace/components/EditorSplitDropOverlay';
@@ -824,11 +825,7 @@ function ChatroomDashboardContent({
 
   useEffect(() => {
     return subscribeCommandDialogAnyClose(() => {
-      const messageInputVisible =
-        activeView === 'messages' ||
-        ((activeView === 'explorer' || activeView === 'source-control') &&
-          explorerSplitViewEnabled);
-      if (messageInputVisible) {
+      if (isMessagesComposerVisible({ activeView, explorerSplitViewEnabled })) {
         setTimeout(() => focusSendFormRef.current?.(), 0);
       }
     });
@@ -855,6 +852,9 @@ function ChatroomDashboardContent({
 
   const handleExplorerSelectionToComposer = useCallback(
     ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
+      // Decided from the state at prefill time, before this handler opens the split view.
+      const notice = getSelectionPrefillNotice({ activeView, explorerSplitViewEnabled });
+      reportDashboardFeedback(null);
       if (!explorerSplitViewEnabled) {
         setExplorerSplitViewEnabled(true);
       }
@@ -864,9 +864,9 @@ function ChatroomDashboardContent({
         fileSource: filePath,
         selectedContent: selectedText,
       });
-      toast.message(PREFILL_TOAST_MESSAGE);
+      if (notice) reportDashboardFeedback({ tone: 'info', message: notice });
     },
-    [explorerSplitViewEnabled, setExplorerSplitViewEnabled]
+    [activeView, explorerSplitViewEnabled, setExplorerSplitViewEnabled, reportDashboardFeedback]
   );
 
   const handleActivityViewChange = useCallback(
@@ -1033,16 +1033,16 @@ function ChatroomDashboardContent({
     (cmd: SavedCommand) => {
       switch (cmd.type) {
         case 'prompt':
+          reportDashboardFeedback(null);
           setActivityView('messages');
           dispatchComposerTextPrefill(cmd.prompt);
-          toast.message(SAVED_COMMAND_PREFILL_TOAST_MESSAGE);
           setTimeout(() => focusSendFormRef.current?.(), 0);
           break;
         default:
           exhaustive(cmd.type);
       }
     },
-    [setActivityView]
+    [reportDashboardFeedback, setActivityView]
   );
 
   const savedCommands: SavedCommand[] = useMemo(

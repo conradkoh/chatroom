@@ -77,5 +77,5 @@ export function subscribeComposerTextPrefill(
   return () => window.removeEventListener(COMPOSER_TEXT_PREFILL_EVENT, listener);
 }
 
-export const PREFILL_TOAST_MESSAGE = 'Selection added to Messages composer';
-export const SAVED_COMMAND_PREFILL_TOAST_MESSAGE = 'Command added to Messages composer';
+/** Info notice after a file-selection prefill when the Messages composer is not visible. */
+export const SELECTION_PREFILL_NOTICE = 'Selection added to Messages composer';
