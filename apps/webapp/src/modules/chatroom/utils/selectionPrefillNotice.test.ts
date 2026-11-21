@@ -20,6 +20,7 @@ const cases: {
   { activeView: 'explorer', split: false, expected: NOTICE },
   { activeView: 'source-control', split: false, expected: NOTICE },
   { activeView: 'processes', split: true, expected: NOTICE },
+  { activeView: 'pull-requests', split: true, expected: NOTICE },
   { activeView: 'pull-requests', split: false, expected: NOTICE },
 ];
 
@@ -42,5 +43,23 @@ describe('isMessagesComposerVisible', () => {
     expect(
       isMessagesComposerVisible({ activeView: 'processes', explorerSplitViewEnabled: true })
     ).toBe(false);
+  });
+});
+
+describe('selection prefill after the handler opens the split view', () => {
+  // ChatroomDashboard evaluates the notice with explorerSplitViewEnabled: true, because the
+  // handler always opens the split. These literals pin the user-visible outcome per view.
+  const cases = [
+    { activeView: 'explorer', expected: null },
+    { activeView: 'source-control', expected: null },
+    { activeView: 'messages', expected: null },
+    { activeView: 'pull-requests', expected: NOTICE },
+    { activeView: 'processes', expected: NOTICE },
+  ] as const;
+
+  it.each(cases)('$activeView → expected notice $expected', ({ activeView, expected }) => {
+    expect(getSelectionPrefillNotice({ activeView, explorerSplitViewEnabled: true })).toBe(
+      expected
+    );
   });
 });

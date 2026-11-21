@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
@@ -14,11 +14,29 @@ vi.mock('../../features/run-command/hooks/useCommandFavorites', () => ({
   }),
 }));
 
+const { clearUsage, toastMock } = vi.hoisted(() => ({
+  clearUsage: vi.fn(),
+  toastMock: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
+
 vi.mock('../../features/run-command/hooks/useCommandUsage', () => ({
   useCommandUsage: () => ({
-    clearUsage: vi.fn(),
+    clearUsage,
     revision: 0,
   }),
+}));
+
+vi.mock('sonner', () => ({
+  toast: toastMock,
 }));
 
 describe('useCommandPaletteCommands', () => {
@@ -588,6 +606,36 @@ describe('useCommandPaletteCommands', () => {
     it('omits agentic search command when callback is not provided', () => {
       const { result } = renderHook(() => useCommandPaletteCommands({ ...baseProps }));
       expect(result.current.some((c) => c.id === 'nav-agentic-search')).toBe(false);
+    });
+  });
+
+  describe('Preferences: Reset Command Stats', () => {
+    beforeEach(() => {
+      clearUsage.mockClear();
+      Object.values(toastMock).forEach((fn) => fn.mockClear());
+    });
+
+    it('clears command usage', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+      const command = result.current.find((c) => c.id === 'action-reset-command-stats');
+      expect(command).toMatchObject({
+        label: 'Preferences: Reset Command Stats',
+        category: 'Preferences',
+      });
+
+      command?.action();
+      expect(clearUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports nothing to the user after clearing', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+      result.current.find((c) => c.id === 'action-reset-command-stats')?.action();
+
+      for (const fn of Object.values(toastMock)) {
+        expect(fn).not.toHaveBeenCalled();
+      }
     });
   });
 });
