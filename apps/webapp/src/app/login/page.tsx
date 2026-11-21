@@ -123,7 +123,6 @@ function _renderInviteSignupOption() {
 export default function LoginPage() {
   return (
     <Suspense fallback={_renderLoadingState()}>
-      <SearchParamsErrorHandler />
       <LoginPageContent />
     </Suspense>
   );
@@ -190,6 +189,7 @@ function _renderLoginForm(
       <div className="w-full max-w-md space-y-6">
         {signupConfig !== null && !signupConfig.signupAllowed && _renderSignupDisabledBanner()}
         {_renderHeader()}
+        <SearchParamsErrorHandler />
         {_renderLoginOptions({ signupConfig, sessionId, returnTo })}
         {signupConfig?.inviteOnlyMode && _renderInviteOnlyHint()}
         {_renderFooter()}
