@@ -88,7 +88,7 @@ export interface SpawnResult {
   activityEmitter?: HarnessActivityEmitter | undefined;
   /**
    * Human-readable log lines for provider failure classification.
-   * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §3.5).
+   * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §1, SpawnResult outputs).
    */
   onLogLine?: ((cb: (line: string) => void) => void) | undefined;
   /**

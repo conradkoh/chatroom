@@ -168,7 +168,7 @@
       "packages/cli/src/utils/serialization/decode/index.ts",
       "services/backend/convex/lib/stdinDecoder.ts",
       // Intentional per-harness SDK service scaffolding (keeper PID, resume
-      // queue, spawn-error formatting) — see HARNESS_GUIDE.md §4
+      // queue, spawn-error formatting) — see HARNESS_GUIDE.md §3
       "packages/cli/src/daemon/infrastructure/local/harness/services/codex-sdk/**",
       "packages/cli/src/daemon/infrastructure/local/harness/services/claude-sdk/**",
       "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/**",

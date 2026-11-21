@@ -2,38 +2,34 @@
 
 End-to-end steps for adding a new remote agent harness to the Chatroom CLI.
 
-**Harness kinds**
+**Harness kind:** every harness is **SDK-based**: the runtime is a Node SDK (in-process API). Current SDK harnesses: `cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk`.
 
-| Kind          | When to use                                              | Examples                                                       |
-| ------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
-| **CLI-based** | The runtime is a subprocess with stdout/stderr you parse | `cursor`, `claude`, `pi`, `opencode`, `copilot`, `commandcode` |
-| **SDK-based** | The runtime is a Node SDK (in-process API)               | `cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk`           |
+Each harness implements the `RemoteAgentService` contract and registers in `init-registry.ts`.
 
-Both kinds implement the same `RemoteAgentService` contract and register in `init-registry.ts`.
+### Native integration
 
-### Native integration (`supportsNativeIntegration`)
+Harnesses use **native integration**: the chatroom daemon injects tasks directly into the harness session context instead of relying on a blocking `get-next-task` listen loop.
 
-Some harnesses use **native integration**: the chatroom daemon injects tasks directly into the harness session context instead of relying on a blocking `get-next-task` listen loop.
+| Aspect               | Native integration harness                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| **Task delivery**    | Backend injects tasks into the in-process session when user messages or handoffs arrive          |
+| **Session start**    | System prompt only — no `get-next-task` loop                                                     |
+| **Status lifecycle** | `native:waiting` → WAITING; `native:task-injected` → ACKNOWLEDGED; first harness token → WORKING |
 
-| Aspect               | CLI harness (default)                                                                                    | Native integration harness                                                                       |
-| -------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Task delivery**    | Agent runs `get-next-task` in a foreground loop; backend claims and delivers via WebSocket               | Backend injects tasks into the in-process session when user messages or handoffs arrive          |
-| **Session start**    | System prompt + instructions to run `get-next-task`                                                      | System prompt only — no `get-next-task` loop                                                     |
-| **Status lifecycle** | `get-next-task:started` → WAITING; `get-next-task:stopped` → ACKNOWLEDGED; first harness token → WORKING | `native:waiting` → WAITING; `native:task-injected` → ACKNOWLEDGED; first harness token → WORKING |
+Agents without a harness (`agentType: 'custom'`) are not native. They keep the `get-next-task` loop (`commands/get-next-task`, prompts in `prompts/cli/`).
 
 **Task injection:** Native SDK harnesses use `resumeTurn` only when the daemon injects user work — not for turn-end auto-resume.
 
-**Current native harnesses:** `cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk` (`supportsNativeIntegration: true` in `types.ts`).
+**Current native harnesses:** `cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk`.
 
 **Turn-end policy:** Native harnesses idle in-process after each turn; the daemon emits `native:waiting` without calling `resumeTurn` when the agent has no active assigned work (`task.acknowledged` / `task.inProgress`). Task injection uses `resumeTurn` only when delivering user work.
 
 **Participant heartbeat actions** (emitted by the daemon):
 
-- **CLI harnesses:** `get-next-task:started` → WAITING; `get-next-task:stopped` when a task is delivered → ACKNOWLEDGED (`task.acknowledged`)
 - **Native harnesses:** `native:waiting` → WAITING; `native:task-injected` when a task is injected → ACKNOWLEDGED (`task.acknowledged`)
-- **All harnesses:** first stdout/stderr activity via `recordHarnessActivity` when the task is `acknowledged` → `readTask()` → `task.inProgress` / UI **WORKING**
+- **All harnesses:** first harness activity via `recordHarnessActivity` when the task is `acknowledged` → `readTask()` → `task.inProgress` / UI **WORKING**
 
-Native SDK harnesses with a typed activity emitter report once per turn via `wireTokenActivityReporting`; legacy CLI harnesses fall back to `spawnResult.onOutput()` with a 30s throttle. Used by `AgentProcessManager` (multi-agent team roles only). The enhancer daemon is a one-off worker. It registers an ephemeral `enhancer` participant when `claimForSpawn` starts the job, then task `pending → in_progress` happens through the same task lifecycle use cases as team agents. Team agents do **not** need to run `task read` to mark work as in progress — producing harness output is the signal.
+Native SDK harnesses with a typed activity emitter report once per turn via `wireTokenActivityReporting`. Used by `AgentProcessManager` (multi-agent team roles only). The enhancer daemon is a one-off worker. It registers an ephemeral `enhancer` participant when `claimForSpawn` starts the job, then task `pending → in_progress` happens through the same task lifecycle use cases as team agents. Team agents do **not** need to run `task read` to mark work as in progress — producing harness output is the signal.
 
 `task read` remains available as an optional recovery command (e.g. backlog attachments not shown in delivery).
 
@@ -54,12 +50,12 @@ Injection wiring:
 2. `native-task-injector.ts` — task-service wiring: `claimTask` → `getTaskDeliveryPrompt` → `resumeTurnForSlot` → `participants.join` (`native:task-injected`)
 3. `AgentProcessManager.emitNativeWaiting` — emits `native:waiting` after native spawn only; turn-end unlocks delivery via `agent_end` → nativeTurnPhase idle → coordinator, not via `lastSeenAction` predicates
 
-CLI harnesses keep the existing `get-next-task` loop. Native harnesses use the
+Native harnesses use the
 constructed native delivery service for explicit pending-task activation.
 
 ### Native multi-turn invariant
 
-For harnesses with `supportsNativeIntegration` + `resumeTurn`:
+For harnesses that implement `resumeTurn`:
 
 1. `resumeTurn(pid, prompt)` starts or queues **one** turn.
 2. When that turn completes, emit `lifecycle.turn.completed` via `SpawnResult.onAgentEnd` **once**.
@@ -88,10 +84,10 @@ Trio sets the task envelope sessionPolicy per handoff edge (see memory/architect
 | reviewer | `none`        | Continue existing session                     |
 | enhancer | `none`        | Continue existing session                     |
 
-| Mode          | Native (`cursor-sdk`, `opencode-sdk`, `claude-sdk`)           | CLI harnesses                                      |
-| ------------- | ------------------------------------------------------------- | -------------------------------------------------- |
-| `new_session` | New session in-process; new-session preamble (not compaction) | Hard restart (`wantResume=false`); `get-next-task` |
-| `none`        | Continue prior session; plain task injection                  | Resume prior session (`wantResume=true`)           |
+| Mode          | Native harnesses (`cursor-sdk`, `opencode-sdk`, `claude-sdk`) |
+| ------------- | ------------------------------------------------------------- |
+| `new_session` | New session in-process; new-session preamble (not compaction) |
+| `none`        | Continue prior session; plain task injection                  |
 
 ---
 
@@ -101,7 +97,7 @@ Defined in `remote-agent-service.ts`. Every harness must provide:
 
 | Member                                   | Purpose                                                                           |
 | ---------------------------------------- | --------------------------------------------------------------------------------- |
-| `id`                                     | Stable identifier stored in DB/config (e.g. `'cursor'`)                           |
+| `id`                                     | Stable identifier stored in DB/config (e.g. `'cursor-sdk'`)                       |
 | `displayName`                            | Human label for the UI                                                            |
 | `command`                                | CLI binary used for install detection (even SDK harnesses often gate on a binary) |
 | `isInstalled()`                          | Async check — hide harness from picker when false                                 |
@@ -128,6 +124,10 @@ Defined in `remote-agent-service.ts`. Every harness must provide:
 - `onAgentEnd?(cb)` — optional; fires when the agent completes a turn (see capabilities)
 - `onLogLine?(cb)` — formatted harness output for daemon and UI observability
 
+`onLogLine` is an observability callback. Implementations should forward the
+same formatted lines written to stdout/stderr, including spawn and session
+errors. It is not used to classify or trigger automatic recovery.
+
 ### Lifecycle vs wire events
 
 Canonical vocabulary lives in `services/backend/src/domain/entities/harness/lifecycle-events.ts` and per-harness `HarnessCapabilities` in `types.ts`.
@@ -135,9 +135,7 @@ Canonical vocabulary lives in `services/backend/src/domain/entities/harness/life
 | Layer                           | Meaning                                    | Examples                                                                         |
 | ------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------- |
 | **Lifecycle** (daemon boundary) | Stable semantics for `AgentProcessManager` | `lifecycle.turn.completed` → `onAgentEnd`, `lifecycle.process.exited` → `onExit` |
-| **Wire** (harness-specific)     | Protocol/SDK signals before adaptation     | Pi NDJSON `wire.ndjson.agent_end`, Cursor `sdk.cursor.run.completed`             |
-
-**CLI-only wire events:** kinds with `cliOnly: true` (all `wire.ndjson.*`) are **never** emitted by SDK harnesses. SDK harnesses synthesize `lifecycle.turn.completed` from SDK APIs (e.g. after `run.wait()`), not from NDJSON on child stdout.
+| **Wire** (harness-specific)     | Protocol/SDK signals before adaptation     | Cursor `sdk.cursor.run.completed`                                                |
 
 Declare `runtimeKind`, `lifecycle`, and `wireEvents` in each `*.config.ts` under `services/backend/src/domain/entities/harness/`.
 
@@ -156,73 +154,15 @@ All current harnesses extend `base-cli-agent-service.ts`, which provides:
 
 ---
 
-## 3. CLI-based harness pattern
+## 3. SDK-based harness pattern
 
-Use when the agent runtime is an external CLI binary.
-
-### 3.1 File layout
-
-```
-daemon/infrastructure/local/harness/services/
-  my-agent/
-    my-agent-service.ts       ← main harness class
-    my-stream-reader.ts       ← optional: parse NDJSON/stream output
-    my-agent-service.test.ts
-    index.ts                  ← re-export service class
-```
-
-Reference implementations: `cursor/`, `claude/`, `pi/`.
-
-### 3.2 Implementation checklist
-
-1. **Extend `BaseCLIAgentService`** and set `id`, `displayName`, `command`.
-2. **`isInstalled` / `getVersion`** — delegate to `this.checkInstalled(COMMAND)` and `this.checkVersion(COMMAND)`.
-3. **`listModels`** — run a CLI subcommand via `runListCommand`, or return a static list if the CLI has no list command (see `claude`).
-4. **`spawn`** — core loop:
-   - Build CLI args (model flags, output format, etc.)
-   - Combine prompts: `systemPrompt + '\n\n' + prompt` when the CLI has no separate system flag
-   - `this.deps.spawn(COMMAND, args, { cwd, stdio, detached: true, ... })`
-   - Write prompt to stdin if needed; call `stdin.end()`
-   - Guard against immediate exit / missing PID
-   - `this.registerProcess(pid, context)` and wire stdout/stderr
-   - Attach a **stream reader** to parse NDJSON events, update `entry.lastOutputAt`, and fire `onOutput` / `onAgentEnd`
-   - Return `{ pid, onExit, onOutput, onAgentEnd? }` — `onExit` must call `this.deleteProcess(pid)`
-
-### 3.3 Stream readers
-
-CLI harnesses that emit structured output (NDJSON, RPC) use a dedicated reader class:
-
-- `CursorStreamReader` — stream-json events from `agent -p`
-- `ClaudeStreamReader` — stream-json from `claude -p`
-- `PiRpcReader` — newline-delimited JSON over RPC stdin/stdout
-- `CopilotStreamReader`, `CommandCodeStreamReader` — plain-text or custom formats
-
-Readers typically expose `onText`, `onAgentEnd`, `onToolCall`, etc., and write prefixed lines to `process.stdout` so PM2/daemon logs stay parseable.
-
-### 3.4 Single-shot vs long-lived CLIs
-
-| Mode            | Behaviour                                                      | Examples                          |
-| --------------- | -------------------------------------------------------------- | --------------------------------- |
-| **Single-shot** | Process exits after one turn; daemon respawns for next message | `cursor`, `claude`, `commandcode` |
-| **Long-lived**  | Process stays up; future prompts sent over stdin               | `pi` (RPC mode)                   |
-
-Implement `onAgentEnd` when the daemon should restart the process between turns.
-
-`onLogLine` is an observability callback. Implementations should forward the
-same formatted lines written to stdout/stderr, including spawn and session
-errors. It is not used to classify or trigger automatic recovery.
-
----
-
-## 4. SDK-based harness pattern
-
-Use when integration happens through a Node SDK rather than parsing CLI stdout.
+Use when integration happens through a Node SDK.
 
 Reference implementations: `cursor-sdk/` (in-process SDK + keeper PID), `opencode-sdk/` (spawn server + SDK client), `claude-sdk/` (Claude Agent SDK `query()` + keeper PID).
 
-Both still extend `BaseCLIAgentService` for registry and default lifecycle helpers.
+They extend `BaseCLIAgentService` for registry and default lifecycle helpers.
 
-### 4.1 Lazy SDK loading (when native deps exist)
+### 3.1 Lazy SDK loading (when native deps exist)
 
 If the SDK pulls in native addons (e.g. `@cursor/sdk` → sqlite3), **do not top-level import**. Defer with a cached dynamic import:
 
@@ -242,7 +182,7 @@ See `cursor-sdk-agent-service.ts` and `claude-sdk-package.ts` (lazy load + `extr
 
 For `@anthropic-ai/claude-agent-sdk`, defer import via `importBundledClaudeSdk()` in `claude-sdk-package.ts` (same pin-check pattern as pi-sdk/cursor-sdk). Resolve the bundled Claude Code binary with `resolveClaudeCodeExecutable()` from the platform optional package (`@anthropic-ai/claude-agent-sdk-darwin-arm64`, etc.) and pass `pathToClaudeCodeExecutable` when auto-resolution fails. For `bun build --compile` single-file executables, use `extractFromBunfs()` from `@anthropic-ai/claude-agent-sdk/extract` per the [Agent SDK docs](https://code.claude.com/docs/en/agent-sdk/typescript).
 
-### 4.2 Keeper process (PID compatibility)
+### 3.2 Keeper process (PID compatibility)
 
 The daemon tracks agents by OS PID. Pure in-process SDK work has no natural PID, so SDK harnesses spawn a lightweight **keeper** child:
 
@@ -258,7 +198,7 @@ this.registerProcess(pid, context);
 
 The real SDK session runs in an async IIFE; the keeper stays alive until the turn finishes, then is killed.
 
-### 4.3 Async IIFE spawn pattern
+### 3.3 Async IIFE spawn pattern
 
 `spawn` returns immediately with callbacks; SDK work runs in the background:
 
@@ -278,13 +218,13 @@ void (async () => {
 return { pid, onExit, onOutput, onAgentEnd, onLogLine };
 ```
 
-Collect callbacks in arrays (`exitCallbacks`, `outputCallbacks`, `logLineCallbacks`) and invoke them from the IIFE when events occur. Wire `onLogLine` for native SDK harnesses per §3.5.
+Collect callbacks in arrays (`exitCallbacks`, `outputCallbacks`, `logLineCallbacks`) and invoke them from the IIFE when events occur. Wire `onLogLine` for native SDK harnesses per the `onLogLine` contract in §1.
 
-### 4.4 Stream adapter
+### 3.4 Stream adapter
 
-Map SDK message types to the same log format CLI harnesses use. Example: `CursorSdkStreamAdapter` handles `SDKMessage` events, writes `[cursor-sdk:role@chatroom text]` lines, and forwards each formatted line to `onLogLine` when provided.
+Map SDK message types to the daemon log format. Example: `CursorSdkStreamAdapter` handles `SDKMessage` events, writes `[cursor-sdk:role@chatroom text]` lines, and forwards each formatted line to `onLogLine` when provided.
 
-### 4.5 Override `stop`
+### 3.5 Override `stop`
 
 SDK harnesses must clean up in-process state before killing the keeper:
 
@@ -303,7 +243,7 @@ override async stop(pid: number): Promise<void> {
 
 See `cursor-sdk-agent-service.ts` and `opencode-sdk-agent-service.ts` (session interrupt + forwarder stop).
 
-### 4.6 Server + client variant (`opencode-sdk`)
+### 3.6 Server + client variant (`opencode-sdk`)
 
 Some SDKs expect a local server:
 
@@ -317,7 +257,7 @@ The spawned server PID is the tracked PID (no separate keeper needed).
 
 ---
 
-## 5. Register the harness
+## 4. Register the harness
 
 1. Create `my-agent/index.ts` exporting the service class.
 2. Add to `init-registry.ts`:
@@ -338,25 +278,9 @@ Registry API (`registry.ts`): `registerHarness`, `getHarness`, `getAllHarnesses`
 
 ---
 
-## 6. Testing
+## 5. Testing
 
-### 6.1 CLI harness tests
-
-Pattern (see `cursor-agent-service.test.ts`, `claude-code-agent-service.test.ts`):
-
-```ts
-function createMockDeps(): CLIAgentServiceDeps {
-  return { execSync: vi.fn(), spawn: vi.fn(), kill: vi.fn() };
-}
-```
-
-- **`isInstalled` / `getVersion`** — mock `execSync` success/failure (`which` exit code 1 = not installed).
-- **`spawn`** — mock `spawn` to return a fake `ChildProcess` (`EventEmitter` + `Readable` stdout); assert args, env, stdin writes, and callback wiring.
-- **Stream reader** — unit-test separately with fixture NDJSON lines.
-
-Use `createSpawnPrompt('test prompt')` from `spawn-prompt.ts` for valid spawn inputs.
-
-### 6.2 SDK harness tests
+### 5.1 SDK harness tests
 
 Pattern (see `cursor-sdk-agent-service.test.ts`, `opencode-sdk-agent-service.test.ts`, `claude-sdk-agent-service.test.ts`):
 
@@ -372,17 +296,17 @@ vi.mock('@cursor/sdk', () => ({ Agent: { create: vi.fn() }, ... }));
 
 Inject optional deps (`sessionMetadataStore`, etc.) for opencode-sdk isolation tests.
 
-### 6.3 Registry test
+### 5.2 Registry test
 
 `init-registry.test.ts` asserts all harness IDs are registered after `initHarnessRegistry()`. **Add your new `id` here** whenever you register a harness.
 
 ---
 
-## 7. New harness checklist
+## 6. New harness checklist
 
 - [ ] `RemoteAgentService` fully implemented
 - [ ] Extends `BaseCLIAgentService` (or documents why not)
-- [ ] CLI: stream reader + prefixed log lines, **or** SDK: lazy load + keeper/async IIFE/stop override
+- [ ] Lazy SDK load, keeper + async IIFE spawn, and `stop` override (see §3)
 - [ ] `spawn` registers PID, updates `lastOutputAt` on output, cleans up on exit
 - [ ] `index.ts` barrel export
 - [ ] Registered in `init-registry.ts`
@@ -392,45 +316,31 @@ Inject optional deps (`sessionMetadataStore`, etc.) for opencode-sdk isolation t
 
 ---
 
-## 8. Existing harness reference
+## 7. Existing harness reference
 
 | ID             | Kind         | Key files                                                                  |
 | -------------- | ------------ | -------------------------------------------------------------------------- |
-| `claude`       | CLI          | `claude/claude-code-agent-service.ts`, `claude-stream-reader.ts`           |
 | `claude-sdk`   | SDK          | `claude-sdk/claude-sdk-agent-service.ts`, `claude-sdk-stream-adapter.ts`   |
-| `commandcode`  | CLI          | `commandcode/command-code-agent-service.ts`                                |
-| `copilot`      | CLI          | `copilot/copilot-agent-service.ts`                                         |
-| `cursor`       | CLI          | `cursor/cursor-agent-service.ts`, `cursor-stream-reader.ts`                |
-| `opencode`     | CLI          | `opencode/opencode-agent-service.ts`                                       |
-| `pi`           | CLI (RPC)    | `pi/pi-agent-service.ts`, `pi-rpc-reader.ts`                               |
 | `pi-sdk`       | SDK          | `pi-sdk/pi-sdk-agent-service.ts`, `pi-sdk-stream-adapter.ts`               |
 | `cursor-sdk`   | SDK          | `cursor-sdk/cursor-sdk-agent-service.ts`, `cursor-sdk-stream-adapter.ts`   |
 | `opencode-sdk` | SDK (server) | `opencode-sdk/opencode-sdk-agent-service.ts`, `session-event-forwarder.ts` |
 
 ---
 
-## 9. Kill / replace matrix (requestStart and daemon lifecycle)
+## 8. Kill / replace matrix (requestStart and daemon lifecycle)
 
 When a new `agent.requestStart` arrives for the same chatroom+role, the daemon treats it as an idempotent ensure request: a live tracked process is kept and the request returns `already_started`. The existing kill/replace path is reserved for explicit restart operations and for recovering persisted orphan processes after a daemon restart.
 
-| Harness        | Tracked PID              | Process model                       | `stop()` behavior                                                                                         | requestStart behavior                                             | Persisted orphan                       |
-| -------------- | ------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------- |
-| `opencode`     | Direct `opencode` child  | Single-shot CLI, detached PG        | Base: SIGTERM/SIGKILL group                                                                               | idempotent when live; restart uses `doStop` → base stop           | `stopPersistedProcess` → base stop     |
-| `opencode-sdk` | `opencode serve` server  | SDK client in-process + server PG   | Override: forwarder stop → `session.interrupt` → base stop; removes session metadata                      | idempotent when live; restart uses `doStop` → override stop       | `stopPersistedProcess` → override stop |
-| `pi`           | Direct `pi` child        | Long-lived RPC, stdin resume        | Base group kill; `untrack` clears `childProcesses`                                                        | idempotent when live; restart uses `doStop` → base stop + untrack | `stopPersistedProcess` → base stop     |
-| `cursor`       | Direct `agent` child     | Single-shot CLI                     | Base group kill                                                                                           | idempotent when live; restart uses `doStop` → base stop           | `stopPersistedProcess` → base stop     |
-| `cursor-sdk`   | Keeper `node -e …` child | SDK in-process + keeper PG          | Override: abort resume wait → `run.cancel` → `agent.close` (skipped when `preserveForResume`) → base stop | `doStop` → override stop                                          | `stopPersistedProcess` → override stop |
-| `claude`       | Direct `claude` child    | Single-shot CLI (agentic turns)     | Base group kill                                                                                           | `doStop` → base stop                                              | `stopPersistedProcess` → base stop     |
-| `claude-sdk`   | Keeper `node -e …` child | SDK in-process + keeper PG          | Override: abort resume wait → `query.interrupt()` → base stop                                             | `doStop` → override stop                                          | `stopPersistedProcess` → override stop |
-| `commandcode`  | Direct `cmd` child       | Long-lived headless (`--max-turns`) | Base group kill                                                                                           | `doStop` → base stop                                              | `stopPersistedProcess` → base stop     |
-| `copilot`      | Direct `copilot` child   | Single-shot CLI                     | Base group kill                                                                                           | `doStop` → base stop                                              | `stopPersistedProcess` → base stop     |
+| Harness        | Tracked PID              | Process model                     | `stop()` behavior                                                                                         | requestStart behavior                                       | Persisted orphan                       |
+| -------------- | ------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------- |
+| `opencode-sdk` | `opencode serve` server  | SDK client in-process + server PG | Override: forwarder stop → `session.interrupt` → base stop; removes session metadata                      | idempotent when live; restart uses `doStop` → override stop | `stopPersistedProcess` → override stop |
+| `cursor-sdk`   | Keeper `node -e …` child | SDK in-process + keeper PG        | Override: abort resume wait → `run.cancel` → `agent.close` (skipped when `preserveForResume`) → base stop | `doStop` → override stop                                    | `stopPersistedProcess` → override stop |
+| `claude-sdk`   | Keeper `node -e …` child | SDK in-process + keeper PG        | Override: abort resume wait → `query.interrupt()` → base stop                                             | `doStop` → override stop                                    | `stopPersistedProcess` → override stop |
 
 Native harnesses (`cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk`) idle in-process after each turn; the daemon injects tasks via `resumeTurnForSlot` instead of turn-end auto-resume.
 
 A **restart** always kills via `doStop` regardless of resume state; a repeated
 `requestStart` is an idempotent ensure when the daemon still tracks a live PID.
-
-**Residual risk (all CLI harnesses):** tool subprocesses that call `setsid` and leave the agent PG may survive group kill — upstream CLI behavior, not fixable in Chatroom alone.
 
 ## Execution taxonomy
 
