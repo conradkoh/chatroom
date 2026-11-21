@@ -39,6 +39,7 @@ See **[docs/application/design/theme.md](docs/application/design/theme.md)** —
 - **Components**: ShadCN UI with **Base UI** backend (`base-vega` style in `apps/webapp/components.json`)
 - **Primitives**: `@base-ui/react` (not Radix UI)
 - **Icons**: lucide-react, react-icons
+- **Feedback**: no toasts, snackbars, or popups; see [docs/application/design/theme.md](docs/application/design/theme.md) (Components → Feedback & Notifications)
 
 **Add a new ShadCN component:**
 
