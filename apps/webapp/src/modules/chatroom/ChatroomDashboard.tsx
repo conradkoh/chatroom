@@ -125,9 +125,11 @@ import type { FileLocation } from './workspace/utils/fileLocation';
 import { pendingHighlightForLocation } from './workspace/utils/openFileLocation';
 import { resolveWorkspaceFileLinkOpenTarget } from './workspace/utils/workspaceFileLink';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { useCopyOwnedFeedback } from '@/hooks/useCopyOwnedFeedback';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { exhaustive } from '@/lib/exhaustive';
@@ -383,6 +385,11 @@ interface ExplorerContentProps {
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
   agenticFocusToken: number;
+  /** Sinks for file-tab copy commands; the dashboard strip owns the feedback slot. */
+  copyHandlers: {
+    onCopied: () => void;
+    onCopyError: (message: string) => void;
+  };
 }
 
 // fallow-ignore-next-line complexity
@@ -398,7 +405,8 @@ function areExplorerContentStaticPropsEqual(
     prev.onOpenPreview === next.onOpenPreview &&
     prev.onOpenTableView === next.onOpenTableView &&
     prev.onSendSelectionToComposer === next.onSendSelectionToComposer &&
-    prev.agenticFocusToken === next.agenticFocusToken
+    prev.agenticFocusToken === next.agenticFocusToken &&
+    prev.copyHandlers === next.copyHandlers
   );
 }
 
@@ -433,6 +441,7 @@ const ExplorerContent = memo(function ExplorerContent({
   onOpenTableView,
   onSendSelectionToComposer,
   agenticFocusToken,
+  copyHandlers,
 }: ExplorerContentProps) {
   const machineId = activeWorkspace?.machineId ?? '';
   const workingDir = activeWorkspace?.workingDir ?? '';
@@ -524,6 +533,7 @@ const ExplorerContent = memo(function ExplorerContent({
       onToggleExpanded={fileTabs.toggleExpanded}
       onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
       enableDragSplit
+      {...copyHandlers}
     />
   ) : null;
 
@@ -571,6 +581,7 @@ const ExplorerContent = memo(function ExplorerContent({
                       onToggleExpanded={fileTabs.toggleExpanded}
                       onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
                       enableDragSplit
+                      {...copyHandlers}
                     />
                     {activePrimaryTab ? (
                       <ExplorerEditorTabContent tab={activePrimaryTab} {...editorTabContentProps} />
@@ -601,6 +612,7 @@ const ExplorerContent = memo(function ExplorerContent({
                       onTogglePreviewExpanded={fileTabs.togglePreviewExpanded}
                       onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
                       enableDragSplit
+                      {...copyHandlers}
                     />
                   ) : null
                 }
@@ -1368,14 +1380,27 @@ function ChatroomDashboardContent({
   }, [gitHubRepoUrl]);
 
   // ─── Multi-workspace command palette commands ──────────────────────────────
+  const {
+    feedback: dashboardFeedback,
+    showCopyError: showDashboardCopyError,
+    copySucceeded: dashboardCopySucceeded,
+    clear: clearDashboardFeedback,
+  } = useCopyOwnedFeedback();
+  const dashboardCopyHandlers = useMemo(
+    () => ({ onCopied: dashboardCopySucceeded, onCopyError: showDashboardCopyError }),
+    [dashboardCopySucceeded, showDashboardCopyError]
+  );
+
   const [workspaceCommands, setWorkspaceCommands] = useState<CommandItem[]>([]);
   const workspaceCommandCallbacks = useMemo(
     () => ({
       sendAction,
       openExternalUrl,
       onOpenGitPanel: handleSwitchToSourceControl,
+      onCopied: dashboardCopySucceeded,
+      onCopyError: showDashboardCopyError,
     }),
-    [sendAction, handleSwitchToSourceControl]
+    [sendAction, handleSwitchToSourceControl, dashboardCopySucceeded, showDashboardCopyError]
   );
 
   // Start all remote agents. The command palette starts unprompted; the agents-sidebar play
@@ -1853,6 +1878,12 @@ function ChatroomDashboardContent({
 
                     {/* Main Content Area */}
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      <InlineFeedback
+                        feedback={dashboardFeedback}
+                        onDismiss={clearDashboardFeedback}
+                        data-testid="dashboard-feedback"
+                        className="m-2 shrink-0"
+                      />
                       {/* Content Toolbar — shown only for workspace views */}
                       {(activeView === 'explorer' || activeView === 'source-control') && (
                         <WorkspaceHeaderRow className="justify-between gap-2 px-2">
@@ -1900,6 +1931,7 @@ function ChatroomDashboardContent({
                                 onOpenTableView={handleOpenTableView}
                                 onSendSelectionToComposer={handleExplorerSelectionToComposer}
                                 agenticFocusToken={agenticFocusToken}
+                                copyHandlers={dashboardCopyHandlers}
                               />
                             ) : (
                               sourceControlPanel
@@ -1988,6 +2020,7 @@ function ChatroomDashboardContent({
                           onOpenTableView={handleOpenTableView}
                           onSendSelectionToComposer={handleExplorerSelectionToComposer}
                           agenticFocusToken={agenticFocusToken}
+                          copyHandlers={dashboardCopyHandlers}
                         />
                       )}
                     </div>
@@ -2047,7 +2080,10 @@ function ChatroomDashboardContent({
                       />
                     </div>
                   </div>
-                  <WorkspaceBottomBar onSwitchToSourceControl={handleSwitchToSourceControl} />
+                  <WorkspaceBottomBar
+                    onSwitchToSourceControl={handleSwitchToSourceControl}
+                    {...dashboardCopyHandlers}
+                  />
                 </div>
 
                 <StartWithFavoritesDialog

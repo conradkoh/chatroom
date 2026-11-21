@@ -1,23 +1,15 @@
 import { renderHook, act } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  useWorkspaceCommandItems,
-  type WorkspaceCommandCallbacks,
-} from './useWorkspaceCommandItems';
+import { useWorkspaceCommandItems } from './useWorkspaceCommandItems';
 import type { Workspace } from '../../types/workspace';
 
 const mocks = vi.hoisted(() => ({
   useWorkspaceGit: vi.fn(),
-  copyWorkspacePathToClipboard: vi.fn(),
 }));
 
 vi.mock('../../workspace/hooks/useWorkspaceGit', () => ({
   useWorkspaceGit: mocks.useWorkspaceGit,
-}));
-
-vi.mock('../../workspace/utils/clipboard', () => ({
-  copyWorkspacePathToClipboard: mocks.copyWorkspacePathToClipboard,
 }));
 
 const MACHINE_ID = 'machine-a';
@@ -35,11 +27,13 @@ function mkWorkspace(overrides: Partial<Workspace> = {}): Workspace {
   };
 }
 
-function mkCallbacks(): WorkspaceCommandCallbacks {
+function mkCallbacks() {
   return {
     sendAction: vi.fn(),
     openExternalUrl: vi.fn(),
     onOpenGitPanel: vi.fn(),
+    onCopied: vi.fn(),
+    onCopyError: vi.fn(),
   };
 }
 
@@ -47,6 +41,10 @@ describe('useWorkspaceCommandItems', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.useWorkspaceGit.mockReturnValue({ status: 'loading' });
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
   });
 
   it('exposes all machine actions from machine metadata without daemon status', () => {
@@ -98,7 +96,54 @@ describe('useWorkspaceCommandItems', () => {
     );
 
     act(() => command('copy-workspace-path')?.action());
-    expect(mocks.copyWorkspacePathToClipboard).toHaveBeenCalledWith(WORKING_DIR);
+    expect(globalThis.navigator.clipboard.writeText).toHaveBeenCalledWith(WORKING_DIR);
+  });
+
+  it('reports a rejected workspace-path copy to onCopyError', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const callbacks = mkCallbacks();
+    const workspace = mkWorkspace();
+    const { result } = renderHook(() => useWorkspaceCommandItems(workspace, false, callbacks));
+
+    const command = result.current.find(
+      (item) => item.id === `ws-${workspace.id}-copy-workspace-path`
+    );
+
+    await act(async () => {
+      command?.action();
+    });
+
+    expect(writeText).toHaveBeenCalledWith(WORKING_DIR);
+    expect(callbacks.onCopyError).toHaveBeenCalledTimes(1);
+    expect(callbacks.onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
+    expect(callbacks.onCopied).not.toHaveBeenCalled();
+  });
+
+  it('reports a successful workspace-path copy to onCopied', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const callbacks = mkCallbacks();
+    const workspace = mkWorkspace();
+    const { result } = renderHook(() => useWorkspaceCommandItems(workspace, false, callbacks));
+
+    const command = result.current.find(
+      (item) => item.id === `ws-${workspace.id}-copy-workspace-path`
+    );
+
+    await act(async () => {
+      command?.action();
+    });
+
+    expect(writeText).toHaveBeenCalledWith(WORKING_DIR);
+    expect(callbacks.onCopied).toHaveBeenCalledTimes(1);
+    expect(callbacks.onCopyError).not.toHaveBeenCalled();
   });
 
   it('omits machine actions without a machine while retaining git and workspace commands', () => {

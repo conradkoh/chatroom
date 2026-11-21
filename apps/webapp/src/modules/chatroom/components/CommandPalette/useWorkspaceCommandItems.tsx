@@ -34,6 +34,10 @@ export interface WorkspaceCommandCallbacks {
   ) => void;
   openExternalUrl: (url: string) => void;
   onOpenGitPanel: (tab?: string) => void;
+  /** Called after a copy command succeeds. The host may clear its copy failure. */
+  onCopied?: () => void;
+  /** Called with the failure message when a copy command fails. */
+  onCopyError?: (message: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -78,7 +82,7 @@ export function useWorkspaceCommandItems(
   const machineId = workspace.machineId ?? '';
   const workingDir = workspace.workingDir;
   const gitState = useWorkspaceGit(machineId, workingDir);
-  const { sendAction, openExternalUrl, onOpenGitPanel } = callbacks;
+  const { sendAction, openExternalUrl, onOpenGitPanel, onCopied, onCopyError } = callbacks;
 
   return useMemo(() => {
     const items: CommandItem[] = [];
@@ -119,7 +123,12 @@ export function useWorkspaceCommandItems(
         icon: <ClipboardCopy size={14} />,
         category: 'Actions',
         keywords: ['copy', 'path', 'clipboard', hostname, workingDirBasename],
-        action: () => void copyWorkspacePathToClipboard(workingDir),
+        action: () => {
+          void copyWorkspacePathToClipboard(workingDir).then((result) => {
+            if (result.ok) onCopied?.();
+            else onCopyError?.(result.message);
+          });
+        },
       });
 
       items.push({
@@ -260,6 +269,8 @@ export function useWorkspaceCommandItems(
     sendAction,
     openExternalUrl,
     onOpenGitPanel,
+    onCopied,
+    onCopyError,
     chatroomId,
   ]);
 }

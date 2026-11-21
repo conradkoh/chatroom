@@ -25,6 +25,10 @@ interface FileTabBarProps {
   onToggleExpanded?: (filePath: string) => void;
   onTogglePreviewExpanded?: (filePath: string) => void;
   onOpenFileOnRemote?: (filePath: string) => void;
+  /** Called after a file-tab copy command succeeds. */
+  onCopied?: () => void;
+  /** Called with the failure message when a file-tab copy command fails. */
+  onCopyError?: (message: string) => void;
   enableDragSplit?: boolean;
 }
 
@@ -40,6 +44,8 @@ export const FileTabBar = memo(function FileTabBar({
   onToggleExpanded,
   onTogglePreviewExpanded,
   onOpenFileOnRemote,
+  onCopied,
+  onCopyError,
   enableDragSplit = false,
 }: FileTabBarProps) {
   const { trackContextMenuFile, getMenuContentStateForPath } = useWorkspaceFileMenuContent(
@@ -102,6 +108,8 @@ export const FileTabBar = memo(function FileTabBar({
                             ? () => void onOpenFileOnRemote(filePath)
                             : undefined,
                           onCloseOthers: () => handleCloseOthers(key),
+                          onCopied,
+                          onCopyError,
                         },
                         visibility: {
                           copyFileName: true,

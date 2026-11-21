@@ -119,6 +119,27 @@ describe('FileTabBar', () => {
     expect(writeText).toHaveBeenCalledWith('src/b.ts');
   });
 
+  it('reports a rejected relative-path copy to onCopyError', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const onCopyError = vi.fn();
+    const onCopied = vi.fn();
+
+    render(<FileTabBar {...defaultProps} onCopied={onCopied} onCopyError={onCopyError} />);
+
+    fireEvent.contextMenu(screen.getByTitle('src/b.ts'));
+    fireEvent.click(await screen.findByText('Copy Relative Path'));
+
+    await vi.waitFor(() => {
+      expect(onCopyError).toHaveBeenCalledTimes(1);
+    });
+    expect(onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
+    expect(onCopied).not.toHaveBeenCalled();
+  });
+
   it('copies file name from context menu', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(globalThis.navigator, 'clipboard', {

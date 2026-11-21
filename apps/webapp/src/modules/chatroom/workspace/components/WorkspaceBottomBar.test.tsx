@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  WorkspaceBottomBar,
   WorkspaceBottomBarShell,
   getWorkspaceBottomBarShellStyle,
   shouldSuppressWorkspaceBottomBarSafeArea,
@@ -12,6 +13,7 @@ const mockUseKeyboardInset = vi.fn(); // raw visualViewport inset (Android)
 const mockUseViewportOffsetTop = vi.fn(); // raw visualViewport offsetTop (iOS)
 const mockUseViewportScale = vi.fn(); // visualViewport.scale (pinch-zoom factor)
 const mockUseMainChatComposerFocused = vi.fn();
+const mockUseChatroomWorkspace = vi.fn();
 
 function serializeShellHierarchy(outer: HTMLElement) {
   const inner = outer.querySelector(
@@ -31,6 +33,19 @@ function serializeShellHierarchy(outer: HTMLElement) {
 }
 
 vi.mock('@/hooks/useIsDesktop', () => ({ useIsDesktop: () => mockUseIsDesktop() }));
+vi.mock('../../context/ChatroomWorkspaceContext', () => ({
+  useChatroomWorkspace: () => mockUseChatroomWorkspace(),
+}));
+vi.mock('@/hooks/useDaemonConnected', () => ({
+  useDaemonConnected: () => ({ isConnected: true }),
+}));
+vi.mock('@/hooks/useSendLocalAction', () => ({
+  useSendLocalAction: () => vi.fn(),
+}));
+vi.mock('../hooks/useWorkspaceGit', () => ({
+  useWorkspaceGit: () => ({ status: 'loading' }),
+  useGitRefresh: () => vi.fn(),
+}));
 vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Vitest's importOriginal requires module type
   const actual = await importOriginal<typeof import('@/hooks/useMobileKeyboard')>();
@@ -443,5 +458,55 @@ describe('runtime hierarchy snapshots', () => {
     }
   `);
     vi.useRealTimers();
+  });
+});
+
+describe('WorkspaceBottomBar workspace-path copy', () => {
+  const workspace = {
+    id: 'machine-1::/Users/alice/repo',
+    machineId: 'machine-1',
+    hostname: 'host-a',
+    workingDir: '/Users/alice/repo',
+    agentRoles: [],
+    fileTreeSyncEnabled: true,
+  };
+
+  beforeEach(() => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValue(0);
+    mockUseViewportOffsetTop.mockReturnValue(0);
+    mockUseViewportScale.mockReturnValue(1);
+    mockUseMainChatComposerFocused.mockReturnValue(false);
+    mockUseChatroomWorkspace.mockReturnValue({
+      chatroomId: 'chatroom-1',
+      workspaces: [workspace],
+      activeWorkspace: workspace,
+      isLoading: false,
+      setPrimaryWorkspace: vi.fn().mockResolvedValue(undefined),
+      removeWorkspace: vi.fn().mockResolvedValue(undefined),
+    });
+  });
+
+  it('reports a rejected workspace-path copy from the mobile modal', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const onCopied = vi.fn();
+    const onCopyError = vi.fn();
+
+    render(<WorkspaceBottomBar onCopied={onCopied} onCopyError={onCopyError} />);
+
+    fireEvent.click(screen.getByTitle('View workspace details'));
+    fireEvent.click(await screen.findByRole('button', { name: /host-a/i }));
+    fireEvent.click(await screen.findByText('Copy workspace path'));
+
+    await vi.waitFor(() => {
+      expect(onCopyError).toHaveBeenCalledTimes(1);
+    });
+    expect(onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
+    expect(onCopied).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith('/Users/alice/repo');
   });
 });
