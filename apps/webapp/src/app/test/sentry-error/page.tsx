@@ -2,7 +2,9 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
+
+import { InlineFeedback } from '@/components/inline-feedback';
+import { useFeedback } from '@/hooks/useFeedback';
 
 function getClientStatus(): { initialized: boolean; dsnConfigured: boolean } {
   const dsnConfigured = Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN);
@@ -10,20 +12,18 @@ function getClientStatus(): { initialized: boolean; dsnConfigured: boolean } {
   return { initialized: Boolean(client), dsnConfigured };
 }
 
-function assertSentryReady(status: { initialized: boolean; dsnConfigured: boolean }): boolean {
+/** Returns why Sentry cannot send yet, or null when it is ready. */
+function getReadinessProblem(status: {
+  initialized: boolean;
+  dsnConfigured: boolean;
+}): string | null {
   if (!status.dsnConfigured) {
-    toast.error(
-      'NEXT_PUBLIC_SENTRY_DSN is not set — restart dev server after adding it to .env.local'
-    );
-    return false;
+    return 'NEXT_PUBLIC_SENTRY_DSN is not set — restart dev server after adding it to .env.local';
   }
   if (!status.initialized) {
-    toast.error(
-      'Sentry client SDK is not initialized. Check instrumentation-client.ts is present and restart dev server.'
-    );
-    return false;
+    return 'Sentry client SDK is not initialized. Check instrumentation-client.ts is present and restart dev server.';
   }
-  return true;
+  return null;
 }
 
 function captureTestError(type: 'message' | 'exception'): string | undefined {
@@ -35,17 +35,24 @@ function captureTestError(type: 'message' | 'exception'): string | undefined {
 export default function SentryErrorTestPage() {
   const initialStatus = useMemo(() => getClientStatus(), []);
   const [lastEventId, setLastEventId] = useState<string | null>(null);
+  const { feedback, show: showStatus, error: showError, clear: clearFeedback } = useFeedback();
 
   const handleCapture = async (type: 'message' | 'exception') => {
-    if (!assertSentryReady(getClientStatus())) return;
+    clearFeedback();
+
+    const problem = getReadinessProblem(getClientStatus());
+    if (problem) {
+      showError(problem);
+      return;
+    }
 
     try {
       const eventId = captureTestError(type);
       await Sentry.flush(2000);
       setLastEventId(eventId ?? null);
-      toast.success(`Captured ${type} — event ID: ${eventId ?? 'unknown'}`);
-    } catch (error) {
-      toast.error(`Capture failed: ${error instanceof Error ? error.message : String(error)}`);
+      showStatus('success', `Captured ${type} — event ID: ${eventId ?? 'unknown'}`);
+    } catch (caught) {
+      showError(`Capture failed: ${caught instanceof Error ? caught.message : String(caught)}`);
     }
   };
 
@@ -62,6 +69,13 @@ export default function SentryErrorTestPage() {
           <p>Client SDK initialized: {initialStatus.initialized ? 'yes' : 'no'}</p>
           {lastEventId ? <p className="mt-1">Last event ID: {lastEventId}</p> : null}
         </div>
+
+        <InlineFeedback
+          feedback={feedback}
+          variant="text"
+          className="mt-3"
+          data-testid="sentry-feedback"
+        />
 
         <div className="mt-6 flex flex-wrap gap-3">
           <button
