@@ -1,9 +1,8 @@
 /**
  * Harness lifecycle and wire-event catalogs and helpers.
  *
- * Imported by daemon code and tests — not re-exported from `types.ts` so the
- * webapp client bundle (which only needs `getHarnessCapabilities`) does not pull
- * this module through Turbopack.
+ * Imported by daemon code and tests — not re-exported from `types.ts`, so client
+ * bundles that import `types.ts` do not pull this module in.
  *
  * Type definitions live in `types.ts`.
  */

@@ -148,7 +148,7 @@ export interface RemoteAgentService {
 
   /**
    * Send a prompt into a live in-process session (native task injection).
-   * Native SDK harnesses implement this; Harnesses that cannot accept injected turns omit it.
+   * Only native SDK harnesses implement this; others omit it.
    *
    * Contract: starts (or queues) one turn. When that turn completes, the
    * harness MUST emit `SpawnResult.onAgentEnd` for it. Implementations may
