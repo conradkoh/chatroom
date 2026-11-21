@@ -9,10 +9,10 @@ export const CLAUDE_MODEL_VARIANT_COMBINATIONS = [
 /**
  * Canonical model ids listed in HARNESS_MODEL_CATALOG for claude-sdk.
  * Unversioned aliases (opus, sonnet, haiku) are included so the UI can list
- * them; the claude CLI subprocess resolves them to their current pinned version.
+ * them; the claude-sdk runtime resolves them to their current pinned version.
  */
 export const CLAUDE_CATALOG_BASE_MODEL_IDS = [
-  // Unversioned aliases — resolved by claude CLI to the current pinned version.
+  // Unversioned aliases — resolved by the claude-sdk runtime to the current pinned version.
   'opus',
   'sonnet',
   'haiku',

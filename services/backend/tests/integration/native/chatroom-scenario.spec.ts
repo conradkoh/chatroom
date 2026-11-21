@@ -94,7 +94,7 @@ describe('ChatroomScenario — native prompt orchestration', () => {
   });
 
   test('custom agent (no harness configured) delivery still references get-next-task (regression)', async () => {
-    const scenario = await ChatroomScenario.create({ sessionKey: 'scenario-cli-harness' });
+    const scenario = await ChatroomScenario.create({ sessionKey: 'scenario-custom-agent' });
 
     const { taskId } = await scenario.userSays('hello');
     const delivery = await scenario.deliveryPromptFor('planner', taskId);
