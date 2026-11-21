@@ -2,52 +2,49 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import { useChatroomAgentOperations } from './useChatroomAgentOperations';
 import { useStartAgentsWithFavorites } from '../features/machine-config/hooks/useStartAgentsWithFavorites';
+import { describeAgentOperation, type ReportFeedback } from '../utils/describeAgentOperation';
 
 export interface UseStartAllRemoteAgentsOptions {
   chatroomId: string;
+  /** Receives the start outcome. Called with `null` first, so the previous feedback clears. */
+  onFeedback: ReportFeedback;
 }
 
 /**
  * Start-all for one chatroom, with two entry points:
  * - `startAllFromPalette`: the command palette. Starts every agent with its last configuration; never prompts.
  * - `requestStartAllFromAgentsSidebar`: the agents-sidebar play control. Runs the favourites check first; may prompt.
- * Both end in the same start + toast body (`runStartAll`).
+ * Both end in the same start + feedback body (`runStartAll`).
  */
-export function useStartAllRemoteAgents({ chatroomId }: UseStartAllRemoteAgentsOptions) {
+export function useStartAllRemoteAgents({
+  chatroomId,
+  onFeedback,
+}: UseStartAllRemoteAgentsOptions) {
   const { startAgents } = useChatroomAgentOperations();
   const [isStartingAll, setIsStartingAll] = useState(false);
 
   // appliedCount > 0 only when the favourites check saved favourites before this start.
-  // One toast per outcome (failed / requested / skipped) is the whole feedback contract.
   const runStartAll = useCallback(
     // fallow-ignore-next-line complexity
     async ({ appliedCount }: { appliedCount: number }) => {
+      onFeedback(null);
       setIsStartingAll(true);
       try {
         const result = await startAgents(chatroomId as Id<'chatroom_rooms'>);
-        if (result.failed.length > 0) {
-          toast.error(`Failed to start ${result.failed.length} agent(s)`);
-        } else if (result.requested.length > 0) {
-          const requestedText = `Start requested for ${result.requested.length} agent(s)`;
-          toast.success(
-            appliedCount > 0
-              ? `Applied favourites to ${appliedCount} agent(s). ${requestedText}.`
-              : requestedText
-          );
-        } else if (result.skipped.length > 0) {
-          toast.error('No saved agent configuration is available.');
-        }
+        onFeedback(describeAgentOperation(result, 'start', appliedCount));
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to start agents');
+        onFeedback({
+          tone: 'error',
+          message: error instanceof Error ? error.message : 'Failed to start agents',
+        });
       } finally {
         setIsStartingAll(false);
       }
     },
-    [chatroomId, startAgents]
+    [chatroomId, onFeedback, startAgents]
   );
 
   const startFlow = useStartAgentsWithFavorites({ chatroomId, start: runStartAll });
