@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   appendToolInputToPayload,
   buildAgentLogPrefix,
-  extractBashCommandFromCursorToolCall,
   extractBashCommandFromToolInput,
   formatAgentLogLine,
   formatBashRunningPayload,
@@ -13,17 +12,17 @@ import {
 
 describe('buildAgentLogPrefix', () => {
   it('builds prefix with role only', () => {
-    expect(buildAgentLogPrefix('cursor', { role: 'builder' })).toBe('[cursor:builder');
+    expect(buildAgentLogPrefix('cursor-sdk', { role: 'builder' })).toBe('[cursor-sdk:builder');
   });
 
   it('includes chatroom suffix when chatroomId is set', () => {
-    expect(buildAgentLogPrefix('pi', { role: 'solo', chatroomId: 'abcdefghijklmnop' })).toBe(
-      '[pi:solo@klmnop'
+    expect(buildAgentLogPrefix('pi-sdk', { role: 'solo', chatroomId: 'abcdefghijklmnop' })).toBe(
+      '[pi-sdk:solo@klmnop'
     );
   });
 
   it('defaults role to unknown', () => {
-    expect(buildAgentLogPrefix('claude', {})).toBe('[claude:unknown');
+    expect(buildAgentLogPrefix('claude-sdk', {})).toBe('[claude-sdk:unknown');
   });
 });
 
@@ -88,24 +87,6 @@ describe('resolveBashCommandForLog', () => {
 
   it('returns null for non-bash tools', () => {
     expect(resolveBashCommandForLog('read', { path: 'x' })).toBeNull();
-  });
-});
-
-describe('extractBashCommandFromCursorToolCall', () => {
-  it('extracts from nested bashToolCall structure', () => {
-    expect(
-      extractBashCommandFromCursorToolCall({
-        bashToolCall: { args: { command: 'git status' } },
-      })
-    ).toBe('git status');
-  });
-
-  it('returns null for non-bash tool calls', () => {
-    expect(
-      extractBashCommandFromCursorToolCall({
-        readToolCall: { args: { path: 'README.md' } },
-      })
-    ).toBeNull();
   });
 });
 

@@ -11,7 +11,7 @@ import {
 } from './agent-process-manager.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../../infrastructure/local/harness/bound-harness-registry.js';
 import type { SpawnResult } from '../../../infrastructure/local/harness/services/remote-agent-service.js';
-import { DEFAULT_TRIGGER_PROMPT } from '../../../infrastructure/local/harness/services/spawn-prompt.js';
+import { createSpawnPrompt } from '../../../infrastructure/local/harness/services/spawn-prompt.js';
 import {
   createAgentLifecycleOutboxRegistry,
   agentLifecycleKey,
@@ -46,7 +46,7 @@ function createLivenessAwareProcessKill() {
 
 function createMockService() {
   return {
-    id: 'opencode',
+    id: 'opencode-sdk',
     displayName: 'OpenCode',
     command: 'opencode',
     isInstalled: vi.fn().mockResolvedValue(true),
@@ -97,7 +97,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
   });
   return {
     logEvent: vi.fn().mockResolvedValue(undefined),
-    agentServices: new Map([['opencode', mockService]]),
+    agentServices: new Map([['opencode-sdk', mockService]]),
     backend: {
       query: vi.fn().mockResolvedValue({
         prompt: true,
@@ -139,7 +139,7 @@ function createOpts(overrides?: Partial<EnsureRunningOpts>): EnsureRunningOpts {
   return {
     chatroomId: CHATROOM_ID,
     role: ROLE,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     model: 'gpt-4',
     workingDir: '/tmp/test',
     reason: AgentStartReasonCode.USER_START,
@@ -295,19 +295,19 @@ describe('AgentProcessManager', () => {
       expect(slot).toBeDefined();
       expect(slot!.state).toBe('running');
       expect(slot!.pid).toBe(PID);
-      expect(slot!.harness).toBe('opencode');
+      expect(slot!.harness).toBe('opencode-sdk');
       expect(slot!.model).toBe('gpt-4');
       expect(slot!.workingDir).toBe('/tmp/test');
 
       // Verify backend interactions
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       expect(service.spawn).toHaveBeenCalledOnce();
       expect(deps.persistence.persistAgentPid).toHaveBeenCalledWith(
         'test-machine',
         CHATROOM_ID,
         ROLE,
         PID,
-        'opencode',
+        'opencode-sdk',
         '/tmp/test'
       );
     });
@@ -490,37 +490,7 @@ describe('AgentProcessManager', () => {
       await triggerAgentEnd(manager, currentAgentEndCb);
     });
 
-    test('onAgentEnd kills process for non-resumable harness', async () => {
-      const onAgentEndRegistrar = vi.fn();
-      const service = {
-        ...createMockService(),
-        spawn: vi.fn().mockResolvedValue({
-          pid: PID,
-          onExit: vi.fn(),
-          onOutput: vi.fn(),
-          onAgentEnd: onAgentEndRegistrar,
-        }),
-      };
-      deps.agentServices = new Map([['opencode', service]]);
-      manager = new AgentProcessManager(deps);
-
-      await manager.ensureRunning(createOpts({ agentHarness: 'opencode' }));
-
-      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
-      await triggerAgentEnd(manager, agentEndCb);
-
-      expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
-      // CLI harnesses (opencode, cursor, etc.) do not support native integration —
-      // turn-end kills the process instead of emitting native:waiting.
-      const nativeWaitingEnqueues = vi
-        .mocked(deps.lifecycleOutbox.enqueue)
-        .mock.calls.filter(
-          ([fact]) => fact.kind === 'activity' && fact.action === 'native:waiting'
-        );
-      expect(nativeWaitingEnqueues).toHaveLength(0);
-    });
-
-    test('substitutes DEFAULT_TRIGGER_PROMPT when backend returns empty initialMessage', async () => {
+    test('substitutes the native bootstrap prompt when backend returns an empty initialMessage', async () => {
       // Use case-level regression guard: composeInitMessage in the backend currently
       // returns '' for every role. The manager must wrap that via createSpawnPrompt
       // before calling service.spawn so harnesses never receive an empty user message.
@@ -534,10 +504,10 @@ describe('AgentProcessManager', () => {
 
       await manager.ensureRunning(createOpts());
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       expect(service.spawn).toHaveBeenCalledOnce();
       const spawnArgs = (service.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      expect(spawnArgs.prompt).toBe(DEFAULT_TRIGGER_PROMPT);
+      expect(spawnArgs.prompt).toBe(createSpawnPrompt(undefined, { nativeBootstrap: true }));
       expect(spawnArgs.systemPrompt).toBe('You are a builder');
     });
 
@@ -597,7 +567,7 @@ describe('AgentProcessManager', () => {
     test('second start while running is idempotent and keeps the existing PID', async () => {
       await manager.ensureRunning(createOpts());
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       (service.stop as ReturnType<typeof vi.fn>).mockClear();
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
       (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
@@ -621,13 +591,17 @@ describe('AgentProcessManager', () => {
         deps.processes.kill as typeof deps.processes.kill & { markAlive: (pid: number) => void }
       ).markAlive(ORPHAN_PID);
       (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
-        { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: ORPHAN_PID, harness: 'opencode' } },
+        {
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+          entry: { pid: ORPHAN_PID, harness: 'opencode-sdk' },
+        },
       ]);
 
       const result = await manager.ensureRunning(createOpts());
 
       expect(result).toEqual({ success: true, pid: PID, disposition: 'started' });
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       expect(service.stop).toHaveBeenCalledWith(ORPHAN_PID);
       expect(untrackChildPid).toHaveBeenCalledWith(ORPHAN_PID);
       expect(deps.persistence.clearAgentPid).toHaveBeenCalledWith(
@@ -647,7 +621,7 @@ describe('AgentProcessManager', () => {
     test('running slot with dead PID: resets to idle and spawns', async () => {
       await manager.ensureRunning(createOpts());
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
 
       // First kill(pid, 0) in ensureRunning liveness check throws → dead
@@ -671,7 +645,7 @@ describe('AgentProcessManager', () => {
         resolveSpawn = resolve;
       });
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       (service.spawn as ReturnType<typeof vi.fn>).mockImplementation(async () => {
         await spawnPromise;
         return {
@@ -711,7 +685,7 @@ describe('AgentProcessManager', () => {
     });
 
     test('spawn fails: returns failure, slot transitions back to idle', async () => {
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       (service.spawn as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('spawn error'));
 
       const result = await manager.ensureRunning(createOpts());
@@ -744,14 +718,14 @@ describe('AgentProcessManager', () => {
 
     test('unknown harness: returns failure', async () => {
       await manager.ensureRunning(
-        createOpts({ agentHarness: 'cursor' }) // Use valid type but no service registered
+        createOpts({ agentHarness: 'cursor-sdk' }) // Use valid type but no service registered
       );
       // Remove the cursor service so it's "unknown"
-      deps.agentServices.delete('cursor');
+      deps.agentServices.delete('cursor-sdk');
 
       const result2 = await manager.ensureRunning({
         ...createOpts(),
-        agentHarness: 'cursor', // valid type, but no service for it
+        agentHarness: 'cursor-sdk', // valid type, but no service for it
       });
 
       expect(result2.success).toBe(false);
@@ -827,7 +801,7 @@ describe('AgentProcessManager', () => {
       AgentStartReasonCode.PLATFORM_PENDING_TASK_WAKE,
       AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
     ])('rejects autonomous %s starts without a live slot', async (reason) => {
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       const result = await manager.ensureRunning(createOpts({ reason }));
 
       expect(result).toMatchObject({ success: false, error: 'agent_not_running' });
@@ -840,7 +814,7 @@ describe('AgentProcessManager', () => {
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       slot.state = 'idle';
       slot.pid = undefined;
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       const spawn = service.spawn as ReturnType<typeof vi.fn>;
       const spawnCount = spawn.mock.calls.length;
 
@@ -870,7 +844,7 @@ describe('AgentProcessManager', () => {
     test('running → stopping → idle: delegates to service.stop, emits exit event, clears disk', async () => {
       await manager.ensureRunning(createOpts());
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
 
       const result = await manager.stop({
         chatroomId: CHATROOM_ID,
@@ -899,7 +873,7 @@ describe('AgentProcessManager', () => {
     test('doStop falls back to direct kill when harness service is not registered', async () => {
       await manager.ensureRunning(createOpts());
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
-      slot.harness = 'cursor';
+      slot.harness = 'cursor-sdk';
 
       let killed = false;
       (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(
@@ -909,7 +883,7 @@ describe('AgentProcessManager', () => {
         }
       );
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       const result = await manager.stop({
         chatroomId: CHATROOM_ID,
         role: ROLE,
@@ -999,7 +973,7 @@ describe('AgentProcessManager', () => {
     test('concurrent stop calls: second awaits first', async () => {
       await manager.ensureRunning(createOpts());
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       let stopResolve: () => void;
       const stopGate = new Promise<void>((resolve) => {
         stopResolve = resolve;
@@ -1029,7 +1003,7 @@ describe('AgentProcessManager', () => {
       await manager.ensureRunning(createOpts());
 
       // Capture the onExit callback registered during spawn
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       const spawnMockResult = (service.spawn as ReturnType<typeof vi.fn>).mock.results[0].value;
       const resolvedSpawn = await spawnMockResult;
       const registeredOnExit = (resolvedSpawn.onExit as ReturnType<typeof vi.fn>).mock
@@ -1169,7 +1143,7 @@ describe('AgentProcessManager', () => {
       const hungStop = new Promise<void>((resolve) => {
         resolveStop = resolve;
       });
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       (service.stop as ReturnType<typeof vi.fn>).mockReturnValue(hungStop);
 
       const stopInFlight = manager.stop({
@@ -1189,7 +1163,7 @@ describe('AgentProcessManager', () => {
 
       slot.state = 'running';
       slot.pid = NEW_PID;
-      slot.harness = 'opencode';
+      slot.harness = 'opencode-sdk';
 
       resolveStop();
       await stopInFlight;
@@ -1217,7 +1191,7 @@ describe('AgentProcessManager', () => {
     test('stale PID is ignored', async () => {
       await manager.ensureRunning(createOpts());
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
 
       // Simulate exit with WRONG PID — should be ignored
@@ -1244,7 +1218,7 @@ describe('AgentProcessManager', () => {
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       slot.workingDir = undefined;
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
 
       manager.handleExit({
@@ -1264,7 +1238,7 @@ describe('AgentProcessManager', () => {
     test('crash after previous stop does not leak stale stop reason', async () => {
       await manager.ensureRunning(createOpts());
 
-      const service = deps.agentServices.get('opencode')!;
+      const service = deps.agentServices.get('opencode-sdk')!;
 
       // Stop the agent intentionally (user.stop)
       await manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
@@ -1500,13 +1474,6 @@ describe('AgentProcessManager', () => {
         expect(slot?.nativeTurnPhase).toBe('idle');
       }
     );
-
-    test('non-native harness does not set nativeTurnPhase', async () => {
-      await manager.ensureRunning(createOpts());
-
-      const slot = manager.getSlot(CHATROOM_ID, ROLE);
-      expect(slot?.nativeTurnPhase).toBeUndefined();
-    });
 
     test('active native turn is reconciled as process_exited when the child exits first', async () => {
       type SpawnExitCallback = Parameters<NonNullable<SpawnResult['onExit']>>[0];
@@ -1923,7 +1890,7 @@ describe('workspace presence', () => {
   const presentBuilder = [{ chatroomId: CHATROOM_ID, role: ROLE, workingDir: '/tmp/test' }];
 
   function serviceMock(method: 'spawn' | 'stop') {
-    return deps.agentServices.get('opencode')![method] as ReturnType<typeof vi.fn>;
+    return deps.agentServices.get('opencode-sdk')![method] as ReturnType<typeof vi.fn>;
   }
 
   function killWithDead(): { markDead: (pid: number) => void } {
@@ -2163,9 +2130,9 @@ describe('liveness sweep', () => {
   test('does not reap a stopping slot, even when its pid is dead', async () => {
     await manager.ensureRunning(createOpts());
     const stop = deferred<undefined>();
-    (deps.agentServices.get('opencode')!.stop as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      () => stop.promise
-    );
+    (
+      deps.agentServices.get('opencode-sdk')!.stop as ReturnType<typeof vi.fn>
+    ).mockImplementationOnce(() => stop.promise);
     const stopping = manager.stop({ chatroomId: CHATROOM_ID, role: ROLE, reason: 'user.stop' });
     await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('stopping'));
     markDead(PID);
@@ -2179,9 +2146,9 @@ describe('liveness sweep', () => {
 
   test('does not reap a spawning slot, which has no pid yet', async () => {
     const spawn = deferred<unknown>();
-    (deps.agentServices.get('opencode')!.spawn as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      () => spawn.promise
-    );
+    (
+      deps.agentServices.get('opencode-sdk')!.spawn as ReturnType<typeof vi.fn>
+    ).mockImplementationOnce(() => spawn.promise);
     const starting = manager.ensureRunning(createOpts());
     await vi.waitFor(() => expect(manager.getSlot(CHATROOM_ID, ROLE)?.state).toBe('spawning'));
 
@@ -2276,11 +2243,11 @@ describe('stopping slots in the liveness sweep', () => {
   });
 
   function serviceStop(): ReturnType<typeof vi.fn> {
-    return deps.agentServices.get('opencode')!.stop as ReturnType<typeof vi.fn>;
+    return deps.agentServices.get('opencode-sdk')!.stop as ReturnType<typeof vi.fn>;
   }
 
   function serviceSpawn(): ReturnType<typeof vi.fn> {
-    return deps.agentServices.get('opencode')!.spawn as ReturnType<typeof vi.fn>;
+    return deps.agentServices.get('opencode-sdk')!.spawn as ReturnType<typeof vi.fn>;
   }
 
   function markDead(pid: number): void {

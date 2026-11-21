@@ -41,7 +41,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 
 vi.mock('../../../hooks/useMachineModels', () => ({
   useMachineModels: () => ({
-    availableModels: { cursor: ['openai/gpt-4o', 'anthropic/claude-sonnet-4'] },
+    availableModels: { 'cursor-sdk': ['openai/gpt-4o', 'anthropic/claude-sonnet-4'] },
     isLoading: false,
   }),
 }));
@@ -70,7 +70,7 @@ function mkMachine(): MachineInfo {
     machineId: 'machine-a',
     hostname: 'host-a',
     os: 'linux',
-    availableHarnesses: ['cursor'],
+    availableHarnesses: ['cursor-sdk'],
     harnessVersions: {},
   };
 }
@@ -84,14 +84,14 @@ function ModelPickerHarness({
 }) {
   const machines = [mkMachine()];
   const role = ephemeral ? 'architect' : 'builder';
-  // Seeding config matching the machine so initialization picks machine-a + cursor
+  // Seeding config matching the machine so initialization picks machine-a + cursor-sdk
   const seedingConfig: AgentConfig = {
     machineId: 'machine-a',
     hostname: 'host-a',
     role,
-    agentType: 'cursor',
+    agentType: 'cursor-sdk',
     workingDir: '/workspace',
-    availableHarnesses: ['cursor'],
+    availableHarnesses: ['cursor-sdk'],
     updatedAt: Date.now(),
   };
   const controls = useAgentControls({
@@ -101,7 +101,7 @@ function ModelPickerHarness({
     connectedMachines: machines,
     agentConfigs: [seedingConfig],
     sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
-    teamConfigHarness: 'cursor',
+    teamConfigHarness: 'cursor-sdk',
     teamConfigMachineId: 'machine-a',
   });
   return (
@@ -151,10 +151,10 @@ describe('AgentControls model picker', () => {
                 machineId: 'machine-a',
                 hostname: 'host-a',
                 role: ephemeral ? 'architect' : 'builder',
-                agentType: 'cursor',
+                agentType: 'cursor-sdk',
                 workingDir: '/workspace',
                 model: 'openai/gpt-4o',
-                availableHarnesses: ['cursor'],
+                availableHarnesses: ['cursor-sdk'],
                 updatedAt: 123,
               },
             ],
@@ -169,7 +169,7 @@ describe('AgentControls model picker', () => {
 
       await waitFor(() => {
         expect(result.current.selectedMachineId).toBe('machine-a');
-        expect(result.current.selectedHarness).toBe('cursor');
+        expect(result.current.selectedHarness).toBe('cursor-sdk');
         expect(result.current.workingDir).toBe('/workspace');
       });
     }

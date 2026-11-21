@@ -21,7 +21,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 export interface UseMachineModelsResult {
-  /** Harness → model IDs (e.g. `{ opencode: ['provider/claude-4'], pi: [...] }`) */
+  /** Harness → model IDs (e.g. `{ 'opencode-sdk': ['provider/claude-4'], 'pi-sdk': [...] }`) */
   availableModels: Record<string, string[]>;
   /** True while loading models for the requested machineId */
   isLoading: boolean;

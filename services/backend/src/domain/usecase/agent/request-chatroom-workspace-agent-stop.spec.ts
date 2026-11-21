@@ -30,7 +30,7 @@ describe('requestChatroomWorkspaceAgentStop', () => {
         role: 'builder',
         agentType: 'remote',
         machineId: 'offline-daemon',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         model: 'test-model',
         workingDir: '/tmp/test',
         reason: AgentStartReasonCode.USER_START,

@@ -44,9 +44,9 @@ async function registerMachine(sessionId: SessionId, machineId: string) {
     machineId,
     hostname: `${machineId}-host`,
     os: 'linux',
-    availableHarnesses: ['opencode'],
-    availableModels: { opencode: ['openai/gpt-4'] },
-    harnessVersions: { opencode: { version: '1.2.3', major: 1 } },
+    availableHarnesses: ['opencode-sdk'],
+    availableModels: { 'opencode-sdk': ['openai/gpt-4'] },
+    harnessVersions: { 'opencode-sdk': { version: '1.2.3', major: 1 } },
   });
 }
 
@@ -74,9 +74,9 @@ describe('migration: unsetMachineLegacyCapabilityFields', () => {
       await ctx.db.patch('chatroom_machines', machine._id, {
         alias: 'legacy-box',
         lastCapabilitiesRefreshRequestedAt: 1_700_000_000_000,
-        availableModels: { opencode: ['openai/gpt-4'] },
-        availableHarnesses: ['opencode'],
-        harnessVersions: { opencode: { version: '1.2.3', major: 1 } },
+        availableModels: { 'opencode-sdk': ['openai/gpt-4'] },
+        availableHarnesses: ['opencode-sdk'],
+        harnessVersions: { 'opencode-sdk': { version: '1.2.3', major: 1 } },
         lastSeenAt: 1_600_000_000_000,
       });
       return await ctx.db.get('chatroom_machines', machine._id);
@@ -130,7 +130,7 @@ describe('migration: unsetMachineLegacyCapabilityFields', () => {
         .unique();
       if (!machine) throw new Error('machine not found');
       await ctx.db.patch('chatroom_machines', machine._id, {
-        availableModels: { opencode: ['openai/gpt-4'] },
+        availableModels: { 'opencode-sdk': ['openai/gpt-4'] },
         lastSeenAt: 1_600_000_000_000,
       });
     });
@@ -157,9 +157,9 @@ describe('migration: unsetMachineLegacyCapabilityFields', () => {
     await t.mutation(api.machines.refreshCapabilities, {
       sessionId,
       machineId,
-      availableHarnesses: ['opencode'],
-      harnessVersions: { opencode: { version: '1.2.3', major: 1 } },
-      availableModels: { opencode: ['openai/gpt-4'] },
+      availableHarnesses: ['opencode-sdk'],
+      harnessVersions: { 'opencode-sdk': { version: '1.2.3', major: 1 } },
+      availableModels: { 'opencode-sdk': ['openai/gpt-4'] },
     });
 
     const afterRefresh = await readMachine(machineId);
@@ -182,9 +182,9 @@ describe('migration: unsetMachineLegacyCapabilityFields', () => {
       machineId,
       hostname: `${machineId}-host-2`,
       os: 'darwin',
-      availableHarnesses: ['opencode'],
-      availableModels: { opencode: ['openai/gpt-4'] },
-      harnessVersions: { opencode: { version: '2.0.0', major: 2 } },
+      availableHarnesses: ['opencode-sdk'],
+      availableModels: { 'opencode-sdk': ['openai/gpt-4'] },
+      harnessVersions: { 'opencode-sdk': { version: '2.0.0', major: 2 } },
     });
 
     const after = await readMachine(machineId);

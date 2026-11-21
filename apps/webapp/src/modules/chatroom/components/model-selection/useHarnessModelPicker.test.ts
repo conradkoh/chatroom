@@ -19,7 +19,7 @@ describe('useHarnessModelPicker', () => {
     const { result } = renderHook(() =>
       useHarnessModelPicker({
         machineId: 'machine-a',
-        harness: 'cursor',
+        harness: 'cursor-sdk',
         availableModels: AVAILABLE,
         selectedModel: 'anthropic/claude-sonnet-4',
       })
@@ -34,7 +34,7 @@ describe('useHarnessModelPicker', () => {
     const { result } = renderHook(() =>
       useHarnessModelPicker({
         machineId: 'machine-a',
-        harness: 'cursor',
+        harness: 'cursor-sdk',
         availableModels: AVAILABLE,
         selectedModel: 'openai/gpt-4o',
       })

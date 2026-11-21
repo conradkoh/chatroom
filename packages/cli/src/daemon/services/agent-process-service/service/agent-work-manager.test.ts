@@ -5,10 +5,6 @@ import { describe, expect, test, vi } from 'vitest';
 import { AgentWorkManager } from './agent-work-manager.js';
 import type { AgentLifecycleFact } from '../../../domain/entities/agent-lifecycle-fact.js';
 import type { AssignedTask } from '../../../domain/entities/assigned-task.js';
-import {
-  computeBackoffDelay,
-  REDELIVERY_BACKOFF_OPTIONS,
-} from '../../../domain/usecase/compute-backoff-delay.js';
 import { TaskInboxState } from '../../../infrastructure/inbox/task-inbox-state.js';
 import {
   createAgentLifecycleOutboxRegistry,
@@ -29,8 +25,7 @@ function createService(
     ) => Promise<{ released: boolean; status: 'pending'; updatedAt: number }>;
     readonly recordTurnFailure?: (
       args: Record<string, string>
-    ) => Promise<{ attempts: number; exceeded: boolean }>;
-    readonly parkTurnFailure?: ReturnType<typeof vi.fn>;
+    ) => Promise<{ attempts: number; parked: boolean }>;
     readonly isRedeliveryExhausted?: () => boolean;
     readonly clearRedeliveryTracking?: () => void;
     readonly markTurnFailureReleasePending?: ReturnType<typeof vi.fn>;
@@ -133,8 +128,7 @@ function createService(
       releaseTaskAfterTurnFailure: (options.releaseTaskAfterTurnFailure ??
         (async () => ({ released: true, status: 'pending', updatedAt: Date.now() }))) as never,
       recordTurnFailure:
-        options.recordTurnFailure ?? (async () => ({ attempts: 1, exceeded: false })),
-      parkTurnFailure: options.parkTurnFailure ?? vi.fn(),
+        options.recordTurnFailure ?? (async () => ({ attempts: 1, parked: false })),
       decideUncoveredTurnEnd:
         options.decideUncoveredTurnEnd ?? (async () => ({ action: 'nudge' as const })),
       confirmNudgeSent: options.confirmNudgeSent ?? vi.fn(),
@@ -201,8 +195,9 @@ const flushTimers = (): Promise<void> => new Promise((resolve) => setTimeout(res
 const runningSlot = () => ({ state: 'running' as const, pid: 42, harnessSessionId: 'sess-1' });
 
 /**
- * Runs a fake-timer test with Math.random pinned to its neutral value so a
- * jittered backoff delay is exactly its capped exponential value.
+ * Runs a fake-timer test with Math.random pinned to its neutral value (0.5), so a
+ * jittered backoff delay is exactly its neutral value: the capped exponential below
+ * the cap, and 54s at the 60s cap.
  */
 const withFakeTimersAndNeutralJitter = async (fn: () => Promise<void> | void): Promise<void> => {
   vi.useFakeTimers();
@@ -730,36 +725,6 @@ describe('AgentWorkManager', () => {
     });
   });
 
-  test('CLI-driven recovery retries keep the 30-second interval cap', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const startedAt = Date.now();
-      const recoveryTimes: number[] = [];
-      const recoverInFlightTasks = vi.fn(async () => {
-        recoveryTimes.push(Date.now() - startedAt);
-        throw new Error('status read failed');
-      });
-      let onSessionLost: ((event: never) => void) | undefined;
-      const service = createService({
-        recoverInFlightTasks,
-        agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
-        getSlot: () => ({ state: 'running', pid: 41 }),
-        onSessionLost: (handler) => {
-          onSessionLost = handler;
-        },
-      });
-
-      onSessionLost?.({ chatroomId: 'room-1', role: 'builder', pid: 41 } as never);
-      await vi.advanceTimersByTimeAsync(0);
-
-      for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]) {
-        await vi.advanceTimersByTimeAsync(delay);
-      }
-
-      expect(recoveryTimes).toEqual([0, 1_000, 3_000, 7_000, 15_000, 31_000, 61_000, 91_000]);
-      service.dispose();
-    });
-  });
-
   test('native harness respawn retries double to the ten-minute cap and never give up', async () => {
     await withFakeTimersAndNeutralJitter(async () => {
       const startedAt = Date.now();
@@ -789,36 +754,6 @@ describe('AgentWorkManager', () => {
         1_623_000, 2_223_000,
       ]);
       service.dispose();
-    });
-  });
-
-  test('CLI-driven harness respawn retries still stop after three attempts', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        const startedAt = Date.now();
-        const startTimes: number[] = [];
-        const startAgent = vi.fn(async () => {
-          startTimes.push(Date.now() - startedAt);
-          return { success: false, error: 'rate_limited' };
-        });
-        const service = createRestartService({
-          startAgent,
-          agentConfig: { agentHarness: 'opencode', model: 'test-model', workingDir: '/test' },
-        });
-
-        await armRespawnStartRetries(service);
-        await vi.advanceTimersByTimeAsync(1_000);
-        await vi.advanceTimersByTimeAsync(2_000);
-        await vi.advanceTimersByTimeAsync(60_000);
-
-        expect(startTimes).toEqual([0, 1_000, 3_000]);
-        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
-        expect(vi.getTimerCount()).toBe(0);
-        service.dispose();
-      } finally {
-        errorLog.mockRestore();
-      }
     });
   });
 
@@ -1151,111 +1086,6 @@ describe('AgentWorkManager', () => {
     });
   });
 
-  test('unexpected retry errors still stop at the CLI attempt cap', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        const startAgent = vi.fn(async () => ({ success: false, error: 'rate_limited' }));
-        const config = {
-          agentHarness: 'opencode',
-          model: 'test-model',
-          workingDir: '/test',
-        };
-        const service = createSerializedFailureService({
-          config: () => config,
-          startAgent,
-          failCalls: [2, 3],
-        });
-
-        await armRespawnStartRetries(service);
-        await vi.advanceTimersByTimeAsync(1_000);
-        await vi.advanceTimersByTimeAsync(2_000);
-        await vi.advanceTimersByTimeAsync(60_000);
-
-        expect(startAgent).toHaveBeenCalledTimes(1);
-        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
-        expect(vi.getTimerCount()).toBe(0);
-        service.dispose();
-      } finally {
-        errorLog.mockRestore();
-      }
-    });
-  });
-
-  test('a harness change from SDK to CLI applies the CLI attempt bound', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        const startedAt = Date.now();
-        const startTimes: number[] = [];
-        const startAgent = vi.fn(async () => {
-          startTimes.push(Date.now() - startedAt);
-          return { success: false, error: 'rate_limited' };
-        });
-        let config = {
-          agentHarness: 'cursor-sdk',
-          model: 'test-model',
-          workingDir: '/test',
-        };
-        const service = createRestartService({
-          startAgent,
-          agentConfig: () => config,
-        });
-
-        await armRespawnStartRetries(service);
-        expect(startTimes).toEqual([0]);
-
-        config = { ...config, agentHarness: 'opencode' };
-        await vi.advanceTimersByTimeAsync(1_000);
-        await vi.advanceTimersByTimeAsync(2_000);
-        await vi.advanceTimersByTimeAsync(60_000);
-
-        expect(startTimes).toEqual([0, 1_000, 3_000]);
-        expect(errorLog.mock.calls.join('\n')).toContain('attempts exhausted');
-        expect(vi.getTimerCount()).toBe(0);
-        service.dispose();
-      } finally {
-        errorLog.mockRestore();
-      }
-    });
-  });
-
-  test('a harness change from CLI to SDK keeps retrying past the CLI bound', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const startedAt = Date.now();
-      const startTimes: number[] = [];
-      const startAgent = vi.fn(async () => {
-        startTimes.push(Date.now() - startedAt);
-        return { success: false, error: 'rate_limited' };
-      });
-      let config = {
-        agentHarness: 'opencode',
-        model: 'test-model',
-        workingDir: '/test',
-      };
-      const service = createRestartService({
-        startAgent,
-        agentConfig: () => config,
-      });
-
-      await armRespawnStartRetries(service);
-      expect(startTimes).toEqual([0]);
-
-      config = { ...config, agentHarness: 'cursor-sdk' };
-      for (const delay of [
-        1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 512_000,
-      ]) {
-        await vi.advanceTimersByTimeAsync(delay);
-      }
-
-      expect(startTimes).toEqual([
-        0, 1_000, 3_000, 7_000, 15_000, 31_000, 63_000, 127_000, 255_000, 511_000, 1_023_000,
-      ]);
-      expect(vi.getTimerCount()).toBe(1);
-      service.dispose();
-    });
-  });
-
   test('automatic recovery rejection still lets a waiting explicit recovery run', async () => {
     await withFakeTimersAndNeutralJitter(async () => {
       let rejectAutomatic!: (error: Error) => void;
@@ -1307,7 +1137,7 @@ describe('AgentWorkManager', () => {
         status: 'pending' as const,
         updatedAt: 1700000000000,
       }));
-      const recordTurnFailure = vi.fn(async () => ({ attempts: 1, exceeded: false }));
+      const recordTurnFailure = vi.fn(async () => ({ attempts: 1, parked: false }));
       const decideUncoveredTurnEnd = vi.fn();
       const { service } = await armFailedTurnRelease({
         recordTurnFailure,
@@ -1346,8 +1176,8 @@ describe('AgentWorkManager', () => {
       }));
       const recordTurnFailure = vi
         .fn()
-        .mockResolvedValueOnce({ attempts: 1, exceeded: false })
-        .mockResolvedValueOnce({ attempts: 2, exceeded: false });
+        .mockResolvedValueOnce({ attempts: 1, parked: false })
+        .mockResolvedValueOnce({ attempts: 2, parked: false });
       const { service } = await armFailedTurnRelease({
         recordTurnFailure,
         releaseTaskAfterTurnFailure,
@@ -1376,37 +1206,7 @@ describe('AgentWorkManager', () => {
     });
   });
 
-  test('applies the cap to failed turns without a covering handoff and cancels the last timer', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const releaseTaskAfterTurnFailure = vi.fn(async () => ({
-        released: true,
-        status: 'pending' as const,
-        updatedAt: 1700000000000,
-      }));
-      let attempts = 0;
-      const inbox = new TaskInboxState();
-      inbox.upsert([inProgressTask('task-1')]);
-      const service = createService({
-        releaseTaskAfterTurnFailure,
-        recordTurnFailure: async () => ({ attempts: ++attempts, exceeded: attempts >= 8 }),
-        taskInboxState: inbox,
-      });
-
-      for (let attempt = 1; attempt <= 8; attempt += 1) {
-        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-        await service.handleAgentTurnEnded(failedTurnEvent() as never);
-      }
-
-      expect(attempts).toBe(8);
-      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
-      // The 7th failure armed a timer; parking at the 8th must cancel it.
-      await vi.advanceTimersByTimeAsync(10 * 60_000);
-      expect(releaseTaskAfterTurnFailure).not.toHaveBeenCalled();
-      service.dispose();
-    });
-  });
-
-  test('releases on the documented schedule before parking the eighth failure', async () => {
+  test('retries without a cap: twelve failures each arm a release and no delay exceeds 60s', async () => {
     await withFakeTimersAndNeutralJitter(async () => {
       const startedAt = Date.now();
       const releaseTimes: number[] = [];
@@ -1419,23 +1219,55 @@ describe('AgentWorkManager', () => {
       inbox.upsert([inProgressTask('task-1')]);
       const service = createService({
         releaseTaskAfterTurnFailure,
-        recordTurnFailure: async () => ({ attempts: ++attempts, exceeded: attempts >= 8 }),
+        recordTurnFailure: async () => ({ attempts: ++attempts, parked: false }),
         taskInboxState: inbox,
       });
+      // Neutral jitter (0.5). Attempts 5+ are capped at 60s and jitter downward, so they sit at 54s.
+      const delayAfter = [
+        5_000, 10_000, 20_000, 40_000, 54_000, 54_000, 54_000, 54_000, 54_000, 54_000, 54_000,
+        54_000,
+      ];
 
-      for (let attempt = 1; attempt <= 8; attempt += 1) {
+      for (let attempt = 1; attempt <= 12; attempt += 1) {
         service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
         await service.handleAgentTurnEnded(failedTurnEvent() as never);
-        if (attempt < 8) {
-          await vi.advanceTimersByTimeAsync(
-            computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS, () => 0.5)
-          );
-        }
+        await vi.advanceTimersByTimeAsync(delayAfter[attempt - 1]!);
       }
 
-      // Cumulative release times with neutral jitter: 5s, then +10s, +20s, +40s,
-      // +80s, +160s, +300s. The eighth failure parks and schedules nothing.
-      expect(releaseTimes).toEqual([5_000, 15_000, 35_000, 75_000, 155_000, 315_000, 615_000]);
+      expect(releaseTimes).toEqual([
+        5_000, 15_000, 35_000, 75_000, 129_000, 183_000, 237_000, 291_000, 345_000, 399_000,
+        453_000, 507_000,
+      ]);
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(12);
+      expect(attempts).toBe(12);
+      service.dispose();
+    });
+  });
+
+  test('a release that keeps failing never parks and keeps exactly one timer armed', async () => {
+    await withFakeTimersAndNeutralJitter(async () => {
+      const releaseTaskAfterTurnFailure = vi.fn(async () => {
+        throw new Error('backend unavailable');
+      });
+      const recordTurnFailure = vi
+        .fn()
+        .mockResolvedValueOnce({ attempts: 1, parked: false })
+        .mockRejectedValue(new Error('accounting failed'));
+      const { service } = await armFailedTurnRelease({
+        releaseTaskAfterTurnFailure,
+        recordTurnFailure,
+      });
+
+      // First backoff elapses, then ten more 5s retries: every attempt leaves
+      // exactly one timer armed and never parks.
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(vi.getTimerCount()).toBe(1);
+      for (let step = 0; step < 10; step += 1) {
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(vi.getTimerCount()).toBe(1);
+      }
+
+      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(11);
       service.dispose();
     });
   });
@@ -1870,8 +1702,8 @@ describe('AgentWorkManager', () => {
         .mockResolvedValue({ released: true, status: 'pending', updatedAt: 1700000000000 });
       const recordTurnFailure = vi
         .fn()
-        .mockResolvedValueOnce({ attempts: 1, exceeded: false })
-        .mockResolvedValueOnce({ attempts: 2, exceeded: false });
+        .mockResolvedValueOnce({ attempts: 1, parked: false })
+        .mockResolvedValueOnce({ attempts: 2, parked: false });
       const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
         recordTurnFailure,
@@ -1902,7 +1734,7 @@ describe('AgentWorkManager', () => {
         .mockResolvedValue({ released: true, status: 'pending', updatedAt: 1700000000000 });
       const recordTurnFailure = vi
         .fn()
-        .mockResolvedValueOnce({ attempts: 1, exceeded: false })
+        .mockResolvedValueOnce({ attempts: 1, parked: false })
         .mockRejectedValueOnce(new Error('record failed'));
       const { service } = await armFailedTurnRelease({
         releaseTaskAfterTurnFailure,
@@ -1918,132 +1750,6 @@ describe('AgentWorkManager', () => {
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1);
       expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(2);
-      service.dispose();
-    });
-  });
-
-  test('stops release retries and parks after five consecutive accounting failures', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        const releaseTaskAfterTurnFailure = vi.fn(async () => {
-          throw new Error('backend unavailable');
-        });
-        const recordTurnFailure = vi
-          .fn()
-          .mockResolvedValueOnce({ attempts: 1, exceeded: false })
-          .mockRejectedValue(new Error('accounting failed'));
-        const parkTurnFailure = vi.fn(async () => undefined);
-        const { service } = await armFailedTurnRelease({
-          releaseTaskAfterTurnFailure,
-          recordTurnFailure,
-          parkTurnFailure,
-        });
-        await vi.advanceTimersByTimeAsync(5_000 * 5);
-
-        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(5);
-        expect(parkTurnFailure).toHaveBeenCalledTimes(1);
-        expect(parkTurnFailure).toHaveBeenCalledWith({
-          chatroomId: 'room-1',
-          role: 'builder',
-          taskId: 'task-1',
-        });
-        expect(vi.getTimerCount()).toBe(0);
-        expect(errorLog.mock.calls.join('\n')).toContain('turn-failure-accounting-stalled');
-
-        await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
-        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(5);
-        service.dispose();
-      } finally {
-        errorLog.mockRestore();
-      }
-    });
-  });
-
-  test('a successful release restarts the accounting-failure streak', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        let recordCalls = 0;
-        let releaseCalls = 0;
-        const releaseTaskAfterTurnFailure = vi.fn(async () => {
-          releaseCalls += 1;
-          if (releaseCalls !== 3) throw new Error('backend unavailable');
-          return { released: true, status: 'pending' as const, updatedAt: 1700000000000 };
-        });
-        const recordTurnFailure = vi.fn(async () => {
-          recordCalls += 1;
-          if (recordCalls === 2 || recordCalls === 3 || recordCalls >= 5) {
-            throw new Error('accounting failed');
-          }
-          return { attempts: recordCalls === 1 ? 1 : 2, exceeded: false };
-        });
-        const parkTurnFailure = vi.fn(async () => undefined);
-        const { service } = await armFailedTurnRelease({
-          releaseTaskAfterTurnFailure,
-          recordTurnFailure,
-          parkTurnFailure,
-        });
-
-        // Two accounting failures, then the third release succeeds.
-        await vi.advanceTimersByTimeAsync(5_000);
-        await vi.advanceTimersByTimeAsync(5_000);
-        await vi.advanceTimersByTimeAsync(5_000);
-        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(3);
-        expect(parkTurnFailure).not.toHaveBeenCalled();
-
-        // A later turn failure starts a new streak: three more accounting
-        // failures must not reach the five-failure cap.
-        service.recordTaskDelivered({ chatroomId: 'room-1', role: 'builder', taskId: 'task-1' });
-        await service.handleAgentTurnEnded(
-          failedTurnEvent({
-            eventId: 'turn-2',
-            completion: {
-              turnId: 'turn-2',
-              status: 'failed',
-              source: 'provider.transport',
-              error: 'boom',
-            },
-          }) as never
-        );
-        for (const delay of [10_000, 10_000, 10_000]) {
-          await vi.advanceTimersByTimeAsync(delay);
-        }
-
-        expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(6);
-        expect(parkTurnFailure).not.toHaveBeenCalled();
-        expect(errorLog.mock.calls.join('\n')).not.toContain('turn-failure-accounting-stalled');
-        expect(vi.getTimerCount()).toBe(1);
-        service.dispose();
-      } finally {
-        errorLog.mockRestore();
-      }
-    });
-  });
-
-  test('a release that keeps failing parks after the cap and leaves no timer', async () => {
-    await withFakeTimersAndNeutralJitter(async () => {
-      const releaseTaskAfterTurnFailure = vi.fn(async () => {
-        throw new Error('backend unavailable');
-      });
-      let attempts = 0;
-      const recordTurnFailure = vi.fn(async () => {
-        attempts += 1;
-        return { attempts, exceeded: attempts >= 8 };
-      });
-      const { service } = await armFailedTurnRelease({
-        releaseTaskAfterTurnFailure,
-        recordTurnFailure,
-      });
-      // 5 + 10 + 20 + 40 + 80 + 160 + 300 seconds of retries.
-      await vi.advanceTimersByTimeAsync(615_000);
-
-      expect(attempts).toBe(8);
-      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(7);
-      expect(vi.getTimerCount()).toBe(0);
-
-      await vi.advanceTimersByTimeAsync(10 * 60 * 60_000);
-      expect(releaseTaskAfterTurnFailure).toHaveBeenCalledTimes(7);
       service.dispose();
     });
   });

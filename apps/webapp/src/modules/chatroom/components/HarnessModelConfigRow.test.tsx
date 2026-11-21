@@ -24,7 +24,7 @@ describe('HarnessModelConfigRow', () => {
     const onApply = vi.fn();
     render(
       <HarnessModelConfigRow
-        harnessLabel="Claude Code"
+        harnessLabel="Claude (SDK)"
         modelLabel="Claude Opus 4"
         onApply={onApply}
         actions={null}

@@ -1,5 +1,6 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
+import type { DeliveryFailureReason } from './delivery-failure';
 import type { TaskStatus, TaskOrigin } from '../../../../domain/entities/task';
 import type { TeamLifecycle } from '../../types/readiness';
 
@@ -18,13 +19,7 @@ export interface Task {
   queuePosition: number;
   assignedTo?: string;
   deliveryFailure?: {
-    reason:
-      | 'no_agent_config'
-      | 'unsupported_harness'
-      | 'injection_not_confirmed'
-      | 'task_not_deliverable'
-      | 'assigned_elsewhere'
-      | 'redelivery_exhausted';
+    reason: DeliveryFailureReason;
     occurredAt: number;
   };
   backlog?: {

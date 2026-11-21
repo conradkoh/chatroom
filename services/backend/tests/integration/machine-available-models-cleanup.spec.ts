@@ -68,8 +68,8 @@ describe('machine available-models cleanup', () => {
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
-      availableModels: { opencode: ['a/b'] },
+      availableHarnesses: ['opencode-sdk'],
+      availableModels: { 'opencode-sdk': ['a/b'] },
     });
 
     expect(await readModelsRows(machineId)).toHaveLength(1);
@@ -94,7 +94,7 @@ describe('machine available-models cleanup', () => {
       });
       await ctx.db.insert('chatroom_machineAvailableModels', {
         machineId,
-        availableModels: { opencode: ['a/b'] },
+        availableModels: { 'opencode-sdk': ['a/b'] },
         updatedAt: Date.now(),
       });
     });

@@ -42,8 +42,9 @@ gate transitions on state have started fighting the daemon:
    `requestAgentRestart` no longer releases tasks. The restart orchestrator
    notifies the agent process service (`AgentWorkManager.handleAgentRestart` —
    resets delivery mutex + agent task state) which delegates to
-   `taskService.handleAgentRestart`: the task service decides — reset the V2
-   redelivery cap (user intervention) and release acknowledged/in_progress
+   `taskService.handleAgentRestart`: the task service decides — reset the
+   redelivery failure streak and clear the retry warning (user intervention) and
+   release acknowledged/in_progress
    tasks to `pending` via the authoritative per-task path
    (`releaseTaskAfterTurnFailure`), so the fresh agent reprocesses them.
 

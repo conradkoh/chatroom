@@ -16,7 +16,7 @@ import {
   ResponsivePickerShell,
 } from '@/modules/chatroom/components/picker';
 
-const ITEMS = ['OpenCode (SDK) v1.17.18', 'Claude Code', 'Cursor', 'Codex'];
+const ITEMS = ['OpenCode (SDK) v1.17.18', 'Claude (SDK)', 'Cursor (SDK)', 'Codex'];
 
 export function NestedFixedModalPickerSection() {
   const [modalOpen, setModalOpen] = useState(false);

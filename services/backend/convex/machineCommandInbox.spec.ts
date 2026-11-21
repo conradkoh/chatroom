@@ -17,7 +17,7 @@ async function owner() {
     machineId,
     hostname: 'test',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   return sessionId;
 }

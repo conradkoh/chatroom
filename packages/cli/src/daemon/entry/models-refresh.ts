@@ -77,8 +77,6 @@ function getCatalogEndpoints(): Record<
   const harnesses = api.harnesses;
   return {
     'codex-sdk': harnesses?.codexSdk,
-    copilot: harnesses?.copilot,
-    claude: harnesses?.claude,
     'claude-sdk': harnesses?.claudeSdk,
   } as unknown as Record<CatalogBackedHarness, { listModels: CatalogListModelsQuery } | undefined>;
 }

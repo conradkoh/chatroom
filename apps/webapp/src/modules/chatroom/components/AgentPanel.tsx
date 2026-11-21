@@ -3,7 +3,7 @@
 import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { ChevronRight, Users } from 'lucide-react';
-import { useMemo, memo } from 'react';
+import { useMemo, memo, type RefObject } from 'react';
 
 import { CommandQueuePanel } from './AgentPanel/CommandQueuePanel';
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
@@ -47,6 +47,8 @@ interface AgentPanelProps {
   onRestartAllRemoteAgents: (() => void) | undefined;
   isStoppingAgents: boolean;
   isStartingAllAgents: boolean;
+  /** Start-all button element, so the favourites dialog can return focus to it. */
+  startAllButtonRef?: RefObject<HTMLButtonElement | null>;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -177,6 +179,7 @@ export const AgentPanel = memo(function AgentPanel({
   onRestartAllRemoteAgents,
   isStoppingAgents,
   isStartingAllAgents,
+  startAllButtonRef,
 }: AgentPanelProps) {
   const displayRoles = useMemo(() => {
     const base = teamStructure?.roles.map(({ role }) => role) ?? [];
@@ -274,6 +277,7 @@ export const AgentPanel = memo(function AgentPanel({
                 onRestart={onRestartAllRemoteAgents}
                 disabled={isStartingAllAgents}
                 isStarting={isStartingAllAgents}
+                startButtonRef={startAllButtonRef}
               />
               <ApplyTopFavoriteModelsButton variant="icon" />
             </div>

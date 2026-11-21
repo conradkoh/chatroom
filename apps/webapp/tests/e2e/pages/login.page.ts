@@ -23,6 +23,10 @@ export class LoginPage extends BasePage {
     return this.page.getByRole('button', { name: /continue anonymously/i });
   }
 
+  get signupOptionsLoading(): Locator {
+    return this.page.getByTestId('signup-options-loading');
+  }
+
   override async navigate(path = '/login'): Promise<void> {
     await this.page.goto(path);
     await expect(this.heading).toBeVisible();

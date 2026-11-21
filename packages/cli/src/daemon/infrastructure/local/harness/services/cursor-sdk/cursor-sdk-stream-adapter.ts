@@ -1,7 +1,7 @@
 /**
  * CursorSdkStreamAdapter — maps @cursor/sdk run.stream() SDKMessage events and
- * SendOptions.onDelta InteractionUpdate deltas to stdout log lines compatible
- * with the existing cursor CLI harness pipeline.
+ * SendOptions.onDelta InteractionUpdate deltas to stdout log lines consumed by
+ * the daemon's harness log pipeline.
  */
 
 import type { InteractionUpdate, SDKMessage } from '@cursor/sdk';

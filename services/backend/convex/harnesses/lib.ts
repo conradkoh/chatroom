@@ -3,8 +3,8 @@
  *
  * Serve the server-curated model catalog (`HARNESS_MODEL_CATALOG`) to daemons,
  * which fetch it at boot and on manual refresh and overlay it onto local
- * discovery. Per-harness modules (`codexSdk.ts`, `copilot.ts`, `cursor.ts`)
- * each expose `api.harnesses.<harness>.listModels`.
+ * discovery. Per-harness modules (`codexSdk.ts`, `claudeSdk.ts`) each expose
+ * `api.harnesses.<harness>.listModels`.
  */
 
 import { SessionIdArg } from 'convex-helpers/server/sessions';

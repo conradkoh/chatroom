@@ -25,18 +25,18 @@ describe('computeRecommendedMachineConfigs', () => {
     const usage = new Map<string, number[]>([
       ['opencode-sdk|gpt-4', [NOW - HOUR]], // score 150
       ['opencode-sdk|claude', [NOW - 2 * HOUR, NOW - 3 * HOUR]], // score 300
-      ['cursor|gpt-4', [NOW - 5 * 24 * HOUR]], // score 60
+      ['cursor-sdk|gpt-4', [NOW - 5 * 24 * HOUR]], // score 60
     ]);
     const candidates = [
       makeEntry('opencode-sdk', 'gpt-4'),
       makeEntry('opencode-sdk', 'claude'),
-      makeEntry('cursor', 'gpt-4'),
+      makeEntry('cursor-sdk', 'gpt-4'),
     ];
     const result = computeRecommendedMachineConfigs(usage, [], candidates, NOW);
     expect(result).toHaveLength(3);
     expect(result[0].model).toBe('claude'); // highest score
     expect(result[1].model).toBe('gpt-4'); // second
-    expect(result[2].model).toBe('gpt-4'); // third (cursor)
+    expect(result[2].model).toBe('gpt-4'); // third (cursor-sdk)
   });
 
   test('excludes favorites from recommendations', () => {

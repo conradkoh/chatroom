@@ -14,7 +14,7 @@ import type { Workspace } from '../../types/workspace';
 function mkMachine(
   id: string,
   hostname: string,
-  availableHarnesses: AgentHarness[] = ['cursor']
+  availableHarnesses: AgentHarness[] = ['cursor-sdk']
 ): MachineInfo {
   return {
     machineId: id,
@@ -53,8 +53,8 @@ function mkConfig(machineId: string, workingDir: string, updatedAt = 1): AgentCo
     machineId,
     hostname: 'host',
     role: 'builder',
-    agentType: 'cursor',
-    availableHarnesses: ['cursor'],
+    agentType: 'cursor-sdk',
+    availableHarnesses: ['cursor-sdk'],
     workingDir,
     updatedAt,
   };
@@ -73,7 +73,7 @@ describe('deriveInitialMachineId', () => {
     const running: AgentConfig = {
       ...mA,
       role: 'builder',
-      agentType: 'cursor',
+      agentType: 'cursor-sdk',
       workingDir: '/p',
       updatedAt: 1,
       spawnedAgentPid: 42,
@@ -85,7 +85,7 @@ describe('deriveInitialMachineId', () => {
     const cfg: AgentConfig = {
       ...mA,
       role: 'builder',
-      agentType: 'cursor',
+      agentType: 'cursor-sdk',
       workingDir: '/p',
       updatedAt: 1,
     };
@@ -109,7 +109,7 @@ describe('deriveInitialMachineId', () => {
     const cfg: AgentConfig = {
       ...mA,
       role: 'builder',
-      agentType: 'cursor',
+      agentType: 'cursor-sdk',
       workingDir: '/p',
       updatedAt: 1,
     };
@@ -277,31 +277,39 @@ describe('resolveInitialSelection', () => {
     const result = resolveInitialSelection(inputs({ roleConfigs: [mkConfig('a', '/p')] }));
     expect(result).toEqual({
       machineId: 'a',
-      harness: 'cursor',
+      harness: 'cursor-sdk',
       workingDir: '/p',
       seededFromConfig: true,
     });
   });
 
   it('takes the harness from the team config when the saved config is not installed', () => {
-    const machine = mkMachine('a', 'host-a', ['cursor', 'opencode']);
+    const machine = mkMachine('a', 'host-a', ['cursor-sdk', 'opencode-sdk']);
     const result = resolveInitialSelection(
       inputs({
         connectedMachines: [machine],
-        roleConfigs: [{ ...mkConfig('a', '/p'), agentType: 'claude' }],
-        teamConfigHarness: 'opencode',
+        roleConfigs: [{ ...mkConfig('a', '/p'), agentType: 'claude-sdk' }],
+        teamConfigHarness: 'opencode-sdk',
       })
     );
-    expect(result).toMatchObject({ machineId: 'a', harness: 'opencode', seededFromConfig: true });
+    expect(result).toMatchObject({
+      machineId: 'a',
+      harness: 'opencode-sdk',
+      seededFromConfig: true,
+    });
   });
 
   it('falls back to the only installed harness, without marking it as seeded', () => {
     const result = resolveInitialSelection(inputs({ lockedMachineId: 'a' }));
-    expect(result).toMatchObject({ machineId: 'a', harness: 'cursor', seededFromConfig: false });
+    expect(result).toMatchObject({
+      machineId: 'a',
+      harness: 'cursor-sdk',
+      seededFromConfig: false,
+    });
   });
 
   it('leaves the harness open when several are installed and nothing chose one', () => {
-    const machine = mkMachine('a', 'host-a', ['cursor', 'opencode']);
+    const machine = mkMachine('a', 'host-a', ['cursor-sdk', 'opencode-sdk']);
     const result = resolveInitialSelection(
       inputs({ connectedMachines: [machine], lockedMachineId: 'a' })
     );

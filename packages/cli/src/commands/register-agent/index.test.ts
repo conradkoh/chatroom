@@ -21,7 +21,7 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
     machineId: 'machine_123',
     hostname: 'test-host',
     os: 'darwin',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
     harnessVersions: {},
     registeredAt: '2024-01-01T00:00:00.000Z',
     lastSyncedAt: '2024-01-01T00:00:00.000Z',

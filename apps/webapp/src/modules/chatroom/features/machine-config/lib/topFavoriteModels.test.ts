@@ -6,8 +6,8 @@ import {
   type ApplyTopFavoritesResult,
 } from './topFavoriteModels';
 
-const plannerTop = { agentHarness: 'claude' as const, model: 'opus' };
-const builderTop = { agentHarness: 'opencode' as const, model: 'gpt' };
+const plannerTop = { agentHarness: 'claude-sdk' as const, model: 'opus' };
+const builderTop = { agentHarness: 'opencode-sdk' as const, model: 'gpt' };
 
 describe('resolveTopFavoritePerRole', () => {
   it('picks index 0, skips empty lists and skips roles missing from the map', () => {
@@ -15,15 +15,15 @@ describe('resolveTopFavoritePerRole', () => {
       [
         'planner',
         [
-          { agentHarness: 'claude' as const, model: 'opus' },
-          { agentHarness: 'opencode' as const, model: 'gpt' },
+          { agentHarness: 'claude-sdk' as const, model: 'opus' },
+          { agentHarness: 'opencode-sdk' as const, model: 'gpt' },
         ],
       ],
       ['builder', []],
     ]);
 
     expect(resolveTopFavoritePerRole(['planner', 'builder', 'reviewer'], favoritesByRole)).toEqual([
-      { role: 'planner', entry: { agentHarness: 'claude', model: 'opus' } },
+      { role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } },
     ]);
   });
 
@@ -34,8 +34,8 @@ describe('resolveTopFavoritePerRole', () => {
     ]);
 
     expect(resolveTopFavoritePerRole(['planner', 'builder'], favoritesByRole)).toEqual([
-      { role: 'planner', entry: { agentHarness: 'claude', model: 'opus' } },
-      { role: 'builder', entry: { agentHarness: 'opencode', model: 'gpt' } },
+      { role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } },
+      { role: 'builder', entry: { agentHarness: 'opencode-sdk', model: 'gpt' } },
     ]);
   });
 });

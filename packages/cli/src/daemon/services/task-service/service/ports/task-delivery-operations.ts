@@ -1,4 +1,7 @@
-import type { TaskDeliveryFailureReason } from './native-task-delivery.js';
+import type {
+  ClearableDeliveryFailureReason,
+  TaskDeliveryFailureReason,
+} from './native-task-delivery.js';
 import type {
   AssignedTask,
   AssignedTaskWithContent,
@@ -22,16 +25,18 @@ export interface TaskDeliveryOperations {
   }): Promise<boolean>;
   clearDeliveryFailure(
     taskId: string,
-    expectedReason?: TaskDeliveryFailureReason
+    expectedReason?: ClearableDeliveryFailureReason
   ): Promise<boolean>;
-  /** Counts a provider failure; `attempts` is 1-based, `exceeded` stops release/redelivery. */
+  /**
+   * Counts one provider failure and never parks for it. `attempts` is 1-based and
+   * drives the backoff delay. `parked` is true only when the uncovered-turn ladder
+   * already parked this task; then no release may be scheduled.
+   */
   recordTurnFailure(args: {
     chatroomId: string;
     role: string;
     taskId: string;
-  }): Promise<{ attempts: number; exceeded: boolean }>;
-  /** Parks a task through the provider-failure park path (records redelivery_exhausted). */
-  parkTurnFailure(args: { chatroomId: string; role: string; taskId: string }): Promise<void>;
+  }): Promise<{ attempts: number; parked: boolean }>;
   /** Next ladder step for a completed turn with no covering handoff. Parks when exhausted. */
   decideUncoveredTurnEnd(args: {
     chatroomId: string;
@@ -47,7 +52,7 @@ export interface TaskDeliveryOperations {
     taskId: string;
     sessionKey: string;
   }): void;
-  /** Clears ladder and failure counters after a covered turn end. The parked marker is kept. */
+  /** Clears ladder and failure counters after a covered turn end, and clears the retry warning this run wrote. The parked marker is kept. */
   resetTurnTracking(args: { chatroomId: string; role: string; taskId: string }): void;
   isRedeliveryExhausted(args: { chatroomId: string; role: string; taskId: string }): boolean;
   clearRedeliveryTracking(args: { chatroomId: string; role: string }): void;

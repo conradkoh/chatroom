@@ -70,7 +70,7 @@ export interface HarnessSessionIdUpdatedInfo {
 export interface SpawnResult {
   pid: number;
   /**
-   * `lifecycle.process.exited` — OS child (CLI binary or SDK keeper) exited.
+   * `lifecycle.process.exited` — OS child or SDK keeper exited.
    * Stop reason is derived from exit code/signal (`agent_process.*`).
    */
   onExit: (
@@ -88,21 +88,17 @@ export interface SpawnResult {
   activityEmitter?: HarnessActivityEmitter | undefined;
   /**
    * Human-readable log lines for provider failure classification.
-   * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §3.5).
+   * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §1, SpawnResult outputs).
    */
   onLogLine?: ((cb: (line: string) => void) => void) | undefined;
   /**
-   * Compatibility lifecycle notification for one agent turn finishing.
-   *
-   * Wire sources differ by runtime (see `HarnessCapabilities.wireEvents`):
-   * - CLI: e.g. Pi NDJSON `wire.ndjson.agent_end` (SDK harnesses never emit this).
-   * - SDK: e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`.
-   *
-   * Native SDK harnesses should use `onTurnResult` as the authoritative channel.
-   * `onAgentEnd` is retained for CLI harnesses and compatibility observers; it must
-   * be derived from the same finalized result and must not independently drive state.
-   * After `resumeTurn`, the harness MUST be able to emit a subsequent notification
-   * for the new turn. Sticky once-per-process latches are a bug.
+   * Lifecycle notification for one agent turn finishing, from the harness's
+   * wire events (SDK e.g. `sdk.cursor.run.completed` or `sdk.opencode.session.idle`;
+   * see `HarnessCapabilities.wireEvents`). The daemon's native turn-end path
+   * consumes it. Harnesses derive it from the same finalized result as
+   * `onTurnResult` and must not independently drive state. After `resumeTurn`,
+   * the harness MUST be able to emit a subsequent notification for the new turn.
+   * Sticky once-per-process latches are a bug.
    */
   onAgentEnd?: ((cb: () => void) => void) | undefined;
   /** Typed, exactly-once terminal result for each logical turn. */
@@ -125,11 +121,11 @@ export interface ProcessInfo {
 // ─── Interface ────────────────────────────────────────────────────────────────
 
 export interface RemoteAgentService {
-  /** Unique string identifier (e.g. 'opencode', 'cursor') — used in DB, config, and type unions */
+  /** Unique string identifier (e.g. 'opencode-sdk', 'cursor-sdk') — used in DB, config, and type unions */
   readonly id: string;
   /** Human-readable display name (e.g. 'OpenCode', 'Cursor') — used in UI */
   readonly displayName: string;
-  /** CLI command used to check installation and invoke this harness (e.g. 'opencode', 'agent') */
+  /** CLI command used to check installation and invoke this harness (e.g. 'opencode', 'codex') */
   readonly command: string;
 
   /**
@@ -152,7 +148,7 @@ export interface RemoteAgentService {
 
   /**
    * Send a prompt into a live in-process session (native task injection).
-   * Native SDK harnesses implement this; CLI harnesses typically omit it.
+   * Only native SDK harnesses implement this; others omit it.
    *
    * Contract: starts (or queues) one turn. When that turn completes, the
    * harness MUST emit `SpawnResult.onAgentEnd` for it. Implementations may

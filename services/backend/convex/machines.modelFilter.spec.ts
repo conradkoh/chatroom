@@ -24,7 +24,7 @@ async function registerMachine(sessionId: SessionId, machineId: string) {
     machineId,
     hostname: `${machineId}-host`,
     os: 'linux',
-    availableHarnesses: ['opencode', 'cursor-sdk'],
+    availableHarnesses: ['opencode-sdk', 'cursor-sdk'],
   });
 }
 
@@ -47,8 +47,8 @@ test('hiding a model removes it from favourites for that harness across every te
     machineId,
     teamRoleKey: PLANNER_SCOPE,
     favorites: [
-      { agentHarness: 'opencode', model: 'openai/gpt-4' },
-      { agentHarness: 'opencode', model: 'openai/gpt-3.5' },
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-4' },
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-3.5' },
       { agentHarness: 'cursor-sdk', model: 'openai/gpt-4' },
     ],
   });
@@ -57,25 +57,25 @@ test('hiding a model removes it from favourites for that harness across every te
     machineId,
     teamRoleKey: BUILDER_SCOPE,
     favorites: [
-      { agentHarness: 'opencode', model: 'openai/gpt-4' },
-      { agentHarness: 'opencode', model: 'anthropic/claude' },
+      { agentHarness: 'opencode-sdk', model: 'openai/gpt-4' },
+      { agentHarness: 'opencode-sdk', model: 'anthropic/claude' },
     ],
   });
 
   await t.mutation(api.machines.upsertMachineModelFilters, {
     sessionId,
     machineId,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     hiddenModels: ['openai/gpt-4'],
     hiddenProviders: [],
   });
 
   expect(await readFavorites(sessionId, machineId, PLANNER_SCOPE)).toEqual([
-    { agentHarness: 'opencode', model: 'openai/gpt-3.5' },
+    { agentHarness: 'opencode-sdk', model: 'openai/gpt-3.5' },
     { agentHarness: 'cursor-sdk', model: 'openai/gpt-4' },
   ]);
   expect(await readFavorites(sessionId, machineId, BUILDER_SCOPE)).toEqual([
-    { agentHarness: 'opencode', model: 'anthropic/claude' },
+    { agentHarness: 'opencode-sdk', model: 'anthropic/claude' },
   ]);
 });
 
@@ -88,13 +88,13 @@ test('hiding a provider removes its favourites for that harness and keeps the ro
     sessionId,
     machineId,
     teamRoleKey: PLANNER_SCOPE,
-    favorites: [{ agentHarness: 'opencode', model: 'openai/gpt-4' }],
+    favorites: [{ agentHarness: 'opencode-sdk', model: 'openai/gpt-4' }],
   });
 
   await t.mutation(api.machines.upsertMachineModelFilters, {
     sessionId,
     machineId,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     hiddenModels: [],
     hiddenProviders: ['openai'],
   });
@@ -113,19 +113,19 @@ test('favourites on another machine of the same user are unchanged', async () =>
     sessionId,
     machineId: otherMachineId,
     teamRoleKey: PLANNER_SCOPE,
-    favorites: [{ agentHarness: 'opencode', model: 'openai/gpt-4' }],
+    favorites: [{ agentHarness: 'opencode-sdk', model: 'openai/gpt-4' }],
   });
 
   await t.mutation(api.machines.upsertMachineModelFilters, {
     sessionId,
     machineId,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     hiddenModels: ['openai/gpt-4'],
     hiddenProviders: [],
   });
 
   expect(await readFavorites(sessionId, otherMachineId, PLANNER_SCOPE)).toEqual([
-    { agentHarness: 'opencode', model: 'openai/gpt-4' },
+    { agentHarness: 'opencode-sdk', model: 'openai/gpt-4' },
   ]);
 });
 
@@ -135,8 +135,8 @@ test('a save that hides nothing leaves favourites unchanged', async () => {
   await registerMachine(sessionId, machineId);
 
   const favorites = [
-    { agentHarness: 'opencode' as const, model: 'anthropic/claude' },
-    { agentHarness: 'opencode' as const, model: 'openai/gpt-4' },
+    { agentHarness: 'opencode-sdk' as const, model: 'anthropic/claude' },
+    { agentHarness: 'opencode-sdk' as const, model: 'openai/gpt-4' },
   ];
   await t.mutation(api.machineConfigFavorites.setMachineConfigFavorites, {
     sessionId,
@@ -148,7 +148,7 @@ test('a save that hides nothing leaves favourites unchanged', async () => {
   await t.mutation(api.machines.upsertMachineModelFilters, {
     sessionId,
     machineId,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     hiddenModels: [],
     hiddenProviders: [],
   });

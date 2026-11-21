@@ -74,7 +74,7 @@ describe('getAgentConfig', () => {
         chatroomId,
         role: 'builder',
         model: TEST_MODEL_OPENCODE,
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir: '/test/workspace',
       },
     });
@@ -91,7 +91,7 @@ describe('getAgentConfig', () => {
       expect(result.config.modelSource).toBe('team_config');
       expect(result.config.type).toBe('remote');
       expect(result.config.machineId).toBe(machineId);
-      expect(result.config.agentHarness).toBe('opencode');
+      expect(result.config.agentHarness).toBe('opencode-sdk');
       expect(result.config.workingDir).toBe('/test/workspace');
     }
   });

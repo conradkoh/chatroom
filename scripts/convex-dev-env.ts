@@ -14,3 +14,22 @@ export function applyConvexDevEnvDefaults(): void {
     process.env[key] ??= value;
   }
 }
+
+/**
+ * Build the environment for a `convex` child process.
+ *
+ * A local Convex backend refuses to start when TZ is set to a non-UTC zone
+ * ("TZ is set, but Convex requires UTC"). Local deployments therefore never
+ * receive TZ. Hosted launches keep the environment as-is. Returns a new object;
+ * the input is not mutated.
+ */
+export function buildConvexDevEnv(
+  baseEnv: Readonly<Record<string, string | undefined>>,
+  localDeployment: boolean
+): Record<string, string | undefined> {
+  const env = { ...baseEnv };
+  if (localDeployment) {
+    delete env.TZ;
+  }
+  return env;
+}

@@ -185,4 +185,35 @@ describe('executeChatroomStopCommand', () => {
     expect(state.events).toEqual(['prepare', 'stop', 'recover', 'ack']);
     expect(state.outboxEnqueue).toHaveBeenCalledOnce();
   });
+
+  it('acknowledges a chatroom stop with zero discovered targets and no slots', async () => {
+    const state = setup();
+    await state.run();
+    expect(runRoleScopedStop).not.toHaveBeenCalled();
+    expect(state.nativeDelivery.prepareRoleRecovery).not.toHaveBeenCalled();
+    expect(state.nativeDelivery.recoverStoppedRole).not.toHaveBeenCalled();
+    expect(state.outboxEnqueue).toHaveBeenCalledOnce();
+    expect(state.outboxEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'chatroom_shutdown_complete',
+        chatroomId: 'room-1',
+        commandId: 'command-1',
+        revisionKey: 'shutdown:command-1',
+        emittedAt: expect.any(Number),
+      })
+    );
+  });
+
+  it('does not acknowledge shutdown when one role stop rejects', async () => {
+    const state = setup({ targets: [target('Builder'), target('Reviewer')] });
+    runRoleScopedStop.mockImplementation(async ({ role }: { role: string }) => {
+      if (role === 'builder') throw new Error('stop crashed');
+      return { targets: [], failures: [] };
+    });
+    await expect(state.run()).rejects.toThrow('chatroom stop failed');
+    expect(state.nativeDelivery.recoverStoppedRole).not.toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'builder' })
+    );
+    expect(state.outboxEnqueue).not.toHaveBeenCalled();
+  });
 });

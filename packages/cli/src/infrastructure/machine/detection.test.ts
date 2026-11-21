@@ -150,7 +150,10 @@ describe('detectAvailableHarnesses', () => {
     const notInstalledService = new FakeNotInstalledService(
       createMockDeps({
         execSync: vi.fn(() => {
-          const err = new Error('not found') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+          const err = new Error('not found') as Error & {
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
+          };
           err.status = 1;
           err.stderr = Buffer.from('');
           throw err;
@@ -175,7 +178,10 @@ describe('detectAvailableHarnesses', () => {
     const brokenService = new FakeDetectionErrorService(
       createMockDeps({
         execSync: vi.fn(() => {
-          const err = new Error('some error') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+          const err = new Error('some error') as Error & {
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
+          };
           err.status = 127;
           err.stderr = Buffer.from('error');
           throw err;
@@ -211,7 +217,10 @@ describe('detectAvailableHarnesses', () => {
     const notInstalledService = new FakeNotInstalledService(
       createMockDeps({
         execSync: vi.fn(() => {
-          const err = new Error('not found') as Error & { status?: number | undefined; stderr?: Buffer | undefined };
+          const err = new Error('not found') as Error & {
+            status?: number | undefined;
+            stderr?: Buffer | undefined;
+          };
           err.status = 1;
           err.stderr = Buffer.from('');
           throw err;
@@ -231,15 +240,15 @@ describe('detectAvailableHarnesses', () => {
     warnSpy.mockRestore();
   });
 
-  it('falls back to boolean isInstalled() for non-BaseCLIAgentService instances', async () => {
+  it('rejects a registered service that does not extend BaseCLIAgentService', async () => {
     const { getAllHarnesses } =
       await import('../../daemon/infrastructure/local/harness/services/index.js');
     const mockedGetAll = vi.mocked(getAllHarnesses);
 
-    const fakeService: RemoteAgentService = {
-      id: 'fake',
-      displayName: 'Fake',
-      command: 'fake-cmd',
+    const nonBaseService: RemoteAgentService = {
+      id: 'non-base',
+      displayName: 'Non-base',
+      command: 'non-base-cmd',
       isInstalled: async () => true,
       getVersion: async () => null,
       listModels: async () => [],
@@ -250,10 +259,11 @@ describe('detectAvailableHarnesses', () => {
       untrack: () => {},
     };
 
-    mockedGetAll.mockReturnValue([fakeService]);
+    mockedGetAll.mockReturnValue([nonBaseService]);
 
-    const result = await detectAvailableHarnesses();
-    expect(result).toEqual(['fake']);
+    await expect(detectAvailableHarnesses()).rejects.toThrow(
+      'Harness "non-base" must extend BaseCLIAgentService'
+    );
   });
 
   it('runs detection in parallel (~max delay, not sum)', async () => {

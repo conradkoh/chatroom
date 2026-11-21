@@ -68,7 +68,7 @@ describe('security authz protections', () => {
         role: 'builder',
         workspaceId,
         machineId,
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         model: 'auto',
         workingDir: '/test/workspace',
       })
@@ -97,7 +97,7 @@ describe('security authz protections', () => {
       workspaceId,
       role: 'builder',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'auto',
       workingDir: '/test/workspace',
     });

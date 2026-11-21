@@ -23,6 +23,11 @@ import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared'
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import { modalMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
+import {
+  describeDeliveryFailure,
+  isDeliveryFailureVisible,
+  type DeliveryFailureReason,
+} from './WorkQueue/delivery-failure';
 import { getStatusBadge } from './WorkQueue/utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
@@ -51,13 +56,7 @@ interface Task {
   queuePosition: number;
   assignedTo?: string;
   deliveryFailure?: {
-    reason:
-      | 'no_agent_config'
-      | 'unsupported_harness'
-      | 'injection_not_confirmed'
-      | 'task_not_deliverable'
-      | 'assigned_elsewhere'
-      | 'redelivery_exhausted';
+    reason: DeliveryFailureReason;
     occurredAt: number;
   };
 }
@@ -232,15 +231,20 @@ function TaskDetailForm({
             {task.assignedTo && (
               <span className="text-[10px] text-chatroom-text-muted">→ {task.assignedTo}</span>
             )}
-            {task.deliveryFailure && (
-              <span
-                className="inline-flex items-center gap-1 text-[10px] text-chatroom-status-warning"
-                title={`Delivery failed: ${task.deliveryFailure.reason}`}
-              >
-                <AlertCircle size={11} />
-                Delivery failed: {task.deliveryFailure.reason.replaceAll('_', ' ')}
-              </span>
-            )}
+            {task.deliveryFailure &&
+              isDeliveryFailureVisible(task.status, task.deliveryFailure.reason) &&
+              (() => {
+                const failure = describeDeliveryFailure(task.deliveryFailure.reason);
+                return (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] text-chatroom-status-warning"
+                    title={failure.title}
+                  >
+                    <AlertCircle size={11} />
+                    {failure.text}
+                  </span>
+                );
+              })()}
           </div>
         </FixedModalHeader>
 

@@ -1376,20 +1376,6 @@ harnessCommand
     await harnessStatus();
   });
 
-// ============================================================================
-// OPENCODE COMMANDS (no auth required)
-// ============================================================================
-
-const opencodeCommand = program.command('opencode').description('OpenCode integration harness');
-
-opencodeCommand
-  .command('install')
-  .description('Install chatroom as an OpenCode harness')
-  .option('--force', 'Overwrite existing harness installation')
-  .action(async (options: { force?: boolean | undefined }) => {
-    const { installTool } = await import('./commands/opencode-install/index.js');
-    await installTool({ checkExisting: !options.force });
-  });
 // Centralized lifecycle heartbeat — fires before every chatroom-aware command.
 // This replaces the per-handler sendLifecycleHeartbeat calls and also covers
 // commands like `messages list` and `backlog` that previously had no coverage.

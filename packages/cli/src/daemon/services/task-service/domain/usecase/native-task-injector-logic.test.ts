@@ -52,9 +52,8 @@ describe('isNativeHarness', () => {
     expect(isNativeHarness('claude-sdk')).toBe(true);
   });
 
-  test('CLI harnesses are not native', () => {
-    expect(isNativeHarness('opencode')).toBe(false);
-    expect(isNativeHarness('cursor')).toBe(false);
+  test('an absent harness is not native', () => {
+    expect(isNativeHarness(undefined)).toBe(false);
   });
 });
 

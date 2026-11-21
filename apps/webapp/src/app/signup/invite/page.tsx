@@ -1,6 +1,5 @@
 'use client';
 
-import { isInviteSignupAllowed } from '@workspace/backend/config/signupMethods';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -9,6 +8,7 @@ import { useEffect } from 'react';
 import { InviteCodeForm } from '@/app/signup/invite/InviteCodeForm';
 import { InviteSuccessPanel } from '@/app/signup/invite/InviteSuccessPanel';
 import { useInviteSignupFlow } from '@/app/signup/invite/useInviteSignupFlow';
+import { useSignupConfig } from '@/modules/app/useAppInfo';
 import { AuthPageLoading } from '@/modules/auth/AuthPageLoading';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 
@@ -19,18 +19,20 @@ import { useAuthState } from '@/modules/auth/AuthProvider';
 export default function InviteSignupPage() {
   const router = useRouter();
   const authState = useAuthState();
+  const signupConfig = useSignupConfig();
   const { code, pageState, error, inviteeName, handleCodeChange, handleSubmit } =
     useInviteSignupFlow();
 
   const isLoading = authState === undefined;
   const isAuthenticated = authState?.state === 'authenticated';
-  const inviteAllowed = isInviteSignupAllowed();
+  // false while loading: never redirect before the backend answers
+  const inviteDisallowed = signupConfig !== null && !signupConfig.inviteSignupAllowed;
 
   useEffect(() => {
-    if (!inviteAllowed) {
+    if (inviteDisallowed) {
       router.replace('/login');
     }
-  }, [inviteAllowed, router]);
+  }, [inviteDisallowed, router]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -38,7 +40,11 @@ export default function InviteSignupPage() {
     }
   }, [isAuthenticated, router]);
 
-  if (!inviteAllowed) {
+  if (signupConfig === null) {
+    return <AuthPageLoading />;
+  }
+
+  if (inviteDisallowed) {
     return null;
   }
 

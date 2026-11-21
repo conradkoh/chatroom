@@ -67,7 +67,7 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
     harnessVersions: {},
   }),
   loadMachineConfig: vi.fn().mockResolvedValue({
@@ -76,7 +76,7 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
     os: 'darwin',
     registeredAt: '2026-01-01T00:00:00Z',
     lastSyncedAt: '2026-01-01T00:00:00Z',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
     harnessVersions: {},
   }),
   clearAgentPid: vi.fn(),
@@ -116,21 +116,6 @@ vi.mock('./handlers/orphan-tracker.js', async () => {
     reapOrphanedProcessGroupsEffect: Effect.succeed({ reaped: 0, checked: 0 }),
     trackChildPid: vi.fn(),
     untrackChildPid: vi.fn(),
-  };
-});
-
-vi.mock('../infrastructure/local/harness/services/opencode/index.js', () => {
-  return {
-    OpenCodeAgentService: class MockOpenCodeAgentService {
-      isInstalled = vi.fn().mockResolvedValue(true);
-      getVersion = vi.fn().mockResolvedValue({ version: '0.1.0', major: 0 });
-      listModels = vi.fn().mockResolvedValue([]);
-      spawn = vi.fn();
-      stop = vi.fn();
-      isAlive = vi.fn();
-      getTrackedProcesses = vi.fn().mockReturnValue([]);
-      untrack = vi.fn();
-    },
   };
 });
 
@@ -188,7 +173,7 @@ beforeEach(() => {
     machineId: 'machine-abc',
     hostname: 'test-host',
     os: 'darwin',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
     harnessVersions: {},
   } as never);
   vi.mocked(loadMachineConfig).mockResolvedValue({
@@ -197,7 +182,7 @@ beforeEach(() => {
     os: 'darwin',
     registeredAt: '2026-01-01T00:00:00Z',
     lastSyncedAt: '2026-01-01T00:00:00Z',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
     harnessVersions: {},
   } as never);
   vi.mocked(isNetworkError).mockReturnValue(false);
@@ -250,9 +235,9 @@ describe('discoverModels', () => {
       listModels: vi.fn().mockResolvedValue(['gpt-4', TEST_MODEL_OPENCODE]),
     } as any;
 
-    const agentServices = new Map([['opencode', mockService]]);
+    const agentServices = new Map([['opencode-sdk', mockService]]);
     const models = await discoverModels(agentServices);
-    expect(models).toEqual({ opencode: ['gpt-4', TEST_MODEL_OPENCODE] });
+    expect(models).toEqual({ 'opencode-sdk': ['gpt-4', TEST_MODEL_OPENCODE] });
     expect(mockService.listModels).toHaveBeenCalledOnce();
   });
 
@@ -262,9 +247,9 @@ describe('discoverModels', () => {
       listModels: vi.fn().mockRejectedValue(new Error('Service broken')),
     } as any;
 
-    const agentServices = new Map([['opencode', mockService]]);
+    const agentServices = new Map([['opencode-sdk', mockService]]);
     const models = await discoverModels(agentServices);
-    expect(models).toEqual({ opencode: [] });
+    expect(models).toEqual({ 'opencode-sdk': [] });
   });
 
   it('returns empty record when service is not installed', async () => {
@@ -273,7 +258,7 @@ describe('discoverModels', () => {
       listModels: vi.fn().mockResolvedValue([]),
     } as any;
 
-    const agentServices = new Map([['opencode', mockService]]);
+    const agentServices = new Map([['opencode-sdk', mockService]]);
     const models = await discoverModels(agentServices);
     expect(models).toEqual({});
   });
@@ -289,14 +274,14 @@ describe('discoverModels', () => {
     } as any;
 
     const agentServices = new Map([
-      ['opencode', opencodeService],
-      ['pi', piService],
+      ['opencode-sdk', opencodeService],
+      ['pi-sdk', piService],
     ]);
     const models = await discoverModels(agentServices);
 
     expect(models).toEqual({
-      opencode: ['opencode/model-a'],
-      pi: [TEST_MODEL_OPENCODE, 'github-copilot/gpt-4o'],
+      'opencode-sdk': ['opencode/model-a'],
+      'pi-sdk': [TEST_MODEL_OPENCODE, 'github-copilot/gpt-4o'],
     });
   });
 
@@ -311,12 +296,12 @@ describe('discoverModels', () => {
     } as any;
 
     const agentServices = new Map([
-      ['opencode', opencodeService],
-      ['pi', piService],
+      ['opencode-sdk', opencodeService],
+      ['pi-sdk', piService],
     ]);
     const models = await discoverModels(agentServices);
 
-    expect(models).toEqual({ opencode: ['opencode/model-a'] });
+    expect(models).toEqual({ 'opencode-sdk': ['opencode/model-a'] });
     // pi.listModels should never be called when pi is not installed
     expect(piService.listModels).not.toHaveBeenCalled();
   });
@@ -332,14 +317,14 @@ describe('discoverModels', () => {
     } as any;
 
     const agentServices = new Map([
-      ['opencode', opencodeService],
-      ['pi', piService],
+      ['opencode-sdk', opencodeService],
+      ['pi-sdk', piService],
     ]);
     const models = await discoverModels(agentServices);
 
     expect(models).toEqual({
-      opencode: [], // failed → empty array fallback
-      pi: ['github-copilot/gpt-4o'],
+      'opencode-sdk': [], // failed → empty array fallback
+      'pi-sdk': ['github-copilot/gpt-4o'],
     });
   });
 
@@ -450,8 +435,8 @@ describe('discoverModelsForHarness', () => {
       listModels: vi.fn(),
     } as any;
 
-    await expect(discoverModelsForHarness('pi', mockService)).resolves.toEqual({
-      harness: 'pi',
+    await expect(discoverModelsForHarness('pi-sdk', mockService)).resolves.toEqual({
+      harness: 'pi-sdk',
       models: [],
       installed: false,
     });
@@ -624,11 +609,11 @@ describe('initDaemon', () => {
     const mockClient = await getMockClient();
     mockClient.query
       .mockResolvedValueOnce({ valid: true, userId: 'user-1', userName: 'Test User' })
-      .mockResolvedValueOnce({ availableModels: { opencode: ['opencode/model-a'] } });
+      .mockResolvedValueOnce({ availableModels: { 'opencode-sdk': ['opencode/model-a'] } });
 
     const ctx = await initDaemon();
 
-    expect(ctx.lastPushedModels).toEqual({ opencode: ['opencode/model-a'] });
+    expect(ctx.lastPushedModels).toEqual({ 'opencode-sdk': ['opencode/model-a'] });
   });
 
   it('returns a valid DaemonSessionInit on successful initialization', async () => {

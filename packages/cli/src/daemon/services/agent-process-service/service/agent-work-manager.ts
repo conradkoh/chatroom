@@ -55,24 +55,15 @@ import {
 import type { TaskDeliveryService } from '../../task-service/service/native-delivery/task-delivery-service.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from '../../task-service/service/native-task-injector.js';
-import { isCliDrivenHarness } from '../domain/usecase/is-cli-driven-harness.js';
-import { restartRetryMaxIntervalMs } from '../domain/usecase/restart-retry-interval.js';
 
-/**
- * Starts allowed for one CLI-driven uncovered-turn restart: the first attempt
- * plus two retries. Native SDK harnesses retry indefinitely with the cap from
- * restartRetryMaxIntervalMs; see isCliDrivenHarness for the split.
- */
-const MAX_RESPAWN_START_ATTEMPTS = 3;
+/** Upper bound for the wait between respawn start retries. Retries are unbounded; the interval is capped here. */
+const RESPAWN_RETRY_MAX_INTERVAL_MS = 10 * 60_000;
 
 /** Nudge sends allowed for one uncovered turn end: the first try plus two retries, then escalate. */
 const MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS = 3;
 
 /** Delay before retrying a nudge whose delivery mutex was busy, to let the holder release it. */
 const UNCOVERED_NUDGE_RETRY_MS = 250;
-
-/** Consecutive release-retry accounting failures before parking; guards an infinite loop. */
-const MAX_TURN_FAILURE_ACCOUNTING_FAILURES = 5;
 
 /** Deterministic retry ladders for daemon-owned restarts. */
 const RECOVERY_RETRY_BACKOFF = { baseMs: 1_000, maxMs: 30_000, jitter: 0 } as const;
@@ -83,8 +74,6 @@ interface RespawnStartRequest {
   readonly role: string;
   readonly workingDir: string;
   readonly startInput: EnsureAgentProcessInput;
-  /** Decided from the harness; recomputed when configuration changes. See isCliDrivenHarness. */
-  readonly cliDriven: boolean;
 }
 
 /** A respawn whose start failed and still has retries left. */
@@ -127,7 +116,6 @@ export type AgentWorkManagerTaskService = Pick<
   | 'recordDeliveryFailure'
   | 'clearDeliveryFailure'
   | 'recordTurnFailure'
-  | 'parkTurnFailure'
   | 'decideUncoveredTurnEnd'
   | 'confirmNudgeSent'
   | 'resetTurnTracking'
@@ -208,8 +196,6 @@ export class AgentWorkManager {
   /** Respawn starts that failed and still have retries, per role. Cleared on success, exhaustion, or cancellation. */
   private readonly respawnStartRetries = new Map<string, PendingRespawnStart>();
   private respawnRestartSeq = 0;
-  /** Consecutive accounting failures per task, so a broken task service cannot loop forever. */
-  private readonly turnFailureAccountingFailures = new Map<string, number>();
   /**
    * Provider-failure releases waiting out their exponential backoff, keyed by
    * `chatroom:role:taskId`. In-memory on purpose: a daemon restart clears both
@@ -251,7 +237,6 @@ export class AgentWorkManager {
       recordDeliveryFailure: deps.taskService.recordDeliveryFailure,
       clearDeliveryFailure: deps.taskService.clearDeliveryFailure,
       recordTurnFailure: deps.taskService.recordTurnFailure,
-      parkTurnFailure: deps.taskService.parkTurnFailure,
       decideUncoveredTurnEnd: deps.taskService.decideUncoveredTurnEnd,
       confirmNudgeSent: deps.taskService.confirmNudgeSent,
       resetTurnTracking: deps.taskService.resetTurnTracking,
@@ -305,8 +290,8 @@ export class AgentWorkManager {
     // by the previous process. Clear the local dedup marker before the first
     // post-start reconciliation so a stop/start cycle can recover delivery.
     this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
-    // A user-initiated agent restart is an explicit intervention: reset the V2
-    // redelivery attempt cap so delivery can be retried (plan V2).
+    // A user-initiated agent restart is an explicit intervention: reset the
+    // redelivery failure streak and clear the retry warning (plan V2, amended 2026-11).
     if (event.reason === 'user.start') {
       this.deps.taskService.clearRedeliveryTracking({
         chatroomId: event.chatroomId,
@@ -470,37 +455,29 @@ export class AgentWorkManager {
   }
 
   /**
-   * Plan V2 shared turn-end recovery: counts the provider failure toward the
-   * consecutive-attempt cap, then schedules the release after an exponential
-   * backoff instead of releasing inside the turn-ended handler. Waiting keeps
-   * the task `in_progress` (not deliverable) while the provider recovers.
-   * Returns `exceeded` when the task was parked and no release is scheduled.
+   * Plan V2 (amended 2026-11): counts the provider failure and schedules the release
+   * after a backoff capped at 60s. Never parks for a provider failure. Returns
+   * 'parked' only when the uncovered-turn ladder had already parked the task, and
+   * then no release is scheduled.
    */
   private async recoverTaskAfterTurnFailure(
     event: AgentTurnEndedEvent,
     activeTask: { taskId: string }
-  ): Promise<'scheduled' | 'exceeded'> {
+  ): Promise<'scheduled' | 'parked'> {
     const { chatroomId, role } = event;
-    const { attempts, exceeded } = await this.deps.taskService.recordTurnFailure({
+    const { attempts, parked } = await this.deps.taskService.recordTurnFailure({
       chatroomId,
       role,
       taskId: activeTask.taskId,
     });
-    if (exceeded) {
-      // Parking supersedes any release still waiting from an earlier failure.
-      this.cancelTurnFailureRelease({
-        chatroomId,
-        role,
-        taskId: activeTask.taskId,
-      });
-      return 'exceeded';
+    if (parked) {
+      this.cancelTurnFailureRelease({ chatroomId, role, taskId: activeTask.taskId });
+      return 'parked';
     }
-
     this.scheduleTurnFailureRelease(
       { chatroomId, role, taskId: activeTask.taskId },
       attempts,
-      event.completion.turnId,
-      'turn-failure'
+      event.completion.turnId
     );
     return 'scheduled';
   }
@@ -513,14 +490,10 @@ export class AgentWorkManager {
   private scheduleTurnFailureRelease(
     key: TurnFailureReleaseKey,
     attempt: number,
-    turnId: string,
-    source: 'turn-failure' | 'release-retry'
+    turnId: string
   ): void {
     if (this.disposed) return;
     const keyStr = turnFailureReleaseKey(key);
-    // A fresh turn failure starts a new accounting streak. A retry keeps the
-    // streak so consecutive accounting failures eventually park the task.
-    if (source === 'turn-failure') this.turnFailureAccountingFailures.delete(keyStr);
     this.cancelTurnFailureRelease(key);
     const delay = computeBackoffDelay(attempt, REDELIVERY_BACKOFF_OPTIONS);
     // Tell the task service a release is waiting so automatic recovery does not
@@ -571,7 +544,6 @@ export class AgentWorkManager {
         role: key.role,
         taskId: key.taskId,
       });
-      this.turnFailureAccountingFailures.delete(turnFailureReleaseKey(key));
     } catch (error) {
       console.error(
         `[NativeDelivery:turn-failed-release-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
@@ -581,45 +553,24 @@ export class AgentWorkManager {
   }
 
   /**
-   * A failed backend release counts like another turn failure: retry with the
-   * next backoff delay, or let the task service park the task once the cap is
-   * reached. Nothing is left without a timer, a marker, or a park.
+   * A failed backend release is accounted like another provider failure. It never
+   * parks; a task is parked only by the uncovered-turn ladder. Nothing is left
+   * without a timer.
    */
   private async retryReleaseAfterFailure(
     key: TurnFailureReleaseKey,
     previousAttempt: number
   ): Promise<void> {
-    const keyStr = turnFailureReleaseKey(key);
     try {
-      const { attempts, exceeded } = await this.deps.taskService.recordTurnFailure(key);
-      this.turnFailureAccountingFailures.delete(keyStr);
-      if (exceeded) return;
-      this.scheduleTurnFailureRelease(key, attempts, 'release-retry', 'release-retry');
+      const { attempts, parked } = await this.deps.taskService.recordTurnFailure(key);
+      if (parked) return;
+      this.scheduleTurnFailureRelease(key, attempts, 'release-retry');
     } catch (error) {
       console.error(
         `[NativeDelivery:turn-failed-release-retry-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
       );
-      const failures = (this.turnFailureAccountingFailures.get(keyStr) ?? 0) + 1;
-      this.turnFailureAccountingFailures.set(keyStr, failures);
-      if (failures >= MAX_TURN_FAILURE_ACCOUNTING_FAILURES) {
-        this.turnFailureAccountingFailures.delete(keyStr);
-        this.cancelTurnFailureRelease(key);
-        console.error(
-          `[NativeDelivery:turn-failure-accounting-stalled] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} failures=${failures}`
-        );
-        try {
-          await this.deps.taskService.parkTurnFailure(key);
-        } catch (parkError) {
-          console.error(
-            `[NativeDelivery:turn-failure-park-error] chatroom=${key.chatroomId} role=${key.role} task=${key.taskId} error=${parkError instanceof Error ? (parkError.stack ?? parkError.message) : String(parkError)}`
-          );
-        }
-        return;
-      }
-      // Failure accounting itself failed. Nothing has been parked or released,
-      // so keep the timer armed with the previous delay rather than stranding
-      // the task without a timer, marker, or park.
-      this.scheduleTurnFailureRelease(key, previousAttempt, 'release-retry', 'release-retry');
+      // Failure accounting failed. Keep the timer armed with the previous delay so the task is never stranded.
+      this.scheduleTurnFailureRelease(key, previousAttempt, 'release-retry');
     }
   }
 
@@ -630,7 +581,6 @@ export class AgentWorkManager {
     if (entry === undefined) return;
     clearTimeout(entry.timer);
     this.turnFailureReleaseTimers.delete(keyStr);
-    this.turnFailureAccountingFailures.delete(keyStr);
     this.deps.taskService.clearTurnFailureReleasePending(key);
   }
 
@@ -641,7 +591,6 @@ export class AgentWorkManager {
       if (!keyStr.startsWith(prefix)) continue;
       clearTimeout(entry.timer);
       this.turnFailureReleaseTimers.delete(keyStr);
-      this.turnFailureAccountingFailures.delete(keyStr);
       this.deps.taskService.clearTurnFailureReleasePending(entry.key);
     }
   }
@@ -658,12 +607,12 @@ export class AgentWorkManager {
         `[NativeDelivery:turn-failed] chatroom=${event.chatroomId} role=${event.role} task=${activeTask?.taskId ?? 'none'} turn=${completion.turnId} status=${completion.status} source=${completion.source} error=${errorDetail ?? 'none'}`
       );
       if (activeTask) {
-        // Plan V2: a failed turn without a covering handoff counts toward the
-        // consecutive-attempt cap; at the cap the task is parked with a
-        // user-visible delivery failure. Below the cap the release is deferred
-        // by exponential backoff, so the attempt budget spans a provider outage.
+        // Plan V2 (amended 2026-11): a provider failure never parks. The release
+        // is deferred by an exponential backoff capped at 60s; from the 4th
+        // consecutive failure the task service records the 'delivery_retrying'
+        // warning. Only the uncovered-turn ladder parks a task.
         const recovery = await this.recoverTaskAfterTurnFailure(event, activeTask);
-        if (recovery === 'exceeded') {
+        if (recovery === 'parked') {
           this.deps.agentTaskState.clear({ chatroomId: event.chatroomId, role: event.role });
           return { kind: 'release-slot' };
         }
@@ -956,10 +905,8 @@ export class AgentWorkManager {
     }
 
     if (outcome.kind === 'start-failed') {
-      const cliDriven = isCliDrivenHarness(startInput.agentHarness);
-      const attemptLabel = cliDriven ? `1 of ${MAX_RESPAWN_START_ATTEMPTS}` : '1';
       console.error(
-        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} attempt=${attemptLabel} error=${outcome.error}`
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} attempt=1 error=${outcome.error}`
       );
       this.beginRespawnStartRetries({ chatroomId, role, workingDir, startInput });
     }
@@ -985,13 +932,8 @@ export class AgentWorkManager {
   }
 
   /** Records a failed respawn start and arms the first retry. The ladder is not re-run. */
-  private beginRespawnStartRetries(input: Omit<RespawnStartRequest, 'cliDriven'>): void {
+  private beginRespawnStartRetries(request: RespawnStartRequest): void {
     if (this.disposed) return;
-    // Decided from the harness; recomputed if configuration changes mid-retry.
-    const request: RespawnStartRequest = {
-      ...input,
-      cliDriven: isCliDrivenHarness(input.startInput.agentHarness),
-    };
     const key = recoveryKey(request.chatroomId, request.role);
     this.cancelRespawnStart(key, 'superseded_by_new_restart');
     this.respawnRestartSeq += 1;
@@ -1006,10 +948,10 @@ export class AgentWorkManager {
 
   private armRespawnStartRetry(key: string, pending: PendingRespawnStart): void {
     if (this.disposed) return;
-    // The first retry waits 1s; CLI-driven harnesses keep the old 30s cap.
+    // The first retry waits 1s; later retries double up to the 10-minute cap.
     const delay = computeBackoffDelay(pending.attempts, {
       baseMs: RESPAWN_RETRY_BASE_MS,
-      maxMs: restartRetryMaxIntervalMs(pending.request.cliDriven),
+      maxMs: RESPAWN_RETRY_MAX_INTERVAL_MS,
       jitter: 0,
     });
     pending.timer = setTimeout(() => {
@@ -1022,13 +964,6 @@ export class AgentWorkManager {
         );
         if (!current || current.restartId !== pending.restartId || this.disposed) return;
         current.attempts += 1;
-        if (current.request.cliDriven && current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
-          this.respawnStartRetries.delete(key);
-          console.error(
-            `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${current.request.chatroomId} role=${current.request.role} attempts=${current.attempts} error=${message}`
-          );
-          return;
-        }
         console.error(
           `[NativeDelivery:uncovered-restart-error-retry] chatroom=${current.request.chatroomId} role=${current.request.role} attempt=${current.attempts} error=${message}`
         );
@@ -1084,7 +1019,6 @@ export class AgentWorkManager {
         ...previous,
         workingDir: config.workingDir,
         startInput,
-        cliDriven: isCliDrivenHarness(config.agentHarness),
       };
       console.log(
         `[NativeDelivery:uncovered-restart-config-changed] chatroom=${chatroomId} role=${role} harness=${config.agentHarness} model=${config.model} workingDir=${config.workingDir}`
@@ -1122,18 +1056,8 @@ export class AgentWorkManager {
       return;
     }
     current.attempts += 1;
-    if (current.request.cliDriven && current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
-      this.respawnStartRetries.delete(key);
-      console.error(
-        `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${chatroomId} role=${role} attempts=${current.attempts} error=${outcome.error}`
-      );
-      return;
-    }
-    const attemptLabel = current.request.cliDriven
-      ? `${current.attempts} of ${MAX_RESPAWN_START_ATTEMPTS}`
-      : `${current.attempts}`;
     console.error(
-      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} attempt=${attemptLabel} error=${outcome.error}`
+      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} attempt=${current.attempts} error=${outcome.error}`
     );
     this.armRespawnStartRetry(key, current);
   }
@@ -1199,7 +1123,6 @@ export class AgentWorkManager {
       this.deps.taskService.clearTurnFailureReleasePending(entry.key);
     }
     this.turnFailureReleaseTimers.clear();
-    this.turnFailureAccountingFailures.clear();
     for (const pending of this.respawnStartRetries.values()) {
       if (pending.timer) clearTimeout(pending.timer);
       pending.timer = undefined;

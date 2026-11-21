@@ -20,7 +20,7 @@ function mockSpawnResult() {
 }
 
 describe('emitNativeWaitingAfterSpawn', () => {
-  it('enqueues native:waiting activity for team agent with native harness', async () => {
+  it('enqueues native:waiting activity for a team agent', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const enqueue = vi.fn().mockResolvedValue(undefined);
@@ -32,7 +32,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
       lifecycleOutbox: { enqueue },
     };
 
-    const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk');
+    const result = await emitNativeWaitingAfterSpawn(ctx);
 
     expect(result).toBe(true);
     expect(enqueue).toHaveBeenCalledWith(
@@ -53,23 +53,12 @@ describe('emitNativeWaitingAfterSpawn', () => {
       lifecycleOutbox: { enqueue },
     };
 
-    const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk');
+    const result = await emitNativeWaitingAfterSpawn(ctx);
 
     expect(result).toBe(true);
     expect(enqueue).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'activity', action: 'native:waiting', role: 'architect' })
     );
-    expect(mutation).not.toHaveBeenCalled();
-  });
-
-  it('does not call participants.join for non-native harness', async () => {
-    const mutation = vi.fn();
-    const backend = { mutation };
-    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'builder' };
-
-    const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode');
-
-    expect(result).toBe(false);
     expect(mutation).not.toHaveBeenCalled();
   });
 
@@ -79,7 +68,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
     const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'builder' };
     const onError = vi.fn();
 
-    const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk', { onError });
+    const result = await emitNativeWaitingAfterSpawn(ctx, { onError });
 
     expect(result).toBe(false);
     expect(onError).toHaveBeenCalledWith(expect.any(Error));

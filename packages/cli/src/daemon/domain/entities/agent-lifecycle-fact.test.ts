@@ -50,4 +50,28 @@ describe('agent lifecycle fact helpers', () => {
       emittedAt: 2_000,
     });
   });
+
+  it('accepts the chatroom_shutdown_complete fact the backend acknowledges', () => {
+    const raw = {
+      kind: 'chatroom_shutdown_complete',
+      chatroomId: 'room',
+      commandId: 'command-1',
+      revisionKey: 'shutdown:command-1',
+      emittedAt: 3_000,
+    };
+    expect(normalizeAgentLifecycleFact(raw)).toEqual(raw);
+  });
+
+  it('accepts an exited fact with pid 0 for a no-process stop', () => {
+    const raw = {
+      kind: 'exited',
+      chatroomId: 'room',
+      role: 'builder',
+      pid: 0,
+      stopReason: 'user.stop',
+      revisionKey: 'exited:chatroomId=room:role=builder:pid=0:emittedAt=4000',
+      emittedAt: 4_000,
+    };
+    expect(normalizeAgentLifecycleFact(raw)).toEqual(raw);
+  });
 });

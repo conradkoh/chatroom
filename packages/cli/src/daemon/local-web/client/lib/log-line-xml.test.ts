@@ -47,7 +47,7 @@ describe('formatLogLineAsXml', () => {
         chatroomId: 'jn7cs34n59xbdvrpww8wnwsztd8heqq2',
         role: 'builder',
         pid: 1234,
-        harness: 'claude',
+        harness: 'claude-sdk',
       },
     };
 
@@ -61,7 +61,7 @@ describe('formatLogLineAsXml', () => {
   <stream>stderr</stream>
   <chatroom name="Dev room">jn7cs34n59xbdvrpww8wnwsztd8heqq2</chatroom>
   <role>builder</role>
-  <harness>claude</harness>
+  <harness>claude-sdk</harness>
   <message>Something failed &amp; retried</message>
   <metadata>
     <field name="pid">1234</field>

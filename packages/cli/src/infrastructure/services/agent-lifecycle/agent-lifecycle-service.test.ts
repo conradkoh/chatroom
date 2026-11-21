@@ -1,4 +1,7 @@
-import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent.js';
+import {
+  AgentStartReasonCode,
+  type AgentHarness,
+} from '@workspace/backend/src/domain/entities/agent.js';
 import { Effect, Layer } from 'effect';
 import type { Exit } from 'effect';
 import { describe, expect, it } from 'vitest';
@@ -31,18 +34,7 @@ function createMockSpawnPort(state: MockSpawnPortState): SpawnPort {
 
 function createMockHarnessPort(): HarnessSpawnPort {
   const spawn = (_args: {
-    harness:
-      | 'opencode'
-      | 'opencode-sdk'
-      | 'pi'
-      | 'pi-sdk'
-      | 'cursor'
-      | 'cursor-sdk'
-      | 'claude'
-      | 'claude-sdk'
-      | 'codex-sdk'
-      | 'copilot'
-      | 'commandcode';
+    harness: AgentHarness;
     chatroomId: string;
     role: string;
     workingDir: string;
@@ -82,7 +74,7 @@ describe('AgentLifecycleService — ensureRunning', () => {
       return yield* service.ensureRunning({
         chatroomId: 'chat-1',
         role: 'builder',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir: '/tmp/work',
         reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
@@ -114,7 +106,7 @@ describe('AgentLifecycleService — ensureRunning', () => {
       return yield* service.ensureRunning({
         chatroomId: 'chat-1',
         role: 'builder',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir: '/tmp/work',
         reason: AgentStartReasonCode.PLATFORM_TASK_MONITOR_NUDGE,
         wantResume: false,
@@ -142,7 +134,7 @@ describe('AgentLifecycleService — ensureRunning', () => {
       const input = {
         chatroomId: 'chat-1',
         role: 'builder',
-        agentHarness: 'opencode' as const,
+        agentHarness: 'opencode-sdk' as const,
         workingDir: '/tmp/work',
         reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
@@ -176,7 +168,7 @@ describe('AgentLifecycleService — handleExit', () => {
       const spawnResult = yield* service.ensureRunning({
         chatroomId: 'chat-1',
         role: 'builder',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir: '/tmp/work',
         reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
@@ -210,7 +202,7 @@ describe('AgentLifecycleService — handleExit', () => {
       yield* service.ensureRunning({
         chatroomId: 'chat-1',
         role: 'builder',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir: '/tmp/work',
         reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,
@@ -251,7 +243,7 @@ describe('AgentLifecycleService — stop', () => {
       yield* service.ensureRunning({
         chatroomId: 'chat-1',
         role: 'builder',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir: '/tmp/work',
         reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         wantResume: false,

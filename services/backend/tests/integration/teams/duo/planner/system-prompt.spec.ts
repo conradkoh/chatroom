@@ -137,7 +137,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
-      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
+      - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eleven pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, hallucinated content, and readability and comments.
       - **defragmentation**: Use for large or multi-surface system revisions: study surfaces, establish a golden path, migrate callers, and delete legacy implementations.
       - **user-centricity**: Use when a request involves UI changes: turn user intent into complete, accessible flows with explicit states and project-consistent interaction details.
       - **data-design**: Use when persistence or query patterns change: make schema, index, scan, timeout, and invalidation decisions explicit.
@@ -241,7 +241,7 @@ describe('Duo Team > Planner > System Prompt', () => {
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"
       to see your current chatroom task context.
 
-      CLI harnesses do not support in-session compaction. After context is lost, the daemon performs a hard restart — you must run \`get-next-task\` again to rejoin the chatroom.
+      Agents on the \`get-next-task\` loop do not support in-session compaction. After context is lost, run \`get-next-task\` again to rejoin the chatroom.
 
       ### Register Agent
       Register your agent type before starting work.

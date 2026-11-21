@@ -19,7 +19,7 @@ async function setup() {
     machineId,
     hostname: 'test',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,

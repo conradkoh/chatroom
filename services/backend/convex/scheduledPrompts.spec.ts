@@ -62,7 +62,7 @@ async function saveRoleConfig(
     workspaceId,
     role,
     machineId,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     model: TEST_MODEL_OPENCODE,
     workingDir: '/tmp/test',
   });
@@ -85,7 +85,7 @@ async function setupWakeableAgents(args: {
     machineId,
     hostname: 'test-host',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   const workspaceId = await registerPrimaryWorkspace(sessionId, chatroomId, machineId, '/tmp/test');
   for (const role of roles) {

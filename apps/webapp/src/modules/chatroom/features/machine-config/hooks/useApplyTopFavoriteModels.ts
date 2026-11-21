@@ -6,6 +6,7 @@ import { useQueries } from 'convex/react';
 import { useSessionId, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { applyFavoriteConfigs, type ApplyFavoriteConfigItem } from '../lib/applyFavoriteConfigs';
 import { buildMachineFavoriteScopeKey } from '../lib/machineConfigScopeKey';
 import {
   resolveTopFavoritePerRole,
@@ -13,8 +14,6 @@ import {
   type RoleTopFavorite,
 } from '../lib/topFavoriteModels';
 import type { MachineConfigEntry } from '../types/machineConfig';
-
-import { getErrorMessage } from '@/lib/convexError';
 
 /** Where top favourites are applied: one workspace (machine + working dir) and the team's roles. */
 export interface ApplyTopFavoritesTarget {
@@ -25,6 +24,21 @@ export interface ApplyTopFavoritesTarget {
   workingDir: string;
   teamId: string;
   roles: readonly string[];
+}
+
+/** Maps each role's top favourite to a save item for the target workspace. */
+function toApplyItems(
+  target: ApplyTopFavoritesTarget,
+  topFavorites: readonly RoleTopFavorite[]
+): ApplyFavoriteConfigItem[] {
+  return topFavorites.map(({ role, entry }) => ({
+    chatroomId: target.chatroomId as Id<'chatroom_rooms'>,
+    workspaceId: target.workspaceId as Id<'chatroom_workspaces'>,
+    machineId: target.machineId,
+    workingDir: target.workingDir,
+    role,
+    entry,
+  }));
 }
 
 /** Loads each role's favourites for the target team and applies each role's top favourite. */
@@ -75,30 +89,7 @@ export function useApplyTopFavoriteModels(target: ApplyTopFavoritesTarget | null
     inFlightRef.current = true;
     setIsApplying(true);
     try {
-      const settled = await Promise.allSettled(
-        topFavorites.map(({ role, entry }) =>
-          saveConfig({
-            chatroomId: target.chatroomId as Id<'chatroom_rooms'>,
-            workspaceId: target.workspaceId as Id<'chatroom_workspaces'>,
-            role,
-            machineId: target.machineId,
-            agentHarness: entry.agentHarness,
-            model: entry.model,
-            workingDir: target.workingDir,
-          })
-        )
-      );
-      const result: ApplyTopFavoritesResult = { applied: [], failed: [] };
-      settled.forEach((outcome, index) => {
-        const top = topFavorites[index];
-        if (outcome.status === 'fulfilled') result.applied.push(top);
-        else
-          result.failed.push({
-            role: top.role,
-            message: getErrorMessage(outcome.reason, 'Failed to save configuration'),
-          });
-      });
-      return result;
+      return await applyFavoriteConfigs(saveConfig, toApplyItems(target, topFavorites));
     } finally {
       inFlightRef.current = false;
       setIsApplying(false);

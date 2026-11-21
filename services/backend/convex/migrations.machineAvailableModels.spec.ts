@@ -46,13 +46,13 @@ function countNewRows(machineId: string) {
 describe('migration: migrateMachineAvailableModelsToTable', () => {
   test('copies models to the new table and unsets the legacy field in place', async () => {
     const machineId = 'mam-copy-unset';
-    const models = { opencode: ['a/b', 'c/d'], pi: ['p/e'] };
+    const models = { 'opencode-sdk': ['a/b', 'c/d'], 'pi-sdk': ['p/e'] };
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_machineCapabilities', {
         machineId,
         lastSeenAt: 1_700_000_000_000,
-        availableHarnesses: ['opencode'],
-        harnessVersions: { opencode: { version: '1.2.3', major: 1 } },
+        availableHarnesses: ['opencode-sdk'],
+        harnessVersions: { 'opencode-sdk': { version: '1.2.3', major: 1 } },
         availableModels: models,
         workspaces: [{ workspaceId: 'ws-1', cwd: '/tmp/ws-1', name: 'ws-1' }],
         updatedAt: 1_650_000_000_000,
@@ -69,15 +69,17 @@ describe('migration: migrateMachineAvailableModelsToTable', () => {
     expect(capabilities).not.toBeNull();
     expect(capabilities).not.toHaveProperty('availableModels');
     expect(capabilities!.lastSeenAt).toBe(1_700_000_000_000);
-    expect(capabilities!.availableHarnesses).toEqual(['opencode']);
-    expect(capabilities!.harnessVersions).toEqual({ opencode: { version: '1.2.3', major: 1 } });
+    expect(capabilities!.availableHarnesses).toEqual(['opencode-sdk']);
+    expect(capabilities!.harnessVersions).toEqual({
+      'opencode-sdk': { version: '1.2.3', major: 1 },
+    });
     expect(capabilities!.workspaces).toHaveLength(1);
   });
 
   test('does not overwrite an existing new-table row', async () => {
     const machineId = 'mam-existing-wins';
-    const legacyModels = { opencode: ['legacy/model'] };
-    const freshModels = { opencode: ['fresh/model'] };
+    const legacyModels = { 'opencode-sdk': ['legacy/model'] };
+    const freshModels = { 'opencode-sdk': ['fresh/model'] };
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_machineCapabilities', {
         machineId,
@@ -102,7 +104,7 @@ describe('migration: migrateMachineAvailableModelsToTable', () => {
 
   test('is idempotent: running twice leaves exactly one new row', async () => {
     const machineId = 'mam-idempotent';
-    const models = { opencode: ['a/b'] };
+    const models = { 'opencode-sdk': ['a/b'] };
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_machineCapabilities', {
         machineId,
@@ -126,7 +128,7 @@ describe('migration: migrateMachineAvailableModelsToTable', () => {
       await ctx.db.insert('chatroom_machineCapabilities', {
         machineId,
         lastSeenAt: 1_700_000_000_000,
-        availableHarnesses: ['opencode'],
+        availableHarnesses: ['opencode-sdk'],
         updatedAt: 1_650_000_000_000,
       });
     });

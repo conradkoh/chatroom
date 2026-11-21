@@ -120,7 +120,7 @@ async function saveRoleConfig(
     workspaceId,
     role,
     machineId,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     model: TEST_MODEL_OPENCODE,
     workingDir: '/tmp/test',
   });
@@ -139,7 +139,7 @@ describe('_sendMessageHandler — queued user message routing', () => {
         machineId,
         hostname: 'test-host',
         os: 'linux',
-        availableHarnesses: ['opencode'],
+        availableHarnesses: ['opencode-sdk'],
       });
       const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
         sessionId,
@@ -160,7 +160,7 @@ describe('_sendMessageHandler — queued user message routing', () => {
         workspaceId,
         role: 'planner',
         machineId,
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         model: TEST_MODEL_OPENCODE,
         workingDir: '/tmp/test',
       });
@@ -211,7 +211,7 @@ describe('_sendMessageHandler — queued user message routing', () => {
         machineId,
         hostname: 'test-host',
         os: 'linux',
-        availableHarnesses: ['opencode'],
+        availableHarnesses: ['opencode-sdk'],
       });
       const workspaceId = await registerPrimaryWorkspace(
         sessionId,
@@ -267,7 +267,7 @@ describe('_sendMessageHandler — queued user message routing', () => {
         machineId,
         hostname: 'test-host',
         os: 'linux',
-        availableHarnesses: ['opencode'],
+        availableHarnesses: ['opencode-sdk'],
       });
       const workspaceId = await registerPrimaryWorkspace(
         sessionId,
@@ -326,7 +326,7 @@ describe('_sendMessageHandler — queued user message routing', () => {
         machineId,
         hostname: 'test-host',
         os: 'linux',
-        availableHarnesses: ['opencode'],
+        availableHarnesses: ['opencode-sdk'],
       });
       const workspaceId = await registerPrimaryWorkspace(
         sessionId,
@@ -370,7 +370,7 @@ describe('_sendMessageHandler — queued user message routing', () => {
         machineId,
         hostname: 'test-host',
         os: 'linux',
-        availableHarnesses: ['opencode'],
+        availableHarnesses: ['opencode-sdk'],
       });
       const primaryWorkspaceId = await registerPrimaryWorkspace(
         sessionId,

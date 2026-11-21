@@ -26,7 +26,6 @@ import {
   isAutonomousDaemonWake,
   isExplicitDaemonStart,
 } from '@workspace/backend/src/domain/entities/agent.js';
-import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { Effect } from 'effect';
 
 import { untrackChildPid } from './adapters/orphan-process-tracker.js';
@@ -75,7 +74,6 @@ import {
   classifyProviderErrorFromLogs,
   hasHarnessOutputStalled,
 } from '../../../domain/usecase/classify-provider-error.js';
-import { handleTurnCompleted } from '../../../domain/usecase/handle-turn-completed.js';
 import { logDaemonAuditEvent } from '../../../infrastructure/event-stream/daemon-event-emitter.js';
 import {
   emitNativeWaitingAfterSpawn,
@@ -938,8 +936,6 @@ export class AgentProcessManager {
       return;
     }
 
-    const capabilities = getHarnessCapabilities(opts.harness);
-
     this.updateSlotsMirror(opts.chatroomId, opts.role, {
       state: slot?.state ?? AGENT_SLOT_STATE.IDLE,
       pid: slot?.pid,
@@ -957,75 +953,43 @@ export class AgentProcessManager {
       `[AgentProcessManager] lifecycle.turn.${completionStatus === 'completed' ? 'completed' : 'failed'}: role=${opts.role} pid=${opts.pid} harness=${opts.harness} status=${completionStatus} completion=${JSON.stringify(opts.completion ?? { status: 'completed' })}`
     );
 
-    if (capabilities.supportsNativeIntegration) {
-      // Process-exit reconciliation has its own recovery path. Turn failures
-      // are the completions that the task service must observe and decide on.
-      if (completionStatus === 'process_exited') {
-        setNativeTurnPhase(slot, defaultNativeTurnPhase());
-        return;
-      }
-      this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
-
-      const event: AgentTurnEndedEvent = {
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid: opts.pid,
-        harness: opts.harness,
-        slot,
-        eventId: `${opts.pid}:${++this.agentTurnEndedSequence}`,
-        completion: opts.completion ?? {
-          turnId: `${opts.pid}:${this.agentTurnEndedSequence}`,
-          status: 'completed',
-          source: 'agent-process-manager.agent-end',
-        },
-      };
-      const dispositions = await Promise.all(
-        [...this.agentTurnEndedHandlers].map((handler) => handler(event))
-      );
-      if (
-        completionStatus !== 'completed' &&
-        !dispositions.some((disposition) => disposition?.kind === 'release-slot')
-      ) {
-        console.warn(
-          `[AgentProcessManager] Native turn slot held: no task-service disposition returned role=${opts.role} pid=${opts.pid} status=${completionStatus}`
-        );
-        return;
-      }
+    // Process-exit reconciliation has its own recovery path. Turn failures
+    // are the completions that the task service must observe and decide on.
+    if (completionStatus === 'process_exited') {
       setNativeTurnPhase(slot, defaultNativeTurnPhase());
-      console.log(
-        `[AgentProcessManager] Native agent_end disposition accepted: role=${opts.role} status=${completionStatus} disposition=release-slot`
+      return;
+    }
+    this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
+
+    const event: AgentTurnEndedEvent = {
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      pid: opts.pid,
+      harness: opts.harness,
+      slot,
+      eventId: `${opts.pid}:${++this.agentTurnEndedSequence}`,
+      completion: opts.completion ?? {
+        turnId: `${opts.pid}:${this.agentTurnEndedSequence}`,
+        status: 'completed',
+        source: 'agent-process-manager.agent-end',
+      },
+    };
+    const dispositions = await Promise.all(
+      [...this.agentTurnEndedHandlers].map((handler) => handler(event))
+    );
+    if (
+      completionStatus !== 'completed' &&
+      !dispositions.some((disposition) => disposition?.kind === 'release-slot')
+    ) {
+      console.warn(
+        `[AgentProcessManager] Native turn slot held: no task-service disposition returned role=${opts.role} pid=${opts.pid} status=${completionStatus}`
       );
       return;
     }
-
-    const result = await handleTurnCompleted(
-      {
-        killProcess: (pid) => {
-          try {
-            this.deps.processes.kill(-pid, 'SIGTERM');
-          } catch {
-            // Process may already be dead
-          }
-        },
-        // runHandleAgentEnd already executes inside the per-agent serialized
-        // section. Re-entering that section here would wait on itself.
-      },
-      {
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid: opts.pid,
-      }
+    setNativeTurnPhase(slot, defaultNativeTurnPhase());
+    console.log(
+      `[AgentProcessManager] Native agent_end disposition accepted: role=${opts.role} status=${completionStatus} disposition=release-slot`
     );
-
-    if (result.outcome === 'killed') {
-      console.log(
-        `[AgentProcessManager] lifecycle.turn.completed: killed process for ${opts.role}`
-      );
-    } else if (result.outcome === 'killed_terminal_provider_error') {
-      console.log(
-        `[AgentProcessManager] ⛔ Terminal provider error for ${opts.role} — emitted agent.startFailed`
-      );
-    }
   }
 
   async handleExit(opts: HandleExitOpts): Promise<void> {
@@ -1041,18 +1005,14 @@ export class AgentProcessManager {
     const stopReason: StopReason = resolveStopReason(opts.code, opts.signal);
 
     const ctx = this.captureExitContext(slot, opts, stopReason);
-    if (slot.harness && getHarnessCapabilities(slot.harness).supportsNativeIntegration) {
-      setNativeTurnPhase(slot, defaultNativeTurnPhase());
-    }
+    setNativeTurnPhase(slot, defaultNativeTurnPhase());
     this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
-    if (slot.harness && getHarnessCapabilities(slot.harness).supportsNativeIntegration) {
-      this.notifyAgentSessionLost({
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid: opts.pid,
-        ...(ctx.harnessSessionId ? { harnessSessionId: ctx.harnessSessionId } : {}),
-      });
-    }
+    this.notifyAgentSessionLost({
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      pid: opts.pid,
+      ...(ctx.harnessSessionId ? { harnessSessionId: ctx.harnessSessionId } : {}),
+    });
 
     const lifecyclePromise = this.lifecycle.runPromise(
       Effect.gen(function* () {
@@ -1989,28 +1949,20 @@ export class AgentProcessManager {
     }
 
     this.registerSpawnCallbacks(slot, opts, spawnResult, pid);
-    if (getHarnessCapabilities(opts.agentHarness).supportsNativeIntegration) {
-      setNativeTurnPhase(slot, defaultNativeTurnPhase());
-    }
-    await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
-    if (getHarnessCapabilities(opts.agentHarness).supportsNativeIntegration) {
-      for (const handler of this.agentStartedHandlers) {
-        void handler({ chatroomId: opts.chatroomId, role: opts.role, reason: opts.reason }).catch(
-          (error: unknown) => {
-            console.warn(
-              `[AgentProcessManager] native delivery after start failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
-            );
-          }
-        );
-      }
+    setNativeTurnPhase(slot, defaultNativeTurnPhase());
+    await this.emitNativeWaiting(opts.chatroomId, opts.role);
+    for (const handler of this.agentStartedHandlers) {
+      void handler({ chatroomId: opts.chatroomId, role: opts.role, reason: opts.reason }).catch(
+        (error: unknown) => {
+          console.warn(
+            `[AgentProcessManager] native delivery after start failed for ${opts.role}@${opts.chatroomId}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      );
     }
   }
 
-  private async emitNativeWaiting(
-    chatroomId: string,
-    role: string,
-    harness: AgentHarness
-  ): Promise<boolean> {
+  private async emitNativeWaiting(chatroomId: string, role: string): Promise<boolean> {
     return emitNativeWaitingAfterSpawn(
       {
         backend: this.deps.backend,
@@ -2019,7 +1971,6 @@ export class AgentProcessManager {
         role,
         lifecycleOutbox: this.deps.lifecycleOutbox,
       },
-      harness,
       {
         onError: (err) => {
           console.log(`   ⚠️  Failed to emit native:waiting for ${role}: ${err.message}`);
