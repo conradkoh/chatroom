@@ -26,7 +26,7 @@ async function registerMachine(sessionId: SessionId, machineId: string): Promise
     machineId,
     hostname: 'test-host',
     os: 'darwin',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
 }
 

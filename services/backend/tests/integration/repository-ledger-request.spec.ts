@@ -35,7 +35,7 @@ async function setupOfflineMachine(sessionKey: string, machineId: string) {
     machineId,
     hostname: 'test-host',
     os: 'darwin',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
     availableModels: { opencode: [] },
   });
   return { sessionId, machineId };

@@ -339,7 +339,7 @@ describe('repository ledger reports', () => {
       machineId: otherMachineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     });
     const { requestId } = await requestSnapshot(sessionId, machineId);
 

@@ -33,7 +33,7 @@ async function registerMachine(sessionId: SessionId, machineId: string): Promise
     machineId,
     hostname: 'test-host',
     os: 'darwin',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
 }
 
@@ -127,7 +127,7 @@ async function seedMachineGraph(
       role: 'builder',
       type: 'remote',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'opencode/test',
       workingDir,
       createdAt: now,
@@ -498,7 +498,7 @@ describe('tombstone-first ordering', () => {
         machineId,
         hostname: 'test-host',
         os: 'darwin',
-        availableHarnesses: ['opencode'],
+        availableHarnesses: ['opencode-sdk'],
       })
     ).rejects.toMatchObject({ data: { code: 'MACHINE_DELETION_IN_PROGRESS' } });
 
@@ -511,7 +511,7 @@ describe('tombstone-first ordering', () => {
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     });
     expect(registered.isNew).toBe(true);
 
