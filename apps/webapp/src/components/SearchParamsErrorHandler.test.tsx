@@ -30,11 +30,25 @@ describe('SearchParamsErrorHandler', () => {
     expect(window.location.search).toBe('');
   });
 
-  it('shows the raw text instead of throwing on a malformed percent sequence', () => {
+  it('decodes the ?error= value exactly once', () => {
+    setUrl('/login?error=50%2525');
+    render(<SearchParamsErrorHandler />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/^50%25$/);
+  });
+
+  it('shows 100% for ?error=100%25', () => {
+    setUrl('/login?error=100%25');
+    render(<SearchParamsErrorHandler />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/^100%$/);
+  });
+
+  it('does not throw on a bare % in the query', () => {
     setUrl('/login?error=100%');
     render(<SearchParamsErrorHandler />);
 
-    expect(screen.getByRole('alert')).toHaveTextContent('100%');
+    expect(screen.getByRole('alert')).toHaveTextContent(/^100%$/);
   });
 
   it('renders nothing when there is no error param', () => {

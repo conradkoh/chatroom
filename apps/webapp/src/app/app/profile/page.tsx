@@ -108,7 +108,9 @@ function ProfilePageLoading() {
 export default function ProfilePage() {
   return (
     <Suspense fallback={<ProfilePageLoading />}>
-      <SearchParamsErrorHandler />
+      <div className="container max-w-2xl mx-auto px-4">
+        <SearchParamsErrorHandler className="mt-4" />
+      </div>
       <ProfilePageContent />
     </Suspense>
   );

@@ -4,33 +4,45 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 
 import { InlineFeedback } from '@/components/inline-feedback';
+import type { Feedback } from '@/components/inline-feedback';
 import { useFeedback } from '@/hooks/useFeedback';
 
-/** Decodes the ?error= value. A malformed % sequence falls back to the raw text. */
-function safeDecode(raw: string): string {
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
+export interface SearchParamsErrorState {
+  feedback: Feedback | null;
+  clear: () => void;
 }
 
 /**
- * Reads ?error= from the URL, shows the decoded text as an inline alert, and clears the
- * param without a reload. The text lives in state, so it stays visible after the param is gone.
+ * Reads ?error= once, keeps its decoded text in state, and removes the param without a reload.
+ * URLSearchParams.get() already decodes the value, so it is used as is. The text lives in state,
+ * so it stays visible after the param is gone. Call this once per page, above any early return.
  */
-export function SearchParamsErrorHandler() {
+function useSearchParamsError(): SearchParamsErrorState {
   const searchParams = useSearchParams();
   const { feedback, error, clear } = useFeedback();
 
   useEffect(() => {
-    const raw = searchParams.get('error');
-    if (!raw) return;
-    error(safeDecode(raw));
+    const message = searchParams.get('error');
+    if (!message) return;
+    error(message);
     const url = new URL(window.location.href);
     url.searchParams.delete('error');
     window.history.replaceState({}, '', url.toString());
   }, [searchParams, error]);
 
-  return <InlineFeedback feedback={feedback} onDismiss={clear} data-testid="url-error" />;
+  return { feedback, clear };
+}
+
+/** Renders the ?error= alert in place. Mount it at a stable root, never inside a branch. */
+export function SearchParamsErrorHandler({ className }: { className?: string }) {
+  const { feedback, clear } = useSearchParamsError();
+
+  return (
+    <InlineFeedback
+      feedback={feedback}
+      onDismiss={clear}
+      className={className}
+      data-testid="url-error"
+    />
+  );
 }
