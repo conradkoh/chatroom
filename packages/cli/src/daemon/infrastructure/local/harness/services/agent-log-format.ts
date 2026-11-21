@@ -1,5 +1,3 @@
-import type { Writable } from 'node:stream';
-
 export interface AgentLogContext {
   role?: string | undefined;
   chatroomId?: string | undefined;
@@ -64,20 +62,6 @@ export function resolveBashCommandForLog(name: string, input: unknown): string |
   return '';
 }
 
-/** Extract a shell command from the Cursor CLI nested tool_call object, else null. */
-// fallow-ignore-next-line complexity
-export function extractBashCommandFromCursorToolCall(toolCall: unknown): string | null {
-  if (!toolCall || typeof toolCall !== 'object') return null;
-  for (const [key, value] of Object.entries(toolCall as Record<string, unknown>)) {
-    if (!isBashLikeToolName(key) || !value || typeof value !== 'object') continue;
-    const args = (value as { args?: unknown | undefined }).args;
-    if (args && typeof args === 'object' && 'command' in (args as object)) {
-      return String((args as { command: unknown }).command);
-    }
-  }
-  return null;
-}
-
 /** Append tool input to a tool-state payload (OpenCode SDK forwarder). */
 // fallow-ignore-next-line complexity
 export function appendToolInputToPayload(base: string, input: unknown, toolName: string): string {
@@ -90,38 +74,4 @@ export function appendToolInputToPayload(base: string, input: unknown, toolName:
   }
   const inputStr = typeof inp === 'string' ? inp : JSON.stringify(inp);
   return `${base}: ${inputStr}`;
-}
-
-export interface AgentLogWriter {
-  write(kind: string, payload?: string): void;
-  writeLine(formatted: string): void;
-  flushBufferedLines(buffer: string, kind: string): string;
-}
-
-export function createAgentLogWriter(
-  prefix: string,
-  options?: { emitLogLine?:( (line: string) => void) | undefined; target?: Writable | undefined; suppressConsole?: boolean | undefined }
-): AgentLogWriter {
-  const target: Writable | null =
-    options?.suppressConsole || options?.emitLogLine ? null : (options?.target ?? process.stdout);
-  const emitLogLine = options?.emitLogLine;
-
-  const writeLine = (formatted: string) => {
-    target?.write(`${formatted}\n`, 'utf8');
-    emitLogLine?.(formatted);
-  };
-
-  return {
-    write(kind: string, payload?: string) {
-      writeLine(formatAgentLogLine(prefix, kind, payload));
-    },
-    writeLine,
-    flushBufferedLines(buffer: string, kind: string): string {
-      if (!buffer) return buffer;
-      for (const line of buffer.split('\n')) {
-        if (line) writeLine(formatAgentLogLine(prefix, kind, line));
-      }
-      return '';
-    },
-  };
 }

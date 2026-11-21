@@ -11,9 +11,9 @@
 import { Effect } from 'effect';
 
 import type { AgentHarness, HarnessVersionInfo } from './types.js';
-import { BaseCLIAgentService } from '../../daemon/infrastructure/local/harness/services/base-cli-agent-service.js';
+import { requireBaseAgentService } from '../../daemon/infrastructure/local/harness/services/require-base-agent-service.js';
+import type { DetectionResult } from '../../daemon/infrastructure/local/harness/services/detection-result.js';
 import {
-  DetectionResult,
   isInstalled,
   isDetectionError,
 } from '../../daemon/infrastructure/local/harness/services/detection-result.js';
@@ -67,12 +67,10 @@ export async function detectHarnessVersions(
 /**
  * Detect which agent harnesses are installed on this machine.
  *
- * Uses tri-state detection for BaseCLIAgentService instances:
+ * Uses tri-state detection for every registered agent service:
  * - Installed → included in result
  * - NotInstalled → silently excluded
  * - DetectionError → structured console.warn, excluded
- *
- * Falls back to boolean isInstalled() for non-base services.
  *
  * Detection runs in parallel across all harnesses via Effect.forEach
  * with unbounded concurrency.
@@ -86,18 +84,8 @@ export async function detectAvailableHarnesses(): Promise<AgentHarness[]> {
   const detectOne = (
     service: ReturnType<typeof getAllHarnesses>[number]
   ): Effect.Effect<{ id: string; result: DetectionResult }, never> => {
-    if (service instanceof BaseCLIAgentService) {
-      return service
-        .detectInstallationEffect()
-        .pipe(Effect.map((result) => ({ id: service.id, result })));
-    }
-    // Defensive fallback for non-base services — coerce unknown failures to false
-    return Effect.promise(() => service.isInstalled().catch(() => false)).pipe(
-      Effect.map((installed) => ({
-        id: service.id,
-        result: installed ? DetectionResult.Installed() : DetectionResult.NotInstalled(),
-      }))
-    );
+    const base = requireBaseAgentService(service);
+    return base.detectInstallationEffect().pipe(Effect.map((result) => ({ id: base.id, result })));
   };
 
   const program = Effect.forEach(services, detectOne, { concurrency: 'unbounded' });

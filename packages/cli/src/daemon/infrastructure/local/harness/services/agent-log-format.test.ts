@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   appendToolInputToPayload,
   buildAgentLogPrefix,
-  extractBashCommandFromCursorToolCall,
   extractBashCommandFromToolInput,
   formatAgentLogLine,
   formatBashRunningPayload,
@@ -88,24 +87,6 @@ describe('resolveBashCommandForLog', () => {
 
   it('returns null for non-bash tools', () => {
     expect(resolveBashCommandForLog('read', { path: 'x' })).toBeNull();
-  });
-});
-
-describe('extractBashCommandFromCursorToolCall', () => {
-  it('extracts from nested bashToolCall structure', () => {
-    expect(
-      extractBashCommandFromCursorToolCall({
-        bashToolCall: { args: { command: 'git status' } },
-      })
-    ).toBe('git status');
-  });
-
-  it('returns null for non-bash tool calls', () => {
-    expect(
-      extractBashCommandFromCursorToolCall({
-        readToolCall: { args: { path: 'README.md' } },
-      })
-    ).toBeNull();
   });
 });
 

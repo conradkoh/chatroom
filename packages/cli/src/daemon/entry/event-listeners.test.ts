@@ -6,7 +6,7 @@ import type { DaemonSessionInit, ConvexClient } from './daemon-types.js';
 import type { Id } from '../../api.js';
 import { registerEventListenersEffect } from './events/register-listeners.js';
 import { createFakeWorkspaceService, createMockDaemonSessionInit } from './testing/index.js';
-import { OpenCodeAgentService } from '../infrastructure/local/harness/services/opencode/index.js';
+import { OpenCodeSdkAgentService } from '../infrastructure/local/harness/services/opencode-sdk/index.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
 
@@ -25,8 +25,8 @@ function createTestInit() {
     machineId: 'test-machine',
     agentServices: new Map([
       [
-        'opencode',
-        new OpenCodeAgentService({ execSync: vi.fn(), spawn: vi.fn() as any, kill: vi.fn() }),
+        'opencode-sdk',
+        new OpenCodeSdkAgentService({ execSync: vi.fn(), spawn: vi.fn() as any, kill: vi.fn() }),
       ],
     ]),
     agentProcessManager,

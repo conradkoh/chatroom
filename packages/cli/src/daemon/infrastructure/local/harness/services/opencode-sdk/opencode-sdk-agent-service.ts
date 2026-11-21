@@ -28,6 +28,7 @@ import type { AgentInfo, ModelRef, OpenCodeClient, PermissionRule } from '@openc
 import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { requireHarnessModel } from '../require-harness-model.js';
 import { withTimeout } from '../with-timeout.js';
+import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from './binary-agent-service.js';
 import { ensureLocation } from './ensure-location.js';
 import { fetchOpencodeProviderModelCatalog } from './opencode-model-catalog.js';
 import { serverAuthHeaders, waitForListeningUrl } from './parse-listening-url.js';
@@ -50,7 +51,6 @@ import {
 import type { TurnCompletionResult } from '../turn-completion.js';
 import { StderrLineBuffer } from './stderr-line-buffer.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
-import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
 import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {

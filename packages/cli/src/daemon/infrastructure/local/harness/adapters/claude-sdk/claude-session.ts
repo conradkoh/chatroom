@@ -8,7 +8,7 @@ import type {
   PromptInput,
 } from '../../../../../domain/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
-import { decodeClaudeVariant } from '../../services/claude/claude-models.js';
+import { decodeClaudeVariant } from '../../services/claude-sdk/claude-models.js';
 import { withTimeout } from '../../services/with-timeout.js';
 
 const DEFAULT_MAX_TURNS = 200;
