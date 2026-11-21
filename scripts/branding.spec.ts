@@ -9,14 +9,6 @@ import {
   applyNavigationBranding,
 } from './branding';
 
-const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
-
-// Template strings sourced from BRANDING_CONFIG.templates in scripts/setup.ts.
-const TEMPLATE_APP_NAME = 'Next Convex App';
-const TEMPLATE_APP_SHORT_NAME = 'Next Convex';
-const TEMPLATE_APP_DESCRIPTION = 'A Next.js app with Convex backend';
-const TEMPLATE_LANDING_PAGE_TITLE = 'Convex + Next Starter App';
-
 const values = {
   appName: 'Acme Widgets',
   appShortName: 'Acme',
@@ -24,72 +16,126 @@ const values = {
   landingPageTitle: 'Welcome to Acme',
 };
 
-describe('applyNavigationBranding', () => {
-  it('rewrites the single brand constant so loading and resolved states agree', () => {
-    const source = read('apps/webapp/src/components/Navigation.tsx');
+// Fixtures mirror the shape of each branded file, with literal values where the transform applies.
+const manifestFixture = [
+  'export default function manifest() {',
+  '  return {',
+  "    name: 'Old App',",
+  "    short_name: 'Old',",
+  "    description: 'Old description',",
+  "    start_url: '/app',",
+  '  };',
+  '}',
+].join('\n');
 
-    // Guard: the transform only works if the template literal is actually present.
-    expect(source).toContain(TEMPLATE_APP_SHORT_NAME);
+const layoutFixture = [
+  'export const metadata = {',
+  "  title: 'Old App',",
+  "  description: 'Old description',",
+  '  appleWebApp: {',
+  '    capable: true,',
+  "    title: 'Old App',",
+  '  },',
+  "  applicationName: 'Old App',",
+  '};',
+].join('\n');
 
-    const output = applyNavigationBranding(source, values.appShortName);
+const navigationFixture = [
+  '// Brand label shown in the header. Keep as a single literal: scripts/branding.ts',
+  "// rewrites `const APP_SHORT_NAME = '...';` during branding setup.",
+  "const APP_SHORT_NAME = 'Old';",
+  '',
+  'export function Navigation() {',
+  '  return <span>{APP_SHORT_NAME}</span>;',
+  '}',
+].join('\n');
 
-    expect(output).toContain(`const APP_SHORT_NAME = '${values.appShortName}';`);
-    expect(output).not.toContain(TEMPLATE_APP_SHORT_NAME);
+const landingPageFixture = [
+  'export default function Page() {',
+  '  return (',
+  '    <div>',
+  '      <header>Convex + Next Starter App</header>',
+  '      <main className="flex-1">',
+  '        <h1>Convex + Next Starter App</h1>',
+  '      </main>',
+  '    </div>',
+  '  );',
+  '}',
+].join('\n');
+
+describe('applyManifestBranding', () => {
+  it('rewrites name, short_name and description and leaves other keys alone', () => {
+    const output = applyManifestBranding(manifestFixture, values);
+    expect(output).toContain(`name: '${values.appName}',`);
+    expect(output).toContain(`short_name: '${values.appShortName}',`);
+    expect(output).toContain(`description: '${values.appDescription}',`);
+    expect(output).toContain("start_url: '/app',");
   });
 
   it('is idempotent', () => {
-    const source = read('apps/webapp/src/components/Navigation.tsx');
-
-    const once = applyNavigationBranding(source, values.appShortName);
-    const twice = applyNavigationBranding(once, values.appShortName);
-
-    expect(twice).toBe(once);
-  });
-});
-
-describe('applyManifestBranding', () => {
-  it('removes template strings and writes the new values', () => {
-    const source = read('apps/webapp/src/app/manifest.ts');
-
-    expect(source).toContain(TEMPLATE_APP_NAME);
-    expect(source).toContain(TEMPLATE_APP_DESCRIPTION);
-
-    const output = applyManifestBranding(source, values);
-
-    expect(output).not.toContain(TEMPLATE_APP_NAME);
-    expect(output).not.toContain(TEMPLATE_APP_DESCRIPTION);
-    expect(output).toContain(`name: '${values.appName}'`);
-    expect(output).toContain(`short_name: '${values.appShortName}'`);
-    expect(output).toContain(`description: '${values.appDescription}'`);
+    const once = applyManifestBranding(manifestFixture, values);
+    expect(applyManifestBranding(once, values)).toBe(once);
   });
 });
 
 describe('applyLayoutBranding', () => {
-  it('removes template strings and writes the new values', () => {
-    const source = read('apps/webapp/src/app/layout.tsx');
+  it('rewrites title, description, appleWebApp title and applicationName', () => {
+    const output = applyLayoutBranding(layoutFixture, values);
+    expect(output).toContain(`title: '${values.appName}',`);
+    expect(output).toContain(`description: '${values.appDescription}',`);
+    expect(output).toContain(`applicationName: '${values.appName}',`);
+    expect(output.match(/title: 'Acme Widgets'/g)?.length).toBe(2);
+  });
 
-    expect(source).toContain(TEMPLATE_APP_NAME);
-    expect(source).toContain(TEMPLATE_APP_DESCRIPTION);
+  it('leaves non-literal title expressions alone, as the fork layout uses getAppTitle()', () => {
+    const fixture = layoutFixture.replace("title: 'Old App',", 'title: getAppTitle(),');
+    const output = applyLayoutBranding(fixture, values);
+    expect(output).toContain('title: getAppTitle(),');
+  });
 
-    const output = applyLayoutBranding(source, values);
+  it('is idempotent', () => {
+    const once = applyLayoutBranding(layoutFixture, values);
+    expect(applyLayoutBranding(once, values)).toBe(once);
+  });
+});
 
-    expect(output).not.toContain(TEMPLATE_APP_NAME);
-    expect(output).not.toContain(TEMPLATE_APP_DESCRIPTION);
-    expect(output).toContain(`title: '${values.appName}'`);
-    expect(output).toContain(`description: '${values.appDescription}'`);
-    expect(output).toContain(`applicationName: '${values.appName}'`);
+describe('applyNavigationBranding', () => {
+  it('rewrites the top-level brand constant', () => {
+    const output = applyNavigationBranding(navigationFixture, values.appShortName);
+    expect(output).toContain(`const APP_SHORT_NAME = '${values.appShortName}';`);
+    expect(output).not.toContain("const APP_SHORT_NAME = 'Old';");
+  });
+
+  it('never rewrites comments that mention the constant', () => {
+    const output = applyNavigationBranding(navigationFixture, values.appShortName);
+    expect(output).toContain("// rewrites `const APP_SHORT_NAME = '...';` during branding setup.");
+  });
+
+  it('is idempotent', () => {
+    const once = applyNavigationBranding(navigationFixture, values.appShortName);
+    expect(applyNavigationBranding(once, values.appShortName)).toBe(once);
+  });
+
+  it('finds the brand constant exactly once in the real Navigation.tsx', () => {
+    const source = readFileSync(
+      new URL('../apps/webapp/src/components/Navigation.tsx', import.meta.url),
+      'utf8'
+    );
+    const output = applyNavigationBranding(source, values.appShortName);
+    expect(output).toContain(`const APP_SHORT_NAME = '${values.appShortName}';`);
+    expect(output.match(/^const APP_SHORT_NAME = /gm)?.length).toBe(1);
   });
 });
 
 describe('applyLandingPageBranding', () => {
-  it('removes the template title and writes the new value', () => {
-    const source = read('apps/webapp/src/app/page.tsx');
+  it('rewrites the title inside <main> and leaves text outside it alone', () => {
+    const output = applyLandingPageBranding(landingPageFixture, values.landingPageTitle);
+    expect(output).toContain(`<h1>${values.landingPageTitle}</h1>`);
+    expect(output).toContain('<header>Convex + Next Starter App</header>');
+  });
 
-    expect(source).toContain(TEMPLATE_LANDING_PAGE_TITLE);
-
-    const output = applyLandingPageBranding(source, values.landingPageTitle);
-
-    expect(output).not.toContain(TEMPLATE_LANDING_PAGE_TITLE);
-    expect(output).toContain(values.landingPageTitle);
+  it('is idempotent', () => {
+    const once = applyLandingPageBranding(landingPageFixture, values.landingPageTitle);
+    expect(applyLandingPageBranding(once, values.landingPageTitle)).toBe(once);
   });
 });
