@@ -36,7 +36,7 @@ function ExportCodeBlock({
           {language}
         </span>
       </div>
-      <pre className="bg-chatroom-bg-secondary border-2 border-chatroom-border p-4 overflow-x-auto">
+      <pre className="bg-chatroom-bg-secondary border-2 border-chatroom-border p-4 whitespace-pre-wrap [overflow-wrap:anywhere]">
         <code className={`${className || ''} text-xs text-chatroom-text-primary font-mono`}>
           {children}
         </code>

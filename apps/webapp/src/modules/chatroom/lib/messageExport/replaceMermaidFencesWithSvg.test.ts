@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { replaceMermaidFencesWithSvg } from './replaceMermaidFencesWithSvg';
 
-const mockRenderMermaidChartToSvg = vi.fn(async (chart: string) => `<svg>${chart}</svg>`);
+const mockRenderMermaidChartToSvg = vi.fn(
+  async (chart: string, _options?: { theme?: 'default' | 'dark' }) => `<svg>${chart}</svg>`
+);
 
 vi.mock('../mermaid/renderMermaidChartToSvg', () => ({
   renderMermaidChartToSvg: (...args: Parameters<typeof mockRenderMermaidChartToSvg>) =>
@@ -25,6 +27,14 @@ describe('replaceMermaidFencesWithSvg', () => {
     const result = await replaceMermaidFencesWithSvg(input);
     expect(result.diagrams.size).toBe(2);
     expect(result.markdown.match(/MERMAID_EXPORT_PLACEHOLDER_\d+/g)).toHaveLength(2);
+  });
+
+  it('renders exported diagrams with the default theme', async () => {
+    await replaceMermaidFencesWithSvg('```mermaid\ngraph TD\n  A-->B\n```');
+
+    expect(mockRenderMermaidChartToSvg).toHaveBeenLastCalledWith(expect.any(String), {
+      theme: 'default',
+    });
   });
 
   it('returns markdown unchanged when no mermaid fences', async () => {

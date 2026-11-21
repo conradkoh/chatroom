@@ -10,6 +10,7 @@ import {
   messageExportFilename,
   buildMessageMarkdownDownload,
   exportMessageAsDocx,
+  exportMessageAsPdf,
 } from '../../lib/messageExport';
 import type { Message } from '../../types/message';
 
@@ -19,9 +20,14 @@ interface MessageDownloadMenuProps {
   contentOverride?: string;
 }
 
+/** The export row currently running. `null` when idle. */
+type BusyAction = 'docx' | 'pdf';
+
 export function MessageDownloadMenu({ message, contentOverride }: MessageDownloadMenuProps) {
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<BusyAction | null>(null);
+  // Any running export disables every row; only `busyAction` decides which row shows progress.
+  const busy = busyAction !== null;
 
   const exportMessage =
     contentOverride != null ? { ...message, content: contentOverride } : message;
@@ -40,15 +46,31 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
   }, [exportMessage]);
 
   const handleDocx = useCallback(async () => {
-    setBusy(true);
+    setBusyAction('docx');
     try {
       const result = await exportMessageAsDocx(exportMessage);
       if (result === 'cancelled') return;
       toast.success(result === 'saved' ? 'Saved DOCX' : 'Downloaded DOCX');
-    } catch {
+    } catch (error) {
+      console.error('[MessageDownloadMenu] DOCX export failed', error);
       toast.error('Failed to prepare DOCX');
     } finally {
-      setBusy(false);
+      setBusyAction(null);
+      setOpen(false);
+    }
+  }, [exportMessage]);
+
+  const handlePdf = useCallback(async () => {
+    setBusyAction('pdf');
+    try {
+      const result = await exportMessageAsPdf(exportMessage);
+      if (result === 'cancelled') return;
+      toast.success(result === 'saved' ? 'Saved PDF' : 'Downloaded PDF');
+    } catch (error) {
+      console.error('[MessageDownloadMenu] PDF export failed', error);
+      toast.error('Failed to prepare PDF');
+    } finally {
+      setBusyAction(null);
       setOpen(false);
     }
   }, [exportMessage]);
@@ -75,7 +97,10 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
           <span>Download as Markdown</span>
         </PickerOptionRow>
         <PickerOptionRow selected={false} onSelect={handleDocx} disabled={busy}>
-          <span>{busy ? 'Preparing DOCX...' : 'Download as DOCX'}</span>
+          <span>{busyAction === 'docx' ? 'Preparing DOCX...' : 'Download as DOCX'}</span>
+        </PickerOptionRow>
+        <PickerOptionRow selected={false} onSelect={handlePdf} disabled={busy}>
+          <span>{busyAction === 'pdf' ? 'Preparing PDF...' : 'Download as PDF'}</span>
         </PickerOptionRow>
       </PickerScrollBody>
     </ResponsivePickerShell>

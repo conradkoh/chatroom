@@ -11,3 +11,4 @@ export type { SaveFileResult, SaveFileOptions, SaveFileHandleResult } from './do
 export { buildMessageMarkdownDownload } from './buildMessageMarkdownDownload';
 export { replaceMermaidFencesWithSvg } from './replaceMermaidFencesWithSvg';
 export { exportMessageAsDocx } from './exportMessageAsDocx';
+export { exportMessageAsPdf } from './exportMessageAsPdf';
