@@ -41,6 +41,8 @@
     "interface": true,
     "type": true,
   },
+  // Local ESLint plugin sources are loaded by eslint.config.mjs, not imported by app entry points.
+  "entry": ["eslint-rules/*.spec.mjs"],
   // Test files, generated code, and ShadCN export barrels (UI stays in import graph)
   "ignorePatterns": [
     "**/_generated/**",
@@ -87,6 +89,8 @@
       "**/*.spec.{ts,tsx}",
       "**/tests/**",
       "scripts/start-convex-dev.ts",
+      // Local ESLint plugin rules are tooling, not app code; fallow cannot model them as reachable.
+      "eslint-rules/**",
       "services/backend/convex/auth.ts",
       "services/backend/convex/auth/**",
       // Transitional: mirror of /app/admin during route migration

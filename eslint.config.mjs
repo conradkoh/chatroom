@@ -8,6 +8,8 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect';
 import globals from 'globals';
 
+import noToast from './eslint-rules/no-toast.mjs';
+
 /**
  * ESLint Configuration
  *
@@ -408,6 +410,22 @@ export default [
           ],
         },
       ],
+    },
+  },
+
+  // Toasts are banned: feedback renders inline (docs/application/design/theme.md, Feedback & Notifications).
+  // The local/no-toast rule blocks toast libraries and shadcn toast modules in product code.
+  {
+    files: ['**/*.{ts,tsx,js,jsx}'],
+    plugins: {
+      local: {
+        rules: {
+          'no-toast': noToast,
+        },
+      },
+    },
+    rules: {
+      'local/no-toast': 'error',
     },
   },
 ];

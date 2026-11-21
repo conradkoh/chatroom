@@ -274,6 +274,8 @@ Tight spacing:         0.5rem (gap-2)
 
 ### Feedback & Notifications
 
+Enforced by the `local/no-toast` ESLint rule (`eslint-rules/no-toast.mjs`): toast components and toast libraries fail `pnpm lint`.
+
 **No transient notifications:**
 
 - Do not use toasts, snackbars, or popup notifications
