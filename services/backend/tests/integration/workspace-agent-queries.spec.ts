@@ -168,7 +168,7 @@ describe('workspace-scoped agent queries', () => {
       workspaceId: workspaceA,
       role: 'builder',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'model-a',
       workingDir: '/workspace/a',
     });
@@ -178,7 +178,7 @@ describe('workspace-scoped agent queries', () => {
       workspaceId: workspaceB,
       role: 'builder',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'model-b',
       workingDir: '/workspace/b',
     });

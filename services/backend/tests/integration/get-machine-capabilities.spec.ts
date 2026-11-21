@@ -14,15 +14,15 @@ describe('getMachineCapabilities', () => {
   test('returns capabilities for an owned machine', async () => {
     const { sessionId } = await createTestSession('test-machine-capabilities');
     const machineId = 'machine-capabilities-owned';
-    const harnessVersions = { opencode: { version: '1.2.3', major: 1 } };
-    const models = { opencode: ['provider/model'] };
+    const harnessVersions = { 'opencode-sdk': { version: '1.2.3', major: 1 } };
+    const models = { 'opencode-sdk': ['provider/model'] };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       harnessVersions,
       availableModels: models,
     });
@@ -33,7 +33,7 @@ describe('getMachineCapabilities', () => {
     });
 
     expect(result).toEqual({
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       harnessVersions,
     });
 
@@ -55,21 +55,21 @@ describe('getMachineCapabilities', () => {
   test('register and refreshCapabilities write models only to the models table', async () => {
     const { sessionId } = await createTestSession('test-machine-capabilities-split');
     const machineId = 'machine-capabilities-split';
-    const modelsV1 = { opencode: ['provider/v1'] };
-    const modelsV2 = { opencode: ['provider/v2'] };
+    const modelsV1 = { 'opencode-sdk': ['provider/v1'] };
+    const modelsV2 = { 'opencode-sdk': ['provider/v2'] };
 
     await t.mutation(api.machines.register, {
       sessionId,
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: modelsV1,
     });
     await t.mutation(api.machines.refreshCapabilities, {
       sessionId,
       machineId,
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
       availableModels: modelsV2,
     });
 
@@ -101,7 +101,7 @@ describe('getMachineCapabilities', () => {
       machineId,
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     });
 
     const foreignResult = await t.query(api.machines.getMachineCapabilities, {

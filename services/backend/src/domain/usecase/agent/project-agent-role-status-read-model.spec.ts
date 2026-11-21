@@ -45,7 +45,7 @@ describe('projectAgentRoleStatusReadModel', () => {
         role: 'enhancer',
         agentType: 'remote',
         machineId: 'configured-machine',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         model: 'test',
         workingDir: '/tmp',
         reason: AgentStartReasonCode.USER_START,

@@ -47,14 +47,12 @@ describe('model provider helpers', () => {
     expect(migrateFavoriteModelForHarness('codex-sdk', 'gpt-5.6-terra')).toBe(
       'openai/gpt-5.6-terra'
     );
-    expect(migrateFavoriteModelForHarness('copilot', 'claude-sonnet-4-6')).toBe(
-      'anthropic/claude-sonnet-4-6'
+    expect(migrateFavoriteModelForHarness('cursor-sdk', 'cursor/composer-1')).toBe(
+      'cursor/composer-1'
     );
-    expect(migrateFavoriteModelForHarness('commandcode', 'gpt-5')).toBe('openai/gpt-5');
-    expect(migrateFavoriteModelForHarness('cursor', 'cursor/composer-1')).toBe('cursor/composer-1');
-    expect(migrateFavoriteModelForHarness('cursor', 'composer-1[reasoning=high]')).toBe(
+    expect(migrateFavoriteModelForHarness('cursor-sdk', 'composer-1[reasoning=high]')).toBe(
       'cursor/composer-1[reasoning=high]'
     );
-    expect(migrateFavoriteModelForHarness('opencode', 'custom-model')).toBe('custom-model');
+    expect(migrateFavoriteModelForHarness('opencode-sdk', 'custom-model')).toBe('custom-model');
   });
 });

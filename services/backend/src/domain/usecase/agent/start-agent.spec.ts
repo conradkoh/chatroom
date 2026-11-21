@@ -41,7 +41,7 @@ async function registerMachine(sessionId: SessionId, machineId: string) {
     machineId,
     hostname: 'test-host',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
 }
 
@@ -60,7 +60,7 @@ async function startAgent(
       chatroomId,
       role,
       model: TEST_MODEL_OPENCODE,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       workingDir: '/tmp/test',
       ...(options?.allowNewMachine !== undefined
         ? { allowNewMachine: options.allowNewMachine }
@@ -101,7 +101,7 @@ describe('startAgent use case — request snapshots', () => {
         workspaceId,
         role,
         machineId,
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         model: TEST_MODEL_OPENCODE,
         workingDir: '/tmp/test',
       });
@@ -177,7 +177,7 @@ describe('startAgent use case — request snapshots', () => {
       teamStructureId: 'duo@1',
       role: 'builder',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: TEST_MODEL_OPENCODE,
       workingDir: '/tmp/test',
       reason: AgentStartReasonCode.USER_START,
@@ -190,7 +190,7 @@ describe('startAgent use case — request snapshots', () => {
         requestId: request?.requestId,
         chatroomId,
         role: 'builder',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         model: TEST_MODEL_OPENCODE,
         workingDir: '/tmp/test',
         reason: AgentStartReasonCode.USER_START,

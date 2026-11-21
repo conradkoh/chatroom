@@ -21,7 +21,7 @@ describe('requestEphemeralAgentRelease', () => {
       machineId,
       hostname: 'test',
       os: 'linux',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     });
     await t.mutation(api.participants.join, {
       sessionId,

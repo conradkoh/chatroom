@@ -45,7 +45,7 @@ async function seedRemoteConfig(
       role,
       agentType: 'remote',
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'model',
       workingDir: '/tmp',
       reason: 'user.config',

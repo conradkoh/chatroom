@@ -19,7 +19,7 @@ async function setup(id: string) {
     machineId,
     hostname: 'test',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   await t.mutation(api.machines.sendCommand, {
     sessionId: id as any,
@@ -29,7 +29,7 @@ async function setup(id: string) {
       chatroomId,
       role: 'builder',
       model: 'test-model',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       workingDir: '/workspace',
     },
   });

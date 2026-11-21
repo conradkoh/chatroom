@@ -33,7 +33,7 @@ async function registerMachine(sessionId: SessionId, machineId: string) {
     machineId,
     hostname: 'test-host',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
 }
 

@@ -269,7 +269,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'claude-haiku-4-5',
       'claude-haiku-4-5-20251001',
     ] as const;
-    for (const harness of ['claude', 'claude-sdk'] as const) {
+    for (const harness of ['claude-sdk'] as const) {
       const catalog = HARNESS_MODEL_CATALOG[harness];
       const baseIds = catalog.map((entry) => decodeModelVariant(entry).model);
       // All catalog aliases and provider-documented exact ids are independently specified above.

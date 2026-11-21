@@ -25,7 +25,7 @@ test('register rejects when machineId is already owned by another user', async (
     machineId,
     hostname: 'host-a',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
 
   await expect(
@@ -34,7 +34,7 @@ test('register rejects when machineId is already owned by another user', async (
       machineId,
       hostname: 'host-b',
       os: 'linux',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     })
   ).rejects.toThrow(/already registered to another user/);
 });
@@ -48,7 +48,7 @@ test('register allows same user to re-register with updated hostname', async () 
     machineId,
     hostname: 'laptop-a',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   expect(first.isNew).toBe(true);
 
@@ -57,7 +57,7 @@ test('register allows same user to re-register with updated hostname', async () 
     machineId,
     hostname: 'laptop-b',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   expect(second.isNew).toBe(false);
 });

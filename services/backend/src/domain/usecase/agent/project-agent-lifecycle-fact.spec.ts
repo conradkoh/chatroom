@@ -18,7 +18,7 @@ async function setup() {
     machineId,
     hostname: 'test',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
@@ -44,7 +44,7 @@ async function recordLaunchRequestFor(s: Setup, role: string) {
       role,
       agentType: 'remote',
       machineId: s.machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'test',
       workingDir: '/tmp',
       reason: AgentStartReasonCode.USER_START,

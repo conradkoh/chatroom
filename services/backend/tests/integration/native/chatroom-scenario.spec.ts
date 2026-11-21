@@ -92,16 +92,4 @@ describe('ChatroomScenario — native prompt orchestration', () => {
     expect(builderInjection).toContain('Starting a new agent session');
     expect(builderInjection).toContain('Add dark mode toggle');
   });
-
-  test('CLI harness delivery still references get-next-task (regression)', async () => {
-    const scenario = await ChatroomScenario.create({ sessionKey: 'scenario-cli-harness' });
-    await scenario.configureRole({ role: 'planner', harness: 'opencode' });
-
-    const { taskId } = await scenario.userSays('hello');
-    const delivery = await scenario.deliveryPromptFor('planner', taskId);
-
-    expect(delivery).toContain('get-next-task');
-    expect(delivery).toContain('<handoffs>');
-    expect(delivery).toContain('<handoff-templates>');
-  });
 });
