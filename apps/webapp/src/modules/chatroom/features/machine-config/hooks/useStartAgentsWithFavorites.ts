@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useQueries, type RequestForQueries } from 'convex/react';
 import { useSessionId, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 
 import type { AgentHarness } from '../../../types/machine';
 import { applyFavoriteConfigs, type ApplyFavoriteConfigItem } from '../lib/applyFavoriteConfigs';
@@ -19,6 +19,13 @@ import { buildMachineFavoriteScopeKey } from '../lib/machineConfigScopeKey';
 import type { MachineConfigEntry } from '../types/machineConfig';
 
 const START_FAVORITES_CHECK_TIMEOUT_MS = 4000;
+
+/**
+ * Shared empty query map for idle renders. `useQueries` re-subscribes whenever the identity of the
+ * map changes, so passing a fresh `{}` on each render loops ("Too many re-renders"). Never replace
+ * this with a literal `{}`.
+ */
+const NO_QUERIES: RequestForQueries = {};
 
 export type StartFlowPhase =
   'idle' | 'checking' | 'prompt' | 'applying' | 'apply-error' | 'starting';
@@ -284,15 +291,25 @@ export function useStartAgentsWithFavorites({
     [moveTo]
   );
 
-  // Subscriptions exist only while a flow is active; idle passes `{}`.
+  // Subscriptions exist only while a flow is active. Each map is memoized, or is the shared
+  // NO_QUERIES while idle, so `useQueries` sees one object per set of inputs. A fresh map on each
+  // render re-subscribes on each render and loops.
   const active = phase !== 'idle' && Boolean(sessionId);
-  const core = useQueries(active && sessionId ? coreQueries(sessionId, chatroomId) : {});
-  const coreReady = active && hasCoreKeys(core) && settle(core) === 'ready';
-  const detail = useQueries(
-    coreReady && sessionId
-      ? detailQueries(sessionId, chatroomId, core.structure, core.workspaces)
-      : {}
+  const coreMap = useMemo<RequestForQueries>(
+    () => (active && sessionId ? coreQueries(sessionId, chatroomId) : NO_QUERIES),
+    [active, sessionId, chatroomId]
   );
+  const core = useQueries(coreMap);
+  const coreReady = active && hasCoreKeys(core) && settle(core) === 'ready';
+  const detailMap = useMemo<RequestForQueries>(
+    () =>
+      coreReady && sessionId
+        ? detailQueries(sessionId, chatroomId, core.structure, core.workspaces)
+        : NO_QUERIES,
+    // `core` is a new object each render; its `structure` and `workspaces` values are the real inputs.
+    [coreReady, sessionId, chatroomId, core.structure, core.workspaces]
+  );
+  const detail = useQueries(detailMap);
 
   const check = phase === 'checking' ? readCheck(core, detail) : null;
 
