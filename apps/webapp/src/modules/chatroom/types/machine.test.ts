@@ -8,26 +8,20 @@ import {
   getCompactModelId,
   getCompactModelLabel,
   getHarnessModelKeyLabel,
-  harnessSupportsNativeIntegration,
   isCursorSdkHarness,
   isOpenCodeSdkHarness,
 } from './machine';
 
 /**
- * Canonical list of all harnesses supported by the backend and CLI.
- * When a new harness is added, it must also be added here and to the
- * frontend HARNESS_DISPLAY_NAMES record.
+ * SDK harnesses the webapp presents. Retired CLI harnesses must not appear here.
+ * When a new SDK harness is added, add it here and to HARNESS_DISPLAY_NAMES.
  */
 const ALL_KNOWN_HARNESSES: string[] = [
-  'opencode',
   'opencode-sdk',
-  'pi',
   'pi-sdk',
-  'cursor',
   'cursor-sdk',
-  'claude',
   'claude-sdk',
-  'commandcode',
+  'codex-sdk',
 ];
 
 describe('HARNESS_DISPLAY_NAMES', () => {
@@ -36,6 +30,10 @@ describe('HARNESS_DISPLAY_NAMES', () => {
     expect(displayName).toBeDefined();
     expect(typeof displayName).toBe('string');
     expect(displayName.length).toBeGreaterThan(0);
+  });
+
+  it('presents only SDK harnesses', () => {
+    expect(Object.keys(HARNESS_DISPLAY_NAMES).sort()).toEqual([...ALL_KNOWN_HARNESSES].sort());
   });
 
   it('should have display names for every known harness (completeness check)', () => {
@@ -60,15 +58,11 @@ describe('formatHarnessLabel', () => {
 
 describe('getHarnessDisplayName', () => {
   it('returns known display name for registered harnesses', () => {
-    expect(getHarnessDisplayName('opencode')).toBe('OpenCode (CLI)');
     expect(getHarnessDisplayName('opencode-sdk')).toBe('OpenCode (SDK)');
-    expect(getHarnessDisplayName('pi')).toBe('Pi');
     expect(getHarnessDisplayName('pi-sdk')).toBe('Pi (SDK)');
-    expect(getHarnessDisplayName('cursor')).toBe('Cursor (CLI)');
     expect(getHarnessDisplayName('cursor-sdk')).toBe('Cursor (SDK)');
-    expect(getHarnessDisplayName('claude')).toBe('Claude Code');
     expect(getHarnessDisplayName('claude-sdk')).toBe('Claude (SDK)');
-    expect(getHarnessDisplayName('commandcode')).toBe('CommandCode');
+    expect(getHarnessDisplayName('codex-sdk')).toBe('Codex (SDK)');
   });
 
   it('returns title-cased fallback for unknown harnesses', () => {
@@ -90,22 +84,6 @@ describe('isCursorSdkHarness', () => {
     expect(isCursorSdkHarness('cursor')).toBe(false);
     expect(isCursorSdkHarness('opencode-sdk')).toBe(false);
   });
-});
-
-describe('harnessSupportsNativeIntegration', () => {
-  it.each(['opencode-sdk', 'cursor-sdk', 'pi-sdk', 'claude-sdk'] as const)(
-    'returns true for native integration harness "%s"',
-    (harness) => {
-      expect(harnessSupportsNativeIntegration(harness)).toBe(true);
-    }
-  );
-
-  it.each(['opencode', 'cursor', 'pi', 'commandcode'] as const)(
-    'returns false for non-native harness "%s"',
-    (harness) => {
-      expect(harnessSupportsNativeIntegration(harness)).toBe(false);
-    }
-  );
 });
 
 describe('getModelDisplayLabel', () => {
@@ -196,7 +174,7 @@ describe('getHarnessModelKeyLabel', () => {
   });
 
   it('returns the harness display name when no model is present', () => {
-    expect(getHarnessModelKeyLabel('claude')).toBe('Claude Code');
+    expect(getHarnessModelKeyLabel('claude-sdk')).toBe('Claude (SDK)');
   });
 });
 

@@ -1,8 +1,6 @@
-import {
-  formatHarnessLabel,
-  getHarnessDisplayName,
-  harnessSupportsNativeIntegration,
-} from '../../types/machine';
+import { isAgentHarness } from '@workspace/backend/src/domain/entities/agent';
+
+import { formatHarnessLabel, getHarnessDisplayName } from '../../types/machine';
 import type { AgentHarness, HarnessVersionInfo } from '../../types/machine';
 import type { HarnessOption } from '../hooks/useHarnessConfig';
 
@@ -26,9 +24,9 @@ export function applyHarnessVersions(
   });
 }
 
-/** Keep only harnesses that support native direct integration (SDK harnesses). */
+/** Keep only names that are valid agent harnesses. resolveNativeHarnessOptions then selects the native SDK allow-list. */
 function filterNativeHarnesses(harnesses: HarnessOption[]): HarnessOption[] {
-  return harnesses.filter((h) => harnessSupportsNativeIntegration(h.name as AgentHarness));
+  return harnesses.filter((h) => isAgentHarness(h.name));
 }
 
 /** Static catalog of all native SDK harnesses for the selector when daemon capabilities are absent or partial. */
