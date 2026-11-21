@@ -1,6 +1,10 @@
 import type { jsPDF } from 'jspdf';
 
-import { buildMessageExportDom } from './buildMessageExportDom';
+import {
+  buildMessageExportDom,
+  MESSAGE_EXPORT_WIDTH_PX,
+  offscreenExportRootStyle,
+} from './buildMessageExportDom';
 import {
   computePdfPageSlices,
   type PdfBlockBounds,
@@ -15,18 +19,16 @@ import {
 import type { Message } from '../../types/message';
 
 const PDF_MIME_TYPE = 'application/pdf';
-/** 816 CSS px = 8.5in at 96dpi; same width as the DOCX export. */
-const EXPORT_WIDTH_PX = 816;
 const PAGE_MARGIN_PT = 40;
 const A4_WIDTH_PT = 595.28;
 const A4_HEIGHT_PT = 841.89;
 const CONTENT_WIDTH_PT = A4_WIDTH_PT - 2 * PAGE_MARGIN_PT;
 const CONTENT_HEIGHT_PT = A4_HEIGHT_PT - 2 * PAGE_MARGIN_PT;
-const PT_PER_CSS_PX = CONTENT_WIDTH_PT / EXPORT_WIDTH_PX;
+const PT_PER_CSS_PX = CONTENT_WIDTH_PT / MESSAGE_EXPORT_WIDTH_PX;
 const PAGE_HEIGHT_CSS_PX = CONTENT_HEIGHT_PT / PT_PER_CSS_PX;
 /** Browsers refuse canvases taller than ~16384 px in one dimension. */
 const MAX_CANVAS_PX = 16384;
-/** Browsers also cap total canvas pixels (iOS Safari ~16.7 Mpx). Width is EXPORT_WIDTH_PX * scale. */
+/** Browsers also cap total canvas pixels (iOS Safari ~16.7 Mpx). Width is MESSAGE_EXPORT_WIDTH_PX * scale. */
 const MAX_CANVAS_AREA_PX = 16_777_216;
 const MAX_RASTER_SCALE = 2;
 /** JPEG quality for page images. Keeps 13px body text and Mermaid edges crisp at 100% zoom. */
@@ -56,7 +58,7 @@ export async function exportMessageAsPdf(message: Message): Promise<SaveFileResu
   const { root, pageBlocks } = await buildMessageExportDom(
     message,
     // Off-screen but VISIBLE: html2canvas skips visibility:hidden. Do not add visibility:hidden.
-    `position:fixed;left:-9999px;top:0;width:${EXPORT_WIDTH_PX}px;pointer-events:none;`
+    offscreenExportRootStyle('')
   );
   document.body.appendChild(root);
   try {
@@ -68,16 +70,16 @@ export async function exportMessageAsPdf(message: Message): Promise<SaveFileResu
     const scale = Math.min(
       MAX_RASTER_SCALE,
       MAX_CANVAS_PX / heightPx,
-      Math.sqrt(MAX_CANVAS_AREA_PX / (EXPORT_WIDTH_PX * heightPx))
+      Math.sqrt(MAX_CANVAS_AREA_PX / (MESSAGE_EXPORT_WIDTH_PX * heightPx))
     );
     const canvas = await html2canvas(root, {
       scale,
       backgroundColor: '#ffffff', // PDF paper, not a theme colour
       useCORS: true,
       logging: false,
-      width: EXPORT_WIDTH_PX,
+      width: MESSAGE_EXPORT_WIDTH_PX,
       height: heightPx,
-      windowWidth: EXPORT_WIDTH_PX,
+      windowWidth: MESSAGE_EXPORT_WIDTH_PX,
     });
     const slices = computePdfPageSlices(
       measureBlocks(root, pageBlocks),

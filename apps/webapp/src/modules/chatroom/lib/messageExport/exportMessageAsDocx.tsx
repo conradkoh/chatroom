@@ -1,6 +1,6 @@
 import { convertHtmlToDocx } from 'dom-docx/browser';
 
-import { buildMessageExportDom } from './buildMessageExportDom';
+import { buildMessageExportDom, offscreenExportRootStyle } from './buildMessageExportDom';
 import {
   messageExportFilename,
   promptSaveFile,
@@ -22,7 +22,7 @@ export async function exportMessageAsDocx(message: Message): Promise<SaveFileRes
 
   const { htmlFragment, root } = await buildMessageExportDom(
     message,
-    'position:fixed;left:-9999px;top:0;width:816px;visibility:hidden;pointer-events:none;'
+    offscreenExportRootStyle('visibility:hidden;')
   );
   document.body.appendChild(root);
 

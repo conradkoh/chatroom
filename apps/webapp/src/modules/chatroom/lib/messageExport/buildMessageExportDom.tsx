@@ -10,7 +10,15 @@ import { chatroomRemarkPlugins } from '../../components/chatroomRemarkPlugins';
 import { messageFeedProseClassNames } from '../../components/markdown-utils';
 import type { Message } from '../../types/message';
 
-/** Light :root tokens from globals.css — Word is a white-page medium. */
+/** 816 CSS px = 8.5in at 96dpi: the export page width shared by the Word and PDF exporters. */
+export const MESSAGE_EXPORT_WIDTH_PX = 816;
+
+/** Off-screen root style at the export width. `extraStyle` adds the caller's visibility rule. */
+export function offscreenExportRootStyle(extraStyle: string): string {
+  return `position:fixed;left:-9999px;top:0;width:${MESSAGE_EXPORT_WIDTH_PX}px;pointer-events:none;${extraStyle}`;
+}
+
+/** Light :root tokens from globals.css — exports target a white page (Word, PDF). */
 const LIGHT_EXPORT_CSS_VARS: Record<string, string> = {
   '--chatroom-bg-primary': '#f5f5f5',
   '--chatroom-bg-secondary': 'rgba(255, 255, 255, 0.6)',

@@ -48,11 +48,13 @@ vi.mock('./replaceMermaidFencesWithSvg', () => ({
 
 type Rect = { top: number; bottom: number };
 
-/** jsdom has no layout: stub block bounds and the export root height in call order. */
-function stubLayout(rects: Rect[], totalHeight: number): void {
-  let index = 0;
-  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(() => {
-    const rect = rects[index++] ?? { top: 0, bottom: 0 };
+/**
+ * jsdom has no layout. Each element's box comes from `rectOf`, keyed by the element itself,
+ * so an extra layout read cannot shift results.
+ */
+function stubLayout(rectOf: (el: Element) => Rect, totalHeight: number): void {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    const rect = rectOf(this);
     return {
       top: rect.top,
       bottom: rect.bottom,
@@ -138,7 +140,7 @@ describe('exportMessageAsPdf', () => {
   });
 
   it('renders Mermaid fences as diagrams in the PDF source', async () => {
-    stubLayout([], 1000);
+    stubLayout(() => ({ top: 0, bottom: 0 }), 1000);
     const message = makeMessage('Intro\n\n```mermaid\ngraph TD; A-->B\n```\n\nOutro');
 
     await exportMessageAsPdf(message);
@@ -150,28 +152,61 @@ describe('exportMessageAsPdf', () => {
   });
 
   it('paginates at block boundaries', async () => {
-    // Header P [0,500], HR [500,560], paragraph [560,1000], paragraph [1000,1500].
-    stubLayout(
-      [
-        { top: 0, bottom: 1500 }, // export root, used as the origin
-        { top: 0, bottom: 500 },
-        { top: 500, bottom: 560 },
-        { top: 560, bottom: 1000 },
-        { top: 1000, bottom: 1500 },
-      ],
-      1500
-    );
+    // Blocks: header P [0,500], HR [500,560], paragraph [560,1000], paragraph [1000,1500]. Root is 1500 tall.
+    // PAGE_HEIGHT_CSS_PX (exportMessageAsPdf.ts) ≈ 1206.7: A4 content height 761.89pt ÷ 0.63147 pt/px.
+    // The 1500px total exceeds one page, so the last block (1000–1500) starts a new page at its top, 1000.
+    stubLayout((el) => {
+      if (el.classList.contains('chatroom-root')) return { top: 0, bottom: 1500 };
+      if (el.tagName === 'HR') return { top: 500, bottom: 560 };
+      if (el.tagName === 'P' && el.textContent?.startsWith('user')) return { top: 0, bottom: 500 };
+      if (el.textContent === 'First paragraph.') return { top: 560, bottom: 1000 };
+      if (el.textContent === 'Second paragraph.') return { top: 1000, bottom: 1500 };
+      return { top: 0, bottom: 0 };
+    }, 1500);
 
     await exportMessageAsPdf(makeMessage('First paragraph.\n\nSecond paragraph.'));
 
-    // The last two blocks fit on no single page together: the cut lands on the 1000px block top.
-    expect(mocks.drawImage.mock.calls.map((call) => call[2])).toEqual([0, 2000]);
+    // drawImage(source, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight): sy = call[2], sHeight = call[4]
+    expect(mocks.drawImage.mock.calls.map((c) => c[2])).toEqual([0, 2000]);
+    expect(mocks.drawImage.mock.calls.map((c) => c[4])).toEqual([2000, 1000]);
+    // addImage(data, format, x, y, w, h): slice heights in pt = css px × 0.63147
+    expect(mocks.addImage.mock.calls.map((c) => c[5])).toEqual([
+      expect.closeTo(631.47, 1),
+      expect.closeTo(315.74, 1),
+    ]);
     expect(mocks.addPage).toHaveBeenCalledTimes(1);
     expect(mocks.addImage).toHaveBeenCalledTimes(2);
   });
 
+  it('renders a connected, visible export root at the export width and removes it afterwards', async () => {
+    stubLayout(() => ({ top: 0, bottom: 0 }), 1000);
+    let seen: { connected: boolean; visibility: string } | undefined;
+    mocks.html2canvas.mockImplementationOnce(async (el: unknown) => {
+      const root = el as HTMLElement;
+      seen = { connected: root.isConnected, visibility: root.style.visibility };
+      return makeCanvas();
+    });
+
+    await exportMessageAsPdf(makeMessage('Short'));
+
+    expect(seen).toEqual({ connected: true, visibility: '' });
+    expect(mocks.html2canvas).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({ width: 816, windowWidth: 816, height: 1000 })
+    );
+    expect(mocks.addImage).toHaveBeenCalledWith(
+      'data:image/jpeg;base64,AA==',
+      'JPEG',
+      40,
+      40,
+      expect.closeTo(515.28, 2),
+      expect.closeTo(631.47, 1)
+    );
+    expect(document.querySelector('.chatroom-root')).toBeNull();
+  });
+
   it('clamps raster scale for very tall messages', async () => {
-    stubLayout([], 20000);
+    stubLayout(() => ({ top: 0, bottom: 0 }), 20000);
 
     await exportMessageAsPdf(makeMessage('Tall'));
 
@@ -182,7 +217,7 @@ describe('exportMessageAsPdf', () => {
   });
 
   it('clamps raster scale so the canvas area stays under the browser limit', async () => {
-    stubLayout([], 8000);
+    stubLayout(() => ({ top: 0, bottom: 0 }), 8000);
 
     await exportMessageAsPdf(makeMessage('Tall'));
 
@@ -196,7 +231,7 @@ describe('exportMessageAsPdf', () => {
   });
 
   it('rasterises short messages at the maximum scale', async () => {
-    stubLayout([], 1000);
+    stubLayout(() => ({ top: 0, bottom: 0 }), 1000);
 
     await exportMessageAsPdf(makeMessage('Short'));
 
@@ -207,7 +242,7 @@ describe('exportMessageAsPdf', () => {
   });
 
   it('encodes each page as a white-backed JPEG at quality 0.9', async () => {
-    stubLayout([], 1000);
+    stubLayout(() => ({ top: 0, bottom: 0 }), 1000);
 
     await exportMessageAsPdf(makeMessage('Short'));
 
