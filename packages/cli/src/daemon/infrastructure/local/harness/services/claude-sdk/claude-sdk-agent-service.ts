@@ -27,7 +27,7 @@ import {
 } from '../../../../../services/service-interfaces.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { decodeClaudeVariant } from '../claude/claude-models.js';
+import { decodeClaudeVariant } from './claude-models.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
   SpawnContext,

@@ -2,7 +2,7 @@
 
 This guide walks through adding a **new native SDK direct harness** end to end — the pattern used by `opencode-sdk`, `cursor-sdk`, and `pi-sdk` on the `feat/direct-harness-native-sdks` branch.
 
-It is **not** about CLI remote-agent harnesses (`RemoteAgentService`, `get-next-task`, `init-registry.ts`). For that path, see [`./services/HARNESS_GUIDE.md`](./services/HARNESS_GUIDE.md).
+This guide covers only the direct-harness path: a `BoundHarness` / `DirectHarnessSession` pair that the daemon opens for a web-selected session. Adapters reuse SDK helpers under `services/` (for example `services/opencode-sdk/`). For the SDK service pattern those helpers follow, see [`./services/HARNESS_GUIDE.md`](./services/HARNESS_GUIDE.md).
 
 ---
 
@@ -211,9 +211,6 @@ Create `services/backend/src/domain/entities/harness/my-sdk.config.ts`:
 import type { HarnessCapabilities } from './types';
 
 export const mySdkCapabilities: HarnessCapabilities = {
-  runtimeKind: 'sdk',
-  supportsDaemonMemoryResume: false, // true only if you implement daemon-memory resume like cursor-sdk
-  supportsNativeIntegration: true, // required for Direct Harness UI
   lifecycle: {
     turnCompleted: true,
     outputActivity: true,
@@ -225,7 +222,7 @@ export const mySdkCapabilities: HarnessCapabilities = {
 
 Register in `services/backend/src/domain/entities/harness/types.ts` → `HARNESS_CAPABILITIES`.
 
-Update `types.test.ts` expectations for `supportsNativeIntegration` / `isNativeHarness`.
+Update `types.test.ts` expectations for `isNativeHarness`.
 
 ### 3. CLI registry
 
@@ -306,7 +303,7 @@ If you add new Convex surface area (unlikely for a standard harness), add tests 
 
 ## UI behaviors (no harness code required)
 
-Once `supportsNativeIntegration: true` and capabilities publish succeeds:
+Once the harness capabilities publish succeeds:
 
 - Harness appears in `HarnessHarnessSelect`
 - Agents/models populate from `refreshCapabilities` (daemon calls your `listAgents` / `listProviders`)
@@ -377,6 +374,6 @@ Optional: SDK package helpers under `packages/cli/src/daemon/infrastructure/loca
 
 ## Related docs
 
-- CLI remote agents (legacy chatroom roles): [`./services/HARNESS_GUIDE.md`](./services/HARNESS_GUIDE.md)
+- SDK service pattern and `services/` helpers: [`./services/HARNESS_GUIDE.md`](./services/HARNESS_GUIDE.md)
 - Domain `BoundHarness` API: `packages/cli/src/domain/direct-harness/entities/bound-harness.ts`
 - Daemon subscribers: `packages/cli/src/commands/machine/daemon-start/direct-harness/`

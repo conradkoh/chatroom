@@ -18,8 +18,8 @@ function item(role: string, entry: ApplyFavoriteConfigItem['entry']): ApplyFavor
   };
 }
 
-const plannerItem = item('planner', { agentHarness: 'claude', model: 'opus' });
-const builderItem = item('builder', { agentHarness: 'opencode', model: 'gpt' });
+const plannerItem = item('planner', { agentHarness: 'claude-sdk', model: 'opus' });
+const builderItem = item('builder', { agentHarness: 'opencode-sdk', model: 'gpt' });
 
 describe('applyFavoriteConfigs', () => {
   it('applies every item in input order when all saves resolve', async () => {
@@ -29,8 +29,8 @@ describe('applyFavoriteConfigs', () => {
 
     expect(result).toEqual({
       applied: [
-        { role: 'planner', entry: { agentHarness: 'claude', model: 'opus' } },
-        { role: 'builder', entry: { agentHarness: 'opencode', model: 'gpt' } },
+        { role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } },
+        { role: 'builder', entry: { agentHarness: 'opencode-sdk', model: 'gpt' } },
       ],
       failed: [],
     });
@@ -46,7 +46,7 @@ describe('applyFavoriteConfigs', () => {
     const result = await applyFavoriteConfigs(saveConfig, [plannerItem, builderItem]);
 
     expect(result).toEqual({
-      applied: [{ role: 'builder', entry: { agentHarness: 'opencode', model: 'gpt' } }],
+      applied: [{ role: 'builder', entry: { agentHarness: 'opencode-sdk', model: 'gpt' } }],
       failed: [{ role: 'planner', message: 'harness missing' }],
     });
   });
@@ -62,7 +62,7 @@ describe('applyFavoriteConfigs', () => {
 
     expect(result.failed).toEqual([{ role: 'planner', message: 'Failed to save configuration' }]);
     expect(result.applied).toEqual([
-      { role: 'builder', entry: { agentHarness: 'opencode', model: 'gpt' } },
+      { role: 'builder', entry: { agentHarness: 'opencode-sdk', model: 'gpt' } },
     ]);
   });
 
@@ -77,7 +77,7 @@ describe('applyFavoriteConfigs', () => {
     const result = await applyFavoriteConfigs(saveConfig, [plannerItem, builderItem]);
 
     expect(result).toEqual({
-      applied: [{ role: 'builder', entry: { agentHarness: 'opencode', model: 'gpt' } }],
+      applied: [{ role: 'builder', entry: { agentHarness: 'opencode-sdk', model: 'gpt' } }],
       failed: [{ role: 'planner', message: 'sync boom' }],
     });
   });
@@ -92,7 +92,7 @@ describe('applyFavoriteConfigs', () => {
       workspaceId: 'ws-1',
       role: 'planner',
       machineId: 'm1',
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'opus',
       workingDir: '/repo',
     });
@@ -101,7 +101,7 @@ describe('applyFavoriteConfigs', () => {
       workspaceId: 'ws-1',
       role: 'builder',
       machineId: 'm1',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt',
       workingDir: '/repo',
     });
@@ -113,7 +113,7 @@ describe('applyFavoriteConfigs', () => {
     const result = await applyFavoriteConfigs(saveConfig, [plannerItem]);
 
     expect(result.applied).toEqual([
-      { role: 'planner', entry: { agentHarness: 'claude', model: 'opus' } },
+      { role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } },
     ]);
   });
 });

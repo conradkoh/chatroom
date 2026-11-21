@@ -101,7 +101,7 @@ describe('handleStatusEffect', () => {
     const config = {
       hostname: 'my-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode-sdk'],
     } as unknown as MachineConfig;
 
     const result = await runWithSession(handleStatusEffect, config);
@@ -109,7 +109,7 @@ describe('handleStatusEffect', () => {
 
     expect(parsed.hostname).toBe('my-host');
     expect(parsed.os).toBe('darwin');
-    expect(parsed.availableHarnesses).toEqual(['opencode']);
+    expect(parsed.availableHarnesses).toEqual(['opencode-sdk']);
     expect(result.failed).toBe(false);
   });
 

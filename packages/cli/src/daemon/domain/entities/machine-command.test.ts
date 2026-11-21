@@ -9,7 +9,7 @@ describe('machine-command', () => {
     payload: {
       chatroomId: 'room1',
       role: 'builder',
-      agentHarness: 'cursor',
+      agentHarness: 'cursor-sdk',
     },
   };
 

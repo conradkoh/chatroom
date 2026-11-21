@@ -15,15 +15,3 @@ export interface TurnEndSlot {
   /** Set when turn-end handler already emitted startFailed for a provider rate limit. */
   terminalProviderFailureHandled?: boolean | undefined;
 }
-
-export interface TurnEndInput {
-  chatroomId: string;
-  role: string;
-  pid: number;
-}
-
-export type TurnEndOutcome = 'killed' | 'killed_terminal_provider_error';
-
-export interface TurnEndResult {
-  outcome: TurnEndOutcome;
-}

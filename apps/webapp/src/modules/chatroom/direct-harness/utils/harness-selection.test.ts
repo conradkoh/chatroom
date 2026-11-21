@@ -44,9 +44,9 @@ describe('applyHarnessVersions', () => {
 describe('resolveNativeHarnessOptions', () => {
   it('keeps only native-integration SDK harnesses from daemon reports', () => {
     const input = [
-      harness('opencode'),
+      harness('legacy-harness'),
       harness('opencode-sdk'),
-      harness('cursor'),
+      harness('legacy-harness'),
       harness('cursor-sdk'),
       harness('pi-sdk'),
     ];
@@ -92,7 +92,7 @@ describe('resolveNativeHarnessOptions', () => {
   });
 
   it('ignores non-native harnesses from daemon reports', () => {
-    const reported = [harness('opencode'), harness('cursor-sdk')];
+    const reported = [harness('legacy-harness'), harness('cursor-sdk')];
     expect(resolveNativeHarnessOptions(reported).map((h) => h.name)).toEqual([
       'pi-sdk',
       'cursor-sdk',

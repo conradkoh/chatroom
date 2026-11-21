@@ -176,7 +176,7 @@ describe('selectModel', () => {
     it('returns null when no models available', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: [],
           visibleModels: [],
         })
@@ -188,7 +188,7 @@ describe('selectModel', () => {
     it('selects the explicit user choice even if hidden (not in visibleModels)', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: [TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT], // openai models hidden
           userChoice: 'openai/gpt-4', // hidden but explicitly chosen
@@ -199,7 +199,7 @@ describe('selectModel', () => {
     it('ignores user choice if model no longer available', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: [TEST_MODEL_OPENCODE],
           visibleModels: [TEST_MODEL_OPENCODE],
           userChoice: 'openai/gpt-4', // not in availableModels
@@ -212,7 +212,7 @@ describe('selectModel', () => {
     it('selects machine config model when visible', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: allModels,
           machineConfigModel: TEST_MODEL_OPENCODE,
@@ -223,7 +223,7 @@ describe('selectModel', () => {
     it('skips machine config model when hidden', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: ['openai/gpt-4', 'openai/gpt-3.5'], // opencode hidden
           machineConfigModel: TEST_MODEL_OPENCODE,
@@ -236,7 +236,7 @@ describe('selectModel', () => {
     it('selects team config model when visible and no higher priority match', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: allModels,
           teamConfigModel: TEST_MODEL_OPENCODE_ALT,
@@ -247,7 +247,7 @@ describe('selectModel', () => {
     it('skips team config model when hidden', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: ['openai/gpt-4'],
           teamConfigModel: TEST_MODEL_OPENCODE_ALT,
@@ -260,7 +260,7 @@ describe('selectModel', () => {
     it('selects preference model when visible', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: allModels,
           preferenceModel: 'openai/gpt-3.5',
@@ -271,7 +271,7 @@ describe('selectModel', () => {
     it('skips preference model when hidden', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: [TEST_MODEL_OPENCODE],
           preferenceModel: 'openai/gpt-3.5',
@@ -284,7 +284,7 @@ describe('selectModel', () => {
     it('selects first visible model when no other match', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: [TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT],
         })
@@ -294,7 +294,7 @@ describe('selectModel', () => {
     it('falls back to first available if ALL models are hidden', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: [], // all hidden
         })
@@ -306,7 +306,7 @@ describe('selectModel', () => {
     it('user choice beats machine config', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: allModels,
           userChoice: 'openai/gpt-4',
@@ -318,7 +318,7 @@ describe('selectModel', () => {
     it('machine config beats team config', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: allModels,
           machineConfigModel: 'openai/gpt-4',
@@ -330,7 +330,7 @@ describe('selectModel', () => {
     it('team config beats preference', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: allModels,
           teamConfigModel: 'openai/gpt-4',
@@ -342,7 +342,7 @@ describe('selectModel', () => {
     it('hidden machine config falls through to visible team config', () => {
       expect(
         selectModel({
-          selectedHarness: 'pi',
+          selectedHarness: 'pi-sdk',
           availableModels: allModels,
           visibleModels: ['openai/gpt-4', 'openai/gpt-3.5'], // opencode hidden
           machineConfigModel: TEST_MODEL_OPENCODE, // hidden → skip

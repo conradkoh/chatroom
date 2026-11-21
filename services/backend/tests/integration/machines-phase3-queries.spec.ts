@@ -132,7 +132,7 @@ describe('agents.getStartFormData', () => {
 
     expect(result).not.toBeNull();
     expect(result!.defaults.machineId).toBe(machineId);
-    expect(result!.defaults.agentHarness).toBe('opencode');
+    expect(result!.defaults.agentHarness).toBe('opencode-sdk');
     expect(result!.defaults.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(result!.defaults.workingDir).toBe('/test/workspace');
   });

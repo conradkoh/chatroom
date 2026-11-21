@@ -80,7 +80,9 @@ function cliInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
     teamRoles: config.teamRoles,
     teamEntryPoint: config.teamEntryPoint,
     convexUrl: CONVEX_URL,
-    agentHarness: 'opencode',
+    // `undefined` is not a native harness, so composeSystemPrompt takes the
+    // still-live CLI branch without relying on a retired CLI harness literal.
+    agentHarness: undefined,
   });
 }
 
@@ -175,6 +177,21 @@ describe('Native init — commands reference', () => {
 });
 
 describe('Native init — Phase 1 guardrails', () => {
+  test('custom agent (agentType custom, no harness) takes the CLI prompt path', () => {
+    const config = TEAM_CONFIGS.duo;
+    const prompt = composeSystemPrompt({
+      chatroomId: 'test-chatroom-id',
+      role: 'builder',
+      teamId: config.teamId,
+      teamName: config.teamName,
+      teamRoles: config.teamRoles,
+      teamEntryPoint: config.teamEntryPoint,
+      convexUrl: CONVEX_URL,
+      agentType: 'custom',
+    });
+    expect(prompt).toContain('chatroom get-next-task');
+  });
+
   test('does not contain mandatory pnpm typecheck language', () => {
     const prompt = nativeInitPrompt('duo', 'builder');
     expect(prompt).not.toContain('pnpm typecheck');

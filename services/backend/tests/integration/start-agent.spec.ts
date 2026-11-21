@@ -40,7 +40,7 @@ describe('startAgent — config persistence', () => {
       machineId,
       chatroomId,
       role: 'architect',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: TEST_MODEL_OPENCODE_LEGACY,
       workingDir: '/tmp/test',
     });
@@ -78,7 +78,7 @@ describe('startAgent — config persistence', () => {
           role: 'builder',
           userId: user!._id,
           model: TEST_MODEL_OPENCODE_LEGACY,
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
           workingDir: '/test/workspace',
           reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
@@ -87,7 +87,7 @@ describe('startAgent — config persistence', () => {
     });
 
     // ===== VERIFY =====
-    expect(result.agentHarness).toBe('opencode');
+    expect(result.agentHarness).toBe('opencode-sdk');
     expect(result.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
     expect(result.workingDir).toBe('/test/workspace');
 
@@ -118,7 +118,7 @@ describe('startAgent — config persistence', () => {
       machineId,
       chatroomId,
       role: 'builder',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: TEST_MODEL_OPENCODE_LEGACY,
       workingDir: '/tmp/test',
     });
@@ -131,7 +131,7 @@ describe('startAgent — config persistence', () => {
 
     expect(result?.defaults).toMatchObject({
       machineId,
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: TEST_MODEL_OPENCODE_LEGACY,
       workingDir: '/tmp/test',
     });
@@ -160,7 +160,7 @@ describe('startAgent — config persistence', () => {
           role: 'builder',
           userId: user!._id,
           model: 'old-model',
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
           workingDir: '/old/path',
           reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
@@ -185,7 +185,7 @@ describe('startAgent — config persistence', () => {
           role: 'builder',
           userId: user!._id,
           model: 'new-model',
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
           workingDir: '/new/path',
           reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
@@ -248,14 +248,14 @@ describe('startAgent — harness validation', () => {
             role: 'builder',
             userId: user!._id,
             model: TEST_MODEL_OPENCODE_LEGACY,
-            agentHarness: 'opencode',
+            agentHarness: 'opencode-sdk',
             workingDir: '/test/workspace',
             reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
           },
           machine!
         );
       })
-    ).rejects.toThrow("Agent harness 'opencode' is not available on this machine");
+    ).rejects.toThrow("Agent harness 'opencode-sdk' is not available on this machine");
   });
 });
 
@@ -291,7 +291,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           role: 'builder',
           userId: user!._id,
           model: 'model-for-chatroom-1',
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
           workingDir: '/workspace/chatroom1',
           reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
@@ -306,7 +306,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           role: 'builder',
           userId: user!._id,
           model: 'model-for-chatroom-2',
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
           workingDir: '/workspace/chatroom2',
           reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
@@ -360,7 +360,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           role: 'builder',
           userId: user!._id,
           model: TEST_MODEL_OPENCODE_LEGACY,
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
           workingDir: '/test/workspace',
           reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
@@ -389,11 +389,11 @@ describe('startAgent — teamRoleKey collision regression', () => {
 // ─── getInitPrompt agentType regression ──────────────────────────────────────
 
 describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
-  test('agentType reflects registered config when queried via getInitPrompt', async () => {
-    // Regression test: messages.ts must build the teamRoleKey using the correct
-    // format: `chatroom_<chatroom._id>#team_<teamId>#role_<role>`.
-    // If messages.ts uses a different format than startAgent, getInitPrompt would
-    // fail to find the config and return agentType='unset'.
+  test('agentType is stored on the launch snapshot keyed by chatroom._id', async () => {
+    // Regression test: startAgent must persist the launch snapshot under the
+    // requestKey format `${chatroomId}:${teamStructureId}:${role}` that
+    // `getLastSentLaunchRequestForRole`/`launchRequestKey` compute.
+    // If the formats diverge, the lookup misses and the snapshot is absent.
 
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-init-prompt-agenttype-1');
@@ -422,7 +422,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
           role: 'builder',
           userId: user!._id,
           model: TEST_MODEL_OPENCODE_LEGACY,
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
           workingDir: '/test/workspace',
           reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
@@ -431,8 +431,66 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
     });
 
     // ===== VERIFY =====
-    // getInitPrompt must look up the config by the same key used in startAgent
-    // (`chatroom_${chatroom._id}#team_${teamId}#role_builder`) and return agentType='remote'.
+    // The launch snapshot must be keyed the same way startAgent writes it
+    // (`${chatroomId}:${teamStructureId}:${role}`, computed by
+    // `launchRequestKey` in record-last-sent-launch-request.ts) and carry
+    // agentType='remote'. A key mismatch would leave the snapshot absent.
+    const request = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_agentLastSentLaunchRequests')
+        .withIndex('by_requestKey', (q) => q.eq('requestKey', `${chatroomId}:duo@1:builder`))
+        .first();
+    });
+
+    expect(request).toBeDefined();
+    expect(request!.agentType).toBe('remote');
+  });
+
+  test('agentType lookup returns the native init prompt when queried via getInitPrompt', async () => {
+    // Query-side regression test: messages.ts resolves the launch snapshot
+    // through `getLastSentLaunchRequestForRole`, which builds its requestKey as
+    // `${chatroomId}:${teamStructureId}:${role}`. If startAgent writes a
+    // different key, the lookup misses, agentHarness stays undefined, and
+    // getInitPrompt falls back to the CLI branch.
+    // The native prompt no longer renders agentType, so this asserts the branch
+    // the lookup selects: native markers replace the CLI-only commands.
+
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-init-prompt-agenttype-query');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const machineId = 'machine-init-prompt-agenttype-query';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // Join participants so getInitPrompt can read presence
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'planner' });
+
+    // ===== ACTION =====
+    // Start a remote agent — this writes a canonical launch request snapshot.
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').first();
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      return startAgent(
+        ctx,
+        {
+          machineId,
+          chatroomId,
+          role: 'builder',
+          userId: user!._id,
+          model: TEST_MODEL_OPENCODE_LEGACY,
+          agentHarness: 'opencode-sdk',
+          workingDir: '/test/workspace',
+          reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
+        },
+        machine!
+      );
+    });
+
+    // ===== VERIFY =====
     const initPrompt = await t.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId,
@@ -441,10 +499,11 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
     });
 
     expect(initPrompt).toBeDefined();
-    // agentType='remote' causes `--type=remote` to appear in the register-agent command
-    expect(initPrompt?.prompt).toContain('--type=remote');
-    // agentType='unset' would produce the placeholder instead
-    expect(initPrompt?.prompt).not.toContain('--type=<remote|custom>');
+    // Native-system-prompt marker; only reached when the launch-snapshot lookup
+    // supplies the SDK agentHarness.
+    expect(initPrompt.prompt).toContain('Do not run `register-agent`');
+    // CLI-only command advertised by the fallback branch.
+    expect(initPrompt.prompt).not.toContain('chatroom get-next-task');
   });
 
   test('agentType is unset when no config exists for chatroom+role', async () => {
@@ -494,7 +553,7 @@ describe('startAgent — command payload', () => {
           role: 'builder',
           userId: user!._id,
           model: 'my-specific-model',
-          agentHarness: 'opencode',
+          agentHarness: 'opencode-sdk',
           workingDir: '/specific/path',
           reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
         },
@@ -509,7 +568,7 @@ describe('startAgent — command payload', () => {
     expect(evt.type).toBe('agent.requestStart');
     if (evt.type === 'agent.requestStart') {
       expect(evt.model).toBe('my-specific-model');
-      expect(evt.agentHarness).toBe('opencode');
+      expect(evt.agentHarness).toBe('opencode-sdk');
       expect(evt.workingDir).toBe('/specific/path');
       expect(evt.chatroomId).toBe(chatroomId);
       expect(evt.role).toBe('builder');

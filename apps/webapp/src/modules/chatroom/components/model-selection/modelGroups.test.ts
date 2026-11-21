@@ -72,7 +72,7 @@ describe('groupFlatModels', () => {
   });
 
   it('groups claude catalog without duplicate base model provider keys', () => {
-    const models = [...HARNESS_MODEL_CATALOG.claude];
+    const models = [...HARNESS_MODEL_CATALOG['claude-sdk']];
     const groups = groupFlatModels(models);
     const keys = groups.map((g) => g.providerKey);
     expect(keys).toEqual([...new Set(keys)]);
@@ -81,7 +81,7 @@ describe('groupFlatModels', () => {
     expect(keys).not.toContain('opus');
   });
 
-  it.each(['claude', 'claude-sdk'] as const)(
+  it.each(['claude-sdk'] as const)(
     'groups current Claude options from the %s catalog',
     (harness) => {
       const groups = groupFlatModels([...HARNESS_MODEL_CATALOG[harness]]);

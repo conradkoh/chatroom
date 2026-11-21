@@ -219,8 +219,8 @@ const renderSidebar = (chatrooms: ChatroomWithStatus[], activeChatroomId = chatr
   return render(<ChatroomSidebar activeChatroomId={activeChatroomId} />);
 };
 
-const CURRENT = { agentHarness: 'opencode', model: 'claude-opus-4-8[effort=high]' };
-const FAVOURITE = { agentHarness: 'pi', model: 'gpt-5.6-terra[reasoning=high]' };
+const CURRENT = { agentHarness: 'opencode-sdk', model: 'claude-opus-4-8[effort=high]' };
+const FAVOURITE = { agentHarness: 'pi-sdk', model: 'gpt-5.6-terra[reasoning=high]' };
 
 function setStartCheckData(favourites: unknown[]) {
   mockQueryData.getTeamStructureForChatroom = {
@@ -238,7 +238,7 @@ function setStartCheckData(favourites: unknown[]) {
   ];
   mockQueryData.listStatus = [];
   mockQueryData.listLastSentLaunchRequests = [{ role: 'builder', ...CURRENT, workingDir: '/repo' }];
-  mockQueryData.getMachineCapabilities = { availableHarnesses: ['opencode', 'pi'] };
+  mockQueryData.getMachineCapabilities = { availableHarnesses: ['opencode-sdk', 'pi-sdk'] };
   mockQueryData.getMachineConfigFavorites = { favorites: favourites };
 }
 
@@ -652,8 +652,10 @@ describe('ChatroomSidebar', () => {
       const dialog = await screen.findByTestId('start-favourites-dialog');
       const rows = within(dialog).getAllByTestId('start-favourites-row');
       expect(rows).toHaveLength(1);
-      expect(within(rows[0]).getByText('opencode · Claude Opus 4.8 [high]')).toBeInTheDocument();
-      expect(within(rows[0]).getByText('pi · Gpt 5.6 Terra [high]')).toBeInTheDocument();
+      expect(
+        within(rows[0]).getByText('opencode-sdk · Claude Opus 4.8 [high]')
+      ).toBeInTheDocument();
+      expect(within(rows[0]).getByText('pi-sdk · Gpt 5.6 Terra [high]')).toBeInTheDocument();
       expect(mockRequestChatroomStart).not.toHaveBeenCalled();
       expect(mockSaveConfig).not.toHaveBeenCalled();
     });
@@ -681,7 +683,7 @@ describe('ChatroomSidebar', () => {
           role: 'builder',
           machineId: 'machine-1',
           workingDir: '/repo',
-          agentHarness: 'pi',
+          agentHarness: 'pi-sdk',
           model: 'gpt-5.6-terra[reasoning=high]',
         })
       );

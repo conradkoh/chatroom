@@ -255,7 +255,7 @@ function createAgentProcessFixture() {
     if (signal === 'SIGTERM' || signal === 'SIGKILL') deadPids.add(pid);
   });
   const harness = {
-    id: 'opencode',
+    id: 'opencode-sdk',
     displayName: 'OpenCode',
     command: 'opencode',
     isInstalled: vi.fn().mockResolvedValue(true),
@@ -275,7 +275,7 @@ function createAgentProcessFixture() {
   };
   const deps = {
     logEvent: vi.fn().mockResolvedValue(undefined),
-    agentServices: new Map([['opencode', harness]]),
+    agentServices: new Map([['opencode-sdk', harness]]),
     backend: {
       query: vi.fn().mockResolvedValue({
         prompt: true,
@@ -350,7 +350,7 @@ function agentStart(workingDir: string, role: string, chatroomId = CHATROOM_ID):
   return {
     chatroomId,
     role,
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     model: 'gpt-4',
     workingDir,
     reason: AgentStartReasonCode.USER_START,

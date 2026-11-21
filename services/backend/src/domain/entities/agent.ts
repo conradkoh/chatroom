@@ -23,28 +23,22 @@ import { toLiteralValidators } from './_shared/v-literals-of';
 // ─── Agent Harness ───────────────────────────────────────────────────────────
 
 /**
- * Supported agent harness types.
+ * Supported agent harness types: the SDK-backed harnesses the daemon runs in-process.
  *
  * A harness is the execution environment that hosts the AI agent.
  */
 export const AGENT_HARNESSES = [
-  'opencode',
   'opencode-sdk',
-  'pi',
   'pi-sdk',
-  'cursor',
   'cursor-sdk',
-  'claude',
   'claude-sdk',
   'codex-sdk',
-  'copilot',
-  'commandcode',
 ] as const;
 
 /** The type of agent harness used to run an agent process. */
 export type AgentHarness = (typeof AGENT_HARNESSES)[number];
 
-/** Enum-like object: AgentHarnessEnum.opencode === 'opencode', etc. */
+/** Enum-like object: AgentHarnessEnum['cursor-sdk'] === 'cursor-sdk', etc. */
 export const AgentHarnessEnum = Object.fromEntries(AGENT_HARNESSES.map((h) => [h, h])) as {
   readonly [K in AgentHarness]: K;
 };

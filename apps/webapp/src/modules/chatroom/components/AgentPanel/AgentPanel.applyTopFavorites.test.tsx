@@ -141,8 +141,8 @@ describe('AgentPanel apply top favourites', () => {
 
   it('applies both roles top favourites from the sidebar toolbar', async () => {
     mocks.teamStructure = seedTeam('duo', {
-      planner: [{ agentHarness: 'claude', model: 'opus' }],
-      builder: [{ agentHarness: 'opencode', model: 'gpt-5' }],
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
 
     renderPanel();
@@ -162,7 +162,7 @@ describe('AgentPanel apply top favourites', () => {
       workspaceId: 'ws-1',
       role: 'planner',
       machineId: 'm1',
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'opus',
       workingDir: '/repo',
     });
@@ -171,7 +171,7 @@ describe('AgentPanel apply top favourites', () => {
       workspaceId: 'ws-1',
       role: 'builder',
       machineId: 'm1',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt-5',
       workingDir: '/repo',
     });

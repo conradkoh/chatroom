@@ -195,8 +195,8 @@ describe('AgentSettingsModal agents apply top favourites', () => {
 
   it('applies both roles top favourites from the Agents tab', async () => {
     mocks.teamStructure = seedTeam('duo', {
-      planner: [{ agentHarness: 'claude', model: 'opus' }],
-      builder: [{ agentHarness: 'opencode', model: 'gpt-5' }],
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
 
     renderAgentsTab(mocks.onClose);
@@ -212,7 +212,7 @@ describe('AgentSettingsModal agents apply top favourites', () => {
       workspaceId: 'ws-1',
       role: 'planner',
       machineId: 'm1',
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'opus',
       workingDir: '/repo',
     });
@@ -221,7 +221,7 @@ describe('AgentSettingsModal agents apply top favourites', () => {
       workspaceId: 'ws-1',
       role: 'builder',
       machineId: 'm1',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt-5',
       workingDir: '/repo',
     });
@@ -243,15 +243,15 @@ describe('AgentSettingsModal agents apply top favourites', () => {
 
   it('re-keys to the solo team after a team switch', async () => {
     mocks.teamStructure = seedTeam('duo', {
-      planner: [{ agentHarness: 'claude', model: 'opus' }],
-      builder: [{ agentHarness: 'opencode', model: 'gpt-5' }],
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
 
     const { rerender } = renderAgentsTab(mocks.onClose);
     expect(screen.getByRole('button', { name: 'Apply top favourites' })).toBeEnabled();
 
     mocks.teamStructure = seedTeam('solo', {
-      solo: [{ agentHarness: 'claude', model: 'sonnet' }],
+      solo: [{ agentHarness: 'claude-sdk', model: 'sonnet' }],
     });
     const nextOnClose = vi.fn();
     // AgentSettingsModal is memo'd AND the inner AgentsContent is memo'd on
@@ -278,7 +278,7 @@ describe('AgentSettingsModal agents apply top favourites', () => {
       workspaceId: 'ws-1',
       role: 'solo',
       machineId: 'm1',
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'sonnet',
       workingDir: '/repo',
     });

@@ -14,8 +14,8 @@ const mismatch = (overrides: Partial<FavoriteMismatch> = {}): FavoriteMismatch =
   machineId: 'm1',
   workingDir: '/repo',
   role: 'builder',
-  current: { agentHarness: 'opencode', model: 'claude-opus-4-8[effort=high]' },
-  favorite: { agentHarness: 'pi', model: 'gpt-5.6-terra[reasoning=high]' },
+  current: { agentHarness: 'opencode-sdk', model: 'claude-opus-4-8[effort=high]' },
+  favorite: { agentHarness: 'pi-sdk', model: 'gpt-5.6-terra[reasoning=high]' },
   ...overrides,
 });
 
@@ -65,8 +65,8 @@ describe('StartWithFavoritesDialog', () => {
     const rows = screen.getAllByTestId('start-favourites-row');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('builder');
-    expect(rows[0]).toHaveTextContent('opencode · Claude Opus 4.8 [high]');
-    expect(rows[0]).toHaveTextContent('pi · Gpt 5.6 Terra [high]');
+    expect(rows[0]).toHaveTextContent('opencode-sdk · Claude Opus 4.8 [high]');
+    expect(rows[0]).toHaveTextContent('pi-sdk · Gpt 5.6 Terra [high]');
   });
 
   it('shows the workspace suffix only when showWorkspaceLabels is true', () => {
@@ -172,7 +172,7 @@ describe('StartWithFavoritesDialog', () => {
         {
           role: 'reviewer',
           workspaceLabel: 'host-a:/repo',
-          message: "Agent harness 'cursor' is not available on this machine",
+          message: "Agent harness 'cursor-sdk' is not available on this machine",
         },
       ],
     });
@@ -180,7 +180,7 @@ describe('StartWithFavoritesDialog', () => {
     expect(screen.getByText('Could not apply 1 of 2 favourites')).toBeInTheDocument();
     expect(
       screen.getByText(
-        "reviewer (host-a:/repo): Agent harness 'cursor' is not available on this machine"
+        "reviewer (host-a:/repo): Agent harness 'cursor-sdk' is not available on this machine"
       )
     ).toBeInTheDocument();
     expect(screen.queryAllByTestId('start-favourites-row')).toHaveLength(0);

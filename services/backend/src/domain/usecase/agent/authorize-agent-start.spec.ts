@@ -20,7 +20,7 @@ async function setup(id: string, teamRoles = ['planner', 'builder']) {
     machineId,
     hostname: 'test',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   await t.mutation(api.machines.sendCommand, {
     sessionId: id as any,
@@ -30,7 +30,7 @@ async function setup(id: string, teamRoles = ['planner', 'builder']) {
       chatroomId,
       role: 'builder',
       model: 'test-model',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       workingDir: '/workspace',
     },
   });
@@ -69,7 +69,7 @@ describe('authorizeAgentStart', () => {
         role: 'architect',
         agentType: 'remote',
         machineId,
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         model: 'test',
         workingDir: '/workspace',
         reason: AgentStartReasonCode.USER_START,

@@ -46,7 +46,7 @@ async function setupAgentAndSeedMetrics(opts: {
         role,
         userId: user!._id,
         model,
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir,
         reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
       },
@@ -114,7 +114,7 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
 
   // Should have exactly 1 hour bucket (all starts happened in the same hour)
   expect(result.length).toBe(1);
-  expect(result[0].byHarnessModel['opencode/test-model-a']).toBe(3);
+  expect(result[0].byHarnessModel['opencode-sdk/test-model-a']).toBe(3);
 });
 
 // ─── Test 2: per-chatroom scope filters correctly ─────────────────────────────
@@ -151,7 +151,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
         role: 'builder',
         userId: user!._id,
         model: 'model-x',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir: '/test/ws',
         reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
       },
@@ -182,7 +182,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
   });
 
   expect(result.length).toBe(1);
-  expect(result[0].byHarnessModel['opencode/model-x']).toBe(2); // only chatroom 1's data
+  expect(result[0].byHarnessModel['opencode-sdk/model-x']).toBe(2); // only chatroom 1's data
 
   // Query scoped to chatroom 2 — should have 5
   const result2 = await t.query(api.machines.getAgentRestartMetrics, {
@@ -195,7 +195,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
   });
 
   expect(result2.length).toBe(1);
-  expect(result2[0].byHarnessModel['opencode/model-x']).toBe(5);
+  expect(result2[0].byHarnessModel['opencode-sdk/model-x']).toBe(5);
 });
 
 // ─── Test 3: workspace scope (workingDir) filters correctly ───────────────────
@@ -227,7 +227,7 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
   });
 
   expect(result.length).toBe(1);
-  expect(result[0].byHarnessModel['opencode/model-ws']).toBe(4);
+  expect(result[0].byHarnessModel['opencode-sdk/model-ws']).toBe(4);
 
   // Query with different workingDir — should return empty
   const resultOther = await t.query(api.machines.getAgentRestartMetrics, {
@@ -265,7 +265,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
         role: 'builder',
         userId: user!._id,
         model: 'model-alpha',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         workingDir: '/test/ws',
         reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
       },
@@ -305,8 +305,8 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
   });
 
   expect(result.length).toBe(1);
-  expect(result[0].byHarnessModel['opencode/model-alpha']).toBe(2);
-  expect(result[0].byHarnessModel['opencode/model-beta']).toBe(3);
+  expect(result[0].byHarnessModel['opencode-sdk/model-alpha']).toBe(2);
+  expect(result[0].byHarnessModel['opencode-sdk/model-beta']).toBe(3);
 });
 
 // ─── Test 5: range cap at 720 hours (30 days) ────────────────────────────────

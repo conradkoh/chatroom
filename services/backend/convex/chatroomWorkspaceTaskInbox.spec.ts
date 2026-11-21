@@ -21,7 +21,7 @@ async function setup() {
     machineId,
     hostname: 'test',
     os: 'linux',
-    availableHarnesses: ['opencode'],
+    availableHarnesses: ['opencode-sdk'],
   });
   const chatroomId = await t.mutation(api.chatrooms.create, {
     sessionId,
@@ -91,7 +91,7 @@ describe('chatroomWorkspaceTaskInbox', () => {
         chatroomId,
         taskId,
         role: 'planner',
-        agentHarness: 'opencode',
+        agentHarness: 'opencode-sdk',
         model: 'gpt-5',
         workingDir: '/tmp/workspace',
         eventType: WorkspaceTaskInboxEventType.TaskAssigned,

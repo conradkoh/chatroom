@@ -6,7 +6,7 @@ const target = {
   chatroomId: 'c',
   role: 'Builder',
   pid: 7,
-  agentHarness: 'opencode',
+  agentHarness: 'opencode-sdk',
   machineId: 'm',
   targetKey: 'm:builder:7',
 };

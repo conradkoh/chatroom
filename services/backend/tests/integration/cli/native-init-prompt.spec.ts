@@ -21,7 +21,6 @@ import {
   TEAM_CONFIGS,
   type NativeAgentHarness,
 } from '../../helpers/native-workflow-fixtures';
-import { TEST_MODEL_OPENCODE_LEGACY } from '../../helpers/test-models';
 
 async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
   const login = await t.mutation(api.auth.loginAnon, {
@@ -132,41 +131,10 @@ describe('Native init prompt (integration)', () => {
     }
   }
 
-  test('opencode CLI harness init prompt still contains get-next-task (regression)', async () => {
-    const { sessionId } = await createTestSession('test-native-init-opencode-cli');
+  test('custom agent (no harness configured) init prompt still contains get-next-task (regression)', async () => {
+    const { sessionId } = await createTestSession('test-native-init-custom-cli');
     const chatroomId = await createTeamChatroom(sessionId, 'duo');
     await joinParticipants(sessionId, chatroomId, ['builder']);
-
-    await t.mutation(api.machines.register, {
-      sessionId,
-      machineId: 'machine-native-opencode-cli',
-      hostname: 'test-host',
-      os: 'darwin',
-      availableHarnesses: ['opencode'],
-    });
-
-    await t.mutation(api.machines.markDaemonOnline, {
-      sessionId,
-      machineId: 'machine-native-opencode-cli',
-    });
-    const workspaceId = await t.mutation(api.workspaces.registerWorkspace, {
-      sessionId,
-      chatroomId,
-      machineId: 'machine-native-opencode-cli',
-      workingDir: '/test/workspace',
-      hostname: 'test-host',
-      registeredBy: 'builder',
-    });
-    await t.mutation(api.agents.saveConfig, {
-      sessionId,
-      chatroomId,
-      workspaceId,
-      role: 'builder',
-      machineId: 'machine-native-opencode-cli',
-      agentHarness: 'opencode',
-      model: TEST_MODEL_OPENCODE_LEGACY,
-      workingDir: '/test/workspace',
-    });
 
     const prompt = await getInitPromptText(sessionId, chatroomId, 'builder');
     expect(prompt).toContain('get-next-task');

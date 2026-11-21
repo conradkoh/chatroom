@@ -40,20 +40,6 @@ describe('initHarnessRegistry', () => {
     const ids = getAllHarnesses()
       .map((s) => s.id)
       .sort();
-    expect(ids).toEqual(
-      [
-        'claude',
-        'claude-sdk',
-        'codex-sdk',
-        'commandcode',
-        'copilot',
-        'cursor',
-        'cursor-sdk',
-        'opencode',
-        'opencode-sdk',
-        'pi',
-        'pi-sdk',
-      ].sort()
-    );
+    expect(ids).toEqual(['claude-sdk', 'codex-sdk', 'cursor-sdk', 'opencode-sdk', 'pi-sdk'].sort());
   });
 });

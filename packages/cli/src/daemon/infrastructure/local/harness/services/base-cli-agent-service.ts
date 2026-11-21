@@ -1,10 +1,10 @@
 /**
- * BaseCLIAgentService — abstract base class for CLI-based remote agent services.
+ * BaseCLIAgentService — shared agent-service base (process registry + detection).
  *
- * Provides shared boilerplate for all CLI agent implementations:
+ * Every registered harness service extends this class. It provides:
  * - Dependency injection (execSync, spawn, kill)
  * - Process registry tracking spawned PIDs with context and last-output timestamps
- * - isInstalled / getVersion (command passed per-call)
+ * - Installation detection (detectInstallationEffect) and isInstalled / getVersion
  * - stop / isAlive / getTrackedProcesses / untrack (identical lifecycle across all agents)
  *
  * Subclasses must implement:

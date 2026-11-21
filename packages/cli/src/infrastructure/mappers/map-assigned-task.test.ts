@@ -29,7 +29,7 @@ const backendTask = {
   },
   assignee: {
     type: TaskAssigneeType.Ephemeral,
-    ephemeral: { agentHarness: 'cursor', model: 'gpt-4', workingDir: '/tmp/ws' },
+    ephemeral: { agentHarness: 'cursor-sdk', model: 'gpt-4', workingDir: '/tmp/ws' },
   },
   participant: {
     lastSeenAction: 'waiting',

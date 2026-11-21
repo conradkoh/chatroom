@@ -65,7 +65,7 @@ const startInput = (chatroomId: string, role: string) =>
   ({
     chatroomId,
     role,
-    agentHarness: 'claude',
+    agentHarness: 'claude-sdk',
     workingDir: '/tmp/workspace',
     reason: 'test',
     wantResume: false,

@@ -68,8 +68,8 @@ describe('useApplyTopFavoriteModels', () => {
 
   it('applies each role top favourite with the workspace save arguments', async () => {
     mocks.favoritesByKey['m1|team_duo#role_planner'] = [
-      { agentHarness: 'claude', model: 'opus' },
-      { agentHarness: 'opencode', model: 'gpt' },
+      { agentHarness: 'claude-sdk', model: 'opus' },
+      { agentHarness: 'opencode-sdk', model: 'gpt' },
     ];
     mocks.favoritesByKey['m1|team_duo#role_builder'] = [];
     mocks.saveConfig.mockResolvedValue(null);
@@ -78,7 +78,7 @@ describe('useApplyTopFavoriteModels', () => {
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.topFavorites).toEqual([
-      { role: 'planner', entry: { agentHarness: 'claude', model: 'opus' } },
+      { role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } },
     ]);
 
     let applied: unknown;
@@ -92,19 +92,23 @@ describe('useApplyTopFavoriteModels', () => {
       workspaceId: 'ws-1',
       role: 'planner',
       machineId: 'm1',
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'opus',
       workingDir: '/repo',
     });
     expect(applied).toEqual({
-      applied: [{ role: 'planner', entry: { agentHarness: 'claude', model: 'opus' } }],
+      applied: [{ role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } }],
       failed: [],
     });
   });
 
   it('keeps applying other roles when one save rejects', async () => {
-    mocks.favoritesByKey['m1|team_duo#role_planner'] = [{ agentHarness: 'claude', model: 'opus' }];
-    mocks.favoritesByKey['m1|team_duo#role_builder'] = [{ agentHarness: 'opencode', model: 'gpt' }];
+    mocks.favoritesByKey['m1|team_duo#role_planner'] = [
+      { agentHarness: 'claude-sdk', model: 'opus' },
+    ];
+    mocks.favoritesByKey['m1|team_duo#role_builder'] = [
+      { agentHarness: 'opencode-sdk', model: 'gpt' },
+    ];
     mocks.saveConfig.mockImplementation((args: { role: string }) =>
       args.role === 'planner' ? Promise.reject(new Error('harness missing')) : Promise.resolve(null)
     );
@@ -117,14 +121,18 @@ describe('useApplyTopFavoriteModels', () => {
     });
 
     expect(applied).toEqual({
-      applied: [{ role: 'builder', entry: { agentHarness: 'opencode', model: 'gpt' } }],
+      applied: [{ role: 'builder', entry: { agentHarness: 'opencode-sdk', model: 'gpt' } }],
       failed: [{ role: 'planner', message: 'harness missing' }],
     });
   });
 
   it('guards against a second apply while one is in flight', async () => {
-    mocks.favoritesByKey['m1|team_duo#role_planner'] = [{ agentHarness: 'claude', model: 'opus' }];
-    mocks.favoritesByKey['m1|team_duo#role_builder'] = [{ agentHarness: 'opencode', model: 'gpt' }];
+    mocks.favoritesByKey['m1|team_duo#role_planner'] = [
+      { agentHarness: 'claude-sdk', model: 'opus' },
+    ];
+    mocks.favoritesByKey['m1|team_duo#role_builder'] = [
+      { agentHarness: 'opencode-sdk', model: 'gpt' },
+    ];
     const resolvers: ((value: null) => void)[] = [];
     mocks.saveConfig.mockImplementation(
       () =>
@@ -159,9 +167,13 @@ describe('useApplyTopFavoriteModels', () => {
   });
 
   it('re-keys favourites when the team changes', () => {
-    mocks.favoritesByKey['m1|team_duo#role_planner'] = [{ agentHarness: 'claude', model: 'opus' }];
+    mocks.favoritesByKey['m1|team_duo#role_planner'] = [
+      { agentHarness: 'claude-sdk', model: 'opus' },
+    ];
     mocks.favoritesByKey['m1|team_duo#role_builder'] = [];
-    mocks.favoritesByKey['m1|team_solo#role_solo'] = [{ agentHarness: 'claude', model: 'sonnet' }];
+    mocks.favoritesByKey['m1|team_solo#role_solo'] = [
+      { agentHarness: 'claude-sdk', model: 'sonnet' },
+    ];
 
     const { result, rerender } = renderHook(
       ({ target }: { target: ApplyTopFavoritesTarget }) => useApplyTopFavoriteModels(target),
@@ -169,7 +181,7 @@ describe('useApplyTopFavoriteModels', () => {
     );
 
     expect(result.current.topFavorites).toEqual([
-      { role: 'planner', entry: { agentHarness: 'claude', model: 'opus' } },
+      { role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } },
     ]);
 
     rerender({
@@ -184,7 +196,7 @@ describe('useApplyTopFavoriteModels', () => {
     });
 
     expect(result.current.topFavorites).toEqual([
-      { role: 'solo', entry: { agentHarness: 'claude', model: 'sonnet' } },
+      { role: 'solo', entry: { agentHarness: 'claude-sdk', model: 'sonnet' } },
     ]);
   });
 });

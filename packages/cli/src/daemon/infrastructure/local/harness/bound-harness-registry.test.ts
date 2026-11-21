@@ -19,7 +19,7 @@ describe('harness registry', () => {
   it('isNativeDirectHarnessName validates known names', () => {
     expect(isNativeDirectHarnessName('cursor-sdk')).toBe(true);
     expect(isNativeDirectHarnessName('claude-sdk')).toBe(true);
-    expect(isNativeDirectHarnessName('claude')).toBe(false);
+    expect(isNativeDirectHarnessName('codex-sdk')).toBe(false);
   });
 });
 

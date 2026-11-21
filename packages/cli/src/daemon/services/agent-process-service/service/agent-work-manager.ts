@@ -55,15 +55,9 @@ import {
 import type { TaskDeliveryService } from '../../task-service/service/native-delivery/task-delivery-service.js';
 import { NativeTaskDeliveryQueue } from '../../task-service/service/native-task-delivery-queue.js';
 import { runNativeInjectionEffect } from '../../task-service/service/native-task-injector.js';
-import { isCliDrivenHarness } from '../domain/usecase/is-cli-driven-harness.js';
-import { restartRetryMaxIntervalMs } from '../domain/usecase/restart-retry-interval.js';
 
-/**
- * Starts allowed for one CLI-driven uncovered-turn restart: the first attempt
- * plus two retries. Native SDK harnesses retry indefinitely with the cap from
- * restartRetryMaxIntervalMs; see isCliDrivenHarness for the split.
- */
-const MAX_RESPAWN_START_ATTEMPTS = 3;
+/** Upper bound for the wait between respawn start retries. Retries are unbounded; the interval is capped here. */
+const RESPAWN_RETRY_MAX_INTERVAL_MS = 10 * 60_000;
 
 /** Nudge sends allowed for one uncovered turn end: the first try plus two retries, then escalate. */
 const MAX_UNCOVERED_NUDGE_SEND_ATTEMPTS = 3;
@@ -80,8 +74,6 @@ interface RespawnStartRequest {
   readonly role: string;
   readonly workingDir: string;
   readonly startInput: EnsureAgentProcessInput;
-  /** Decided from the harness; recomputed when configuration changes. See isCliDrivenHarness. */
-  readonly cliDriven: boolean;
 }
 
 /** A respawn whose start failed and still has retries left. */
@@ -913,10 +905,8 @@ export class AgentWorkManager {
     }
 
     if (outcome.kind === 'start-failed') {
-      const cliDriven = isCliDrivenHarness(startInput.agentHarness);
-      const attemptLabel = cliDriven ? `1 of ${MAX_RESPAWN_START_ATTEMPTS}` : '1';
       console.error(
-        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} attempt=${attemptLabel} error=${outcome.error}`
+        `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} task=${task.taskId} attempt=1 error=${outcome.error}`
       );
       this.beginRespawnStartRetries({ chatroomId, role, workingDir, startInput });
     }
@@ -942,13 +932,8 @@ export class AgentWorkManager {
   }
 
   /** Records a failed respawn start and arms the first retry. The ladder is not re-run. */
-  private beginRespawnStartRetries(input: Omit<RespawnStartRequest, 'cliDriven'>): void {
+  private beginRespawnStartRetries(request: RespawnStartRequest): void {
     if (this.disposed) return;
-    // Decided from the harness; recomputed if configuration changes mid-retry.
-    const request: RespawnStartRequest = {
-      ...input,
-      cliDriven: isCliDrivenHarness(input.startInput.agentHarness),
-    };
     const key = recoveryKey(request.chatroomId, request.role);
     this.cancelRespawnStart(key, 'superseded_by_new_restart');
     this.respawnRestartSeq += 1;
@@ -963,10 +948,10 @@ export class AgentWorkManager {
 
   private armRespawnStartRetry(key: string, pending: PendingRespawnStart): void {
     if (this.disposed) return;
-    // The first retry waits 1s; CLI-driven harnesses keep the old 30s cap.
+    // The first retry waits 1s; later retries double up to the 10-minute cap.
     const delay = computeBackoffDelay(pending.attempts, {
       baseMs: RESPAWN_RETRY_BASE_MS,
-      maxMs: restartRetryMaxIntervalMs(pending.request.cliDriven),
+      maxMs: RESPAWN_RETRY_MAX_INTERVAL_MS,
       jitter: 0,
     });
     pending.timer = setTimeout(() => {
@@ -979,13 +964,6 @@ export class AgentWorkManager {
         );
         if (!current || current.restartId !== pending.restartId || this.disposed) return;
         current.attempts += 1;
-        if (current.request.cliDriven && current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
-          this.respawnStartRetries.delete(key);
-          console.error(
-            `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${current.request.chatroomId} role=${current.request.role} attempts=${current.attempts} error=${message}`
-          );
-          return;
-        }
         console.error(
           `[NativeDelivery:uncovered-restart-error-retry] chatroom=${current.request.chatroomId} role=${current.request.role} attempt=${current.attempts} error=${message}`
         );
@@ -1041,7 +1019,6 @@ export class AgentWorkManager {
         ...previous,
         workingDir: config.workingDir,
         startInput,
-        cliDriven: isCliDrivenHarness(config.agentHarness),
       };
       console.log(
         `[NativeDelivery:uncovered-restart-config-changed] chatroom=${chatroomId} role=${role} harness=${config.agentHarness} model=${config.model} workingDir=${config.workingDir}`
@@ -1079,18 +1056,8 @@ export class AgentWorkManager {
       return;
     }
     current.attempts += 1;
-    if (current.request.cliDriven && current.attempts >= MAX_RESPAWN_START_ATTEMPTS) {
-      this.respawnStartRetries.delete(key);
-      console.error(
-        `[NativeDelivery:uncovered-restart-failed] attempts exhausted chatroom=${chatroomId} role=${role} attempts=${current.attempts} error=${outcome.error}`
-      );
-      return;
-    }
-    const attemptLabel = current.request.cliDriven
-      ? `${current.attempts} of ${MAX_RESPAWN_START_ATTEMPTS}`
-      : `${current.attempts}`;
     console.error(
-      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} attempt=${attemptLabel} error=${outcome.error}`
+      `[NativeDelivery:uncovered-restart-failed] chatroom=${chatroomId} role=${role} attempt=${current.attempts} error=${outcome.error}`
     );
     this.armRespawnStartRetry(key, current);
   }

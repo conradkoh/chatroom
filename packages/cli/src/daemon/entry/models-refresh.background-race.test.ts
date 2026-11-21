@@ -21,7 +21,6 @@ vi.mock('../../api.js', () => ({
   api: {
     machines: { refreshCapabilities: 'mock-refreshCapabilities' },
     harnesses: {
-      claude: { listModels: 'mock-claude-listModels' },
       claudeSdk: { listModels: 'mock-claudeSdk-listModels' },
     },
   },
@@ -42,11 +41,11 @@ vi.mock('../../infrastructure/machine/index.js', async (importOriginal) => ({
 
 const OLD = ['anthropic/claude-fable-5-1'];
 const NEW = ['anthropic/claude-fable-5-2', 'anthropic/claude-fable-5-1'];
-const PI_CACHED = ['pi/p1'];
-const PI_DISCOVERED = ['pi/p1', 'pi/p2'];
+const CURSOR_CACHED = ['cursor/c1'];
+const CURSOR_DISCOVERED = ['cursor/c1', 'cursor/c2'];
 
 /** What the backend must hold once every harness has been discovered. */
-const EXPECTED_FINAL = { claude: NEW, 'claude-sdk': NEW, pi: PI_DISCOVERED };
+const EXPECTED_FINAL = { 'claude-sdk': NEW, 'cursor-sdk': CURSOR_DISCOVERED };
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -85,9 +84,9 @@ function setup() {
     })
   );
 
-  // Catalog (server source of truth) already has fable 5.2 for both Claude harnesses.
+  // Catalog (server source of truth) already has fable 5.2 for claude-sdk.
   const catalogQuery = vi.fn(async (ref: unknown) => {
-    if (ref === 'mock-claude-listModels' || ref === 'mock-claudeSdk-listModels') return NEW;
+    if (ref === 'mock-claudeSdk-listModels') return NEW;
     throw new Error(`unexpected catalog query ${String(ref)}`);
   });
 
@@ -105,12 +104,11 @@ function setup() {
     } as unknown as DaemonSessionInit['config'],
     // Catalog-backed harnesses discover locally as [] (stub); the catalog overlay supplies NEW.
     agentServices: new Map<string, RemoteAgentService>([
-      ['claude', harness([], 1)],
       ['claude-sdk', harness([], 1)],
-      ['pi', harness(PI_DISCOVERED, 30)],
+      ['cursor-sdk', harness(CURSOR_DISCOVERED, 30)],
     ]),
     // Startup cache from the backend: stale Claude lists.
-    lastPushedModels: { claude: OLD, 'claude-sdk': OLD, pi: PI_CACHED },
+    lastPushedModels: { 'claude-sdk': OLD, 'cursor-sdk': CURSOR_CACHED },
     lastPushedHarnessFingerprint: null,
   });
 
@@ -141,7 +139,7 @@ describe('startBackgroundModelDiscoveryEffect — concurrent harness pushes', ()
       startBackgroundModelDiscoveryEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
     );
 
-    expect(discoveryProbe.max).toBe(3);
+    expect(discoveryProbe.max).toBe(2);
   });
 });
 

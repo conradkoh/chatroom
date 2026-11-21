@@ -97,8 +97,8 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
   it('applies both roles top favourites from the labelled button', async () => {
     mocks.teamStructure = seedTeam('duo', {
-      planner: [{ agentHarness: 'claude', model: 'opus' }],
-      builder: [{ agentHarness: 'opencode', model: 'gpt-5' }],
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
 
     render(<ApplyTopFavoriteModelsButton variant="labelled" />);
@@ -114,7 +114,7 @@ describe('ApplyTopFavoriteModelsButton', () => {
       workspaceId: 'ws-1',
       role: 'planner',
       machineId: 'm1',
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'opus',
       workingDir: '/repo',
     });
@@ -123,7 +123,7 @@ describe('ApplyTopFavoriteModelsButton', () => {
       workspaceId: 'ws-1',
       role: 'builder',
       machineId: 'm1',
-      agentHarness: 'opencode',
+      agentHarness: 'opencode-sdk',
       model: 'gpt-5',
       workingDir: '/repo',
     });
@@ -136,8 +136,8 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
   it('applies the same top favourites from the icon button', async () => {
     mocks.teamStructure = seedTeam('duo', {
-      planner: [{ agentHarness: 'claude', model: 'opus' }],
-      builder: [{ agentHarness: 'opencode', model: 'gpt-5' }],
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
 
     render(<ApplyTopFavoriteModelsButton variant="icon" />);
@@ -170,8 +170,8 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
   it('shows the applying state and ignores a second click until the save resolves', async () => {
     mocks.teamStructure = seedTeam('duo', {
-      planner: [{ agentHarness: 'claude', model: 'opus' }],
-      builder: [{ agentHarness: 'opencode', model: 'gpt-5' }],
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
     const resolvers: ((value: null) => void)[] = [];
     mocks.saveConfig.mockImplementation(
@@ -208,8 +208,8 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
   it('reports a partial failure through the error toast', async () => {
     mocks.teamStructure = seedTeam('duo', {
-      planner: [{ agentHarness: 'claude', model: 'opus' }],
-      builder: [{ agentHarness: 'opencode', model: 'gpt-5' }],
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
     mocks.saveConfig.mockImplementation((args: { role: string }) =>
       args.role === 'planner' ? Promise.reject(new Error('harness missing')) : Promise.resolve(null)
@@ -237,15 +237,15 @@ describe('ApplyTopFavoriteModelsButton', () => {
 
   it('re-keys to the new team roles after a team switch', async () => {
     mocks.teamStructure = seedTeam('duo', {
-      planner: [{ agentHarness: 'claude', model: 'opus' }],
-      builder: [{ agentHarness: 'opencode', model: 'gpt-5' }],
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
 
     const { rerender } = render(<ApplyTopFavoriteModelsButton variant="labelled" />);
     expect(screen.getByRole('button', { name: 'Apply top favourites' })).toBeEnabled();
 
     mocks.teamStructure = seedTeam('solo', {
-      solo: [{ agentHarness: 'claude', model: 'sonnet' }],
+      solo: [{ agentHarness: 'claude-sdk', model: 'sonnet' }],
     });
     rerender(<ApplyTopFavoriteModelsButton variant="labelled" />);
 
@@ -257,7 +257,7 @@ describe('ApplyTopFavoriteModelsButton', () => {
       workspaceId: 'ws-1',
       role: 'solo',
       machineId: 'm1',
-      agentHarness: 'claude',
+      agentHarness: 'claude-sdk',
       model: 'sonnet',
       workingDir: '/repo',
     });

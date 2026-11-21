@@ -9,7 +9,7 @@ import type { RemoteAgentService } from '../../../daemon/infrastructure/local/ha
 
 function createDeps(): AgentLifecyclePortAdapterDeps {
   const harness: RemoteAgentService = {
-    id: 'opencode',
+    id: 'opencode-sdk',
     displayName: 'OpenCode',
     command: 'opencode',
     isInstalled: async () => true,
@@ -29,7 +29,7 @@ function createDeps(): AgentLifecyclePortAdapterDeps {
 
   return {
     spawning: { shouldAllowSpawn: () => ({ allowed: true }) },
-    agentServices: new Map([['opencode', harness]]),
+    agentServices: new Map([['opencode-sdk', harness]]),
     sessionId: 'runtime-test-session',
     machineId: 'runtime-test-machine',
     convexUrl: 'http://127.0.0.1:3210',
@@ -42,7 +42,7 @@ const ensureRunning = Effect.gen(function* () {
   return yield* service.ensureRunning({
     chatroomId: 'runtime-test-chatroom',
     role: 'builder',
-    agentHarness: 'opencode',
+    agentHarness: 'opencode-sdk',
     workingDir: '/tmp/runtime-test-workspace',
     reason: AgentStartReasonCode.USER_MANUAL_SPAWN,
     wantResume: false,

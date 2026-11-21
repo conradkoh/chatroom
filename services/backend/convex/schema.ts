@@ -1197,9 +1197,9 @@ export default defineSchema({
     machineId: v.string(),
     // Harness these filters apply to
     agentHarness: agentHarnessValidator,
-    // Individual model IDs to hide (e.g. "github-copilot/claude-haiku-4.5")
+    // Individual model IDs to hide (e.g. "anthropic/claude-haiku-4-5")
     hiddenModels: v.array(v.string()),
-    // Provider prefixes to hide all models for (e.g. "github-copilot")
+    // Provider prefixes to hide all models for (e.g. "anthropic")
     hiddenProviders: v.array(v.string()),
     // Last updated
     updatedAt: v.number(),
@@ -1576,8 +1576,8 @@ export default defineSchema({
     role: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     workingDir: v.string(),
-    model: v.string(), // e.g. "github-copilot/claude-sonnet-4.5"
-    agentType: v.optional(v.string()), // e.g. "pi", "cursor", "opencode" - optional for backward compat
+    model: v.string(), // e.g. "anthropic/claude-sonnet-4-6"
+    agentType: v.optional(v.string()), // free-form label; optional for backward compat
 
     // Time bucket (start of the hour in ms UTC)
     hourBucket: v.number(),

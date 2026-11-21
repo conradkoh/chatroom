@@ -20,7 +20,7 @@ import type { AgentConfig, AgentHarness, MachineInfo } from '../../types/machine
 function mkMachine(
   id: string,
   hostname: string,
-  availableHarnesses: AgentHarness[] = ['cursor']
+  availableHarnesses: AgentHarness[] = ['cursor-sdk']
 ): MachineInfo {
   return { machineId: id, hostname, os: 'linux', availableHarnesses, harnessVersions: {} };
 }
@@ -30,8 +30,8 @@ function mkConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
     machineId: 'a',
     hostname: 'host-a',
     role: 'builder',
-    agentType: 'cursor',
-    availableHarnesses: ['cursor'],
+    agentType: 'cursor-sdk',
+    availableHarnesses: ['cursor-sdk'],
     workingDir: '/p',
     updatedAt: 1,
     ...overrides,
@@ -62,7 +62,10 @@ describe('deriveRunningAgentConfig', () => {
 });
 
 describe('deriveRehomeLabels', () => {
-  const connected = [mkMachine('a', 'host-a', ['cursor']), mkMachine('b', 'host-b', ['cursor'])];
+  const connected = [
+    mkMachine('a', 'host-a', ['cursor-sdk']),
+    mkMachine('b', 'host-b', ['cursor-sdk']),
+  ];
 
   it('is null when there is no team binding', () => {
     expect(deriveRehomeLabels(undefined, 'b', connected)).toBeNull();
@@ -87,7 +90,7 @@ describe('deriveRehomeLabels', () => {
 describe('deriveModelSelectionReady', () => {
   const ready = {
     selectedMachineId: 'a' as string | null,
-    selectedHarness: 'cursor' as AgentHarness | null,
+    selectedHarness: 'cursor-sdk' as AgentHarness | null,
     machineModelsLoading: false,
     machineModelFilterLoading: false,
   };
@@ -118,7 +121,7 @@ describe('deriveSelectedModel', () => {
     modelSelectionReady: true,
     roleConfigs: [] as AgentConfig[],
     selectedMachineId: 'a',
-    selectedHarness: 'cursor' as AgentHarness | null,
+    selectedHarness: 'cursor-sdk' as AgentHarness | null,
     availableModelsForHarness: ['m1', 'm2', 'm3'],
     visibleModels: ['m1', 'm2', 'm3'],
     userModelByHarness: {} as Partial<Record<AgentHarness, string>>,
@@ -135,11 +138,13 @@ describe('deriveSelectedModel', () => {
   });
 
   it('uses the explicit user choice for this harness when it is available', () => {
-    expect(deriveSelectedModel({ ...base, userModelByHarness: { cursor: 'm3' } })).toBe('m3');
+    expect(deriveSelectedModel({ ...base, userModelByHarness: { 'cursor-sdk': 'm3' } })).toBe('m3');
   });
 
   it('ignores a user choice that is no longer available', () => {
-    expect(deriveSelectedModel({ ...base, userModelByHarness: { cursor: 'gone' } })).toBe('m1');
+    expect(deriveSelectedModel({ ...base, userModelByHarness: { 'cursor-sdk': 'gone' } })).toBe(
+      'm1'
+    );
   });
 
   it('uses the machine config model for the same harness when it is visible', () => {
@@ -147,7 +152,7 @@ describe('deriveSelectedModel', () => {
   });
 
   it('ignores a machine config model saved under another harness', () => {
-    const other = mkConfig({ agentType: 'opencode', model: 'm2' });
+    const other = mkConfig({ agentType: 'opencode-sdk', model: 'm2' });
     expect(deriveSelectedModel({ ...base, roleConfigs: [other] })).toBe('m1');
   });
 
@@ -157,7 +162,10 @@ describe('deriveSelectedModel', () => {
 
   it('uses the favourite preference for the harness when nothing above applies', () => {
     expect(
-      deriveSelectedModel({ ...base, defaultFavorites: [{ agentHarness: 'cursor', model: 'm3' }] })
+      deriveSelectedModel({
+        ...base,
+        defaultFavorites: [{ agentHarness: 'cursor-sdk', model: 'm3' }],
+      })
     ).toBe('m3');
   });
 
@@ -167,7 +175,7 @@ describe('deriveSelectedModel', () => {
         ...base,
         roleConfigs: [mkConfig({ model: 'm2' })],
         teamConfigModel: 'm3',
-        defaultFavorites: [{ agentHarness: 'cursor', model: 'm1' }],
+        defaultFavorites: [{ agentHarness: 'cursor-sdk', model: 'm1' }],
       })
     ).toBe('m2');
   });
@@ -183,7 +191,7 @@ describe('deriveSelectedModel', () => {
 
 const baseStatus: AgentStatusInput = {
   selectedMachineId: 'a',
-  selectedHarness: 'cursor',
+  selectedHarness: 'cursor-sdk',
   selectedModel: 'm1',
   hasModels: true,
   workingDir: '/p',
@@ -271,7 +279,7 @@ describe('startCommandOf', () => {
     workspaceId: undefined as string | undefined,
     role: 'builder',
     model: 'm1' as string | null,
-    agentHarness: 'cursor' as AgentHarness,
+    agentHarness: 'cursor-sdk' as AgentHarness,
     workingDir: '/p',
   };
 
@@ -281,7 +289,7 @@ describe('startCommandOf', () => {
       chatroomId: 'room-1',
       role: 'builder',
       model: 'm1',
-      agentHarness: 'cursor',
+      agentHarness: 'cursor-sdk',
       workingDir: '/p',
       allowNewMachine: undefined,
     });
@@ -354,11 +362,11 @@ describe('saveScopeOf', () => {
 describe('saveChoiceOf', () => {
   it('is null without a harness or a model', () => {
     expect(saveChoiceOf(null, 'm1')).toBeNull();
-    expect(saveChoiceOf('cursor', null)).toBeNull();
+    expect(saveChoiceOf('cursor-sdk', null)).toBeNull();
   });
 
   it('returns the harness and model when both are chosen', () => {
-    expect(saveChoiceOf('cursor', 'm1')).toEqual({ harness: 'cursor', model: 'm1' });
+    expect(saveChoiceOf('cursor-sdk', 'm1')).toEqual({ harness: 'cursor-sdk', model: 'm1' });
   });
 });
 
