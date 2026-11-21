@@ -1249,7 +1249,7 @@ describe('TaskService retry warning (delivery_retrying)', () => {
       await service.recordTurnFailure(args);
     }
 
-    expect(recordCalls(mutation)).toHaveLength(1);
+    await vi.waitFor(() => expect(recordCalls(mutation)).toHaveLength(1));
     expect(recordCalls(mutation)[0][1]).toMatchObject({
       taskId: 'task-1',
       reason: 'delivery_retrying',
@@ -1264,7 +1264,7 @@ describe('TaskService retry warning (delivery_retrying)', () => {
       await service.recordTurnFailure(args);
     }
 
-    expect(recordCalls(mutation)).toHaveLength(2);
+    await vi.waitFor(() => expect(recordCalls(mutation)).toHaveLength(2));
   });
 
   test('a covered turn after 5 failures issues the explicit clear', async () => {
@@ -1281,6 +1281,61 @@ describe('TaskService retry warning (delivery_retrying)', () => {
       taskId: 'task-1',
       expectedReason: 'delivery_retrying',
     });
+  });
+
+  test('a hung warning write does not hold up recordTurnFailure', async () => {
+    // The release timer is armed only after recordTurnFailure resolves, so a warning
+    // write that never settles must not be awaited.
+    const mutation = vi.fn().mockImplementation(async (_ref: unknown, callArgs: unknown) => {
+      if ((callArgs as { reason?: string }).reason === 'delivery_retrying') {
+        return new Promise(() => {});
+      }
+      return { recorded: true };
+    });
+    const service = trackerService(mutation as ReturnType<typeof vi.fn>);
+
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      const result = await Promise.race([
+        service.recordTurnFailure(args),
+        new Promise((resolve) => setTimeout(() => resolve('timed out'), 50)),
+      ]);
+      expect(result).toEqual({ attempts: attempt, parked: false });
+    }
+  });
+
+  test('a covered turn after failure 4 clears only after the record has settled', async () => {
+    const calls: string[] = [];
+    let releaseRecord: () => void = () => {};
+    const recordSettled = new Promise<void>((resolve) => {
+      releaseRecord = resolve;
+    });
+    const mutation = vi.fn().mockImplementation(async (_ref: unknown, callArgs: unknown) => {
+      const write = callArgs as { reason?: string; expectedReason?: string };
+      if (write.reason === 'delivery_retrying') {
+        calls.push('record');
+        await recordSettled;
+        return { recorded: true };
+      }
+      if (write.expectedReason === 'delivery_retrying') {
+        calls.push('clear');
+        return { cleared: true };
+      }
+      return { ok: true };
+    });
+    const service = trackerService(mutation as ReturnType<typeof vi.fn>);
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      await service.recordTurnFailure(args);
+    }
+    // Failure 4 is in flight; its warning record is awaited by the backend mock.
+    void service.recordTurnFailure(args);
+    await vi.waitFor(() => expect(calls).toEqual(['record']));
+
+    service.resetTurnTracking(args);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(calls).toEqual(['record']);
+
+    releaseRecord();
+    await vi.waitFor(() => expect(calls).toEqual(['record', 'clear']));
   });
 
   test('a covered turn after only 2 failures issues no clear', async () => {

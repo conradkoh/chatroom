@@ -214,6 +214,12 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
   // keys send an explicit clear on a covered or completed turn, so a streak below the
   // threshold never touches the backend. Lost on restart by design; see scheduleEvent.
   const retryWarnings = new Map<string, string>();
+  // Retry-warning writes (record and clear) run one at a time, in call order.
+  // Callers do not await them: the release path must never wait on the backend.
+  let retryWarningWrites: Promise<void> = Promise.resolve();
+  const enqueueRetryWarningWrite = (write: () => Promise<void>): void => {
+    retryWarningWrites = retryWarningWrites.then(write);
+  };
   // Provider-failure backoff releases still waiting in the agent work manager.
   // Automatic recovery must not release these early; explicit recovery still may.
   const pendingTurnFailureReleases = new Set<string>();
@@ -277,7 +283,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     const taskId = retryWarnings.get(key);
     if (taskId === undefined) return;
     retryWarnings.delete(key);
-    void clearRetryWarningOnBackend(taskId);
+    enqueueRetryWarningWrite(() => clearRetryWarningOnBackend(taskId));
   };
 
   /**
@@ -319,7 +325,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
     turnFailureCounts.set(key, attempts);
     if (attempts > RETRY_WARNING_THRESHOLD) {
       retryWarnings.set(key, args.taskId);
-      await recordRetryWarningOnBackend(args.taskId);
+      enqueueRetryWarningWrite(() => recordRetryWarningOnBackend(args.taskId));
       if (attempts === RETRY_WARNING_THRESHOLD + 1) {
         console.warn(
           `[NativeDelivery:delivery-retrying] chatroom=${args.chatroomId} role=${args.role} task=${args.taskId} attempts=${attempts} — still retrying, backoff capped at 60s`
@@ -576,7 +582,7 @@ export function createTaskService(deps: TaskServiceCompositionDependencies): Tas
               expectedReason: 'task_not_deliverable',
             });
             // The in-memory map cannot see a warning persisted by an earlier daemon run.
-            await clearRetryWarningOnBackend(event.taskId);
+            enqueueRetryWarningWrite(() => clearRetryWarningOnBackend(event.taskId));
             deliveredEventIds.add(event.eventId);
             await acknowledgeEvent(event);
             return;
