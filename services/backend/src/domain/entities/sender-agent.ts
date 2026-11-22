@@ -9,16 +9,9 @@
  * @see docs/conventions/domain-models.md
  */
 
-// The length cap is exercised by the co-located test; the dead-code scan does not
-// count that test as a consumer, so suppress the false positive.
-// fallow-ignore-file unused-export
-
 import { v } from 'convex/values';
 
 import { agentHarnessValidator, isAgentHarness, type AgentHarness } from './agent';
-
-/** Longest model identifier stored on a sender snapshot (characters, after trimming). */
-export const SENDER_AGENT_MODEL_MAX_LENGTH = 200;
 
 /** Stored shape on `chatroom_messages.senderAgent`. Strict: harness must be a known harness. */
 export const senderAgentValidator = v.object({
@@ -39,21 +32,30 @@ export interface SenderAgent {
   model?: string;
 }
 
-function hasControlCharacter(value: string): boolean {
-  for (let index = 0; index < value.length; index++) {
-    const code = value.charCodeAt(index);
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
+/** Longest model identifier stored on a sender snapshot (characters, after trimming and whitespace collapse). */
+// Test-only consumer: the co-located entity test asserts the cap, and the dead-code scan does not count tests.
+// fallow-ignore-next-line unused-export
+export const SENDER_AGENT_MODEL_MAX_LENGTH = 200;
 
-/** Returns the trimmed model when it is storable, otherwise `undefined`. */
+/**
+ * Characters a stored model may never contain:
+ * - any Unicode control character (`\p{Cc}`: C0 incl. tab and newline, DEL, C1 incl. U+0085)
+ * - the line and paragraph separators U+2028 and U+2029
+ * - `|`, the delimiter of the linear download header (`| harness=<h> model=<m>`)
+ */
+const UNSAFE_MODEL_CHARACTER = /[\p{Cc}\u2028\u2029|]/u;
+
+/**
+ * Returns the storable model (trimmed, internal whitespace runs collapsed to one space),
+ * otherwise `undefined`.
+ */
 function normalizeModel(model: string | undefined): string | undefined {
   const trimmed = model?.trim();
   if (!trimmed) return undefined;
-  if (trimmed.length > SENDER_AGENT_MODEL_MAX_LENGTH) return undefined;
-  if (hasControlCharacter(trimmed)) return undefined;
-  return trimmed;
+  if (UNSAFE_MODEL_CHARACTER.test(trimmed)) return undefined;
+  const collapsed = trimmed.replace(/\s+/g, ' ');
+  if (collapsed.length > SENDER_AGENT_MODEL_MAX_LENGTH) return undefined;
+  return collapsed;
 }
 
 /**

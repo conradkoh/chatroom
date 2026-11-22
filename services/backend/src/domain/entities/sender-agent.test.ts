@@ -61,6 +61,34 @@ describe('normalizeSenderAgent', () => {
     }
   );
 
+  test.each(['', '   ', '\t \n'])('drops an empty or whitespace-only harness: %j', (harness) => {
+    expect(normalizeSenderAgent({ harness, model: 'anthropic/claude-sonnet-4' })).toBeUndefined();
+  });
+
+  test.each(['gpt|x', 'gpt | x', 'gpt|'])(
+    'drops a model containing the linear header delimiter |: %j',
+    (model) => {
+      expect(normalizeSenderAgent({ harness: 'claude-sdk', model })).toStrictEqual({
+        harness: 'claude-sdk',
+      });
+    }
+  );
+
+  test.each(['gpt\u0085x', 'gpt\u2028x', 'gpt\u2029x'])(
+    'drops a model containing U+0085, U+2028, or U+2029: %j',
+    (model) => {
+      expect(normalizeSenderAgent({ harness: 'claude-sdk', model })).toStrictEqual({
+        harness: 'claude-sdk',
+      });
+    }
+  );
+
+  test('collapses internal whitespace runs in a model to single spaces', () => {
+    expect(
+      normalizeSenderAgent({ harness: 'claude-sdk', model: ' anthropic/claude   sonnet 4 ' })
+    ).toStrictEqual({ harness: 'claude-sdk', model: 'anthropic/claude sonnet 4' });
+  });
+
   test('drops an unknown harness even with a valid model', () => {
     expect(normalizeSenderAgent({ harness: 'not-a-harness', model: 'x' })).toBeUndefined();
   });
