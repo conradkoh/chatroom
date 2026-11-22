@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { WorkspaceGitState } from '@workspace/backend/src/domain/types/workspace-git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileExplorerPanel } from './FileExplorerPanel';
@@ -51,6 +52,9 @@ const mockRequestMkdir = vi.hoisted(() => vi.fn());
 const mockConfirmMkdir = vi.hoisted(() => vi.fn());
 const mockRequestFileTree = vi.hoisted(() => vi.fn());
 const idleMutation = vi.hoisted(() => vi.fn());
+const mockRequestGitRefresh = vi.hoisted(() => vi.fn());
+const mockGitState = vi.hoisted(() => ({ value: { status: 'loading' } as WorkspaceGitState }));
+const mockOpenExternalUrl = vi.hoisted(() => vi.fn());
 
 vi.mock('../hooks/useWorkspaceFileCreate', () => ({
   useWorkspaceFileCreate: () => ({
@@ -63,12 +67,6 @@ vi.mock('../hooks/useWorkspaceFileDelete', () => ({
   useWorkspaceFileDelete: () => ({
     requestDelete: mockRequestDelete,
     confirmDelete: mockConfirmDelete,
-  }),
-}));
-
-vi.mock('../hooks/useOpenFileOnRemote', () => ({
-  useOpenFileOnRemote: () => ({
-    openFileOnRemote: vi.fn(),
   }),
 }));
 
@@ -104,9 +102,13 @@ vi.mock('../hooks/useWorkspaceUploadJobs', () => ({
 vi.mock('convex-helpers/react/sessions', () => ({
   // Stable identities: a new function per render would re-run the real tree-sync effects.
   // Reference `api` only inside the returned function, not at factory time.
-  useSessionMutation: (ref: unknown) =>
-    ref === api.workspaceFiles.requestFileTree ? mockRequestFileTree : idleMutation,
-  useSessionQuery: () => null,
+  useSessionMutation: (ref: unknown) => {
+    if (ref === api.workspaceFiles.requestFileTree) return mockRequestFileTree;
+    if (ref === api.machines.requestGitRefresh) return mockRequestGitRefresh;
+    return idleMutation;
+  },
+  useSessionQuery: (ref: unknown) =>
+    ref === api.workspaces.getWorkspaceGitState ? mockGitState.value : null,
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
@@ -116,7 +118,13 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getFileContentV2: {},
       requestFileTree: {},
     },
+    workspaces: { getWorkspaceGitState: {} },
+    machines: { requestGitRefresh: {} },
   },
+}));
+
+vi.mock('@/lib/navigation', () => ({
+  openExternalUrl: mockOpenExternalUrl,
 }));
 
 vi.mock('../hooks/useFileContent', () => ({
@@ -200,6 +208,9 @@ beforeEach(() => {
   mockConfirmRename.mockResolvedValue(undefined);
   mockRequestMkdir.mockResolvedValue({ requestId: 'req-mkdir-1' });
   mockConfirmMkdir.mockResolvedValue(undefined);
+  mockGitState.value = { status: 'loading' };
+  mockRequestGitRefresh.mockReset().mockResolvedValue(undefined);
+  mockOpenExternalUrl.mockReset();
 });
 
 afterEach(() => {
@@ -721,6 +732,60 @@ describe('FileExplorerPanel context-menu copy feedback', () => {
     const slot = screen.getByTestId('explorer-feedback');
     expect(slot).toHaveTextContent('Failed to rename package.json: Name taken');
     expect(slot).toHaveAttribute('role', 'alert');
+  });
+});
+
+describe('FileExplorerPanel open-on-remote feedback', () => {
+  async function openFileOnRemoteFromContextMenu() {
+    fireEvent.contextMenu(screen.getByTitle('package.json'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /open file on remote/i }));
+  }
+
+  it('shows a refresh failure as an alert in explorer-feedback', async () => {
+    mockRequestGitRefresh.mockRejectedValue(new Error('offline'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await openFileOnRemoteFromContextMenu();
+
+    const slot = await screen.findByTestId('explorer-feedback');
+    expect(slot).toHaveAttribute('role', 'alert');
+    expect(slot).toHaveTextContent('Failed to sync repository info');
+    expect(mockOpenExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it('shows a syncing message as status text in explorer-feedback', async () => {
+    render(<FileExplorerPanel {...defaultProps} />);
+    await openFileOnRemoteFromContextMenu();
+
+    const slot = await screen.findByTestId('explorer-feedback');
+    expect(slot).toHaveAttribute('role', 'status');
+    expect(slot).toHaveTextContent('Syncing repository info — try again in a moment');
+    expect(mockRequestGitRefresh).toHaveBeenCalledWith({
+      machineId: 'machine-1',
+      workingDir: '/workspace',
+    });
+  });
+
+  it('clears the previous failure when the next attempt starts', async () => {
+    mockRequestGitRefresh.mockRejectedValueOnce(new Error('offline'));
+
+    render(<FileExplorerPanel {...defaultProps} />);
+    await openFileOnRemoteFromContextMenu();
+    await waitFor(() =>
+      expect(screen.getByTestId('explorer-feedback')).toHaveTextContent(
+        'Failed to sync repository info'
+      )
+    );
+
+    await openFileOnRemoteFromContextMenu();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('explorer-feedback')).toHaveTextContent(
+        'Syncing repository info — try again in a moment'
+      )
+    );
+    expect(screen.queryByText('Failed to sync repository info')).not.toBeInTheDocument();
+    expect(screen.getByTestId('explorer-feedback')).toHaveAttribute('role', 'status');
   });
 });
 

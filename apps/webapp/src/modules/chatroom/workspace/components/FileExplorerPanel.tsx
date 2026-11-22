@@ -365,6 +365,28 @@ export const FileExplorerPanel = memo(
       });
       const explorerFileOps = useExplorerNewFileOps(fileTabs, showFileOpError);
       const { openFileOnRemote } = useOpenFileOnRemote(machineId ?? '', workingDir ?? '');
+      // Open-on-remote is neither copy- nor tree-sync-owned. Every attempt clears the slot first.
+      const clearOpenOnRemoteFeedback = useCallback(() => {
+        treeSyncErrorShownRef.current = false;
+        copyFeedbackShownRef.current = false;
+        clearExplorerFeedback();
+      }, [clearExplorerFeedback]);
+
+      const openFileOnRemoteFromExplorer = useCallback(
+        (filePath: string) => {
+          clearOpenOnRemoteFeedback();
+          void openFileOnRemote(filePath).then((outcome) => {
+            if (outcome.status === 'error') {
+              showFileOpError(outcome.message);
+            } else if (outcome.status === 'syncing') {
+              treeSyncErrorShownRef.current = false;
+              copyFeedbackShownRef.current = false;
+              showExplorerFeedback('info', outcome.message);
+            }
+          });
+        },
+        [clearOpenOnRemoteFeedback, openFileOnRemote, showExplorerFeedback, showFileOpError]
+      );
       const {
         dropHighlightPath,
         uploadDialogOpen,
@@ -456,7 +478,7 @@ export const FileExplorerPanel = memo(
               nodeType: target.type,
             },
             handlers: {
-              onOpenFileOnRemote: isFile ? () => void openFileOnRemote(path) : undefined,
+              onOpenFileOnRemote: isFile ? () => openFileOnRemoteFromExplorer(path) : undefined,
               onRename: () => openRenameDialog(path, target.type),
               onDelete: () => setDeleteTarget({ path, type: target.type }),
               onNewFile: isDir ? () => openNewFileDialog(path) : undefined,
@@ -470,7 +492,7 @@ export const FileExplorerPanel = memo(
         },
         [
           workingDir,
-          openFileOnRemote,
+          openFileOnRemoteFromExplorer,
           openRenameDialog,
           trackContextMenuFile,
           copySucceeded,
