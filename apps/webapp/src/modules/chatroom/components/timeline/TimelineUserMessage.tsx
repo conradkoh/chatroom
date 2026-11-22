@@ -6,7 +6,6 @@ import { memo, useState, type ReactNode } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
-import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import {
   BADGE_BASE,
   getSenderClasses,
@@ -14,52 +13,25 @@ import {
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
   TIMELINE_ROW_ROOT,
-  type TimelineMessageHeaderNavigation,
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
 import { ScheduledMessageBadge } from '../../features/scheduled-prompts/components/ScheduledMessageBadge';
 import { ScheduledPromptDetailDialog } from '../../features/scheduled-prompts/components/ScheduledPromptDetailDialog';
 import type { Message } from '../../types/message';
 
-interface UserMessageHeaderNavProps {
-  queuedBadge: ReactNode;
-  statusBadges: ReactNode;
-  routeEl: ReactNode;
-  isQueued?: boolean;
-  headerNavigation: TimelineMessageHeaderNavigation;
-}
-
-function UserMessageHeaderNav({
-  queuedBadge,
-  statusBadges,
-  routeEl,
-  isQueued,
-  headerNavigation,
-}: UserMessageHeaderNavProps) {
-  return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 h-8 px-3 min-w-0 w-full">
-      <div className="flex items-center gap-2 min-w-0 justify-self-start">
-        {isQueued ? queuedBadge : statusBadges}
-      </div>
-      <TimelineMessageHeaderNav {...headerNavigation} />
-      <div className="flex items-center gap-2 min-w-0 justify-self-end">{routeEl}</div>
-    </div>
-  );
-}
-
-interface UserMessageHeaderDefaultProps {
+interface UserMessageHeaderProps {
   queuedBadge: ReactNode;
   statusBadges: ReactNode;
   routeEl: ReactNode;
   isQueued?: boolean;
 }
 
-function UserMessageHeaderDefault({
+function UserMessageHeader({
   queuedBadge,
   statusBadges,
   routeEl,
   isQueued,
-}: UserMessageHeaderDefaultProps) {
+}: UserMessageHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-2 h-8 px-3 min-w-0">
       <div className="flex items-center gap-2 min-w-0">{isQueued ? queuedBadge : statusBadges}</div>
@@ -71,14 +43,11 @@ function UserMessageHeaderDefault({
 interface TimelineUserMessageProps {
   message: Message;
   chatroomId: string;
-  /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
-  headerNavigation?: TimelineMessageHeaderNavigation;
 }
 
 export const TimelineUserMessage = memo(function TimelineUserMessage({
   message,
   chatroomId: _chatroomId,
-  headerNavigation,
 }: TimelineUserMessageProps) {
   const showScheduledBadge =
     message.sourcePlatform === 'scheduled' || message.scheduledPromptId != null;
@@ -120,23 +89,6 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
     </div>
   );
 
-  const header = headerNavigation ? (
-    <UserMessageHeaderNav
-      queuedBadge={queuedBadge}
-      statusBadges={statusBadges}
-      routeEl={routeEl}
-      isQueued={message.isQueued}
-      headerNavigation={headerNavigation}
-    />
-  ) : (
-    <UserMessageHeaderDefault
-      queuedBadge={queuedBadge}
-      statusBadges={statusBadges}
-      routeEl={routeEl}
-      isQueued={message.isQueued}
-    />
-  );
-
   return (
     <div
       className={`${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
@@ -146,7 +98,12 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
         className={`w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong ${TIMELINE_MESSAGE_HEADER_STICKY}`}
         data-testid="timeline-message-header"
       >
-        {header}
+        <UserMessageHeader
+          queuedBadge={queuedBadge}
+          statusBadges={statusBadges}
+          routeEl={routeEl}
+          isQueued={message.isQueued}
+        />
       </div>
 
       <div className={`px-4 py-3 ${TIMELINE_MESSAGE_BODY}`}>

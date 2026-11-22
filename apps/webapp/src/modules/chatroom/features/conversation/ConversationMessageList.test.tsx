@@ -112,17 +112,6 @@ function renderList(ui: React.ReactElement) {
   return render(ui, { wrapper: AttachmentsProvider });
 }
 
-type HeaderNavControl = 'first' | 'previous' | 'current' | 'next' | 'last';
-
-/** Scopes to one rendered row, since the real header nav reuses test ids per row. */
-function headerNav(messageId: string, control: HeaderNavControl): HTMLButtonElement {
-  const row = document.querySelector(`[data-testid="event-row-${messageId}"]`);
-  if (!row) throw new Error(`row ${messageId} is not rendered`);
-  return within(row as HTMLElement).getByTestId(
-    `timeline-header-nav-${control}`
-  ) as HTMLButtonElement;
-}
-
 describe('scroll pinning and jump chip', () => {
   it('shows jump chip when scrolled away from bottom', () => {
     renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
@@ -345,134 +334,6 @@ describe('ConversationMessageList', () => {
   });
 });
 
-describe('sticky header message navigation', () => {
-  function renderTwoEvents() {
-    renderList(
-      <ConversationMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />
-    );
-    const list = document.querySelector(
-      '[data-testid="conversation-message-list"]'
-    ) as HTMLDivElement;
-
-    list.getBoundingClientRect = () =>
-      ({
-        top: 0,
-        bottom: 400,
-        left: 0,
-        right: 0,
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 400,
-        toJSON: () => ({}),
-      }) as DOMRect;
-
-    const msg1Row = list.querySelector('[data-message-id="msg-1"]') as HTMLElement;
-    const msg2Row = list.querySelector('[data-message-id="msg-2"]') as HTMLElement;
-    msg1Row.getBoundingClientRect = () =>
-      ({
-        top: 320,
-        bottom: 400,
-        left: 0,
-        right: 0,
-        x: 0,
-        y: 320,
-        width: 100,
-        height: 80,
-        toJSON: () => ({}),
-      }) as DOMRect;
-    msg2Row.getBoundingClientRect = () =>
-      ({
-        top: 480,
-        bottom: 560,
-        left: 0,
-        right: 0,
-        x: 0,
-        y: 480,
-        width: 100,
-        height: 80,
-        toJSON: () => ({}),
-      }) as DOMRect;
-    Object.defineProperty(list, 'scrollTop', { value: 100, writable: true, configurable: true });
-
-    return list;
-  }
-
-  it('does not render per-row chevron jump buttons', () => {
-    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
-    expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).toBeNull();
-  });
-
-  it('clicking nav-current scrolls that row to container top', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-1', 'current'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('clicking nav-previous scrolls previous row', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-2', 'previous'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('clicking nav-next scrolls next row', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-1', 'next'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('clicking nav-first on last row scrolls to first row', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-2', 'first'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('clicking nav-last on first row scrolls to last row', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-1', 'last'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('disables previous and first on first message, next and last on last message', () => {
-    renderTwoEvents();
-
-    expect(headerNav('msg-1', 'previous').disabled).toBe(true);
-    expect(headerNav('msg-1', 'first').disabled).toBe(true);
-    expect(headerNav('msg-1', 'next').disabled).toBe(false);
-    expect(headerNav('msg-1', 'last').disabled).toBe(false);
-
-    expect(headerNav('msg-2', 'previous').disabled).toBe(false);
-    expect(headerNav('msg-2', 'first').disabled).toBe(false);
-    expect(headerNav('msg-2', 'next').disabled).toBe(true);
-    expect(headerNav('msg-2', 'last').disabled).toBe(true);
-  });
-});
-
 describe('handoff collapse behavior', () => {
   const AGENT_HANDOFF_BODY = 'Preview line one.\nPreview line two.\n\nDeferred body sentence.';
 
@@ -531,10 +392,22 @@ describe('handoff collapse behavior', () => {
     );
     expect(within(agentRow).queryByText('Deferred body sentence.')).not.toBeInTheDocument();
     expect(agentRow.querySelector('.prose')).toBeNull();
-    // Header navigation and row identity survive; the footer does not render.
-    expect(within(agentRow).getByTestId('timeline-header-nav-current')).toBeInTheDocument();
+    // The sticky header and row identity survive; the footer does not render.
+    expect(within(agentRow).getByTestId('timeline-message-header')).toBeInTheDocument();
     expect(within(agentRow).queryByTestId('timeline-message-footer')).not.toBeInTheDocument();
     expect(document.querySelectorAll('[data-message-id="handoff-1"]')).toHaveLength(1);
+  });
+
+  it('renders no per-message navigation controls on any row', () => {
+    renderTimeline();
+    expect(
+      document.querySelector(
+        '[data-testid^="timeline-header-nav"], [data-testid="timeline-message-header-nav"]'
+      )
+    ).toBeNull();
+    expect(
+      document.querySelectorAll('[data-testid="timeline-message-header"]').length
+    ).toBeGreaterThan(0);
   });
 
   it('keeps user, agent-to-user handoffs, and notices expanded', () => {
@@ -602,7 +475,7 @@ describe('row re-render behavior', () => {
     expect([...rowRenderCounts.keys()]).toEqual(['msg-2']);
   });
 
-  it('re-renders only the previous last row and the appended row on append', () => {
+  it('re-renders only the appended row on append', () => {
     const events = [makeEvent('a'), makeEvent('b'), makeEvent('c')];
     const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
     rowRenderCounts.clear();
@@ -610,8 +483,8 @@ describe('row re-render behavior', () => {
 
     rerender(<ConversationMessageList events={[...events, makeEvent('d')]} anchorId="a1" />);
 
-    // `c` re-renders only because its `isLast` flipped; `a`/`b` keep every prop.
-    expect([...rowRenderCounts.keys()]).toEqual(['c', 'd']);
-    expect(markdownRenderMock.mock.calls.map(([content]) => content)).toEqual(['c', 'd']);
+    // Existing rows keep their event object and index, so only the appended row `d` renders.
+    expect([...rowRenderCounts.keys()]).toEqual(['d']);
+    expect(markdownRenderMock.mock.calls.map(([content]) => content)).toEqual(['d']);
   });
 });

@@ -42,22 +42,6 @@ export const TIMELINE_SCROLL_CONTAINER =
 export const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
 
-/**
- * Sticky-header message navigation (conversation feed): jump to first, previous,
- * current, next, or last message row. `has*` flags drive disabled state.
- */
-export type TimelineMessageHeaderNavigation = {
-  onJumpToFirst: () => void;
-  onJumpToPrevious: () => void;
-  onJumpToCurrent: () => void;
-  onJumpToNext: () => void;
-  onJumpToLast: () => void;
-  hasFirst: boolean;
-  hasPrevious: boolean;
-  hasNext: boolean;
-  hasLast: boolean;
-};
-
 export const ICON_SIZE = 10;
 
 export function getSenderClasses(role: string): string {

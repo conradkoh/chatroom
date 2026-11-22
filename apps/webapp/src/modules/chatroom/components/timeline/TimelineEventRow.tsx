@@ -3,7 +3,6 @@
 import { memo } from 'react';
 
 import { TimelineContextMessage } from './TimelineContextMessage';
-import type { TimelineMessageHeaderNavigation } from './timelineRowStyles';
 import { TimelineTeamMessage } from './TimelineTeamMessage';
 import { TimelineUserMessage } from './TimelineUserMessage';
 import { isEagerTimelineEvent } from '../../timeline/isEagerTimelineEvent';
@@ -12,24 +11,15 @@ import type { TimelineEvent } from '../../timeline/types';
 export interface TimelineEventRowProps {
   event: TimelineEvent;
   chatroomId: string;
-  /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
-  headerNavigation?: TimelineMessageHeaderNavigation;
 }
 
 export const TimelineEventRow = memo(function TimelineEventRow({
   event,
   chatroomId,
-  headerNavigation,
 }: TimelineEventRowProps) {
   switch (event.kind) {
     case 'user_message':
-      return (
-        <TimelineUserMessage
-          message={event.message}
-          chatroomId={chatroomId}
-          headerNavigation={headerNavigation}
-        />
-      );
+      return <TimelineUserMessage message={event.message} chatroomId={chatroomId} />;
     case 'context':
       return <TimelineContextMessage message={event.message} />;
     case 'team_message':
@@ -39,7 +29,6 @@ export const TimelineEventRow = memo(function TimelineEventRow({
           handoffDurationMs={event.handoffDurationMs}
           handoffDurationSlow={event.handoffDurationSlow}
           chatroomId={chatroomId}
-          headerNavigation={headerNavigation}
           collapsible={!isEagerTimelineEvent(event)}
         />
       );

@@ -3,7 +3,7 @@
 // fallow-ignore-file complexity
 
 import { ChevronDown } from 'lucide-react';
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 import { TimelineEventRow } from '../../components/timeline/TimelineEventRow';
 import {
@@ -11,7 +11,6 @@ import {
   TIMELINE_SCROLL_CONTAINER,
   TIMELINE_SCROLL_CONTAINER_STYLE,
 } from '../../components/timeline/timelineRowStyles';
-import type { TimelineMessageHeaderNavigation } from '../../components/timeline/timelineRowStyles';
 import {
   JUMP_TO_NEW_MESSAGES_GAP_PX,
   JUMP_TO_NEW_MESSAGES_Z_INDEX,
@@ -23,57 +22,23 @@ import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 const LOAD_MORE_THRESHOLD = 120;
 
-type JumpTarget = 'first' | 'previous' | 'current' | 'next' | 'last';
-
-function scrollRowToTop(container: HTMLElement, row: HTMLElement): void {
-  const top =
-    row.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-  container.scrollTo({ top, behavior: 'smooth' });
-}
-
 /**
- * Memoized timeline row.
- *
- * `headerNavigation` used to be built inline per row in the parent's render,
- * which handed every row a new object and defeated `memo` on
- * `TimelineEventRow`/`TimelineTeamMessage` — so every Convex update re-rendered
- * the whole feed. Building it here (memoized on index/bounds/onJump) keeps row
- * props stable across updates that change other rows only.
+ * Memoized timeline row. Its props are only the event and its index, so an append
+ * (which leaves existing events and indexes unchanged) re-renders only the new row.
  */
 const ConversationRow = memo(function ConversationRow({
   event,
   index,
-  isFirst,
-  isLast,
-  onJump,
 }: {
   event: TimelineEvent;
   index: number;
-  isFirst: boolean;
-  isLast: boolean;
-  onJump: (index: number, target: JumpTarget) => void;
 }) {
-  const headerNavigation = useMemo<TimelineMessageHeaderNavigation>(
-    () => ({
-      onJumpToFirst: () => onJump(index, 'first'),
-      onJumpToPrevious: () => onJump(index, 'previous'),
-      onJumpToCurrent: () => onJump(index, 'current'),
-      onJumpToNext: () => onJump(index, 'next'),
-      onJumpToLast: () => onJump(index, 'last'),
-      hasFirst: !isFirst,
-      hasPrevious: !isFirst,
-      hasNext: !isLast,
-      hasLast: !isLast,
-    }),
-    [index, isFirst, isLast, onJump]
-  );
-
   return (
     <div
       data-message-id={event.id}
       style={{ position: 'relative', zIndex: getTimelineVirtualRowZIndex(index) }}
     >
-      <TimelineEventRow event={event} chatroomId="" headerNavigation={headerNavigation} />
+      <TimelineEventRow event={event} chatroomId="" />
     </div>
   );
 });
@@ -116,37 +81,6 @@ export function ConversationMessageList({
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < LOAD_MORE_THRESHOLD;
     if (nearBottom) onLoadMore();
   }, [canLoadMore, isLoadingMore, onLoadMore]);
-
-  const scrollToMessageTop = useCallback((messageId: string) => {
-    const el = containerRef.current;
-    if (!el) return;
-    const row = el.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
-    if (!row) return;
-    scrollRowToTop(el, row);
-  }, []);
-
-  // Latest events for the stable jump callback below. A ref keeps `onJump`
-  // identity stable so memoized rows are not invalidated by every append.
-  const eventsRef = useRef(events);
-  useLayoutEffect(() => {
-    eventsRef.current = events;
-  }, [events]);
-
-  const onJump = useCallback(
-    (index: number, target: JumpTarget) => {
-      const list = eventsRef.current;
-      const targetIndex = {
-        first: 0,
-        previous: index - 1,
-        current: index,
-        next: index + 1,
-        last: list.length - 1,
-      }[target];
-      const event = list[targetIndex];
-      if (event) scrollToMessageTop(event.id);
-    },
-    [scrollToMessageTop]
-  );
 
   // Anchor change → scroll to top + sync pin (dispatch scroll so controller unpins)
   useEffect(() => {
@@ -195,14 +129,7 @@ export function ConversationMessageList({
         data-testid="conversation-message-list"
       >
         {events.map((event, index) => (
-          <ConversationRow
-            key={event.id}
-            event={event}
-            index={index}
-            isFirst={index === 0}
-            isLast={index === events.length - 1}
-            onJump={onJump}
-          />
+          <ConversationRow key={event.id} event={event} index={index} />
         ))}
         {isLoadingMore && (
           <div className="py-2 flex justify-center" data-testid="conversation-loading-more">
