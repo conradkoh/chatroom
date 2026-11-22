@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 
 import { StandingInstructionsEditorForm } from './StandingInstructionsEditorForm';
+import { standingInstructionSaveErrorMessage } from './standingInstructionsEditorUtils';
 import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '../../../components/shared/industrialDialogStyles';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useFeedback } from '@/hooks/useFeedback';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
@@ -65,14 +68,16 @@ export function StandingInstructionsEditorDialog({
   const [draft, setDraft] = useState(initialContent);
   const [draftTitle, setDraftTitle] = useState(initialTitle);
   const [applyToAllChatrooms, setApplyToAllChatrooms] = useState(false);
+  const { feedback: saveFeedback, error: showSaveError, clear: clearSaveFeedback } = useFeedback();
 
   useEffect(() => {
     if (open) {
       setDraft(initialContent);
       setDraftTitle(initialTitle);
       setApplyToAllChatrooms(false);
+      clearSaveFeedback();
     }
-  }, [open, initialContent, initialTitle]);
+  }, [open, initialContent, initialTitle, clearSaveFeedback]);
 
   const confirmDisabled = !draft.trim() || !draftTitle.trim();
 
@@ -83,11 +88,12 @@ export function StandingInstructionsEditorDialog({
       showApplyToAllChatrooms,
       applyToAllChatrooms
     );
+    clearSaveFeedback();
     try {
       await onConfirm(payload);
       if (closeOnConfirm) onOpenChange(false);
-    } catch {
-      // Keep dialog open so the user can retry after a failed save.
+    } catch (error) {
+      showSaveError(standingInstructionSaveErrorMessage(error));
     }
   };
 
@@ -127,6 +133,7 @@ export function StandingInstructionsEditorDialog({
             </span>
           </label>
         )}
+        <InlineFeedback feedback={saveFeedback} />
         <DialogFooter>
           <button
             type="button"

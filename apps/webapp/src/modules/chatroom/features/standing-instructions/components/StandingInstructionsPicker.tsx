@@ -115,18 +115,8 @@ export function StandingInstructionsPicker({
   const handleEditSave = useCallback(
     async (payload: { content: string; title: string; applyToAllChatrooms?: boolean }) => {
       if (!editTarget) return;
-      try {
-        await onEditItem(editTarget, payload);
-        setEditTarget(null);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        toast.error(
-          message.includes('CONFLICT') || message.includes('already exists')
-            ? 'Another standing instruction with this content already exists.'
-            : 'Failed to update standing instruction. Please try again.'
-        );
-        throw error;
-      }
+      await onEditItem(editTarget, payload);
+      setEditTarget(null);
     },
     [editTarget, onEditItem]
   );

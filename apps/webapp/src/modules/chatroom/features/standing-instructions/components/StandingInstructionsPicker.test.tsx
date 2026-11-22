@@ -301,13 +301,15 @@ describe('StandingInstructionsPicker', () => {
     expect(onDeleteItem).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps edit modal open and shows toast when save fails', async () => {
+  it('keeps edit modal open and shows the conflict inline when save fails', async () => {
     const user = userEvent.setup();
     const onEditItem = vi.fn().mockRejectedValue(new Error('CONFLICT: already exists'));
     renderPicker({ onEditItem });
     await user.click(screen.getAllByLabelText('Edit')[0]);
     await user.click(screen.getByText('Confirm'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Another standing instruction with this content already exists.'
+    );
     expect(screen.getByText('Edit standing instruction')).toBeInTheDocument();
-    expect(mockToastError).toHaveBeenCalled();
   });
 });
