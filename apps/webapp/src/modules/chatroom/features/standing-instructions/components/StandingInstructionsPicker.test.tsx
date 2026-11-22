@@ -1,18 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StandingInstructionsPicker } from './StandingInstructionsPicker';
 import type { PickerListItem } from './standingInstructionsPickerUtils';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
-
-const mockToastError = vi.fn();
-
-vi.mock('sonner', () => ({
-  toast: {
-    error: (...args: unknown[]) => mockToastError(...args),
-  },
-}));
 
 const mockUseIsDesktop = vi.fn(() => true);
 
@@ -311,5 +303,51 @@ describe('StandingInstructionsPicker', () => {
       'Another standing instruction with this content already exists.'
     );
     expect(screen.getByText('Edit standing instruction')).toBeInTheDocument();
+  });
+
+  it('shows a failed delete inline in the picker and closes the confirm', async () => {
+    const user = userEvent.setup();
+    const onDeleteItem = vi.fn().mockRejectedValue(new Error('network down'));
+    renderPicker({ onDeleteItem });
+    await user.click(screen.getAllByLabelText('Delete')[0]);
+    await user.click(screen.getByText('Delete'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to delete standing instruction. Please try again.'
+    );
+    expect(screen.queryByText('Delete standing instruction?')).not.toBeInTheDocument();
+  });
+
+  it('clears the delete failure when the next delete attempt starts', async () => {
+    const user = userEvent.setup();
+    const onDeleteItem = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockReturnValueOnce(new Promise(() => {}));
+    renderPicker({ onDeleteItem });
+    await user.click(screen.getAllByLabelText('Delete')[0]);
+    await user.click(screen.getByText('Delete'));
+    await screen.findByRole('alert');
+    await user.click(screen.getAllByLabelText('Delete')[0]);
+    await user.click(screen.getByText('Delete'));
+    expect(onDeleteItem).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows a failed delete inside the history modal when deleting from history', async () => {
+    const user = userEvent.setup();
+    const onDeleteItem = vi.fn().mockRejectedValue(new Error('network down'));
+    const fourItemHistory: StandingInstructionHistoryItem[] = [
+      ...history,
+      { id: 'h4', content: 'Fourth rule', title: 'Fourth', useCount: 1, lastUsedAt: 2000 },
+    ];
+    renderPicker({ history: fourItemHistory, onDeleteItem });
+    await user.click(screen.getByTestId('standing-instructions-view-more'));
+    const historyDialog = screen.getByRole('dialog', { name: 'Standing instruction history' });
+    await user.click(within(historyDialog).getAllByLabelText('Delete')[0]);
+    await user.click(screen.getByText('Delete'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to delete standing instruction. Please try again.'
+    );
+    expect(within(historyDialog).getByRole('alert')).toBeInTheDocument();
   });
 });
