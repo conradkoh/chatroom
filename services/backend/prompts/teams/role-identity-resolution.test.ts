@@ -71,7 +71,7 @@ describe('per-team role identity catalogues', () => {
     );
   });
 
-  test('undefined roles fall through to the shared fallback chain', () => {
+  test('roles absent from every catalogue resolve through the shared fallback chain', () => {
     const tester = {
       title: 'Tester',
       description: 'You are the QA role responsible for testing and validation.',
