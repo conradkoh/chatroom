@@ -27,18 +27,6 @@ function createMessage(overrides: Partial<Message> = {}): Message {
   };
 }
 
-const headerNavigation = {
-  onJumpToFirst: vi.fn(),
-  onJumpToPrevious: vi.fn(),
-  onJumpToCurrent: vi.fn(),
-  onJumpToNext: vi.fn(),
-  onJumpToLast: vi.fn(),
-  hasFirst: true,
-  hasPrevious: true,
-  hasNext: true,
-  hasLast: true,
-};
-
 const STATUS_LABELS = ['pending', 'acknowledged', 'in progress', 'done', 'cancelled', 'backlog'];
 
 describe('TimelineUserMessage', () => {
@@ -90,22 +78,6 @@ describe('TimelineUserMessage', () => {
     expect(defaultRow.lastElementChild).toBe(route);
   });
 
-  it('renders the route as the third cell in the nav grid row', () => {
-    render(
-      <TimelineUserMessage
-        message={createMessage({ targetRole: 'planner' })}
-        chatroomId="room-1"
-        headerNavigation={headerNavigation}
-      />
-    );
-    const gridRow = screen.getByTestId('timeline-message-header-nav').parentElement as HTMLElement;
-    const route = screen.getByTestId('timeline-message-route');
-    expect(gridRow.children).toHaveLength(3);
-    expect(gridRow.children[2]).toContainElement(route);
-    expect(gridRow.children[0]).not.toContainElement(route);
-    expect(gridRow.children[1]).not.toContainElement(route);
-  });
-
   it('omits arrow and target when targetRole is absent', () => {
     render(<TimelineUserMessage message={createMessage()} chatroomId="room-1" />);
     const header = screen.getByTestId('timeline-message-header');
@@ -149,32 +121,6 @@ describe('TimelineUserMessage', () => {
       }
     }
   );
-
-  it('uses true-center grid on nav header when headerNavigation provided', () => {
-    render(
-      <TimelineUserMessage
-        message={createMessage()}
-        chatroomId="room-1"
-        headerNavigation={headerNavigation}
-      />
-    );
-    const navRow = screen.getByTestId('timeline-message-header-nav').parentElement as HTMLElement;
-    expect(navRow.className).toContain('grid-cols-[1fr_auto_1fr]');
-    expect(screen.getByTestId('timeline-message-header-nav')).toBeInTheDocument();
-  });
-
-  it('does not show message text in header when headerNavigation provided', () => {
-    render(
-      <TimelineUserMessage
-        message={createMessage({ content: 'secret header text' })}
-        chatroomId="room-1"
-        headerNavigation={headerNavigation}
-      />
-    );
-    const header = screen.getByTestId('timeline-message-header');
-    expect(header).not.toHaveTextContent('secret header text');
-    expect(screen.getByText('secret header text')).toBeInTheDocument(); // still in body
-  });
 
   it('does not show message text in default header', () => {
     render(

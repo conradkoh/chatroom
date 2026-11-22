@@ -26,8 +26,9 @@ export function TimelineMessageTypeBadge({ type }: { type: string }) {
 }
 
 /**
- * Sender → target route. Renders fragments only: the caller's flex wrapper owns
- * layout, so the header DOM is unchanged.
+ * Sender → target route. Renders the sender and Telegram tag as direct children so they
+ * wrap as separate items, and the arrow with the target role as one unbreakable group.
+ * The caller's flex wrapper owns layout.
  */
 export function TimelineMessageRoute({
   senderRole,
@@ -47,10 +48,10 @@ export function TimelineMessageRoute({
         </span>
       )}
       {targetRole && (
-        <>
+        <span className="inline-flex items-center gap-x-1.5 whitespace-nowrap">
           <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
           <span className={getSenderClasses(targetRole)}>{targetRole}</span>
-        </>
+        </span>
       )}
     </>
   );

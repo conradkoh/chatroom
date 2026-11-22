@@ -367,31 +367,6 @@ Edge case X
       expect(screen.getByText('builder')).toBeInTheDocument();
       expect(screen.getByText('user')).toBeInTheDocument();
     });
-
-    it('keeps the grid header and notice badge when headerNavigation is supplied', () => {
-      render(
-        <TimelineTeamMessage
-          message={NOTICE_MESSAGE}
-          chatroomId="room-1"
-          headerNavigation={{
-            onJumpToFirst: vi.fn(),
-            onJumpToPrevious: vi.fn(),
-            onJumpToCurrent: vi.fn(),
-            onJumpToNext: vi.fn(),
-            onJumpToLast: vi.fn(),
-            hasFirst: true,
-            hasPrevious: true,
-            hasNext: true,
-            hasLast: true,
-          }}
-        />
-      );
-
-      expect(screen.getByTestId('timeline-message-header').className).toContain(
-        'grid-cols-[1fr_auto_1fr]'
-      );
-      expect(screen.getByText('notice')).toBeInTheDocument();
-    });
   });
 
   it('renders no type badge for a plain team message and exposes its type on the root', () => {
@@ -411,34 +386,34 @@ Edge case X
     );
   });
 
-  it('uses true-center grid on header when headerNavigation provided', () => {
-    render(
-      <TimelineTeamMessage
-        message={BASE_MESSAGE}
-        chatroomId="room-1"
-        headerNavigation={{
-          onJumpToFirst: vi.fn(),
-          onJumpToPrevious: vi.fn(),
-          onJumpToCurrent: vi.fn(),
-          onJumpToNext: vi.fn(),
-          onJumpToLast: vi.fn(),
-          hasFirst: true,
-          hasPrevious: true,
-          hasNext: true,
-          hasLast: true,
-        }}
-      />
-    );
+  it('right-aligns the route when the header wraps', () => {
+    render(<TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" />);
+
     const header = screen.getByTestId('timeline-message-header');
-    expect(header.className).toContain('grid-cols-[1fr_auto_1fr]');
-    expect(screen.getByTestId('timeline-message-header-nav')).toBeInTheDocument();
+    expect(header).toHaveClass('flex', 'flex-wrap');
+    expect(header.className).not.toContain('grid');
+
+    const route = screen.getByTestId('timeline-message-header-route');
+    expect(route).toHaveClass('ml-auto', 'justify-end', 'flex-wrap');
+    expect(route).not.toHaveClass('justify-self-end');
   });
 
-  it('keeps flex layout on header when headerNavigation omitted', () => {
-    render(<TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" />);
-    const header = screen.getByTestId('timeline-message-header');
-    expect(header.className).not.toContain('grid-cols-[1fr_auto_1fr]');
-    expect(screen.queryByTestId('timeline-message-header-nav')).not.toBeInTheDocument();
+  it('hides the empty badge slot of a plain message so the route has no left gap', () => {
+    render(
+      <TimelineTeamMessage
+        message={{
+          ...BASE_MESSAGE,
+          type: 'message',
+          senderRole: 'planner',
+          content: 'Ordinary reply',
+        }}
+        chatroomId="room-1"
+      />
+    );
+
+    const badgeSlot = screen.getByTestId('timeline-message-header').firstElementChild;
+    expect(badgeSlot).toBeEmptyDOMElement();
+    expect(badgeSlot).toHaveClass('empty:hidden');
   });
 
   describe('collapsible agent-to-agent rows', () => {
@@ -695,34 +670,6 @@ Edge case X
       }
     });
 
-    it('renders no header navigation inside the dialog', () => {
-      render(
-        <TimelineTeamMessage
-          message={COLLAPSIBLE_HANDOFF}
-          chatroomId="room-1"
-          collapsible
-          headerNavigation={{
-            onJumpToFirst: vi.fn(),
-            onJumpToPrevious: vi.fn(),
-            onJumpToCurrent: vi.fn(),
-            onJumpToNext: vi.fn(),
-            onJumpToLast: vi.fn(),
-            hasFirst: true,
-            hasPrevious: true,
-            hasNext: true,
-            hasLast: true,
-          }}
-        />
-      );
-      expect(screen.getByTestId('timeline-header-nav-current')).toBeInTheDocument();
-
-      openDialog();
-
-      const dialog = screen.getByRole('dialog');
-      expect(within(dialog).queryByTestId('timeline-header-nav-current')).toBeNull();
-      expect(screen.getByTestId('timeline-header-nav-current')).toBeInTheDocument();
-    });
-
     it('shows the visible label and no describedby when the preview is empty', () => {
       const blankHandoff: Message = { ...COLLAPSIBLE_HANDOFF, content: '   \n\n  ' };
       render(collapsible(blankHandoff));
@@ -819,6 +766,16 @@ Edge case X
       );
       expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
       expect(screen.getByTestId('timeline-team-message').querySelector('.py-3')).not.toBeNull();
+    });
+
+    it('right-aligns the route in the collapsible header too', () => {
+      render(collapsible());
+
+      expect(screen.getByTestId('timeline-message-header-route')).toHaveClass(
+        'ml-auto',
+        'justify-end',
+        'flex-wrap'
+      );
     });
   });
 });

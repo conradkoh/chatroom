@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConversationMessageList } from './ConversationMessageList';
 import { AttachmentsProvider } from '../../attachments';
@@ -110,17 +110,6 @@ function scrollToBottom(el: HTMLElement) {
 /** The real row renders attachment chips / footer, which need the provider. */
 function renderList(ui: React.ReactElement) {
   return render(ui, { wrapper: AttachmentsProvider });
-}
-
-type HeaderNavControl = 'first' | 'previous' | 'current' | 'next' | 'last';
-
-/** Scopes to one rendered row, since the real header nav reuses test ids per row. */
-function headerNav(messageId: string, control: HeaderNavControl): HTMLButtonElement {
-  const row = document.querySelector(`[data-testid="event-row-${messageId}"]`);
-  if (!row) throw new Error(`row ${messageId} is not rendered`);
-  return within(row as HTMLElement).getByTestId(
-    `timeline-header-nav-${control}`
-  ) as HTMLButtonElement;
 }
 
 describe('scroll pinning and jump chip', () => {
@@ -345,134 +334,6 @@ describe('ConversationMessageList', () => {
   });
 });
 
-describe('sticky header message navigation', () => {
-  function renderTwoEvents() {
-    renderList(
-      <ConversationMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />
-    );
-    const list = document.querySelector(
-      '[data-testid="conversation-message-list"]'
-    ) as HTMLDivElement;
-
-    list.getBoundingClientRect = () =>
-      ({
-        top: 0,
-        bottom: 400,
-        left: 0,
-        right: 0,
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 400,
-        toJSON: () => ({}),
-      }) as DOMRect;
-
-    const msg1Row = list.querySelector('[data-message-id="msg-1"]') as HTMLElement;
-    const msg2Row = list.querySelector('[data-message-id="msg-2"]') as HTMLElement;
-    msg1Row.getBoundingClientRect = () =>
-      ({
-        top: 320,
-        bottom: 400,
-        left: 0,
-        right: 0,
-        x: 0,
-        y: 320,
-        width: 100,
-        height: 80,
-        toJSON: () => ({}),
-      }) as DOMRect;
-    msg2Row.getBoundingClientRect = () =>
-      ({
-        top: 480,
-        bottom: 560,
-        left: 0,
-        right: 0,
-        x: 0,
-        y: 480,
-        width: 100,
-        height: 80,
-        toJSON: () => ({}),
-      }) as DOMRect;
-    Object.defineProperty(list, 'scrollTop', { value: 100, writable: true, configurable: true });
-
-    return list;
-  }
-
-  it('does not render per-row chevron jump buttons', () => {
-    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
-    expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).toBeNull();
-  });
-
-  it('clicking nav-current scrolls that row to container top', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-1', 'current'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('clicking nav-previous scrolls previous row', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-2', 'previous'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('clicking nav-next scrolls next row', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-1', 'next'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('clicking nav-first on last row scrolls to first row', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-2', 'first'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('clicking nav-last on first row scrolls to last row', () => {
-    const list = renderTwoEvents();
-
-    const scrollTo = vi.fn();
-    list.scrollTo = scrollTo;
-
-    fireEvent.click(headerNav('msg-1', 'last'));
-
-    expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
-  });
-
-  it('disables previous and first on first message, next and last on last message', () => {
-    renderTwoEvents();
-
-    expect(headerNav('msg-1', 'previous').disabled).toBe(true);
-    expect(headerNav('msg-1', 'first').disabled).toBe(true);
-    expect(headerNav('msg-1', 'next').disabled).toBe(false);
-    expect(headerNav('msg-1', 'last').disabled).toBe(false);
-
-    expect(headerNav('msg-2', 'previous').disabled).toBe(false);
-    expect(headerNav('msg-2', 'first').disabled).toBe(false);
-    expect(headerNav('msg-2', 'next').disabled).toBe(true);
-    expect(headerNav('msg-2', 'last').disabled).toBe(true);
-  });
-});
-
 describe('handoff collapse behavior', () => {
   const AGENT_HANDOFF_BODY = 'Preview line one.\nPreview line two.\n\nDeferred body sentence.';
 
@@ -531,10 +392,22 @@ describe('handoff collapse behavior', () => {
     );
     expect(within(agentRow).queryByText('Deferred body sentence.')).not.toBeInTheDocument();
     expect(agentRow.querySelector('.prose')).toBeNull();
-    // Header navigation and row identity survive; the footer does not render.
-    expect(within(agentRow).getByTestId('timeline-header-nav-current')).toBeInTheDocument();
+    // The sticky header and row identity survive; the footer does not render.
+    expect(within(agentRow).getByTestId('timeline-message-header')).toBeInTheDocument();
     expect(within(agentRow).queryByTestId('timeline-message-footer')).not.toBeInTheDocument();
     expect(document.querySelectorAll('[data-message-id="handoff-1"]')).toHaveLength(1);
+  });
+
+  it('renders no per-message navigation controls on any row', () => {
+    renderTimeline();
+    expect(
+      document.querySelector(
+        '[data-testid^="timeline-header-nav"], [data-testid="timeline-message-header-nav"]'
+      )
+    ).toBeNull();
+    expect(
+      document.querySelectorAll('[data-testid="timeline-message-header"]').length
+    ).toBeGreaterThan(0);
   });
 
   it('keeps user, agent-to-user handoffs, and notices expanded', () => {
@@ -602,7 +475,7 @@ describe('row re-render behavior', () => {
     expect([...rowRenderCounts.keys()]).toEqual(['msg-2']);
   });
 
-  it('re-renders only the previous last row and the appended row on append', () => {
+  it('re-renders only the appended row on append', () => {
     const events = [makeEvent('a'), makeEvent('b'), makeEvent('c')];
     const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
     rowRenderCounts.clear();
@@ -610,8 +483,292 @@ describe('row re-render behavior', () => {
 
     rerender(<ConversationMessageList events={[...events, makeEvent('d')]} anchorId="a1" />);
 
-    // `c` re-renders only because its `isLast` flipped; `a`/`b` keep every prop.
-    expect([...rowRenderCounts.keys()]).toEqual(['c', 'd']);
-    expect(markdownRenderMock.mock.calls.map(([content]) => content)).toEqual(['c', 'd']);
+    // Existing rows keep their event object and index, so only the appended row `d` renders.
+    expect([...rowRenderCounts.keys()]).toEqual(['d']);
+    expect(markdownRenderMock.mock.calls.map(([content]) => content)).toEqual(['d']);
+  });
+});
+
+describe('jump to top button', () => {
+  const baseMatchMedia = window.matchMedia;
+
+  function renderLongFeed(events = Array.from({ length: 40 }, (_, i) => makeEvent(`msg-${i}`))) {
+    const result = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 0 });
+    return { ...result, list };
+  }
+
+  function scrollList(list: HTMLElement, scrollTop: number) {
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop });
+    fireEvent.scroll(list);
+  }
+
+  function userScrollList(
+    list: HTMLElement,
+    scrollTop: number,
+    via: 'wheel' | 'keydown' = 'wheel'
+  ) {
+    if (via === 'wheel') fireEvent.wheel(list);
+    else fireEvent.keyDown(list, { key: 'ArrowUp' });
+    scrollList(list, scrollTop);
+  }
+
+  function jumpButton() {
+    return document.querySelector('[data-testid="conversation-jump-to-top"]');
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    window.matchMedia = baseMatchMedia;
+  });
+
+  it('hidden after mount', () => {
+    renderLongFeed();
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('hidden after a small upward scroll', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 950);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('visible after an 80px upward scroll, focus stays put', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+    expect(button).toBeInTheDocument();
+    expect(document.activeElement).not.toBe(button);
+  });
+
+  it('not shown for an upward scroll that ends at scrollTop <= 200', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 250);
+    userScrollList(list, 150);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('a feed that shrinks to non-scrollable never shows the button', () => {
+    const { list, rerender } = renderLongFeed(); // 40 events, scrollHeight 3000
+    scrollList(list, 1000); // lastTop 1000, no user input
+    rerender(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 400, scrollTop: 0 });
+    fireEvent.wheel(list);
+    fireEvent.scroll(list); // clamp to 0 after the user's wheel
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('auto-hides 3000 ms after the last upward move', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    expect(jumpButton()).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('hides after 40px of downward scroll', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    expect(jumpButton()).not.toBeNull();
+
+    scrollList(list, 960);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('click scrolls to top smoothly, hides the button, and does not re-show during the smooth scroll', () => {
+    const { list } = renderLongFeed();
+    Object.defineProperty(list, 'scrollTo', { value: vi.fn(), configurable: true });
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+    fireEvent.click(button);
+
+    expect(list.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    expect(jumpButton()).toBeNull();
+
+    scrollList(list, 900);
+    scrollList(list, 800);
+    scrollList(list, 700);
+    expect(jumpButton()).toBeNull();
+    expect(document.activeElement).toBe(list);
+  });
+
+  it('click uses instant scroll under reduced motion', () => {
+    const { list } = renderLongFeed();
+    Object.defineProperty(list, 'scrollTo', { value: vi.fn(), configurable: true });
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to top' }));
+
+    expect(list.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
+  });
+
+  it('hover pauses the timer', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+
+    fireEvent.mouseEnter(button);
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(jumpButton()).not.toBeNull();
+
+    fireEvent.mouseLeave(button);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('focus pauses the timer', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+
+    fireEvent.focus(button);
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(jumpButton()).not.toBeNull();
+
+    fireEvent.blur(button);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('focus and hover holds are independent, so leaving with the mouse keeps the focused button', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+
+    fireEvent.focus(button);
+    fireEvent.mouseEnter(button);
+    fireEvent.mouseLeave(button);
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(jumpButton()).not.toBeNull();
+
+    fireEvent.blur(button);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('keyboard input releases suppression after a click', () => {
+    const { list } = renderLongFeed();
+    Object.defineProperty(list, 'scrollTo', { value: vi.fn(), configurable: true });
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to top' }));
+    expect(jumpButton()).toBeNull();
+
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    userScrollList(list, 900, 'keydown');
+    userScrollList(list, 800, 'keydown');
+    expect(jumpButton()).not.toBeNull();
+  });
+
+  it('anchor change hides it', () => {
+    const events = Array.from({ length: 40 }, (_, i) => makeEvent(`msg-${i}`));
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 0 });
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    expect(jumpButton()).not.toBeNull();
+
+    // The list's anchor effect writes scrollTop = 0; pin it so that write cannot move the
+    // position and the hide can only come from the hook's resetKey effect.
+    Object.defineProperty(list, 'scrollTop', {
+      get: () => 920,
+      set: () => {},
+      configurable: true,
+    });
+    rerender(<ConversationMessageList events={events} anchorId="a2" />);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('Jump to new messages hides the button', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    expect(jumpButton()).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(200); // let the scroll controller mark the feed unpinned
+    });
+
+    Object.defineProperty(list, 'scrollTo', {
+      value: vi.fn(() => {
+        setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 3000 });
+        fireEvent.scroll(list);
+      }),
+      configurable: true,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to new messages' }));
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('coexists with the jump-to-new-messages chip', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 900);
+    act(() => {
+      vi.advanceTimersByTime(200); // let the scroll controller mark the feed unpinned
+    });
+
+    const top = document.querySelector(
+      '[data-testid="conversation-jump-to-top"]'
+    ) as HTMLElement | null;
+    const chip = document.querySelector(
+      '[data-testid="conversation-jump-to-new-messages"]'
+    ) as HTMLElement | null;
+
+    expect(top).not.toBeNull();
+    expect(chip).not.toBeNull();
+    expect(chip?.style.zIndex).toBe(top?.style.zIndex);
+    expect(chip?.style.zIndex).toBe(String(JUMP_TO_NEW_MESSAGES_Z_INDEX));
+    expect(chip?.className).toContain('left-1/2');
+    expect(top?.className).toContain('right-3');
+  });
+
+  it('renders neither control for an empty feed', () => {
+    renderList(<ConversationMessageList events={[]} anchorId="a1" />);
+    expect(screen.getByText('No messages yet')).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="conversation-jump-to-top"]')).toBeNull();
+    expect(document.querySelector('[data-testid="conversation-jump-to-new-messages"]')).toBeNull();
   });
 });

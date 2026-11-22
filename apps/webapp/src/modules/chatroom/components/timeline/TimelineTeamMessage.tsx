@@ -6,7 +6,6 @@ import { memo, useCallback, useId, useMemo, useRef, useState, type RefObject } f
 import { TimelineFileAttachments } from './TimelineFileAttachments';
 import { TimelineHandoffDetailsDialog } from './TimelineHandoffDetailsDialog';
 import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessageFooter';
-import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import { TimelineMessageRoute, TimelineMessageTypeBadge } from './TimelineMessageIdentity';
 import {
   TIMELINE_HANDOFF_CHIPS,
@@ -19,7 +18,6 @@ import {
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
   TIMELINE_ROW_ROOT,
-  type TimelineMessageHeaderNavigation,
 } from './timelineRowStyles';
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
 import { MessageAttachmentChips } from '../../attachments';
@@ -116,35 +114,33 @@ function TimelineHandoffTrigger({
 
 /**
  * The single header row shared by collapsible and eager rows. Keeping one
- * component guarantees identical nav, identity attributes, and layout in both.
+ * component guarantees identical identity attributes and layout in both.
  * `flush` drops the bottom margin so a collapsible row's summary bar sits directly
  * under the header.
  */
 const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
   message,
-  headerNavigation,
   flush = false,
 }: {
   message: Message;
-  headerNavigation?: TimelineMessageHeaderNavigation;
   flush?: boolean;
 }) {
   return (
     <div
       className={cn(
-        headerNavigation
-          ? 'grid grid-cols-[1fr_auto_1fr] items-center gap-x-2 gap-y-1 px-4 py-1.5 w-full'
-          : 'flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5',
+        'flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5',
         !flush && 'mb-2',
         TIMELINE_MESSAGE_HEADER_STICKY
       )}
       data-testid="timeline-message-header"
     >
-      <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 justify-self-start">
+      <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 empty:hidden">
         <TimelineMessageTypeBadge type={message.type} />
       </div>
-      {headerNavigation && <TimelineMessageHeaderNav {...headerNavigation} />}
-      <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 justify-self-end">
+      <div
+        className="ml-auto flex items-center justify-end flex-wrap gap-x-1.5 gap-y-1 min-w-0"
+        data-testid="timeline-message-header-route"
+      >
         <TimelineMessageRoute
           senderRole={message.senderRole}
           targetRole={message.targetRole}
@@ -158,8 +154,6 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
 export interface TimelineTeamMessageProps {
   message: Message;
   chatroomId: string;
-  /** When set, sticky header shows centered prev/current/next jump controls (conversation feed). */
-  headerNavigation?: TimelineMessageHeaderNavigation;
   /** Elapsed time since the previous message in the timeline. */
   handoffDurationMs?: number;
   /** Whether the duration is much longer than others in the loaded window (orange). */
@@ -175,7 +169,6 @@ export interface TimelineTeamMessageProps {
 export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   message,
   chatroomId: _chatroomId,
-  headerNavigation,
   handoffDurationMs,
   handoffDurationSlow,
   collapsible,
@@ -204,11 +197,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       data-testid="timeline-team-message"
       data-message-type={message.type}
     >
-      <TimelineTeamMessageHeader
-        message={message}
-        headerNavigation={headerNavigation}
-        flush={collapsible}
-      />
+      <TimelineTeamMessageHeader message={message} flush={collapsible} />
 
       {collapsible ? (
         <>

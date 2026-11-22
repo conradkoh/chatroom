@@ -181,8 +181,7 @@ export function useConversation(chatroomId: string) {
 
   // `usePaginatedQuery` allocates a fresh `loadMore` on every render, so keep the
   // latest one in a ref to expose a callback whose identity never changes.
-  // `useLayoutEffect` matches the `eventsRef` sync in `ConversationMessageList`, so both
-  // refs are current before the browser can paint or scroll.
+  // `useLayoutEffect` keeps this ref current before the browser can paint or scroll.
   const paginatedLoadMoreRef = useRef(paginated.loadMore);
   useLayoutEffect(() => {
     paginatedLoadMoreRef.current = paginated.loadMore;
