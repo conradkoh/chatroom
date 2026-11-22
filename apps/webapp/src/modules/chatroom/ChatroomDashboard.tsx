@@ -1211,9 +1211,17 @@ function ChatroomDashboardContent({
     (workspace) => workspace.machineId && workspace.workingDir
   );
 
+  const {
+    feedback: previewOpenOnRemoteFeedback,
+    show: showPreviewOpenOnRemoteFeedback,
+    error: showPreviewOpenOnRemoteError,
+    clear: clearPreviewOpenOnRemote,
+  } = useFeedback();
+
   const handleFilePreviewClose = useCallback(() => {
+    clearPreviewOpenOnRemote();
     fileSelector.selectFile('');
-  }, [fileSelector]);
+  }, [clearPreviewOpenOnRemote, fileSelector]);
 
   const openFileLocationInExplorer = useCallback(
     (location: FileLocation) => {
@@ -1240,9 +1248,19 @@ function ChatroomDashboardContent({
 
   const handleOpenFileOnRemote = useCallback(
     (filePath: string) => {
-      void doOpenFileOnRemote(filePath);
+      clearPreviewOpenOnRemote();
+      void doOpenFileOnRemote(filePath).then((outcome) => {
+        if (outcome.status === 'error') showPreviewOpenOnRemoteError(outcome.message);
+        else if (outcome.status === 'syncing')
+          showPreviewOpenOnRemoteFeedback('info', outcome.message);
+      });
     },
-    [doOpenFileOnRemote]
+    [
+      doOpenFileOnRemote,
+      clearPreviewOpenOnRemote,
+      showPreviewOpenOnRemoteError,
+      showPreviewOpenOnRemoteFeedback,
+    ]
   );
 
   // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
@@ -2120,6 +2138,7 @@ function ChatroomDashboardContent({
                   onSelectFile={fileSelector.selectFile}
                   onOpenInExplorer={handleOpenInExplorer}
                   onOpenFileOnRemote={handleOpenFileOnRemote}
+                  openOnRemoteFeedback={previewOpenOnRemoteFeedback}
                 />
 
                 {/* Setup modal - only shown during setup mode */}

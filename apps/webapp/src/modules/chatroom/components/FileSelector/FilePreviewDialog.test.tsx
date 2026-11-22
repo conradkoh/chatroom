@@ -248,3 +248,83 @@ describe('FilePreviewDialog truncated copy warning', () => {
     });
   });
 });
+
+describe('FilePreviewDialog open-on-remote feedback', () => {
+  it('renders an error as an alert row', () => {
+    render(
+      <FilePreviewDialog
+        {...defaultProps}
+        onOpenFileOnRemote={vi.fn()}
+        openOnRemoteFeedback={{ id: 1, tone: 'error', message: 'Failed to sync repository info' }}
+      />
+    );
+
+    const row = screen.getByTestId('file-preview-open-on-remote-feedback');
+    expect(row).toHaveAttribute('role', 'alert');
+    expect(row).toHaveTextContent('Failed to sync repository info');
+  });
+
+  it('renders syncing as a status row', () => {
+    render(
+      <FilePreviewDialog
+        {...defaultProps}
+        onOpenFileOnRemote={vi.fn()}
+        openOnRemoteFeedback={{
+          id: 2,
+          tone: 'info',
+          message: 'Syncing repository info — try again in a moment',
+        }}
+      />
+    );
+
+    const row = screen.getByTestId('file-preview-open-on-remote-feedback');
+    expect(row).toHaveAttribute('role', 'status');
+    expect(row).toHaveTextContent('Syncing repository info — try again in a moment');
+  });
+
+  it('renders nothing when there is no feedback', () => {
+    render(
+      <FilePreviewDialog
+        {...defaultProps}
+        onOpenFileOnRemote={vi.fn()}
+        openOnRemoteFeedback={null}
+      />
+    );
+
+    expect(screen.queryByTestId('file-preview-open-on-remote-feedback')).toBeNull();
+  });
+
+  it('removes the row when the caller clears the feedback', () => {
+    const { rerender } = render(
+      <FilePreviewDialog
+        {...defaultProps}
+        onOpenFileOnRemote={vi.fn()}
+        openOnRemoteFeedback={{ id: 1, tone: 'error', message: 'Failed to sync repository info' }}
+      />
+    );
+    expect(screen.getByTestId('file-preview-open-on-remote-feedback')).toBeInTheDocument();
+
+    rerender(
+      <FilePreviewDialog
+        {...defaultProps}
+        onOpenFileOnRemote={vi.fn()}
+        openOnRemoteFeedback={null}
+      />
+    );
+
+    expect(screen.queryByTestId('file-preview-open-on-remote-feedback')).toBeNull();
+  });
+
+  it('calls onOpenFileOnRemote with the previewed path from the menu', async () => {
+    const onOpenFileOnRemote = vi.fn();
+    render(<FilePreviewDialog {...defaultProps} onOpenFileOnRemote={onOpenFileOnRemote} />);
+
+    await findCopyContentButton();
+    fireEvent.click(screen.getByRole('button', { name: 'More copy options' }));
+
+    const item = await screen.findByRole('menuitem', { name: /open file on remote/i });
+    fireEvent.click(item);
+
+    expect(onOpenFileOnRemote).toHaveBeenCalledWith('src/foo.ts');
+  });
+});

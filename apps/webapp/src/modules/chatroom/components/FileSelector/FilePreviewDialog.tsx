@@ -46,7 +46,7 @@ import { type FileContentResult } from '../../workspace/hooks/useFileContent';
 import { useRequestWorkspaceFileContent } from '../../workspace/hooks/useRequestWorkspaceFileContent';
 import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 
-import { InlineFeedback } from '@/components/inline-feedback';
+import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import {
   FixedModal,
   FixedModalContent,
@@ -71,6 +71,8 @@ interface FilePreviewDialogProps {
   onOpenInExplorer?: (filePath: string) => void;
   /** Called when user wants to open the file on the remote machine */
   onOpenFileOnRemote?: (filePath: string) => void;
+  /** Feedback from the last open-on-remote attempt. The caller clears it on the next attempt and when the dialog closes. */
+  openOnRemoteFeedback?: Feedback | null;
 }
 
 // ─── Tree Node Types ────────────────────────────────────────────────────────
@@ -488,6 +490,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   onSelectFile,
   onOpenInExplorer,
   onOpenFileOnRemote,
+  openOnRemoteFeedback,
 }: FilePreviewDialogProps) {
   // While the file selector picker is open, suppress the preview so a
   // previously selected file does not sit behind the picker.
@@ -645,6 +648,11 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             )}
           </div>
         </FixedModalHeader>
+        <InlineFeedback
+          feedback={openOnRemoteFeedback ?? null}
+          data-testid="file-preview-open-on-remote-feedback"
+          className="mx-4 mt-2 shrink-0"
+        />
         <div className="flex-1 flex min-h-0 relative">
           {/* Mobile file tree overlay */}
           {mobileTreeOpen && (
