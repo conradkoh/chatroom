@@ -9,7 +9,6 @@ import { ConvexClientProvider } from '@/app/ConvexClientProvider';
 import { MacPageNavigation } from '@/components/MacPageNavigation';
 import { Navigation } from '@/components/Navigation';
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
-import { Toaster } from '@/components/ui/sonner';
 import { getAppTitle } from '@/lib/environment';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
 import { AuthProvider } from '@/modules/auth/AuthProvider';
@@ -53,7 +52,7 @@ export const metadata: Metadata = {
 
 /**
  * Root layout component that wraps the entire application with providers and global structure.
- * Sets up authentication, theming, navigation, and toast notifications for all pages.
+ * Sets up authentication, theming, and navigation for all pages.
  */
 export default function RootLayout({
   children,
@@ -98,7 +97,6 @@ export default function RootLayout({
               </AppInfoProvider>
             </ConvexQueryCacheProvider>
           </ConvexClientProvider>
-          <Toaster />
           <ServiceWorkerRegistration />
           {process.env.NODE_ENV === 'development' && (
             <Script
