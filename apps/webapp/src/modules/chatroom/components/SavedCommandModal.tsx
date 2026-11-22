@@ -112,7 +112,8 @@ function SavedCommandForm({
   // Focus name input when modal opens
   useEffect(() => {
     if (!isOpen) return;
-    nameInputRef.current?.focus();
+    const focusTimer = setTimeout(() => nameInputRef.current?.focus(), 50);
+    return () => clearTimeout(focusTimer);
   }, [isOpen]);
 
   // Handle Escape key to dismiss
