@@ -164,6 +164,7 @@ describe('UserMenu', () => {
       expect(within(dialog).getByRole('alert')).toHaveTextContent(
         'Failed to logout. Please try again.'
       );
+      expect(within(dialog).getByRole('button', { name: 'Log out' })).toHaveClass('bg-destructive');
       expect(screen.getAllByRole('alert')).toHaveLength(1);
       expect(screen.getByRole('alertdialog')).toBeInTheDocument();
       expect(mocks.push).not.toHaveBeenCalled();

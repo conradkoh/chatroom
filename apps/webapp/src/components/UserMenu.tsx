@@ -14,6 +14,7 @@ import {
 } from '@/application/auth';
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -21,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -156,18 +157,17 @@ function _renderLogoutConfirmDialog(
         )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoggingOut}>Cancel</AlertDialogCancel>
-          {/* A plain Button rather than the alert-dialog action primitive: that one
-              closes the dialog on click, and the dialog must stay open while logout
-              is in flight so a failure shows inside it. */}
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleLogout}
+          <AlertDialogAction
+            onClick={(event) => {
+              // Base UI closes the dialog on click. Keep it open while logout is in flight so a failure shows inside it.
+              event.preventBaseUIHandler();
+              void handleLogout();
+            }}
             disabled={isLoggingOut}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {isLoggingOut ? 'Logging out...' : 'Log out'}
-          </Button>
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
