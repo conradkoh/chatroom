@@ -371,6 +371,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
 
       await expect(duration).toHaveText('1h 5m');
       await expect(timeOfDay).toBeVisible();
+      const triggerBox = await readBox(trigger);
       const durationBox = await readBox(duration);
       const timeBox = await readBox(timeOfDay);
       // The duration span is a flex item (whole 20px line box); the time-of-day locator
@@ -378,6 +379,13 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       // centres proves they share one line; stacking would separate them by a full line.
       const centreY = (box: Box) => box.y + box.height / 2;
       expect(Math.abs(centreY(durationBox) - centreY(timeBox))).toBeLessThanOrEqual(1);
+      // A centre check alone cannot see overlap or reordering: the time must start at or
+      // after the duration's right edge, and both must sit inside the trigger's right edge.
+      const durationRight = durationBox.x + durationBox.width;
+      const triggerRight = triggerBox.x + triggerBox.width;
+      expect(timeBox.x).toBeGreaterThanOrEqual(durationRight - 1);
+      expect(durationRight).toBeLessThanOrEqual(triggerRight + 1);
+      expect(timeBox.x + timeBox.width).toBeLessThanOrEqual(triggerRight + 1);
 
       await readBox(preview, (box) => expect(box.width).toBeGreaterThanOrEqual(120));
       await readBox(preview, (box) => expect(box.height).toBeLessThanOrEqual(41));
