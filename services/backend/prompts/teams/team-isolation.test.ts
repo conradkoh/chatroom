@@ -9,6 +9,7 @@ import { describe, expect, test } from 'vitest';
  *
  * Rule 1: a file under prompts/teams/<T>/ must not import a file under prompts/teams/<U>/ (U !== T).
  * Rule 2: a file outside prompts/teams/ may reach team code only through prompts/teams/registry.ts or a pinned ALLOWED_TEAM_IMPORTS entry.
+ * Rule 2 exempts test and typecheck files (*.test.ts, *.spec.ts, *.typecheck.ts): they exercise team code directly. Rule 1 still applies to them.
  *
  * Parsed: static import and export-from, import type, import() and require() with a string literal, import("...") types.
  * Specifiers: relative (./, ../) and @workspace/backend/ alias.
@@ -48,46 +49,31 @@ interface BoundaryReport {
   readonly stale: readonly string[];
 }
 
-/** Every existing outside-to-team import site, one entry per (importer, target) pair. No globs. */
+/**
+ * Production outside-to-team import sites, one pinned (importer, target) pair per line.
+ * Test and typecheck files are exempt from rule 2 and are never pinned here.
+ * A pin that matches no production import site fails as stale.
+ */
 // One pinned pair per line keeps review diffs readable.
 // prettier-ignore
 const ALLOWED_TEAM_IMPORTS: readonly AllowedTeamImport[] = [
-  { from: 'services/backend/prompts/builtin-role-contracts.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/index.ts', reason: 'test checks the team handoff catalogue' },
-  { from: 'services/backend/prompts/builtin-role-contracts.test.ts', to: 'services/backend/prompts/teams/solo/handoff-templates/index.ts', reason: 'test checks the team handoff catalogue' },
-  { from: 'services/backend/prompts/builtin-role-contracts.test.ts', to: 'services/backend/prompts/teams/trio/handoff-templates/index.ts', reason: 'test checks the team handoff catalogue' },
-  { from: 'services/backend/prompts/cli/handoff-templates/builtin-contracts.typecheck.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/index.ts', reason: 'test checks the team handoff catalogue' },
-  { from: 'services/backend/prompts/cli/handoff-templates/builtin-contracts.typecheck.ts', to: 'services/backend/prompts/teams/solo/handoff-templates/index.ts', reason: 'test checks the team handoff catalogue' },
-  { from: 'services/backend/prompts/cli/handoff-templates/builtin-contracts.typecheck.ts', to: 'services/backend/prompts/teams/trio/handoff-templates/index.ts', reason: 'test checks the team handoff catalogue' },
-  { from: 'services/backend/prompts/cli/handoff-templates/index.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/builder-planner-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/prompts/cli/handoff-templates/index.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/planner-builder-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/prompts/cli/handoff-templates/index.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/planner-user-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/prompts/cli/handoff-templates/index.test.ts', to: 'services/backend/prompts/teams/solo/handoff-templates/solo-user-code.ts', reason: 'test asserts this handoff template output directly' },
   { from: 'services/backend/prompts/cli/handoff-templates/index.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/index.ts', reason: 'CLI handoff listing aggregates the duo role contracts' },
   { from: 'services/backend/prompts/cli/handoff-templates/index.ts', to: 'services/backend/prompts/teams/solo/handoff-templates/index.ts', reason: 'CLI handoff listing aggregates the solo role contracts' },
   { from: 'services/backend/prompts/cli/handoff-templates/index.ts', to: 'services/backend/prompts/teams/trio/handoff-templates/index.ts', reason: 'CLI handoff listing aggregates the trio role contracts' },
-  { from: 'services/backend/prompts/cli/handoff-templates/list-templates.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/planner-builder-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/prompts/cli/roles/fromContext.ts', to: 'services/backend/prompts/teams/solo/prompts/fromContext.ts', reason: 'base role-guidance table routes role solo to solo guidance outside a preset team; behaviour-bearing' },
+  { from: 'services/backend/prompts/cli/roles/fromContext.ts', to: 'services/backend/prompts/teams/solo/prompts/fromContext.ts', reason: 'documented exception, not fixed: the base role-guidance table maps the builtin role solo to solo guidance for rooms outside a preset team; removing it changes behaviour for those rooms and needs its own snapshot-backed decision' },
   { from: 'services/backend/prompts/cli/roles/game-asset-designer.ts', to: 'services/backend/prompts/teams/game-asset-designer-evidence.ts', reason: 'shared specialist body uses cross-team game-asset evidence rules' },
   { from: 'services/backend/prompts/cli/roles/game-asset-designer.ts', to: 'services/backend/prompts/teams/game-asset-designer-workflow.ts', reason: 'shared specialist body uses cross-team game-asset workflow rules' },
   { from: 'services/backend/prompts/cli/roles/verifier.ts', to: 'services/backend/prompts/teams/verifier-handoff-templates.ts', reason: 'shared specialist body uses the cross-team verifier gate vocabulary' },
   { from: 'services/backend/prompts/index.ts', to: 'services/backend/prompts/teams/index.ts', reason: 'package barrel re-exports duo team config and guidance' },
-  { from: 'services/backend/prompts/native/delivery-handoff-templates.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/index.ts', reason: 'test checks the team handoff catalogue' },
-  { from: 'services/backend/prompts/native/delivery-handoff-templates.test.ts', to: 'services/backend/prompts/teams/solo/handoff-templates/index.ts', reason: 'test checks the team handoff catalogue' },
-  { from: 'services/backend/prompts/task-delivery/verifier-gate-guidance.test.ts', to: 'services/backend/prompts/teams/verifier-handoff-templates.ts', reason: 'test checks the shared verifier verdict vocabulary' },
   { from: 'services/backend/prompts/task-delivery/verifier-gate-guidance.ts', to: 'services/backend/prompts/teams/verifier-handoff-templates.ts', reason: 'verifier gate text derives tokens from the shared verdict vocabulary' },
   { from: 'services/backend/prompts/utils/proof-of-verification.ts', to: 'services/backend/prompts/teams/verifier-handoff-templates.ts', reason: 'proof-of-verification derives tokens from the shared verdict vocabulary' },
-  { from: 'services/backend/tests/unit/prompts/compress-context-session-disclosure.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/planner-builder-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/tests/unit/prompts/handoff-templates.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/builder-planner-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/tests/unit/prompts/handoff-templates.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/planner-builder-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/tests/unit/prompts/handoff-templates.test.ts', to: 'services/backend/prompts/teams/duo/handoff-templates/planner-user-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/tests/unit/prompts/handoff-templates.test.ts', to: 'services/backend/prompts/teams/solo/handoff-templates/solo-user-code.ts', reason: 'test asserts this handoff template output directly' },
-  { from: 'services/backend/tests/unit/prompts/native-session-continuity.test.ts', to: 'services/backend/prompts/teams/solo/prompts/solo.ts', reason: 'test exercises solo guidance directly' },
-  { from: 'services/backend/tests/unit/prompts/solo-guidance.test.ts', to: 'services/backend/prompts/teams/solo/prompts/solo.ts', reason: 'test exercises solo guidance directly' },
-  { from: 'services/backend/tests/unit/prompts/uiux-directed-workflow.test.ts', to: 'services/backend/prompts/teams/solo/prompts/solo.ts', reason: 'test exercises solo guidance directly' },
-  { from: 'services/backend/tests/unit/prompts/uiux-directed-workflow.test.ts', to: 'services/backend/prompts/teams/uiux-engineer-handoff-templates.ts', reason: 'test asserts the uiux-engineer handoff template directly' },
 ];
 
 const pairKey = (from: string, to: string): string => `${from} -> ${to}`;
+
+/** Test and typecheck files exercise team code directly, so they are exempt from rule 2 (rule 1 still applies). */
+const TEST_OR_TYPECHECK_FILE = /\.(test|spec|typecheck)\.(ts|tsx|mts)$/;
+const isTestOrTypecheckFile = (file: string): boolean => TEST_OR_TYPECHECK_FILE.test(file);
 
 /** The team folder a repo-relative file belongs to, or null for root-level shared files and the registry. */
 function teamOf(file: string): string | null {
@@ -201,6 +187,7 @@ function checkBoundaries(
       continue;
     }
     if (!site.to.startsWith(TEAMS)) continue;
+    if (isTestOrTypecheckFile(site.from)) continue;
     const key = pairKey(site.from, site.to);
     if (allowlist.some((entry) => pairKey(entry.from, entry.to) === key)) {
       matched.add(key);
@@ -254,6 +241,10 @@ describe('boundary rules on in-memory sources', () => {
   const SHARED_GATES = `${TEAMS}entry-point-coordination-gates.ts`;
   const SOLO_SOLO = `${TEAMS}solo/prompts/solo.ts`;
   const OUTSIDE = 'services/backend/prompts/sections/example.ts';
+  const OUTSIDE_TEST = 'services/backend/prompts/sections/example.test.ts';
+  const OUTSIDE_TYPECHECK = 'services/backend/prompts/sections/example.typecheck.ts';
+  const OUTSIDE_NAME_ONLY = 'services/backend/prompts/sections/latest.ts';
+  const DUO_TEST = `${TEAMS}duo/prompts/planner.test.ts`;
   const known = new Set([
     DUO_PLANNER,
     DUO_HELPERS,
@@ -262,6 +253,10 @@ describe('boundary rules on in-memory sources', () => {
     SOLO_SOLO,
     REGISTRY,
     OUTSIDE,
+    OUTSIDE_TEST,
+    OUTSIDE_TYPECHECK,
+    OUTSIDE_NAME_ONLY,
+    DUO_TEST,
   ]);
   const exists = (file: string): boolean => known.has(file);
   const check = (
@@ -329,6 +324,34 @@ describe('boundary rules on in-memory sources', () => {
     expect(check(OUTSIDE, `export const x = 1;`, pinned).stale).toEqual([
       pairKey(OUTSIDE, TRIO_COORDINATOR),
     ]);
+  });
+
+  test.each([OUTSIDE_TEST, OUTSIDE_TYPECHECK])(
+    'test or typecheck file %s may import team code without a pin',
+    (file) => {
+      expect(
+        check(file, `import { c } from '../teams/trio/prompts/coordinator';`).unlisted
+      ).toEqual([]);
+    }
+  );
+
+  test('a file whose name only contains "test" is still checked', () => {
+    expect(
+      check(OUTSIDE_NAME_ONLY, `import { c } from '../teams/trio/prompts/coordinator';`).unlisted
+    ).toHaveLength(1);
+  });
+
+  test('a pin for a test file is reported as stale because test files are exempt', () => {
+    const pinned = [{ from: OUTSIDE_TEST, to: TRIO_COORDINATOR, reason: 'fixture' }];
+    expect(
+      check(OUTSIDE_TEST, `import { c } from '../teams/trio/prompts/coordinator';`, pinned).stale
+    ).toEqual([pairKey(OUTSIDE_TEST, TRIO_COORDINATOR)]);
+  });
+
+  test('a test file inside a team folder still may not import another team', () => {
+    expect(
+      check(DUO_TEST, `import { c } from '../../trio/prompts/coordinator';`).crossTeam
+    ).toHaveLength(1);
   });
 });
 
