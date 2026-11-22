@@ -1,11 +1,16 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SKETCH_CANVAS_HEIGHT, SKETCH_CANVAS_WIDTH } from './sketchConstants';
 import { SketchDialog } from './SketchDialog';
 
-function setupCanvas(canvas: HTMLCanvasElement) {
+function setupCanvas(
+  canvas: HTMLCanvasElement,
+  {
+    exportBlob = () => new Blob(['png'], { type: 'image/png' }),
+  }: { exportBlob?: () => Blob | null } = {}
+) {
   canvas.width = SKETCH_CANVAS_WIDTH;
   canvas.height = SKETCH_CANVAS_HEIGHT;
   vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
@@ -24,7 +29,7 @@ function setupCanvas(canvas: HTMLCanvasElement) {
     releasePointerCapture: { value: vi.fn() },
     hasPointerCapture: { value: vi.fn(() => true) },
     toBlob: {
-      value: (cb: (blob: Blob | null) => void) => cb(new Blob(['png'], { type: 'image/png' })),
+      value: (cb: (blob: Blob | null) => void) => cb(exportBlob()),
     },
   });
 }
@@ -44,6 +49,9 @@ beforeEach(() => {
     stroke: vi.fn(),
   } as unknown as CanvasRenderingContext2D);
 });
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 function draw(canvas: HTMLCanvasElement) {
   canvas.dispatchEvent(
     new PointerEvent('pointerdown', {
@@ -58,6 +66,13 @@ function draw(canvas: HTMLCanvasElement) {
   canvas.dispatchEvent(
     new PointerEvent('pointerup', { bubbles: true, pointerId: 1, isPrimary: true })
   );
+}
+function createImagePasteEvent(file: File): Event {
+  const event = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clipboardData', {
+    value: { items: [{ kind: 'file', type: file.type, getAsFile: () => file }] },
+  });
+  return event;
 }
 describe('SketchDialog', () => {
   it('shows Eraser tool and activates it with E', async () => {
@@ -108,6 +123,44 @@ describe('SketchDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add sketch' }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ type: 'image/png' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+  it('shows an inline alert beside Add sketch when export fails, and clears it on the next attempt', async () => {
+    const onSave = vi.fn();
+    const onOpenChange = vi.fn();
+    let exportSucceeds = false;
+    render(<SketchDialog open onOpenChange={onOpenChange} onSave={onSave} />);
+    const canvas = screen.getByLabelText('Sketch canvas') as HTMLCanvasElement;
+    setupCanvas(canvas, {
+      exportBlob: () => (exportSucceeds ? new Blob(['png'], { type: 'image/png' }) : null),
+    });
+    await act(async () => draw(canvas));
+    await userEvent.click(screen.getByRole('button', { name: 'Add sketch' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export sketch');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole('button', { name: 'Add sketch' })).toBeEnabled();
+    exportSucceeds = true;
+    await userEvent.click(screen.getByRole('button', { name: 'Add sketch' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ type: 'image/png' }));
+  });
+  it('shows one inline alert when a pasted image fails to import and keeps it until the next paste', async () => {
+    // The browser decoder is the boundary; with it rejecting, importPastedImage resolves false.
+    vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('decode failed')));
+    const user = userEvent.setup();
+    render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    await act(async () => {
+      document.dispatchEvent(
+        createImagePasteEvent(new File(['x'], 'x.png', { type: 'image/png' }))
+      );
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to paste image')
+    );
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Brush tool' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to paste image');
   });
   it('shows Select tool and selection overlay', async () => {
     const user = userEvent.setup();
