@@ -21,6 +21,34 @@ async function readBox(locator: Locator, assert: (box: Box) => void = () => {}):
   return read.box;
 }
 
+type FocusZone = { zone: 'inside' | 'guard' | 'escaped'; stop: string };
+
+/**
+ * Where focus sits right now relative to the details dialog. 'guard' is Base UI's
+ * visually hidden focus guard: the trap moves focus off it on the next animation frame,
+ * so it is a transient, sanctioned state. 'escaped' is any other element and is a real
+ * trap failure.
+ */
+const readFocusZone = (page: Page): Promise<FocusZone> =>
+  page.evaluate((): FocusZone => {
+    const popup = document.querySelector('[data-testid="timeline-handoff-dialog"]');
+    const active = document.activeElement as HTMLElement | null;
+    if (!popup || !active) return { zone: 'escaped', stop: 'no popup or no focused element' };
+    if (popup.contains(active)) {
+      const stop = [
+        active.tagName,
+        active.getAttribute('data-testid'),
+        active.getAttribute('aria-label'),
+        active.textContent?.trim().slice(0, 24),
+      ]
+        .filter(Boolean)
+        .join(' ');
+      return { zone: 'inside', stop };
+    }
+    if (active.hasAttribute('data-base-ui-focus-guard')) return { zone: 'guard', stop: 'guard' };
+    return { zone: 'escaped', stop: active.tagName };
+  });
+
 test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
   // The fixtures render a fixed 15th November 2023 date; pin the browser timezone so
   // the assertion does not depend on the CI host.
@@ -46,7 +74,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await expect(row).toBeVisible();
     await readBox(row, (box) => expect(box.height).toBeLessThanOrEqual(96));
 
-    // A dialog trigger, not a disclosure: no expanded state, no controlled region.
+    // A dialog trigger, not a disclosure: no toggle state, no controlled region.
     await expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
     await expect(trigger).not.toHaveAttribute('aria-expanded');
     await expect(trigger).not.toHaveAttribute('data-state');
@@ -194,17 +222,22 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
 
   test('traps Tab focus inside the dialog', async ({ page }) => {
     await triggerFor(page, 'collapse-normal').click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByTestId('timeline-handoff-dialog')).toBeVisible();
 
-    for (let index = 0; index < 25; index += 1) {
+    const stops = new Set<string>();
+    for (let press = 1; press <= 25; press += 1) {
       await page.keyboard.press('Tab');
+      // Settle before the next press. A press that lands on the guard is bounced back
+      // inside one animation frame; a second Tab sent before that frame would leave the
+      // guard and read as an escape. Polling retries until focus is inside or the
+      // default expect timeout runs out, so a persistent escape still fails here.
+      await expect
+        .poll(() => readFocusZone(page), { message: `focus after Tab press ${press}` })
+        .toMatchObject({ zone: 'inside' });
+      stops.add((await readFocusZone(page)).stop);
     }
-
-    const focusInsideDialog = await page.evaluate(() => {
-      const dialog = document.querySelector('[role="dialog"]');
-      return Boolean(dialog && document.activeElement && dialog.contains(document.activeElement));
-    });
-    expect(focusInsideDialog).toBe(true);
+    // The loop must cycle through the dialog's tab stops, not pin focus on one element.
+    expect(stops.size).toBeGreaterThanOrEqual(3);
   });
 
   test('sizes the dialog to the viewport and pins header and footer', async ({ page }) => {
