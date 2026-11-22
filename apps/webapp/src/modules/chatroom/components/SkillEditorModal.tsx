@@ -9,10 +9,11 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Eye, Pencil, Loader2 } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
-import { toast } from 'sonner';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useFeedback } from '@/hooks/useFeedback';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ export const SkillEditorModal = memo(function SkillEditorModal({
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<'edit' | 'readonly'>('edit');
   const [isSaving, setIsSaving] = useState(false);
+  const { feedback: saveFeedback, error: showSaveError, clear: clearSaveFeedback } = useFeedback();
 
   const updateCustomization = useSessionMutation(api.chatroomSkillCustomizations.update);
 
@@ -46,10 +48,12 @@ export const SkillEditorModal = memo(function SkillEditorModal({
     if (isOpen) {
       setContent(initialContent);
       setMode('edit');
+      clearSaveFeedback();
     }
-  }, [isOpen, initialContent]);
+  }, [isOpen, initialContent, clearSaveFeedback]);
 
   const handleSave = useCallback(async () => {
+    clearSaveFeedback();
     setIsSaving(true);
     try {
       await updateCustomization({
@@ -60,11 +64,19 @@ export const SkillEditorModal = memo(function SkillEditorModal({
       onClose();
     } catch (error) {
       console.error('Failed to save skill customization:', error);
-      toast.error('Failed to save skill customization. Please try again.');
+      showSaveError('Failed to save skill customization. Please try again.');
     } finally {
       setIsSaving(false);
     }
-  }, [updateCustomization, chatroomId, customizationId, content, onClose]);
+  }, [
+    updateCustomization,
+    chatroomId,
+    customizationId,
+    content,
+    onClose,
+    clearSaveFeedback,
+    showSaveError,
+  ]);
 
   const handleCancel = useCallback(() => {
     setContent(initialContent);
@@ -122,6 +134,8 @@ export const SkillEditorModal = memo(function SkillEditorModal({
             </div>
           )}
         </div>
+
+        <InlineFeedback feedback={saveFeedback} />
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-2 pt-2">
