@@ -5,7 +5,6 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { toast } from 'sonner';
 
 import { Z_FLOATING } from './shared/overlayLayers';
 import type {
@@ -19,12 +18,13 @@ import {
   SAVED_COMMAND_SCOPE_HINTS,
   SAVED_COMMAND_SCOPE_LABELS,
   SAVED_COMMAND_SCOPES,
-  SAVED_COMMAND_SCOPE_SHORT_LABELS,
   SAVED_COMMAND_TYPE_LABELS,
   SAVED_COMMAND_TYPES,
 } from '../types/savedCommand';
 import { checkDuplicateSavedCommandName } from '../utils/savedCommandValidation';
 
+import { InlineFeedback } from '@/components/inline-feedback';
+import { useFeedback } from '@/hooks/useFeedback';
 import { exhaustive } from '@/lib/exhaustive';
 
 interface SavedCommandModalProps {
@@ -102,6 +102,7 @@ function SavedCommandForm({
   const [promptText, setPromptText] = useState(initial?.type === 'prompt' ? initial.prompt : '');
   const [nameError, setNameError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { feedback: saveFeedback, error: showSaveError, clear: clearSaveFeedback } = useFeedback();
   const nameInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -111,8 +112,7 @@ function SavedCommandForm({
   // Focus name input when modal opens
   useEffect(() => {
     if (!isOpen) return;
-    const focusTimer = setTimeout(() => nameInputRef.current?.focus(), 50);
-    return () => clearTimeout(focusTimer);
+    nameInputRef.current?.focus();
   }, [isOpen]);
 
   // Handle Escape key to dismiss
@@ -158,6 +158,7 @@ function SavedCommandForm({
   const handleSubmit = useCallback(async () => {
     const trimmedName = name.trim();
     if (!trimmedName || isSubmitting) return;
+    clearSaveFeedback();
 
     // Duplicate name check (case-insensitive, scope-aware)
     const dupErr = checkDuplicateSavedCommandName(trimmedName, scope, existingNamesByScope, {
@@ -198,19 +199,17 @@ function SavedCommandForm({
             : {}),
           command: updatePayload,
         });
-        toast.success(`Updated ${SAVED_COMMAND_SCOPE_SHORT_LABELS[scope].toLowerCase()} command`);
       } else {
         await createSavedCommand({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           command: createPayload,
         });
-        toast.success(`Saved ${SAVED_COMMAND_SCOPE_SHORT_LABELS[scope].toLowerCase()} command`);
       }
       onCreated?.();
       onClose();
     } catch (error) {
       console.error('Failed to save command:', error);
-      toast.error(savedCommandErrorMessage(error));
+      showSaveError(savedCommandErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -228,6 +227,8 @@ function SavedCommandForm({
     chatroomId,
     onCreated,
     onClose,
+    clearSaveFeedback,
+    showSaveError,
   ]);
 
   const handleKeyDown = useCallback(
@@ -393,6 +394,8 @@ function SavedCommandForm({
 
           {/* Type-specific body */}
           {renderTypeBody()}
+
+          <InlineFeedback feedback={saveFeedback} />
         </div>
 
         {/* Footer */}

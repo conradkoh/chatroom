@@ -428,4 +428,89 @@ describe('SavedCommandModal component', () => {
     const scopeSelect = screen.getByLabelText(/^scope$/i) as HTMLSelectElement;
     expect(scopeSelect.value).toBe('user');
   });
+
+  it('shows a failed save inline and keeps the modal open', async () => {
+    mockCreateSavedCommand.mockRejectedValue(new Error('network down'));
+    const onClose = vi.fn();
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={onClose}
+        existingNamesByScope={emptyNamesByScope}
+      />
+    );
+    await user.type(screen.getByLabelText(/^name$/i), 'My Command');
+    await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
+
+    await user.click(screen.getByRole('button', { name: /save command/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to save command. Please try again.'
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows the server duplicate-name copy inline', async () => {
+    mockCreateSavedCommand.mockRejectedValue(new Error('COMMAND_NAME_DUPLICATE'));
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={vi.fn()}
+        existingNamesByScope={emptyNamesByScope}
+      />
+    );
+    await user.type(screen.getByLabelText(/^name$/i), 'My Command');
+    await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
+
+    await user.click(screen.getByRole('button', { name: /save command/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'A command with that name already exists in this scope.'
+    );
+  });
+
+  it('clears a failed save when the next submit starts', async () => {
+    mockCreateSavedCommand
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(undefined);
+    const onClose = vi.fn();
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={onClose}
+        existingNamesByScope={emptyNamesByScope}
+      />
+    );
+    await user.type(screen.getByLabelText(/^name$/i), 'My Command');
+    await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
+    await user.click(screen.getByRole('button', { name: /save command/i }));
+    await screen.findByRole('alert');
+
+    await user.click(screen.getByRole('button', { name: /save command/i }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('closes after a successful create without showing any message', async () => {
+    const onClose = vi.fn();
+    render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={onClose}
+        existingNamesByScope={emptyNamesByScope}
+      />
+    );
+    await user.type(screen.getByLabelText(/^name$/i), 'My Command');
+    await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
+
+    await user.click(screen.getByRole('button', { name: /save command/i }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });
