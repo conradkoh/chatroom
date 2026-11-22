@@ -116,6 +116,38 @@ interface StoredDraft {
   updatedAt: number;
 }
 
+function ComposerAlert({
+  message,
+  dismissLabel,
+  onDismiss,
+}: {
+  message: string;
+  dismissLabel: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="mx-2 mt-1.5 flex items-start gap-1.5 px-2 py-1.5 border-2 border-chatroom-status-error/40 bg-chatroom-status-error/10"
+    >
+      <AlertTriangle
+        size={14}
+        className="flex-shrink-0 mt-0.5 text-chatroom-status-error"
+        aria-hidden
+      />
+      <p className="flex-1 text-xs text-chatroom-status-error break-words">{message}</p>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="flex-shrink-0 text-chatroom-status-error/60 hover:text-chatroom-status-error"
+        aria-label={dismissLabel}
+      >
+        <X size={12} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 function parseDraft(raw: string | null): string | null {
   if (!raw) return null;
   try {
@@ -424,6 +456,9 @@ export function MessageInput({
     handleFileInputChange,
     handlePaste,
     attachFiles,
+    attachError,
+    dismissAttachError,
+    dismissUploadJob,
   } = useChatInputFileDrop({
     machineId,
     workingDir,
@@ -677,30 +712,23 @@ export function MessageInput({
         </div>
       )}
 
-      {/* Inline send-error banner */}
+      {/* Inline composer alerts */}
       {sendError && (
-        <div
-          role="alert"
-          className="mx-2 mt-1.5 flex items-start gap-1.5 px-2 py-1.5 border-2 border-chatroom-status-error/40 bg-chatroom-status-error/10"
-        >
-          <AlertTriangle
-            size={14}
-            className="flex-shrink-0 mt-0.5 text-chatroom-status-error"
-            aria-hidden
-          />
-          <p className="flex-1 text-xs text-chatroom-status-error break-words">{sendError}</p>
-          <button
-            type="button"
-            onClick={() => setSendError(null)}
-            className="flex-shrink-0 text-chatroom-status-error/60 hover:text-chatroom-status-error"
-            aria-label="Dismiss send error"
-          >
-            <X size={12} aria-hidden />
-          </button>
-        </div>
+        <ComposerAlert
+          message={sendError}
+          dismissLabel="Dismiss send error"
+          onDismiss={() => setSendError(null)}
+        />
+      )}
+      {attachError && (
+        <ComposerAlert
+          message={attachError}
+          dismissLabel="Dismiss attach error"
+          onDismiss={dismissAttachError}
+        />
       )}
 
-      <WorkspaceUploadProgressList jobs={uploadJobs} embedded />
+      <WorkspaceUploadProgressList jobs={uploadJobs} embedded onDismiss={dismissUploadJob} />
 
       {/* Add attachment */}
       <div className={composerAccessoryRowClassName}>

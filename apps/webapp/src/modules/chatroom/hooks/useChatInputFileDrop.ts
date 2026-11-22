@@ -12,7 +12,6 @@ import {
   type RefObject,
   type ClipboardEvent,
 } from 'react';
-import { toast } from 'sonner';
 
 import { getImageFilesFromClipboard } from './clipboardImageFiles';
 import { formatFileReferenceFinal } from '../triggers/fileReferenceQuery';
@@ -23,6 +22,8 @@ import {
   isOsFileDrag,
   shouldCommitOsFileDragLeave,
 } from '../workspace/utils/osFileDrag';
+
+const NO_WORKSPACE_MESSAGE = 'Connect a workspace to attach files';
 
 type UseChatInputFileDropArgs = {
   machineId?: string | null;
@@ -44,15 +45,16 @@ export function useChatInputFileDrop({
   const dragDepthRef = useRef(0);
   const pendingSelectionRef = useRef<{ text: string; cursor: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
 
-  const { jobs, startUpload } = useWorkspaceUploadJobs({
+  const { jobs, startUpload, dismissJob } = useWorkspaceUploadJobs({
     machineId: machineId ?? null,
     workingDir: workingDir ?? null,
     errorDismissMs: false,
     onUploadComplete: () => onUploadComplete?.(),
-    onUploadFailed: (filePath, error) =>
-      toast.error(`Upload failed: ${filePath}`, { description: error }),
   });
+
+  const dismissAttachError = useCallback(() => setAttachError(null), []);
 
   useLayoutEffect(() => {
     const pending = pendingSelectionRef.current;
@@ -88,9 +90,10 @@ export function useChatInputFileDrop({
   const attachFiles = useCallback(
     (files: File[]) => {
       if (!machineId || !workingDir) {
-        toast.error('Connect a workspace to attach files');
+        setAttachError(NO_WORKSPACE_MESSAGE);
         return;
       }
+      setAttachError(null);
       if (files.length === 0) return;
 
       const caret = textareaRef.current?.selectionStart ?? message.length;
@@ -160,5 +163,8 @@ export function useChatInputFileDrop({
     handleFileInputChange,
     handlePaste,
     attachFiles,
+    attachError,
+    dismissAttachError,
+    dismissUploadJob: dismissJob,
   };
 }

@@ -54,7 +54,10 @@ function ProgressRow({
       {isError ? (
         <div className="flex items-start gap-1">
           {job.errorMessage ? (
-            <p className="min-w-0 flex-1 break-words text-[10px] text-chatroom-status-error">
+            <p
+              role="alert"
+              className="min-w-0 flex-1 break-words text-[10px] text-chatroom-status-error"
+            >
               {job.errorMessage}
             </p>
           ) : null}

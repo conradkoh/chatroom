@@ -61,6 +61,15 @@ describe('WorkspaceUploadProgressList', () => {
     expect(screen.getByText('Disk full')).toBeInTheDocument();
   });
 
+  it('announces an upload error message as an alert', () => {
+    render(
+      <WorkspaceUploadProgressList
+        jobs={[job({ phase: 'error', percent: 0, errorMessage: 'Disk full' })]}
+      />
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Disk full');
+  });
+
   it('shows the error message in the error text colour', () => {
     render(
       <WorkspaceUploadProgressList jobs={[job({ phase: 'error', errorMessage: 'Disk full' })]} />

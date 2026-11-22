@@ -9,46 +9,10 @@ import { MessageInput } from './MessageInput';
 import { AttachmentsProvider } from '../attachments';
 
 const mockSendMessage = vi.fn().mockResolvedValue('msg-id');
-const mockStartUpload = vi.fn();
-const mockToastError = vi.fn();
-let uploadJobs: {
-  id: string;
-  phase: string;
-  percent: number;
-  filePath: string;
-  fileName: string;
-}[] = [];
+const mockUploadFile = vi.fn();
 
-vi.mock('sonner', () => ({
-  toast: { error: (...args: unknown[]) => mockToastError(...args) },
-}));
-
-vi.mock('../hooks/useChatInputFileDrop', () => ({
-  useChatInputFileDrop: (args: {
-    message: string;
-    setMessage: (value: string) => void;
-    machineId?: string | null;
-    workingDir?: string | null;
-  }) => ({
-    uploadJobs,
-    isDragging: false,
-    handleDragEnter: vi.fn(),
-    handleDragLeave: vi.fn(),
-    handleDragOver: vi.fn(),
-    handleDrop: (event: React.DragEvent) => {
-      if (!args.machineId || !args.workingDir) {
-        mockToastError('Connect a workspace to attach files');
-        return;
-      }
-      const files = Array.from(event.dataTransfer.files);
-      if (files.length === 0) return;
-      const refs = files.map((file) => `.chatroom/downloads/attachments/files/uuid_${file.name}`);
-      args.setMessage(`${args.message} ${refs.join(' ')}`.trim());
-      files.forEach((file, index) => {
-        mockStartUpload(refs[index], file, { uploadKind: 'chatAttachment' });
-      });
-    },
-  }),
+vi.mock('../workspace/hooks/useWorkspaceFileUpload', () => ({
+  useWorkspaceFileUpload: () => ({ uploadFile: mockUploadFile }),
 }));
 
 beforeAll(() => {
@@ -104,10 +68,9 @@ function makeDropEvent(files: File[]): React.DragEvent {
 
 describe('MessageInput file drop', () => {
   beforeEach(() => {
-    uploadJobs = [];
     mockSendMessage.mockClear();
-    mockStartUpload.mockClear();
-    mockToastError.mockClear();
+    mockUploadFile.mockReset();
+    mockUploadFile.mockResolvedValue(undefined);
   });
 
   it('starts uploads for dropped files in order', () => {
@@ -122,27 +85,22 @@ describe('MessageInput file drop', () => {
     const container = document.querySelector('[data-main-chat-composer]');
     fireEvent.drop(container!, makeDropEvent([makeFile('a.txt'), makeFile('b.txt')]));
 
-    expect(mockStartUpload).toHaveBeenCalledTimes(2);
-    expect(mockStartUpload.mock.calls[0]?.[2]).toEqual({ uploadKind: 'chatAttachment' });
-    expect((textarea as HTMLTextAreaElement).value).toContain('uuid_a.txt');
-    expect((textarea as HTMLTextAreaElement).value).toContain('uuid_b.txt');
+    expect(mockUploadFile).toHaveBeenCalledTimes(2);
+    expect(mockUploadFile.mock.calls[0]?.[0]).toContain('a.txt');
+    expect(mockUploadFile.mock.calls[0]?.[3]).toEqual({ uploadKind: 'chatAttachment' });
+    expect((textarea as HTMLTextAreaElement).value).toContain('a.txt');
+    expect((textarea as HTMLTextAreaElement).value).toContain('b.txt');
   });
 
   it('blocks send while uploads are active', () => {
-    uploadJobs = [
-      {
-        id: 'job-1',
-        phase: 'uploading',
-        percent: 10,
-        filePath: 'path/a.txt',
-        fileName: 'a.txt',
-      },
-    ];
-
+    mockUploadFile.mockReturnValue(new Promise(() => {}));
     renderComposer({
       machineId: 'machine-1',
       workingDir: '/workspace',
     });
+
+    const container = document.querySelector('[data-main-chat-composer]');
+    fireEvent.drop(container!, makeDropEvent([makeFile('a.txt')]));
 
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: 'ready to send' } });
@@ -154,12 +112,29 @@ describe('MessageInput file drop', () => {
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
-  it('shows toast when dropping without a workspace', () => {
+  it('shows the no-workspace message inline when dropping without a workspace', () => {
     renderComposer();
-
     const container = document.querySelector('[data-main-chat-composer]');
     fireEvent.drop(container!, makeDropEvent([makeFile('a.txt')]));
+    expect(screen.getByRole('alert')).toHaveTextContent('Connect a workspace to attach files');
+    expect(mockUploadFile).not.toHaveBeenCalled();
+  });
 
-    expect(mockToastError).toHaveBeenCalledWith('Connect a workspace to attach files');
+  it('dismisses the no-workspace message from its close button', () => {
+    renderComposer();
+    const container = document.querySelector('[data-main-chat-composer]');
+    fireEvent.drop(container!, makeDropEvent([makeFile('a.txt')]));
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss attach error' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows a failed upload inline and lets the user dismiss it', async () => {
+    mockUploadFile.mockRejectedValueOnce(new Error('Disk full'));
+    renderComposer({ machineId: 'machine-1', workingDir: '/workspace' });
+    const container = document.querySelector('[data-main-chat-composer]');
+    fireEvent.drop(container!, makeDropEvent([makeFile('a.txt')]));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Disk full');
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
