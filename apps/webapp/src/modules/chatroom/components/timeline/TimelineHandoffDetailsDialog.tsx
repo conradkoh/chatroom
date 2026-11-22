@@ -5,10 +5,15 @@ import { memo, useRef, type RefObject } from 'react';
 
 import { TimelineFileAttachments } from './TimelineFileAttachments';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
-import { TimelineMessageRoute, TimelineMessageTypeBadge } from './TimelineMessageIdentity';
+import {
+  TimelineMessageRoute,
+  TimelineMessageTypeBadge,
+  TimelineSenderAgentChip,
+} from './TimelineMessageIdentity';
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
 import { MessageAttachmentChips } from '../../attachments';
 import { formatHandoffDurationTitle } from '../../timeline/handoffTiming';
+import { getSenderAgentLabel } from '../../timeline/senderAgentLabel';
 import type { Message } from '../../types/message';
 import { formatTimestampFull } from '../../utils/chatroomTimestamp';
 
@@ -39,6 +44,30 @@ function getDialogName(message: Message): string {
 }
 
 /**
+ * Accessible description: timestamp, optional elapsed time, optional sender agent.
+ * With no snapshot and no duration this is exactly `Sent <timestamp>`.
+ */
+function getDialogDescription(
+  message: Message,
+  handoffDurationMs?: number,
+  handoffDurationSlow?: boolean
+): string {
+  const parts = [`Sent ${formatTimestampFull(message._creationTime)}`];
+  if (handoffDurationMs !== undefined) {
+    parts.push(formatHandoffDurationTitle(handoffDurationMs, Boolean(handoffDurationSlow)));
+  }
+  const agent = getSenderAgentLabel(message.type, message.senderAgent);
+  if (agent) {
+    parts.push(
+      `Sent by ${message.senderRole} using ${agent.harness}${
+        agent.model !== undefined ? `, model ${agent.model}` : ''
+      }.`
+    );
+  }
+  return parts.join('. ');
+}
+
+/**
  * Full details of a collapsible handoff row, rendered in a modal dialog.
  *
  * The row owns `open` and mounts this only after the first open, so the markdown
@@ -58,11 +87,7 @@ export const TimelineHandoffDetailsDialog = memo(function TimelineHandoffDetails
   handoffDurationSlow,
 }: TimelineHandoffDetailsDialogProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
-  const sent = `Sent ${formatTimestampFull(message._creationTime)}`;
-  const description =
-    handoffDurationMs !== undefined
-      ? `${sent}. ${formatHandoffDurationTitle(handoffDurationMs, Boolean(handoffDurationSlow))}`
-      : sent;
+  const description = getDialogDescription(message, handoffDurationMs, handoffDurationSlow);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,6 +111,11 @@ export const TimelineHandoffDetailsDialog = memo(function TimelineHandoffDetails
               senderRole={message.senderRole}
               targetRole={message.targetRole}
               sourcePlatform={message.sourcePlatform}
+            />
+            <TimelineSenderAgentChip
+              type={message.type}
+              senderAgent={message.senderAgent}
+              placement="dialog"
             />
           </div>
           <DialogTitle className="sr-only">{getDialogName(message)}</DialogTitle>

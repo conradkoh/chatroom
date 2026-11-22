@@ -35,6 +35,12 @@ export interface AttachedSnippet {
   selectedContent: string;
 }
 
+/** Harness and model of the agent that sent a handoff, as stored at handoff time. Informational only. */
+export interface SenderAgentSnapshot {
+  harness: string;
+  model?: string;
+}
+
 /** Message shape used throughout the chatroom feed UI. */
 export interface Message {
   startInNewSession?: boolean;
@@ -50,6 +56,11 @@ export interface Message {
   acknowledgedAt?: number;
   /** When the origin task completed and the handoff was emitted. */
   completedAt?: number;
+  /**
+   * Handoff messages only: harness + model of the sender at handoff time.
+   * Absent on legacy rows and on non-handoff types. Normalize before display via getSenderAgentLabel.
+   */
+  senderAgent?: SenderAgentSnapshot;
   taskId?: string;
   /** Source platform for messages from external integrations (e.g. 'telegram') */
   sourcePlatform?: string;

@@ -21,6 +21,7 @@ export function toMessage(m: any): Message {
     taskOriginMessageId: m.taskOriginMessageId,
     acknowledgedAt: m.acknowledgedAt,
     completedAt: m.completedAt,
+    senderAgent: m.senderAgent,
     taskId: m.taskId,
     sourcePlatform: m.sourcePlatform,
     attachedTasks: m.attachedTasks,

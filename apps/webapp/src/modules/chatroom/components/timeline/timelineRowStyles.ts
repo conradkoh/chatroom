@@ -44,6 +44,20 @@ export const BADGE_BASE =
 
 export const ICON_SIZE = 10;
 
+/**
+ * Sender harness + model chip. Same 10px inline-flex metrics as BADGE_BASE so the header height
+ * does not change; no uppercase, no bold, no icon, and only the muted approved tokens.
+ */
+export const TIMELINE_SENDER_AGENT_CHIP =
+  'inline-flex min-w-0 items-center gap-1 whitespace-nowrap text-[10px] px-1.5 py-0.5 ' +
+  'text-chatroom-text-muted bg-chatroom-bg-tertiary';
+
+/** Row header placement: capped so a long label cannot push the right-aligned route off the line. */
+export const TIMELINE_SENDER_AGENT_CHIP_ROW = 'max-w-[10rem] sm:max-w-[16rem]';
+
+/** Dialog header placement: the dialog header has the full width. */
+export const TIMELINE_SENDER_AGENT_CHIP_DIALOG = 'max-w-full';
+
 export function getSenderClasses(role: string): string {
   const base = 'font-bold text-[10px] uppercase tracking-wide';
   if (role.toLowerCase() === 'user') {

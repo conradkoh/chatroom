@@ -38,4 +38,31 @@ describe('toMessage', () => {
 
     expect(message.attachedFiles).toBeUndefined();
   });
+
+  it('passes the handoff sender agent snapshot through unchanged', () => {
+    const senderAgent = { harness: 'opencode', model: 'gpt-5.1-codex' };
+
+    const message = toMessage({
+      _id: 'msg-1',
+      type: 'handoff',
+      senderRole: 'builder',
+      content: 'Done',
+      _creationTime: 1000,
+      senderAgent,
+    });
+
+    expect(message.senderAgent).toEqual(senderAgent);
+  });
+
+  it('leaves senderAgent undefined for legacy rows', () => {
+    const message = toMessage({
+      _id: 'msg-1',
+      type: 'handoff',
+      senderRole: 'builder',
+      content: 'Done',
+      _creationTime: 1000,
+    });
+
+    expect(message.senderAgent).toBeUndefined();
+  });
 });
