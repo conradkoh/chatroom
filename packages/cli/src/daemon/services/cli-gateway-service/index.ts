@@ -6,8 +6,15 @@ import type { TaskService } from '../service-interfaces.js';
 
 export type CliGatewayLog = { timestamp: number; message: string };
 
+/** Live harness/model of the sending agent, captured by the daemon at handoff time. */
+export type SenderAgentSnapshot = { harness: string; model?: string | undefined };
+
+type HandoffArgs = Parameters<HandoffGatewayOps['handoff']>[0];
+/** What the gateway commits to the backend: the CLI args plus the daemon-owned snapshot. */
+type CommitHandoffArgs = HandoffArgs & { senderAgent?: SenderAgentSnapshot | undefined };
+
 export interface CliGatewayService {
-  handoff(args: Parameters<HandoffGatewayOps['handoff']>[0]): Promise<HandoffResult>;
+  handoff(args: HandoffArgs): Promise<HandoffResult>;
   debugState(): { port: number; logs: readonly CliGatewayLog[] };
 }
 
@@ -16,6 +23,11 @@ export function createCliGatewayService(deps: {
   port: number;
   taskService: Pick<TaskService, 'recordHandoffOutcome' | 'loadAssignedTaskForAction'> &
     Partial<Pick<TaskService, 'listTasksForRole'>>;
+  /**
+   * Resolves the sender's live harness/model for a handoff. May return undefined.
+   * If it throws, the handoff still proceeds without a snapshot.
+   */
+  resolveSenderAgent: (chatroomId: string, role: string) => SenderAgentSnapshot | undefined;
   log?: (message: string) => void;
 }): CliGatewayService {
   const logs: CliGatewayLog[] = [];
@@ -27,8 +39,13 @@ export function createCliGatewayService(deps: {
   return {
     handoff: async (args) => {
       writeLog(`request handoff chatroom=${args.chatroomId} role=${args.senderRole}`);
+      const senderAgent = captureSenderAgent(deps, args, writeLog);
       const taskIdsBeforeCommit = getActiveTaskIdsForRole(deps, args);
-      const result = await commitHandoffMutation(deps, args, writeLog);
+      const result = await commitHandoffMutation(
+        deps,
+        withDaemonSenderAgent(args, senderAgent),
+        writeLog
+      );
       writeLog(`backend result success=${result.success}`);
       if (result.success) {
         await syncTaskServiceAfterHandoff(deps, args, result, taskIdsBeforeCommit, writeLog);
@@ -37,6 +54,47 @@ export function createCliGatewayService(deps: {
     },
     debugState: () => ({ port: deps.port, logs: [...logs] }),
   };
+}
+
+/**
+ * Maps a live agent slot to the snapshot stored on the handoff. Undefined when the
+ * slot has no harness (never started, or reset to idle). Model is omitted when unset.
+ */
+export function snapshotSenderAgent(
+  slot: { harness?: string | undefined; model?: string | undefined } | undefined
+): SenderAgentSnapshot | undefined {
+  if (!slot?.harness) return undefined;
+  return slot.model ? { harness: slot.harness, model: slot.model } : { harness: slot.harness };
+}
+
+/** Resolves the snapshot without ever throwing: a resolver failure only drops the snapshot. */
+function captureSenderAgent(
+  deps: Pick<Parameters<typeof createCliGatewayService>[0], 'resolveSenderAgent'>,
+  args: HandoffArgs,
+  writeLog: (message: string) => void
+): SenderAgentSnapshot | undefined {
+  try {
+    return deps.resolveSenderAgent(args.chatroomId, args.senderRole);
+  } catch (error) {
+    writeLog(
+      `sender-agent unavailable chatroom=${args.chatroomId} role=${args.senderRole} error=${error instanceof Error ? error.message : String(error)}`
+    );
+    return undefined;
+  }
+}
+
+/**
+ * The daemon owns sender identity. Any `senderAgent` the client put in the socket
+ * payload is dropped; only the daemon-resolved snapshot (if any) is committed.
+ */
+function withDaemonSenderAgent(
+  args: HandoffArgs,
+  senderAgent: SenderAgentSnapshot | undefined
+): CommitHandoffArgs {
+  const { senderAgent: _clientSupplied, ...trusted } = args as HandoffArgs & {
+    senderAgent?: unknown;
+  };
+  return senderAgent ? { ...trusted, senderAgent } : trusted;
 }
 
 /**
@@ -61,7 +119,7 @@ function getActiveTaskIdsForRole(
 /** Runs the backend handoff mutation, logging and rethrowing on failure. */
 async function commitHandoffMutation(
   deps: { backend: BackendOps },
-  args: Parameters<HandoffGatewayOps['handoff']>[0],
+  args: CommitHandoffArgs,
   writeLog: (message: string) => void
 ): Promise<HandoffResult> {
   try {

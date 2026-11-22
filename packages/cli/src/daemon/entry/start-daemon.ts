@@ -25,7 +25,10 @@ import { ingestChatroomEvent } from '../local-web/client/lib/socket.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 import { createEventStreamHub } from '../local-web/server/event-stream-hub.js';
 import { createLogStreamHub } from '../local-web/server/log-stream-hub.js';
-import { createCliGatewayService } from '../services/cli-gateway-service/index.js';
+import {
+  createCliGatewayService,
+  snapshotSenderAgent,
+} from '../services/cli-gateway-service/index.js';
 import type { AgentWorkManager } from '../services/service-interfaces.js';
 
 export async function startDaemon(): Promise<void> {
@@ -68,6 +71,8 @@ export async function startDaemon(): Promise<void> {
     backend: init.backend,
     port: localWebPort,
     taskService: init.taskService,
+    resolveSenderAgent: (chatroomId, role) =>
+      snapshotSenderAgent(init.agentProcessManager.getSlot(chatroomId, role)),
   });
   // fallow-ignore-next-line complexity
   const debugState = async (chatroomId: string) => {
