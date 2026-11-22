@@ -59,13 +59,6 @@
     "**/test-utils.{ts,tsx}",
     // Test-only characterisation renderer imported by the per-team *.snapshot.test.ts files.
     "**/role-prompt-characterisation.ts",
-    // Temporary: the per-team identity modules land before the section migration that imports
-    // them. Remove these four entries in the commit that routes role identity through the
-    // team registry.
-    "services/backend/prompts/role-identity-fallback.ts",
-    "services/backend/prompts/teams/*/prompts/role-identity.ts",
-    "services/backend/prompts/teams/registry.ts",
-    "services/backend/prompts/types/role-identity.ts",
     "**/vitest.config.{ts,mts}",
     "packages/cli/src/testing/**",
     "packages/cli/src/convex-api/**",
@@ -178,6 +171,11 @@
     {
       "file": "**/src/domain/entities/project-root.ts",
       "exports": ["isSameOrNestedPath"],
+    },
+    // Exported for the per-team identity resolution spec. Spec files are not analysis entries.
+    {
+      "file": "**/prompts/teams/registry.ts",
+      "exports": ["TEAM_PROMPT_MODULES"],
     },
   ],
   "duplicates": {

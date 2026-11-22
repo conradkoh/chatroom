@@ -18,9 +18,9 @@ import {
   type RoleHandoffContract,
 } from './cli/handoff-templates/contracts';
 import { listDuoRoleHandoffContracts } from './teams/duo/handoff-templates';
+import { resolveRoleIdentity, TEAM_PROMPT_MODULES } from './teams/registry';
 import { listSoloRoleHandoffContracts } from './teams/solo/handoff-templates';
 import { listTrioRoleHandoffContracts } from './teams/trio/handoff-templates';
-import { BUILTIN_ROLE_TEMPLATES } from './templates';
 
 const contractLists: Record<TeamPresetId, () => readonly RoleHandoffContract[]> = {
   duo: listDuoRoleHandoffContracts,
@@ -57,12 +57,13 @@ describe('builtin role capability contracts', () => {
       for (const role of preset.roles) {
         const definition = definitions[role as keyof typeof definitions];
         const structuralRole = structure.roles.find((entry) => entry.role === role)!;
-        const template = BUILTIN_ROLE_TEMPLATES[role as keyof typeof BUILTIN_ROLE_TEMPLATES];
+        const identity = resolveRoleIdentity({ team: teamId, role });
         const contract = contracts.find((entry) => entry.role === role)!;
         expect(role).not.toBe('user');
         expect(role).not.toBe('enhancer');
-        expect(template).toBeDefined();
-        expect(template.role).toBe(role);
+        expect(TEAM_PROMPT_MODULES[teamId].roleIdentity).toHaveProperty([role]);
+        expect(identity.title.trim()).not.toBe('');
+        expect(identity.description.trim()).not.toBe('');
         expect(structuralRole.lifecycle).toBe(definition.tags[0]);
         expect(structuralRole.optional).toBe(
           definition.tags[0] === AgentRoleLifecycleTag.Ephemeral
