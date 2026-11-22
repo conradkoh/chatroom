@@ -3,11 +3,15 @@
 import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { ChevronRight, Users } from 'lucide-react';
-import { useMemo, memo, type RefObject } from 'react';
+import { useMemo, useState, memo, type RefObject } from 'react';
 
 import { CommandQueuePanel } from './AgentPanel/CommandQueuePanel';
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
-import { ApplyTopFavoriteModelsButton } from '../features/machine-config/components/ApplyTopFavoriteModelsButton';
+import {
+  ApplyTopFavoriteModelsButton,
+  ApplyTopFavoritesFeedbackLine,
+} from '../features/machine-config/components/ApplyTopFavoriteModelsButton';
+import type { ApplyTopFavoritesFeedback } from '../features/machine-config/lib/topFavoriteModels';
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import type { AgentRoleStatusReadModel } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
@@ -207,6 +211,8 @@ export const AgentPanel = memo(function AgentPanel({
   }, [agentConfigs]);
   const hiddenPermanentRoleCount = Math.max(0, permanentRoles.length - SIDEBAR_PREVIEW_LIMIT);
 
+  const [applyFeedback, setApplyFeedback] = useState<ApplyTopFavoritesFeedback | null>(null);
+
   // Use hook to get derived agent statuses (lifecycle + event stream)
   const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
     rolesToShow,
@@ -253,36 +259,39 @@ export const AgentPanel = memo(function AgentPanel({
 
       {/* Team selector — own row below the Agents header */}
       {teams && defaultTeamId && onTeamChange && (
-        <SidebarSection.Toolbar>
-          <div className="flex-1 min-w-0">
-            <TeamSelectorDropdown
-              teamName={teamName ?? 'Select team'}
-              teamId={teamId}
-              defaultTeamId={defaultTeamId}
-              teams={teams}
-              onTeamChange={onTeamChange}
-            />
-          </div>
-          {teamStructure && (
-            <div
-              className="flex items-center gap-1.5 flex-shrink-0"
-              data-testid="agent-team-actions"
-            >
-              <RemoteAgentQuickActions
-                hasRunningAgents={hasRunningRemoteAgents}
-                canStop={canStopRemoteAgents}
-                isStopping={isStoppingAgents}
-                onStart={onStartAllRemoteAgents}
-                onStop={onStopAllRemoteAgents}
-                onRestart={onRestartAllRemoteAgents}
-                disabled={isStartingAllAgents}
-                isStarting={isStartingAllAgents}
-                startButtonRef={startAllButtonRef}
+        <>
+          <SidebarSection.Toolbar>
+            <div className="flex-1 min-w-0">
+              <TeamSelectorDropdown
+                teamName={teamName ?? 'Select team'}
+                teamId={teamId}
+                defaultTeamId={defaultTeamId}
+                teams={teams}
+                onTeamChange={onTeamChange}
               />
-              <ApplyTopFavoriteModelsButton variant="icon" />
             </div>
-          )}
-        </SidebarSection.Toolbar>
+            {teamStructure && (
+              <div
+                className="flex items-center gap-1.5 flex-shrink-0"
+                data-testid="agent-team-actions"
+              >
+                <RemoteAgentQuickActions
+                  hasRunningAgents={hasRunningRemoteAgents}
+                  canStop={canStopRemoteAgents}
+                  isStopping={isStoppingAgents}
+                  onStart={onStartAllRemoteAgents}
+                  onStop={onStopAllRemoteAgents}
+                  onRestart={onRestartAllRemoteAgents}
+                  disabled={isStartingAllAgents}
+                  isStarting={isStartingAllAgents}
+                  startButtonRef={startAllButtonRef}
+                />
+                <ApplyTopFavoriteModelsButton variant="icon" onFeedbackChange={setApplyFeedback} />
+              </div>
+            )}
+          </SidebarSection.Toolbar>
+          <ApplyTopFavoritesFeedbackLine feedback={applyFeedback} className="px-3 py-1.5" />
+        </>
       )}
       <CommandQueuePanel machineId={machineId} />
       {/* Agent rows — the right sidebar container scrolls, not this wrapper */}
