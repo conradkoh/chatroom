@@ -172,11 +172,6 @@
       "file": "**/src/domain/entities/project-root.ts",
       "exports": ["isSameOrNestedPath"],
     },
-    // Exported for the per-team identity resolution spec. Spec files are not analysis entries.
-    {
-      "file": "**/prompts/teams/registry.ts",
-      "exports": ["TEAM_PROMPT_MODULES"],
-    },
   ],
   "duplicates": {
     "ignore": [
