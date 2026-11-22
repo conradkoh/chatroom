@@ -39,7 +39,7 @@ describe('explorer upload error rows', () => {
     vi.useRealTimers();
   });
 
-  it('keeps a failed upload as one error row past the auto-dismiss window, with no alert', async () => {
+  it('keeps a failed upload as one announcing error row past the auto-dismiss window', async () => {
     render(<UploadRowsHarness startRef={startRef} />);
     await act(async () => {
       await startRef.current?.('docs/a.zip', new File(['x'], 'a.zip'));
@@ -50,7 +50,7 @@ describe('explorer upload error rows', () => {
 
     expect(screen.getAllByText('Disk full')).toHaveLength(1);
     expect(screen.getByText('Disk full')).toHaveClass('text-chatroom-status-error');
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent('Disk full');
   });
 
   it('removes the failed row when its Dismiss control is pressed', async () => {
