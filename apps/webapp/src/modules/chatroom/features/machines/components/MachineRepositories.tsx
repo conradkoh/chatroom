@@ -1,8 +1,8 @@
 'use client';
 
+import type { BulkCreateOutcome } from '@workspace/backend/src/domain/usecase/chatroom/create-chatrooms-for-working-dirs';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useCallback, useDeferredValue, useMemo, useRef, useState, type ReactNode } from 'react';
-import { toast } from 'sonner';
 
 import { BulkCreateButton } from './BulkCreateButton';
 import { BulkCreateDialog } from './BulkCreateDialog';
@@ -35,6 +35,18 @@ const EXPIRED_COPY = 'That snapshot expired. Load it again.';
 const INTRO_COPY =
   "Repositories are read from this machine's daemon when you ask. The list is a snapshot, not kept in sync.";
 const TIMED_OUT_COPY = 'The daemon did not respond. It may need updating, or it went offline.';
+const ALREADY_HAS_CHATROOM_COPY = 'This repository already has a chatroom.';
+const CREATE_FAILED_COPY = 'Could not create the chatroom. Try again.';
+
+/** Inline create outcomes keyed by repository path. */
+type RowMessages = Readonly<Record<string, string>>;
+
+/** Inline copy for a create outcome; 'created' shows nothing because the row already flips. */
+function createOutcomeMessage(outcome: BulkCreateOutcome): string | undefined {
+  if (outcome.outcome === 'skipped') return ALREADY_HAS_CHATROOM_COPY;
+  if (outcome.outcome === 'failed') return outcome.message || CREATE_FAILED_COPY;
+  return undefined;
+}
 
 export interface MachineRepositoriesProps {
   machineId: string;
@@ -210,6 +222,7 @@ interface RepositoryListSectionProps {
   displayName: string;
   connected: boolean | undefined;
   creatingPath: string | null;
+  createMessages: RowMessages;
   onCreate: (path: string) => void;
 }
 
@@ -221,6 +234,7 @@ function RepositoryListSection({
   displayName,
   connected,
   creatingPath,
+  createMessages,
   onCreate,
 }: RepositoryListSectionProps) {
   const [filter, setFilter] = useState('');
@@ -265,6 +279,7 @@ function RepositoryListSection({
               entry={entry}
               disabled={connected !== true}
               creating={creatingPath === entry.path}
+              message={createMessages[entry.path]}
               onCreate={onCreate}
             />
           )}
@@ -294,6 +309,7 @@ interface LedgerReadyProps {
   connected: boolean | undefined;
   currentRootPaths: readonly string[] | undefined;
   creatingPath: string | null;
+  createMessages: RowMessages;
   onCreate: (path: string) => void;
 }
 
@@ -306,6 +322,7 @@ function LedgerReady({
   connected,
   currentRootPaths,
   creatingPath,
+  createMessages,
   onCreate,
 }: LedgerReadyProps) {
   const { entries, isLoadingPages } = ledger;
@@ -339,6 +356,7 @@ function LedgerReady({
           displayName={displayName}
           connected={connected}
           creatingPath={creatingPath}
+          createMessages={createMessages}
           onCreate={onCreate}
         />
       )}
@@ -399,6 +417,7 @@ interface LedgerBodyProps {
   connected: boolean | undefined;
   currentRootPaths: readonly string[] | undefined;
   creatingPath: string | null;
+  createMessages: RowMessages;
   onCreate: (path: string) => void;
 }
 
@@ -410,6 +429,7 @@ function LedgerBody({
   connected,
   currentRootPaths,
   creatingPath,
+  createMessages,
   onCreate,
 }: LedgerBodyProps) {
   const { snapshot, view } = ledger;
@@ -424,6 +444,7 @@ function LedgerBody({
         connected={connected}
         currentRootPaths={currentRootPaths}
         creatingPath={creatingPath}
+        createMessages={createMessages}
         onCreate={onCreate}
       />
     );
@@ -453,22 +474,31 @@ export function MachineRepositories({
   const ledger = useRepositoryLedger(machineId, { connected, hasRoots });
   const { createOne } = useBulkCreateChatrooms();
   const [creatingPath, setCreatingPath] = useState<string | null>(null);
+  const [createMessages, setCreateMessages] = useState<RowMessages>({});
+
+  const setCreateMessage = useCallback((path: string, message: string | undefined) => {
+    setCreateMessages((current) => {
+      const next = { ...current };
+      if (message === undefined) delete next[path];
+      else next[path] = message;
+      return next;
+    });
+  }, []);
 
   const handleCreate = useCallback(
     async (path: string) => {
       setCreatingPath(path);
+      setCreateMessage(path, undefined);
       try {
         const outcome = await createOne(machineId, path);
-        if (outcome.outcome === 'created') toast.success('Chatroom created');
-        else if (outcome.outcome === 'skipped') toast('This repository already has a chatroom');
-        else toast.error(outcome.message);
+        setCreateMessage(path, createOutcomeMessage(outcome));
       } catch (error) {
-        toast.error(getMachineErrorCopy(error, 'Could not create the chatroom. Try again.'));
+        setCreateMessage(path, getMachineErrorCopy(error, CREATE_FAILED_COPY));
       } finally {
         setCreatingPath(null);
       }
     },
-    [createOne, machineId]
+    [createOne, machineId, setCreateMessage]
   );
 
   return (
@@ -481,6 +511,7 @@ export function MachineRepositories({
         connected={connected}
         currentRootPaths={currentRootPaths}
         creatingPath={creatingPath}
+        createMessages={createMessages}
         onCreate={handleCreate}
       />
     </div>

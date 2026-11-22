@@ -346,7 +346,164 @@ describe('MachineRepositories', () => {
       machineId: 'm-1',
       workingDirs: [target.path],
     });
-    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Chatroom created'));
+    await waitFor(() =>
+      expect(within(row).getByRole('button', { name: 'Create chatroom' })).toBeEnabled()
+    );
+    expect(mocks.toast).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows an already-has-chatroom skip inline in its row and no toast', async () => {
+    const user = userEvent.setup();
+    const target = entry('/Users/me/projects/a');
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1 }));
+    mocks.page = makePage({ results: [target], status: 'Exhausted' });
+    mocks.createMany.mockResolvedValue({
+      results: [
+        {
+          workingDir: target.path,
+          outcome: 'skipped',
+          reason: 'already_has_chatroom',
+          chatroomId: 'room-1',
+        },
+      ],
+      created: 0,
+      skipped: 1,
+      failed: 0,
+    });
+    renderRepositories();
+
+    await clickLoad(user);
+    const row = await screen.findByTestId('repository-row');
+    await user.click(within(row).getByRole('button', { name: 'Create chatroom' }));
+
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      'This repository already has a chatroom.'
+    );
+    expect(mocks.toast).not.toHaveBeenCalled();
+  });
+
+  it('shows a failed outcome message inline in the affected row only', async () => {
+    const user = userEvent.setup();
+    const bad = entry('/Users/me/projects/a');
+    const other = entry('/Users/me/projects/b');
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 2 }));
+    mocks.page = makePage({ results: [bad, other], status: 'Exhausted' });
+    mocks.createMany.mockResolvedValue({
+      results: [
+        {
+          workingDir: bad.path,
+          outcome: 'failed',
+          code: 'INVALID_WORKING_DIR',
+          message: "That path isn't valid.",
+        },
+      ],
+      created: 0,
+      skipped: 0,
+      failed: 1,
+    });
+    renderRepositories();
+
+    await clickLoad(user);
+    const [badRow, otherRow] = await screen.findAllByTestId('repository-row');
+    await user.click(within(badRow).getByRole('button', { name: 'Create chatroom' }));
+
+    expect(await within(badRow).findByRole('alert')).toHaveTextContent("That path isn't valid.");
+    expect(within(otherRow).queryByRole('alert')).toBeNull();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(mocks.toast).not.toHaveBeenCalled();
+  });
+
+  it('shows the fallback copy when a failed outcome has no message', async () => {
+    const user = userEvent.setup();
+    const target = entry('/Users/me/projects/a');
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1 }));
+    mocks.page = makePage({ results: [target], status: 'Exhausted' });
+    mocks.createMany.mockResolvedValue({
+      results: [
+        { workingDir: target.path, outcome: 'failed', code: 'INVALID_WORKING_DIR', message: '' },
+      ],
+      created: 0,
+      skipped: 0,
+      failed: 1,
+    });
+    renderRepositories();
+
+    await clickLoad(user);
+    const row = await screen.findByTestId('repository-row');
+    await user.click(within(row).getByRole('button', { name: 'Create chatroom' }));
+
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      'Could not create the chatroom. Try again.'
+    );
+    expect(mocks.toast).not.toHaveBeenCalled();
+  });
+
+  it('shows the fallback copy inline when the create call throws', async () => {
+    const user = userEvent.setup();
+    const target = entry('/Users/me/projects/a');
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 1 }));
+    mocks.page = makePage({ results: [target], status: 'Exhausted' });
+    mocks.createMany.mockRejectedValue(
+      new Error('[CONVEX M(chatrooms:createManyWithWorkspace)] boom')
+    );
+    renderRepositories();
+
+    await clickLoad(user);
+    const row = await screen.findByTestId('repository-row');
+    await user.click(within(row).getByRole('button', { name: 'Create chatroom' }));
+
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      'Could not create the chatroom. Try again.'
+    );
+    expect(mocks.toast).not.toHaveBeenCalled();
+  });
+
+  it('keeps an inline failure until the next create from that row', async () => {
+    const user = userEvent.setup();
+    const bad = entry('/Users/me/projects/a');
+    const other = entry('/Users/me/projects/b');
+    mocks.rows.set('req-1', completedRow({ repositoryCount: 2 }));
+    mocks.page = makePage({ results: [bad, other], status: 'Exhausted' });
+    const created = (workingDir: string) => ({
+      results: [
+        { workingDir, outcome: 'created', chatroomId: 'room-1', workspaceId: 'workspace-1' },
+      ],
+      created: 1,
+      skipped: 0,
+      failed: 0,
+    });
+    mocks.createMany
+      .mockResolvedValueOnce({
+        results: [
+          {
+            workingDir: bad.path,
+            outcome: 'failed',
+            code: 'INVALID_WORKING_DIR',
+            message: 'Nope.',
+          },
+        ],
+        created: 0,
+        skipped: 0,
+        failed: 1,
+      })
+      .mockResolvedValueOnce(created(other.path))
+      .mockResolvedValueOnce(created(bad.path));
+    renderRepositories();
+
+    await clickLoad(user);
+    const [badRow, otherRow] = await screen.findAllByTestId('repository-row');
+    await user.click(within(badRow).getByRole('button', { name: 'Create chatroom' }));
+    expect(await within(badRow).findByRole('alert')).toHaveTextContent('Nope.');
+
+    await user.click(within(otherRow).getByRole('button', { name: 'Create chatroom' }));
+    await waitFor(() => expect(mocks.createMany).toHaveBeenCalledTimes(2));
+    expect(within(badRow).getByRole('alert')).toHaveTextContent('Nope.');
+
+    await user.click(within(badRow).getByRole('button', { name: 'Create chatroom' }));
+    await waitFor(() => expect(mocks.createMany).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(within(badRow).queryByRole('alert')).toBeNull());
+    expect(mocks.toast).not.toHaveBeenCalled();
   });
 
   it('shows page progress while the snapshot rows load', async () => {
