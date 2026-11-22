@@ -52,8 +52,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionPaginatedQuery: () => undefined,
 }));
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
 const REGISTERED_AT = Date.UTC(2026, 10, 3, 12);
 const THREE_HOURS_AGO = Date.now() - 3 * 3600_000;
 

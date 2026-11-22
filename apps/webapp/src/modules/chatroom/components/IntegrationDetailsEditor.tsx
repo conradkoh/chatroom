@@ -13,7 +13,6 @@ import type { FunctionReturnType } from 'convex/server';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2, X } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 
 import { IntegrationDetailFields, evaluateIntegrationDetails } from './IntegrationDetailFields';
 import { integrationErrorMessage } from './integrationErrorMessage';
@@ -63,7 +62,6 @@ export function IntegrationDetailsEditor({ integration, onClose }: IntegrationDe
           ? { description: r.description.ok ? (r.description.value ?? '') : '' }
           : {}),
       });
-      toast.success('Integration details saved');
       onClose();
       return;
     } catch (err) {
@@ -102,7 +100,11 @@ export function IntegrationDetailsEditor({ integration, onClose }: IntegrationDe
         hadDescription={!!integration.description}
         onNameEnter={handleSave}
       />
-      {saveError && <p className="text-xs text-chatroom-status-error">{saveError}</p>}
+      {saveError && (
+        <p role="alert" className="text-xs text-chatroom-status-error">
+          {saveError}
+        </p>
+      )}
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button
           variant="outline"

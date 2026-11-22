@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useState, type MouseEvent } from
 import { collectExpandedDirsForFilter, type ExplorerTreeNode } from './explorerTreeFilter';
 import { WorkspaceFileExplorerVirtualizedTree } from './WorkspaceFileExplorerVirtualizedTree';
 import { isExplorerSearchMode } from '../files/explorer-tree';
+import type { WorkspaceTreeSyncFeedback } from '../files/useRequestWorkspaceFileTree';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
@@ -34,6 +35,8 @@ interface WorkspaceFileExplorerProps {
   dropHighlightPath?: string | null;
   onNodeContextMenu?: (node: ExplorerTreeNode, event: MouseEvent) => void;
   onEmptyAreaContextMenu?: (event: MouseEvent) => void;
+  /** Sink for tree-sync failures, owned by the panel's explorer feedback slot. */
+  treeSyncFeedback?: WorkspaceTreeSyncFeedback;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -74,6 +77,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   dropHighlightPath = null,
   onNodeContextMenu,
   onEmptyAreaContextMenu,
+  treeSyncFeedback,
 }: WorkspaceFileExplorerProps) {
   const expandedPathsStorageKey = getExpandedPathsStorageKey(chatroomId, workingDir);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
@@ -88,6 +92,7 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
       searchQuery: isExplorerSearchMode(trimmedFilter) ? trimmedFilter : '',
       filterQuery: isExplorerSearchMode(trimmedFilter) ? '' : filterQuery,
       refreshSignal,
+      treeSyncFeedback,
     });
 
   const filterExpandedDirs = useMemo(() => {

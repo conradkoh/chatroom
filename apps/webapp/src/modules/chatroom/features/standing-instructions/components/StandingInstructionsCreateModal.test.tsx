@@ -96,4 +96,19 @@ describe('StandingInstructionsCreateModal', () => {
     expect(confirmBtn.className).toContain('bg-chatroom-accent');
     expect(confirmBtn.className).toContain('text-chatroom-bg-primary');
   });
+
+  it('keeps the dialog open and shows the fallback copy inline when create fails', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn().mockRejectedValue(new Error('network down'));
+    render(<StandingInstructionsCreateModal open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
+
+    await user.type(screen.getByPlaceholderText('Enter standing instructions…'), 'rule body');
+    await user.type(screen.getByPlaceholderText('Title'), 'My rule');
+    await user.click(screen.getByText('Confirm'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to save standing instruction.'
+    );
+    expect(screen.getByText('Create standing instruction')).toBeInTheDocument();
+  });
 });

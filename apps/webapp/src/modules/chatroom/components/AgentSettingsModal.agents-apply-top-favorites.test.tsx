@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
   favoritesByKey: {} as Record<string, { agentHarness: string; model: string }[] | undefined>,
   saveConfig: vi.fn(),
   genericMutation: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
   teamStructure: undefined as unknown,
   workspaceContext: null as unknown,
   useAgentPanelData: vi.fn(),
@@ -77,10 +75,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       getAgentConfigForWorkspaceRole: 'agentWorkspaces:getAgentConfigForWorkspaceRole',
     },
   },
-}));
-
-vi.mock('sonner', () => ({
-  toast: { success: mocks.toastSuccess, error: mocks.toastError },
 }));
 
 vi.mock('../hooks/useAgentPanelData', () => ({
@@ -225,11 +219,10 @@ describe('AgentSettingsModal agents apply top favourites', () => {
       model: 'gpt-5',
       workingDir: '/repo',
     });
-    await waitFor(() =>
-      expect(mocks.toastSuccess).toHaveBeenCalledWith(
-        'Applied top favourite model to 2 agent(s). Restart agents to use it.'
-      )
+    const feedback = await screen.findByText(
+      'Applied top favourite model to 2 agent(s). Restart agents to use it.'
     );
+    expect(feedback).toHaveAttribute('role', 'status');
   });
 
   it('disables the button and shows the empty reason when no role has a favourite', () => {

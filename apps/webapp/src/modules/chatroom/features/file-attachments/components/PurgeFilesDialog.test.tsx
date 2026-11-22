@@ -207,7 +207,7 @@ describe('PurgeFilesDialog', () => {
     });
   });
 
-  it('shows an error line and lets the user retry', async () => {
+  it('announces the error inside the open dialog and lets the user retry', async () => {
     mocks.purgeFiles.mockRejectedValueOnce({
       data: { code: 'ACCESS_DENIED', message: 'You do not have access to these files' },
     });
@@ -217,7 +217,8 @@ describe('PurgeFilesDialog', () => {
 
     fireEvent.click(actionButton());
 
-    expect(await screen.findByText("You don't have access to these files.")).toBeInTheDocument();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent("You don't have access to these files.");
     expect(actionButton()).toBeEnabled();
 
     fireEvent.click(actionButton());

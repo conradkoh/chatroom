@@ -16,6 +16,7 @@ import {
 type DeleteInviteDialogProps = {
   deleteTarget: InviteSummary | null;
   isDeleting: boolean;
+  error?: string | null;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 };
@@ -23,6 +24,7 @@ type DeleteInviteDialogProps = {
 export function DeleteInviteDialog({
   deleteTarget,
   isDeleting,
+  error,
   onOpenChange,
   onConfirm,
 }: DeleteInviteDialogProps) {
@@ -36,10 +38,21 @@ export function DeleteInviteDialog({
             undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            onClick={(event) => {
+              // AlertDialogAction is a base-ui Close primitive here, so a click closes the
+              // dialog unless the base handler is prevented. Keep it open so a delete failure
+              // shows inside it; the page closes it on success.
+              event.preventBaseUIHandler();
+              onConfirm();
+            }}
             disabled={isDeleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >

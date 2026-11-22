@@ -2,11 +2,11 @@
 
 import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
-import { toast } from 'sonner';
 
 import { getFileAttachmentErrorMessage, isQuotaFieldError } from '../lib/fileAttachmentErrors';
 import { BYTES_PER_MB, formatFileSize } from '../lib/formatFileSize';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,10 +73,6 @@ function rangeErrorFor(dirty: boolean, parsedMb: number | null, maxMb: number): 
   return dirty && parsedMb === null ? rangeMessage(maxMb) : null;
 }
 
-function fieldErrorFor(serverError: string | null, rangeError: string | null): string | null {
-  return serverError ?? rangeError;
-}
-
 function pendingEffectiveFor(pendingBytes: number | null, capBytes?: number): number | null {
   return pendingBytes === null ? null : effectiveLimitFor(pendingBytes, capBytes);
 }
@@ -91,38 +87,22 @@ function confirmCopy(
   return `${subject} uses ${formatFileSize(usedBytes)}. The new limit is ${formatFileSize(effectiveBytes)}, so at least ${formatFileSize(removedBytes)} of the oldest files will be removed in the background. Files still uploading are kept.`;
 }
 
-interface RunSaveArgs {
-  bytes: number;
-  maxMb: number;
-  save: StorageQuotaFormProps['save'];
-  onSaved: () => void;
-  onFieldError: (message: string) => void;
-}
+type SaveOutcome = { ok: true; evictionScheduled: boolean } | { ok: false; message: string };
 
-/** Runs the mutation and routes a quota validation error back to the field. */
-async function runSave({
-  bytes,
-  maxMb,
-  save,
-  onSaved,
-  onFieldError,
-}: RunSaveArgs): Promise<boolean> {
+/** Runs the mutation and returns the outcome as data. Never shows a transient notification, never throws. */
+async function runSave(
+  save: StorageQuotaFormProps['save'],
+  bytes: number,
+  maxMb: number
+): Promise<SaveOutcome> {
   try {
     const result = await save(bytes);
-    if (result.evictionScheduled) {
-      toast('Limit saved. Removing oldest files to fit.');
-    } else {
-      toast.success('Storage limit saved');
-    }
-    onSaved();
-    return true;
+    return { ok: true, evictionScheduled: result.evictionScheduled };
   } catch (err) {
-    if (isQuotaFieldError(err)) {
-      onFieldError(errorMessageOf(err, maxMb));
-    } else {
-      toast.error(getFileAttachmentErrorMessage(err));
-    }
-    return false;
+    const message = isQuotaFieldError(err)
+      ? errorMessageOf(err, maxMb)
+      : getFileAttachmentErrorMessage(err);
+    return { ok: false, message };
   }
 }
 
@@ -148,26 +128,34 @@ interface QuotaMutationArgs {
   onSaved: () => void;
 }
 
+/**
+ * A failed save stays in `saveError` until the next save attempt. The eviction
+ * note stays until the next save attempt too. Both are cleared at the start of
+ * `execute`, never on input edits.
+ */
 function useQuotaMutation({ save, maxMb, usedBytes, capBytes, onSaved }: QuotaMutationArgs) {
   const [saving, setSaving] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [evictionNote, setEvictionNote] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingBytes, setPendingBytes] = useState<number | null>(null);
 
   const execute = async (bytes: number) => {
     setSaving(true);
-    setServerError(null);
+    setSaveError(null);
+    setEvictionNote(false);
     try {
-      const saved = await runSave({
-        bytes,
-        maxMb,
-        save,
-        onSaved,
-        onFieldError: setServerError,
-      });
-      if (saved) setConfirmOpen(false);
+      const outcome = await runSave(save, bytes, maxMb);
+      if (outcome.ok) {
+        setEvictionNote(outcome.evictionScheduled);
+        onSaved();
+      } else {
+        setSaveError(outcome.message);
+      }
     } finally {
       setSaving(false);
+      // Close the confirm dialog on every attempt so an inline failure is not hidden behind it.
+      setConfirmOpen(false);
     }
   };
 
@@ -188,8 +176,8 @@ function useQuotaMutation({ save, maxMb, usedBytes, capBytes, onSaved }: QuotaMu
 
   return {
     saving,
-    serverError,
-    clearServerError: () => setServerError(null),
+    saveError,
+    evictionNote,
     confirmOpen,
     setConfirmOpen,
     pendingEffectiveBytes: pendingEffectiveFor(pendingBytes, capBytes),
@@ -198,8 +186,29 @@ function useQuotaMutation({ save, maxMb, usedBytes, capBytes, onSaved }: QuotaMu
   };
 }
 
-function QuotaFieldError({ message }: { message: string | null }) {
+/** Client-side range hint: plain field text, no role. */
+function QuotaRangeHint({ message }: { message: string | null }) {
   return message ? <p className="text-[11px] text-chatroom-status-error">{message}</p> : null;
+}
+
+/** A failed save: `role="alert"` beside the form. Stays until the next save attempt. */
+function QuotaSaveError({ message }: { message: string | null }) {
+  return (
+    <InlineFeedback
+      variant="text"
+      feedback={message ? { id: 1, tone: 'error', message } : null}
+      data-testid="quota-save-error"
+    />
+  );
+}
+
+/** Persistent, plain text (no role). Stays until the next save attempt. */
+function QuotaEvictionNote({ visible }: { visible: boolean }) {
+  return visible ? (
+    <p data-testid="quota-eviction-note" className="text-[11px] text-chatroom-text-muted">
+      Limit saved. Removing oldest files to fit.
+    </p>
+  ) : null;
 }
 
 function QuotaSaveButton({ canSave, saving }: { canSave: boolean; saving: boolean }) {
@@ -214,7 +223,7 @@ interface QuotaEditorRowProps {
   id: string;
   draftMb: string;
   maxMb: number;
-  fieldError: string | null;
+  invalid: boolean;
   canSave: boolean;
   saving: boolean;
   onChange: (value: string) => void;
@@ -224,7 +233,7 @@ function QuotaEditorRow({
   id,
   draftMb,
   maxMb,
-  fieldError,
+  invalid,
   canSave,
   saving,
   onChange,
@@ -245,10 +254,10 @@ function QuotaEditorRow({
             value={draftMb}
             onChange={(event) => onChange(event.target.value)}
             disabled={saving}
-            aria-invalid={!!fieldError}
+            aria-invalid={invalid}
             className={cn(
               'h-8 w-32 rounded-none text-xs',
-              fieldError && 'border-chatroom-status-error'
+              invalid && 'border-chatroom-status-error'
             )}
           />
           <span className="text-xs text-chatroom-text-muted">MB</span>
@@ -258,7 +267,6 @@ function QuotaEditorRow({
           Max {maxMb} MB. 0 blocks new uploads.
         </span>
       </div>
-      <QuotaFieldError message={fieldError} />
     </>
   );
 }
@@ -335,7 +343,7 @@ export function StorageQuotaForm({
     capBytes,
     onSaved: reset,
   });
-  const fieldError = fieldErrorFor(mutation.serverError, rangeErrorFor(dirty, parsedMb, maxMb));
+  const rangeError = rangeErrorFor(dirty, parsedMb, maxMb);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -348,14 +356,14 @@ export function StorageQuotaForm({
         id={id}
         draftMb={draftMb}
         maxMb={maxMb}
-        fieldError={fieldError}
+        invalid={mutation.saveError !== null || rangeError !== null}
         canSave={dirty && parsedMb !== null}
         saving={mutation.saving}
-        onChange={(value) => {
-          edit(value);
-          mutation.clearServerError();
-        }}
+        onChange={edit}
       />
+      <QuotaRangeHint message={rangeError} />
+      <QuotaSaveError message={mutation.saveError} />
+      <QuotaEvictionNote visible={mutation.evictionNote} />
       <LowerLimitDialog
         open={mutation.confirmOpen}
         onOpenChange={mutation.setConfirmOpen}

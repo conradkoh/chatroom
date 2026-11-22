@@ -1,10 +1,11 @@
 /**
  * Smoke tests for ProcessesPanel.
  *
- * Tests: renders header, sidebar items, detail panel switching, clear-stuck button.
+ * Tests: renders header, sidebar items, detail panel switching, clear-stuck button,
+ * and the clear-stuck outcome slot (success, failure, dismiss, next-attempt reset).
  */
 
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -17,8 +18,10 @@ import type {
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
+const { clearStuckMock } = vi.hoisted(() => ({ clearStuckMock: vi.fn() }));
+
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionMutation: () => vi.fn().mockResolvedValue({ clearedCount: 0 }),
+  useSessionMutation: () => clearStuckMock,
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
@@ -111,11 +114,20 @@ const defaultProps = {
   onClearRun: vi.fn(),
 };
 
+const confirmClearStuck = () => {
+  fireEvent.click(screen.getByRole('button', { name: /clear stuck/i }));
+  fireEvent.click(
+    within(screen.getByTestId('alert-dialog')).getByRole('button', { name: 'Clear stuck' })
+  );
+};
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('ProcessesPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearStuckMock.mockReset();
+    clearStuckMock.mockResolvedValue({ clearedCount: 0 });
   });
 
   it('renders the Processes panel header', () => {
@@ -175,5 +187,60 @@ describe('ProcessesPanel', () => {
   it('shows running process count when runs are active', () => {
     render(<ProcessesPanel {...defaultProps} runs={[defaultRun]} />);
     expect(screen.getAllByText(/Running \(1\)/i).length).toBeGreaterThan(0);
+  });
+
+  it('shows the cleared count as a status summary above the two-pane layout', async () => {
+    clearStuckMock.mockResolvedValueOnce({ clearedCount: 2 });
+    render(<ProcessesPanel {...defaultProps} runs={[defaultRun]} />);
+    confirmClearStuck();
+
+    const slot = await screen.findByTestId('processes-feedback');
+    expect(slot).toHaveAttribute('role', 'status');
+    expect(slot).toHaveTextContent('Cleared 2 stuck command(s)');
+    expect(
+      slot.compareDocumentPosition(screen.getByTestId('resizable-group')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('shows a failure as an alert with the error message', async () => {
+    clearStuckMock.mockRejectedValueOnce(new Error('Daemon unreachable'));
+    render(<ProcessesPanel {...defaultProps} runs={[defaultRun]} />);
+    confirmClearStuck();
+
+    const slot = await screen.findByTestId('processes-feedback');
+    expect(slot).toHaveAttribute('role', 'alert');
+    expect(slot).toHaveTextContent('Daemon unreachable');
+  });
+
+  it('uses the generic failure copy when the rejection is not an Error', async () => {
+    clearStuckMock.mockRejectedValueOnce('boom');
+    render(<ProcessesPanel {...defaultProps} runs={[defaultRun]} />);
+    confirmClearStuck();
+
+    const slot = await screen.findByTestId('processes-feedback');
+    expect(slot).toHaveAttribute('role', 'alert');
+    expect(slot).toHaveTextContent('Failed to clear stuck commands');
+  });
+
+  it('removes the outcome when Dismiss is clicked', async () => {
+    clearStuckMock.mockResolvedValueOnce({ clearedCount: 1 });
+    render(<ProcessesPanel {...defaultProps} runs={[defaultRun]} />);
+    confirmClearStuck();
+
+    const slot = await screen.findByTestId('processes-feedback');
+    fireEvent.click(within(slot).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByTestId('processes-feedback')).not.toBeInTheDocument();
+  });
+
+  it('clears the previous outcome as soon as the next attempt starts', async () => {
+    clearStuckMock.mockRejectedValueOnce(new Error('Daemon unreachable'));
+    render(<ProcessesPanel {...defaultProps} runs={[defaultRun]} />);
+    confirmClearStuck();
+    await screen.findByTestId('processes-feedback');
+
+    clearStuckMock.mockReturnValueOnce(new Promise(() => {})); // second attempt never settles
+    confirmClearStuck();
+    expect(screen.queryByTestId('processes-feedback')).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 'use client';
-/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-initialize-state, @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-initialize-state, @typescript-eslint/no-explicit-any */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
@@ -24,14 +24,11 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { toast } from 'sonner';
 
 import {
   AttachmentsProvider,
   dispatchComposerPrefill,
   dispatchComposerTextPrefill,
-  PREFILL_TOAST_MESSAGE,
-  SAVED_COMMAND_PREFILL_TOAST_MESSAGE,
 } from './attachments';
 import { ActivityBar, type ActivityView } from './components/ActivityBar';
 import { AgentPanel } from './components/AgentPanel';
@@ -78,11 +75,13 @@ import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
-import { useChatroomAgentOperations } from './hooks/useChatroomAgentOperations';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useChatroomStatus } from './hooks/useChatroomStatus';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
+import { useDashboardAgentBulkActions } from './hooks/useDashboardAgentBulkActions';
+import { useDashboardSavedCommandDelete } from './hooks/useDashboardSavedCommandDelete';
+import { useDashboardWorkspaceRefresh } from './hooks/useDashboardWorkspaceRefresh';
 import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
 import { useStartAllRemoteAgents } from './hooks/useStartAllRemoteAgents';
 import { StartInNewSessionPreferenceProvider } from './hooks/useStartInNewSessionPreference';
@@ -91,6 +90,10 @@ import type { AgentConfig } from './types/machine';
 import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
 import { ensureRestartAgentRolesConfigured, runAgentRestartBatch } from './utils/agentBulkStart';
 import { isFocusModeActive } from './utils/focusMode';
+import {
+  getSelectionPrefillNotice,
+  isMessagesComposerVisible,
+} from './utils/selectionPrefillNotice';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
 import { EditorSplitDropOverlay } from './workspace/components/EditorSplitDropOverlay';
@@ -125,9 +128,12 @@ import type { FileLocation } from './workspace/utils/fileLocation';
 import { pendingHighlightForLocation } from './workspace/utils/openFileLocation';
 import { resolveWorkspaceFileLinkOpenTarget } from './workspace/utils/workspaceFileLink';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { useCopyOwnedFeedback } from '@/hooks/useCopyOwnedFeedback';
+import { useFeedback } from '@/hooks/useFeedback';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { exhaustive } from '@/lib/exhaustive';
@@ -383,6 +389,11 @@ interface ExplorerContentProps {
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
   agenticFocusToken: number;
+  /** Sinks for file-tab copy commands; the dashboard strip owns the feedback slot. */
+  copyHandlers: {
+    onCopied: (info: { truncated: boolean }) => void;
+    onCopyError: (message: string) => void;
+  };
 }
 
 // fallow-ignore-next-line complexity
@@ -398,7 +409,8 @@ function areExplorerContentStaticPropsEqual(
     prev.onOpenPreview === next.onOpenPreview &&
     prev.onOpenTableView === next.onOpenTableView &&
     prev.onSendSelectionToComposer === next.onSendSelectionToComposer &&
-    prev.agenticFocusToken === next.agenticFocusToken
+    prev.agenticFocusToken === next.agenticFocusToken &&
+    prev.copyHandlers === next.copyHandlers
   );
 }
 
@@ -422,8 +434,8 @@ function areExplorerContentPropsEqual(
   );
 }
 
-// fallow-ignore-next-line complexity
-const ExplorerContent = memo(function ExplorerContent({
+// fallow-ignore-next-line complexity unused-export
+export const ExplorerContent = memo(function ExplorerContent({
   fileTabs,
   activeWorkspace,
   autocompleteFiles,
@@ -433,21 +445,32 @@ const ExplorerContent = memo(function ExplorerContent({
   onOpenTableView,
   onSendSelectionToComposer,
   agenticFocusToken,
+  copyHandlers,
 }: ExplorerContentProps) {
   const machineId = activeWorkspace?.machineId ?? '';
   const workingDir = activeWorkspace?.workingDir ?? '';
   const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
+  const {
+    feedback: openOnRemoteFeedback,
+    show: showOpenOnRemoteFeedback,
+    error: showOpenOnRemoteError,
+    clear: clearOpenOnRemoteFeedback,
+  } = useFeedback();
+
+  const handleOpenFileOnRemote = useCallback(
+    (filePath: string, selection?: string) => {
+      clearOpenOnRemoteFeedback();
+      void openFileOnRemote(filePath, selection).then((outcome) => {
+        if (outcome.status === 'error') showOpenOnRemoteError(outcome.message);
+        else if (outcome.status === 'syncing') showOpenOnRemoteFeedback('info', outcome.message);
+      });
+    },
+    [openFileOnRemote, clearOpenOnRemoteFeedback, showOpenOnRemoteError, showOpenOnRemoteFeedback]
+  );
 
   const activeTab = fileTabs.tabs.find((t) => editorTabKey(t) === fileTabs.activeTabKey) ?? null;
   const activeFilePath = activeTab?.kind === 'file' ? activeTab.filePath : fileTabs.activeTabKey;
   const showTabBar = fileTabs.tabs.length > 0;
-
-  const handleOpenSelectionOnRemote = useCallback(
-    (filePath: string, selectedText: string) => {
-      void openFileOnRemote(filePath, selectedText);
-    },
-    [openFileOnRemote]
-  );
 
   const hasEditorSplit =
     !!fileTabs.editorSplit?.enabled && (fileTabs.editorSplit.secondaryTabKeys.length ?? 0) > 0;
@@ -522,8 +545,9 @@ const ExplorerContent = memo(function ExplorerContent({
       onCloseOthers={fileTabs.closeOtherTabs}
       onPin={fileTabs.pinTab}
       onToggleExpanded={fileTabs.toggleExpanded}
-      onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
+      onOpenFileOnRemote={handleOpenFileOnRemote}
       enableDragSplit
+      {...copyHandlers}
     />
   ) : null;
 
@@ -540,7 +564,7 @@ const ExplorerContent = memo(function ExplorerContent({
     onOpenPreview,
     onOpenTableView,
     onSendSelectionToComposer,
-    onOpenSelectionOnRemote: handleOpenSelectionOnRemote,
+    onOpenSelectionOnRemote: handleOpenFileOnRemote,
   };
 
   const hasMachineAndDir = activeWorkspace?.machineId && activeWorkspace?.workingDir;
@@ -549,6 +573,17 @@ const ExplorerContent = memo(function ExplorerContent({
   return (
     <>
       {showTabBar && !hasEditorSplit && fileTabBar}
+
+      {openOnRemoteFeedback ? (
+        <div className="shrink-0 border-b border-chatroom-border-strong">
+          <InlineFeedback
+            feedback={openOnRemoteFeedback}
+            onDismiss={clearOpenOnRemoteFeedback}
+            data-testid="explorer-tab-open-on-remote-feedback"
+            className="mx-2 my-1.5"
+          />
+        </div>
+      ) : null}
 
       {showContentArea ? (
         <div className="flex-1 flex min-h-0 overflow-hidden [contain:layout]">
@@ -569,8 +604,9 @@ const ExplorerContent = memo(function ExplorerContent({
                       onCloseOthers={fileTabs.closeOtherTabs}
                       onPin={fileTabs.pinTab}
                       onToggleExpanded={fileTabs.toggleExpanded}
-                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                      onOpenFileOnRemote={handleOpenFileOnRemote}
                       enableDragSplit
+                      {...copyHandlers}
                     />
                     {activePrimaryTab ? (
                       <ExplorerEditorTabContent tab={activePrimaryTab} {...editorTabContentProps} />
@@ -599,8 +635,9 @@ const ExplorerContent = memo(function ExplorerContent({
                       onCloseOthers={fileTabs.closeOtherTabs}
                       onPin={fileTabs.pinTab}
                       onTogglePreviewExpanded={fileTabs.togglePreviewExpanded}
-                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                      onOpenFileOnRemote={handleOpenFileOnRemote}
                       enableDragSplit
+                      {...copyHandlers}
                     />
                   ) : null
                 }
@@ -810,11 +847,7 @@ function ChatroomDashboardContent({
 
   useEffect(() => {
     return subscribeCommandDialogAnyClose(() => {
-      const messageInputVisible =
-        activeView === 'messages' ||
-        ((activeView === 'explorer' || activeView === 'source-control') &&
-          explorerSplitViewEnabled);
-      if (messageInputVisible) {
+      if (isMessagesComposerVisible({ activeView, explorerSplitViewEnabled })) {
         setTimeout(() => focusSendFormRef.current?.(), 0);
       }
     });
@@ -831,8 +864,20 @@ function ChatroomDashboardContent({
     conversationNavigationRef.current?.goToLatestAnchor();
   }, []);
 
+  const {
+    feedback: dashboardFeedback,
+    showCopyError: showDashboardCopyError,
+    copySucceeded: dashboardCopySucceeded,
+    clear: clearDashboardFeedback,
+    report: reportDashboardFeedback,
+  } = useCopyOwnedFeedback();
+
   const handleExplorerSelectionToComposer = useCallback(
     ({ filePath, selectedText }: { filePath: string; selectedText: string }) => {
+      // This handler always opens the explorer split view below, so the notice is decided
+      // from the post-open layout.
+      const notice = getSelectionPrefillNotice({ activeView, explorerSplitViewEnabled: true });
+      reportDashboardFeedback(null);
       if (!explorerSplitViewEnabled) {
         setExplorerSplitViewEnabled(true);
       }
@@ -842,9 +887,9 @@ function ChatroomDashboardContent({
         fileSource: filePath,
         selectedContent: selectedText,
       });
-      toast.message(PREFILL_TOAST_MESSAGE);
+      if (notice) reportDashboardFeedback({ tone: 'info', message: notice });
     },
-    [explorerSplitViewEnabled, setExplorerSplitViewEnabled]
+    [activeView, explorerSplitViewEnabled, setExplorerSplitViewEnabled, reportDashboardFeedback]
   );
 
   const handleActivityViewChange = useCallback(
@@ -984,7 +1029,6 @@ function ChatroomDashboardContent({
   // Send message mutation (used to execute saved commands)
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
-  const lastRefreshRef = useRef(0);
 
   useHandoffGitRefresh(
     chatroomId,
@@ -993,19 +1037,10 @@ function ChatroomDashboardContent({
     REFRESH_COOLDOWN_MS
   );
 
-  const handleConfirmedDelete = useCallback(
-    async (commandId: string) => {
-      try {
-        await deleteSavedCommandMutation({
-          commandId: commandId as Id<'chatroom_savedCommands'>,
-        });
-      } catch (error) {
-        console.error('Failed to delete saved command:', error);
-        toast.error('Failed to delete command. Please try again.');
-      }
-    },
-    [deleteSavedCommandMutation]
-  );
+  const handleConfirmedDelete = useDashboardSavedCommandDelete({
+    deleteSavedCommand: deleteSavedCommandMutation,
+    report: reportDashboardFeedback,
+  });
 
   const { armedKey: confirmingDeleteCommandId, request: deleteRequest } = useTwoTapConfirm<string>(
     handleConfirmedDelete,
@@ -1021,16 +1056,16 @@ function ChatroomDashboardContent({
     (cmd: SavedCommand) => {
       switch (cmd.type) {
         case 'prompt':
+          reportDashboardFeedback(null);
           setActivityView('messages');
           dispatchComposerTextPrefill(cmd.prompt);
-          toast.message(SAVED_COMMAND_PREFILL_TOAST_MESSAGE);
           setTimeout(() => focusSendFormRef.current?.(), 0);
           break;
         default:
           exhaustive(cmd.type);
       }
     },
-    [setActivityView]
+    [reportDashboardFeedback, setActivityView]
   );
 
   const savedCommands: SavedCommand[] = useMemo(
@@ -1095,9 +1130,6 @@ function ChatroomDashboardContent({
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData();
-  const { stopAgents, restartAgents } = useChatroomAgentOperations();
-  const [isRequestingStop, setIsRequestingStop] = useState(false);
-  const isStoppingAgents = isRequestingStop;
   const lifecycle = agentPanelData.lifecycle;
 
   // Per-role "last used" config derived from the persisted teamAgentConfigs
@@ -1179,9 +1211,17 @@ function ChatroomDashboardContent({
     (workspace) => workspace.machineId && workspace.workingDir
   );
 
+  const {
+    feedback: previewOpenOnRemoteFeedback,
+    show: showPreviewOpenOnRemoteFeedback,
+    error: showPreviewOpenOnRemoteError,
+    clear: clearPreviewOpenOnRemote,
+  } = useFeedback();
+
   const handleFilePreviewClose = useCallback(() => {
+    clearPreviewOpenOnRemote();
     fileSelector.selectFile('');
-  }, [fileSelector]);
+  }, [clearPreviewOpenOnRemote, fileSelector]);
 
   const openFileLocationInExplorer = useCallback(
     (location: FileLocation) => {
@@ -1208,9 +1248,19 @@ function ChatroomDashboardContent({
 
   const handleOpenFileOnRemote = useCallback(
     (filePath: string) => {
-      void doOpenFileOnRemote(filePath);
+      clearPreviewOpenOnRemote();
+      void doOpenFileOnRemote(filePath).then((outcome) => {
+        if (outcome.status === 'error') showPreviewOpenOnRemoteError(outcome.message);
+        else if (outcome.status === 'syncing')
+          showPreviewOpenOnRemoteFeedback('info', outcome.message);
+      });
     },
-    [doOpenFileOnRemote]
+    [
+      doOpenFileOnRemote,
+      clearPreviewOpenOnRemote,
+      showPreviewOpenOnRemoteError,
+      showPreviewOpenOnRemoteFeedback,
+    ]
   );
 
   // Handler for Cmd+P file selection — opens as pinned tab and reveals in tree
@@ -1368,52 +1418,42 @@ function ChatroomDashboardContent({
   }, [gitHubRepoUrl]);
 
   // ─── Multi-workspace command palette commands ──────────────────────────────
+  const dashboardCopyHandlers = useMemo(
+    () => ({ onCopied: dashboardCopySucceeded, onCopyError: showDashboardCopyError }),
+    [dashboardCopySucceeded, showDashboardCopyError]
+  );
+
   const [workspaceCommands, setWorkspaceCommands] = useState<CommandItem[]>([]);
   const workspaceCommandCallbacks = useMemo(
     () => ({
       sendAction,
       openExternalUrl,
       onOpenGitPanel: handleSwitchToSourceControl,
+      onCopied: dashboardCopySucceeded,
+      onCopyError: showDashboardCopyError,
     }),
-    [sendAction, handleSwitchToSourceControl]
+    [sendAction, handleSwitchToSourceControl, dashboardCopySucceeded, showDashboardCopyError]
   );
 
   // Start all remote agents. The command palette starts unprompted; the agents-sidebar play
   // control runs the favourites check first. See hooks/useStartAllRemoteAgents.ts.
-  const startAll = useStartAllRemoteAgents({ chatroomId });
+  const startAll = useStartAllRemoteAgents({ chatroomId, onFeedback: reportDashboardFeedback });
 
-  // Stop all remote agents immediately from the quick-action button.
-  const handleStopAllRemoteAgents = useCallback(async () => {
-    setIsRequestingStop(true);
-    try {
-      await stopAgents(chatroomId as Id<'chatroom_rooms'>);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to stop agents');
-    } finally {
-      setIsRequestingStop(false);
-    }
-  }, [chatroomId, stopAgents]);
-
-  // Restart all remote agents through the atomic backend restart path.
-  const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
-  const handleRestartAllRemoteAgents = useCallback(async () => {
-    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    setIsRestartingAllAgents(true);
-    try {
-      const result = await restartAgents(chatroomIdTyped);
-      if (result.failed.length > 0) {
-        toast.error(`Failed to restart ${result.failed.length} agent(s)`);
-      } else if (result.requested.length > 0) {
-        toast.success(`Restart requested for ${result.requested.length} agent(s)`);
-      } else {
-        toast.error('No saved agent configuration is available.');
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to restart agents');
-    } finally {
-      // Stay latched until status returns to running; the daemon mutation is async.
-    }
-  }, [chatroomId, restartAgents]);
+  // Stop-all and restart-all report through the dashboard strip. See hooks/useDashboardAgentBulkActions.ts.
+  const isAnyRemoteAgentStarting = agentPanelData.agents.some(
+    (a) => a.role.toLowerCase() !== 'user' && a.state === 'starting'
+  );
+  const {
+    isRequestingStop,
+    isRestartingAllAgents,
+    stopAllRemoteAgents: handleStopAllRemoteAgents,
+    restartAllRemoteAgents: handleRestartAllRemoteAgents,
+  } = useDashboardAgentBulkActions({
+    chatroomId,
+    report: reportDashboardFeedback,
+    isAnyRemoteAgentStarting,
+  });
+  const isStoppingAgents = isRequestingStop;
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
@@ -1430,18 +1470,9 @@ function ChatroomDashboardContent({
     [chatroomStatus?.remoteAgentStatus]
   );
 
-  useEffect(() => {
-    if (!isRestartingAllAgents) return;
-    const remoteAgents = agentPanelData.agents.filter((a) => a.role.toLowerCase() !== 'user');
-    const anyStarting = remoteAgents.some((a) => a.state === 'starting');
-    const allRunning = remoteAgents.length > 0 && remoteAgents.every((a) => a.state === 'running');
-    if (allRunning || (!anyStarting && remoteAgents.some((a) => a.state === 'running'))) {
-      setIsRestartingAllAgents(false);
-    }
-  }, [isRestartingAllAgents, agentPanelData.agents]);
-
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {
+      reportDashboardFeedback(null);
       if (
         !ensureRestartAgentRolesConfigured([role], roleConfigMap, () =>
           handleCmdOpenSettings('agents')
@@ -1459,16 +1490,25 @@ function ChatroomDashboardContent({
           agentViewsByRole,
           chatroomIdTyped,
           agentPanelData.sendCommand,
-          (failed) => {
-            if (failed.length > 0) toast.error(`Failed to restart ${role}`);
-            else toast.success(`Restart requested for ${role}`);
-          }
+          (failed) =>
+            reportDashboardFeedback(
+              failed.length > 0 ? { tone: 'error', message: `Failed to restart ${role}` } : null
+            )
         );
+      } catch {
+        reportDashboardFeedback({ tone: 'error', message: `Failed to restart ${role}` });
       } finally {
         setRestartingAgentRole(null);
       }
     },
-    [agentPanelData, agentViewsByRole, roleConfigMap, chatroomId, handleCmdOpenSettings]
+    [
+      agentPanelData,
+      agentViewsByRole,
+      roleConfigMap,
+      chatroomId,
+      handleCmdOpenSettings,
+      reportDashboardFeedback,
+    ]
   );
 
   const sourceControlPanel = useMemo(
@@ -1544,26 +1584,13 @@ function ChatroomDashboardContent({
     [commandRunner]
   );
 
-  const handleRefreshWorkspaceState = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) {
-      toast('Refresh already in progress — please wait a moment');
-      return;
-    }
-    lastRefreshRef.current = now;
-    try {
-      if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
-        await requestGitRefreshMutation({
-          machineId: activeWorkspace.machineId,
-          workingDir: activeWorkspace.workingDir,
-        });
-      }
-      toast.success('Workspace state refresh requested');
-    } catch (err) {
-      toast.error('Failed to refresh workspace state');
-      console.error('Refresh workspace state failed:', err);
-    }
-  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, requestGitRefreshMutation]);
+  const handleRefreshWorkspaceState = useDashboardWorkspaceRefresh({
+    machineId: activeWorkspace?.machineId ?? undefined,
+    workingDir: activeWorkspace?.workingDir ?? undefined,
+    requestGitRefresh: requestGitRefreshMutation,
+    report: reportDashboardFeedback,
+    cooldownMs: REFRESH_COOLDOWN_MS,
+  });
 
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
@@ -1853,6 +1880,12 @@ function ChatroomDashboardContent({
 
                     {/* Main Content Area */}
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      <InlineFeedback
+                        feedback={dashboardFeedback}
+                        onDismiss={clearDashboardFeedback}
+                        data-testid="dashboard-feedback"
+                        className="m-2 shrink-0"
+                      />
                       {/* Content Toolbar — shown only for workspace views */}
                       {(activeView === 'explorer' || activeView === 'source-control') && (
                         <WorkspaceHeaderRow className="justify-between gap-2 px-2">
@@ -1900,6 +1933,7 @@ function ChatroomDashboardContent({
                                 onOpenTableView={handleOpenTableView}
                                 onSendSelectionToComposer={handleExplorerSelectionToComposer}
                                 agenticFocusToken={agenticFocusToken}
+                                copyHandlers={dashboardCopyHandlers}
                               />
                             ) : (
                               sourceControlPanel
@@ -1988,6 +2022,7 @@ function ChatroomDashboardContent({
                           onOpenTableView={handleOpenTableView}
                           onSendSelectionToComposer={handleExplorerSelectionToComposer}
                           agenticFocusToken={agenticFocusToken}
+                          copyHandlers={dashboardCopyHandlers}
                         />
                       )}
                     </div>
@@ -2047,7 +2082,10 @@ function ChatroomDashboardContent({
                       />
                     </div>
                   </div>
-                  <WorkspaceBottomBar onSwitchToSourceControl={handleSwitchToSourceControl} />
+                  <WorkspaceBottomBar
+                    onSwitchToSourceControl={handleSwitchToSourceControl}
+                    {...dashboardCopyHandlers}
+                  />
                 </div>
 
                 <StartWithFavoritesDialog
@@ -2100,6 +2138,7 @@ function ChatroomDashboardContent({
                   onSelectFile={fileSelector.selectFile}
                   onOpenInExplorer={handleOpenInExplorer}
                   onOpenFileOnRemote={handleOpenFileOnRemote}
+                  openOnRemoteFeedback={previewOpenOnRemoteFeedback}
                 />
 
                 {/* Setup modal - only shown during setup mode */}

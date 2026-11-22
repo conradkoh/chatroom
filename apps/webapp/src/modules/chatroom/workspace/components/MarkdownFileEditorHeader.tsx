@@ -13,6 +13,8 @@ interface MarkdownFileEditorHeaderProps {
   saving: boolean;
   error: string | null;
   onCopy: () => void;
+  /** Shows a check icon in the copy action for the 2 s success window. */
+  copied?: boolean;
   onOpenPreview?: (filePath: string) => void;
   onDismissError?: () => void;
   isDismissingError?: boolean;
@@ -24,6 +26,7 @@ export function MarkdownFileEditorHeader({
   saving,
   error,
   onCopy,
+  copied,
   onOpenPreview,
   onDismissError,
   isDismissingError,
@@ -33,6 +36,7 @@ export function MarkdownFileEditorHeader({
       <FileContentActionBar
         copyLabel="Copy as markdown"
         onCopy={onCopy}
+        copied={copied}
         leading={
           <>
             <span className="text-xs text-chatroom-text-secondary truncate">

@@ -42,10 +42,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('sonner', () => ({
-  toast: { error: vi.fn() },
-}));
-
 const defaultPrompt = {
   _id: 'prompt-1',
   name: 'Daily Standup',
@@ -163,6 +159,56 @@ describe('ScheduledPromptDetailDialog', () => {
       });
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('shows a failed disable inline and keeps the dialog open', async () => {
+    mocks.get.mockReturnValue(defaultPrompt);
+    mocks.listTriggeredMessages.mockReturnValue([]);
+    mocks.setEnabled.mockRejectedValueOnce(new Error('network down'));
+
+    const onOpenChange = vi.fn();
+    render(
+      <ScheduledPromptDetailDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        scheduledPromptId={'prompt-1' as any}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Disable schedule'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to disable schedule. Please try again.'
+    );
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText('Disable schedule')).toBeInTheDocument();
+  });
+
+  it('clears the disable failure when the next attempt starts', async () => {
+    mocks.get.mockReturnValue(defaultPrompt);
+    mocks.listTriggeredMessages.mockReturnValue([]);
+    mocks.setEnabled
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockReturnValueOnce(new Promise(() => {}));
+
+    render(
+      <ScheduledPromptDetailDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        scheduledPromptId={'prompt-1' as any}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Disable schedule'));
+    await screen.findByRole('alert');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Disable schedule' })).not.toBeDisabled()
+    );
+
+    fireEvent.click(screen.getByText('Disable schedule'));
+
+    expect(mocks.setEnabled).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('hides disable button while prompt is loading', () => {

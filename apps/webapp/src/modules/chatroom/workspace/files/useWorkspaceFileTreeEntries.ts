@@ -5,7 +5,10 @@ import type { FileTreeEntry } from '@workspace/backend/src/domain/entities/works
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
 import { fileTreeEntriesToFileEntries } from './fileTreeUtils';
-import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
+import {
+  useRequestWorkspaceFileTree,
+  type WorkspaceTreeSyncFeedback,
+} from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
 import { useWorkspaceFileTreeStoreRevision } from '../hooks/useWorkspaceFileTreeStoreRevision';
@@ -25,6 +28,8 @@ export interface UseWorkspaceFileTreeEntriesArgs {
   workingDir: string;
   enabled?: boolean;
   includeDirectories?: boolean;
+  /** Sink for tree-sync failures. Omit where there is no feedback surface. */
+  treeSyncFeedback?: WorkspaceTreeSyncFeedback;
 }
 
 export interface UseWorkspaceFileTreeEntriesResult {
@@ -41,6 +46,7 @@ export function useWorkspaceFileTreeEntries({
   workingDir,
   enabled = true,
   includeDirectories = false,
+  treeSyncFeedback,
 }: UseWorkspaceFileTreeEntriesArgs): UseWorkspaceFileTreeEntriesResult {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
@@ -49,6 +55,7 @@ export function useWorkspaceFileTreeEntries({
     machineId,
     workingDir: normalizedWorkingDir,
     enabled,
+    treeSyncFeedback,
   });
 
   useWorkspaceFileTreeDeltaSync({
@@ -56,6 +63,7 @@ export function useWorkspaceFileTreeEntries({
     machineId,
     workingDir: normalizedWorkingDir,
     enabled,
+    treeSyncFeedback,
   });
 
   const storeEntries = useSyncExternalStore(

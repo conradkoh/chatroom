@@ -2,7 +2,6 @@
 
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import React, { useCallback, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { getConvexErrorCode, getMachineErrorCopy } from '../lib/machineErrorCopy';
 
@@ -51,44 +50,9 @@ export interface DeleteMachineDialogProps {
   finalFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
-/** `machines.deleteMachine`'s result union. */
-type DeleteMachineResult =
-  | {
-      status: 'deleted';
-      purgeComplete: boolean;
-      detachedWorkspaceCount: number;
-      affectedChatroomCount: number;
-    }
-  | { status: 'already_deleted' };
-
 /** "1 workspace", "2 workspaces"; capped counts are lower bounds and always plural. */
 function countLabel(count: number, singular: string, plural: string, capped: boolean): string {
   return `${count}${capped ? '+' : ''} ${count === 1 && !capped ? singular : plural}`;
-}
-
-/** Success toast: what was detached, plus a background-purge note when applicable. */
-function formatDeletedToast(
-  displayName: string,
-  result: Extract<DeleteMachineResult, { status: 'deleted' }>
-): string {
-  const detached =
-    result.detachedWorkspaceCount === 0
-      ? ''
-      : ` ${countLabel(
-          result.detachedWorkspaceCount,
-          'workspace',
-          'workspaces',
-          false
-        )} detached from ${countLabel(
-          result.affectedChatroomCount,
-          'chatroom',
-          'chatrooms',
-          false
-        )}.`;
-  const purge = result.purgeComplete
-    ? ''
-    : ' Remaining data is being cleaned up in the background.';
-  return `Deleted "${displayName}".${detached}${purge}`;
 }
 
 /** Detach line for the confirmation body. */
@@ -105,39 +69,20 @@ function formatDetachedLine(usage: MachineUsage): string {
   return `${workspaces}, detached from ${chatrooms}`;
 }
 
-/** Closes-then-toasts on success; `already_deleted` has nothing left to report. */
-function announceDeletion(
-  displayName: string,
-  result: DeleteMachineResult,
-  close: () => void
-): void {
-  close();
-  if (result.status === 'already_deleted') {
-    toast('This machine was already deleted.');
-    return;
-  }
-  toast.success(formatDeletedToast(displayName, result));
-}
-
-/** Maps a failed delete to the dialog's three recovery shapes. */
+/** Maps a failed delete to the two recovery shapes: the blocked body, or an inline message. */
 function handleDeleteFailure(
   error: unknown,
   handlers: {
     onOnline(): void;
-    onMissing(message: string): void;
-    onRetryable(message: string): void;
+    onInline(message: string): void;
   }
 ): void {
-  const code = getConvexErrorCode(error);
-  if (code === 'MACHINE_ONLINE') {
+  if (getConvexErrorCode(error) === 'MACHINE_ONLINE') {
     handlers.onOnline();
     return;
   }
-  if (code === 'MACHINE_NOT_FOUND') {
-    handlers.onMissing(getMachineErrorCopy(error, 'This machine no longer exists.'));
-    return;
-  }
-  handlers.onRetryable(getMachineErrorCopy(error, DELETE_FALLBACK_COPY));
+  // MACHINE_NOT_FOUND maps to its own copy inside getMachineErrorCopy; other failures use the fallback.
+  handlers.onInline(getMachineErrorCopy(error, DELETE_FALLBACK_COPY));
 }
 
 /** Online variant: explains the guard, offers the stop command, no destructive action. */
@@ -448,21 +393,18 @@ export function DeleteMachineDialog({
     setPending(true);
     setError(null);
     try {
-      const result = await deleteMachine({ machineId: machine.machineId });
-      announceDeletion(machine.displayName, result, () => handleOpenChange(false));
+      await deleteMachine({ machineId: machine.machineId });
+      // Success and already-deleted both close silently: the row leaving the list is the signal.
+      handleOpenChange(false);
     } catch (err) {
       handleDeleteFailure(err, {
         onOnline: () => setServerSaysOnline(true),
-        onMissing: (message) => {
-          handleOpenChange(false);
-          toast.error(message);
-        },
-        onRetryable: setError,
+        onInline: setError,
       });
     } finally {
       setPending(false);
     }
-  }, [deleteMachine, handleOpenChange, machine.displayName, machine.machineId, pending]);
+  }, [deleteMachine, handleOpenChange, machine.machineId, pending]);
 
   return (
     <DeleteDialogShell

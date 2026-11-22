@@ -2,7 +2,6 @@
 
 import { Loader2 } from 'lucide-react';
 import { useCallback, useRef, useState, type ReactElement, type RefObject } from 'react';
-import { toast } from 'sonner';
 
 import { LedgerNotice } from './LedgerNotice';
 import { useBulkCreateChatrooms } from '../hooks/useBulkCreateChatrooms';
@@ -68,25 +67,9 @@ function overLimitNote(batch: number, total: number): string {
   } afterwards.`;
 }
 
-/** True once any call has finished, so the dialog has something to announce on close. */
+/** True once any call has finished, so the error body can report earlier batches. */
 function hasProcessed(totals: BulkCreateTotals): boolean {
   return totals.created + totals.skipped + totals.failed > 0;
-}
-
-/** Which toast the closed dialog owes the user, if any. */
-function announceKind(totals: BulkCreateTotals): 'none' | 'success' | 'error' | 'info' {
-  if (totals.created > 0) return 'success';
-  if (totals.failed > 0) return 'error';
-  if (totals.skipped > 0) return 'info';
-  return 'none';
-}
-
-/** Toasts a cumulative summary, and nothing at all when no call finished. */
-function announceBulkTotals(totals: BulkCreateTotals): void {
-  const kind = announceKind(totals);
-  if (kind === 'success') toast.success(`Created ${chatroomCount(totals.created)}`);
-  if (kind === 'error') toast.error(`No chatrooms created. ${totals.failed} failed.`);
-  if (kind === 'info') toast(`${totals.skipped} already had a chatroom`);
 }
 
 function ConfirmBody({
@@ -212,7 +195,11 @@ function SummaryBody({
       <AlertDialogHeader>
         <AlertDialogTitle>Bulk create summary</AlertDialogTitle>
         <AlertDialogDescription render={<div className="space-y-3 text-left" />}>
-          <p data-testid="bulk-create-summary" className="text-xs text-chatroom-text-primary">
+          <p
+            data-testid="bulk-create-summary"
+            role="alert"
+            className="text-xs text-chatroom-text-primary"
+          >
             {statsLine(totals)}
           </p>
           <FailuresBlock totals={totals} />
@@ -261,9 +248,11 @@ function ErrorBody({
       <AlertDialogHeader>
         <AlertDialogTitle>Could not create chatrooms</AlertDialogTitle>
         <AlertDialogDescription render={<div className="space-y-3 text-left" />}>
-          <LedgerNotice tone="error" testId="bulk-create-error">
-            {WHOLE_CALL_ERROR_COPY}
-          </LedgerNotice>
+          <div role="alert">
+            <LedgerNotice tone="error" testId="bulk-create-error">
+              {WHOLE_CALL_ERROR_COPY}
+            </LedgerNotice>
+          </div>
           {hasProcessed(totals) && (
             <p data-testid="bulk-create-earlier" className="text-xs">
               Earlier batches are unchanged: {statsLine(totals)}.
@@ -315,11 +304,6 @@ export function BulkCreateDialog({
   const total = paths.length;
   const left = total - offset;
 
-  const handleClose = useCallback(() => {
-    announceBulkTotals(totals);
-    onClose();
-  }, [totals, onClose]);
-
   /** One call per click. Success advances the offset; a throw leaves it so a retry resends. */
   const runBatch = useCallback(async () => {
     setPhase('pending');
@@ -363,7 +347,7 @@ export function BulkCreateDialog({
       open
       onOpenChange={(next) => {
         // Only confirm, summary, and error can close; a pending call is not dismissable.
-        if (!next && phase !== 'pending') handleClose();
+        if (!next && phase !== 'pending') onClose();
       }}
     >
       <AlertDialogContent data-testid="bulk-create-dialog" initialFocus={primaryRef}>

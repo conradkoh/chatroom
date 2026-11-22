@@ -80,6 +80,10 @@ interface WorkspaceBottomBarProps {
   onSwitchToSourceControl?: () => void;
   /** @deprecated No longer used; removal planned. */
   onRegisterOpenGitPanel?: (open: (tab?: string) => void) => void;
+  /** Called after a workspace-path copy succeeds. The dashboard may clear its copy failure. */
+  onCopied?: () => void;
+  /** Called with the failure message when a workspace-path copy fails. */
+  onCopyError?: (message: string) => void;
 }
 
 /** A workspace guaranteed to have a machineId. */
@@ -550,6 +554,8 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   onOpenGitPanel,
   onSwitchWorkspace,
   sendAction,
+  onCopied,
+  onCopyError,
 }: {
   workspace: WorkspaceWithMachine;
   allWorkspaces: WorkspaceWithMachine[];
@@ -561,6 +567,8 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
     action: 'open-vscode' | 'open-finder' | 'open-github-desktop' | 'open-cursor',
     workingDir: string
   ) => void;
+  onCopied?: () => void;
+  onCopyError?: (message: string) => void;
 }) {
   const { isConnected: isLocal } = useDaemonConnected(workspace.machineId);
   const {
@@ -675,7 +683,10 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                   <button
                     type="button"
                     onClick={() => {
-                      void copyWorkspacePathToClipboard(workspace.workingDir);
+                      void copyWorkspacePathToClipboard(workspace.workingDir).then((result) => {
+                        if (result.ok) onCopied?.();
+                        else onCopyError?.(result.message);
+                      });
                       onClose();
                     }}
                     className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
@@ -1046,6 +1057,8 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   onSwitchToSourceControl,
   onRegisterOpenGitPanel: _onRegisterOpenGitPanel, // deprecated, no-op
+  onCopied,
+  onCopyError,
 }: WorkspaceBottomBarProps) {
   const {
     workspaces,
@@ -1159,7 +1172,12 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                           Open workspace details
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => void copyWorkspacePathToClipboard(ws.workingDir)}
+                          onClick={() =>
+                            void copyWorkspacePathToClipboard(ws.workingDir).then((result) => {
+                              if (result.ok) onCopied?.();
+                              else onCopyError?.(result.message);
+                            })
+                          }
                         >
                           <ClipboardCopy size={13} className="mr-2" />
                           Copy workspace path
@@ -1231,6 +1249,8 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
           onOpenGitPanel={handleOpenGitPanel}
           onSwitchWorkspace={handleSwitchWorkspace}
           sendAction={sendAction}
+          onCopied={onCopied}
+          onCopyError={onCopyError}
         />
       )}
     </>

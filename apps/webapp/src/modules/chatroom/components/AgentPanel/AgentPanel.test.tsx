@@ -12,6 +12,7 @@ vi.mock('./RemoteAgentQuickActions', () => ({
 }));
 vi.mock('../../features/machine-config/components/ApplyTopFavoriteModelsButton', () => ({
   ApplyTopFavoriteModelsButton: () => <div data-testid="apply-top-favorites" />,
+  ApplyTopFavoritesFeedbackLine: () => null,
 }));
 vi.mock('./CommandQueuePanel', () => ({
   CommandQueuePanel: () => <div data-testid="command-queue-panel" />,

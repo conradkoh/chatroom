@@ -13,10 +13,11 @@ import { useState } from 'react';
 import { FileAttachmentRow, type FileRowKind } from './FileAttachmentRow';
 import { FilePreviewDialog } from './FilePreviewDialog';
 import { ErrorBoundary } from '../../../components/ErrorBoundary';
-import { useAttachmentDownload } from '../hooks/useAttachmentDownload';
+import { downloadErrorFeedback, useAttachmentDownload } from '../hooks/useAttachmentDownload';
 import { useFileAttachmentUrls, type FileUrlState } from '../hooks/useFileAttachmentUrls';
 import { fileExtensionLabel, formatFileSize } from '../lib/formatFileSize';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fileOpenAction, performFileOpen, type FileOpenAction } from '@/lib/fileOpenAction';
@@ -418,7 +419,7 @@ function FileAttachmentList({
     .map((file) => file._id)
     .slice(0, FILE_ATTACHMENT_MAX_PER_HANDOFF);
   const urlState = useFileAttachmentUrls(availableIds);
-  const { downloadingId, download } = useAttachmentDownload();
+  const { downloadingId, downloadError, download, clearDownloadError } = useAttachmentDownload();
 
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [loadRequested, setLoadRequested] = useState<Set<string>>(new Set());
@@ -467,6 +468,12 @@ function FileAttachmentList({
           </li>
         ))}
       </ul>
+      <InlineFeedback
+        feedback={downloadErrorFeedback(downloadError)}
+        onDismiss={clearDownloadError}
+        data-testid="message-file-download-feedback"
+        className="mt-1"
+      />
       {previewFile && (
         <FilePreviewDialog
           open

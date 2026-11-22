@@ -1,6 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { toast } from 'sonner';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   FileCopyActionsMenu,
@@ -8,17 +7,12 @@ import {
   CopyFileContentButton,
 } from './FileCopyActionsMenu';
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 const writeText = vi.fn();
 
 const defaultProps = {
   relativePath: 'src/foo.ts',
   workingDir: '/workspace/project',
   content: 'file body',
-  truncated: false,
   contentDisabled: false,
 };
 
@@ -38,6 +32,10 @@ describe('FileCopyActionsMenu', () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders trigger button with copy icon', () => {
     render(<FileCopyActionsMenu {...defaultProps} />);
     expect(screen.getByRole('button', { name: /copy file/i })).toBeInTheDocument();
@@ -55,14 +53,55 @@ describe('FileCopyActionsMenu', () => {
     expect(screen.getByText('Copy File Content')).toBeInTheDocument();
   });
 
-  it('copies file name to clipboard and shows toast on "Copy File Name" click', async () => {
+  it('copies file name to clipboard on "Copy File Name" click', async () => {
     render(<FileCopyActionsMenu {...defaultProps} />);
     openDropdown();
     fireEvent.click(screen.getByText('Copy File Name'));
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('foo.ts');
-      expect(toast.success).toHaveBeenCalledWith('Copied file name');
     });
+  });
+
+  it('flips the trigger to a check icon for 2 s after "Copy File Name" succeeds', async () => {
+    vi.useFakeTimers();
+    render(<FileCopyActionsMenu {...defaultProps} />);
+    openDropdown();
+    const trigger = screen.getByRole('button', { name: /copy file/i });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Copy File Name'));
+    });
+
+    expect(writeText).toHaveBeenCalledWith('foo.ts');
+    expect(trigger.querySelector('svg.lucide-check')).not.toBeNull();
+    expect(screen.queryByText(/Copied/)).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(trigger.querySelector('svg.lucide-check')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(trigger.querySelector('svg.lucide-check')).toBeNull();
+  });
+
+  it('reports a rejected copy to onCopyError and leaves the trigger on the copy icon', async () => {
+    const onCopyError = vi.fn();
+    writeText.mockRejectedValueOnce(new Error('denied'));
+
+    render(<FileCopyActionsMenu {...defaultProps} onCopyError={onCopyError} />);
+    openDropdown();
+    const trigger = screen.getByRole('button', { name: /copy file/i });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Copy File Name'));
+    });
+
+    expect(onCopyError).toHaveBeenCalledTimes(1);
+    expect(onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
+    expect(trigger.querySelector('svg.lucide-check')).toBeNull();
   });
 
   it('disables Copy Full Path when workingDir is null', () => {
@@ -98,7 +137,6 @@ describe('FileCopyActionsMenu', () => {
     fireEvent.click(screen.getByText('Copy Relative Path'));
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('src/foo.ts');
-      expect(toast.success).toHaveBeenCalledWith('Copied relative path');
     });
   });
 
@@ -181,6 +219,38 @@ describe('FileCopyActionsMenu', () => {
   });
 });
 
+describe('FileCopyActionsMenu content copy reporting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('forwards truncation of copied file content to onCopied', async () => {
+    const onCopied = vi.fn();
+    render(<FileCopyActionsMenu {...defaultProps} contentTruncated onCopied={onCopied} />);
+    openDropdown();
+    fireEvent.click(screen.getByText('Copy File Content'));
+    await vi.waitFor(() => {
+      expect(onCopied).toHaveBeenCalledWith({ truncated: true });
+    });
+    expect(writeText).toHaveBeenCalledWith('file body');
+  });
+
+  it('reports complete file content to onCopied as not truncated', async () => {
+    const onCopied = vi.fn();
+    render(<FileCopyActionsMenu {...defaultProps} contentTruncated={false} onCopied={onCopied} />);
+    openDropdown();
+    fireEvent.click(screen.getByText('Copy File Content'));
+    await vi.waitFor(() => {
+      expect(onCopied).toHaveBeenCalledWith({ truncated: false });
+    });
+  });
+});
+
 describe('CopyFileNameButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -196,8 +266,30 @@ describe('CopyFileNameButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy file name/i }));
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('foo.ts');
-      expect(toast.success).toHaveBeenCalledWith('Copied file name');
     });
+  });
+
+  it('flips to a check icon for 2 s after a successful copy', async () => {
+    vi.useFakeTimers();
+    render(<CopyFileNameButton relativePath="src/foo.ts" />);
+    const button = screen.getByRole('button', { name: /copy file name/i });
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    expect(writeText).toHaveBeenCalledWith('foo.ts');
+    expect(button.querySelector('svg.lucide-check')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(button.querySelector('svg.lucide-check')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(button.querySelector('svg.lucide-check')).toBeNull();
   });
 });
 
@@ -223,7 +315,27 @@ describe('CopyFileContentButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy file content/i }));
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('hello');
-      expect(toast.success).toHaveBeenCalledWith('Copied file content');
     });
+  });
+
+  it('reports a rejected copy to onCopyError', async () => {
+    const onCopyError = vi.fn();
+    writeText.mockRejectedValueOnce(new Error('denied'));
+
+    render(
+      <CopyFileContentButton
+        content="hello"
+        label="Copy File Content"
+        className="flex"
+        onCopyError={onCopyError}
+      />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /copy file content/i }));
+    });
+
+    expect(onCopyError).toHaveBeenCalledTimes(1);
+    expect(onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
   });
 });

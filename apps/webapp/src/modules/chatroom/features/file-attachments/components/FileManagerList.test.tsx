@@ -1,5 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { toast } from 'sonner';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileManagerList } from './FileManagerList';
@@ -55,13 +54,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('sonner', () => {
-  const toast = vi.fn();
-  return { toast: Object.assign(toast, { success: vi.fn(), error: vi.fn() }) };
-});
-
 const CHATROOM_ID = 'jd7testchatroom0000000000000001' as never;
 const FILE_ID = 'jd7testfile000000000000000001' as never;
+const OTHER_FILE_ID = 'jd7testfile000000000000000002' as never;
 
 function makeFile(overrides: Partial<FileListTestItem> = {}): FileListTestItem {
   return {
@@ -170,7 +165,12 @@ describe('FileManagerList', () => {
     expect(button.querySelector('.animate-spin')).not.toBeNull();
   });
 
-  it('deletes a file only after the destructive button is armed twice', async () => {
+  it('deletes a file after the destructive button is armed twice and shows no message', async () => {
+    mocks.deleteFile.mockImplementation(async () => {
+      mocks.paginated.mockReturnValue(paginationState([], 'Exhausted'));
+      return { deleted: true };
+    });
+
     renderList();
 
     fireEvent.click(deleteButton('a.png'));
@@ -179,28 +179,42 @@ describe('FileManagerList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirm delete a.png' }));
 
-    await waitFor(() => {
-      expect(mocks.deleteFile).toHaveBeenCalledWith({ attachmentId: FILE_ID });
-    });
-    await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Deleted a.png');
-    });
+    expect(
+      await screen.findByText(
+        'No files yet. Files agents attach to handoffs addressed to you appear here.'
+      )
+    ).toBeInTheDocument();
+    expect(mocks.deleteFile).toHaveBeenCalledWith({ attachmentId: FILE_ID });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('file-list-delete-feedback')).not.toBeInTheDocument();
   });
 
-  it('reports a row that was already removed elsewhere', async () => {
+  it('shows an inline alert when the row was already removed and clears it on the next Delete tap', async () => {
     mocks.deleteFile.mockResolvedValue({ deleted: false });
+    mocks.fileUrls.mockReturnValue([
+      { attachmentId: FILE_ID, url: 'https://files.example/a.png' },
+      { attachmentId: OTHER_FILE_ID, url: 'https://files.example/b.png' },
+    ]);
+    mocks.paginated.mockReturnValue(
+      paginationState(
+        [makeFile(), makeFile({ _id: OTHER_FILE_ID, filename: 'b.png' })],
+        'Exhausted'
+      )
+    );
 
     renderList();
 
     fireEvent.click(deleteButton('a.png'));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm delete a.png' }));
 
-    await waitFor(() => {
-      expect(toast).toHaveBeenCalledWith('a.png was already removed');
-    });
+    expect(await screen.findByRole('alert')).toHaveTextContent('a.png was already removed');
+
+    fireEvent.click(deleteButton('b.png'));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('surfaces a delete error and returns the row to idle', async () => {
+  it('shows a delete failure as an inline alert and returns the row to idle', async () => {
     mocks.deleteFile.mockRejectedValue({
       data: { code: 'ACCESS_DENIED', message: 'You do not have access to this attachment' },
     });
@@ -210,10 +224,27 @@ describe('FileManagerList', () => {
     fireEvent.click(deleteButton('a.png'));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm delete a.png' }));
 
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("You don't have access to these files.");
-    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "You don't have access to these files."
+    );
     expect(deleteButton('a.png')).toBeInTheDocument();
+  });
+
+  it('shows a download failure inline in the list slot and leaves the button idle', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 500 }))
+    );
+
+    renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Download a.png' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't download a.png. Try again."
+    );
+    expect(screen.getByRole('button', { name: 'Download a.png' })).toBeEnabled();
+
+    vi.unstubAllGlobals();
   });
 
   it('shows an inline list error with Retry and re-subscribes', async () => {

@@ -1,7 +1,6 @@
 'use client';
 
 import { Laptop, Moon, Sun } from 'lucide-react';
-import { toast } from 'sonner';
 
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -33,9 +32,7 @@ export function ThemeSettings() {
   const { isThemeReady, theme, setTheme } = useTheme();
 
   const handleThemeChange = (newTheme: string) => {
-    const normalizedTheme = normalizeTheme(newTheme);
-    setTheme(normalizedTheme);
-    toast.success(`Theme changed to ${normalizedTheme}`);
+    setTheme(normalizeTheme(newTheme));
   };
 
   return (

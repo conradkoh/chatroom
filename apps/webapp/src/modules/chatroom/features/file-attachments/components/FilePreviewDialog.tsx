@@ -12,10 +12,11 @@ import {
   messageFeedProseClassNames,
   modalMarkdownComponents,
 } from '../../../components/markdown-utils';
-import { useAttachmentDownload } from '../hooks/useAttachmentDownload';
+import { downloadErrorFeedback, useAttachmentDownload } from '../hooks/useAttachmentDownload';
 import { TEXT_PREVIEW_MAX_BYTES, useFileTextContent } from '../hooks/useFileTextContent';
 import { fileExtensionLabel, formatFileSize } from '../lib/formatFileSize';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import {
   FixedModal,
@@ -306,7 +307,7 @@ function PreviewBody({
  */
 export function FilePreviewDialog({ open, onClose, file, url }: FilePreviewDialogProps) {
   const kind: FileRowKind = getFilePreviewKind(file.mimeType);
-  const { downloadingId, download } = useAttachmentDownload();
+  const { downloadingId, downloadError, download, clearDownloadError } = useAttachmentDownload();
   const [retryKey, setRetryKey] = useState(0);
   const busy = downloadingId === file._id;
 
@@ -356,6 +357,12 @@ export function FilePreviewDialog({ open, onClose, file, url }: FilePreviewDialo
             onDownload={handleDownload}
           />
         </FixedModalBody>
+        <InlineFeedback
+          feedback={downloadErrorFeedback(downloadError)}
+          onDismiss={clearDownloadError}
+          data-testid="file-preview-download-feedback"
+          className="mx-4 mb-2 shrink-0"
+        />
       </FixedModalContent>
     </FixedModal>
   );

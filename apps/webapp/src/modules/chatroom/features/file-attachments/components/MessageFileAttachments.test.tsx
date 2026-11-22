@@ -2,7 +2,6 @@ import { Blob as NodeBlob } from 'node:buffer';
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { AttachedFileView } from '@workspace/backend/src/domain/entities/file-attachment';
-import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessageFileAttachments } from './MessageFileAttachments';
@@ -20,10 +19,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: { fileAttachments: { getFileUrls: 'fileAttachments.getFileUrls' } },
-}));
-
-vi.mock('sonner', () => ({
-  toast: { error: vi.fn() },
 }));
 
 const IMAGE_FILE = {
@@ -226,7 +221,7 @@ describe('MessageFileAttachments', () => {
     expect(blob.type).toBe('application/octet-stream');
   });
 
-  it('shows a toast when a download fails', async () => {
+  it('shows the download failure inline, idles the button, and clears it when a retry starts', async () => {
     mocks.getFileUrls.mockReturnValue([
       { attachmentId: 'a1', url: 'https://files.example/shot.png' },
     ]);
@@ -236,8 +231,14 @@ describe('MessageFileAttachments', () => {
 
     fireEvent.click(await screen.findByLabelText('Download shot.png'));
 
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Couldn't download shot.png. Try again.")
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't download shot.png. Try again."
     );
+    expect(screen.getByLabelText('Download shot.png')).toBeEnabled();
+
+    stubDownload(new Uint8Array([1, 2, 3]));
+    fireEvent.click(screen.getByLabelText('Download shot.png'));
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
 });

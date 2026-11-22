@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState, useCallback, memo, useEffect, useMemo } from 'react';
-import { toast } from 'sonner';
 
 import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
 import { ApplyTopFavoriteModelsButton } from '../features/machine-config/components/ApplyTopFavoriteModelsButton';
@@ -485,6 +484,7 @@ const WorkspacesContent = memo(function WorkspacesContent() {
   const requestFileTreeMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
   const setFileTreeSyncEnabledMutation = useSessionMutation(api.workspaces.setFileTreeSyncEnabled);
   const [fileTreeSyncPendingIds, setFileTreeSyncPendingIds] = useState<Set<string>>(new Set());
+  const [fileTreeSyncErrors, setFileTreeSyncErrors] = useState<Record<string, string>>({});
 
   // Build a set of machineId::workingDir keys for active team agents.
   // Any agent in the active team that has a machine + workspace configured
@@ -537,6 +537,13 @@ const WorkspacesContent = memo(function WorkspacesContent() {
   const handleFileTreeSyncToggle = useCallback(
     async (registryId: string, enabled: boolean) => {
       if (fileTreeSyncPendingIds.has(registryId)) return;
+      // A new attempt on this workspace clears its previous failure.
+      setFileTreeSyncErrors((prev) => {
+        if (!(registryId in prev)) return prev;
+        const next = { ...prev };
+        delete next[registryId];
+        return next;
+      });
       setFileTreeSyncPendingIds((prev) => new Set(prev).add(registryId));
       try {
         await setFileTreeSyncEnabledMutation({
@@ -544,11 +551,10 @@ const WorkspacesContent = memo(function WorkspacesContent() {
           enabled,
         });
       } catch {
-        toast.error(
-          enabled
-            ? 'Failed to enable workspace file tree sync'
-            : 'Failed to disable workspace file tree sync'
-        );
+        const message = enabled
+          ? 'Failed to enable workspace file tree sync'
+          : 'Failed to disable workspace file tree sync';
+        setFileTreeSyncErrors((prev) => ({ ...prev, [registryId]: message }));
       } finally {
         setFileTreeSyncPendingIds((prev) => {
           const next = new Set(prev);
@@ -669,7 +675,10 @@ const WorkspacesContent = memo(function WorkspacesContent() {
                 {ws.workingDir}
               </div>
               {registryId ? (
-                <div className="mt-3 flex items-center justify-between gap-4 border-t border-chatroom-border pt-3">
+                <div
+                  data-testid={`file-tree-sync-row-${registryId}`}
+                  className="mt-3 flex items-center justify-between gap-4 border-t border-chatroom-border pt-3"
+                >
                   <div className="min-w-0">
                     <label
                       htmlFor={`file-tree-sync-${registryId}`}
@@ -680,6 +689,11 @@ const WorkspacesContent = memo(function WorkspacesContent() {
                     <p className="text-[10px] text-chatroom-text-muted">
                       Allow this workspace&apos;s file and folder changes to sync to Chatroom.
                     </p>
+                    {fileTreeSyncErrors[registryId] ? (
+                      <p role="alert" className="mt-1 text-xs text-chatroom-status-error">
+                        {fileTreeSyncErrors[registryId]}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     {fileTreeSyncPendingIds.has(registryId) ? (

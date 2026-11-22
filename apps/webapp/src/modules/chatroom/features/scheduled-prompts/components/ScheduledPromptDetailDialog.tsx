@@ -5,7 +5,6 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Clock, Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import {
   formatSchedule,
@@ -14,6 +13,7 @@ import {
   getScheduledPromptStatus,
 } from '../utils/scheduledPromptFormat';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import {
   FixedModal,
@@ -22,6 +22,7 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
+import { useFeedback } from '@/hooks/useFeedback';
 
 interface ScheduledPromptDetailDialogProps {
   open: boolean;
@@ -41,6 +42,11 @@ export function ScheduledPromptDetailDialog({
   );
   const setEnabled = useSessionMutation(api.scheduledPrompts.setEnabled);
   const [disabling, setDisabling] = useState(false);
+  const {
+    feedback: disableFeedback,
+    error: showDisableError,
+    clear: clearDisableFeedback,
+  } = useFeedback();
 
   const status = prompt !== undefined ? getScheduledPromptStatus(prompt) : undefined;
   const isActive = status === 'active';
@@ -49,16 +55,17 @@ export function ScheduledPromptDetailDialog({
   const handleClose = useCallback(() => onOpenChange(false), [onOpenChange]);
 
   const handleDisable = useCallback(async () => {
+    clearDisableFeedback();
     setDisabling(true);
     try {
       await setEnabled({ scheduledPromptId, enabled: false });
       onOpenChange(false);
     } catch {
-      toast.error('Failed to disable schedule. Please try again.');
+      showDisableError('Failed to disable schedule. Please try again.');
     } finally {
       setDisabling(false);
     }
-  }, [scheduledPromptId, setEnabled, onOpenChange]);
+  }, [scheduledPromptId, setEnabled, onOpenChange, clearDisableFeedback, showDisableError]);
 
   const displayName =
     prompt?.name ||
@@ -142,6 +149,10 @@ export function ScheduledPromptDetailDialog({
         </FixedModalBody>
         {canDisable && (
           <div className="p-4 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex flex-col items-stretch gap-1 flex-shrink-0">
+            <InlineFeedback
+              feedback={disableFeedback}
+              data-testid="scheduled-prompt-detail-disable-feedback"
+            />
             <Button
               variant="destructive"
               size="default"

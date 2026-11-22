@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import type { SketchSelectionRect } from '../sketchCanvasSelection';
 import {
@@ -26,7 +25,9 @@ import { SketchEditorFooter } from './SketchEditorFooter';
 import { SketchEditorProperties } from './SketchEditorProperties';
 import { isEditableSketchTarget, isSketchDeleteShortcut } from './sketchKeyboard';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useFeedback } from '@/hooks/useFeedback';
 
 export type SketchEditorSessionProps = {
   onDismiss: () => void;
@@ -45,6 +46,7 @@ export function SketchEditorSession({
   const [isSaving, setIsSaving] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<SketchToolId>('brush');
+  const { feedback: saveFeedback, error: showSaveError, clear: clearSaveFeedback } = useFeedback();
   useSketchToolShortcuts({ enabledTools: SKETCH_ENABLED_TOOL_IDS, onToolChange: setActiveTool });
   const isDrawingTool = activeTool === 'brush' || activeTool === 'eraser';
   const brushInputDisabled = isSaving || !isDrawingTool;
@@ -76,7 +78,7 @@ export function SketchEditorSession({
     disabled: brushInputDisabled,
     eraserMode: activeTool === 'eraser',
   });
-  const { isImporting } = useSketchClipboardPaste({
+  const { isImporting, feedback: pasteFeedback } = useSketchClipboardPaste({
     disabled: isSaving,
     importPastedImage,
     onTransformRequested: () => setActiveTool('transform'),
@@ -165,11 +167,12 @@ export function SketchEditorSession({
   clearSelectionRef.current = clearSelection;
   const save = async () => {
     if (isSaving || !hasContent) return;
+    clearSaveFeedback();
     setIsSaving(true);
     try {
       const file = await exportPngFile();
       if (!file) {
-        toast.error('Failed to export sketch');
+        showSaveError('Failed to export sketch');
         return;
       }
       onSave(file);
@@ -252,6 +255,11 @@ export function SketchEditorSession({
           />
         </aside>
       </div>
+      <InlineFeedback
+        feedback={pasteFeedback}
+        className="mx-4 mt-3 shrink-0 lg:mx-5"
+        data-testid="sketch-paste-feedback"
+      />
       <SketchEditorFooter
         className="shrink-0 px-4 py-3 lg:px-5"
         isSaving={isSaving}
@@ -259,6 +267,7 @@ export function SketchEditorSession({
         onDismiss={requestCloseFromFooter}
         onSave={save}
         isImporting={isImporting}
+        feedback={saveFeedback}
       />
       <SketchDiscardDialog
         open={discardOpen}

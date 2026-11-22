@@ -1,6 +1,9 @@
-import { toast } from 'sonner';
-
 import { getFileName } from '@/lib/pathUtils';
+
+const COPY_FAILED_MESSAGE = 'Failed to copy to clipboard';
+
+/** Outcome of a copy helper. A success carries no display text; hosts decide what to show. */
+export type CopyResult = { ok: true } | { ok: false; message: typeof COPY_FAILED_MESSAGE };
 
 function joinWorkingDirPath(workingDir: string, relativePath: string): string {
   const base = workingDir.replace(/[/\\]+$/, '');
@@ -9,39 +12,36 @@ function joinWorkingDirPath(workingDir: string, relativePath: string): string {
   return `${base}${separator}${relativePath.replace(/^[/\\]+/, '')}`;
 }
 
-async function copyTextToClipboard(text: string, successMessage: string): Promise<void> {
+export async function copyTextToClipboard(text: string): Promise<CopyResult> {
   try {
     await navigator.clipboard.writeText(text);
-    toast.success(successMessage);
+    return { ok: true };
   } catch {
-    toast.error('Failed to copy to clipboard');
+    return { ok: false, message: COPY_FAILED_MESSAGE };
   }
 }
 
-export async function copyFileNameToClipboard(path: string): Promise<void> {
-  await copyTextToClipboard(getFileName(path), 'Copied file name');
+export async function copyFileNameToClipboard(path: string): Promise<CopyResult> {
+  return copyTextToClipboard(getFileName(path));
 }
 
-export async function copyRelativePathToClipboard(path: string): Promise<void> {
-  await copyTextToClipboard(path, 'Copied relative path');
+export async function copyRelativePathToClipboard(path: string): Promise<CopyResult> {
+  return copyTextToClipboard(path);
 }
 
+// Unreachable from menus: the Copy Full Path item is disabled without a workingDir. Nothing is written.
 export async function copyFullPathToClipboard(
   workingDir: string | null,
   relativePath: string
-): Promise<void> {
-  if (!workingDir) return;
-  await copyTextToClipboard(joinWorkingDirPath(workingDir, relativePath), 'Copied full path');
+): Promise<CopyResult> {
+  if (!workingDir) return { ok: false, message: COPY_FAILED_MESSAGE };
+  return copyTextToClipboard(joinWorkingDirPath(workingDir, relativePath));
 }
 
-export async function copyWorkspacePathToClipboard(workingDir: string): Promise<void> {
-  await copyTextToClipboard(workingDir, 'Copied workspace path');
+export async function copyWorkspacePathToClipboard(workingDir: string): Promise<CopyResult> {
+  return copyTextToClipboard(workingDir);
 }
 
-export async function copyFileContentToClipboard(
-  content: string,
-  options?: { truncated?: boolean }
-): Promise<void> {
-  const message = options?.truncated ? 'Copied file content (truncated)' : 'Copied file content';
-  await copyTextToClipboard(content, message);
+export async function copyFileContentToClipboard(content: string): Promise<CopyResult> {
+  return copyTextToClipboard(content);
 }

@@ -23,6 +23,8 @@ interface ConclusionFormProps {
   existingConclusion?: {
     conclusions: { text: string; tags: string[] }[];
   } | null;
+  error?: string | null;
+  onClearError?: () => void;
 }
 
 interface ConclusionInput {
@@ -31,7 +33,13 @@ interface ConclusionInput {
   tag: string; // Only one tag per conclusion
 }
 
-export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: ConclusionFormProps) {
+export function ConclusionForm({
+  onSubmit,
+  onCancel,
+  existingConclusion,
+  error,
+  onClearError,
+}: ConclusionFormProps) {
   const [conclusions, setConclusions] = useState<ConclusionInput[]>([
     { id: createId(), text: '', tag: 'task' },
   ]);
@@ -81,6 +89,7 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
   };
 
   const addConclusion = () => {
+    onClearError?.();
     const newId = createId();
     setConclusions([...conclusions, { id: newId, text: '', tag: 'task' }]);
 
@@ -96,6 +105,7 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
   };
 
   const removeConclusion = (id: string) => {
+    onClearError?.();
     delete inputRefs.current[id];
     const newConclusions = conclusions.filter((c) => c.id !== id);
     if (newConclusions.length === 0) {
@@ -105,10 +115,12 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
   };
 
   const handleTextChange = (id: string, value: string) => {
+    onClearError?.();
     setConclusions(conclusions.map((c) => (c.id === id ? { ...c, text: value } : c)));
   };
 
   const handleTagChange = (id: string, value: string) => {
+    onClearError?.();
     setConclusions(conclusions.map((c) => (c.id === id ? { ...c, tag: value } : c)));
   };
 
@@ -185,6 +197,12 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
       <Button type="button" variant="outline" className="w-full" onClick={addConclusion}>
         <Plus className="h-4 w-4 mr-2" /> Add Another Conclusion
       </Button>
+
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="flex justify-end space-x-2 mt-2">
         {onCancel && (

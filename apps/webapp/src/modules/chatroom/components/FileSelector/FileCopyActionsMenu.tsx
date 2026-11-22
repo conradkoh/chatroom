@@ -1,21 +1,23 @@
 'use client';
 
-import { Copy } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
-import { WorkspaceFileActionsMenu } from '../../workspace/file-menu';
+import { WorkspaceFileActionsMenu, type WorkspaceFileCopyInfo } from '../../workspace/file-menu';
 import {
   copyFileContentToClipboard,
   copyFileNameToClipboard,
 } from '../../workspace/utils/clipboard';
 
+import { useCopiedIndicator } from '@/hooks/useCopiedIndicator';
 import { cn } from '@/lib/utils';
 
 export interface FileCopyActionsMenuProps {
   relativePath: string;
   workingDir: string | null;
   content: string | null;
-  truncated?: boolean;
+  /** True when `content` is a truncated copy of the file. Reported through onCopied; never shown here. */
+  contentTruncated?: boolean;
   contentDisabled?: boolean;
   className?: string;
   /** When false, omits "Copy File Name" from the dropdown (use inline CopyFileNameButton). */
@@ -29,6 +31,15 @@ export interface FileCopyActionsMenuProps {
   onOpenInExplorer?: () => void;
   /** When provided, shows "Open File on Remote" in Path section. */
   onOpenFileOnRemote?: () => void;
+  /** Receives a copy failure message. The host shows it in its own slot. */
+  onCopyError?: (message: string) => void;
+  /** Called after a copy succeeds, with what was copied. Hosts may clear their own copy failure. Never show copy text here. */
+  onCopied?: (info: WorkspaceFileCopyInfo) => void;
+}
+
+interface CopyHostCallbacks {
+  onCopied?: () => void;
+  onCopyError?: (message: string) => void;
 }
 
 const copyContentButtonClassName =
@@ -37,13 +48,20 @@ const copyContentButtonClassName =
 export const CopyFileNameButton = memo(function CopyFileNameButton({
   relativePath,
   className,
-}: {
-  relativePath: string;
-  className?: string;
-}) {
+  onCopied,
+  onCopyError,
+}: { relativePath: string; className?: string } & CopyHostCallbacks) {
+  const { copied, markCopied } = useCopiedIndicator();
   const handleCopy = useCallback(() => {
-    void copyFileNameToClipboard(relativePath);
-  }, [relativePath]);
+    void copyFileNameToClipboard(relativePath).then((result) => {
+      if (result.ok) {
+        markCopied();
+        onCopied?.();
+      } else {
+        onCopyError?.(result.message);
+      }
+    });
+  }, [relativePath, markCopied, onCopied, onCopyError]);
 
   return (
     <button
@@ -56,28 +74,40 @@ export const CopyFileNameButton = memo(function CopyFileNameButton({
       aria-label="Copy file name"
       title="Copy file name"
     >
-      <Copy className="h-3.5 w-3.5" aria-hidden />
+      {copied ? (
+        <Check className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <Copy className="h-3.5 w-3.5" aria-hidden />
+      )}
     </button>
   );
 });
 
 export const CopyFileContentButton = memo(function CopyFileContentButton({
   content,
-  truncated = false,
   disabled = false,
   label,
   className,
+  onCopied,
+  onCopyError,
 }: {
   content: string | null;
-  truncated?: boolean;
   disabled?: boolean;
   label: string;
   className?: string;
-}) {
+} & CopyHostCallbacks) {
+  const { copied, markCopied } = useCopiedIndicator();
   const handleCopy = useCallback(() => {
     if (!content || disabled) return;
-    void copyFileContentToClipboard(content, { truncated });
-  }, [content, disabled, truncated]);
+    void copyFileContentToClipboard(content).then((result) => {
+      if (result.ok) {
+        markCopied();
+        onCopied?.();
+      } else {
+        onCopyError?.(result.message);
+      }
+    });
+  }, [content, disabled, markCopied, onCopied, onCopyError]);
 
   return (
     <button
@@ -88,7 +118,11 @@ export const CopyFileContentButton = memo(function CopyFileContentButton({
       aria-label={label}
       title={label}
     >
-      <Copy className="h-3.5 w-3.5" aria-hidden />
+      {copied ? (
+        <Check className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <Copy className="h-3.5 w-3.5" aria-hidden />
+      )}
       {label}
     </button>
   );
@@ -98,7 +132,7 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   relativePath,
   workingDir,
   content,
-  truncated,
+  contentTruncated,
   contentDisabled,
   className,
   showFileName = true,
@@ -107,6 +141,8 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
   triggerVariant = 'copy',
   onOpenInExplorer,
   onOpenFileOnRemote,
+  onCopyError,
+  onCopied,
 }: FileCopyActionsMenuProps) {
   return (
     <WorkspaceFileActionsMenu
@@ -116,11 +152,11 @@ export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
         relativePath,
         workingDir,
         content,
-        contentTruncated: truncated,
+        contentTruncated,
         contentDisabled,
         fileContentLabel,
       }}
-      handlers={{ onOpenInExplorer, onOpenFileOnRemote }}
+      handlers={{ onOpenInExplorer, onOpenFileOnRemote, onCopyError, onCopied }}
       visibility={{
         copyFileName: showFileName,
         copyRelativePath: true,

@@ -11,9 +11,17 @@ interface DiscussionFormProps {
   initialName?: string;
   onSubmit: (name: string, message: string) => Promise<boolean>;
   onCancel?: () => void;
+  error?: string | null;
+  onClearError?: () => void;
 }
 
-export function DiscussionForm({ initialName = '', onSubmit, onCancel }: DiscussionFormProps) {
+export function DiscussionForm({
+  initialName = '',
+  onSubmit,
+  onCancel,
+  error,
+  onClearError,
+}: DiscussionFormProps) {
   const [name, setName] = useState(initialName);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,7 +65,10 @@ export function DiscussionForm({ initialName = '', onSubmit, onCancel }: Discuss
           id="name"
           placeholder="Enter your name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            onClearError?.();
+          }}
           required
           disabled={isSubmitting}
           className="w-full"
@@ -70,13 +81,22 @@ export function DiscussionForm({ initialName = '', onSubmit, onCancel }: Discuss
           id="message"
           placeholder="Share your thoughts..."
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            onClearError?.();
+          }}
           onKeyDown={handleTextareaKeyDown}
           required
           disabled={isSubmitting}
           className="w-full min-h-[100px]"
         />
       </div>
+
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="flex justify-end space-x-2">
         {onCancel && (

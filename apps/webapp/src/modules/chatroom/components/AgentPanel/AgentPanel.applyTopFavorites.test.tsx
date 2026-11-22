@@ -7,8 +7,6 @@ import { AgentPanel } from '../AgentPanel';
 const mocks = vi.hoisted(() => ({
   favoritesByKey: {} as Record<string, { agentHarness: string; model: string }[] | undefined>,
   saveConfig: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
   teamStructure: undefined as unknown,
   workspaceContext: null as unknown,
 }));
@@ -43,10 +41,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 
 vi.mock('../../context/ChatroomWorkspaceContext', () => ({
   useChatroomWorkspace: () => mocks.workspaceContext,
-}));
-
-vi.mock('sonner', () => ({
-  toast: { success: mocks.toastSuccess, error: mocks.toastError },
 }));
 
 vi.mock('./CommandQueuePanel', () => ({
@@ -133,8 +127,6 @@ describe('AgentPanel apply top favourites', () => {
     mocks.favoritesByKey = {};
     mocks.saveConfig.mockReset();
     mocks.saveConfig.mockResolvedValue(null);
-    mocks.toastSuccess.mockReset();
-    mocks.toastError.mockReset();
     mocks.workspaceContext = workspaceContext;
     mocks.teamStructure = getTeamStructure({ teamId: 'duo' });
   });
@@ -175,11 +167,34 @@ describe('AgentPanel apply top favourites', () => {
       model: 'gpt-5',
       workingDir: '/repo',
     });
-    await waitFor(() =>
-      expect(mocks.toastSuccess).toHaveBeenCalledWith(
-        'Applied top favourite model to 2 agent(s). Restart agents to use it.'
-      )
+    // The agent rows' status dots also use role="status", so find this line by its text.
+    const feedback = await screen.findByText(
+      'Applied top favourite model to 2 agent(s). Restart agents to use it.'
     );
+    expect(feedback).toHaveAttribute('role', 'status');
+  });
+
+  it('shows a failed apply below the toolbar row, outside the toolbar', async () => {
+    seedTeam('duo', {
+      planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
+      builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
+    });
+    mocks.saveConfig.mockImplementation((args: { role: string }) =>
+      args.role === 'planner' ? Promise.reject(new Error('harness missing')) : Promise.resolve(null)
+    );
+
+    renderPanel();
+
+    const group = screen.getByTestId('agent-team-actions');
+    fireEvent.click(within(group).getByRole('button', { name: 'Apply top favourite models' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Failed to apply top favourite model for planner (harness missing). Applied to 1 other agent(s).'
+    );
+    // The alert sits below the toolbar row. It must not grow the row.
+    expect(group.contains(alert)).toBe(false);
+    expect(within(group).queryByRole('alert')).toBeNull();
   });
 
   it('disables the apply button when no role has a favourite but leaves quick actions alone', async () => {

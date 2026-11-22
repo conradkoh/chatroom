@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
@@ -14,9 +14,13 @@ vi.mock('../../features/run-command/hooks/useCommandFavorites', () => ({
   }),
 }));
 
+const { clearUsage } = vi.hoisted(() => ({
+  clearUsage: vi.fn(),
+}));
+
 vi.mock('../../features/run-command/hooks/useCommandUsage', () => ({
   useCommandUsage: () => ({
-    clearUsage: vi.fn(),
+    clearUsage,
     revision: 0,
   }),
 }));
@@ -588,6 +592,25 @@ describe('useCommandPaletteCommands', () => {
     it('omits agentic search command when callback is not provided', () => {
       const { result } = renderHook(() => useCommandPaletteCommands({ ...baseProps }));
       expect(result.current.some((c) => c.id === 'nav-agentic-search')).toBe(false);
+    });
+  });
+
+  describe('Preferences: Reset Command Stats', () => {
+    beforeEach(() => {
+      clearUsage.mockClear();
+    });
+
+    it('clears command usage', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+      const command = result.current.find((c) => c.id === 'action-reset-command-stats');
+      expect(command).toMatchObject({
+        label: 'Preferences: Reset Command Stats',
+        category: 'Preferences',
+      });
+
+      command?.action();
+      expect(clearUsage).toHaveBeenCalledTimes(1);
     });
   });
 });

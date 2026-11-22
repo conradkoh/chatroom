@@ -6,7 +6,11 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 
-import { SearchParamsErrorHandler } from '@/components/SearchParamsErrorHandler';
+import {
+  SearchParamsErrorAlert,
+  type SearchParamsErrorState,
+  useSearchParamsError,
+} from '@/components/SearchParamsErrorHandler';
 import { Button } from '@/components/ui/button';
 import type { SignupConfig } from '@/modules/app/signupConfig';
 import { useSignupConfig } from '@/modules/app/useAppInfo';
@@ -33,6 +37,7 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const authState = useAuthState();
   const signupConfig = useSignupConfig();
+  const urlError = useSearchParamsError();
   const [sessionId] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null
   );
@@ -67,16 +72,16 @@ function LoginPageContent() {
   }, [authState, redirectAuthenticated]);
 
   if (isLoading) {
-    return _renderLoadingState();
+    return _renderLoadingState(urlError);
   }
 
   // Show disabled state when login is disabled
   if (featureFlags.disableLogin) {
-    return _renderDisabledState();
+    return _renderDisabledState(urlError);
   }
 
   const returnTo = searchParams.get('returnTo');
-  return _renderLoginForm(signupConfig, sessionId, returnTo);
+  return _renderLoginForm(signupConfig, sessionId, returnTo, urlError);
 }
 
 function _renderSignupDisabledBanner() {
@@ -123,7 +128,6 @@ function _renderInviteSignupOption() {
 export default function LoginPage() {
   return (
     <Suspense fallback={_renderLoadingState()}>
-      <SearchParamsErrorHandler />
       <LoginPageContent />
     </Suspense>
   );
@@ -133,24 +137,35 @@ export default function LoginPage() {
 /**
  * Renders the loading state while checking authentication.
  */
-function _renderLoadingState() {
+function _renderLoadingState(urlError?: SearchParamsErrorState) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
       <div className="flex flex-col items-center gap-2">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
+      {urlError && urlError.message !== null && (
+        <div className="mt-6 w-full max-w-md">{_renderUrlError(urlError)}</div>
+      )}
     </main>
   );
 }
 
 /**
+ * The one slot for the decoded ?error= message. Every login-page branch renders it.
+ */
+function _renderUrlError(urlError: SearchParamsErrorState) {
+  return <SearchParamsErrorAlert message={urlError.message} onDismiss={urlError.clear} />;
+}
+
+/**
  * Renders the disabled state when login functionality is turned off.
  */
-function _renderDisabledState() {
+function _renderDisabledState(urlError: SearchParamsErrorState) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
       <div className="w-full max-w-md space-y-6">
+        {_renderUrlError(urlError)}
         <div className="bg-card border border-border rounded-lg p-8 shadow-sm">
           <div className="space-y-6 text-center">
             <div className="space-y-2">
@@ -183,13 +198,15 @@ function _renderDisabledState() {
 function _renderLoginForm(
   signupConfig: SignupConfig | null,
   sessionId: string | null,
-  returnTo: string | null
+  returnTo: string | null,
+  urlError: SearchParamsErrorState
 ) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
       <div className="w-full max-w-md space-y-6">
         {signupConfig !== null && !signupConfig.signupAllowed && _renderSignupDisabledBanner()}
         {_renderHeader()}
+        {_renderUrlError(urlError)}
         {_renderLoginOptions({ signupConfig, sessionId, returnTo })}
         {signupConfig?.inviteOnlyMode && _renderInviteOnlyHint()}
         {_renderFooter()}

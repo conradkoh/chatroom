@@ -8,16 +8,11 @@ import type { DeleteMachineDialogProps } from './DeleteMachineDialog';
 
 import type { MachineUsage } from '@/hooks/useMachineUsage';
 
-const mocks = vi.hoisted(() => {
-  const toast = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() });
-  return { deleteMachine: vi.fn(), toast };
-});
+const mocks = vi.hoisted(() => ({ deleteMachine: vi.fn() }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => mocks.deleteMachine,
 }));
-
-vi.mock('sonner', () => ({ toast: mocks.toast }));
 
 const USAGE: MachineUsage = {
   activeWorkspaceCount: 1,
@@ -54,9 +49,6 @@ describe('DeleteMachineDialog', () => {
   beforeEach(() => {
     mocks.deleteMachine.mockReset();
     mocks.deleteMachine.mockResolvedValue(DELETED_RESULT);
-    mocks.toast.mockReset();
-    mocks.toast.success.mockReset();
-    mocks.toast.error.mockReset();
   });
 
   it('blocks deletion for an online machine and never renders a destructive action', () => {
@@ -155,7 +147,7 @@ describe('DeleteMachineDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus());
   });
 
-  it('deletes the machine, closes and reports what was detached', async () => {
+  it('deletes the machine and closes without a success message', async () => {
     const user = userEvent.setup();
     const { onOpenChange } = renderDialog();
 
@@ -163,38 +155,20 @@ describe('DeleteMachineDialog', () => {
 
     expect(mocks.deleteMachine).toHaveBeenCalledWith({ machineId: 'machine-1' });
     expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(mocks.toast.success).toHaveBeenCalledWith(
-      'Deleted "home-server". 1 workspace detached from 1 chatroom.'
-    );
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('mentions background cleanup when the purge is still running', async () => {
+  it('closes without a message while background cleanup is still running', async () => {
     const user = userEvent.setup();
     mocks.deleteMachine.mockResolvedValue({ ...DELETED_RESULT, purgeComplete: false });
-    renderDialog();
+    const { onOpenChange } = renderDialog();
 
     await user.click(confirmButton() as HTMLElement);
 
-    expect(mocks.toast.success).toHaveBeenCalledWith(
-      'Deleted "home-server". 1 workspace detached from 1 chatroom. Remaining data is being cleaned up in the background.'
-    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('omits the detach clause when nothing was attached', async () => {
-    const user = userEvent.setup();
-    mocks.deleteMachine.mockResolvedValue({
-      ...DELETED_RESULT,
-      detachedWorkspaceCount: 0,
-      affectedChatroomCount: 0,
-    });
-    renderDialog();
-
-    await user.click(confirmButton() as HTMLElement);
-
-    expect(mocks.toast.success).toHaveBeenCalledWith('Deleted "home-server".');
-  });
-
-  it('reports an already-deleted machine and closes', async () => {
+  it('closes an already-deleted machine without a message', async () => {
     const user = userEvent.setup();
     mocks.deleteMachine.mockResolvedValue({ status: 'already_deleted' });
     const { onOpenChange } = renderDialog();
@@ -202,7 +176,6 @@ describe('DeleteMachineDialog', () => {
     await user.click(confirmButton() as HTMLElement);
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(mocks.toast).toHaveBeenCalledWith('This machine was already deleted.');
   });
 
   it('blocks dismissal while the delete is pending', async () => {
@@ -235,15 +208,17 @@ describe('DeleteMachineDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
-  it('closes with an error toast when the machine no longer exists', async () => {
+  it('keeps the dialog open with an inline alert when the machine no longer exists', async () => {
     const user = userEvent.setup();
     mocks.deleteMachine.mockRejectedValue(new ConvexError({ code: 'MACHINE_NOT_FOUND' }));
     const { onOpenChange } = renderDialog();
 
     await user.click(confirmButton() as HTMLElement);
 
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-    expect(mocks.toast.error).toHaveBeenCalledWith('This machine no longer exists.');
+    const error = await screen.findByTestId('delete-machine-error');
+    expect(error.getAttribute('role')).toBe('alert');
+    expect(error.textContent).toBe('This machine no longer exists.');
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
   it('shows friendly copy for an unknown failure and allows a retry', async () => {

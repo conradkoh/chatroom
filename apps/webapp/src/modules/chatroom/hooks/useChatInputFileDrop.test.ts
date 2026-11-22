@@ -4,16 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChatInputFileDrop } from './useChatInputFileDrop';
 
 const mockStartUpload = vi.fn();
-const mockToastError = vi.fn();
-
-vi.mock('sonner', () => ({
-  toast: { error: (...args: unknown[]) => mockToastError(...args) },
-}));
+const mockDismissJob = vi.fn();
 
 vi.mock('../workspace/hooks/useWorkspaceUploadJobs', () => ({
   useWorkspaceUploadJobs: () => ({
     jobs: [],
     startUpload: mockStartUpload,
+    dismissJob: mockDismissJob,
   }),
 }));
 
@@ -55,7 +52,7 @@ function makePasteEvent(files: File[]): React.ClipboardEvent<HTMLTextAreaElement
 describe('useChatInputFileDrop', () => {
   beforeEach(() => {
     mockStartUpload.mockReset();
-    mockToastError.mockReset();
+    mockDismissJob.mockReset();
     vi.stubGlobal('crypto', { randomUUID: () => 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d' });
   });
 
@@ -160,23 +157,15 @@ describe('useChatInputFileDrop', () => {
     expect(mockStartUpload).toHaveBeenCalledTimes(2);
   });
 
-  it('shows toast when picking files without a workspace', () => {
+  it('sets the no-workspace message when picking files without a workspace', () => {
     const setMessage = vi.fn();
-    const textareaRef = { current: { selectionStart: 3 } as HTMLTextAreaElement };
-
     const { result } = renderHook(() =>
-      useChatInputFileDrop({
-        message: 'hey',
-        setMessage,
-        textareaRef,
-      })
+      useChatInputFileDrop({ message: 'hey', setMessage, textareaRef: { current: null } })
     );
-
     act(() => {
       result.current.handleFileInputChange(makeChangeEvent([makeFile('a.txt')]));
     });
-
-    expect(mockToastError).toHaveBeenCalledWith('Connect a workspace to attach files');
+    expect(result.current.attachError).toBe('Connect a workspace to attach files');
     expect(setMessage).not.toHaveBeenCalled();
     expect(mockStartUpload).not.toHaveBeenCalled();
   });
@@ -209,13 +198,58 @@ describe('useChatInputFileDrop', () => {
     expect(event.preventDefault).not.toHaveBeenCalled();
   });
 
-  it('shows toast when pasting image without workspace', () => {
+  it('sets the no-workspace message when pasting image without workspace', () => {
     const event = makePasteEvent([new File(['x'], 'blob', { type: 'image/png' })]);
     const { result } = renderHook(() =>
       useChatInputFileDrop({ message: 'hey', setMessage: vi.fn(), textareaRef: { current: null } })
     );
     act(() => result.current.handlePaste(event));
     expect(event.preventDefault).toHaveBeenCalled();
-    expect(mockToastError).toHaveBeenCalledWith('Connect a workspace to attach files');
+    expect(result.current.attachError).toBe('Connect a workspace to attach files');
+  });
+
+  it('clears the no-workspace message once a workspace is connected and files attach', () => {
+    const { result, rerender } = renderHook(
+      ({ machineId }: { machineId: string | null }) =>
+        useChatInputFileDrop({
+          machineId,
+          workingDir: '/workspace',
+          message: 'hey',
+          setMessage: vi.fn(),
+          textareaRef: { current: null },
+        }),
+      { initialProps: { machineId: null as string | null } }
+    );
+    act(() => result.current.attachFiles([makeFile('a.txt')]));
+    expect(result.current.attachError).toBe('Connect a workspace to attach files');
+
+    rerender({ machineId: 'machine-1' });
+    act(() => result.current.attachFiles([makeFile('a.txt')]));
+    expect(result.current.attachError).toBeNull();
+  });
+
+  it('dismissAttachError clears the no-workspace message', () => {
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({ message: 'hey', setMessage: vi.fn(), textareaRef: { current: null } })
+    );
+    act(() => result.current.attachFiles([makeFile('a.txt')]));
+    expect(result.current.attachError).toBe('Connect a workspace to attach files');
+    act(() => result.current.dismissAttachError());
+    expect(result.current.attachError).toBeNull();
+  });
+
+  it('exposes dismissUploadJob from the upload jobs hook', () => {
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        message: '',
+        setMessage: vi.fn(),
+        textareaRef: { current: null },
+      })
+    );
+    expect(result.current.dismissUploadJob).toBe(mockDismissJob);
+    act(() => result.current.dismissUploadJob('job-1'));
+    expect(mockDismissJob).toHaveBeenCalledWith('job-1');
   });
 });

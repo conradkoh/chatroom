@@ -3,10 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useExplorerFileDrop } from './useExplorerFileDrop';
 
-vi.mock('sonner', () => ({
-  toast: { error: vi.fn() },
-}));
-
 function makeFile(name: string): File {
   return new File(['content'], name, { type: 'text/plain' });
 }
@@ -34,7 +30,7 @@ describe('useExplorerFileDrop', () => {
   });
 
   it('advances A→B→C without skipping on dialog close', () => {
-    const { result } = renderHook(() => useExplorerFileDrop());
+    const { result } = renderHook(() => useExplorerFileDrop({ onBlocked: vi.fn() }));
 
     act(() => {
       result.current.handleDrop(
@@ -65,7 +61,7 @@ describe('useExplorerFileDrop', () => {
   });
 
   it('cancel skips the current file and advances to the next', () => {
-    const { result } = renderHook(() => useExplorerFileDrop());
+    const { result } = renderHook(() => useExplorerFileDrop({ onBlocked: vi.fn() }));
 
     act(() => {
       result.current.handleDrop(makeDropEvent([makeFile('skip.txt'), makeFile('keep.txt')]));
@@ -78,5 +74,31 @@ describe('useExplorerFileDrop', () => {
     });
 
     expect(result.current.pendingUpload?.file.name).toBe('keep.txt');
+  });
+
+  it('reports a blocked drop through onBlocked and opens no upload', () => {
+    const onBlocked = vi.fn();
+    const { result } = renderHook(() => useExplorerFileDrop({ onBlocked }));
+
+    act(() => {
+      result.current.handleDrop(makeDropEvent([makeFile('.env')]));
+    });
+
+    expect(onBlocked).toHaveBeenCalledWith(
+      'Cannot upload to this location (.git and sensitive paths are blocked)'
+    );
+    expect(result.current.pendingUpload).toBeNull();
+  });
+
+  it('does not call onBlocked for an allowed drop', () => {
+    const onBlocked = vi.fn();
+    const { result } = renderHook(() => useExplorerFileDrop({ onBlocked }));
+
+    act(() => {
+      result.current.handleDrop(makeDropEvent([makeFile('notes.txt')]));
+    });
+
+    expect(onBlocked).not.toHaveBeenCalled();
+    expect(result.current.pendingUpload?.file.name).toBe('notes.txt');
   });
 });

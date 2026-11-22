@@ -8,7 +8,7 @@
     "pretest": "bash scripts/kill-stale-vitest.sh",
     "pretest:watch": "bash scripts/kill-stale-vitest.sh",
     "test": "turbo run test",
-    "test:scripts": "bun test scripts/",
+    "test:scripts": "bun test scripts/ eslint-rules/",
     "test:watch": "turbo run test:watch",
     "test:kill-stale": "bash scripts/kill-stale-vitest.sh",
     "dev": "turbo run dev",

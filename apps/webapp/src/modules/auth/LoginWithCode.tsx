@@ -5,7 +5,6 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -151,16 +150,13 @@ async function _handleSubmit(params: _HandleSubmitParams): Promise<void> {
     const result = await verifyLoginCode({ code: cleanCode });
 
     if (result.success) {
-      toast.success('Login successful');
       router.push('/app');
     } else {
       setError(result.message);
-      toast.error(result.message);
     }
   } catch (error) {
     console.error('Failed to verify login code:', error);
-    setError('An unexpected error occurred. Please try again.');
-    toast.error('Failed to verify code. Please try again.');
+    setError('Failed to verify code. Please try again.');
   } finally {
     setIsLoading(false);
   }

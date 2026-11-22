@@ -9,6 +9,7 @@ import {
 } from '../../../components/picker';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 
+import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function StandingInstructionsHistoryModal({
@@ -18,6 +19,7 @@ export function StandingInstructionsHistoryModal({
   onSelect,
   onEditItem,
   onDeleteItem,
+  deleteFeedback,
   mobile,
 }: {
   open: boolean;
@@ -26,6 +28,7 @@ export function StandingInstructionsHistoryModal({
   onSelect: (item: StandingInstructionHistoryItem) => void;
   onEditItem: (item: StandingInstructionHistoryItem) => void;
   onDeleteItem: (item: StandingInstructionHistoryItem) => void;
+  deleteFeedback: Feedback | null;
   mobile?: boolean;
 }) {
   const { searchTerm, setSearchTerm } = usePickerSearchState(() => {});
@@ -40,6 +43,7 @@ export function StandingInstructionsHistoryModal({
           <DialogTitle>Standing instruction history</DialogTitle>
         </DialogHeader>
         <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search history…" />
+        <InlineFeedback feedback={deleteFeedback} className="mx-3 mb-2" />
         <PickerScrollBody>
           {filtered.length === 0 ? (
             <div className="px-3 py-2 text-xs text-chatroom-text-muted">No matches</div>

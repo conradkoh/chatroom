@@ -1,15 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { FileTabBar } from './FileTabBar';
 import { WORKSPACE_HEADER_ROW_HEIGHT_CLASS } from './WorkspaceTabBar';
 import { useFileContent } from '../hooks/useFileContent';
 import type { EditorTab } from '../hooks/useFileTabs';
 import { previewTabDoubleClickAction } from '../utils/explorerExpandHandlers';
-
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
@@ -123,6 +119,27 @@ describe('FileTabBar', () => {
     expect(writeText).toHaveBeenCalledWith('src/b.ts');
   });
 
+  it('reports a rejected relative-path copy to onCopyError', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const onCopyError = vi.fn();
+    const onCopied = vi.fn();
+
+    render(<FileTabBar {...defaultProps} onCopied={onCopied} onCopyError={onCopyError} />);
+
+    fireEvent.contextMenu(screen.getByTitle('src/b.ts'));
+    fireEvent.click(await screen.findByText('Copy Relative Path'));
+
+    await vi.waitFor(() => {
+      expect(onCopyError).toHaveBeenCalledTimes(1);
+    });
+    expect(onCopyError).toHaveBeenCalledWith('Failed to copy to clipboard');
+    expect(onCopied).not.toHaveBeenCalled();
+  });
+
   it('copies file name from context menu', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -226,5 +243,54 @@ describe('FileTabBar', () => {
     const result = previewTabDoubleClickAction('preview', 'src/a.md');
     expect(result?.action).toBe('togglePreviewExpanded');
     expect(result?.action).not.toBe('toggleExpanded');
+  });
+});
+
+describe('FileTabBar copy reporting', () => {
+  function stubClipboard(writeText: (text: string) => Promise<void>) {
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  }
+
+  function mockFileContent(truncated: boolean) {
+    vi.mocked(useFileContent).mockReturnValue({
+      content: 'file body',
+      encoding: 'utf8',
+      truncated,
+      fetchedAt: 1,
+    });
+  }
+
+  async function copyFileContentFromTab() {
+    fireEvent.contextMenu(screen.getByTitle('src/b.ts'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /copy file content/i }));
+  }
+
+  it('reports a truncated file content copy to onCopied as truncated', async () => {
+    mockFileContent(true);
+    stubClipboard(vi.fn().mockResolvedValue(undefined));
+    const onCopied = vi.fn();
+
+    render(<FileTabBar {...defaultProps} onCopied={onCopied} />);
+    await copyFileContentFromTab();
+
+    await waitFor(() => expect(onCopied).toHaveBeenCalledWith({ truncated: true }));
+  });
+
+  it('reports a complete file content copy to onCopied as not truncated', async () => {
+    mockFileContent(false);
+    stubClipboard(vi.fn().mockResolvedValue(undefined));
+    const onCopied = vi.fn();
+
+    render(<FileTabBar {...defaultProps} onCopied={onCopied} />);
+    await copyFileContentFromTab();
+
+    await waitFor(() => expect(onCopied).toHaveBeenCalledWith({ truncated: false }));
+  });
+
+  afterEach(() => {
+    vi.mocked(useFileContent).mockReturnValue(null);
   });
 });

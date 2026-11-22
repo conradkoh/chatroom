@@ -8,7 +8,6 @@ import { BulkCreateDialog } from './BulkCreateDialog';
 
 const mocks = vi.hoisted(() => ({
   createMany: vi.fn(),
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -20,8 +19,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
     return mocks.createMany;
   },
 }));
-
-vi.mock('sonner', () => ({ toast: mocks.toast }));
 
 const REPO_PATHS = Array.from(
   { length: 120 },
@@ -47,9 +44,6 @@ function renderDialog(overrides: Partial<{ paths: string[]; onClose: () => void 
 describe('BulkCreateDialog', () => {
   beforeEach(() => {
     mocks.createMany.mockReset();
-    mocks.toast.mockReset();
-    mocks.toast.success.mockReset();
-    mocks.toast.error.mockReset();
   });
 
   it('lists the first 50 targets and explains the default team', () => {
@@ -190,6 +184,7 @@ describe('BulkCreateDialog', () => {
     expect(error.textContent).toContain('It is safe to try again');
     expect(error.textContent).not.toContain('network down');
     expect(screen.queryByTestId('bulk-create-earlier')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('Nothing was created');
 
     await user.click(screen.getByTestId('bulk-create-retry'));
 
@@ -202,7 +197,7 @@ describe('BulkCreateDialog', () => {
     expect(retryCall.workingDirs[49]).toBe('/Users/me/projects/repo-049');
   });
 
-  it('toasts the cumulative success once the dialog is done', async () => {
+  it('keeps the cumulative summary inline and closes only on Done', async () => {
     const user = userEvent.setup();
     mocks.createMany.mockResolvedValue({
       results: [
@@ -228,14 +223,17 @@ describe('BulkCreateDialog', () => {
     });
 
     await user.click(screen.getByTestId('bulk-create-confirm'));
-    await screen.findByTestId('bulk-create-summary');
+    const summary = await screen.findByTestId('bulk-create-summary');
+    expect(summary.textContent).toBe('Created 1 · Skipped 1 · Failed 0');
+    expect(summary.getAttribute('role')).toBe('alert');
+    expect(onClose).not.toHaveBeenCalled();
+
     await user.click(screen.getByRole('button', { name: 'Done' }));
 
-    expect(mocks.toast.success).toHaveBeenCalledWith('Created 1 chatroom');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('toasts an error when every attempted repository failed', async () => {
+  it('keeps the all-failed summary inline and does not close on its own', async () => {
     const user = userEvent.setup();
     const failed = (workingDir: string) => ({
       workingDir,
@@ -249,12 +247,19 @@ describe('BulkCreateDialog', () => {
       skipped: 0,
       failed: 2,
     });
-    renderDialog({ paths: ['/Users/me/projects/a', '/Users/me/projects/b'] });
+    const { onClose } = renderDialog({ paths: ['/Users/me/projects/a', '/Users/me/projects/b'] });
 
     await user.click(screen.getByTestId('bulk-create-confirm'));
-    await screen.findByTestId('bulk-create-summary');
+    const summary = await screen.findByTestId('bulk-create-summary');
+    expect(summary.textContent).toBe('Created 0 · Skipped 0 · Failed 2');
+    expect(summary.getAttribute('role')).toBe('alert');
+    expect(screen.getByTestId('bulk-create-failures').textContent).toContain(
+      '/Users/me/projects/a'
+    );
+    expect(onClose).not.toHaveBeenCalled();
+
     await user.click(screen.getByRole('button', { name: 'Done' }));
 
-    expect(mocks.toast.error).toHaveBeenCalledWith('No chatrooms created. 2 failed.');
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

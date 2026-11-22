@@ -4,7 +4,10 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 
-import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
+import {
+  useRequestWorkspaceFileTree,
+  type WorkspaceTreeSyncFeedback,
+} from './useRequestWorkspaceFileTree';
 import {
   acquireFileTreeDeltaSync,
   isFileTreeDeltaSyncOwner,
@@ -35,16 +38,23 @@ export function useWorkspaceFileTreeDeltaSync({
   machineId,
   workingDir,
   enabled = true,
+  treeSyncFeedback,
 }: {
   workspaceKey: string;
   machineId: string;
   workingDir: string;
   enabled?: boolean;
+  treeSyncFeedback?: WorkspaceTreeSyncFeedback;
 }): void {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const ownerId = useRef(Symbol('delta-sync-owner')).current;
   const storeRevision = useWorkspaceFileTreeStoreRevision(workspaceKey);
-  const requestTree = useRequestWorkspaceFileTree({ machineId, workingDir, enabled });
+  const requestTree = useRequestWorkspaceFileTree({
+    machineId,
+    workingDir,
+    enabled,
+    treeSyncFeedback,
+  });
 
   const isOwner = useSyncExternalStore(
     subscribeFileTreeDeltaSync,

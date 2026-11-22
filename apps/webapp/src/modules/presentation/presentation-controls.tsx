@@ -1,14 +1,22 @@
 'use client';
 
-import { Info, LinkIcon, Maximize2, Minimize2, MonitorSmartphone, UserIcon } from 'lucide-react';
+import {
+  Check,
+  Info,
+  LinkIcon,
+  Maximize2,
+  Minimize2,
+  MonitorSmartphone,
+  UserIcon,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { usePresentationContext } from './presentation-container';
 import { Button, buttonVariants } from '../../components/ui/button';
 
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { cn } from '@/lib/utils';
 
 const useClientSideFeatures = () => {
@@ -98,34 +106,6 @@ export function PresentationControls() {
       handleCloseModal();
     }
   };
-
-  /**
-   * Create and copy a shareable link with sync enabled
-   * Includes the current slide position in the URL
-   */
-  const copyShareableLink = useCallback(() => {
-    if (!isClient) return;
-
-    // Create URL with current slide
-    const url = new URL(window.location.href);
-    url.searchParams.set('slide', currentSlide.toString());
-
-    navigator.clipboard
-      .writeText(url.toString())
-      .then(() => {
-        toast.success('Link copied!', {
-          description: 'Shareable link has been copied to clipboard',
-          duration: 3000,
-        });
-      })
-      .catch((error) => {
-        toast.error('Failed to copy', {
-          description: 'Please copy the URL manually from your address bar',
-          duration: 3000,
-        });
-        console.error('Failed to copy URL:', error);
-      });
-  }, [currentSlide, isClient]);
 
   /**
    * Handle sync button click based on current state
@@ -447,19 +427,53 @@ export function PresentationControls() {
                   </Button>
                 )}
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyShareableLink}
-                  className="flex items-center gap-1 text-xs w-full mt-2 h-8"
-                >
-                  <LinkIcon className="h-3 w-3" />
-                  Copy shareable link
-                </Button>
+                <ShareLinkButton currentSlide={currentSlide} isClient={isClient} />
               </section>
             </div>
           </dialog>
         </div>
+      )}
+    </>
+  );
+}
+
+const SHARE_LINK_KEY = 'share';
+
+/**
+ * Copy-link control inside the presentation info dialog. Owns its copy feedback,
+ * so a failure message clears when the dialog closes (this component unmounts with it).
+ */
+function ShareLinkButton({ currentSlide, isClient }: { currentSlide: number; isClient: boolean }) {
+  const { copiedKey, failedKey, copy } = useCopyToClipboard();
+
+  const copyShareableLink = () => {
+    if (!isClient) return;
+
+    // Create URL with current slide
+    const url = new URL(window.location.href);
+    url.searchParams.set('slide', currentSlide.toString());
+    void copy(url.toString(), SHARE_LINK_KEY);
+  };
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={copyShareableLink}
+        className="flex items-center gap-1 text-xs w-full mt-2 h-8"
+      >
+        {copiedKey === SHARE_LINK_KEY ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <LinkIcon className="h-3 w-3" />
+        )}
+        {copiedKey === SHARE_LINK_KEY ? 'Link copied' : 'Copy shareable link'}
+      </Button>
+      {failedKey === SHARE_LINK_KEY && (
+        <p role="alert" className="mt-1 text-xs text-destructive">
+          Failed to copy. Please copy the URL manually from your address bar
+        </p>
       )}
     </>
   );

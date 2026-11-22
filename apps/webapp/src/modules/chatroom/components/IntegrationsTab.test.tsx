@@ -8,8 +8,6 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   sendMessage: vi.fn(),
   validateBotToken: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -43,13 +41,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
         },
       },
     },
-  },
-}));
-
-vi.mock('sonner', () => ({
-  toast: {
-    success: mocks.toastSuccess,
-    error: mocks.toastError,
   },
 }));
 
@@ -247,7 +238,7 @@ describe('IntegrationsTab', () => {
       expect(await screen.findByLabelText(/Name/)).toHaveValue('Team alerts');
     });
 
-    it('closes on connect, toasts once and highlights the new row', async () => {
+    it('closes on connect, shows the connect hint on the new row and highlights it', async () => {
       let rows: ReturnType<typeof makeIntegration>[] = [];
       mocks.list.mockImplementation(() => rows);
       mocks.validateBotToken.mockResolvedValue({
@@ -286,10 +277,9 @@ describe('IntegrationsTab', () => {
         config: { botToken: '123456:secret', chatId: TELEGRAM_CHAT_ID },
         enabled: true,
       });
-      expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
-      expect(mocks.toastSuccess).toHaveBeenCalledWith('Telegram connected', {
-        description: 'Use Test on the new row to send a message.',
-      });
+      expect(
+        screen.getByText('Telegram connected. Use Test on the new row to send a message.')
+      ).toBeInTheDocument();
 
       expect(screen.queryByText('Telegram connected!')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
@@ -361,6 +351,13 @@ describe('IntegrationsTab', () => {
   });
 
   describe('connected row', () => {
+    it('keeps the connect hint off a row that was never connected', async () => {
+      mocks.list.mockReturnValue([makeIntegration()]);
+      const { IntegrationsTab } = await import('./IntegrationsTab');
+      render(<IntegrationsTab chatroomId="room-1" />);
+      expect(screen.queryByText(/Use Test on the new row/)).not.toBeInTheDocument();
+    });
+
     it('shows the Active badge and enabled Test for an enabled integration', async () => {
       mocks.list.mockReturnValue([makeIntegration()]);
 
@@ -402,7 +399,7 @@ describe('IntegrationsTab', () => {
       });
     });
 
-    it('toasts when the toggle fails', async () => {
+    it('shows the toggle failure inline on the row', async () => {
       mocks.list.mockReturnValue([makeIntegration()]);
       mocks.update.mockRejectedValue(new Error('Toggle failed'));
 
@@ -411,9 +408,7 @@ describe('IntegrationsTab', () => {
 
       fireEvent.click(screen.getByRole('switch'));
 
-      await waitFor(() => {
-        expect(mocks.toastError).toHaveBeenCalledWith('Toggle failed');
-      });
+      expect(await within(getCard()).findByRole('alert')).toHaveTextContent('Toggle failed');
     });
   });
 
@@ -509,7 +504,6 @@ describe('IntegrationsTab', () => {
         expect(mocks.update).toHaveBeenCalledTimes(1);
       });
       expect(mocks.update).toHaveBeenCalledWith({ integrationId: 'integ-1', name: 'New name' });
-      expect(mocks.toastSuccess).toHaveBeenCalledWith('Integration details saved');
       await waitFor(() => {
         expect(screen.queryByText('Edit Details')).not.toBeInTheDocument();
       });
@@ -592,6 +586,7 @@ describe('IntegrationsTab', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
       expect(await screen.findByText('boom')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('boom');
       expect(screen.getByText('Edit Details')).toBeInTheDocument();
       const save = screen.getByRole('button', { name: 'Save changes' });
       expect(save).not.toBeDisabled();
@@ -622,7 +617,7 @@ describe('IntegrationsTab', () => {
   });
 
   describe('test message panel', () => {
-    it('sends a message, shows the success line and closes after 2 seconds', async () => {
+    it('sends a message and keeps the success line until the panel is closed', async () => {
       vi.useFakeTimers();
       mocks.list.mockReturnValue([makeIntegration()]);
       mocks.sendMessage.mockResolvedValue(undefined);
@@ -649,9 +644,11 @@ describe('IntegrationsTab', () => {
       expect(screen.getByText('Send Test Message')).toBeInTheDocument();
 
       act(() => {
-        vi.advanceTimersByTime(2000);
+        vi.advanceTimersByTime(10000);
       });
+      expect(screen.getByText('✅ Sent to this Telegram integration.')).toBeInTheDocument();
 
+      fireEvent.click(screen.getByRole('button', { name: 'Close test message' }));
       expect(screen.queryByText('Send Test Message')).not.toBeInTheDocument();
     });
 
@@ -669,6 +666,7 @@ describe('IntegrationsTab', () => {
       fireEvent.click(screen.getByRole('button', { name: /Send/ }));
 
       expect(await screen.findByText(/Telegram is unreachable/)).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Telegram is unreachable');
       expect(screen.getByText('Not sent.')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Send/ })).not.toBeDisabled();
     });
@@ -695,7 +693,7 @@ describe('IntegrationsTab', () => {
       });
     });
 
-    it('names the named target, toasts the success and closes after 2 seconds', async () => {
+    it('names the named target in the persistent success line', async () => {
       vi.useFakeTimers();
       mocks.list.mockReturnValue([makeIntegration({ name: 'Team alerts' })]);
       mocks.sendMessage.mockResolvedValue(undefined);
@@ -716,11 +714,13 @@ describe('IntegrationsTab', () => {
       });
 
       expect(screen.getByText('✅ Sent to "Team alerts".')).toBeInTheDocument();
-      expect(mocks.toastSuccess).toHaveBeenCalledWith('Test message sent to "Team alerts"');
 
       act(() => {
-        vi.advanceTimersByTime(2000);
+        vi.advanceTimersByTime(10000);
       });
+      expect(screen.getByText('✅ Sent to "Team alerts".')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close test message' }));
       expect(screen.queryByText('Send Test Message')).not.toBeInTheDocument();
     });
 
@@ -785,9 +785,10 @@ describe('IntegrationsTab', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
 
       expect(await screen.findByText('Cannot delete integration')).toBeInTheDocument();
+      expect(screen.getAllByText('Cannot delete integration')).toHaveLength(1);
+      expect(screen.getByRole('alert')).toHaveTextContent('Cannot delete integration');
       expect(screen.getByText('Remove Telegram integration?')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Delete' })).not.toBeDisabled();
-      expect(mocks.toastError).toHaveBeenCalledWith('Cannot delete integration');
     });
 
     it('uses the name in the dialog title and always shows the ID', async () => {

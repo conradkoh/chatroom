@@ -2,14 +2,20 @@
 // fallow-ignore-file complexity
 
 import { Progress as ProgressPrimitive } from '@base-ui/react/progress';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, X, XCircle } from 'lucide-react';
 
 import { phaseLabel, type WorkspaceUploadJob } from '../utils/workspaceUploadProgress';
 
 import { ProgressIndicator, ProgressLabel, ProgressTrack } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
-function ProgressRow({ job }: { job: WorkspaceUploadJob }) {
+function ProgressRow({
+  job,
+  onDismiss,
+}: {
+  job: WorkspaceUploadJob;
+  onDismiss?: (id: string) => void;
+}) {
   const isComplete = job.phase === 'complete';
   const isError = job.phase === 'error';
 
@@ -45,8 +51,27 @@ function ProgressRow({ job }: { job: WorkspaceUploadJob }) {
           />
         </ProgressTrack>
       </ProgressPrimitive.Root>
-      {isError && job.errorMessage ? (
-        <p className="text-[10px] text-destructive">{job.errorMessage}</p>
+      {isError ? (
+        <div className="flex items-start gap-1">
+          {job.errorMessage ? (
+            <p
+              role="alert"
+              className="min-w-0 flex-1 break-words text-[10px] text-chatroom-status-error"
+            >
+              {job.errorMessage}
+            </p>
+          ) : null}
+          {onDismiss ? (
+            <button
+              type="button"
+              onClick={() => onDismiss(job.id)}
+              aria-label="Dismiss"
+              className="-m-1 shrink-0 p-1 text-chatroom-status-error opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current"
+            >
+              <X size={12} aria-hidden />
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -55,9 +80,11 @@ function ProgressRow({ job }: { job: WorkspaceUploadJob }) {
 export function WorkspaceUploadProgressList({
   jobs,
   embedded = false,
+  onDismiss,
 }: {
   jobs: WorkspaceUploadJob[];
   embedded?: boolean;
+  onDismiss?: (id: string) => void;
 }) {
   if (jobs.length === 0) return null;
 
@@ -69,7 +96,7 @@ export function WorkspaceUploadProgressList({
       )}
     >
       {jobs.map((job) => (
-        <ProgressRow key={job.id} job={job} />
+        <ProgressRow key={job.id} job={job} onDismiss={onDismiss} />
       ))}
     </div>
   );

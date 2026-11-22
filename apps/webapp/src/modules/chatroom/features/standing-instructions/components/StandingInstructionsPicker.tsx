@@ -2,7 +2,6 @@
 
 import { standingInstructionDisplayTitle } from '@workspace/backend/src/domain/entities/standing-instructions';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import { StandingInstructionsCreateModal } from './StandingInstructionsCreateModal';
 import { StandingInstructionsDeleteConfirm } from './StandingInstructionsDeleteConfirm';
@@ -19,8 +18,10 @@ import { MobileKeyboardDrawer } from '../../../components/picker';
 import { chatroomIndustrialDialogTitleClassName } from '../../../components/shared/industrialDialogStyles';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DrawerTitle } from '@/components/ui/drawer';
+import { useFeedback } from '@/hooks/useFeedback';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { cn } from '@/lib/utils';
 
@@ -71,6 +72,11 @@ export function StandingInstructionsPicker({
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PickerListItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PickerListItem | null>(null);
+  const {
+    feedback: deleteFeedback,
+    error: showDeleteError,
+    clear: clearDeleteFeedback,
+  } = useFeedback();
 
   const resolveSelectedItem = useCallback(
     (id: string | null): PickerListItem | undefined => {
@@ -115,32 +121,23 @@ export function StandingInstructionsPicker({
   const handleEditSave = useCallback(
     async (payload: { content: string; title: string; applyToAllChatrooms?: boolean }) => {
       if (!editTarget) return;
-      try {
-        await onEditItem(editTarget, payload);
-        setEditTarget(null);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        toast.error(
-          message.includes('CONFLICT') || message.includes('already exists')
-            ? 'Another standing instruction with this content already exists.'
-            : 'Failed to update standing instruction. Please try again.'
-        );
-        throw error;
-      }
+      await onEditItem(editTarget, payload);
+      setEditTarget(null);
     },
     [editTarget, onEditItem]
   );
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return;
+    clearDeleteFeedback();
     try {
       await onDeleteItem(deleteTarget);
       if (selectedId === deleteTarget.id) setSelectedId(activeId);
       setDeleteTarget(null);
     } catch {
-      toast.error('Failed to delete standing instruction. Please try again.');
+      showDeleteError('Failed to delete standing instruction. Please try again.');
     }
-  }, [deleteTarget, onDeleteItem, selectedId, activeId]);
+  }, [deleteTarget, onDeleteItem, selectedId, activeId, clearDeleteFeedback, showDeleteError]);
 
   const viewMoreButton = hasMore ? (
     <button
@@ -165,6 +162,7 @@ export function StandingInstructionsPicker({
         onDeleteItem={setDeleteTarget}
         mobile={!isDesktop}
       />
+      {historyModalOpen ? null : <InlineFeedback feedback={deleteFeedback} className="mx-3 mb-2" />}
       <StandingInstructionsPickerFooter
         isActive={isActive}
         hasContent={hasContent}
@@ -181,6 +179,7 @@ export function StandingInstructionsPicker({
         onSelect={handleHistorySelect}
         onEditItem={setEditTarget}
         onDeleteItem={setDeleteTarget}
+        deleteFeedback={deleteFeedback}
         mobile={!isDesktop}
       />
       <StandingInstructionsCreateModal

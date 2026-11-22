@@ -21,3 +21,14 @@ export function onStandingEditorKeyDown(
   e.preventDefault();
   onConfirm();
 }
+
+const SAVE_CONFLICT_COPY = 'Another standing instruction with this content already exists.';
+const SAVE_FAILED_COPY = 'Failed to save standing instruction.';
+
+/** Maps a failed save to the copy shown inside the edit/create dialog. */
+export function standingInstructionSaveErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  return message.includes('CONFLICT') || message.includes('already exists')
+    ? SAVE_CONFLICT_COPY
+    : SAVE_FAILED_COPY;
+}

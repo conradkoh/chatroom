@@ -123,7 +123,7 @@ async function resolveDeletionTarget(
 
   await assertDeletionAllowed(ctx, machine, input);
 
-  // Active workspace/chatroom counts are toast-only and capped at 500.
+  // Active workspace/chatroom counts are shown in the delete dialog, capped at MACHINE_USAGE_SCAN_CAP.
   return {
     status: 'deletable',
     machineRowId: machine._id,

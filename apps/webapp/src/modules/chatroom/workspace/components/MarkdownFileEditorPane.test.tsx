@@ -1,7 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { toast } from 'sonner';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarkdownFileEditorPane } from './MarkdownFileEditorPane';
 
@@ -50,13 +49,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('sonner', () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-  },
-}));
-
 describe('MarkdownFileEditorPane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,6 +58,10 @@ describe('MarkdownFileEditorPane', () => {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
       configurable: true,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('shows dirty indicator in toolbar', () => {
@@ -200,8 +196,14 @@ describe('MarkdownFileEditorPane', () => {
     expect(screen.queryByRole('button', { name: /dismiss error/i })).not.toBeInTheDocument();
   });
 
-  it('copies markdown when Copy button is clicked', async () => {
+  it('copies markdown and flips the header icon to a check for 2 s', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup();
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
     render(
       <MarkdownFileEditorPane
         machineId="machine-1"
@@ -210,10 +212,111 @@ describe('MarkdownFileEditorPane', () => {
       />
     );
 
-    await user.click(screen.getByRole('button', { name: /copy as markdown/i }));
-    await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Copied markdown to clipboard');
+    const copyButton = screen.getByRole('button', { name: /copy as markdown/i });
+
+    await user.click(copyButton);
+
+    expect(writeText).toHaveBeenCalledWith('# Hello');
+    expect(copyButton.querySelector('svg.lucide-check')).not.toBeNull();
+    expect(screen.queryByTestId('markdown-pane-feedback')).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
     });
+    expect(copyButton.querySelector('svg.lucide-check')).toBeNull();
+  });
+
+  it('shows a copy failure in the markdown pane slot', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    const user = userEvent.setup();
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    render(
+      <MarkdownFileEditorPane
+        machineId="machine-1"
+        workingDir="/workspace"
+        filePath="docs/readme.md"
+      />
+    );
+
+    const copyButton = screen.getByRole('button', { name: /copy as markdown/i });
+    await user.click(copyButton);
+
+    const slot = await screen.findByTestId('markdown-pane-feedback');
+    expect(slot).toHaveAttribute('role', 'alert');
+    expect(slot).toHaveTextContent('Failed to copy markdown');
+    expect(copyButton.querySelector('svg.lucide-check')).toBeNull();
+    expect(writeText).toHaveBeenCalledWith('# Hello');
+  });
+
+  it('clears only a copy failure when a later copy succeeds', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    const user = userEvent.setup();
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    render(
+      <MarkdownFileEditorPane
+        machineId="machine-1"
+        workingDir="/workspace"
+        filePath="docs/readme.md"
+      />
+    );
+
+    const copyButton = screen.getByRole('button', { name: /copy as markdown/i });
+    await user.click(copyButton);
+    expect(await screen.findByTestId('markdown-pane-feedback')).toHaveTextContent(
+      'Failed to copy markdown'
+    );
+
+    writeText.mockResolvedValue(undefined);
+    await user.click(copyButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('markdown-pane-feedback')).toBeNull();
+    });
+  });
+
+  it('keeps a dismiss failure after a later copy succeeds', async () => {
+    mockUseMarkdownFileEditor.mockReturnValue({
+      content: '',
+      setContent: mockSetContent,
+      isDirty: false,
+      contentRef: { current: '' },
+      save: mockSave,
+      saving: false,
+      error: 'Workspace is not registered on this machine.',
+      isLoading: false,
+    });
+    mockPurgeFileContentEntry.mockRejectedValue(new Error('purge failed'));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    render(
+      <MarkdownFileEditorPane
+        machineId="machine-1"
+        workingDir="/Users/alice/chatroom/"
+        filePath="README.md"
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /dismiss error/i }));
+
+    expect(await screen.findByTestId('markdown-pane-feedback')).toHaveTextContent(
+      'Could not dismiss workspace registration error'
+    );
+
+    await user.click(screen.getByRole('button', { name: /copy as markdown/i }));
+
+    expect(screen.getByTestId('markdown-pane-feedback')).toHaveTextContent(
+      'Could not dismiss workspace registration error'
+    );
   });
 
   it('highlights other exact matches when text is selected', async () => {

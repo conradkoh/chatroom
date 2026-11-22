@@ -8,8 +8,7 @@ const mocks = vi.hoisted(() => ({
   data: {} as Record<string, any>,
   requestOperation: vi.fn(),
   saveConfig: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
+  onFeedback: vi.fn(),
   /** Key count of every `useQueries` call, in order. The palette path must record only 0s. */
   queryCalls: [] as number[],
   resolve: (query: string, args: Record<string, any>): unknown => {
@@ -65,13 +64,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('sonner', () => ({
-  toast: {
-    success: (...args: unknown[]) => mocks.toastSuccess(...args),
-    error: (...args: unknown[]) => mocks.toastError(...args),
-  },
-}));
-
 /** One builder on machine m1 that runs claude-sdk/opus; its top favourite is opencode-sdk/gpt → mismatch. */
 function mismatchFixture() {
   return {
@@ -98,8 +90,14 @@ function matchingFixture() {
 }
 
 function renderStartAll() {
-  return renderHook(() => useStartAllRemoteAgents({ chatroomId: 'room-1' }));
+  return renderHook(() =>
+    useStartAllRemoteAgents({ chatroomId: 'room-1', onFeedback: mocks.onFeedback })
+  );
 }
+
+/** Every non-null draft written to the slot, in order. */
+const nonNullDrafts = () =>
+  mocks.onFeedback.mock.calls.map(([draft]) => draft).filter((draft) => draft !== null);
 
 describe('useStartAllRemoteAgents', () => {
   beforeEach(() => {
@@ -113,8 +111,7 @@ describe('useStartAllRemoteAgents', () => {
     });
     mocks.saveConfig.mockReset();
     mocks.saveConfig.mockResolvedValue(undefined);
-    mocks.toastSuccess.mockReset();
-    mocks.toastError.mockReset();
+    mocks.onFeedback.mockReset();
   });
 
   describe('command palette path', () => {
@@ -132,29 +129,53 @@ describe('useStartAllRemoteAgents', () => {
       expect(mocks.saveConfig).not.toHaveBeenCalled();
       expect(result.current.dialogProps.open).toBe(false);
       expect(mocks.queryCalls.every((count) => count === 0)).toBe(true);
-      expect(mocks.toastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+      expect(mocks.onFeedback.mock.calls.at(-1)?.[0]).toBeNull();
+      expect(nonNullDrafts()).toEqual([]);
     });
 
-    it('toasts a failed start and reports the error without a prompt', async () => {
+    it('reports a failed start without a prompt', async () => {
       mocks.requestOperation.mockResolvedValue({
         requested: [],
         skipped: [],
-        failed: [{ role: 'builder' }],
+        failed: [{ role: 'builder', error: 'Machine offline' }],
       });
       const { result } = renderStartAll();
 
       await act(() => result.current.startAllFromPalette());
 
-      expect(mocks.toastError).toHaveBeenCalledWith('Failed to start 1 agent(s)');
+      expect(mocks.onFeedback).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          tone: 'error',
+          title: 'Failed to start 1 agent(s)',
+          items: ['builder: Machine offline'],
+        })
+      );
     });
 
-    it('toasts the error message when the start request throws', async () => {
+    it('lists the skip reasons when the palette start skips every agent', async () => {
+      mocks.requestOperation.mockResolvedValue({
+        requested: [],
+        skipped: [{ role: 'builder', reason: 'Saved machine is not available to the requester' }],
+        failed: [],
+      });
+      const { result } = renderStartAll();
+
+      await act(() => result.current.startAllFromPalette());
+
+      expect(mocks.onFeedback).toHaveBeenLastCalledWith({
+        tone: 'error',
+        title: 'Failed to start 1 agent(s)',
+        items: ['builder: Saved machine is not available to the requester'],
+      });
+    });
+
+    it('reports the error message when the start request throws', async () => {
       mocks.requestOperation.mockRejectedValue(new Error('backend down'));
       const { result } = renderStartAll();
 
       await act(() => result.current.startAllFromPalette());
 
-      expect(mocks.toastError).toHaveBeenCalledWith('backend down');
+      expect(mocks.onFeedback).toHaveBeenLastCalledWith({ tone: 'error', message: 'backend down' });
       expect(result.current.isBusy).toBe(false);
     });
   });
@@ -169,7 +190,8 @@ describe('useStartAllRemoteAgents', () => {
       await waitFor(() => expect(mocks.requestOperation).toHaveBeenCalledTimes(1));
       expect(result.current.dialogProps.open).toBe(false);
       expect(mocks.saveConfig).not.toHaveBeenCalled();
-      expect(mocks.toastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+      expect(mocks.onFeedback.mock.calls.at(-1)?.[0]).toBeNull();
+      expect(nonNullDrafts()).toEqual([]);
     });
 
     it('opens the dialog on a mismatch and starts nothing until the user chooses', async () => {
@@ -194,10 +216,11 @@ describe('useStartAllRemoteAgents', () => {
 
       await waitFor(() => expect(mocks.requestOperation).toHaveBeenCalledTimes(1));
       expect(mocks.saveConfig).not.toHaveBeenCalled();
-      expect(mocks.toastSuccess).toHaveBeenCalledWith('Start requested for 1 agent(s)');
+      expect(mocks.onFeedback.mock.calls.at(-1)?.[0]).toBeNull();
+      expect(nonNullDrafts()).toEqual([]);
     });
 
-    it('Use favourites saves before starting and reports the applied count', async () => {
+    it('Use favourites saves before starting and stays silent on a pure success', async () => {
       mocks.data = mismatchFixture();
       const { result } = renderStartAll();
       act(() => result.current.requestStartAllFromAgentsSidebar());
@@ -210,8 +233,31 @@ describe('useStartAllRemoteAgents', () => {
       expect(mocks.saveConfig.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.requestOperation.mock.invocationCallOrder[0]
       );
-      expect(mocks.toastSuccess).toHaveBeenCalledWith(
-        'Applied favourites to 1 agent(s). Start requested for 1 agent(s).'
+      expect(mocks.onFeedback.mock.calls.at(-1)?.[0]).toBeNull();
+      expect(nonNullDrafts()).toEqual([]);
+    });
+
+    it('Use favourites includes the applied count in a partial failure', async () => {
+      mocks.data = mismatchFixture();
+      mocks.requestOperation.mockResolvedValueOnce({
+        requested: [{ role: 'builder' }],
+        skipped: [],
+        failed: [{ role: 'reviewer', error: 'Machine offline' }],
+      });
+      const { result } = renderStartAll();
+      act(() => result.current.requestStartAllFromAgentsSidebar());
+      await waitFor(() => expect(result.current.dialogProps.open).toBe(true));
+
+      act(() => result.current.dialogProps.onUseFavourites());
+
+      await waitFor(() => expect(mocks.requestOperation).toHaveBeenCalledTimes(1));
+      expect(mocks.onFeedback).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          tone: 'error',
+          title: 'Failed to start 1 agent(s)',
+          message: 'Applied favourites to 1 agent(s). Start requested for 1 agent(s).',
+          items: ['reviewer: Machine offline'],
+        })
       );
     });
 

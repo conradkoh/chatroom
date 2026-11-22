@@ -1,12 +1,10 @@
 import { renderHook, act } from '@testing-library/react';
-import { toast } from 'sonner';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { useSketchClipboardPaste } from './useSketchClipboardPaste';
 import { getImageFilesFromClipboard } from '../../hooks/clipboardImageFiles';
 
 vi.mock('../../hooks/clipboardImageFiles', () => ({ getImageFilesFromClipboard: vi.fn() }));
-vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 
 const IMAGE = new File(['x'], 'x.png', { type: 'image/png' });
 
@@ -154,9 +152,9 @@ describe('useSketchClipboardPaste', () => {
     expect(importPastedImage).not.toHaveBeenCalled();
   });
 
-  it('toasts when the import fails', async () => {
+  it('returns an error feedback when the import fails', async () => {
     vi.mocked(getImageFilesFromClipboard).mockReturnValue([IMAGE]);
-    renderHook(() =>
+    const { result } = renderHook(() =>
       useSketchClipboardPaste({
         disabled: false,
         importPastedImage: vi.fn().mockResolvedValue(false),
@@ -167,6 +165,29 @@ describe('useSketchClipboardPaste', () => {
       document.dispatchEvent(createPasteEvent([IMAGE]));
       await Promise.resolve();
     });
-    expect(toast.error).toHaveBeenCalled();
+    expect(result.current.feedback).toMatchObject({
+      tone: 'error',
+      message: 'Failed to paste image',
+    });
+  });
+
+  it('clears the failure when the next image paste is accepted for import', async () => {
+    vi.mocked(getImageFilesFromClipboard).mockReturnValue([IMAGE]);
+    const importPastedImage = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const onTransformRequested = vi.fn();
+    const { result } = renderHook(() =>
+      useSketchClipboardPaste({ disabled: false, importPastedImage, onTransformRequested })
+    );
+    await act(async () => {
+      document.dispatchEvent(createPasteEvent([IMAGE]));
+      await Promise.resolve();
+    });
+    expect(result.current.feedback).not.toBeNull();
+    await act(async () => {
+      document.dispatchEvent(createPasteEvent([IMAGE]));
+      await Promise.resolve();
+    });
+    expect(result.current.feedback).toBeNull();
+    expect(onTransformRequested).toHaveBeenCalledTimes(1);
   });
 });

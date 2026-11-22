@@ -46,6 +46,7 @@ import { type FileContentResult } from '../../workspace/hooks/useFileContent';
 import { useRequestWorkspaceFileContent } from '../../workspace/hooks/useRequestWorkspaceFileContent';
 import { copyFileContentToClipboard } from '../../workspace/utils/clipboard';
 
+import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import {
   FixedModal,
   FixedModalContent,
@@ -54,6 +55,8 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
+import { useCopiedIndicator } from '@/hooks/useCopiedIndicator';
+import { useCopyOwnedFeedback, type CopySucceededInfo } from '@/hooks/useCopyOwnedFeedback';
 
 interface FilePreviewDialogProps {
   filePath: string | null;
@@ -68,6 +71,8 @@ interface FilePreviewDialogProps {
   onOpenInExplorer?: (filePath: string) => void;
   /** Called when user wants to open the file on the remote machine */
   onOpenFileOnRemote?: (filePath: string) => void;
+  /** Feedback from the last open-on-remote attempt. The caller clears it on the next attempt and when the dialog closes. */
+  openOnRemoteFeedback?: Feedback | null;
 }
 
 // ─── Tree Node Types ────────────────────────────────────────────────────────
@@ -352,6 +357,8 @@ const FileContentPanel = memo(function FileContentPanel({
   viewMode,
   copyContentLabel,
   canCopyContent,
+  onCopied,
+  onCopyError,
 }: {
   filePath: string | null;
   contentResult: FileContentResult | null | undefined;
@@ -359,11 +366,27 @@ const FileContentPanel = memo(function FileContentPanel({
   viewMode: FileViewMode;
   copyContentLabel: string;
   canCopyContent: boolean;
+  onCopied: (info: CopySucceededInfo) => void;
+  onCopyError: (message: string) => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   useContainedSelectAll(contentRef);
   const { peekHighlightForFile } = usePendingFileHighlight();
   const fileHighlight = filePath ? peekHighlightForFile(filePath) : null;
+  const { copied, markCopied } = useCopiedIndicator();
+
+  const handleCopyContent = useCallback(() => {
+    if (!contentResult?.content || !canCopyContent) return;
+    const truncated = contentResult.truncated;
+    void copyFileContentToClipboard(contentResult.content).then((result) => {
+      if (result.ok) {
+        markCopied();
+        onCopied({ truncated });
+      } else {
+        onCopyError(result.message);
+      }
+    });
+  }, [contentResult, canCopyContent, markCopied, onCopied, onCopyError]);
 
   if (!filePath) {
     return (
@@ -411,13 +434,8 @@ const FileContentPanel = memo(function FileContentPanel({
       {showToolbar && (
         <FileContentActionBar
           copyLabel={copyContentLabel}
-          onCopy={() => {
-            if (contentResult.content && canCopyContent) {
-              void copyFileContentToClipboard(contentResult.content, {
-                truncated: contentResult.truncated,
-              });
-            }
-          }}
+          onCopy={handleCopyContent}
+          copied={copied}
           disabled={!canCopyContent}
         />
       )}
@@ -472,6 +490,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   onSelectFile,
   onOpenInExplorer,
   onOpenFileOnRemote,
+  openOnRemoteFeedback,
 }: FilePreviewDialogProps) {
   // While the file selector picker is open, suppress the preview so a
   // previously selected file does not sit behind the picker.
@@ -488,11 +507,18 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const [viewMode, setViewMode] = useState<FileViewMode>(() =>
     getDefaultViewMode(effectiveFilePath ?? '')
   );
+  const {
+    feedback: copyFeedback,
+    showCopyError,
+    copySucceeded,
+    clear: clearCopyFeedback,
+  } = useCopyOwnedFeedback();
 
-  // Reset view mode when file changes
+  // Reset view mode and copy feedback when the previewed file changes.
   useEffect(() => {
     setViewMode(getDefaultViewMode(effectiveFilePath ?? ''));
-  }, [effectiveFilePath]);
+    clearCopyFeedback();
+  }, [effectiveFilePath, clearCopyFeedback]);
 
   const isMarkdown = effectiveFilePath ? isMarkdownFile(effectiveFilePath) : false;
   const isCsv = effectiveFilePath ? isCsvFile(effectiveFilePath) : false;
@@ -561,7 +587,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 relativePath={effectiveFilePath}
                 workingDir={workingDir}
                 content={contentResult?.content ?? null}
-                truncated={contentResult?.truncated}
+                contentTruncated={contentResult?.truncated}
                 contentDisabled={!canCopyContent}
                 fileContentLabel={copyContentLabel}
                 triggerVariant="more"
@@ -576,6 +602,8 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
                 onOpenFileOnRemote={
                   onOpenFileOnRemote ? () => void onOpenFileOnRemote(effectiveFilePath) : undefined
                 }
+                onCopyError={showCopyError}
+                onCopied={copySucceeded}
               />
             )}
             {contentResult?.truncated && (
@@ -620,6 +648,11 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             )}
           </div>
         </FixedModalHeader>
+        <InlineFeedback
+          feedback={openOnRemoteFeedback ?? null}
+          data-testid="file-preview-open-on-remote-feedback"
+          className="mx-4 mt-2 shrink-0"
+        />
         <div className="flex-1 flex min-h-0 relative">
           {/* Mobile file tree overlay */}
           {mobileTreeOpen && (
@@ -652,9 +685,17 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
               viewMode={viewMode}
               copyContentLabel={copyContentLabel}
               canCopyContent={canCopyContent}
+              onCopied={copySucceeded}
+              onCopyError={showCopyError}
             />
           </FixedModalBody>
         </div>
+        <InlineFeedback
+          feedback={copyFeedback}
+          onDismiss={clearCopyFeedback}
+          data-testid="file-preview-feedback"
+          className="mx-4 mb-2 shrink-0"
+        />
       </FixedModalContent>
     </FixedModal>
   );

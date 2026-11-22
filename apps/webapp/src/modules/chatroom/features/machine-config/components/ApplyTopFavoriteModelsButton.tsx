@@ -1,8 +1,7 @@
 'use client';
 
 import { Loader2, Star } from 'lucide-react';
-import { useMemo } from 'react';
-import { toast } from 'sonner';
+import { useMemo, useState } from 'react';
 
 import { useChatroomWorkspace } from '../../../context/ChatroomWorkspaceContext';
 import { useWorkspaceAgentDirectory } from '../../../hooks/useWorkspaceAgentQueries';
@@ -11,25 +10,67 @@ import {
   useApplyTopFavoriteModels,
   type ApplyTopFavoritesTarget,
 } from '../hooks/useApplyTopFavoriteModels';
-import { describeApplyTopFavoritesResult } from '../lib/topFavoriteModels';
+import {
+  describeApplyTopFavoritesResult,
+  type ApplyTopFavoritesFeedback,
+} from '../lib/topFavoriteModels';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-export interface ApplyTopFavoriteModelsButtonProps {
-  /** `icon`: compact sidebar toolbar button. `labelled`: settings button with helper text. */
-  variant: 'icon' | 'labelled';
-}
+export type ApplyTopFavoriteModelsButtonProps =
+  | {
+      /** Settings button. Its outcome renders beneath the button, in the same column. */
+      variant: 'labelled';
+    }
+  | {
+      /**
+       * Compact sidebar toolbar button. The toolbar row cannot grow, so the outcome goes to the
+       * caller, which renders `ApplyTopFavoritesFeedbackLine` below the row.
+       */
+      variant: 'icon';
+      onFeedbackChange: (feedback: ApplyTopFavoritesFeedback | null) => void;
+    };
 
 const NO_FAVORITES_REASON =
   "No favourite models for this team on this machine. Star a model in an agent's model picker first.";
+
+const FEEDBACK_BASE_CLASS = 'break-words text-[10px]';
+
+/**
+ * Inline outcome of the last apply. `error` is an action failure and uses `role="alert"`.
+ * `success` is the persistent restart hint and uses `role="status"`. Renders nothing without an outcome.
+ */
+export function ApplyTopFavoritesFeedbackLine({
+  feedback,
+  className,
+}: {
+  feedback: ApplyTopFavoritesFeedback | null;
+  className?: string;
+}) {
+  if (!feedback) return null;
+  const isError = feedback.kind === 'error';
+  return (
+    <p
+      role={isError ? 'alert' : 'status'}
+      className={cn(
+        FEEDBACK_BASE_CLASS,
+        isError ? 'text-chatroom-status-error' : 'text-chatroom-text-muted',
+        className
+      )}
+    >
+      {feedback.message}
+    </p>
+  );
+}
 
 /**
  * Applies each role's top favourite model (favourites index 0) for the chatroom's active team,
  * on the active workspace. Reads team + workspace from context so every placement behaves the same.
  */
 // fallow-ignore-next-line complexity
-export function ApplyTopFavoriteModelsButton({ variant }: ApplyTopFavoriteModelsButtonProps) {
+export function ApplyTopFavoriteModelsButton(props: ApplyTopFavoriteModelsButtonProps) {
+  const { variant } = props;
   const { chatroomId } = useChatroomWorkspace();
   const { workspace, agents, isLoading: isLoadingDirectory } = useWorkspaceAgentDirectory();
   const roles = useMemo(() => agents.map((agent) => agent.role), [agents]);
@@ -61,12 +102,18 @@ export function ApplyTopFavoriteModelsButton({ variant }: ApplyTopFavoriteModels
     .join(', ');
   const tooltip = disabledReason ?? `Apply top favourite model: ${plan}`;
 
+  const [feedback, setFeedback] = useState<ApplyTopFavoritesFeedback | null>(null);
+  // Labelled keeps the outcome locally. Icon hands it to the caller, which renders it below the toolbar row.
+  const publishFeedback = (next: ApplyTopFavoritesFeedback | null) => {
+    if (props.variant === 'icon') props.onFeedbackChange(next);
+    else setFeedback(next);
+  };
+
   const handleApply = async () => {
+    publishFeedback(null); // the next action clears the previous outcome
     const result = await apply();
     if (!result) return;
-    const feedback = describeApplyTopFavoritesResult(result);
-    if (feedback.kind === 'success') toast.success(feedback.message);
-    else toast.error(feedback.message);
+    publishFeedback(describeApplyTopFavoritesResult(result));
   };
 
   if (variant === 'icon') {
@@ -116,6 +163,7 @@ export function ApplyTopFavoriteModelsButton({ variant }: ApplyTopFavoriteModels
       <p className="text-[10px] text-chatroom-text-muted text-right max-w-[16rem]">
         {disabledReason ?? 'Sets each agent to its top favourite model on this machine.'}
       </p>
+      <ApplyTopFavoritesFeedbackLine feedback={feedback} className="max-w-[16rem] text-right" />
     </div>
   );
 }

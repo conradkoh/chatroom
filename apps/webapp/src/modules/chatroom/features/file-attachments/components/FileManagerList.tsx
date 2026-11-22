@@ -16,17 +16,17 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { toast } from 'sonner';
 
 import { FileAttachmentRow, FileKindIcon, type FileRowKind } from './FileAttachmentRow';
 import { FilePreviewDialog } from './FilePreviewDialog';
 import { ErrorBoundary } from '../../../components/ErrorBoundary';
 import { useTwoTapConfirm } from '../../../hooks/useTwoTapConfirm';
-import { useAttachmentDownload } from '../hooks/useAttachmentDownload';
+import { downloadErrorFeedback, useAttachmentDownload } from '../hooks/useAttachmentDownload';
 import { useFileAttachmentUrls, type FileUrlState } from '../hooks/useFileAttachmentUrls';
 import { getFileAttachmentErrorMessage } from '../lib/fileAttachmentErrors';
 import { fileExtensionLabel, formatFileSize } from '../lib/formatFileSize';
 
+import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fileOpenAction, performFileOpen, type FileOpenAction } from '@/lib/fileOpenAction';
@@ -300,23 +300,25 @@ function FileManagerRow({
   showChatroom,
   armed,
   deleting,
+  downloading,
+  download,
   onDelete,
 }: {
   file: FileListItem;
   showChatroom: boolean;
   armed: boolean;
   deleting: boolean;
+  downloading: boolean;
+  download: DownloadFn;
   onDelete: (id: AttachmentId) => void;
 }) {
   const urlState = useFileAttachmentUrls([file._id]);
-  const { downloadingId, download } = useAttachmentDownload();
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const url = resolveUrl(urlState, file._id);
   const missing = isMissing(urlState, url);
   const kind = rowKind(missing, file.mimeType);
   const action = fileOpenAction(kind);
-  const downloading = downloadingId === file._id;
   const handleDownload = () => downloadIfReady(url, file, download);
   const handlePreview = () => setPreviewOpen(true);
   const handleOpen = performFileOpen(action, url, {
@@ -359,23 +361,28 @@ function FileManagerRow({
   );
 }
 
-/** Delete state for the whole list: one armed row and one in-flight delete. */
+/**
+ * Delete state for the whole list: one armed row, one in-flight delete, and one
+ * outcome message. Success shows nothing: the row leaves the reactive list.
+ * The message clears when the user next taps any Delete button. `id` is constant
+ * because `request` clears the message before a new outcome is set, so each
+ * outcome mounts fresh and is announced.
+ */
 function useDeleteFile(files: FileListItem[]) {
   const deleteFile = useSessionMutation(api.fileAttachments.deleteFile);
   const [deletingId, setDeletingId] = useState<AttachmentId | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const confirm = useTwoTapConfirm<AttachmentId>(async (attachmentId) => {
     const target = files.find((file) => file._id === attachmentId);
     if (!target) return;
     setDeletingId(attachmentId);
     try {
       const result = await deleteFile({ attachmentId });
-      if (result.deleted) {
-        toast.success(`Deleted ${target.filename}`);
-      } else {
-        toast(`${target.filename} was already removed`);
+      if (!result.deleted) {
+        setFeedback({ id: 1, tone: 'error', message: `${target.filename} was already removed` });
       }
     } catch (err) {
-      toast.error(getFileAttachmentErrorMessage(err));
+      setFeedback({ id: 1, tone: 'error', message: getFileAttachmentErrorMessage(err) });
     } finally {
       setDeletingId(null);
     }
@@ -383,10 +390,17 @@ function useDeleteFile(files: FileListItem[]) {
 
   const request = (attachmentId: AttachmentId) => {
     if (deletingId) return;
+    setFeedback(null);
     void confirm.request(attachmentId);
   };
 
-  return { deletingId, armedKey: confirm.armedKey, request };
+  return {
+    deletingId,
+    armedKey: confirm.armedKey,
+    request,
+    feedback,
+    clearFeedback: () => setFeedback(null),
+  };
 }
 
 function SortToggle({ sort, onChange }: { sort: SortOrder; onChange: (sort: SortOrder) => void }) {
@@ -438,7 +452,15 @@ function FileManagerListContent({ chatroomId }: { chatroomId?: Id<'chatroom_room
     { initialNumItems: PAGE_SIZE }
   );
   const files = paginated.results as FileListItem[];
-  const { deletingId, armedKey, request } = useDeleteFile(files);
+  const {
+    deletingId,
+    armedKey,
+    request,
+    feedback: deleteFeedback,
+    clearFeedback: clearDeleteFeedback,
+  } = useDeleteFile(files);
+  // Called before the early returns below so hook order stays stable.
+  const { downloadingId, downloadError, download, clearDownloadError } = useAttachmentDownload();
 
   if (paginated.status === 'LoadingFirstPage') return <ListSkeleton />;
   if (files.length === 0) return <EmptyState chatroomScope={chatroomId !== undefined} />;
@@ -451,6 +473,16 @@ function FileManagerListContent({ chatroomId }: { chatroomId?: Id<'chatroom_room
         </span>
         <SortToggle sort={sort} onChange={setSort} />
       </div>
+      <InlineFeedback
+        feedback={downloadErrorFeedback(downloadError)}
+        onDismiss={clearDownloadError}
+        data-testid="file-list-feedback"
+      />
+      <InlineFeedback
+        feedback={deleteFeedback}
+        onDismiss={clearDeleteFeedback}
+        data-testid="file-list-delete-feedback"
+      />
       <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
         {files.map((file) => (
           <li key={file._id} className="min-w-0">
@@ -459,6 +491,8 @@ function FileManagerListContent({ chatroomId }: { chatroomId?: Id<'chatroom_room
               showChatroom={chatroomId === undefined}
               armed={armedKey === file._id}
               deleting={deletingId === file._id}
+              downloading={downloadingId === file._id}
+              download={download}
               onDelete={request}
             />
           </li>

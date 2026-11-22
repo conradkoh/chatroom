@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileStoragePanel } from './FileStoragePanel';
@@ -69,11 +68,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
   },
 }));
-
-vi.mock('sonner', () => {
-  const toast = vi.fn();
-  return { toast: Object.assign(toast, { success: vi.fn(), error: vi.fn() }) };
-});
 
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
@@ -195,7 +189,7 @@ describe('FileStoragePanel', () => {
     expect(saveButton()).toBeEnabled();
   });
 
-  it('shows a server quota validation error inline', async () => {
+  it('shows a server quota validation error inline as an alert', async () => {
     mocks.setUserQuota.mockRejectedValue({
       data: {
         code: 'VALIDATION_ERROR',
@@ -209,12 +203,11 @@ describe('FileStoragePanel', () => {
     fireEvent.change(quotaInput(), { target: { value: '2048' } });
     fireEvent.click(saveButton());
 
-    expect(await screen.findByText('Storage limit is too high.')).toBeInTheDocument();
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Storage limit is too high.');
   });
 
-  it('shows a toast for non-quota errors', async () => {
-    mocks.setUserQuota.mockRejectedValue({
+  it('shows a non-quota save failure as an alert that stays until the next save', async () => {
+    mocks.setUserQuota.mockRejectedValueOnce({
       data: { code: 'AUTH_FAILED', message: 'Nope' },
     });
 
@@ -223,9 +216,19 @@ describe('FileStoragePanel', () => {
     fireEvent.change(quotaInput(), { target: { value: '2048' } });
     fireEvent.click(saveButton());
 
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your session expired. Sign in again.'
+    );
+
+    fireEvent.change(quotaInput(), { target: { value: '2049' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('Your session expired. Sign in again.');
+
+    fireEvent.click(saveButton());
+
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Your session expired. Sign in again.');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
+    expect(mocks.setUserQuota).toHaveBeenLastCalledWith({ quotaBytes: 2049 * MB });
   });
 
   it('asks for confirmation before lowering the limit below usage', async () => {
@@ -268,7 +271,26 @@ describe('FileStoragePanel', () => {
     });
   });
 
-  it('shows the eviction toast when the server schedules eviction', async () => {
+  it('closes the lower-limit dialog when the save fails so the alert is visible', async () => {
+    mocks.setUserQuota.mockRejectedValueOnce({
+      data: { code: 'AUTH_FAILED', message: 'Nope' },
+    });
+
+    renderUserPanel();
+
+    fireEvent.change(quotaInput(), { target: { value: '100' } });
+    fireEvent.click(saveButton());
+    fireEvent.click(await screen.findByRole('button', { name: 'Lower limit' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your session expired. Sign in again.'
+    );
+    await waitFor(() => {
+      expect(screen.queryByText('Lower the limit and remove files?')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows a persistent eviction note, not an alert, when the server schedules eviction', async () => {
     mocks.setUserQuota.mockResolvedValue({
       quotaBytes: 2048 * MB,
       evictionScheduled: true,
@@ -279,20 +301,33 @@ describe('FileStoragePanel', () => {
     fireEvent.change(quotaInput(), { target: { value: '2048' } });
     fireEvent.click(saveButton());
 
-    await waitFor(() => {
-      expect(toast).toHaveBeenCalledWith('Limit saved. Removing oldest files to fit.');
-    });
+    expect(await screen.findByTestId('quota-eviction-note')).toHaveTextContent(
+      'Limit saved. Removing oldest files to fit.'
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('shows the success toast when no eviction is needed', async () => {
-    renderUserPanel();
+  it('shows no message after a successful save and the saved value is what the query reports', async () => {
+    const { rerender } = renderUserPanel();
 
     fireEvent.change(quotaInput(), { target: { value: '2048' } });
     fireEvent.click(saveButton());
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Storage limit saved');
+      expect(mocks.setUserQuota).toHaveBeenCalledWith({ quotaBytes: 2048 * MB });
     });
+    // Wait for the save to finish: the draft resets, so Save is disabled again.
+    await waitFor(() => {
+      expect(saveButton()).toBeDisabled();
+    });
+
+    // The real app re-renders with the new quota from the reactive query.
+    mocks.userStorage.mockReturnValue(userStorage({ quotaBytes: 2048 * MB }));
+    rerender(<FileStoragePanel scope={{ kind: 'user' }} />);
+
+    expect(quotaInput()).toHaveValue('2048');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('quota-eviction-note')).not.toBeInTheDocument();
   });
 
   it('shows the eviction banner while usage is over the limit and clears reactively', () => {
@@ -346,7 +381,7 @@ describe('FileStoragePanel', () => {
     expect(screen.getByTestId('file-attachment-row').textContent).toContain('file-1.png');
   });
 
-  it('shows the purge-in-progress banner and clears to a finished toast reactively', async () => {
+  it('shows the purge-in-progress banner and clears it reactively without a message', async () => {
     mocks.listFiles.mockReturnValue(
       paginationState([makeFile(1, 2 * MB), makeFile(2, 2 * MB), makeFile(3, 2 * MB)], 'Exhausted')
     );
@@ -370,8 +405,7 @@ describe('FileStoragePanel', () => {
     rerender(<FileStoragePanel scope={{ kind: 'user' }} />);
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Purge finished');
+      expect(screen.queryByText(/Purge in progress/)).not.toBeInTheDocument();
     });
-    expect(screen.queryByText(/Purge in progress/)).not.toBeInTheDocument();
   });
 });

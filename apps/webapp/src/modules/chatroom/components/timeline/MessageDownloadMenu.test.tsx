@@ -1,20 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
-import { exportMessageAsDocx, exportMessageAsPdf } from '../../lib/messageExport';
+import { exportMessageAsDocx, exportMessageAsPdf, saveTextFile } from '../../lib/messageExport';
 import type { Message } from '../../types/message';
 
 const mockUseIsDesktop = vi.fn(() => true);
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
-}));
-
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('../../lib/messageExport', () => ({
@@ -44,9 +39,16 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+/** A successful export must show no status or alert message at all. */
+function expectNoStatusMessage() {
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByRole('status')).toBeNull();
+}
+
 describe('MessageDownloadMenu', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReturnValue(true);
+    vi.mocked(saveTextFile).mockResolvedValue('saved');
     vi.mocked(exportMessageAsDocx).mockResolvedValue('saved');
     vi.mocked(exportMessageAsPdf).mockResolvedValue('saved');
   });
@@ -69,7 +71,34 @@ describe('MessageDownloadMenu', () => {
     expect(screen.getByText('Download as PDF')).toBeInTheDocument();
   });
 
-  it('exports the message as PDF and toasts the download', async () => {
+  it('downloads markdown without showing a success message', async () => {
+    const user = userEvent.setup();
+    vi.mocked(saveTextFile).mockResolvedValueOnce('downloaded');
+
+    render(<MessageDownloadMenu message={makeMessage()} />);
+    await user.click(screen.getByTitle('Download message'));
+    await user.click(screen.getByText('Download as Markdown'));
+
+    await waitFor(() => expect(screen.queryByText('Download as Markdown')).not.toBeInTheDocument());
+    expect(saveTextFile).toHaveBeenCalledTimes(1);
+    expectNoStatusMessage();
+  });
+
+  it('exports the message as DOCX without showing a success message', async () => {
+    const user = userEvent.setup();
+    const message = makeMessage();
+    vi.mocked(exportMessageAsDocx).mockResolvedValueOnce('saved');
+
+    render(<MessageDownloadMenu message={message} />);
+    await user.click(screen.getByTitle('Download message'));
+    await user.click(screen.getByText('Download as DOCX'));
+
+    await waitFor(() => expect(screen.queryByText('Download as DOCX')).not.toBeInTheDocument());
+    expect(exportMessageAsDocx).toHaveBeenCalledWith(message);
+    expectNoStatusMessage();
+  });
+
+  it('exports the message as PDF without showing a success message', async () => {
     const user = userEvent.setup();
     const message = makeMessage();
     vi.mocked(exportMessageAsPdf).mockResolvedValueOnce('downloaded');
@@ -78,11 +107,12 @@ describe('MessageDownloadMenu', () => {
     await user.click(screen.getByTitle('Download message'));
     await user.click(screen.getByText('Download as PDF'));
 
+    await waitFor(() => expect(screen.queryByText('Download as PDF')).not.toBeInTheDocument());
     expect(exportMessageAsPdf).toHaveBeenCalledWith(message);
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Downloaded PDF'));
+    expectNoStatusMessage();
   });
 
-  it('toasts an error, closes the menu, and resets busy when the PDF export fails', async () => {
+  it('shows one inline alert that stays after the menu closes when the PDF export fails', async () => {
     const user = userEvent.setup();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const error = new Error('boom');
@@ -92,19 +122,53 @@ describe('MessageDownloadMenu', () => {
     await user.click(screen.getByTitle('Download message'));
     await user.click(screen.getByText('Download as PDF'));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to prepare PDF'));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to prepare PDF');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
     expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('PDF'), error);
     expect(screen.queryByText('Download as PDF')).not.toBeInTheDocument();
 
-    await user.click(screen.getByTitle('Download message'));
-    expect(screen.getByText('Download as PDF')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Download as PDF' })).toBeEnabled();
+    // Menu is closed; the alert is still visible.
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to prepare PDF');
   });
 
-  it('closes the menu without a toast and leaves rows enabled after the PDF save is cancelled', async () => {
+  it('shows one inline alert that stays after the menu closes when the DOCX export fails', async () => {
     const user = userEvent.setup();
-    vi.mocked(toast.success).mockClear();
-    vi.mocked(toast.error).mockClear();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(exportMessageAsDocx).mockRejectedValueOnce(new Error('boom'));
+
+    render(<MessageDownloadMenu message={makeMessage()} />);
+    await user.click(screen.getByTitle('Download message'));
+    await user.click(screen.getByText('Download as DOCX'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to prepare DOCX');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.queryByText('Download as DOCX')).not.toBeInTheDocument();
+  });
+
+  it('clears the failure when the next export starts', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(exportMessageAsPdf).mockRejectedValueOnce(new Error('boom'));
+    const pending = deferred<'saved'>();
+    vi.mocked(exportMessageAsDocx).mockReturnValueOnce(pending.promise);
+
+    render(<MessageDownloadMenu message={makeMessage()} />);
+    await user.click(screen.getByTitle('Download message'));
+    await user.click(screen.getByText('Download as PDF'));
+    await screen.findByRole('alert');
+
+    await user.click(screen.getByTitle('Download message'));
+    await user.click(screen.getByText('Download as DOCX'));
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    pending.resolve('saved');
+    await waitFor(() => expect(screen.queryByText('Preparing DOCX...')).not.toBeInTheDocument());
+    expectNoStatusMessage();
+  });
+
+  it('closes the menu without a message and leaves rows enabled after the PDF save is cancelled', async () => {
+    const user = userEvent.setup();
     vi.mocked(exportMessageAsPdf).mockResolvedValueOnce('cancelled');
 
     render(<MessageDownloadMenu message={makeMessage()} />);
@@ -112,18 +176,15 @@ describe('MessageDownloadMenu', () => {
     await user.click(screen.getByText('Download as PDF'));
 
     await waitFor(() => expect(screen.queryByText('Download as PDF')).not.toBeInTheDocument());
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
+    expectNoStatusMessage();
 
     await user.click(screen.getByTitle('Download message'));
     expect(screen.getByRole('option', { name: 'Download as PDF' })).toBeEnabled();
     expect(screen.getByRole('option', { name: 'Download as DOCX' })).toBeEnabled();
   });
 
-  it('closes the menu without a toast and leaves rows enabled after the DOCX save is cancelled', async () => {
+  it('closes the menu without a message and leaves rows enabled after the DOCX save is cancelled', async () => {
     const user = userEvent.setup();
-    vi.mocked(toast.success).mockClear();
-    vi.mocked(toast.error).mockClear();
     vi.mocked(exportMessageAsDocx).mockResolvedValueOnce('cancelled');
 
     render(<MessageDownloadMenu message={makeMessage()} />);
@@ -131,14 +192,14 @@ describe('MessageDownloadMenu', () => {
     await user.click(screen.getByText('Download as DOCX'));
 
     await waitFor(() => expect(screen.queryByText('Download as DOCX')).not.toBeInTheDocument());
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
+    expectNoStatusMessage();
 
     await user.click(screen.getByTitle('Download message'));
     expect(screen.getByRole('option', { name: 'Download as DOCX' })).toBeEnabled();
     expect(screen.getByRole('option', { name: 'Download as PDF' })).toBeEnabled();
   });
 
+  // Busy-state tests below are unchanged from the original file.
   it('shows a disabled busy row while the PDF export is pending', async () => {
     const user = userEvent.setup();
     const pending = deferred<'saved'>();

@@ -135,6 +135,27 @@ describe('useWorkspaceUploadJobs', () => {
     expect(result.current.jobs).toHaveLength(0);
   });
 
+  it('keeps a failed job until dismissJob is called when errorDismissMs is false', async () => {
+    mockUploadFile.mockRejectedValue(new Error('Disk full'));
+    const { result } = renderHook(() =>
+      useWorkspaceUploadJobs({ machineId: 'm', workingDir: '/w', errorDismissMs: false })
+    );
+
+    await act(async () => {
+      await result.current.startUpload('docs/notes.md', makeFile());
+    });
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(result.current.jobs).toHaveLength(1);
+    expect(result.current.jobs[0]).toMatchObject({ phase: 'error', errorMessage: 'Disk full' });
+
+    act(() => {
+      result.current.dismissJob(result.current.jobs[0].id);
+    });
+    expect(result.current.jobs).toHaveLength(0);
+  });
+
   it('supports multiple concurrent jobs with per-job state', async () => {
     const resolvers: (() => void)[] = [];
     mockUploadFile.mockImplementation(

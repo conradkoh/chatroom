@@ -279,6 +279,32 @@ Tight spacing:         0.5rem (gap-2)
 - Timestamp in muted text
 - 2px bottom border separator
 
+### Feedback & Notifications
+
+Enforced by the `local/no-toast` ESLint rule (`eslint-rules/no-toast.mjs`): toast components and toast libraries fail `pnpm lint`.
+
+**No transient notifications:**
+
+- Do not use toasts, snackbars, or popup notifications
+- Do not add a notification library for them
+
+**Where feedback goes (next to the action that caused it):**
+
+- **Field validation:** message beside the field; set `aria-invalid` on the input and link the message with `aria-describedby`
+- **Action failure:** `role="alert"` text beside the control that triggered the action
+- **Page or card failure:** the `Alert` component (`apps/webapp/src/components/ui/alert.tsx`)
+
+**Persistence:**
+
+- Failures stay visible until the user acts on them
+- Successes already visible in the UI (e.g. a new row in a list) need no message
+
+**Only allowed transient:**
+
+- Copy confirmation: for about 2 seconds, swap the control's icon to `Check` and its label to "Copied", then revert
+
+**Colors:** theme-aware tokens only; no hard-coded colors (see Color System above).
+
 ## Borders & Dividers
 
 ### Border Weight
@@ -480,6 +506,7 @@ const typography = {
 5. Don't add unnecessary spacing
 6. Don't use circles (use squares)
 7. Don't soften borders below 2px for dividers
+8. Don't use toasts, snackbars, or popups for feedback (see Feedback & Notifications)
 
 ## Overlay stacking
 

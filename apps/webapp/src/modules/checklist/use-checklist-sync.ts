@@ -2,7 +2,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import type {
   ChecklistItem,
@@ -38,7 +37,7 @@ interface _ChecklistStats {
  * - Optimistic updates for immediate UI feedback
  * - Automatic retry mechanism for failed operations
  * - Real-time synchronization with server state
- * - Comprehensive error handling with user notifications
+ * - Comprehensive error handling exposed through `error` / `clearError` (card-level) and `addError` / `clearAddError` (add input)
  *
  * @param key - Unique identifier for the checklist
  * @param title - Display title for the checklist
@@ -48,6 +47,15 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [optimisticItems, setOptimisticItems] = useState<OptimisticChecklistItem[]>([]);
   const [lastFailedText, setLastFailedText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const clearError = useCallback(() => setError(null), []);
+  const [addError, setAddError] = useState<string | null>(null);
+  const clearAddError = useCallback(() => setAddError(null), []);
+  // Every action clears both slots first, so a new outcome replaces the previous one.
+  const clearAllFeedback = useCallback(() => {
+    setError(null);
+    setAddError(null);
+  }, []);
   const [deletingItemIds, setDeletingItemIds] = useState<Set<Id<'checklistItems'>>>(new Set());
   const [optimisticToggles, setOptimisticToggles] = useState<Map<Id<'checklistItems'>, boolean>>(
     new Map()
@@ -152,14 +160,15 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const initializeChecklist = useCallback(async () => {
     if (!exists && checklistState !== undefined) {
+      clearAllFeedback();
       try {
         await createChecklistMutation({ key, title });
       } catch (error) {
         console.error('Failed to initialize checklist:', error);
-        toast.error('Failed to initialize checklist');
+        setError('Failed to initialize checklist');
       }
     }
-  }, [exists, checklistState, createChecklistMutation, key, title]);
+  }, [exists, checklistState, createChecklistMutation, key, title, clearAllFeedback]);
 
   /**
    * Adds a new item to the checklist with optimistic updates.
@@ -169,8 +178,8 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const addItem = useCallback(
     async (text: string): Promise<boolean> => {
+      clearAllFeedback();
       if (!text.trim()) {
-        toast.error('Item text is required');
         return false;
       }
 
@@ -205,7 +214,6 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
 
         // Success - remove the optimistic item
         setOptimisticItems((prev) => prev.filter((item) => item._id !== optimisticId));
-        toast.success('Item added successfully');
         return true;
       } catch (error) {
         console.error('Failed to add item:', error);
@@ -216,11 +224,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         // Store the failed text for recovery
         setLastFailedText(text.trim());
 
-        toast.error('Failed to add item. Text restored for retry.');
+        setAddError('Failed to add item. Text restored for retry.');
         return false;
       }
     },
-    [addItemMutation, key, items]
+    [addItemMutation, key, items, clearAllFeedback]
   );
 
   /**
@@ -242,10 +250,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const toggleItem = useCallback(
     async (itemId: Id<'checklistItems'>): Promise<boolean> => {
+      clearAllFeedback();
       // Find the current item to get its current state
       const currentItem = (serverItems ?? []).find((item) => item._id === itemId);
       if (!currentItem) {
-        toast.error('Item not found');
+        setError('Item not found');
         return false;
       }
 
@@ -270,11 +279,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
           newMap.delete(itemId);
           return newMap;
         });
-        toast.error('Failed to update item. Please try again.');
+        setError('Failed to update item. Please try again.');
         return false;
       }
     },
-    [toggleItemMutation, serverItems]
+    [toggleItemMutation, serverItems, clearAllFeedback]
   );
 
   /**
@@ -285,13 +294,13 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const deleteItem = useCallback(
     async (itemId: Id<'checklistItems'>): Promise<boolean> => {
+      clearAllFeedback();
       // Add to deleting set immediately for optimistic UI
       setDeletingItemIds((prev) => new Set(prev).add(itemId));
 
       try {
         await deleteItemMutation({ itemId });
         // Success - keep the item hidden (it will be removed from server data)
-        toast.success('Item deleted successfully');
         return true;
       } catch (error) {
         console.error('Failed to delete item:', error);
@@ -301,11 +310,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
           newSet.delete(itemId);
           return newSet;
         });
-        toast.error('Failed to delete item. Please try again.');
+        setError('Failed to delete item. Please try again.');
         return false;
       }
     },
-    [deleteItemMutation]
+    [deleteItemMutation, clearAllFeedback]
   );
 
   /**
@@ -314,16 +323,16 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    * @returns Promise resolving to true if successful, false otherwise
    */
   const concludeChecklist = useCallback(async (): Promise<boolean> => {
+    clearAllFeedback();
     try {
       await concludeChecklistMutation({ checklistKey: key });
-      toast.success('Checklist concluded successfully');
       return true;
     } catch (error) {
       console.error('Failed to conclude checklist:', error);
-      toast.error('Failed to conclude checklist. Please try again.');
+      setError('Failed to conclude checklist. Please try again.');
       return false;
     }
-  }, [concludeChecklistMutation, key]);
+  }, [concludeChecklistMutation, key, clearAllFeedback]);
 
   /**
    * Reopens a concluded checklist, making it active again.
@@ -331,16 +340,16 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    * @returns Promise resolving to true if successful, false otherwise
    */
   const reopenChecklist = useCallback(async (): Promise<boolean> => {
+    clearAllFeedback();
     try {
       await reopenChecklistMutation({ checklistKey: key });
-      toast.success('Checklist reopened successfully');
       return true;
     } catch (error) {
       console.error('Failed to reopen checklist:', error);
-      toast.error('Failed to reopen checklist. Please try again.');
+      setError('Failed to reopen checklist. Please try again.');
       return false;
     }
-  }, [reopenChecklistMutation, key]);
+  }, [reopenChecklistMutation, key, clearAllFeedback]);
 
   /**
    * Clears all completed items from the checklist with optimistic updates.
@@ -348,13 +357,13 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    * @returns Promise resolving to true if successful, false otherwise
    */
   const clearCompleted = useCallback(async (): Promise<boolean> => {
+    clearAllFeedback();
     // Get completed items to delete optimistically
     const completedItemIds = (serverItems ?? [])
       .filter((item) => item.isCompleted && !deletingItemIds.has(item._id))
       .map((item) => item._id);
 
     if (completedItemIds.length === 0) {
-      toast.info('No completed items to clear');
       return true;
     }
 
@@ -368,11 +377,8 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
     });
 
     try {
-      const result = await clearCompletedMutation({ checklistKey: key });
+      await clearCompletedMutation({ checklistKey: key });
       // Success - items will be removed from server data
-      toast.success(
-        `Cleared ${result.deletedCount} completed item${result.deletedCount === 1 ? '' : 's'}`
-      );
       return true;
     } catch (error) {
       console.error('Failed to clear completed items:', error);
@@ -384,10 +390,10 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         }
         return newSet;
       });
-      toast.error('Failed to clear completed items. Please try again.');
+      setError('Failed to clear completed items. Please try again.');
       return false;
     }
-  }, [clearCompletedMutation, key, serverItems, deletingItemIds]);
+  }, [clearCompletedMutation, key, serverItems, deletingItemIds, clearAllFeedback]);
 
   /**
    * Reorders checklist items by updating their order values.
@@ -398,8 +404,9 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
    */
   const reorderItems = useCallback(
     async (draggedItemId: Id<'checklistItems'>, targetIndex: number): Promise<boolean> => {
+      clearAllFeedback();
       if (!isActive) {
-        toast.error('Cannot reorder items in concluded checklist');
+        setError('Cannot reorder items in concluded checklist');
         return false;
       }
 
@@ -435,11 +442,11 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
         return true;
       } catch (error) {
         console.error('Failed to reorder items:', error);
-        toast.error('Failed to reorder items. Please try again.');
+        setError('Failed to reorder items. Please try again.');
         return false;
       }
     },
-    [reorderItemsMutation, key, items, isActive]
+    [reorderItemsMutation, key, items, isActive, clearAllFeedback]
   );
 
   return {
@@ -458,6 +465,12 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
     completedItems: statistics.completedItems,
     pendingItems: statistics.pendingItems,
     completionPercentage: statistics.completionPercentage,
+
+    // Error
+    error,
+    clearError,
+    addError,
+    clearAddError,
 
     // Actions
     initializeChecklist,

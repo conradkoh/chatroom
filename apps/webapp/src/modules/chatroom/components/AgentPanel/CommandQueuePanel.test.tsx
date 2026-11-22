@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { AgentStartReasonCode } from '@workspace/backend/src/domain/entities/agent';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CommandQueuePanel } from './CommandQueuePanel';
 
@@ -45,23 +45,55 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
 }));
 
-vi.mock('@/components/ui/alert-dialog', () => ({
-  AlertDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
-    open ? <div data-testid="flush-dialog">{children}</div> : null,
-  AlertDialogAction: ({
-    children,
-    onClick,
-  }: {
-    children: React.ReactNode;
-    onClick?: () => void;
-  }) => <button onClick={onClick}>{children}</button>,
-  AlertDialogCancel: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
-  AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
-  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
-}));
+vi.mock('@/components/ui/alert-dialog', async () => {
+  const React = await import('react');
+  // Models the real AlertDialogAction, which is a Close primitive: clicking it closes the dialog.
+  const CloseContext = React.createContext<((open: boolean) => void) | null>(null);
+  return {
+    AlertDialog: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      children: React.ReactNode;
+    }) =>
+      open ? (
+        <CloseContext.Provider value={onOpenChange}>
+          <div data-testid="flush-dialog">{children}</div>
+        </CloseContext.Provider>
+      ) : null,
+    AlertDialogAction: ({
+      children,
+      onClick,
+      disabled,
+    }: {
+      children: React.ReactNode;
+      onClick?: () => void;
+      disabled?: boolean;
+    }) => {
+      const close = React.useContext(CloseContext);
+      return (
+        <button
+          disabled={disabled}
+          onClick={() => {
+            close?.(false);
+            onClick?.();
+          }}
+        >
+          {children}
+        </button>
+      );
+    },
+    AlertDialogCancel: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+    AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+    AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    AlertDialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  };
+});
 
 function makeCommand(
   id: string,
@@ -82,6 +114,8 @@ function makeCommand(
 }
 
 describe('CommandQueuePanel', () => {
+  let consoleError: ReturnType<typeof vi.spyOn> | undefined;
+
   beforeEach(() => {
     mocks.commands = [
       makeCommand('cmd-1', {
@@ -99,6 +133,11 @@ describe('CommandQueuePanel', () => {
     ];
     mocks.deleteCommand.mockClear();
     mocks.deleteAll.mockClear();
+  });
+
+  afterEach(() => {
+    consoleError?.mockRestore();
+    consoleError = undefined;
   });
 
   it('shows the queued count and opens the command list', () => {
@@ -167,5 +206,79 @@ describe('CommandQueuePanel', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
 
     await waitFor(() => expect(mocks.deleteAll).toHaveBeenCalledWith({ machineId: 'machine-1' }));
+  });
+
+  it('shows a delete failure in the queue dialog until it is dismissed', async () => {
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.deleteCommand.mockRejectedValueOnce(new Error('network down'));
+    render(<CommandQueuePanel machineId="machine-1" />);
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Start planner' }));
+
+    const feedback = await screen.findByTestId('command-queue-feedback');
+    expect(feedback).toHaveAttribute('role', 'alert');
+    expect(feedback).toHaveTextContent('Failed to delete command. Please try again.');
+
+    fireEvent.click(within(feedback).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByTestId('command-queue-feedback')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [1, 'Removed 1 queued command'],
+    [2, 'Removed 2 queued commands'],
+  ])(
+    'keeps the flush summary for %i removed command(s) in the queue dialog',
+    async (deletedCount, text) => {
+      mocks.deleteAll.mockResolvedValueOnce({ deletedCount });
+      render(<CommandQueuePanel machineId="machine-1" />);
+      fireEvent.click(screen.getByTestId('command-queue-panel'));
+      fireEvent.click(screen.getByRole('button', { name: 'Flush queue' }));
+      fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
+
+      await waitFor(() =>
+        expect(screen.getByTestId('command-queue-feedback')).toHaveTextContent(text)
+      );
+      expect(screen.getByTestId('command-queue-feedback')).toHaveAttribute('role', 'status');
+      expect(screen.queryByTestId('flush-dialog')).not.toBeInTheDocument();
+    }
+  );
+
+  it('keeps a flush failure inside the open flush dialog', async () => {
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.deleteAll.mockRejectedValueOnce(new Error('timeout'));
+    render(<CommandQueuePanel machineId="machine-1" />);
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
+    fireEvent.click(screen.getByRole('button', { name: 'Flush queue' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
+
+    const flushDialog = await screen.findByTestId('flush-dialog');
+    await waitFor(() =>
+      expect(within(flushDialog).getByTestId('flush-error')).toHaveTextContent(
+        'Failed to flush command queue. Please try again.'
+      )
+    );
+    expect(within(flushDialog).getByTestId('flush-error')).toHaveAttribute('role', 'alert');
+    expect(screen.queryByTestId('command-queue-feedback')).not.toBeInTheDocument();
+  });
+
+  it('clears a flush failure when the next flush succeeds', async () => {
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.deleteAll
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ deletedCount: 2 });
+    render(<CommandQueuePanel machineId="machine-1" />);
+    fireEvent.click(screen.getByTestId('command-queue-panel'));
+    fireEvent.click(screen.getByRole('button', { name: 'Flush queue' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
+    await screen.findByTestId('flush-error');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Flush queue' })[1]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('command-queue-feedback')).toHaveTextContent(
+        'Removed 2 queued commands'
+      )
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

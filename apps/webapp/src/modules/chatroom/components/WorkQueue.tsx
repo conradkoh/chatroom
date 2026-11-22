@@ -19,7 +19,6 @@ import {
   List,
 } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { toast } from 'sonner';
 
 import { type BacklogItem } from './backlog';
 import { BacklogCreateModal } from './BacklogCreateModal';
@@ -40,12 +39,14 @@ import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useFeedback } from '@/hooks/useFeedback';
 
 export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
@@ -56,6 +57,14 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   const [selectedBacklogItemId, setSelectedBacklogItemId] = useState<string | null>(null);
   const [isBacklogQueueModalOpen, setIsBacklogQueueModalOpen] = useState(false);
   const [isQueuedMessagesModalOpen, setIsQueuedMessagesModalOpen] = useState(false);
+
+  // One outcome slot for start-next and mark-all-reviewed. Persists until dismissed or the next attempt.
+  const {
+    feedback: queueFeedback,
+    show: showQueueFeedback,
+    error: showQueueError,
+    clear: clearQueueFeedback,
+  } = useFeedback();
 
   // Register imperative open actions for parent (e.g. command palette)
   useEffect(() => {
@@ -155,10 +164,10 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   const enqueueMessageAtFront = useSessionMutation(api.messages.enqueueMessageAtFront);
   const handleQueueFrontSubmit = useCallback(
     async (content: string) => {
+      clearQueueFeedback();
       await enqueueMessageAtFront({ chatroomId, content });
-      toast.success('Message added to front of queue');
     },
-    [chatroomId, enqueueMessageAtFront]
+    [chatroomId, enqueueMessageAtFront, clearQueueFeedback]
   );
   // TODO: remove once convex codegen catches up
   const completeAllPendingReview = useSessionMutation(
@@ -209,24 +218,24 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
     if (isPromotingRef.current) return;
     isPromotingRef.current = true;
     setIsPromoting(true);
+    clearQueueFeedback();
     try {
       const result = await promoteNextTask({
         chatroomId,
       });
-      if (result.reason === 'success') {
-        toast.success('Started next queued task');
-      } else if (result.reason === 'active_task_exists') {
-        toast.info('A task is already active');
-      } else {
-        toast.info('No queued tasks remain');
+      // Success is not announced: the task state shows it.
+      if (result.reason === 'active_task_exists') {
+        showQueueFeedback('info', 'A task is already active');
+      } else if (result.reason !== 'success') {
+        showQueueFeedback('info', 'No queued tasks remain');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to start next queued task');
+      showQueueError(error instanceof Error ? error.message : 'Failed to start next queued task');
     } finally {
       isPromotingRef.current = false;
       setIsPromoting(false);
     }
-  }, [promoteNextTask, chatroomId]);
+  }, [promoteNextTask, chatroomId, clearQueueFeedback, showQueueFeedback, showQueueError]);
 
   // Modal handlers
   const handleOpenTaskDetail = useCallback((task: Task) => {
@@ -309,15 +318,15 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   }, [categorizedTasks, completeTaskById]);
 
   const handleMarkAllReviewed = useCallback(async () => {
+    clearQueueFeedback();
     try {
-      const result = await completeAllPendingReview({
+      await completeAllPendingReview({
         chatroomId,
       });
-      toast.success(`Marked ${result.completed} backlog item(s) as reviewed`);
     } catch {
-      toast.error('Failed to mark items as reviewed');
+      showQueueError('Failed to mark items as reviewed');
     }
-  }, [completeAllPendingReview, chatroomId]);
+  }, [completeAllPendingReview, chatroomId, clearQueueFeedback, showQueueError]);
 
   if (tasks === undefined) {
     return (
@@ -329,6 +338,13 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
 
   return (
     <div className="flex flex-col">
+      {/* Outcome slot: failures and info explanations. Persists until dismissed or the next attempt. */}
+      <InlineFeedback
+        feedback={queueFeedback}
+        onDismiss={clearQueueFeedback}
+        data-testid="work-queue-feedback"
+        className="mx-2 mt-2 shrink-0"
+      />
       {/* Task list — the right sidebar container scrolls, not this component */}
       <div>
         {/* Queue Health Warning - Show when promotion needed */}

@@ -1,14 +1,16 @@
 'use client';
 
 import { useCallback } from 'react';
-import { toast } from 'sonner';
 
 import { pendingOptimisticDeletePaths } from './pendingOptimisticDeletePaths';
 import { pendingOptimisticNewFilePaths } from './pendingOptimisticNewFilePaths';
 import type { EditorTab, UseFileTabsReturn } from './useFileTabs';
 
-/** Optimistic explorer file ops: track pending paths and wire panel callbacks. */
-export function useExplorerNewFileOps(fileTabs: UseFileTabsReturn) {
+/** Optimistic explorer file ops: track pending paths and wire panel callbacks. Failures go to `onError`. */
+export function useExplorerNewFileOps(
+  fileTabs: UseFileTabsReturn,
+  onError: (message: string) => void
+) {
   const onFileCreated = useCallback(
     (path: string) => {
       pendingOptimisticNewFilePaths.add(path);
@@ -21,9 +23,9 @@ export function useExplorerNewFileOps(fileTabs: UseFileTabsReturn) {
     (path: string, error: string) => {
       pendingOptimisticNewFilePaths.delete(path);
       fileTabs.closeTab(path);
-      toast.error(`Failed to create ${path}: ${error}`);
+      onError(`Failed to create ${path}: ${error}`);
     },
-    [fileTabs]
+    [fileTabs, onError]
   );
 
   const onFileCreateConfirmed = useCallback((path: string) => {
@@ -49,10 +51,13 @@ export function useExplorerNewFileOps(fileTabs: UseFileTabsReturn) {
     pendingOptimisticDeletePaths.delete(path);
   }, []);
 
-  const onFileDeleteFailed = useCallback((path: string, error: string) => {
-    pendingOptimisticDeletePaths.delete(path);
-    toast.error(`Failed to delete ${path}: ${error}`);
-  }, []);
+  const onFileDeleteFailed = useCallback(
+    (path: string, error: string) => {
+      pendingOptimisticDeletePaths.delete(path);
+      onError(`Failed to delete ${path}: ${error}`);
+    },
+    [onError]
+  );
 
   const onFileRenamed = useCallback(
     (oldPath: string, newPath: string) => {
@@ -61,9 +66,12 @@ export function useExplorerNewFileOps(fileTabs: UseFileTabsReturn) {
     [fileTabs]
   );
 
-  const onFileRenameFailed = useCallback((oldPath: string, error: string) => {
-    toast.error(`Failed to rename ${oldPath}: ${error}`);
-  }, []);
+  const onFileRenameFailed = useCallback(
+    (oldPath: string, error: string) => {
+      onError(`Failed to rename ${oldPath}: ${error}`);
+    },
+    [onError]
+  );
 
   const onFileRenameConfirmed = useCallback((_oldPath: string, _newPath: string) => {
     // no-op for now (mirror onFileCreateConfirmed)

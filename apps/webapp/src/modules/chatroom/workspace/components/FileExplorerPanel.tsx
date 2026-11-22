@@ -18,10 +18,10 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { VscCollapseAll } from 'react-icons/vsc';
-import { toast } from 'sonner';
 
 import { NewFileDialog } from './NewFileDialog';
 import { NewFolderDialog } from './NewFolderDialog';
@@ -31,6 +31,7 @@ import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFil
 import { WorkspaceUploadProgressList } from './WorkspaceUploadProgressList';
 import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
 import type { WorkspaceFileMenuProps, WorkspaceFileMenuVisibility } from '../file-menu';
+import type { WorkspaceTreeSyncFeedback } from '../files/useRequestWorkspaceFileTree';
 import { useExplorerFileDrop } from '../hooks/useExplorerFileDrop';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
@@ -39,6 +40,7 @@ import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
 import { useWorkspaceUploadJobs } from '../hooks/useWorkspaceUploadJobs';
 import { basename } from '../utils/diff-parser';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +57,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { TRUNCATED_FILE_COPY_MESSAGE, type CopySucceededInfo } from '@/hooks/useCopyOwnedFeedback';
+import { useFeedback } from '@/hooks/useFeedback';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -288,6 +292,65 @@ export const FileExplorerPanel = memo(
         type: 'file' | 'directory';
       } | null>(null);
       const [deleteTarget, setDeleteTarget] = useState<ExplorerDeleteTarget | null>(null);
+      const {
+        feedback,
+        error: showExplorerError,
+        show: showExplorerFeedback,
+        clear: clearExplorerFeedback,
+      } = useFeedback();
+      // True while the slot holds a tree-sync failure. Only tree-sync attempts may clear it.
+      const treeSyncErrorShownRef = useRef(false);
+      // True while the slot holds a copy failure or a truncated-copy warning. Only a copy may clear it.
+      const copyFeedbackShownRef = useRef(false);
+      // File-op and drop errors. Every writer to the slot except tree-sync and copy goes through here.
+      const showFileOpError = useCallback(
+        (message: string) => {
+          treeSyncErrorShownRef.current = false;
+          copyFeedbackShownRef.current = false;
+          showExplorerError(message);
+        },
+        [showExplorerError]
+      );
+      const showCopyError = useCallback(
+        (message: string) => {
+          treeSyncErrorShownRef.current = false;
+          copyFeedbackShownRef.current = true;
+          showExplorerError(message);
+        },
+        [showExplorerError]
+      );
+      // A truncated copy shows the warning. Any other copy success clears only copy-owned feedback.
+      const copySucceeded = useCallback(
+        (info?: CopySucceededInfo) => {
+          if (info?.truncated) {
+            treeSyncErrorShownRef.current = false;
+            copyFeedbackShownRef.current = true;
+            showExplorerFeedback('warning', TRUNCATED_FILE_COPY_MESSAGE);
+            return;
+          }
+          if (!copyFeedbackShownRef.current) return;
+          copyFeedbackShownRef.current = false;
+          clearExplorerFeedback();
+        },
+        [clearExplorerFeedback, showExplorerFeedback]
+      );
+      const treeSyncFeedback = useMemo<WorkspaceTreeSyncFeedback>(
+        () => ({
+          // Clear only a tree-sync failure. A file-op or copy failure in this slot must survive
+          // the explorer's refresh, which runs right after it is shown.
+          onAttempt: () => {
+            if (!treeSyncErrorShownRef.current) return;
+            treeSyncErrorShownRef.current = false;
+            clearExplorerFeedback();
+          },
+          onError: (message) => {
+            treeSyncErrorShownRef.current = true;
+            copyFeedbackShownRef.current = false;
+            showExplorerError(message);
+          },
+        }),
+        [clearExplorerFeedback, showExplorerError]
+      );
       const { trackContextMenuFile, getMenuContentStateForPath } = useWorkspaceFileMenuContent(
         machineId ?? null,
         workingDir ?? null
@@ -300,8 +363,30 @@ export const FileExplorerPanel = memo(
         machineId: machineId ?? '',
         workingDir: workingDir ?? '',
       });
-      const explorerFileOps = useExplorerNewFileOps(fileTabs);
+      const explorerFileOps = useExplorerNewFileOps(fileTabs, showFileOpError);
       const { openFileOnRemote } = useOpenFileOnRemote(machineId ?? '', workingDir ?? '');
+      // Open-on-remote is neither copy- nor tree-sync-owned. Every attempt clears the slot first.
+      const clearOpenOnRemoteFeedback = useCallback(() => {
+        treeSyncErrorShownRef.current = false;
+        copyFeedbackShownRef.current = false;
+        clearExplorerFeedback();
+      }, [clearExplorerFeedback]);
+
+      const openFileOnRemoteFromExplorer = useCallback(
+        (filePath: string) => {
+          clearOpenOnRemoteFeedback();
+          void openFileOnRemote(filePath).then((outcome) => {
+            if (outcome.status === 'error') {
+              showFileOpError(outcome.message);
+            } else if (outcome.status === 'syncing') {
+              treeSyncErrorShownRef.current = false;
+              copyFeedbackShownRef.current = false;
+              showExplorerFeedback('info', outcome.message);
+            }
+          });
+        },
+        [clearOpenOnRemoteFeedback, openFileOnRemote, showExplorerFeedback, showFileOpError]
+      );
       const {
         dropHighlightPath,
         uploadDialogOpen,
@@ -311,17 +396,25 @@ export const FileExplorerPanel = memo(
         handleDragLeave,
         handleDrop,
         handleUploadDialogOpenChange,
-      } = useExplorerFileDrop();
+      } = useExplorerFileDrop({ onBlocked: showFileOpError });
 
-      const openNewFileDialog = useCallback((defaultDir = '') => {
-        setNewFileDefaultDir(defaultDir);
-        setNewFileOpen(true);
-      }, []);
+      const openNewFileDialog = useCallback(
+        (defaultDir = '') => {
+          clearExplorerFeedback();
+          setNewFileDefaultDir(defaultDir);
+          setNewFileOpen(true);
+        },
+        [clearExplorerFeedback]
+      );
 
-      const openNewFolderDialog = useCallback((defaultDir = '') => {
-        setNewFolderDefaultDir(defaultDir);
-        setNewFolderOpen(true);
-      }, []);
+      const openNewFolderDialog = useCallback(
+        (defaultDir = '') => {
+          clearExplorerFeedback();
+          setNewFolderDefaultDir(defaultDir);
+          setNewFolderOpen(true);
+        },
+        [clearExplorerFeedback]
+      );
 
       useEffect(() => {
         setRootExpanded(readRootExpanded(rootExpandedStorageKey));
@@ -335,10 +428,14 @@ export const FileExplorerPanel = memo(
         });
       }, [rootExpandedStorageKey]);
 
-      const openRenameDialog = useCallback((path: string, type: 'file' | 'directory') => {
-        setRenameTarget({ path, type });
-        setRenameOpen(true);
-      }, []);
+      const openRenameDialog = useCallback(
+        (path: string, type: 'file' | 'directory') => {
+          clearExplorerFeedback();
+          setRenameTarget({ path, type });
+          setRenameOpen(true);
+        },
+        [clearExplorerFeedback]
+      );
 
       // fallow-ignore-next-line complexity
       const buildFileMenuProps = useCallback(
@@ -381,16 +478,26 @@ export const FileExplorerPanel = memo(
               nodeType: target.type,
             },
             handlers: {
-              onOpenFileOnRemote: isFile ? () => void openFileOnRemote(path) : undefined,
+              onOpenFileOnRemote: isFile ? () => openFileOnRemoteFromExplorer(path) : undefined,
               onRename: () => openRenameDialog(path, target.type),
               onDelete: () => setDeleteTarget({ path, type: target.type }),
               onNewFile: isDir ? () => openNewFileDialog(path) : undefined,
               onNewFolder: isDir ? () => openNewFolderDialog(path) : undefined,
+              // A copy outcome is copy-owned. A truncated copy shows the warning; any other success clears only copy-owned feedback.
+              onCopied: copySucceeded,
+              onCopyError: showCopyError,
             },
             visibility,
           };
         },
-        [workingDir, openFileOnRemote, openRenameDialog, trackContextMenuFile]
+        [
+          workingDir,
+          openFileOnRemoteFromExplorer,
+          openRenameDialog,
+          trackContextMenuFile,
+          copySucceeded,
+          showCopyError,
+        ]
       );
 
       // When sync is enabled, the active tab path becomes the effective reveal/select target.
@@ -407,14 +514,15 @@ export const FileExplorerPanel = memo(
 
       useImperativeHandle(ref, () => ({ refresh: refreshExplorer }), [refreshExplorer]);
 
-      const { jobs, startUpload } = useWorkspaceUploadJobs({
+      const { jobs, startUpload, dismissJob } = useWorkspaceUploadJobs({
         machineId,
         workingDir,
         onUploadComplete: (filePath) => {
           refreshExplorer();
           explorerFileOps.onFileCreated(filePath);
         },
-        onUploadFailed: (_filePath, error) => toast.error(error),
+        // A failed upload is reported only by its progress row, which persists until dismissed.
+        errorDismissMs: false,
       });
 
       // fallow-ignore-next-line complexity
@@ -422,6 +530,7 @@ export const FileExplorerPanel = memo(
         if (!deleteTarget) return;
         const path = deleteTarget.path;
         setDeleteTarget(null);
+        clearExplorerFeedback();
 
         try {
           const { requestId } = await requestDelete(path);
@@ -437,15 +546,17 @@ export const FileExplorerPanel = memo(
           );
         } catch (err) {
           const message = err instanceof Error ? err.message : 'File delete failed';
-          toast.error(message);
+          showFileOpError(message);
         }
       }, [
+        clearExplorerFeedback,
         confirmDelete,
         deleteTarget,
         explorerFileOps,
         onFileDeleted,
         requestDelete,
         refreshExplorer,
+        showFileOpError,
       ]);
 
       if (!machineId || !workingDir) {
@@ -518,7 +629,7 @@ export const FileExplorerPanel = memo(
             workingDir={workingDir}
             defaultDir={newFolderDefaultDir}
             onCreated={() => refreshExplorer()}
-            onCreateFailed={(_dirPath, error) => toast.error(error)}
+            onCreateFailed={(_dirPath, message) => showFileOpError(message)}
             onCreateConfirmed={() => refreshExplorer()}
             onExplorerRefresh={refreshExplorer}
           />
@@ -615,6 +726,17 @@ export const FileExplorerPanel = memo(
             </div>
           </div>
 
+          {feedback ? (
+            <div className="shrink-0 border-b border-chatroom-border-strong">
+              <InlineFeedback
+                feedback={feedback}
+                onDismiss={clearExplorerFeedback}
+                data-testid="explorer-feedback"
+                className="mx-2 my-1.5"
+              />
+            </div>
+          ) : null}
+
           {/* Tree content */}
           <div
             className={`flex flex-1 flex-col min-h-0 overflow-hidden ${
@@ -622,7 +744,10 @@ export const FileExplorerPanel = memo(
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            onDrop={(event) => {
+              clearExplorerFeedback();
+              handleDrop(event);
+            }}
             onContextMenu={(event) => {
               if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
               const props = buildFileMenuProps({ kind: 'root' });
@@ -652,6 +777,7 @@ export const FileExplorerPanel = memo(
                 selectedPath={effectiveSelectedPath}
                 filterQuery={filterQuery}
                 dropHighlightPath={dropHighlightPath}
+                treeSyncFeedback={treeSyncFeedback}
                 onNodeContextMenu={(node, event) => {
                   const target: ExplorerContextTarget = {
                     kind: 'node',
@@ -669,7 +795,9 @@ export const FileExplorerPanel = memo(
             ) : null}
           </div>
 
-          {jobs.length > 0 ? <WorkspaceUploadProgressList jobs={jobs} /> : null}
+          {jobs.length > 0 ? (
+            <WorkspaceUploadProgressList jobs={jobs} onDismiss={dismissJob} />
+          ) : null}
 
           {contextMenu}
         </div>

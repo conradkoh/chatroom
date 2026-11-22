@@ -1,4 +1,3 @@
-import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -6,11 +5,10 @@ import {
   copyFileNameToClipboard,
   copyFullPathToClipboard,
   copyRelativePathToClipboard,
+  copyWorkspacePathToClipboard,
 } from './clipboard';
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
+const FAILURE = { ok: false, message: 'Failed to copy to clipboard' };
 
 describe('clipboard utils', () => {
   const writeText = vi.fn();
@@ -24,37 +22,46 @@ describe('clipboard utils', () => {
     });
   });
 
-  it('copyRelativePathToClipboard copies path and toasts', async () => {
-    await copyRelativePathToClipboard('src/foo.ts');
+  it('copyRelativePathToClipboard writes the path and returns ok', async () => {
+    await expect(copyRelativePathToClipboard('src/foo.ts')).resolves.toEqual({ ok: true });
     expect(writeText).toHaveBeenCalledWith('src/foo.ts');
-    expect(toast.success).toHaveBeenCalledWith('Copied relative path');
   });
 
-  it('copyFullPathToClipboard joins workingDir and relative path', async () => {
-    await copyFullPathToClipboard('/workspace/proj', 'src/foo.ts');
+  it('copyFullPathToClipboard joins workingDir and relative path and returns ok', async () => {
+    await expect(copyFullPathToClipboard('/workspace/proj', 'src/foo.ts')).resolves.toEqual({
+      ok: true,
+    });
     expect(writeText).toHaveBeenCalledWith('/workspace/proj/src/foo.ts');
-    expect(toast.success).toHaveBeenCalledWith('Copied full path');
   });
 
-  it('copyFullPathToClipboard no-ops when workingDir is null', async () => {
-    await copyFullPathToClipboard(null, 'src/foo.ts');
+  it('copyFullPathToClipboard returns the failure shape and writes nothing when workingDir is null', async () => {
+    await expect(copyFullPathToClipboard(null, 'src/foo.ts')).resolves.toEqual(FAILURE);
     expect(writeText).not.toHaveBeenCalled();
   });
 
-  it('copyFileNameToClipboard copies basename only', async () => {
-    await copyFileNameToClipboard('src/nested/foo.ts');
+  it('copyFileNameToClipboard copies the basename only', async () => {
+    await expect(copyFileNameToClipboard('src/nested/foo.ts')).resolves.toEqual({ ok: true });
     expect(writeText).toHaveBeenCalledWith('foo.ts');
-    expect(toast.success).toHaveBeenCalledWith('Copied file name');
   });
 
-  it('copyFileContentToClipboard toasts truncated variant', async () => {
-    await copyFileContentToClipboard('hello', { truncated: true });
+  it('copyWorkspacePathToClipboard writes the workspace path', async () => {
+    await expect(copyWorkspacePathToClipboard('/workspace/proj')).resolves.toEqual({ ok: true });
+    expect(writeText).toHaveBeenCalledWith('/workspace/proj');
+  });
+
+  it('copyFileContentToClipboard writes the content', async () => {
+    await expect(copyFileContentToClipboard('hello')).resolves.toEqual({ ok: true });
     expect(writeText).toHaveBeenCalledWith('hello');
-    expect(toast.success).toHaveBeenCalledWith('Copied file content (truncated)');
   });
 
-  it('copyFileContentToClipboard toasts normal variant', async () => {
-    await copyFileContentToClipboard('hello');
-    expect(toast.success).toHaveBeenCalledWith('Copied file content');
+  it.each([
+    ['copyRelativePathToClipboard', () => copyRelativePathToClipboard('src/foo.ts')],
+    ['copyFileNameToClipboard', () => copyFileNameToClipboard('src/foo.ts')],
+    ['copyFullPathToClipboard', () => copyFullPathToClipboard('/workspace/proj', 'src/foo.ts')],
+    ['copyWorkspacePathToClipboard', () => copyWorkspacePathToClipboard('/workspace/proj')],
+    ['copyFileContentToClipboard', () => copyFileContentToClipboard('hello')],
+  ])('%s returns the failure shape when writeText rejects', async (_name, copy) => {
+    writeText.mockRejectedValue(new Error('denied'));
+    await expect(copy()).resolves.toEqual(FAILURE);
   });
 });

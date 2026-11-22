@@ -17,7 +17,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 
 import { EmptyOutputState } from './EmptyOutputState';
 import { CommandDetailPanel } from '../../../features/run-command/components/CommandDetailPanel';
@@ -32,6 +31,7 @@ import type {
 } from '../../../features/run-command/types/run';
 import { getCompactDisplayName } from '../../../features/run-command/utils/grouping';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { useFeedback } from '@/hooks/useFeedback';
 import { isValidTwoPaneLayout } from '@/modules/chatroom/hooks/twoPaneLayout';
 import { usePersistedState } from '@/modules/chatroom/hooks/usePersistedState';
 
@@ -141,20 +142,36 @@ export function ProcessesPanel({
   // Clear stuck dialog state
   const [clearStuckOpen, setClearStuckOpen] = useState(false);
   const clearStuckRuns = useSessionMutation(api.commands.clearStuckCommandRuns);
+  const {
+    feedback: clearStuckFeedback,
+    show: showClearStuckSummary,
+    error: showClearStuckError,
+    clear: resetClearStuckFeedback,
+  } = useFeedback();
 
   const pendingOrRunningCount = runningProcesses.length;
 
   const handleClearStuck = useCallback(async () => {
     if (!machineId || !workingDir) return;
+    resetClearStuckFeedback();
     try {
       const result = await clearStuckRuns({ machineId, workingDir });
-      toast.success(`Cleared ${result.clearedCount} stuck command(s)`);
+      showClearStuckSummary('success', `Cleared ${result.clearedCount} stuck command(s)`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to clear stuck commands');
+      showClearStuckError(
+        error instanceof Error ? error.message : 'Failed to clear stuck commands'
+      );
     } finally {
       setClearStuckOpen(false);
     }
-  }, [machineId, workingDir, clearStuckRuns]);
+  }, [
+    machineId,
+    workingDir,
+    clearStuckRuns,
+    resetClearStuckFeedback,
+    showClearStuckSummary,
+    showClearStuckError,
+  ]);
 
   const handleRunCommand = useCallback(
     (cmd: RunnableCommand) => {
@@ -392,6 +409,14 @@ export function ProcessesPanel({
             </Button>
           )}
         </div>
+
+        {/* Clear-stuck outcome: persists until dismissed or the next clear-stuck attempt */}
+        <InlineFeedback
+          feedback={clearStuckFeedback}
+          onDismiss={resetClearStuckFeedback}
+          data-testid="processes-feedback"
+          className="mx-1.5 mt-1.5 shrink-0 sm:mx-4 sm:mt-2"
+        />
 
         {/* Body — layout is driven by the panel's own width via container queries,
             not the viewport. Below @md (28rem ≈ 448px) we collapse to a single

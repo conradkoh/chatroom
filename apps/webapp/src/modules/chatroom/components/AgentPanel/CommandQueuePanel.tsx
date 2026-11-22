@@ -6,7 +6,6 @@ import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { AlertTriangle, Clock3, ListTodo, Loader2, Trash2 } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
 import { getModelDisplayLabel } from '../../types/machine';
 import {
@@ -14,9 +13,9 @@ import {
   chatroomIndustrialButtonSecondaryClassName,
 } from '../shared/industrialDialogStyles';
 
+import { InlineFeedback, type Feedback } from '@/components/inline-feedback';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -34,6 +33,7 @@ import {
   DialogScrollBody,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useFeedback } from '@/hooks/useFeedback';
 import { cn } from '@/lib/utils';
 
 type QueueCommand = Doc<'chatroom_machineCommandInbox'>;
@@ -273,6 +273,8 @@ interface CommandQueueDialogProps {
   isFlushing: boolean;
   onDelete: (commandId: Id<'chatroom_machineCommandInbox'>) => void;
   onRequestFlush: () => void;
+  queueFeedback: Feedback | null;
+  onDismissQueueFeedback: () => void;
 }
 
 function CommandQueueFooter({
@@ -325,6 +327,8 @@ function CommandQueueDialog({
   isFlushing,
   onDelete,
   onRequestFlush,
+  queueFeedback,
+  onDismissQueueFeedback,
 }: CommandQueueDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -340,6 +344,13 @@ function CommandQueueDialog({
             flight.
           </DialogDescription>
         </DialogHeader>
+
+        <InlineFeedback
+          feedback={queueFeedback}
+          onDismiss={onDismissQueueFeedback}
+          data-testid="command-queue-feedback"
+          className="mx-5 mt-3 shrink-0"
+        />
 
         <DialogScrollBody>
           {isLoading ? (
@@ -373,6 +384,8 @@ interface FlushCommandDialogProps {
   commandCount: number;
   isFlushing: boolean;
   onConfirm: () => void;
+  flushFeedback: Feedback | null;
+  onDismissFlushFeedback: () => void;
 }
 
 function FlushCommandDialog({
@@ -381,6 +394,8 @@ function FlushCommandDialog({
   commandCount,
   isFlushing,
   onConfirm,
+  flushFeedback,
+  onDismissFlushFeedback,
 }: FlushCommandDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -397,12 +412,25 @@ function FlushCommandDialog({
             are not stopped.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <InlineFeedback
+          feedback={flushFeedback}
+          onDismiss={onDismissFlushFeedback}
+          data-testid="flush-error"
+        />
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isFlushing}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={isFlushing} className="gap-1.5">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isFlushing}
+            className={cn(
+              chatroomIndustrialButtonDestructiveClassName,
+              'gap-1.5 disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
             {isFlushing && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
             Flush queue
-          </AlertDialogAction>
+          </button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -423,6 +451,10 @@ interface CommandQueuePanelViewProps {
   onDelete: (commandId: Id<'chatroom_machineCommandInbox'>) => void;
   onRequestFlush: () => void;
   onConfirmFlush: () => void;
+  queueFeedback: Feedback | null;
+  onDismissQueueFeedback: () => void;
+  flushFeedback: Feedback | null;
+  onDismissFlushFeedback: () => void;
 }
 
 function CommandQueuePanelView({
@@ -439,6 +471,10 @@ function CommandQueuePanelView({
   onDelete,
   onRequestFlush,
   onConfirmFlush,
+  queueFeedback,
+  onDismissQueueFeedback,
+  flushFeedback,
+  onDismissFlushFeedback,
 }: CommandQueuePanelViewProps) {
   return (
     <>
@@ -458,6 +494,8 @@ function CommandQueuePanelView({
         isFlushing={isFlushing}
         onDelete={onDelete}
         onRequestFlush={onRequestFlush}
+        queueFeedback={queueFeedback}
+        onDismissQueueFeedback={onDismissQueueFeedback}
       />
       <FlushCommandDialog
         open={isFlushConfirmOpen}
@@ -465,6 +503,8 @@ function CommandQueuePanelView({
         commandCount={commandCount}
         isFlushing={isFlushing}
         onConfirm={onConfirmFlush}
+        flushFeedback={flushFeedback}
+        onDismissFlushFeedback={onDismissFlushFeedback}
       />
     </>
   );
@@ -477,6 +517,17 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
   const [isFlushConfirmOpen, setIsFlushConfirmOpen] = useState(false);
   const [deletingCommandId, setDeletingCommandId] = useState<string | null>(null);
   const [isFlushing, setIsFlushing] = useState(false);
+  const {
+    feedback: queueFeedback,
+    show: showQueueFeedback,
+    error: showQueueError,
+    clear: clearQueueFeedback,
+  } = useFeedback();
+  const {
+    feedback: flushFeedback,
+    error: showFlushError,
+    clear: clearFlushFeedback,
+  } = useFeedback();
   const commandsResult = useSessionQuery(
     api.daemon.machineCommandInbox.list,
     machineId ? { machineId } : 'skip'
@@ -490,37 +541,53 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
 
   const handleDelete = useCallback(
     async (commandId: Id<'chatroom_machineCommandInbox'>) => {
+      clearQueueFeedback();
       setDeletingCommandId(commandId);
       try {
         await deleteCommandMutation({ commandId });
       } catch (error) {
         console.error('Failed to delete queued command:', error);
-        toast.error('Failed to delete command. Please try again.');
+        showQueueError('Failed to delete command. Please try again.');
       } finally {
         setDeletingCommandId(null);
       }
     },
-    [deleteCommandMutation]
+    [clearQueueFeedback, deleteCommandMutation, showQueueError]
   );
 
   const handleFlush = useCallback(async () => {
     if (!machineId) return;
+    clearQueueFeedback();
+    clearFlushFeedback();
     setIsFlushing(true);
     try {
       const result = await deleteAllMutation({ machineId });
       setIsFlushConfirmOpen(false);
-      toast.success(
+      showQueueFeedback(
+        'success',
         result.deletedCount === 1
           ? 'Removed 1 queued command'
           : `Removed ${result.deletedCount} queued commands`
       );
     } catch (error) {
       console.error('Failed to flush command queue:', error);
-      toast.error('Failed to flush command queue. Please try again.');
+      showFlushError('Failed to flush command queue. Please try again.');
     } finally {
       setIsFlushing(false);
     }
-  }, [deleteAllMutation, machineId]);
+  }, [
+    clearFlushFeedback,
+    clearQueueFeedback,
+    deleteAllMutation,
+    machineId,
+    showFlushError,
+    showQueueFeedback,
+  ]);
+
+  const handleRequestFlush = useCallback(() => {
+    clearFlushFeedback();
+    setIsFlushConfirmOpen(true);
+  }, [clearFlushFeedback]);
 
   return (
     <CommandQueuePanelView
@@ -535,8 +602,12 @@ export const CommandQueuePanel = memo(function CommandQueuePanel({
       onOpenChange={setIsOpen}
       onFlushConfirmChange={setIsFlushConfirmOpen}
       onDelete={(commandId) => void handleDelete(commandId)}
-      onRequestFlush={() => setIsFlushConfirmOpen(true)}
+      onRequestFlush={handleRequestFlush}
       onConfirmFlush={() => void handleFlush()}
+      queueFeedback={queueFeedback}
+      onDismissQueueFeedback={clearQueueFeedback}
+      flushFeedback={flushFeedback}
+      onDismissFlushFeedback={clearFlushFeedback}
     />
   );
 });

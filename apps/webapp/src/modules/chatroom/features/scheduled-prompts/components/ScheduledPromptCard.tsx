@@ -4,7 +4,6 @@ import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { LucideIcon } from 'lucide-react';
 import { AlertCircle, CheckCircle2, Loader2, Power, PowerOff, Trash2 } from 'lucide-react';
 import React, { useCallback, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
 import { useOverlayPortalContainer } from '../../../components/shared/overlayPortalContainer';
@@ -19,6 +18,7 @@ import {
 } from '../utils/scheduledPromptFormat';
 import { formatScheduledPromptPolicy, scheduledPromptPolicy } from '../utils/scheduledPromptPolicy';
 
+import { InlineFeedback } from '@/components/inline-feedback';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/drawer';
 import { Popover, PopoverContent } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
+import { useFeedback } from '@/hooks/useFeedback';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface ScheduledPromptCardProps {
@@ -171,6 +172,11 @@ export function ScheduledPromptCard({
   const isDesktop = useIsDesktop();
   const portalContainer = useOverlayPortalContainer();
   const cardRef = useRef<HTMLDivElement>(null);
+  const {
+    feedback: scheduleFeedback,
+    error: showScheduleError,
+    clear: clearScheduleFeedback,
+  } = useFeedback();
 
   useOverlayDismissStack(!isDesktop && actionsOpen, () => setActionsOpen(false));
 
@@ -274,10 +280,11 @@ export function ScheduledPromptCard({
               checked={isActive}
               onCheckedChange={(checked) => {
                 if (checked === isActive) return;
+                clearScheduleFeedback();
                 setIsToggling(true);
                 setEnabled({ scheduledPromptId: prompt._id, enabled: checked })
                   .catch((err: { data?: { message?: string } } | undefined) =>
-                    toast.error(err?.data?.message ?? 'Failed to update schedule')
+                    showScheduleError(err?.data?.message ?? 'Failed to update schedule')
                   )
                   .finally(() => setIsToggling(false));
               }}
@@ -286,6 +293,12 @@ export function ScheduledPromptCard({
             />
           )}
         </div>
+        <InlineFeedback
+          feedback={scheduleFeedback}
+          variant="text"
+          className="mt-2"
+          data-testid="scheduled-prompt-card-feedback"
+        />
       </div>
 
       {isDesktop ? (

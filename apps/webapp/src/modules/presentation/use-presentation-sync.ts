@@ -2,7 +2,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 // Define the presentation state type to include activePresentation
 type PresentationState = {
@@ -237,15 +236,6 @@ export function usePresentationSync({
 
     if (wasActive === true && !isActive) {
       setExplicitSoloMode(false);
-      if (!isPresenter) {
-        // Schedule toast for after render
-        queueMicrotask(() => {
-          toast.info('Presentation ended', {
-            description: 'The presenter has ended the presentation.',
-            duration: 5000,
-          });
-        });
-      }
     }
 
     prevPresentationActiveRef.current = isActive;

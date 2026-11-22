@@ -1,0 +1,366 @@
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { getFunctionName } from 'convex/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { Discussion } from './discussion';
+
+/**
+ * Boundary mocks only: Convex session query/mutation. The component, the sync
+ * hook, the dialogs, and the forms all run for real.
+ */
+const mocks = vi.hoisted(() => ({
+  useSessionQuery: vi.fn(),
+  useSessionMutation: vi.fn(),
+  mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
+  state: { exists: true, isActive: true } as Record<string, unknown>,
+  messages: [] as Record<string, unknown>[],
+  conclusion: null as Record<string, unknown> | null,
+}));
+
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: mocks.useSessionQuery,
+  useSessionMutation: mocks.useSessionMutation,
+}));
+
+type FunctionReference = Parameters<typeof getFunctionName>[0];
+type User = ReturnType<typeof userEvent.setup>;
+
+const message = {
+  _id: 'm1',
+  discussionKey: 'k',
+  name: 'Ada',
+  message: 'Hi',
+  timestamp: 1,
+};
+
+function functionName(reference: FunctionReference): string {
+  return getFunctionName(reference).split(':').pop() ?? '';
+}
+
+function renderDiscussion() {
+  render(<Discussion title="Team Feedback" discussionKey="k" />);
+}
+
+/** Waits for the loading timer so the card actions are interactive. */
+async function waitForCardLoaded() {
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Discussion actions' })).toBeEnabled()
+  );
+}
+
+async function openDeleteDialog(user: User) {
+  const messageCard = screen.getByText('Hi').parentElement;
+  if (!messageCard) throw new Error('Message card not found');
+
+  await user.click(within(messageCard).getByRole('button'));
+  await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+  return screen.findByRole('dialog');
+}
+
+beforeEach(() => {
+  mocks.mutations = {
+    createDiscussion: vi.fn().mockResolvedValue(undefined),
+    addDiscussionMessage: vi.fn().mockResolvedValue(undefined),
+    deleteDiscussionMessage: vi.fn().mockResolvedValue(undefined),
+    concludeDiscussion: vi.fn().mockResolvedValue(undefined),
+    updateConclusions: vi.fn().mockResolvedValue(undefined),
+    reopenDiscussion: vi.fn().mockResolvedValue(undefined),
+  };
+  mocks.useSessionMutation.mockImplementation((reference: FunctionReference) => {
+    return mocks.mutations[functionName(reference)];
+  });
+
+  mocks.state = { exists: true, isActive: true };
+  mocks.messages = [message];
+  mocks.conclusion = null;
+  mocks.useSessionQuery.mockImplementation((reference: FunctionReference, args: unknown) => {
+    if (args === 'skip') return undefined;
+    const name = functionName(reference);
+    if (name === 'getDiscussionState') return mocks.state;
+    if (name === 'getDiscussionMessages') return mocks.messages;
+    if (name === 'getDiscussionConclusion') return mocks.conclusion;
+    return undefined;
+  });
+});
+
+describe('Discussion inline failures', () => {
+  it('keeps an add failure in the dialog with the typed text', async () => {
+    mocks.mutations.addDiscussionMessage.mockRejectedValueOnce(new Error('Network down'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Your Name'), 'Ada');
+    await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(dialog).toBeInTheDocument();
+    expect(alert).toHaveTextContent('Failed to add message: Network down');
+    expect(within(dialog).getByLabelText('Your Name')).toHaveValue('Ada');
+    expect(within(dialog).getByLabelText('Your Thoughts')).toHaveValue('Hello');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('keeps the add dialog open while the contribution is submitting', async () => {
+    let rejectAdd!: (error: Error) => void;
+    mocks.mutations.addDiscussionMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectAdd = reject;
+        })
+    );
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Your Name'), 'Ada');
+    await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
+
+    await user.keyboard('{Escape}');
+    expect(dialog).toBeInTheDocument();
+
+    rejectAdd(new Error('Message too long'));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to add message: Message too long');
+    expect(within(dialog).getByLabelText('Your Thoughts')).toHaveValue('Hello');
+  });
+
+  it('clears the add error when the name is edited', async () => {
+    mocks.mutations.addDiscussionMessage.mockRejectedValueOnce(new Error('Message too long'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
+    const dialog = await screen.findByRole('dialog');
+    const name = within(dialog).getByLabelText('Your Name');
+    await user.type(name, 'Ada');
+    await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
+
+    await within(dialog).findByRole('alert');
+    await user.type(name, 'B');
+
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('shows a create failure as a card alert outside any dialog', async () => {
+    mocks.state = { exists: false, isActive: false };
+    mocks.messages = [];
+    mocks.mutations.createDiscussion.mockRejectedValueOnce(new Error('Boom'));
+    renderDiscussion();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to create discussion: Boom');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shows a reopen failure as a card alert outside any dialog', async () => {
+    mocks.state = { exists: true, isActive: false };
+    mocks.conclusion = {
+      _id: 'c1',
+      discussionKey: 'k',
+      conclusions: [{ text: 'Done', tags: ['task'] }],
+      createdAt: 1,
+    };
+    mocks.mutations.reopenDiscussion.mockRejectedValueOnce(new Error('Nope'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Discussion actions' }));
+    await user.click(screen.getByRole('button', { name: 'Reopen Discussion' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to reopen discussion: Nope');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps a conclude failure in the dialog with the typed conclusion', async () => {
+    mocks.mutations.concludeDiscussion.mockRejectedValueOnce(new Error('Offline'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Discussion actions' }));
+    await user.click(screen.getByRole('button', { name: 'Conclude Discussion' }));
+
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByPlaceholderText('Enter a conclusion'), 'Ship it');
+    await user.click(within(dialog).getByRole('button', { name: 'Conclude Discussion' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(dialog).toBeInTheDocument();
+    expect(alert).toHaveTextContent('Failed to conclude discussion: Offline');
+    expect(within(dialog).getByPlaceholderText('Enter a conclusion')).toHaveValue('Ship it');
+  });
+
+  it('keeps the conclude dialog open while the conclusion is submitting', async () => {
+    let rejectConclude!: (error: Error) => void;
+    mocks.mutations.concludeDiscussion.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectConclude = reject;
+        })
+    );
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Discussion actions' }));
+    await user.click(screen.getByRole('button', { name: 'Conclude Discussion' }));
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByPlaceholderText('Enter a conclusion');
+    await user.type(input, 'Ship it');
+    await user.click(within(dialog).getByRole('button', { name: 'Conclude Discussion' }));
+
+    await user.keyboard('{Escape}');
+    expect(dialog).toBeInTheDocument();
+
+    rejectConclude(new Error('Offline'));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to conclude discussion: Offline');
+    expect(input).toHaveValue('Ship it');
+  });
+
+  it('clears the conclude error when a conclusion is edited', async () => {
+    mocks.mutations.concludeDiscussion.mockRejectedValueOnce(new Error('Offline'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Discussion actions' }));
+    await user.click(screen.getByRole('button', { name: 'Conclude Discussion' }));
+
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByPlaceholderText('Enter a conclusion');
+    await user.type(input, 'Ship it');
+    await user.click(within(dialog).getByRole('button', { name: 'Conclude Discussion' }));
+
+    await within(dialog).findByRole('alert');
+    await user.type(input, '!');
+
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('keeps the delete dialog open on failure and shows the error inside it', async () => {
+    mocks.mutations.deleteDiscussionMessage.mockRejectedValueOnce(new Error('Denied'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to delete message: Denied');
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText('Hi')).toBeVisible();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('keeps the delete dialog open while the delete is pending', async () => {
+    let rejectDelete!: (error: Error) => void;
+    mocks.mutations.deleteDiscussionMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectDelete = reject;
+        })
+    );
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(within(dialog).getByRole('button', { name: 'Deleting...' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+
+    await user.keyboard('{Escape}');
+    expect(dialog).toBeInTheDocument();
+
+    rejectDelete(new Error('Denied'));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Failed to delete message: Denied'
+    );
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('closes the delete dialog when a retry succeeds', async () => {
+    mocks.mutations.deleteDiscussionMessage.mockRejectedValueOnce(new Error('Denied'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await within(dialog).findByRole('alert');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(mocks.mutations.deleteDiscussionMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the delete error when Cancel closes the dialog', async () => {
+    mocks.mutations.deleteDiscussionMessage.mockRejectedValueOnce(new Error('Denied'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await within(dialog).findByRole('alert');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    const reopened = await openDeleteDialog(user);
+    expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('closes the delete dialog after a successful deletion', async () => {
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Message deleted')).not.toBeInTheDocument();
+  });
+
+  it('clears the previous failure when the dialog is reopened', async () => {
+    mocks.mutations.addDiscussionMessage.mockRejectedValueOnce(new Error('Network down'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
+    let dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Your Name'), 'Ada');
+    await user.type(within(dialog).getByLabelText('Your Thoughts'), 'Hello');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit' }));
+    await within(dialog).findByRole('alert');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Add Contribution' }));
+    dialog = await screen.findByRole('dialog');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});

@@ -125,4 +125,70 @@ describe('StandingInstructionsEditModal', () => {
 
     expect(onConfirm).toHaveBeenCalledWith({ content: 'Rule body', title: 'My rule' });
   });
+
+  it('keeps the dialog open and shows the conflict inline when save fails', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn().mockRejectedValue(new Error('CONFLICT: already exists'));
+    render(
+      <StandingInstructionsEditModal
+        open
+        onOpenChange={vi.fn()}
+        initialTitle="My rule"
+        initialContent="Rule body"
+        onConfirm={onConfirm}
+      />
+    );
+
+    await user.click(screen.getByText('Confirm'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Another standing instruction with this content already exists.'
+    );
+    expect(screen.getByText('Edit standing instruction')).toBeInTheDocument();
+  });
+
+  it('shows the fallback copy inline when save fails with another error', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn().mockRejectedValue(new Error('network down'));
+    render(
+      <StandingInstructionsEditModal
+        open
+        onOpenChange={vi.fn()}
+        initialTitle="My rule"
+        initialContent="Rule body"
+        onConfirm={onConfirm}
+      />
+    );
+
+    await user.click(screen.getByText('Confirm'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to save standing instruction.'
+    );
+  });
+
+  it('clears the save failure when the next save attempt starts', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockReturnValueOnce(new Promise(() => {}));
+    render(
+      <StandingInstructionsEditModal
+        open
+        onOpenChange={vi.fn()}
+        initialTitle="My rule"
+        initialContent="Rule body"
+        onConfirm={onConfirm}
+      />
+    );
+
+    await user.click(screen.getByText('Confirm'));
+    await screen.findByRole('alert');
+
+    await user.click(screen.getByText('Confirm'));
+
+    expect(onConfirm).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

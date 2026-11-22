@@ -12,13 +12,14 @@ import {
 } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
 
-import type { WorkspaceFileMenuProps } from './types';
+import type { WorkspaceFileCopyInfo, WorkspaceFileMenuProps } from './types';
 import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
 import {
   copyFileContentToClipboard,
   copyFileNameToClipboard,
   copyFullPathToClipboard,
   copyRelativePathToClipboard,
+  type CopyResult,
 } from '../utils/clipboard';
 
 import { DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -37,10 +38,21 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
     relativePath,
     workingDir,
     content,
-    contentTruncated = false,
+    contentTruncated,
     contentDisabled = false,
     fileContentLabel = 'Copy File Content',
   } = state;
+
+  // A success never shows text here. The host decides what, if anything, to show.
+  const reportCopy = (
+    copy: Promise<CopyResult>,
+    info: WorkspaceFileCopyInfo = { truncated: false }
+  ) => {
+    void copy.then((result) => {
+      if (result.ok) handlers.onCopied?.(info);
+      else handlers.onCopyError?.(result.message);
+    });
+  };
 
   const sections: Section[] = [];
 
@@ -71,7 +83,7 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
       <WorkspaceDropdownMenuItem
         key="copy-name"
         icon={Copy}
-        onSelect={() => void copyFileNameToClipboard(relativePath)}
+        onSelect={() => reportCopy(copyFileNameToClipboard(relativePath))}
       >
         Copy File Name
       </WorkspaceDropdownMenuItem>
@@ -82,7 +94,7 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
       <WorkspaceDropdownMenuItem
         key="copy-relative"
         icon={Copy}
-        onSelect={() => void copyRelativePathToClipboard(relativePath)}
+        onSelect={() => reportCopy(copyRelativePathToClipboard(relativePath))}
       >
         Copy Relative Path
       </WorkspaceDropdownMenuItem>
@@ -93,7 +105,7 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
       <WorkspaceDropdownMenuItem
         key="copy-full"
         icon={Copy}
-        onSelect={() => void copyFullPathToClipboard(workingDir, relativePath)}
+        onSelect={() => reportCopy(copyFullPathToClipboard(workingDir, relativePath))}
         disabled={!workingDir}
       >
         Copy Full Path
@@ -135,7 +147,9 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
         icon={Copy}
         onSelect={() => {
           if (content && !contentDisabled) {
-            void copyFileContentToClipboard(content, { truncated: contentTruncated });
+            reportCopy(copyFileContentToClipboard(content), {
+              truncated: contentTruncated === true,
+            });
           }
         }}
         disabled={contentDisabled || !content}
