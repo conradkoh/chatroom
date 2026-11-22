@@ -4,7 +4,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { WorkspaceGitState } from '@workspace/backend/src/domain/types/workspace-git';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
-import { toast } from 'sonner';
 
 import { useWorkspaceGit } from './useWorkspaceGit';
 import { buildRemoteFileUrl } from '../utils/remoteFileUrl';
@@ -16,16 +15,25 @@ type AvailableGitState = Extract<WorkspaceGitState, { status: 'available' }>;
 
 type GitRefreshMutation = (args: { machineId: string; workingDir: string }) => Promise<unknown>;
 
+/** What one open-on-remote attempt produced. `syncing` is info; `error` is an alert. */
+export type OpenFileOnRemoteOutcome =
+  { status: 'ok' } | { status: 'syncing'; message: string } | { status: 'error'; message: string };
+
+const NO_WORKSPACE_MESSAGE = 'No workspace connected';
+const SYNCING_MESSAGE = 'Syncing repository info — try again in a moment';
+const SYNC_FAILED_MESSAGE = 'Failed to sync repository info';
+const NO_ORIGIN_MESSAGE = 'No remote repository URL found for origin';
+
 async function syncGitInfo(
   requestGitRefresh: GitRefreshMutation,
   machineId: string,
   workingDir: string
-): Promise<void> {
+): Promise<OpenFileOnRemoteOutcome> {
   try {
     await requestGitRefresh({ machineId, workingDir });
-    toast.info('Syncing repository info — try again in a moment');
+    return { status: 'syncing', message: SYNCING_MESSAGE };
   } catch {
-    toast.error('Failed to sync repository info');
+    return { status: 'error', message: SYNC_FAILED_MESSAGE };
   }
 }
 
@@ -34,22 +42,22 @@ function getOriginRepoUrl(gitState: AvailableGitState): string | null {
   return origin ? toRepoHttpsUrl(origin.url) : null;
 }
 
-async function openAvailableGitFile(
+function openAvailableGitFile(
   gitState: AvailableGitState,
   requestGitRefresh: GitRefreshMutation,
   machineId: string,
   workingDir: string,
   filePath: string,
   selection?: string
-): Promise<void> {
+): OpenFileOnRemoteOutcome {
   const repoUrl = getOriginRepoUrl(gitState);
   if (!repoUrl) {
     void requestGitRefresh({ machineId, workingDir }).catch(() => undefined);
-    toast.error('No remote repository URL found for origin');
-    return;
+    return { status: 'error', message: NO_ORIGIN_MESSAGE };
   }
 
   openExternalUrl(buildRemoteFileUrl(repoUrl, gitState.branch, filePath, selection));
+  return { status: 'ok' };
 }
 
 async function openFileOnRemoteWithGitState(
@@ -59,18 +67,16 @@ async function openFileOnRemoteWithGitState(
   workingDir: string,
   filePath: string,
   selection?: string
-): Promise<void> {
+): Promise<OpenFileOnRemoteOutcome> {
   if (!machineId || !workingDir) {
-    toast.error('No workspace connected');
-    return;
+    return { status: 'error', message: NO_WORKSPACE_MESSAGE };
   }
 
   if (gitState.status !== 'available') {
-    await syncGitInfo(requestGitRefresh, machineId, workingDir);
-    return;
+    return syncGitInfo(requestGitRefresh, machineId, workingDir);
   }
 
-  await openAvailableGitFile(
+  return openAvailableGitFile(
     gitState,
     requestGitRefresh,
     machineId,
@@ -85,7 +91,7 @@ export function useOpenFileOnRemote(machineId: string, workingDir: string) {
   const requestGitRefresh = useSessionMutation(api.machines.requestGitRefresh);
 
   const openFileOnRemote = useCallback(
-    (filePath: string, selection?: string) =>
+    (filePath: string, selection?: string): Promise<OpenFileOnRemoteOutcome> =>
       openFileOnRemoteWithGitState(
         gitState,
         requestGitRefresh,
