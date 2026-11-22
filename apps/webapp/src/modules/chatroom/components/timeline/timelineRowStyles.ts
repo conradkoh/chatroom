@@ -72,7 +72,7 @@ export function getSenderClasses(role: string): string {
 /** Full-width summary bar for collapsible handoff rows. It opens the details dialog, so the row height never changes. */
 export const TIMELINE_HANDOFF_TRIGGER =
   'group/handoff-trigger flex w-full items-start gap-2 px-4 py-2 text-left cursor-pointer ' +
-  'transition-[background-color,opacity] duration-100 hover:bg-chatroom-bg-hover active:opacity-80 ' +
+  'transition-[background-color,opacity] duration-100 motion-reduce:transition-none hover:bg-chatroom-bg-hover active:opacity-80 ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent';
 
 /** Static 14px Maximize2 icon in the chevron slot, centred on the first 20px text line. */

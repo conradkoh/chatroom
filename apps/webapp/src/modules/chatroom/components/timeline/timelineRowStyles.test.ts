@@ -58,6 +58,7 @@ describe('TIMELINE_HANDOFF_TRIGGER', () => {
     expect(TIMELINE_HANDOFF_TRIGGER).toContain('hover:bg-chatroom-bg-hover');
     expect(TIMELINE_HANDOFF_TRIGGER).toContain('active:opacity-80');
     expect(TIMELINE_HANDOFF_TRIGGER).toContain('focus-visible:ring-chatroom-accent');
+    expect(TIMELINE_HANDOFF_TRIGGER).toContain('motion-reduce:transition-none');
   });
 });
 
