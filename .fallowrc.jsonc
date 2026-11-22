@@ -34,6 +34,9 @@
     "react-day-picker",
     "@legendapp/state",
     "@base-ui/react",
+    // Imported only from `components/ui/sonner.tsx`, which fallow ignores
+    // (`components/ui/**`). Remove this entry when the dep itself is removed.
+    "sonner",
   ],
   "ignoreUnresolvedImports": [
     "**/convex/_generated/**",

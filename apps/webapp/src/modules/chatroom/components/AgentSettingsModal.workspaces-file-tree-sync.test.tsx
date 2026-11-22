@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   setFileTreeSyncEnabled: vi.fn(),
   setPrimaryWorkspace: vi.fn(),
   removeWorkspace: vi.fn(),
-  toastError: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -38,10 +37,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       requestFileTree: 'workspaceFiles.requestFileTree',
     },
   },
-}));
-
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: mocks.toastError },
 }));
 
 vi.mock('../hooks/useAgentPanelData', () => ({
@@ -279,7 +274,7 @@ describe('AgentSettingsModal workspaces file-tree sync', () => {
     });
   });
 
-  it('shows an error toast when the mutation fails', async () => {
+  it('shows an inline alert in the row when enabling fails', async () => {
     mockWorkspaces([makeWorkspace({ fileTreeSyncEnabled: false })]);
     mocks.setFileTreeSyncEnabled.mockRejectedValueOnce(new Error('boom'));
 
@@ -287,9 +282,74 @@ describe('AgentSettingsModal workspaces file-tree sync', () => {
 
     fireEvent.click(screen.getByRole('switch', { name: 'Sync file tree for host-a' }));
 
+    const row = screen.getByTestId('file-tree-sync-row-registry-1');
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      'Failed to enable workspace file tree sync'
+    );
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('shows an inline alert in the row when disabling fails', async () => {
+    mockWorkspaces([makeWorkspace({ fileTreeSyncEnabled: true })]);
+    mocks.setFileTreeSyncEnabled.mockRejectedValueOnce(new Error('boom'));
+
+    renderModal();
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Sync file tree for host-a' }));
+
+    const row = screen.getByTestId('file-tree-sync-row-registry-1');
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      'Failed to disable workspace file tree sync'
+    );
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('shows the failure only in the workspace row that failed', async () => {
+    mockWorkspaces([
+      makeWorkspace({
+        id: 'm1::/a',
+        workingDir: '/a',
+        hostname: 'host-a',
+        _registryId: 'registry-1',
+        fileTreeSyncEnabled: false,
+      }),
+      makeWorkspace({
+        id: 'm1::/b',
+        workingDir: '/b',
+        hostname: 'host-b',
+        _registryId: 'registry-2',
+        fileTreeSyncEnabled: false,
+      }),
+    ]);
+    mocks.setFileTreeSyncEnabled.mockRejectedValueOnce(new Error('boom'));
+
+    renderModal();
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Sync file tree for host-b' }));
+
+    const rowB = screen.getByTestId('file-tree-sync-row-registry-2');
+    expect(await within(rowB).findByRole('alert')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('file-tree-sync-row-registry-1')).queryByRole('alert')
+    ).toBeNull();
+  });
+
+  it('clears the failure when the next toggle attempt on that workspace starts', async () => {
+    mockWorkspaces([makeWorkspace({ fileTreeSyncEnabled: false })]);
+    mocks.setFileTreeSyncEnabled.mockRejectedValueOnce(new Error('boom'));
+
+    renderModal();
+
+    const sw = screen.getByRole('switch', { name: 'Sync file tree for host-a' });
+    fireEvent.click(sw);
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+    fireEvent.click(sw); // second attempt succeeds (default mock resolves)
+
     await waitFor(() => {
-      expect(mocks.toastError).toHaveBeenCalledWith('Failed to enable workspace file tree sync');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
+    expect(mocks.setFileTreeSyncEnabled).toHaveBeenCalledTimes(2);
   });
 
   it('disables the switch and shows Enabling… text while the mutation is pending', async () => {

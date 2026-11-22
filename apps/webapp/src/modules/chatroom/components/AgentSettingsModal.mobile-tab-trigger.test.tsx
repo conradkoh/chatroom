@@ -6,8 +6,6 @@ import { AgentSettingsModal } from './AgentSettingsModal';
 
 const mocks = vi.hoisted(() => ({
   genericMutation: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
   onClose: vi.fn(),
 }));
 
@@ -43,10 +41,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       },
     },
   },
-}));
-
-vi.mock('sonner', () => ({
-  toast: { success: mocks.toastSuccess, error: mocks.toastError },
 }));
 
 vi.mock('../hooks/useAgentPanelData', () => ({
