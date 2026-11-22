@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -129,30 +129,17 @@ describe('RecoveryCodeSection', () => {
     expect(screen.queryByTestId('recovery-feedback')).toBeNull();
   });
 
-  it('shows the regenerate success as status text and replaces the textarea', async () => {
+  it('replaces the textarea with the new code and shows no success message', async () => {
     mocks.regenerate.mockResolvedValueOnce({ success: true, recoveryCode: 'NEW-CODE' });
 
     render(<RecoveryCodeSection />);
     await revealCode();
     await regenerateCode();
 
-    const status = await screen.findByRole('status');
-    expect(status).toHaveTextContent('Recovery code regenerated successfully!');
-    expect(screen.getByRole('textbox')).toHaveValue('NEW-CODE');
-    expect(screen.queryByRole('alert')).toBeNull();
-  });
-
-  it('clears the regenerate status on Dismiss', async () => {
-    mocks.regenerate.mockResolvedValueOnce({ success: true, recoveryCode: 'NEW-CODE' });
-
-    render(<RecoveryCodeSection />);
-    await revealCode();
-    await regenerateCode();
-
-    const slot = await screen.findByTestId('recovery-feedback');
-    await user.click(within(slot).getByRole('button', { name: 'Dismiss' }));
-
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('NEW-CODE'));
     expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText('Recovery code regenerated successfully!')).toBeNull();
   });
 
   it('copies the code with no message and flips Copy Code to a check icon for 2 s', async () => {

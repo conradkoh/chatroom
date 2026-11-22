@@ -24,7 +24,7 @@ import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { useFeedback, type UseFeedbackResult } from '@/hooks/useFeedback';
 import { cn } from '@/lib/utils';
 
-type RecoverySlot = Pick<UseFeedbackResult, 'show' | 'error' | 'clear'>;
+type RecoverySlot = Pick<UseFeedbackResult, 'error' | 'clear'>;
 
 /**
  * Displays recovery code management section for account backup and restoration.
@@ -43,8 +43,8 @@ export function RecoveryCodeSection() {
   // Keyed by the code itself, so a regenerated code starts uncopied. Only read when a code exists.
   const isCopied = copiedKey === recoveryCode;
 
-  const { feedback, show, error, clear } = useFeedback();
-  const slot = useMemo<RecoverySlot>(() => ({ show, error, clear }), [show, error, clear]);
+  const { feedback, error, clear } = useFeedback();
+  const slot = useMemo<RecoverySlot>(() => ({ error, clear }), [error, clear]);
 
   const handleRevealCode = useCallback(async () => {
     await _handleRevealCode({
@@ -236,7 +236,6 @@ async function _handleRegenerateCode(params: _RegenerateCodeParams): Promise<voi
       // Drop any copy-failure message so it does not outlive the code it referred to.
       slot.clear();
       setRecoveryCode(result.recoveryCode);
-      slot.show('success', 'Recovery code regenerated successfully!');
     } else {
       slot.error(result.reason || 'Failed to regenerate recovery code.');
     }
