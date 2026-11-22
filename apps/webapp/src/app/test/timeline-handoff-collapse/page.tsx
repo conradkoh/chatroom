@@ -3,6 +3,10 @@
 import { useState } from 'react';
 
 import { AttachmentsProvider } from '@/modules/chatroom/attachments';
+import {
+  TIMELINE_SCROLL_CONTAINER,
+  TIMELINE_SCROLL_CONTAINER_STYLE,
+} from '@/modules/chatroom/components/timeline/timelineRowStyles';
 import { TimelineTeamMessage } from '@/modules/chatroom/components/timeline/TimelineTeamMessage';
 import { isEagerTimelineEvent } from '@/modules/chatroom/timeline/isEagerTimelineEvent';
 import { mapMessageToTimelineEvent } from '@/modules/chatroom/timeline/mapMessageToTimelineEvent';
@@ -25,7 +29,7 @@ const NORMAL: Message = {
     'Implemented the summary bar and verified the focus behaviour. ' +
     'The collapsed row now shows a two-line preview instead of the full body.\n\n' +
     'Deferred body paragraph that must not render while the row is collapsed. ' +
-    'It exists to prove the markdown body stays unmounted until the row expands.',
+    'It exists to prove the markdown body stays unmounted until the dialog opens.',
   _creationTime: CREATION_TIME,
 };
 
@@ -59,12 +63,55 @@ const LONG: Message = {
   _creationTime: CREATION_TIME,
 };
 
+/** Same long preview with a 1h 5m generation gap: the mobile bar must keep it on one line. */
+const LONG_DURATION: Message = {
+  _id: 'e2e-collapse-long-duration',
+  type: 'handoff',
+  senderRole: 'builder',
+  targetRole: 'planner',
+  content: LONG_CONTENT,
+  _creationTime: CREATION_TIME,
+};
+
 const EAGER: Message = {
   _id: 'e2e-eager-control',
   type: 'handoff',
   senderRole: 'builder',
   targetRole: 'user',
   content: 'Eager handoff to the user, which never collapses.',
+  _creationTime: CREATION_TIME,
+};
+
+/** Feed-stability fixture: a collapsible handoff and the row below it, inside a real inner scroller. */
+const FEED_ROW: Message = {
+  ...NORMAL,
+  _id: 'e2e-collapse-feed-row',
+};
+
+const FEED_BELOW: Message = {
+  ...EMPTY,
+  _id: 'e2e-collapse-feed-below',
+};
+
+/** Tall body (>150 lines), a fenced code block, and a wide table that must scroll inside the prose container. */
+const TALL_CONTENT = [
+  '# Tall handoff',
+  ...Array.from(
+    { length: 120 },
+    (_, index) => `Paragraph ${index + 1} keeps the dialog body scrolling.`
+  ),
+  '```ts\nconst answer = 42;\nconsole.log(answer);\n```',
+  '| one | two | three | four | five | six | seven | eight | nine | ten |\n' +
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n' +
+    '| 1111111111 | 2222222222 | 3333333333 | 4444444444 | 5555555555 | 6666666666 | 7777777777 | 8888888888 | 9999999999 | 0000000000 |',
+].join('\n\n');
+
+const TALL: Message = {
+  _id: 'e2e-collapse-tall',
+  type: 'handoff',
+  senderRole: 'builder',
+  targetRole: 'planner',
+  content: TALL_CONTENT,
   _creationTime: CREATION_TIME,
 };
 
@@ -119,12 +166,56 @@ export default function TimelineHandoffCollapseTestPage() {
           />
         </section>
 
+        <section data-testid="collapse-long-duration">
+          <TimelineTeamMessage
+            message={LONG_DURATION}
+            chatroomId="e2e-chatroom"
+            handoffDurationMs={3_900_000}
+            collapsible={isCollapsible(LONG_DURATION)}
+          />
+        </section>
+
+        <section data-testid="collapse-tall">
+          <TimelineTeamMessage
+            message={TALL}
+            chatroomId="e2e-chatroom"
+            collapsible={isCollapsible(TALL)}
+          />
+        </section>
+
         <section data-testid="eager-control">
           <TimelineTeamMessage
             message={EAGER}
             chatroomId="e2e-chatroom"
             collapsible={isCollapsible(EAGER)}
           />
+        </section>
+
+        <section data-testid="collapse-feed" className="flex h-80 flex-col">
+          {/* Mirrors ConversationMessageList's feed scroller: bounded flex parent, then the scroller. */}
+          <div
+            data-testid="collapse-feed-scroller"
+            className={`relative z-0 flex-1 ${TIMELINE_SCROLL_CONTAINER}`}
+            style={TIMELINE_SCROLL_CONTAINER_STYLE}
+          >
+            <div aria-hidden="true" className="h-[480px]" />
+            <div data-testid="collapse-feed-row">
+              <TimelineTeamMessage
+                message={FEED_ROW}
+                chatroomId="e2e-chatroom"
+                handoffDurationMs={252_000}
+                collapsible={isCollapsible(FEED_ROW)}
+              />
+            </div>
+            <div data-testid="collapse-feed-below">
+              <TimelineTeamMessage
+                message={FEED_BELOW}
+                chatroomId="e2e-chatroom"
+                collapsible={isCollapsible(FEED_BELOW)}
+              />
+            </div>
+            <div aria-hidden="true" className="h-[480px]" />
+          </div>
         </section>
       </main>
     </AttachmentsProvider>

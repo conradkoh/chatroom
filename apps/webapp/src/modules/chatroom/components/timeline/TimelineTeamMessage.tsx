@@ -1,20 +1,20 @@
 'use client';
 
-import { ArrowRight, ArrowRightLeft, ChevronRight, Info } from 'lucide-react';
-import { memo, useCallback, useId, useMemo, useState } from 'react';
+import { Maximize2 } from 'lucide-react';
+import { memo, useCallback, useId, useMemo, useRef, useState, type RefObject } from 'react';
 
+import { TimelineFileAttachments } from './TimelineFileAttachments';
+import { TimelineHandoffDetailsDialog } from './TimelineHandoffDetailsDialog';
 import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessageFooter';
 import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
+import { TimelineMessageRoute, TimelineMessageTypeBadge } from './TimelineMessageIdentity';
 import {
-  BADGE_BASE,
-  getSenderClasses,
-  ICON_SIZE,
-  TIMELINE_HANDOFF_CHEVRON,
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_META,
+  TIMELINE_HANDOFF_OPEN_ICON,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
-  TIMELINE_HANDOFF_TOGGLE,
-  TIMELINE_HANDOFF_TOGGLE_LABEL,
+  TIMELINE_HANDOFF_TRIGGER,
+  TIMELINE_HANDOFF_TRIGGER_LABEL,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
@@ -23,37 +23,13 @@ import {
 } from './timelineRowStyles';
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
 import { MessageAttachmentChips } from '../../attachments';
-import { MessageFileAttachments } from '../../features/file-attachments/components/MessageFileAttachments';
 import { getHandoffPreviewText } from '../../timeline/handoffPreview';
 import type { Message } from '../../types/message';
 
 import { cn } from '@/lib/utils';
 
-/** Body spacing differs for a collapsible row, whose summary bar sits above it. */
-function getHandoffBodyClassName(collapsible: boolean | undefined): string {
-  return cn('px-4', collapsible ? 'pt-1 pb-3' : 'py-3', TIMELINE_MESSAGE_BODY);
-}
-
-/** Collapsed-only preview text; expanded rows never pay for it. */
-function getCollapsedPreview(collapsed: boolean, content: string): string {
-  return collapsed ? getHandoffPreviewText(content) : '';
-}
-
-/**
- * Aria/title wiring for the toggle. Collapsed it is a labelled disclosure; expanded
- * the visible "Collapse" text is the accessible name, so the attributes are dropped.
- */
-function getHandoffToggleAria(collapsed: boolean, preview: string, previewId: string) {
-  if (!collapsed) return {};
-  return {
-    'aria-label': 'Show full handoff',
-    'aria-describedby': preview ? previewId : undefined,
-    title: 'Show full handoff',
-  };
-}
-
-/** Collapsed bar content: the preview (or label) plus the compact timestamp. */
-function HandoffToggleSummary({
+/** Collapsed bar content: the preview (or the empty label) plus the duration and time. */
+function HandoffTriggerSummary({
   preview,
   previewId,
   creationTime,
@@ -78,7 +54,7 @@ function HandoffToggleSummary({
           {preview}
         </span>
       ) : (
-        <span className={TIMELINE_HANDOFF_TOGGLE_LABEL}>Show full handoff</span>
+        <span className={TIMELINE_HANDOFF_TRIGGER_LABEL}>Show full handoff</span>
       )}
       <span className={TIMELINE_HANDOFF_META}>
         <TimelineMessageTimestamp
@@ -93,108 +69,57 @@ function HandoffToggleSummary({
 }
 
 /**
- * The single expand/collapse control, rendered as the collapsed row's summary bar
- * and as the expanded row's "Collapse" bar. It is one persistent `<button>` in the
- * same slot in both states, so the focused element survives the state change.
+ * Summary bar of a collapsible row. A single full-width button that opens the details
+ * dialog. It never changes the row height: the full content is shown only in the dialog.
  */
-function TimelineHandoffToggle({
-  collapsed,
-  controls,
+function TimelineHandoffTrigger({
+  buttonRef,
   preview,
   previewId,
   creationTime,
   handoffDurationMs,
   handoffDurationSlow,
-  onToggle,
+  onOpen,
 }: {
-  collapsed: boolean;
-  /** id of the body container; referenced by aria-controls in both states. */
-  controls: string;
-  /** getHandoffPreviewText output while collapsed; '' when expanded or no visible text. */
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  /** getHandoffPreviewText output; '' when the content has no visible text. */
   preview: string;
   previewId: string;
   creationTime: number;
   handoffDurationMs?: number;
-  /** Whether the duration is much longer than others in the loaded window (orange). */
   handoffDurationSlow?: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
 }) {
   return (
     <button
+      ref={buttonRef}
       type="button"
-      data-testid="timeline-handoff-toggle"
-      data-state={collapsed ? 'collapsed' : 'expanded'}
-      aria-expanded={!collapsed}
-      aria-controls={controls}
-      {...getHandoffToggleAria(collapsed, preview, previewId)}
-      onClick={onToggle}
-      className={TIMELINE_HANDOFF_TOGGLE}
+      data-testid="timeline-handoff-trigger"
+      aria-haspopup="dialog"
+      aria-label="Show full handoff"
+      title="Show full handoff"
+      aria-describedby={preview ? previewId : undefined}
+      onClick={onOpen}
+      className={TIMELINE_HANDOFF_TRIGGER}
     >
-      <ChevronRight
-        size={14}
-        aria-hidden="true"
-        className={cn(TIMELINE_HANDOFF_CHEVRON, !collapsed && 'rotate-90')}
+      <Maximize2 size={14} aria-hidden="true" className={TIMELINE_HANDOFF_OPEN_ICON} />
+      <HandoffTriggerSummary
+        preview={preview}
+        previewId={previewId}
+        creationTime={creationTime}
+        handoffDurationMs={handoffDurationMs}
+        handoffDurationSlow={handoffDurationSlow}
       />
-      {collapsed ? (
-        <HandoffToggleSummary
-          preview={preview}
-          previewId={previewId}
-          creationTime={creationTime}
-          handoffDurationMs={handoffDurationMs}
-          handoffDurationSlow={handoffDurationSlow}
-        />
-      ) : (
-        <span className={TIMELINE_HANDOFF_TOGGLE_LABEL}>Collapse</span>
-      )}
     </button>
   );
 }
 
-function getMessageTypeBadge(type: string) {
-  if (type === 'handoff') {
-    return {
-      className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
-      label: 'handoff',
-      icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
-    };
-  }
-  if (type === 'notice') {
-    return {
-      className: `${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`,
-      label: 'notice',
-      icon: <Info size={ICON_SIZE} className="flex-shrink-0" aria-hidden="true" />,
-    };
-  }
-  return null;
-}
-
-/** File attachments for a handoff; the wrapper owns spacing and the null case. */
-function TimelineFileAttachments({
-  files,
-  showMedia,
-  className,
-}: {
-  files: Message['attachedFiles'];
-  showMedia: boolean;
-  className?: string;
-}) {
-  if (!files?.length) return null;
-  return (
-    <div className={className}>
-      <MessageFileAttachments files={files} showMedia={showMedia} />
-    </div>
-  );
-}
-
 /**
- * The single header row shared by expanded and collapsed states. Keeping one
+ * The single header row shared by collapsible and eager rows. Keeping one
  * component guarantees identical nav, identity attributes, and layout in both.
  * `flush` drops the bottom margin so a collapsible row's summary bar sits directly
  * under the header.
  */
-// Faithful extraction of the pre-existing header markup; the branch count is
-// layout-only (badge, nav, source tag, target role).
-// fallow-ignore-next-line complexity
 const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
   message,
   headerNavigation,
@@ -204,8 +129,6 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
   headerNavigation?: TimelineMessageHeaderNavigation;
   flush?: boolean;
 }) {
-  const messageTypeBadge = getMessageTypeBadge(message.type);
-
   return (
     <div
       className={cn(
@@ -218,27 +141,15 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
       data-testid="timeline-message-header"
     >
       <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 justify-self-start">
-        {messageTypeBadge && (
-          <span className={messageTypeBadge.className}>
-            {messageTypeBadge.icon}
-            {messageTypeBadge.label}
-          </span>
-        )}
+        <TimelineMessageTypeBadge type={message.type} />
       </div>
       {headerNavigation && <TimelineMessageHeaderNav {...headerNavigation} />}
       <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 justify-self-end">
-        <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
-        {message.sourcePlatform === 'telegram' && (
-          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-tertiary rounded">
-            Telegram
-          </span>
-        )}
-        {message.targetRole && (
-          <>
-            <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
-            <span className={getSenderClasses(message.targetRole)}>{message.targetRole}</span>
-          </>
-        )}
+        <TimelineMessageRoute
+          senderRole={message.senderRole}
+          targetRole={message.targetRole}
+          sourcePlatform={message.sourcePlatform}
+        />
       </div>
     </div>
   );
@@ -254,9 +165,9 @@ export interface TimelineTeamMessageProps {
   /** Whether the duration is much longer than others in the loaded window (orange). */
   handoffDurationSlow?: boolean;
   /**
-   * When true the row starts collapsed: a summary bar with a 2-line plain-text
-   * preview instead of the full markdown body. Used for agent-to-agent traffic in
-   * the conversation feed.
+   * When true the row is a summary bar that opens a details dialog, with a 2-line
+   * plain-text preview. Used for agent-to-agent traffic in the conversation feed.
+   * Eager rows (user involved) leave it unset and render in full inline.
    */
   collapsible?: boolean;
 }
@@ -269,19 +180,23 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   handoffDurationSlow,
   collapsible,
 }: TimelineTeamMessageProps) {
-  const [expanded, setExpanded] = useState(false);
-  const isCollapsed = Boolean(collapsible) && !expanded;
-  const bodyId = useId();
   const previewId = useId();
-  // Only collapsed rows pay for the preview; expanded rows render markdown.
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  // Mount the dialog on first open and keep it mounted, so the markdown body is
+  // parsed only for rows whose details were actually read.
+  const [detailsMounted, setDetailsMounted] = useState(false);
+  // Only collapsible rows pay for the preview.
   const preview = useMemo(
-    () => getCollapsedPreview(isCollapsed, message.content),
-    [isCollapsed, message.content]
+    () => (collapsible ? getHandoffPreviewText(message.content) : ''),
+    [collapsible, message.content]
   );
 
-  // Flipping state only: scrolling here would run before React commits the shorter
-  // row and could jump every ancestor scroll container.
-  const handleToggle = useCallback(() => setExpanded((value) => !value), []);
+  // State flips only. Do not add scrollTo/scrollIntoView or scroll-controller calls here.
+  const handleOpenDetails = useCallback(() => {
+    setDetailsMounted(true);
+    setDetailsOpen(true);
+  }, []);
 
   return (
     <div
@@ -295,34 +210,37 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
         flush={collapsible}
       />
 
-      {collapsible && (
-        <TimelineHandoffToggle
-          collapsed={isCollapsed}
-          controls={bodyId}
-          preview={preview}
-          previewId={previewId}
-          creationTime={message._creationTime}
-          handoffDurationMs={handoffDurationMs}
-          handoffDurationSlow={handoffDurationSlow}
-          onToggle={handleToggle}
-        />
-      )}
-
-      {isCollapsed ? (
+      {collapsible ? (
         <>
-          <div id={bodyId} hidden />
+          <TimelineHandoffTrigger
+            buttonRef={triggerRef}
+            preview={preview}
+            previewId={previewId}
+            creationTime={message._creationTime}
+            handoffDurationMs={handoffDurationMs}
+            handoffDurationSlow={handoffDurationSlow}
+            onOpen={handleOpenDetails}
+          />
           <div
             className={cn(TIMELINE_HANDOFF_CHIPS, 'flex flex-col gap-1.5 pr-4 pb-2 empty:hidden')}
           >
             <MessageAttachmentChips message={message} />
             <TimelineFileAttachments files={message.attachedFiles} showMedia={false} />
           </div>
+          {detailsMounted && (
+            <TimelineHandoffDetailsDialog
+              message={message}
+              open={detailsOpen}
+              onOpenChange={setDetailsOpen}
+              finalFocusRef={triggerRef}
+              handoffDurationMs={handoffDurationMs}
+              handoffDurationSlow={handoffDurationSlow}
+            />
+          )}
         </>
       ) : (
-        <div className={getHandoffBodyClassName(collapsible)}>
-          <div id={bodyId}>
-            <TimelineTeamMessageBody message={message} />
-          </div>
+        <div className={cn('px-4 py-3', TIMELINE_MESSAGE_BODY)}>
+          <TimelineTeamMessageBody message={message} />
           <div className="mt-2 empty:hidden">
             <MessageAttachmentChips message={message} />
           </div>

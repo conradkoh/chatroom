@@ -88,6 +88,16 @@ describe('TimelineMessageFooter', () => {
     expect(duration).toHaveAttribute('data-duration-tone', 'slow');
     expect(duration).toHaveClass('text-chatroom-status-slow');
   });
+
+  it('merges className onto the footer root and keeps the wrap-friendly base classes', () => {
+    render(
+      <AttachmentsProvider>
+        <TimelineMessageFooter message={makeMessage()} className="custom-footer-class" />
+      </AttachmentsProvider>
+    );
+    const footer = screen.getByTestId('timeline-message-footer');
+    expect(footer).toHaveClass('custom-footer-class', 'flex-wrap', 'mt-2');
+  });
 });
 
 describe('TimelineMessageTimestamp', () => {
@@ -104,6 +114,7 @@ describe('TimelineMessageTimestamp', () => {
     expect(duration).not.toHaveClass('text-chatroom-status-slow');
     expect(duration).not.toHaveClass('hidden');
     expect(duration).not.toHaveClass('sm:inline');
+    expect(duration).toHaveClass('whitespace-nowrap');
 
     const fullDate = screen.getByText(`TS:${CREATION_TIME}`);
     expect(fullDate).toHaveAttribute('title', `TS_FULL:${CREATION_TIME}`);
@@ -130,7 +141,7 @@ describe('TimelineMessageTimestamp', () => {
     expect(duration).not.toHaveClass('text-chatroom-text-muted');
   });
 
-  it('keeps a slow duration hidden below sm in compact mode', () => {
+  it('keeps a slow duration visible at every width in compact mode', () => {
     render(
       <TimelineMessageTimestamp
         creationTime={CREATION_TIME}
@@ -141,8 +152,11 @@ describe('TimelineMessageTimestamp', () => {
     );
 
     const duration = screen.getByTestId('timeline-handoff-duration');
-    expect(duration).toHaveClass('hidden', 'sm:inline');
     expect(duration).toHaveClass('text-chatroom-status-slow');
+    expect(duration).toHaveAttribute('data-duration-tone', 'slow');
+    expect(duration).toHaveClass('whitespace-nowrap');
+    expect(duration).not.toHaveClass('hidden');
+    expect(duration).not.toHaveClass('sm:inline');
   });
 
   it('renders the compact variant with responsive duration and time-of-day spans', () => {
@@ -152,7 +166,9 @@ describe('TimelineMessageTimestamp', () => {
 
     const duration = screen.getByTestId('timeline-handoff-duration');
     expect(duration).toHaveTextContent('1m 2s');
-    expect(duration).toHaveClass('hidden', 'sm:inline');
+    expect(duration).not.toHaveClass('hidden');
+    expect(duration).not.toHaveClass('sm:inline');
+    expect(duration).toHaveClass('whitespace-nowrap');
 
     const fullDate = screen.getByText(`TS:${CREATION_TIME}`);
     expect(fullDate).toHaveClass('hidden', 'sm:inline');
