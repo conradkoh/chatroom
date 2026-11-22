@@ -75,7 +75,7 @@ export const TIMELINE_HANDOFF_TRIGGER =
   'transition-[background-color,opacity] duration-100 motion-reduce:transition-none hover:bg-chatroom-bg-hover active:opacity-80 ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent';
 
-/** Static 14px Maximize2 icon in the chevron slot, centred on the first 20px text line. */
+/** Static 14px Maximize2 icon in the icon slot, centred on the first 20px text line. */
 export const TIMELINE_HANDOFF_OPEN_ICON =
   'mt-[3px] shrink-0 text-chatroom-text-muted group-hover/handoff-trigger:text-chatroom-text-primary';
 

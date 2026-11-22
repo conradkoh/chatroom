@@ -29,7 +29,7 @@ const NORMAL: Message = {
     'Implemented the summary bar and verified the focus behaviour. ' +
     'The collapsed row now shows a two-line preview instead of the full body.\n\n' +
     'Deferred body paragraph that must not render while the row is collapsed. ' +
-    'It exists to prove the markdown body stays unmounted until the row expands.',
+    'It exists to prove the markdown body stays unmounted until the dialog opens.',
   _creationTime: CREATION_TIME,
 };
 

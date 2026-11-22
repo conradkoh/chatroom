@@ -70,7 +70,7 @@ function HandoffTriggerSummary({
 
 /**
  * Summary bar of a collapsible row. A single full-width button that opens the details
- * dialog. It never changes the row height: the expanded content lives in the dialog.
+ * dialog. It never changes the row height: the full content is shown only in the dialog.
  */
 function TimelineHandoffTrigger({
   buttonRef,
@@ -115,7 +115,7 @@ function TimelineHandoffTrigger({
 }
 
 /**
- * The single header row shared by expanded and collapsed states. Keeping one
+ * The single header row shared by collapsible and eager rows. Keeping one
  * component guarantees identical nav, identity attributes, and layout in both.
  * `flush` drops the bottom margin so a collapsible row's summary bar sits directly
  * under the header.
