@@ -7,10 +7,13 @@ import type { SelectorContext } from '../types/sections';
 import { CUSTOM_TEAM_ROLE_IDENTITY } from './custom/prompts/role-identity';
 import { getDuoRoleGuidanceFromContext } from './duo/prompts/fromContext';
 import { DUO_ROLE_IDENTITY } from './duo/prompts/role-identity';
+import { getDuoTeamContext } from './duo/prompts/team-context';
 import { getSoloRoleGuidanceFromContext } from './solo/prompts/fromContext';
 import { SOLO_ROLE_IDENTITY } from './solo/prompts/role-identity';
+import { getSoloTeamContext } from './solo/prompts/team-context';
 import { getTrioRoleGuidanceFromContext } from './trio/prompts/fromContext';
 import { TRIO_ROLE_IDENTITY } from './trio/prompts/role-identity';
+import { getTrioTeamContext } from './trio/prompts/team-context';
 
 /**
  * Everything a preset team owns. Dispatch sites read this table and nothing else.
@@ -20,6 +23,8 @@ interface TeamPromptModule<T extends TeamPresetId> {
   readonly roleIdentity: { readonly [R in BuiltinTeamRole<T>]: RoleIdentity };
   /** Team guidance for the roles it handles. `null` means the base guidance applies. */
   readonly getRoleGuidance: (ctx: SelectorContext) => string | null;
+  /** Team context block. `''` means the team-context section renders nothing. */
+  readonly getTeamContext: (ctx: SelectorContext) => string;
 }
 
 export const TEAM_PROMPT_MODULES = {
@@ -27,16 +32,19 @@ export const TEAM_PROMPT_MODULES = {
     teamId: 'duo',
     roleIdentity: DUO_ROLE_IDENTITY,
     getRoleGuidance: getDuoRoleGuidanceFromContext,
+    getTeamContext: getDuoTeamContext,
   },
   solo: {
     teamId: 'solo',
     roleIdentity: SOLO_ROLE_IDENTITY,
     getRoleGuidance: getSoloRoleGuidanceFromContext,
+    getTeamContext: getSoloTeamContext,
   },
   trio: {
     teamId: 'trio',
     roleIdentity: TRIO_ROLE_IDENTITY,
     getRoleGuidance: getTrioRoleGuidanceFromContext,
+    getTeamContext: getTrioTeamContext,
   },
 } satisfies { [T in TeamPresetId]: TeamPromptModule<T> };
 

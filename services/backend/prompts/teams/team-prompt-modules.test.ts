@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { getBaseRoleGuidanceFromContext } from '../cli/roles/fromContext';
+import { getTeamContextSection } from '../sections/team-context';
 import { buildSelectorContext, getRoleGuidanceFromContext } from '../selector-context';
 import { isPresetTeam, TEAM_PROMPT_MODULES } from './registry';
 
@@ -91,5 +92,25 @@ describe('role guidance through the team registry', () => {
     });
 
     expect(getRoleGuidanceFromContext(duoPlanner)).toBe(base);
+  });
+});
+
+describe('team context through the team registry', () => {
+  test('duo planner gets the duo team context block', () => {
+    const { content } = getTeamContextSection(duoPlanner);
+    expect(content).toContain('**Duo Team Context:**');
+    expect(content).toContain('Only you can hand off to');
+  });
+
+  test('a duo role without a context block renders empty content', () => {
+    expect(getTeamContextSection(duoArchitect).content).toBe('');
+  });
+
+  test.each([
+    ['solo', soloSolo],
+    ['trio', trioCoordinator],
+    ['unknown', unknownBuilder],
+  ])('%s renders no team context', (_label, ctx) => {
+    expect(getTeamContextSection(ctx).content).toBe('');
   });
 });
