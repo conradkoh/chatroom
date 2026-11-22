@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { TAG_DOWNSTREAM } from '../../support/tags';
 
@@ -21,6 +21,21 @@ async function readBox(locator: Locator, assert: (box: Box) => void = () => {}):
   return read.box;
 }
 
+/**
+ * Waits for the dialog's entry/exit animations to finish. The popup scales in, so any
+ * geometry read mid-animation is off by a few pixels even under reduced motion (the
+ * `data-open` animation wins the cascade over `motion-reduce:animate-none`).
+ */
+async function waitForDialogAnimation(locator: Locator) {
+  await locator.evaluate(async (element) => {
+    await Promise.all(
+      element
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished.catch(() => {}))
+    );
+  });
+}
+
 test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
   // The fixtures render a fixed 15th November 2023 date; pin the browser timezone so
   // the assertion does not depend on the CI host.
@@ -28,61 +43,247 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
+    // Popup and hover transitions settle instantly, so geometry read straight after an
+    // open/render matches the resting layout instead of an animation frame.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/test/timeline-handoff-collapse');
   });
+
+  const triggerFor = (page: Page, fixtureId: string) =>
+    page.getByTestId(fixtureId).getByTestId('timeline-handoff-trigger');
 
   test('collapses agent-to-agent handoffs to a compact summary bar', async ({ page }) => {
     const fixture = page.getByTestId('collapse-normal');
     const row = fixture.getByTestId('timeline-team-message');
-    const toggle = fixture.getByTestId('timeline-handoff-toggle');
+    const trigger = fixture.getByTestId('timeline-handoff-trigger');
 
     await expect(row).toBeVisible();
     await readBox(row, (box) => expect(box.height).toBeLessThanOrEqual(96));
 
+    // A dialog trigger, not a disclosure: no expanded state, no controlled region.
+    await expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    await expect(trigger).not.toHaveAttribute('aria-expanded');
+    await expect(trigger).not.toHaveAttribute('data-state');
     await expect(fixture.getByTestId('timeline-message-footer')).toHaveCount(0);
-    await expect(toggle).toContainText('15th November 2023');
+    await expect(fixture.locator('.prose')).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(trigger).toContainText('15th November 2023');
   });
 
-  test('keeps the layout and focus stable across expand and collapse', async ({ page }) => {
-    // The chevron rotation is a transition; reduced motion settles the geometry instantly
-    // so the measurement compares resting positions rather than animation frames.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
+  test('keeps the row layout and scroll position stable while the dialog is open', async ({
+    page,
+  }) => {
+    const row = page.getByTestId('collapse-normal').getByTestId('timeline-team-message');
+    const belowRow = page.getByTestId('collapse-empty').getByTestId('timeline-team-message');
+    const trigger = triggerFor(page, 'collapse-normal');
 
-    const fixture = page.getByTestId('collapse-normal');
-    const header = fixture.getByTestId('timeline-message-header');
-    const toggle = fixture.getByTestId('timeline-handoff-toggle');
-    const chevron = toggle.locator('svg');
+    const rowBox = await readBox(row);
+    const belowBox = await readBox(belowRow);
+    const scrollTop = await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
 
-    await expect(header).toBeVisible();
-    await expect(chevron).toBeVisible();
-    const headerY = (await readBox(header)).y;
-    const chevronY = (await readBox(chevron)).y;
+    const assertLayoutStable = async () => {
+      await readBox(row, (box) => {
+        expect(Math.abs(box.y - rowBox.y)).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(box.height - rowBox.height)).toBeLessThanOrEqual(0.5);
+      });
+      await readBox(belowRow, (box) => {
+        expect(Math.abs(box.y - belowBox.y)).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(box.height - belowBox.height)).toBeLessThanOrEqual(0.5);
+      });
+      expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(scrollTop);
+    };
 
-    await toggle.focus();
+    await trigger.focus();
     await page.keyboard.press('Enter');
 
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await expect(toggle).toBeFocused();
-    await expect(fixture.getByTestId('timeline-message-footer')).toBeVisible();
-    await readBox(header, (box) => expect(Math.abs(box.y - headerY)).toBeLessThanOrEqual(1));
-    await readBox(chevron, (box) => expect(Math.abs(box.y - chevronY)).toBeLessThanOrEqual(1));
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByTestId('timeline-handoff-dialog-body')).toBeFocused();
+    await assertLayoutStable();
 
-    await page.keyboard.press('Space');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await assertLayoutStable();
 
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await expect(toggle).toBeFocused();
-    await expect(fixture.getByTestId('timeline-message-footer')).toHaveCount(0);
-    await readBox(header, (box) => expect(Math.abs(box.y - headerY)).toBeLessThanOrEqual(1));
-    await readBox(chevron, (box) => expect(Math.abs(box.y - chevronY)).toBeLessThanOrEqual(1));
+    await trigger.focus();
+    await page.keyboard.press(' ');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByTestId('timeline-handoff-dialog-body')).toBeFocused();
+    await assertLayoutStable();
   });
 
-  test('labels an empty handoff and previews code-only content', async ({ page }) => {
-    await expect(
-      page.getByTestId('collapse-empty').getByTestId('timeline-handoff-toggle')
-    ).toContainText('Show full handoff');
-    await expect(
-      page.getByTestId('collapse-code').getByTestId('timeline-handoff-preview')
-    ).toHaveText('(code block)');
+  test('closes the dialog from the header button, Escape and the backdrop', async ({ page }) => {
+    const trigger = triggerFor(page, 'collapse-normal');
+
+    const open = async () => {
+      await trigger.click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+    };
+    const expectClosed = async () => {
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByTestId('timeline-handoff-dialog-body')).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+    };
+
+    await open();
+    await page.getByTestId('timeline-handoff-dialog-close').click();
+    await expectClosed();
+
+    await open();
+    await page.keyboard.press('Escape');
+    await expectClosed();
+
+    await open();
+    await page.mouse.click(4, 4);
+    await expectClosed();
+  });
+
+  test('traps Tab focus inside the dialog', async ({ page }) => {
+    await triggerFor(page, 'collapse-normal').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    for (let index = 0; index < 25; index += 1) {
+      await page.keyboard.press('Tab');
+    }
+
+    const focusInsideDialog = await page.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      return Boolean(dialog && document.activeElement && dialog.contains(document.activeElement));
+    });
+    expect(focusInsideDialog).toBe(true);
+  });
+
+  test('sizes the dialog to the viewport and pins header and footer', async ({ page }) => {
+    const trigger = triggerFor(page, 'collapse-normal');
+
+    await trigger.click();
+    const popup = page.getByTestId('timeline-handoff-dialog');
+    await expect(popup).toBeVisible();
+    await waitForDialogAnimation(popup);
+
+    // Desktop 1280x800: max-w-3xl (768px) and max-h 80vh (640px).
+    await readBox(popup, (box) => {
+      expect(box.width).toBeLessThanOrEqual(768);
+      expect(box.height).toBeLessThanOrEqual(640);
+    });
+    await expect(popup).toHaveCSS('display', 'flex');
+    await expect(popup).toHaveCSS('padding', '0px');
+    await expect(page.getByTestId('timeline-handoff-dialog-body')).toBeVisible();
+    await expect(popup.getByTestId('timeline-message-footer')).toBeVisible();
+
+    // Mobile 375x667: width minus 1rem, max-h 85dvh (567px).
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.setViewportSize({ width: 375, height: 667 });
+    await trigger.click();
+    await expect(popup).toBeVisible();
+    await waitForDialogAnimation(popup);
+
+    await readBox(popup, (box) => {
+      expect(box.width).toBeGreaterThanOrEqual(359);
+      expect(box.height).toBeLessThanOrEqual(567);
+    });
+    await expect(popup).toHaveCSS('display', 'flex');
+    await expect(popup).toHaveCSS('padding', '0px');
+    await expect(page.getByTestId('timeline-handoff-dialog-body')).toBeVisible();
+    await expect(popup.getByTestId('timeline-message-footer')).toBeVisible();
+  });
+
+  for (const viewport of [
+    { width: 375, height: 667 },
+    { width: 1280, height: 800 },
+  ]) {
+    test(`contains a tall handoff with a scrolling body at ${viewport.width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await triggerFor(page, 'collapse-tall').click();
+
+      const dialog = page.getByRole('dialog');
+      const body = page.getByTestId('timeline-handoff-dialog-body');
+      const header = page.getByTestId('timeline-handoff-dialog-header');
+      const footer = dialog.getByTestId('timeline-message-footer');
+
+      await expect(body).toBeVisible();
+      await waitForDialogAnimation(dialog);
+      expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+      const footerBox = await readBox(footer);
+      const headerBox = await readBox(header);
+
+      await body.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+      // Pinned chrome: scrolling the body must not move the header or the footer.
+      await readBox(footer, (box) => expect(Math.abs(box.y - footerBox.y)).toBeLessThanOrEqual(1));
+      await readBox(header, (box) => expect(Math.abs(box.y - headerBox.y)).toBeLessThanOrEqual(1));
+
+      // No horizontal scroll on the dialog body itself.
+      expect(await body.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+      // The table scrolls inside its own overflow container instead.
+      const tableScroll = await body.evaluate((el) => {
+        const table = el.querySelector('table');
+        if (!table) return { found: false, scrolls: false };
+        let node: HTMLElement | null = table;
+        while (node && node !== el) {
+          if (getComputedStyle(node).overflowX === 'auto') {
+            return { found: true, scrolls: node.scrollWidth > node.clientWidth };
+          }
+          node = node.parentElement;
+        }
+        return { found: false, scrolls: false };
+      });
+      expect(tableScroll.found).toBe(true);
+      expect(tableScroll.scrolls).toBe(true);
+    });
+  }
+
+  test.describe('dialog footer', () => {
+    test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+
+    test('shows footer actions, duration and full timestamp, and copies without a toast', async ({
+      page,
+    }) => {
+      await triggerFor(page, 'collapse-long-duration').click();
+
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      const footer = dialog.getByTestId('timeline-message-footer');
+
+      const copyButton = footer.getByTitle('Copy as markdown');
+      await expect(copyButton).toBeVisible();
+      await expect(footer.getByTitle('Add to context')).toBeVisible();
+      await expect(footer.getByTitle('Download message')).toBeVisible();
+
+      await expect(footer.getByTestId('timeline-handoff-duration')).toHaveText('1h 5m');
+      await expect(footer).toContainText('15th November 2023');
+      await expect(footer).toContainText('12:14pm');
+
+      await copyButton.click();
+      await expect(copyButton.locator('svg.lucide-check')).toBeVisible();
+      // Copy feedback is the inline check icon only.
+      await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+      await expect(page.getByRole('status').filter({ hasText: 'Copied' })).toHaveCount(0);
+    });
+  });
+
+  test('keeps empty and code-only handoffs readable in the dialog', async ({ page }) => {
+    const emptyTrigger = triggerFor(page, 'collapse-empty');
+    await expect(emptyTrigger).toContainText('Show full handoff');
+    await emptyTrigger.click();
+    await expect(page.getByTestId('timeline-handoff-dialog-empty')).toHaveText(
+      'No text content in this handoff.'
+    );
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    const codeFixture = page.getByTestId('collapse-code');
+    await expect(codeFixture.getByTestId('timeline-handoff-preview')).toHaveText('(code block)');
+    await triggerFor(page, 'collapse-code').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.locator('pre')).toContainText('const a = 1;');
   });
 
   test('clamps a long preview on mobile', async ({ page }) => {
@@ -90,16 +291,18 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
 
     const longFixture = page.getByTestId('collapse-long');
     const preview = longFixture.getByTestId('timeline-handoff-preview');
-    const toggle = longFixture.getByTestId('timeline-handoff-toggle');
+    const trigger = longFixture.getByTestId('timeline-handoff-trigger');
 
     await expect(preview).toBeVisible();
     await readBox(preview, (box) => expect(box.height).toBeLessThanOrEqual(41));
-    expect(await toggle.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(await trigger.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 
-    const normalToggle = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-toggle');
-    await expect(normalToggle.getByTestId('timeline-handoff-duration')).toBeVisible();
-    await expect(normalToggle.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
-    await expect(normalToggle.getByText(/^\d{1,2}:\d{2}(am|pm)$/).first()).toBeVisible();
+    const normalTrigger = page
+      .getByTestId('collapse-normal')
+      .getByTestId('timeline-handoff-trigger');
+    await expect(normalTrigger.getByTestId('timeline-handoff-duration')).toBeVisible();
+    await expect(normalTrigger.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
+    await expect(normalTrigger.getByText(/^\d{1,2}:\d{2}(am|pm)$/).first()).toBeVisible();
   });
 
   for (const width of [375, 320]) {
@@ -109,10 +312,10 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       await page.setViewportSize({ width, height: 800 });
 
       const fixture = page.getByTestId('collapse-long-duration');
-      const toggle = fixture.getByTestId('timeline-handoff-toggle');
+      const trigger = fixture.getByTestId('timeline-handoff-trigger');
       const preview = fixture.getByTestId('timeline-handoff-preview');
       const duration = fixture.getByTestId('timeline-handoff-duration');
-      const timeOfDay = toggle.getByText(/^\d{1,2}:\d{2}(am|pm)$/).first();
+      const timeOfDay = trigger.getByText(/^\d{1,2}:\d{2}(am|pm)$/).first();
 
       await expect(duration).toHaveText('1h 5m');
       await expect(timeOfDay).toBeVisible();
@@ -126,38 +329,45 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
 
       await readBox(preview, (box) => expect(box.width).toBeGreaterThanOrEqual(120));
       await readBox(preview, (box) => expect(box.height).toBeLessThanOrEqual(41));
-      expect(await toggle.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      expect(await trigger.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     });
   }
 
   test('shows the duration and the full date in the summary bar on desktop', async ({ page }) => {
-    const toggle = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-toggle');
-    await expect(toggle.getByTestId('timeline-handoff-duration')).toBeVisible();
-    await expect(toggle.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
-    await expect(toggle).toContainText('15th November 2023');
+    const trigger = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-trigger');
+    await expect(trigger.getByTestId('timeline-handoff-duration')).toBeVisible();
+    await expect(trigger.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
+    await expect(trigger).toContainText('15th November 2023');
   });
 
   test('uses the theme hover and text tokens', async ({ page }) => {
     const fixture = page.getByTestId('collapse-normal');
-    const toggle = fixture.getByTestId('timeline-handoff-toggle');
+    const trigger = fixture.getByTestId('timeline-handoff-trigger');
     const preview = fixture.getByTestId('timeline-handoff-preview');
 
     // Light, not hovered: preview uses the secondary text token.
     await expect(preview).toHaveCSS('color', 'rgb(82, 82, 82)');
-    await toggle.hover();
-    await expect(toggle).toHaveCSS('background-color', 'rgb(229, 229, 229)');
+    await trigger.hover();
+    await expect(trigger).toHaveCSS('background-color', 'rgb(229, 229, 229)');
 
     await page.getByTestId('theme-dark-toggle').click();
     await page.mouse.move(0, 0);
     await expect(preview).toHaveCSS('color', 'rgb(161, 161, 170)');
-    await toggle.hover();
-    await expect(toggle).toHaveCSS('background-color', 'rgb(39, 39, 42)');
+    await trigger.hover();
+    await expect(trigger).toHaveCSS('background-color', 'rgb(39, 39, 42)');
+
+    // Dark popup surface is the dark --chatroom-bg-primary token (#09090b).
+    await trigger.click();
+    await expect(page.getByTestId('timeline-handoff-dialog')).toHaveCSS(
+      'background-color',
+      'rgb(9, 9, 11)'
+    );
   });
 
   test('leaves the eager control expanded', async ({ page }) => {
     const fixture = page.getByTestId('eager-control');
 
-    await expect(fixture.getByTestId('timeline-handoff-toggle')).toHaveCount(0);
+    await expect(fixture.getByTestId('timeline-handoff-trigger')).toHaveCount(0);
     await expect(fixture.getByTestId('timeline-message-footer')).toBeVisible();
   });
 });

@@ -78,6 +78,28 @@ const EAGER: Message = {
   _creationTime: CREATION_TIME,
 };
 
+/** Tall body (>150 lines), a fenced code block, and a wide table that must scroll inside the prose container. */
+const TALL_CONTENT = [
+  '# Tall handoff',
+  ...Array.from(
+    { length: 120 },
+    (_, index) => `Paragraph ${index + 1} keeps the dialog body scrolling.`
+  ),
+  '```ts\nconst answer = 42;\nconsole.log(answer);\n```',
+  '| one | two | three | four | five | six | seven | eight | nine | ten |\n' +
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n' +
+    '| 1111111111 | 2222222222 | 3333333333 | 4444444444 | 5555555555 | 6666666666 | 7777777777 | 8888888888 | 9999999999 | 0000000000 |',
+].join('\n\n');
+
+const TALL: Message = {
+  _id: 'e2e-collapse-tall',
+  type: 'handoff',
+  senderRole: 'builder',
+  targetRole: 'planner',
+  content: TALL_CONTENT,
+  _creationTime: CREATION_TIME,
+};
+
 /** Development-only fixture for browser verification of the collapsed handoff bar. */
 export default function TimelineHandoffCollapseTestPage() {
   const [isDark, setIsDark] = useState(false);
@@ -135,6 +157,14 @@ export default function TimelineHandoffCollapseTestPage() {
             chatroomId="e2e-chatroom"
             handoffDurationMs={3_900_000}
             collapsible={isCollapsible(LONG_DURATION)}
+          />
+        </section>
+
+        <section data-testid="collapse-tall">
+          <TimelineTeamMessage
+            message={TALL}
+            chatroomId="e2e-chatroom"
+            collapsible={isCollapsible(TALL)}
           />
         </section>
 
