@@ -14,6 +14,8 @@ export interface RepositoryRowProps {
   disabled: boolean;
   /** true while this row's own create call is pending. */
   creating: boolean;
+  /** Inline outcome of this row's last create attempt; shown until the next action in the row. */
+  message?: string;
   onCreate: (path: string) => void;
 }
 
@@ -77,7 +79,13 @@ function CreateLabel({ creating }: { creating: boolean }) {
   return <>Create chatroom</>;
 }
 
-function RepositoryRowComponent({ entry, disabled, creating, onCreate }: RepositoryRowProps) {
+function RepositoryRowComponent({
+  entry,
+  disabled,
+  creating,
+  message,
+  onCreate,
+}: RepositoryRowProps) {
   const { prefix, rest } = splitRootPrefix(entry.path, entry.root);
   return (
     <div
@@ -102,6 +110,16 @@ function RepositoryRowComponent({ entry, disabled, creating, onCreate }: Reposit
           <span className="text-chatroom-text-muted">{prefix}</span>
           <span className="text-chatroom-text-primary">{rest}</span>
         </div>
+        {!entry.hasChatroom && message && (
+          // One line keeps the fixed row height; the full text stays in the DOM and the title.
+          <p
+            role="alert"
+            title={message}
+            className="truncate text-[10px] text-chatroom-status-error"
+          >
+            {message}
+          </p>
+        )}
       </div>
       <div className="flex w-[8.5rem] shrink-0 flex-col items-end gap-1">
         <RepositoryStatusBadge hasChatroom={entry.hasChatroom} />

@@ -20,7 +20,7 @@ function makeEntry(overrides: Partial<LedgerEntryView> = {}): LedgerEntryView {
 
 function renderRow(
   entry: LedgerEntryView,
-  props: Partial<{ disabled: boolean; creating: boolean }> = {}
+  props: Partial<{ disabled: boolean; creating: boolean; message: string }> = {}
 ) {
   const onCreate = vi.fn();
   const view = render(
@@ -108,6 +108,30 @@ describe('RepositoryRow', () => {
     expect(screen.getByRole('link', { name: 'Open' }).parentElement?.className).toContain(
       'w-[8.5rem]'
     );
+  });
+
+  it('shows the inline message as an alert in the left column', () => {
+    renderRow(makeEntry(), { message: 'This repository already has a chatroom.' });
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('This repository already has a chatroom.');
+    expect(alert.parentElement).toHaveClass('min-w-0');
+    expect(alert.closest('.w-\\[8\\.5rem\\]')).toBeNull();
+  });
+
+  it('renders no alert when the row has no message', () => {
+    renderRow(makeEntry());
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('hides the inline message once the row has a chatroom', () => {
+    renderRow(makeEntry({ hasChatroom: true, chatroomId: 'room-1' as Id<'chatroom_rooms'> }), {
+      message: 'This repository already has a chatroom.',
+    });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Open' })).toBeDefined();
   });
 
   it('disables the create button and shows progress while creating', () => {
