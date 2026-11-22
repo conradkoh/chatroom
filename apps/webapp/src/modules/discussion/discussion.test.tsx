@@ -265,6 +265,69 @@ describe('Discussion inline failures', () => {
     expect(alert).toHaveTextContent('Failed to delete message: Denied');
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText('Hi')).toBeVisible();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('keeps the delete dialog open while the delete is pending', async () => {
+    let rejectDelete!: (error: Error) => void;
+    mocks.mutations.deleteDiscussionMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectDelete = reject;
+        })
+    );
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(within(dialog).getByRole('button', { name: 'Deleting...' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+
+    await user.keyboard('{Escape}');
+    expect(dialog).toBeInTheDocument();
+
+    rejectDelete(new Error('Denied'));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Failed to delete message: Denied'
+    );
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  it('closes the delete dialog when a retry succeeds', async () => {
+    mocks.mutations.deleteDiscussionMessage.mockRejectedValueOnce(new Error('Denied'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await within(dialog).findByRole('alert');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(mocks.mutations.deleteDiscussionMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the delete error when Cancel closes the dialog', async () => {
+    mocks.mutations.deleteDiscussionMessage.mockRejectedValueOnce(new Error('Denied'));
+    const user = userEvent.setup();
+    renderDiscussion();
+    await waitForCardLoaded();
+
+    const dialog = await openDeleteDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await within(dialog).findByRole('alert');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    const reopened = await openDeleteDialog(user);
+    expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('closes the delete dialog after a successful deletion', async () => {

@@ -168,13 +168,18 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
     toggleDialog(setShowDeleteConfirm, true);
   };
 
-  // Confirm and perform message deletion
+  // Confirm and perform message deletion. The dialog ignores close requests until the delete settles.
   const confirmDeleteMessage = async () => {
     if (!messageToDelete) return;
-    const ok = await deleteMessage(messageToDelete);
-    if (ok) {
-      setShowDeleteConfirm(false);
-      setMessageToDelete(null);
+    setPendingScope('delete');
+    try {
+      const ok = await deleteMessage(messageToDelete);
+      if (ok) {
+        setShowDeleteConfirm(false);
+        setMessageToDelete(null);
+      }
+    } finally {
+      setPendingScope(null);
     }
   };
 
@@ -537,7 +542,7 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
       {/* Dialog for delete confirmation */}
       <Dialog
         open={showDeleteConfirm}
-        onOpenChange={(open) => toggleDialog(setShowDeleteConfirm, open)}
+        onOpenChange={dialogOpenChange('delete', setShowDeleteConfirm)}
       >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -552,11 +557,19 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
             </p>
           )}
           <div className="flex justify-end space-x-2 mt-4">
-            <Button variant="outline" onClick={() => toggleDialog(setShowDeleteConfirm, false)}>
+            <Button
+              variant="outline"
+              onClick={() => toggleDialog(setShowDeleteConfirm, false)}
+              disabled={pendingScope === 'delete'}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDeleteMessage}>
-              Delete
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteMessage}
+              disabled={pendingScope === 'delete'}
+            >
+              {pendingScope === 'delete' ? 'Deleting...' : 'Delete'}
             </Button>
           </div>
         </DialogContent>
