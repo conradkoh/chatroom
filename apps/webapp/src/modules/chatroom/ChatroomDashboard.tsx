@@ -133,6 +133,7 @@ import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { PromptsProvider } from '@/contexts/PromptsContext';
 import { useCopyOwnedFeedback } from '@/hooks/useCopyOwnedFeedback';
+import { useFeedback } from '@/hooks/useFeedback';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { getAppTitle } from '@/lib/environment';
 import { exhaustive } from '@/lib/exhaustive';
@@ -433,8 +434,8 @@ function areExplorerContentPropsEqual(
   );
 }
 
-// fallow-ignore-next-line complexity
-const ExplorerContent = memo(function ExplorerContent({
+// fallow-ignore-next-line complexity unused-export
+export const ExplorerContent = memo(function ExplorerContent({
   fileTabs,
   activeWorkspace,
   autocompleteFiles,
@@ -449,17 +450,27 @@ const ExplorerContent = memo(function ExplorerContent({
   const machineId = activeWorkspace?.machineId ?? '';
   const workingDir = activeWorkspace?.workingDir ?? '';
   const { openFileOnRemote } = useOpenFileOnRemote(machineId, workingDir);
+  const {
+    feedback: openOnRemoteFeedback,
+    show: showOpenOnRemoteFeedback,
+    error: showOpenOnRemoteError,
+    clear: clearOpenOnRemoteFeedback,
+  } = useFeedback();
+
+  const handleOpenFileOnRemote = useCallback(
+    (filePath: string, selection?: string) => {
+      clearOpenOnRemoteFeedback();
+      void openFileOnRemote(filePath, selection).then((outcome) => {
+        if (outcome.status === 'error') showOpenOnRemoteError(outcome.message);
+        else if (outcome.status === 'syncing') showOpenOnRemoteFeedback('info', outcome.message);
+      });
+    },
+    [openFileOnRemote, clearOpenOnRemoteFeedback, showOpenOnRemoteError, showOpenOnRemoteFeedback]
+  );
 
   const activeTab = fileTabs.tabs.find((t) => editorTabKey(t) === fileTabs.activeTabKey) ?? null;
   const activeFilePath = activeTab?.kind === 'file' ? activeTab.filePath : fileTabs.activeTabKey;
   const showTabBar = fileTabs.tabs.length > 0;
-
-  const handleOpenSelectionOnRemote = useCallback(
-    (filePath: string, selectedText: string) => {
-      void openFileOnRemote(filePath, selectedText);
-    },
-    [openFileOnRemote]
-  );
 
   const hasEditorSplit =
     !!fileTabs.editorSplit?.enabled && (fileTabs.editorSplit.secondaryTabKeys.length ?? 0) > 0;
@@ -534,7 +545,7 @@ const ExplorerContent = memo(function ExplorerContent({
       onCloseOthers={fileTabs.closeOtherTabs}
       onPin={fileTabs.pinTab}
       onToggleExpanded={fileTabs.toggleExpanded}
-      onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
+      onOpenFileOnRemote={handleOpenFileOnRemote}
       enableDragSplit
       {...copyHandlers}
     />
@@ -553,7 +564,7 @@ const ExplorerContent = memo(function ExplorerContent({
     onOpenPreview,
     onOpenTableView,
     onSendSelectionToComposer,
-    onOpenSelectionOnRemote: handleOpenSelectionOnRemote,
+    onOpenSelectionOnRemote: handleOpenFileOnRemote,
   };
 
   const hasMachineAndDir = activeWorkspace?.machineId && activeWorkspace?.workingDir;
@@ -562,6 +573,17 @@ const ExplorerContent = memo(function ExplorerContent({
   return (
     <>
       {showTabBar && !hasEditorSplit && fileTabBar}
+
+      {openOnRemoteFeedback ? (
+        <div className="shrink-0 border-b border-chatroom-border-strong">
+          <InlineFeedback
+            feedback={openOnRemoteFeedback}
+            onDismiss={clearOpenOnRemoteFeedback}
+            data-testid="explorer-tab-open-on-remote-feedback"
+            className="mx-2 my-1.5"
+          />
+        </div>
+      ) : null}
 
       {showContentArea ? (
         <div className="flex-1 flex min-h-0 overflow-hidden [contain:layout]">
@@ -582,7 +604,7 @@ const ExplorerContent = memo(function ExplorerContent({
                       onCloseOthers={fileTabs.closeOtherTabs}
                       onPin={fileTabs.pinTab}
                       onToggleExpanded={fileTabs.toggleExpanded}
-                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                      onOpenFileOnRemote={handleOpenFileOnRemote}
                       enableDragSplit
                       {...copyHandlers}
                     />
@@ -613,7 +635,7 @@ const ExplorerContent = memo(function ExplorerContent({
                       onCloseOthers={fileTabs.closeOtherTabs}
                       onPin={fileTabs.pinTab}
                       onTogglePreviewExpanded={fileTabs.togglePreviewExpanded}
-                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                      onOpenFileOnRemote={handleOpenFileOnRemote}
                       enableDragSplit
                       {...copyHandlers}
                     />
