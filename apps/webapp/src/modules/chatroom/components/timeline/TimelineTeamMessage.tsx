@@ -134,10 +134,13 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
       )}
       data-testid="timeline-message-header"
     >
-      <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 justify-self-start">
+      <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 empty:hidden">
         <TimelineMessageTypeBadge type={message.type} />
       </div>
-      <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 justify-self-end">
+      <div
+        className="ml-auto flex items-center justify-end flex-wrap gap-x-1.5 gap-y-1 min-w-0"
+        data-testid="timeline-message-header-route"
+      >
         <TimelineMessageRoute
           senderRole={message.senderRole}
           targetRole={message.targetRole}

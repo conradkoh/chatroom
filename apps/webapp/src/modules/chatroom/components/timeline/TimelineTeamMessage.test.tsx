@@ -386,16 +386,34 @@ Edge case X
     );
   });
 
-  it('keeps the flex header and renders no navigation control', () => {
+  it('right-aligns the route when the header wraps', () => {
     render(<TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" />);
+
     const header = screen.getByTestId('timeline-message-header');
-    expect(header.className).toContain('flex-wrap');
-    expect(header.className).not.toContain('grid-cols-[1fr_auto_1fr]');
-    expect(
-      document.querySelector(
-        '[data-testid^="timeline-header-nav"], [data-testid="timeline-message-header-nav"]'
-      )
-    ).toBeNull();
+    expect(header).toHaveClass('flex', 'flex-wrap');
+    expect(header.className).not.toContain('grid');
+
+    const route = screen.getByTestId('timeline-message-header-route');
+    expect(route).toHaveClass('ml-auto', 'justify-end', 'flex-wrap');
+    expect(route).not.toHaveClass('justify-self-end');
+  });
+
+  it('hides the empty badge slot of a plain message so the route has no left gap', () => {
+    render(
+      <TimelineTeamMessage
+        message={{
+          ...BASE_MESSAGE,
+          type: 'message',
+          senderRole: 'planner',
+          content: 'Ordinary reply',
+        }}
+        chatroomId="room-1"
+      />
+    );
+
+    const badgeSlot = screen.getByTestId('timeline-message-header').firstElementChild;
+    expect(badgeSlot).toBeEmptyDOMElement();
+    expect(badgeSlot).toHaveClass('empty:hidden');
   });
 
   describe('collapsible agent-to-agent rows', () => {
@@ -748,6 +766,16 @@ Edge case X
       );
       expect(screen.getByTestId('timeline-message-footer')).toBeInTheDocument();
       expect(screen.getByTestId('timeline-team-message').querySelector('.py-3')).not.toBeNull();
+    });
+
+    it('right-aligns the route in the collapsible header too', () => {
+      render(collapsible());
+
+      expect(screen.getByTestId('timeline-message-header-route')).toHaveClass(
+        'ml-auto',
+        'justify-end',
+        'flex-wrap'
+      );
     });
   });
 });

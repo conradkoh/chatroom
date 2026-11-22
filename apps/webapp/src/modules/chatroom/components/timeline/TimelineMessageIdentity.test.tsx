@@ -65,4 +65,26 @@ describe('TimelineMessageRoute', () => {
     render(<TimelineMessageRoute senderRole="planner" sourcePlatform="web" />);
     expect(screen.queryByText('Telegram')).not.toBeInTheDocument();
   });
+
+  it('keeps the arrow and the target role in one unbreakable group', () => {
+    render(<TimelineMessageRoute senderRole="planner" targetRole="builder" />);
+
+    const target = screen.getByText('builder');
+    const group = target.parentElement as HTMLElement;
+    expect(group).toHaveClass('inline-flex', 'whitespace-nowrap');
+    expect(group.querySelector('svg')).not.toBeNull();
+    expect(group).not.toContainElement(screen.getByText('planner'));
+  });
+
+  it('keeps the sender and the Telegram tag outside the arrow group', () => {
+    render(
+      <TimelineMessageRoute senderRole="user" targetRole="planner" sourcePlatform="telegram" />
+    );
+
+    const group = screen.getByText('planner').parentElement as HTMLElement;
+    expect(group).toHaveClass('inline-flex', 'whitespace-nowrap');
+    expect(group.querySelector('svg')).not.toBeNull();
+    expect(group).not.toContainElement(screen.getByText('user'));
+    expect(group).not.toContainElement(screen.getByText('Telegram'));
+  });
 });
