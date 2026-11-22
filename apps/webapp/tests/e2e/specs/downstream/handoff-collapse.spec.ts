@@ -97,6 +97,62 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await assertLayoutStable();
   });
 
+  test('keeps the inner feed scroller, the row and the row below still while the dialog opens and closes', async ({
+    page,
+  }) => {
+    const feed = page.getByTestId('collapse-feed-scroller');
+    const row = page.getByTestId('collapse-feed-row').getByTestId('timeline-team-message');
+    const belowRow = page.getByTestId('collapse-feed-below').getByTestId('timeline-team-message');
+    const trigger = page.getByTestId('collapse-feed-row').getByTestId('timeline-handoff-trigger');
+
+    // Real overflow: the feed is taller than its scroll container, so a scroll would be observable.
+    // Polled: on a cold dev compile the page can be laid out before the stylesheet lands.
+    await expect.poll(() => feed.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+    // Park the feed mid-scroll so the check is not trivially at rest at scrollTop 0.
+    await feed.evaluate((el) => {
+      el.scrollTop = 400;
+    });
+    await expect.poll(() => feed.evaluate((el) => el.scrollTop)).toBe(400);
+
+    // Focus before the baseline so any focus-driven scroll is not counted as a dialog effect.
+    await trigger.focus();
+    const feedScrollTop = await feed.evaluate((el) => el.scrollTop);
+    const rowBox = await readBox(row);
+    const belowBox = await readBox(belowRow);
+
+    const assertFeedStable = async () => {
+      await readBox(row, (box) => {
+        expect(Math.abs(box.y - rowBox.y)).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(box.height - rowBox.height)).toBeLessThanOrEqual(0.5);
+      });
+      await readBox(belowRow, (box) => {
+        expect(Math.abs(box.y - belowBox.y)).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(box.height - belowBox.height)).toBeLessThanOrEqual(0.5);
+      });
+      expect(await feed.evaluate((el) => el.scrollTop)).toBe(feedScrollTop);
+    };
+
+    // Open with a mouse click, the path most readers use.
+    await trigger.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await assertFeedStable();
+
+    await page.getByTestId('timeline-handoff-dialog-close').click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await assertFeedStable();
+
+    // Reopen with the keyboard; the feed must stay still on that path too.
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await assertFeedStable();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await assertFeedStable();
+  });
+
   test('closes the dialog from the header button, Escape and the backdrop', async ({ page }) => {
     const trigger = triggerFor(page, 'collapse-normal');
 

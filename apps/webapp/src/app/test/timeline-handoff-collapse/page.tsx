@@ -3,6 +3,10 @@
 import { useState } from 'react';
 
 import { AttachmentsProvider } from '@/modules/chatroom/attachments';
+import {
+  TIMELINE_SCROLL_CONTAINER,
+  TIMELINE_SCROLL_CONTAINER_STYLE,
+} from '@/modules/chatroom/components/timeline/timelineRowStyles';
 import { TimelineTeamMessage } from '@/modules/chatroom/components/timeline/TimelineTeamMessage';
 import { isEagerTimelineEvent } from '@/modules/chatroom/timeline/isEagerTimelineEvent';
 import { mapMessageToTimelineEvent } from '@/modules/chatroom/timeline/mapMessageToTimelineEvent';
@@ -76,6 +80,17 @@ const EAGER: Message = {
   targetRole: 'user',
   content: 'Eager handoff to the user, which never collapses.',
   _creationTime: CREATION_TIME,
+};
+
+/** Feed-stability fixture: a collapsible handoff and the row below it, inside a real inner scroller. */
+const FEED_ROW: Message = {
+  ...NORMAL,
+  _id: 'e2e-collapse-feed-row',
+};
+
+const FEED_BELOW: Message = {
+  ...EMPTY,
+  _id: 'e2e-collapse-feed-below',
 };
 
 /** Tall body (>150 lines), a fenced code block, and a wide table that must scroll inside the prose container. */
@@ -174,6 +189,33 @@ export default function TimelineHandoffCollapseTestPage() {
             chatroomId="e2e-chatroom"
             collapsible={isCollapsible(EAGER)}
           />
+        </section>
+
+        <section data-testid="collapse-feed" className="flex h-80 flex-col">
+          {/* Mirrors ConversationMessageList's feed scroller: bounded flex parent, then the scroller. */}
+          <div
+            data-testid="collapse-feed-scroller"
+            className={`relative z-0 flex-1 ${TIMELINE_SCROLL_CONTAINER}`}
+            style={TIMELINE_SCROLL_CONTAINER_STYLE}
+          >
+            <div aria-hidden="true" className="h-[480px]" />
+            <div data-testid="collapse-feed-row">
+              <TimelineTeamMessage
+                message={FEED_ROW}
+                chatroomId="e2e-chatroom"
+                handoffDurationMs={252_000}
+                collapsible={isCollapsible(FEED_ROW)}
+              />
+            </div>
+            <div data-testid="collapse-feed-below">
+              <TimelineTeamMessage
+                message={FEED_BELOW}
+                chatroomId="e2e-chatroom"
+                collapsible={isCollapsible(FEED_BELOW)}
+              />
+            </div>
+            <div aria-hidden="true" className="h-[480px]" />
+          </div>
         </section>
       </main>
     </AttachmentsProvider>
