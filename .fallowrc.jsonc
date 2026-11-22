@@ -57,6 +57,8 @@
     "**/tests/**",
     "**/test.setup.{ts,mts}",
     "**/test-utils.{ts,tsx}",
+    // Test-only characterisation renderer imported by the per-team *.snapshot.test.ts files.
+    "**/role-prompt-characterisation.ts",
     "**/vitest.config.{ts,mts}",
     "packages/cli/src/testing/**",
     "packages/cli/src/convex-api/**",
