@@ -1,5 +1,5 @@
 // fallow-ignore-file unused-file
-import type { BuiltinAgentRole } from '@workspace/shared/domain/agent-role';
+import type { BuiltinAgentRole, BuiltinTeamRole } from '@workspace/shared/domain/agent-role';
 
 import type {
   BuiltinTeamHandoffCatalog,
@@ -7,33 +7,48 @@ import type {
   RoleHandoffContract,
 } from './contracts';
 import { DUO_ROLE_HANDOFF_CATALOG } from '../../teams/duo/handoff-templates';
+import { DUO_ROLE_IDENTITY } from '../../teams/duo/prompts/role-identity';
 import { SOLO_ROLE_HANDOFF_CATALOG } from '../../teams/solo/handoff-templates';
+import { SOLO_ROLE_IDENTITY } from '../../teams/solo/prompts/role-identity';
 import { TRIO_ROLE_HANDOFF_CATALOG } from '../../teams/trio/handoff-templates';
-import { BUILTIN_ROLE_TEMPLATES } from '../../templates';
-import type { BuiltinRoleTemplateCatalog } from '../../templates';
+import { TRIO_ROLE_IDENTITY } from '../../teams/trio/prompts/role-identity';
+import type { RoleIdentity } from '../../types/role-identity';
 
-// @ts-expect-error builtin prompt catalogs require the omitted architect role
-const missingPrompt: BuiltinRoleTemplateCatalog = {
-  planner: BUILTIN_ROLE_TEMPLATES.planner,
-  builder: BUILTIN_ROLE_TEMPLATES.builder,
-  coordinator: BUILTIN_ROLE_TEMPLATES.coordinator,
-  specifier: BUILTIN_ROLE_TEMPLATES.specifier,
-  solo: BUILTIN_ROLE_TEMPLATES.solo,
-  researcher: BUILTIN_ROLE_TEMPLATES.researcher,
-  reviewer: BUILTIN_ROLE_TEMPLATES.reviewer,
-  'game-asset-designer': BUILTIN_ROLE_TEMPLATES['game-asset-designer'],
-  verifier: BUILTIN_ROLE_TEMPLATES.verifier,
-  triage: BUILTIN_ROLE_TEMPLATES.triage,
-  'uiux-engineer': BUILTIN_ROLE_TEMPLATES['uiux-engineer'],
+// @ts-expect-error the duo identity catalogue requires every duo role
+const missingDuoIdentity: { readonly [R in BuiltinTeamRole<'duo'>]: RoleIdentity } = {
+  planner: DUO_ROLE_IDENTITY.planner,
 };
-void missingPrompt;
+void missingDuoIdentity;
 
-const wrongPrompt: BuiltinRoleTemplateCatalog = {
-  ...BUILTIN_ROLE_TEMPLATES,
-  // @ts-expect-error the key and role identity must match
-  architect: { ...BUILTIN_ROLE_TEMPLATES.architect, role: 'triage' },
+// @ts-expect-error the trio identity catalogue requires every trio role
+const missingTrioIdentity: { readonly [R in BuiltinTeamRole<'trio'>]: RoleIdentity } = {
+  coordinator: TRIO_ROLE_IDENTITY.coordinator,
 };
-void wrongPrompt;
+void missingTrioIdentity;
+
+// @ts-expect-error the solo identity catalogue requires every solo role
+const missingSoloIdentity: { readonly [R in BuiltinTeamRole<'solo'>]: RoleIdentity } = {
+  solo: SOLO_ROLE_IDENTITY.solo,
+};
+void missingSoloIdentity;
+
+const extraTrioIdentity = {
+  ...TRIO_ROLE_IDENTITY,
+  // @ts-expect-error planner is not a builtin trio role
+  planner: TRIO_ROLE_IDENTITY.coordinator,
+} satisfies { readonly [R in BuiltinTeamRole<'trio'>]: RoleIdentity };
+void extraTrioIdentity;
+
+// The real catalogues must assign to the exhaustive key sets, even if a catalogue later loses its own annotation.
+const duoIdentityCatalogue: { readonly [R in BuiltinTeamRole<'duo'>]: RoleIdentity } =
+  DUO_ROLE_IDENTITY;
+void duoIdentityCatalogue;
+const trioIdentityCatalogue: { readonly [R in BuiltinTeamRole<'trio'>]: RoleIdentity } =
+  TRIO_ROLE_IDENTITY;
+void trioIdentityCatalogue;
+const soloIdentityCatalogue: { readonly [R in BuiltinTeamRole<'solo'>]: RoleIdentity } =
+  SOLO_ROLE_IDENTITY;
+void soloIdentityCatalogue;
 
 // @ts-expect-error builtin duo contract catalogs require every duo role
 const missingDuoContract: BuiltinTeamHandoffCatalog<'duo'> = {
