@@ -2,7 +2,8 @@
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   // Migrated from knip.jsonc
   // Entry points fallow cannot resolve: package.json scripts reach these through `../../scripts/`.
-  "entry": ["scripts/convex-codegen.ts"],
+  // Local ESLint plugin sources are loaded by eslint.config.mjs, not imported by app entry points.
+  "entry": ["scripts/convex-codegen.ts", "eslint-rules/*.spec.mjs"],
   "ignoreDependencies": [
     // Run through `pnpm exec vercel` in the deployment docs and the optional Vercel Actions path.
     "vercel",
@@ -213,6 +214,8 @@
       "**/tests/**",
       "scripts/start-convex-dev.ts",
       "packages/cli/src/daemon/local-web/client/**",
+      // Local ESLint plugin rules are tooling, not app code; fallow cannot model them as reachable.
+      "eslint-rules/**",
       "services/backend/convex/auth.ts",
       "services/backend/convex/auth/**",
       // Transitional: mirror of /app/admin during route migration
