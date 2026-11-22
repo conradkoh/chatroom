@@ -128,7 +128,7 @@ describe('ScheduledPromptCard', () => {
     });
   });
 
-  it('toasts the server message when a toggle is rejected', async () => {
+  it('shows the server message inline when a toggle is rejected', async () => {
     const message = 'Scheduled time has passed — edit the prompt to pick a new time';
     const setEnabled = vi.fn().mockRejectedValue({ data: { message } });
 
@@ -143,9 +143,51 @@ describe('ScheduledPromptCard', () => {
 
     fireEvent.click(screen.getByRole('switch'));
 
-    await waitFor(() => {
-      expect(mocks.toastError).toHaveBeenCalledWith(message);
-    });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(message);
+    expect(screen.getByTestId('scheduled-prompt-card-feedback')).toBe(alert);
+  });
+
+  it('shows the fallback copy when a rejected toggle has no server message', async () => {
+    const setEnabled = vi.fn().mockRejectedValue(new Error('network down'));
+
+    render(
+      <ScheduledPromptCard
+        prompt={BASE_PROMPT}
+        onEdit={vi.fn()}
+        setEnabled={setEnabled}
+        removePrompt={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('switch'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to update schedule');
+  });
+
+  it('clears the toggle failure when the next toggle attempt starts', async () => {
+    const setEnabled = vi
+      .fn()
+      .mockRejectedValueOnce({ data: { message: 'Scheduled time has passed' } })
+      .mockReturnValueOnce(new Promise(() => {}));
+
+    render(
+      <ScheduledPromptCard
+        prompt={BASE_PROMPT}
+        onEdit={vi.fn()}
+        setEnabled={setEnabled}
+        removePrompt={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('switch'));
+    await screen.findByRole('alert');
+    await waitFor(() => expect(screen.getByRole('switch')).not.toBeDisabled());
+
+    fireEvent.click(screen.getByRole('switch'));
+
+    expect(setEnabled).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('shows the session and mode', () => {
