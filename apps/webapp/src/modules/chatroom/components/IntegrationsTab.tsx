@@ -32,7 +32,6 @@ import {
 } from 'lucide-react';
 import React, { useState, useCallback, useEffect, memo } from 'react';
 import { FaTelegram } from 'react-icons/fa';
-import { toast } from 'sonner';
 
 import { CopyButton } from './CopyButton';
 import { IntegrationDetailFields, evaluateIntegrationDetails } from './IntegrationDetailFields';
@@ -199,6 +198,7 @@ const IntegrationCard = memo(function IntegrationCard({
   const sendMessage = useSessionAction(api.integrations.telegram.actions.sendMessage);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<'test' | 'edit' | null>(null);
@@ -236,6 +236,7 @@ const IntegrationCard = memo(function IntegrationCard({
   }, [activePanel, resetTestState]);
 
   const handleToggle = useCallback(async () => {
+    setToggleError(null);
     setIsToggling(true);
     try {
       await updateIntegration({
@@ -243,7 +244,7 @@ const IntegrationCard = memo(function IntegrationCard({
         enabled: !integration.enabled,
       });
     } catch (err) {
-      toast.error(integrationErrorMessage(err));
+      setToggleError(integrationErrorMessage(err));
     } finally {
       setIsToggling(false);
     }
@@ -256,9 +257,7 @@ const IntegrationCard = memo(function IntegrationCard({
       await removeIntegration({ integrationId: integration._id });
       setShowDeleteConfirm(false);
     } catch (err) {
-      const message = integrationErrorMessage(err);
-      setDeleteError(message);
-      toast.error(message);
+      setDeleteError(integrationErrorMessage(err));
     } finally {
       setIsDeleting(false);
     }
@@ -280,17 +279,12 @@ const IntegrationCard = memo(function IntegrationCard({
       });
       setTestSuccess(true);
       setTestMessage('');
-      toast.success(`Test message sent to ${targetLabel}`);
-      setTimeout(() => {
-        setActivePanel((p) => (p === 'test' ? null : p));
-        setTestSuccess(false);
-      }, 2000);
     } catch (err: unknown) {
       setTestError(integrationErrorMessage(err));
     } finally {
       setIsSending(false);
     }
-  }, [chatroomId, integration._id, testMessage, sendMessage, targetLabel]);
+  }, [chatroomId, integration._id, testMessage, sendMessage]);
 
   return (
     <div
@@ -462,6 +456,15 @@ const IntegrationCard = memo(function IntegrationCard({
         </p>
       )}
 
+      {toggleError && (
+        <p
+          role="alert"
+          className="border-t border-chatroom-border px-4 py-2 text-xs text-chatroom-status-error"
+        >
+          {toggleError}
+        </p>
+      )}
+
       {/* Test Message Dialog */}
       {activePanel === 'test' && (
         <div className="space-y-3 border-t border-chatroom-border bg-chatroom-bg-primary/50 p-4">
@@ -472,6 +475,7 @@ const IntegrationCard = memo(function IntegrationCard({
             <Button
               variant="ghost"
               size="sm"
+              aria-label="Close test message"
               onClick={() => {
                 setActivePanel(null);
                 resetTestState();
@@ -517,13 +521,15 @@ const IntegrationCard = memo(function IntegrationCard({
           </div>
 
           {testError && (
-            <p className="text-xs text-chatroom-status-error">
+            <p role="alert" className="text-xs text-chatroom-status-error">
               <span className="font-bold">Not sent.</span> {testError}
             </p>
           )}
 
           {testSuccess && (
-            <p className="text-xs text-chatroom-status-success">✅ Sent to {targetLabel}.</p>
+            <p role="status" className="text-xs text-chatroom-status-success">
+              ✅ Sent to {targetLabel}.
+            </p>
           )}
         </div>
       )}
@@ -552,7 +558,11 @@ const IntegrationCard = memo(function IntegrationCard({
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {deleteError && <p className="text-xs text-chatroom-status-error">{deleteError}</p>}
+          {deleteError && (
+            <p role="alert" className="text-xs text-chatroom-status-error">
+              {deleteError}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             {/* A plain Button, not AlertDialogAction: the dialog must stay open while
