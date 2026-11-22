@@ -180,7 +180,11 @@ function PurgeDescription({
           undone.
         </span>
       </AlertDialogDescription>
-      {error && <p className="text-[11px] text-chatroom-status-error">{error}</p>}
+      {error && (
+        <p role="alert" className="text-[11px] text-chatroom-status-error">
+          {error}
+        </p>
+      )}
     </>
   );
 }
