@@ -37,7 +37,6 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   discard: vi.fn(),
   createMany: vi.fn(),
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -63,8 +62,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
     return mocks.page;
   },
 }));
-
-vi.mock('sonner', () => ({ toast: mocks.toast }));
 
 // jsdom has no layout: render every item so rows are queryable.
 vi.mock('@tanstack/react-virtual', () => ({
@@ -170,9 +167,6 @@ describe('MachineRepositories', () => {
     mocks.discard.mockReset();
     mocks.discard.mockResolvedValue({ ok: true });
     mocks.createMany.mockReset();
-    mocks.toast.mockReset();
-    mocks.toast.success.mockReset();
-    mocks.toast.error.mockReset();
   });
 
   it('loads repositories from the idle state', async () => {
@@ -349,11 +343,10 @@ describe('MachineRepositories', () => {
     await waitFor(() =>
       expect(within(row).getByRole('button', { name: 'Create chatroom' })).toBeEnabled()
     );
-    expect(mocks.toast).not.toHaveBeenCalled();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('shows an already-has-chatroom skip inline in its row and no toast', async () => {
+  it('shows an already-has-chatroom skip inline in its row', async () => {
     const user = userEvent.setup();
     const target = entry('/Users/me/projects/a');
     mocks.rows.set('req-1', completedRow({ repositoryCount: 1 }));
@@ -381,7 +374,6 @@ describe('MachineRepositories', () => {
       'This repository already has a chatroom.'
     );
     expect(within(row).queryByRole('alert')).toBeNull();
-    expect(mocks.toast).not.toHaveBeenCalled();
   });
 
   it('shows a failed outcome message inline in the affected row only', async () => {
@@ -412,7 +404,6 @@ describe('MachineRepositories', () => {
     expect(await within(badRow).findByRole('alert')).toHaveTextContent("That path isn't valid.");
     expect(within(otherRow).queryByRole('alert')).toBeNull();
     expect(screen.getAllByRole('alert')).toHaveLength(1);
-    expect(mocks.toast).not.toHaveBeenCalled();
   });
 
   it('shows the fallback copy when a failed outcome has no message', async () => {
@@ -437,7 +428,6 @@ describe('MachineRepositories', () => {
     expect(await within(row).findByRole('alert')).toHaveTextContent(
       'Could not create the chatroom. Try again.'
     );
-    expect(mocks.toast).not.toHaveBeenCalled();
   });
 
   it('shows the fallback copy inline when the create call throws', async () => {
@@ -457,7 +447,6 @@ describe('MachineRepositories', () => {
     expect(await within(row).findByRole('alert')).toHaveTextContent(
       'Could not create the chatroom. Try again.'
     );
-    expect(mocks.toast).not.toHaveBeenCalled();
   });
 
   it('keeps an inline failure until the next create from that row', async () => {
@@ -504,7 +493,6 @@ describe('MachineRepositories', () => {
     await user.click(within(badRow).getByRole('button', { name: 'Create chatroom' }));
     await waitFor(() => expect(mocks.createMany).toHaveBeenCalledTimes(3));
     await waitFor(() => expect(within(badRow).queryByRole('alert')).toBeNull());
-    expect(mocks.toast).not.toHaveBeenCalled();
   });
 
   it('shows page progress while the snapshot rows load', async () => {

@@ -33,10 +33,6 @@ let uploadJobs: {
   fileName: string;
 }[] = [];
 
-vi.mock('sonner', () => ({
-  toast: { error: vi.fn() },
-}));
-
 vi.mock('../hooks/useChatInputFileDrop', () => ({
   useChatInputFileDrop: (args: { message: string; setMessage: (value: string) => void }) => ({
     uploadJobs,

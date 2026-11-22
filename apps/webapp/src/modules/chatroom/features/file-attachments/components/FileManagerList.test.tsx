@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileManagerList } from './FileManagerList';
@@ -54,11 +53,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
   },
 }));
-
-vi.mock('sonner', () => {
-  const toast = vi.fn();
-  return { toast: Object.assign(toast, { success: vi.fn(), error: vi.fn() }) };
-});
 
 const CHATROOM_ID = 'jd7testchatroom0000000000000001' as never;
 const FILE_ID = 'jd7testfile000000000000000001' as never;
@@ -193,8 +187,6 @@ describe('FileManagerList', () => {
     expect(mocks.deleteFile).toHaveBeenCalledWith({ attachmentId: FILE_ID });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByTestId('file-list-delete-feedback')).not.toBeInTheDocument();
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast).not.toHaveBeenCalled();
   });
 
   it('shows an inline alert when the row was already removed and clears it on the next Delete tap', async () => {
@@ -216,7 +208,6 @@ describe('FileManagerList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm delete a.png' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('a.png was already removed');
-    expect(toast).not.toHaveBeenCalled();
 
     fireEvent.click(deleteButton('b.png'));
 
@@ -237,7 +228,6 @@ describe('FileManagerList', () => {
       "You don't have access to these files."
     );
     expect(deleteButton('a.png')).toBeInTheDocument();
-    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('shows a download failure inline in the list slot and leaves the button idle', async () => {

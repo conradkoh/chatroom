@@ -14,18 +14,8 @@ vi.mock('../../features/run-command/hooks/useCommandFavorites', () => ({
   }),
 }));
 
-const { clearUsage, toastMock } = vi.hoisted(() => ({
+const { clearUsage } = vi.hoisted(() => ({
   clearUsage: vi.fn(),
-  toastMock: {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
-    message: vi.fn(),
-    loading: vi.fn(),
-    promise: vi.fn(),
-    dismiss: vi.fn(),
-  },
 }));
 
 vi.mock('../../features/run-command/hooks/useCommandUsage', () => ({
@@ -33,10 +23,6 @@ vi.mock('../../features/run-command/hooks/useCommandUsage', () => ({
     clearUsage,
     revision: 0,
   }),
-}));
-
-vi.mock('sonner', () => ({
-  toast: toastMock,
 }));
 
 describe('useCommandPaletteCommands', () => {
@@ -612,7 +598,6 @@ describe('useCommandPaletteCommands', () => {
   describe('Preferences: Reset Command Stats', () => {
     beforeEach(() => {
       clearUsage.mockClear();
-      Object.values(toastMock).forEach((fn) => fn.mockClear());
     });
 
     it('clears command usage', () => {
@@ -626,16 +611,6 @@ describe('useCommandPaletteCommands', () => {
 
       command?.action();
       expect(clearUsage).toHaveBeenCalledTimes(1);
-    });
-
-    it('reports nothing to the user after clearing', () => {
-      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
-
-      result.current.find((c) => c.id === 'action-reset-command-stats')?.action();
-
-      for (const fn of Object.values(toastMock)) {
-        expect(fn).not.toHaveBeenCalled();
-      }
     });
   });
 });

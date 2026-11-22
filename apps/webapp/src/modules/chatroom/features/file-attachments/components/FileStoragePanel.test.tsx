@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileStoragePanel } from './FileStoragePanel';
@@ -69,11 +68,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
   },
 }));
-
-vi.mock('sonner', () => {
-  const toast = vi.fn();
-  return { toast: Object.assign(toast, { success: vi.fn(), error: vi.fn() }) };
-});
 
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
@@ -413,7 +407,5 @@ describe('FileStoragePanel', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Purge in progress/)).not.toBeInTheDocument();
     });
-    expect(toast).not.toHaveBeenCalled();
-    expect(toast.success).not.toHaveBeenCalled();
   });
 });

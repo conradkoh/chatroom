@@ -42,10 +42,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('sonner', () => ({
-  toast: { error: vi.fn() },
-}));
-
 const defaultPrompt = {
   _id: 'prompt-1',
   name: 'Daily Standup',

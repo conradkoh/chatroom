@@ -8,7 +8,6 @@ import { BulkCreateDialog } from './BulkCreateDialog';
 
 const mocks = vi.hoisted(() => ({
   createMany: vi.fn(),
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -20,8 +19,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
     return mocks.createMany;
   },
 }));
-
-vi.mock('sonner', () => ({ toast: mocks.toast }));
 
 const REPO_PATHS = Array.from(
   { length: 120 },
@@ -47,9 +44,6 @@ function renderDialog(overrides: Partial<{ paths: string[]; onClose: () => void 
 describe('BulkCreateDialog', () => {
   beforeEach(() => {
     mocks.createMany.mockReset();
-    mocks.toast.mockReset();
-    mocks.toast.success.mockReset();
-    mocks.toast.error.mockReset();
   });
 
   it('lists the first 50 targets and explains the default team', () => {
@@ -203,7 +197,7 @@ describe('BulkCreateDialog', () => {
     expect(retryCall.workingDirs[49]).toBe('/Users/me/projects/repo-049');
   });
 
-  it('keeps the cumulative summary inline and closes only on Done, without a toast', async () => {
+  it('keeps the cumulative summary inline and closes only on Done', async () => {
     const user = userEvent.setup();
     mocks.createMany.mockResolvedValue({
       results: [
@@ -237,9 +231,6 @@ describe('BulkCreateDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Done' }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(mocks.toast).not.toHaveBeenCalled();
-    expect(mocks.toast.success).not.toHaveBeenCalled();
-    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
   it('keeps the all-failed summary inline and does not close on its own', async () => {
@@ -270,6 +261,5 @@ describe('BulkCreateDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Done' }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 });

@@ -11,14 +11,6 @@ afterAll(() => {
   vi.unstubAllEnvs();
 });
 
-const mocks = vi.hoisted(() => ({
-  toastError: vi.fn(),
-}));
-
-vi.mock('sonner', () => ({
-  toast: { error: mocks.toastError },
-}));
-
 const desktopMock = vi.hoisted(() => ({ value: true }));
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => desktopMock.value,
