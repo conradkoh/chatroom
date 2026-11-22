@@ -69,26 +69,25 @@ export function getSenderClasses(role: string): string {
   return `${base} text-chatroom-status-info`;
 }
 
-/** Full-width disclosure bar for collapsible handoff rows. Identical padding in both states keeps the chevron fixed. */
-export const TIMELINE_HANDOFF_TOGGLE =
-  'group/handoff-toggle flex w-full items-start gap-2 px-4 py-2 text-left cursor-pointer ' +
+/** Full-width summary bar for collapsible handoff rows. It opens the details dialog, so the row height never changes. */
+export const TIMELINE_HANDOFF_TRIGGER =
+  'group/handoff-trigger flex w-full items-start gap-2 px-4 py-2 text-left cursor-pointer ' +
   'transition-[background-color,opacity] duration-100 hover:bg-chatroom-bg-hover active:opacity-80 ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent';
 
-/** Chevron: 14px icon centred on the first 20px text line; rotates 90° when expanded. */
-export const TIMELINE_HANDOFF_CHEVRON =
-  'mt-[3px] shrink-0 text-chatroom-text-muted transition-transform duration-150 motion-reduce:transition-none ' +
-  'group-hover/handoff-toggle:text-chatroom-text-primary';
+/** Static 14px Maximize2 icon in the chevron slot, centred on the first 20px text line. */
+export const TIMELINE_HANDOFF_OPEN_ICON =
+  'mt-[3px] shrink-0 text-chatroom-text-muted group-hover/handoff-trigger:text-chatroom-text-primary';
 
 /** Collapsed preview text: the primary scan content of the row. */
 export const TIMELINE_HANDOFF_PREVIEW_TEXT =
   'min-w-0 flex-1 line-clamp-2 [overflow-wrap:anywhere] text-sm leading-5 text-chatroom-text-secondary ' +
-  'group-hover/handoff-toggle:text-chatroom-text-primary';
+  'group-hover/handoff-trigger:text-chatroom-text-primary';
 
-/** "Collapse" and empty-preview "Show full handoff" label. */
-export const TIMELINE_HANDOFF_TOGGLE_LABEL =
+/** Empty-preview "Show full handoff" label. */
+export const TIMELINE_HANDOFF_TRIGGER_LABEL =
   'min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide leading-5 text-chatroom-text-muted ' +
-  'group-hover/handoff-toggle:text-chatroom-text-primary';
+  'group-hover/handoff-trigger:text-chatroom-text-primary';
 
 /** Right-aligned meta column inside the collapsed bar (duration + time). Never wraps and never
  * stacks: a long duration such as `1h 5m` stays on one line and the preview absorbs the width. */
@@ -97,6 +96,6 @@ export const TIMELINE_HANDOFF_META =
 
 /**
  * Collapsed-row attachment chips. 38px (2.375rem) = 16px bar padding (px-4) + 14px
- * chevron + 8px gap-2, so the chips line up with the preview text above them.
+ * icon + 8px gap-2, so the chips line up with the preview text above them.
  */
 export const TIMELINE_HANDOFF_CHIPS = 'pl-[2.375rem]';

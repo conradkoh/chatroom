@@ -1,4 +1,4 @@
-import { fireEvent, render, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -524,9 +524,9 @@ describe('handoff collapse behavior', () => {
   it('collapses agent-to-agent handoffs to a summary bar', () => {
     renderTimeline();
     const agentRow = row('handoff-1');
-    const toggle = within(agentRow).getByTestId('timeline-handoff-toggle');
+    const trigger = within(agentRow).getByTestId('timeline-handoff-trigger');
 
-    expect(within(toggle).getByTestId('timeline-handoff-preview')).toHaveTextContent(
+    expect(within(trigger).getByTestId('timeline-handoff-preview')).toHaveTextContent(
       'Preview line one. Preview line two.'
     );
     expect(within(agentRow).queryByText('Deferred body sentence.')).not.toBeInTheDocument();
@@ -553,18 +553,20 @@ describe('handoff collapse behavior', () => {
     }
   });
 
-  it('reveals the full handoff body when Show full handoff is clicked', () => {
+  it('opens the full handoff in a dialog when Show full handoff is clicked', () => {
     renderTimeline();
     const agentRow = row('handoff-1');
 
     fireEvent.click(within(agentRow).getByRole('button', { name: 'Show full handoff' }));
 
-    expect(within(row('handoff-1')).getByText('Deferred body sentence.')).toBeInTheDocument();
-    expect(within(row('handoff-1')).getByTestId('timeline-message-footer')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Deferred body sentence.')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('timeline-message-footer')).toBeInTheDocument();
+    // The summary bar is unchanged: the row does not mount the body or the footer.
+    expect(within(row('handoff-1')).getByTestId('timeline-handoff-preview')).toBeInTheDocument();
     expect(
-      within(row('handoff-1')).queryByTestId('timeline-handoff-preview')
+      within(row('handoff-1')).queryByTestId('timeline-message-footer')
     ).not.toBeInTheDocument();
-    expect(row('handoff-1').querySelector('.prose')).not.toBeNull();
     expect(document.querySelectorAll('[data-message-id="handoff-1"]')).toHaveLength(1);
   });
 });
