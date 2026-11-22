@@ -7,6 +7,13 @@ import { memo } from 'react';
 import type { LedgerEntryView } from '../hooks/useRepositoryLedger';
 
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+/** Inline outcome of a row's last create attempt. `alert`: a failed or thrown create. `status`: a neutral skip. */
+export interface RowCreateMessage {
+  text: string;
+  tone: 'alert' | 'status';
+}
 
 export interface RepositoryRowProps {
   entry: LedgerEntryView;
@@ -15,7 +22,7 @@ export interface RepositoryRowProps {
   /** true while this row's own create call is pending. */
   creating: boolean;
   /** Inline outcome of this row's last create attempt; shown until the next action in the row. */
-  message?: string;
+  message?: RowCreateMessage;
   onCreate: (path: string) => void;
 }
 
@@ -79,6 +86,23 @@ function CreateLabel({ creating }: { creating: boolean }) {
   return <>Create chatroom</>;
 }
 
+/** The row's last create outcome: `alert` for a failure, `status` for a neutral skip. */
+function RowCreateMessageLine({ message }: { message: RowCreateMessage }) {
+  return (
+    // One line keeps the fixed row height; the full text stays in the DOM and the title.
+    <p
+      role={message.tone}
+      title={message.text}
+      className={cn(
+        'truncate text-[10px]',
+        message.tone === 'alert' ? 'text-chatroom-status-error' : 'text-chatroom-text-muted'
+      )}
+    >
+      {message.text}
+    </p>
+  );
+}
+
 function RepositoryRowComponent({
   entry,
   disabled,
@@ -110,16 +134,7 @@ function RepositoryRowComponent({
           <span className="text-chatroom-text-muted">{prefix}</span>
           <span className="text-chatroom-text-primary">{rest}</span>
         </div>
-        {!entry.hasChatroom && message && (
-          // One line keeps the fixed row height; the full text stays in the DOM and the title.
-          <p
-            role="alert"
-            title={message}
-            className="truncate text-[10px] text-chatroom-status-error"
-          >
-            {message}
-          </p>
-        )}
+        {!entry.hasChatroom && message && <RowCreateMessageLine message={message} />}
       </div>
       <div className="flex w-[8.5rem] shrink-0 flex-col items-end gap-1">
         <RepositoryStatusBadge hasChatroom={entry.hasChatroom} />

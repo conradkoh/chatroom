@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { describe, expect, it, vi } from 'vitest';
 
-import { RepositoryRow } from './RepositoryRow';
+import { RepositoryRow, type RowCreateMessage } from './RepositoryRow';
 import type { LedgerEntryView } from '../hooks/useRepositoryLedger';
 
 function makeEntry(overrides: Partial<LedgerEntryView> = {}): LedgerEntryView {
@@ -20,7 +20,7 @@ function makeEntry(overrides: Partial<LedgerEntryView> = {}): LedgerEntryView {
 
 function renderRow(
   entry: LedgerEntryView,
-  props: Partial<{ disabled: boolean; creating: boolean; message: string }> = {}
+  props: Partial<{ disabled: boolean; creating: boolean; message: RowCreateMessage }> = {}
 ) {
   const onCreate = vi.fn();
   const view = render(
@@ -111,7 +111,9 @@ describe('RepositoryRow', () => {
   });
 
   it('shows the inline message as an alert in the left column', () => {
-    renderRow(makeEntry(), { message: 'This repository already has a chatroom.' });
+    renderRow(makeEntry(), {
+      message: { text: 'This repository already has a chatroom.', tone: 'alert' },
+    });
 
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('This repository already has a chatroom.');
@@ -127,11 +129,24 @@ describe('RepositoryRow', () => {
 
   it('hides the inline message once the row has a chatroom', () => {
     renderRow(makeEntry({ hasChatroom: true, chatroomId: 'room-1' as Id<'chatroom_rooms'> }), {
-      message: 'This repository already has a chatroom.',
+      message: { text: 'This repository already has a chatroom.', tone: 'alert' },
     });
 
     expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
     expect(screen.getByRole('link', { name: 'Open' })).toBeDefined();
+  });
+
+  it('shows a skip as a neutral status line, not an alert', () => {
+    renderRow(makeEntry(), {
+      message: { text: 'This repository already has a chatroom.', tone: 'status' },
+    });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('This repository already has a chatroom.');
+    expect(status).toHaveClass('text-chatroom-text-muted');
+    expect(status).not.toHaveClass('text-chatroom-status-error');
   });
 
   it('disables the create button and shows progress while creating', () => {

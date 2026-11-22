@@ -377,9 +377,10 @@ describe('MachineRepositories', () => {
     const row = await screen.findByTestId('repository-row');
     await user.click(within(row).getByRole('button', { name: 'Create chatroom' }));
 
-    expect(await within(row).findByRole('alert')).toHaveTextContent(
+    expect(await within(row).findByRole('status')).toHaveTextContent(
       'This repository already has a chatroom.'
     );
+    expect(within(row).queryByRole('alert')).toBeNull();
     expect(mocks.toast).not.toHaveBeenCalled();
   });
 

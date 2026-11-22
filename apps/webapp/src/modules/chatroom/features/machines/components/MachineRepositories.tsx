@@ -9,7 +9,7 @@ import { BulkCreateDialog } from './BulkCreateDialog';
 import { LedgerNotice } from './LedgerNotice';
 import { RepositoryBanners } from './RepositoryBanners';
 import { RepositoryFilterBar } from './RepositoryFilterBar';
-import { RepositoryRow } from './RepositoryRow';
+import { RepositoryRow, type RowCreateMessage } from './RepositoryRow';
 import { useBulkCreateChatrooms } from '../hooks/useBulkCreateChatrooms';
 import {
   useRepositoryLedger,
@@ -39,12 +39,14 @@ const ALREADY_HAS_CHATROOM_COPY = 'This repository already has a chatroom.';
 const CREATE_FAILED_COPY = 'Could not create the chatroom. Try again.';
 
 /** Inline create outcomes keyed by repository path. */
-type RowMessages = Readonly<Record<string, string>>;
+type RowMessages = Readonly<Record<string, RowCreateMessage>>;
 
 /** Inline copy for a create outcome; 'created' shows nothing because the row already flips. */
-function createOutcomeMessage(outcome: BulkCreateOutcome): string | undefined {
-  if (outcome.outcome === 'skipped') return ALREADY_HAS_CHATROOM_COPY;
-  if (outcome.outcome === 'failed') return outcome.message || CREATE_FAILED_COPY;
+function createOutcomeMessage(outcome: BulkCreateOutcome): RowCreateMessage | undefined {
+  if (outcome.outcome === 'skipped') return { text: ALREADY_HAS_CHATROOM_COPY, tone: 'status' };
+  if (outcome.outcome === 'failed') {
+    return { text: outcome.message || CREATE_FAILED_COPY, tone: 'alert' };
+  }
   return undefined;
 }
 
@@ -476,7 +478,7 @@ export function MachineRepositories({
   const [creatingPath, setCreatingPath] = useState<string | null>(null);
   const [createMessages, setCreateMessages] = useState<RowMessages>({});
 
-  const setCreateMessage = useCallback((path: string, message: string | undefined) => {
+  const setCreateMessage = useCallback((path: string, message: RowCreateMessage | undefined) => {
     setCreateMessages((current) => {
       const next = { ...current };
       if (message === undefined) delete next[path];
@@ -493,7 +495,10 @@ export function MachineRepositories({
         const outcome = await createOne(machineId, path);
         setCreateMessage(path, createOutcomeMessage(outcome));
       } catch (error) {
-        setCreateMessage(path, getMachineErrorCopy(error, CREATE_FAILED_COPY));
+        setCreateMessage(path, {
+          text: getMachineErrorCopy(error, CREATE_FAILED_COPY),
+          tone: 'alert',
+        });
       } finally {
         setCreatingPath(null);
       }
