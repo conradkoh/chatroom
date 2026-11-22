@@ -46,6 +46,8 @@ function getDialogName(message: Message): string {
  * scrolling body between a pinned header and footer, so a tall handoff never pushes
  * the footer off screen. `!` overrides beat DialogContent's industrial `grid p-6
  * gap-4 max-w-*`; overflow stays on DialogScrollBody (DialogContent strips it).
+ * `motion-reduce:*` must be important because the industrial `data-open:animate-in`
+ * selector outranks an unimportant variant.
  */
 export const TimelineHandoffDetailsDialog = memo(function TimelineHandoffDetailsDialog({
   message,
@@ -69,7 +71,7 @@ export const TimelineHandoffDetailsDialog = memo(function TimelineHandoffDetails
         showCloseButton={false}
         initialFocus={bodyRef}
         finalFocus={finalFocusRef}
-        className="flex! flex-col min-h-0 gap-0! p-0! max-w-[calc(100%-1rem)]! sm:max-w-3xl! max-h-[85dvh] sm:max-h-[80vh] motion-reduce:animate-none motion-reduce:duration-0"
+        className="flex! flex-col min-h-0 gap-0! p-0! max-w-[calc(100%-1rem)]! sm:max-w-3xl! max-h-[85dvh] sm:max-h-[80vh] motion-reduce:animate-none! motion-reduce:duration-0!"
       >
         <div
           data-testid="timeline-handoff-dialog-header"

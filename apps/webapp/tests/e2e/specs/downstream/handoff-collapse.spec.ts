@@ -21,31 +21,17 @@ async function readBox(locator: Locator, assert: (box: Box) => void = () => {}):
   return read.box;
 }
 
-/**
- * Waits for the dialog's entry/exit animations to finish. The popup scales in, so any
- * geometry read mid-animation is off by a few pixels even under reduced motion (the
- * `data-open` animation wins the cascade over `motion-reduce:animate-none`).
- */
-async function waitForDialogAnimation(locator: Locator) {
-  await locator.evaluate(async (element) => {
-    await Promise.all(
-      element
-        .getAnimations({ subtree: true })
-        .map((animation) => animation.finished.catch(() => {}))
-    );
-  });
-}
-
 test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
   // The fixtures render a fixed 15th November 2023 date; pin the browser timezone so
   // the assertion does not depend on the CI host.
-  test.use({ timezoneId: 'UTC' });
+  // Reduced motion is the spec default: the dialog has no animation, so geometry reads
+  // need no animation wait. The motion path is covered in the nested describe below.
+  // `contextOptions` carries the emulation: Playwright 1.62 has no top-level
+  // `reducedMotion` test option.
+  test.use({ timezoneId: 'UTC', contextOptions: { reducedMotion: 'reduce' } });
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    // Popup and hover transitions settle instantly, so geometry read straight after an
-    // open/render matches the resting layout instead of an animation frame.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/test/timeline-handoff-collapse');
   });
 
@@ -137,6 +123,19 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await expectClosed();
   });
 
+  test('suppresses the dialog enter and exit animation under reduced motion', async ({ page }) => {
+    await triggerFor(page, 'collapse-normal').click();
+
+    const popup = page.getByTestId('timeline-handoff-dialog');
+    await expect(popup).toBeVisible();
+    // Popup only: the backdrop fade is a documented residual of the shared primitive.
+    await expect(popup).toHaveCSS('animation-name', 'none');
+    expect(await popup.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
   test('traps Tab focus inside the dialog', async ({ page }) => {
     await triggerFor(page, 'collapse-normal').click();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -158,7 +157,6 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await trigger.click();
     const popup = page.getByTestId('timeline-handoff-dialog');
     await expect(popup).toBeVisible();
-    await waitForDialogAnimation(popup);
 
     // Desktop 1280x800: max-w-3xl (768px) and max-h 80vh (640px).
     await readBox(popup, (box) => {
@@ -176,7 +174,6 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await trigger.click();
     await expect(popup).toBeVisible();
-    await waitForDialogAnimation(popup);
 
     await readBox(popup, (box) => {
       expect(box.width).toBeGreaterThanOrEqual(359);
@@ -204,7 +201,6 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       const footer = dialog.getByTestId('timeline-message-footer');
 
       await expect(body).toBeVisible();
-      await waitForDialogAnimation(dialog);
       expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
 
       const footerBox = await readBox(footer);
@@ -369,5 +365,20 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
 
     await expect(fixture.getByTestId('timeline-handoff-trigger')).toHaveCount(0);
     await expect(fixture.getByTestId('timeline-message-footer')).toBeVisible();
+  });
+
+  test.describe('with motion allowed', () => {
+    test.use({ contextOptions: { reducedMotion: 'no-preference' } });
+
+    test('animates the dialog in and closes it', async ({ page }) => {
+      await triggerFor(page, 'collapse-normal').click();
+
+      const popup = page.getByTestId('timeline-handoff-dialog');
+      await expect(popup).toBeVisible();
+      await expect(popup).not.toHaveCSS('animation-name', 'none');
+
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    });
   });
 });
