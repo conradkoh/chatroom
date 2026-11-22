@@ -130,6 +130,7 @@ describe('SavedCommandModal component', () => {
       />
     );
 
+    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
@@ -383,6 +384,7 @@ describe('SavedCommandModal component', () => {
       />
     );
 
+    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
     const scopeSelect = screen.getByLabelText(/^scope$/i);
     await user.selectOptions(scopeSelect, 'user');
 
@@ -440,6 +442,7 @@ describe('SavedCommandModal component', () => {
         existingNamesByScope={emptyNamesByScope}
       />
     );
+    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
@@ -461,6 +464,7 @@ describe('SavedCommandModal component', () => {
         existingNamesByScope={emptyNamesByScope}
       />
     );
+    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
@@ -484,6 +488,7 @@ describe('SavedCommandModal component', () => {
         existingNamesByScope={emptyNamesByScope}
       />
     );
+    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
     await user.click(screen.getByRole('button', { name: /save command/i }));
@@ -505,6 +510,7 @@ describe('SavedCommandModal component', () => {
         existingNamesByScope={emptyNamesByScope}
       />
     );
+    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
