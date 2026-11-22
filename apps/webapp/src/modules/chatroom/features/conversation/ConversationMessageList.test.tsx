@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConversationMessageList } from './ConversationMessageList';
 import { AttachmentsProvider } from '../../attachments';
@@ -486,5 +486,211 @@ describe('row re-render behavior', () => {
     // Existing rows keep their event object and index, so only the appended row `d` renders.
     expect([...rowRenderCounts.keys()]).toEqual(['d']);
     expect(markdownRenderMock.mock.calls.map(([content]) => content)).toEqual(['d']);
+  });
+});
+
+describe('jump to top button', () => {
+  const baseMatchMedia = window.matchMedia;
+
+  function renderLongFeed(events = Array.from({ length: 40 }, (_, i) => makeEvent(`msg-${i}`))) {
+    const result = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 0 });
+    return { ...result, list };
+  }
+
+  function scrollList(list: HTMLElement, scrollTop: number) {
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop });
+    fireEvent.scroll(list);
+  }
+
+  function jumpButton() {
+    return document.querySelector('[data-testid="conversation-jump-to-top"]');
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    window.matchMedia = baseMatchMedia;
+  });
+
+  it('hidden after mount', () => {
+    renderLongFeed();
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('hidden after a small upward scroll', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    scrollList(list, 950);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('visible after an 80px upward scroll, focus stays put', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    scrollList(list, 920);
+
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+    expect(button).toBeInTheDocument();
+    expect(document.activeElement).not.toBe(button);
+  });
+
+  it('not shown for an upward scroll that ends at scrollTop <= 200', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 250);
+    scrollList(list, 150);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('not shown on a short feed', () => {
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 400, scrollTop: 0 });
+    fireEvent.scroll(list);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('auto-hides 3000 ms after the last upward move', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    scrollList(list, 920);
+    expect(jumpButton()).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('hides after 40px of downward scroll', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    scrollList(list, 920);
+    expect(jumpButton()).not.toBeNull();
+
+    scrollList(list, 960);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('click scrolls to top smoothly, hides the button, and does not re-show during the smooth scroll', () => {
+    const { list } = renderLongFeed();
+    Object.defineProperty(list, 'scrollTo', { value: vi.fn(), configurable: true });
+    scrollList(list, 1000);
+    scrollList(list, 920);
+
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+    fireEvent.click(button);
+
+    expect(list.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    expect(jumpButton()).toBeNull();
+
+    scrollList(list, 900);
+    scrollList(list, 800);
+    scrollList(list, 700);
+    expect(jumpButton()).toBeNull();
+    expect(document.activeElement).toBe(list);
+  });
+
+  it('click uses instant scroll under reduced motion', () => {
+    const { list } = renderLongFeed();
+    Object.defineProperty(list, 'scrollTo', { value: vi.fn(), configurable: true });
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+
+    scrollList(list, 1000);
+    scrollList(list, 920);
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to top' }));
+
+    expect(list.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
+  });
+
+  it('hover pauses the timer', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    scrollList(list, 920);
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+
+    fireEvent.mouseEnter(button);
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(jumpButton()).not.toBeNull();
+
+    fireEvent.mouseLeave(button);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('focus pauses the timer', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    scrollList(list, 920);
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+
+    fireEvent.focus(button);
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(jumpButton()).not.toBeNull();
+
+    fireEvent.blur(button);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('anchor change hides it', () => {
+    const events = Array.from({ length: 40 }, (_, i) => makeEvent(`msg-${i}`));
+    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 0 });
+    scrollList(list, 1000);
+    scrollList(list, 920);
+    expect(jumpButton()).not.toBeNull();
+
+    rerender(<ConversationMessageList events={events} anchorId="a2" />);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('coexists with the jump-to-new-messages chip', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    scrollList(list, 900);
+
+    const top = document.querySelector(
+      '[data-testid="conversation-jump-to-top"]'
+    ) as HTMLElement | null;
+    const chip = document.querySelector(
+      '[data-testid="conversation-jump-to-new-messages"]'
+    ) as HTMLElement | null;
+
+    expect(top).not.toBeNull();
+    expect(chip).not.toBeNull();
+    expect(chip?.style.zIndex).toBe(top?.style.zIndex);
+    expect(chip?.style.zIndex).toBe(String(JUMP_TO_NEW_MESSAGES_Z_INDEX));
+    expect(chip?.className).toContain('left-1/2');
+    expect(top?.className).toContain('right-3');
+  });
+
+  it('renders neither control for an empty feed', () => {
+    renderList(<ConversationMessageList events={[]} anchorId="a1" />);
+    expect(screen.getByText('No messages yet')).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="conversation-jump-to-top"]')).toBeNull();
+    expect(document.querySelector('[data-testid="conversation-jump-to-new-messages"]')).toBeNull();
   });
 });

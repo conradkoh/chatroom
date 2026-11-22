@@ -5,6 +5,8 @@
 import { ChevronDown } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
+import { ConversationJumpToTopButton } from './ConversationJumpToTopButton';
+import { useJumpToTop } from './hooks/useJumpToTop';
 import { TimelineEventRow } from '../../components/timeline/TimelineEventRow';
 import {
   getTimelineVirtualRowZIndex,
@@ -82,6 +84,17 @@ export function ConversationMessageList({
     if (nearBottom) onLoadMore();
   }, [canLoadMore, isLoadingMore, onLoadMore]);
 
+  const {
+    isVisible: isJumpToTopVisible,
+    jumpToTop,
+    pause: pauseJumpToTop,
+    resume: resumeJumpToTop,
+  } = useJumpToTop({
+    containerRef,
+    enabled: events.length > 0,
+    resetKey: anchorId,
+  });
+
   // Anchor change → scroll to top + sync pin (dispatch scroll so controller unpins)
   useEffect(() => {
     const el = containerRef.current;
@@ -124,7 +137,8 @@ export function ConversationMessageList({
       <div
         ref={containerRefCallback}
         onScroll={handleScroll}
-        className={`relative z-0 flex-1 ${TIMELINE_SCROLL_CONTAINER}`}
+        tabIndex={-1}
+        className={`relative z-0 flex-1 focus:outline-none ${TIMELINE_SCROLL_CONTAINER}`}
         style={TIMELINE_SCROLL_CONTAINER_STYLE}
         data-testid="conversation-message-list"
       >
@@ -150,6 +164,14 @@ export function ConversationMessageList({
           <ChevronDown size={16} />
           <span className="text-xs font-medium">Jump to new messages</span>
         </button>
+      )}
+
+      {isJumpToTopVisible && (
+        <ConversationJumpToTopButton
+          onClick={jumpToTop}
+          onPause={pauseJumpToTop}
+          onResume={resumeJumpToTop}
+        />
       )}
     </div>
   );

@@ -70,6 +70,15 @@ export const JUMP_TO_NEW_MESSAGES_GAP_PX = 8;
  */
 export const JUMP_TO_NEW_MESSAGES_Z_INDEX = 20;
 
+/** Accumulated upward scroll (px) before the jump-to-top button appears. */
+export const JUMP_TO_TOP_SHOW_UP_DISTANCE_PX = 80;
+/** Accumulated downward scroll (px) that dismisses the jump-to-top button. */
+export const JUMP_TO_TOP_HIDE_DOWN_DISTANCE_PX = 40;
+/** scrollTop at or below this counts as near the top: the button never shows there and hides. */
+export const JUMP_TO_TOP_NEAR_TOP_PX = 200;
+/** How long the jump-to-top button stays after the last upward scroll movement. */
+export const JUMP_TO_TOP_VISIBLE_MS = 3000;
+
 /** Bottom CSS px offset so the chip sits above the measured footer chrome. */
 export function jumpToNewMessagesBottomOffset(
   footerChromeHeightPx: number,
