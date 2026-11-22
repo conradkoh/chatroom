@@ -67,6 +67,10 @@ export async function startDaemon(): Promise<void> {
   });
 
   const localWebPort = resolveLocalWebPort();
+  // Snapshot = the harness/model of the agent running in this role's slot. An ambiguous
+  // lookup (the role has slots in several working directories and no workingDir is passed)
+  // returns undefined, so that handoff carries no snapshot. See
+  // memory/architecture/handoff-sender-agent.md ("Known limits").
   const cliGateway = createCliGatewayService({
     backend: init.backend,
     port: localWebPort,

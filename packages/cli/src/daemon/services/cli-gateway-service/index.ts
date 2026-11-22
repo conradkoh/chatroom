@@ -1,3 +1,5 @@
+import type { SenderAgentInput } from '@workspace/backend/src/domain/entities/sender-agent.js';
+
 import { api } from '../../../api.js';
 import type { HandoffGatewayOps, HandoffResult } from '../../../commands/handoff/deps.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
@@ -6,8 +8,11 @@ import type { TaskService } from '../service-interfaces.js';
 
 export type CliGatewayLog = { timestamp: number; message: string };
 
-/** Live harness/model of the sending agent, captured by the daemon at handoff time. */
-export type SenderAgentSnapshot = { harness: string; model?: string | undefined };
+/**
+ * Live harness/model of the sending agent, captured by the daemon at handoff time.
+ * Same shape the backend accepts: reuses the backend's lenient input type.
+ */
+export type SenderAgentSnapshot = SenderAgentInput;
 
 type HandoffArgs = Parameters<HandoffGatewayOps['handoff']>[0];
 /** What the gateway commits to the backend: the CLI args plus the daemon-owned snapshot. */
@@ -116,7 +121,56 @@ function getActiveTaskIdsForRole(
   );
 }
 
-/** Runs the backend handoff mutation, logging and rethrowing on failure. */
+/** Message of a thrown value, for logs. */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * True when Convex rejected the call because the backend's `messages.handoff`
+ * validator has no `senderAgent` field (a backend older than this CLI).
+ */
+function isUnknownSenderAgentArgError(error: unknown): boolean {
+  const message = errorMessage(error);
+  return (
+    message.includes('senderAgent') &&
+    /extra field|not in the validator|ArgumentValidationError/.test(message)
+  );
+}
+
+/** True when a failed handoff should be retried without the daemon-owned snapshot. */
+function shouldRetryWithoutSnapshot(args: CommitHandoffArgs, error: unknown): boolean {
+  return Boolean(args.senderAgent) && isUnknownSenderAgentArgError(error);
+}
+
+/**
+ * Retries the handoff without the daemon-owned snapshot, logging and rethrowing on failure.
+ * Convex validates arguments before the handler runs, so the rejected first call wrote
+ * nothing and this retry cannot duplicate a handoff.
+ */
+async function retryHandoffWithoutSnapshot(
+  deps: { backend: BackendOps },
+  args: CommitHandoffArgs,
+  firstError: unknown,
+  writeLog: (message: string) => void
+): Promise<HandoffResult> {
+  writeLog(
+    `sender-agent fallback chatroom=${args.chatroomId} role=${args.senderRole} error=${errorMessage(firstError)}`
+  );
+  const { senderAgent: _snapshot, ...withoutSnapshot } = args;
+  try {
+    return (await deps.backend.mutation(api.messages.handoff, withoutSnapshot)) as HandoffResult;
+  } catch (retryError) {
+    writeLog(`backend failure=${errorMessage(retryError)}`);
+    throw retryError;
+  }
+}
+
+/**
+ * Runs the backend handoff mutation, logging and rethrowing on failure.
+ * If the backend rejects only the daemon-owned `senderAgent` argument, retries once
+ * without it so the handoff still commits.
+ */
 async function commitHandoffMutation(
   deps: { backend: BackendOps },
   args: CommitHandoffArgs,
@@ -125,8 +179,11 @@ async function commitHandoffMutation(
   try {
     return (await deps.backend.mutation(api.messages.handoff, args)) as HandoffResult;
   } catch (error) {
-    writeLog(`backend failure=${error instanceof Error ? error.message : String(error)}`);
-    throw error;
+    if (!shouldRetryWithoutSnapshot(args, error)) {
+      writeLog(`backend failure=${errorMessage(error)}`);
+      throw error;
+    }
+    return await retryHandoffWithoutSnapshot(deps, args, error, writeLog);
   }
 }
 

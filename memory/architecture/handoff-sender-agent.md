@@ -39,3 +39,22 @@ captured when the handoff is emitted and never refreshed.
    and the accessible description cannot disagree.
 7. **CLI parity.** `chatroom messages download` includes the same snapshot in
    its handoff output, so scripts and the webapp read one backend field.
+
+## Known limits and fallbacks
+
+- **Model source.** `slot.model` is the model the agent was configured or launched with.
+  A harness that switches models mid-session is not reflected: the snapshot records the
+  configured model, not a live switch.
+- **Ambiguous slot lookup.** The daemon resolves the snapshot with
+  `getSlot(chatroomId, role)` and no working directory. When the role has slots in more
+  than one working directory the lookup is ambiguous, returns nothing, and the handoff is
+  stored with no snapshot (no chip). Legacy and unambiguous cases are unaffected.
+- **Backend skew.** If the backend rejects the call because `senderAgent` is an unknown
+  argument (a backend older than the CLI), the daemon retries the handoff once without the
+  snapshot and logs `sender-agent fallback`. A snapshot never causes a handoff to fail.
+- **Model normalization.** The model is trimmed, then rejected if it contains any Unicode
+  control character, U+2028, U+2029, or `|` (the linear header delimiter). Internal
+  whitespace runs collapse to one space. Over 200 characters after collapsing is dropped.
+  A rejected model drops only the model.
+- **Linear profile only.** The `| harness=… model=…` suffix is printed only by the `linear`
+  download profile. `context-xml` and `task-origin` omit the snapshot by design.

@@ -339,6 +339,107 @@ describe('sender agent snapshot', () => {
       '[CliGateway:sender-agent unavailable chatroom=room-1 role=planner error=resolver down]'
     );
   });
+
+  test('retries once without senderAgent when the backend rejects only that argument', async () => {
+    const rejection =
+      'ArgumentValidationError: Object contains extra field `senderAgent` that is not in the validator.';
+    const mutation = vi
+      .fn()
+      .mockRejectedValueOnce(new Error(rejection))
+      .mockResolvedValueOnce({ success: true, newTaskId: null });
+    const logs: string[] = [];
+    const service = createCliGatewayService({
+      backend: { mutation } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => []),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(async () => undefined),
+      },
+      resolveSenderAgent: () => claude,
+      log: (line) => logs.push(line),
+    });
+
+    await expect(service.handoff({ ...args, targetRole: 'user' })).resolves.toMatchObject({
+      success: true,
+    });
+
+    expect(mutation).toHaveBeenCalledTimes(2);
+    expect(mutation.mock.calls[0]?.[1]).toMatchObject({ senderAgent: claude });
+    expect(mutation.mock.calls[1]?.[1]).toMatchObject({
+      chatroomId: 'room-1',
+      senderRole: 'planner',
+      targetRole: 'user',
+    });
+    expect(mutation.mock.calls[1]?.[1]).not.toHaveProperty('senderAgent');
+    expect(logs).toContain(
+      `[CliGateway:sender-agent fallback chatroom=room-1 role=planner error=${rejection}]`
+    );
+  });
+
+  test('does not retry when the backend fails for a reason other than senderAgent', async () => {
+    const error = new Error('backend unavailable');
+    const mutation = vi.fn(async (_endpoint: unknown, _args: unknown) => Promise.reject(error));
+    const service = createCliGatewayService({
+      backend: { mutation } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => []),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(async () => undefined),
+      },
+      resolveSenderAgent: () => claude,
+      log: () => undefined,
+    });
+
+    await expect(service.handoff({ ...args, targetRole: 'user' })).rejects.toBe(error);
+    expect(mutation).toHaveBeenCalledTimes(1);
+  });
+
+  test('rethrows the retry failure when the backend still rejects without the snapshot', async () => {
+    const mutation = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('extra field `senderAgent` that is not in the validator'))
+      .mockRejectedValueOnce(new Error('backend still broken'));
+    const service = createCliGatewayService({
+      backend: { mutation } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => []),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(async () => undefined),
+      },
+      resolveSenderAgent: () => claude,
+      log: () => undefined,
+    });
+
+    await expect(service.handoff({ ...args, targetRole: 'user' })).rejects.toThrow(
+      'backend still broken'
+    );
+    expect(mutation).toHaveBeenCalledTimes(2);
+  });
+
+  test('sends the snapshot resolved for the claimed sender role, never a client-supplied one', async () => {
+    const resolveSenderAgent = vi.fn((_chatroomId: string, role: string) =>
+      role === 'builder' ? { harness: 'codex-sdk', model: 'gpt-5-codex' } : claude
+    );
+    const { service, mutation } = createService({ success: true, newTaskId: null }, [], {
+      resolveSenderAgent,
+    });
+
+    await service.handoff({
+      ...args,
+      senderRole: 'builder',
+      targetRole: 'user',
+      senderAgent: claude,
+    } as never);
+
+    expect(resolveSenderAgent).toHaveBeenCalledWith('room-1', 'builder');
+    expect(mutation.mock.calls[0]?.[1]).toMatchObject({
+      senderRole: 'builder',
+      senderAgent: { harness: 'codex-sdk', model: 'gpt-5-codex' },
+    });
+  });
 });
 
 describe('snapshotSenderAgent', () => {
