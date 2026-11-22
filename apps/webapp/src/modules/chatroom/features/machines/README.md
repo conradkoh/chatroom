@@ -148,7 +148,7 @@ is disabled with `Machine is offline`, `Checking machine…` or `Loading reposit
 pending (`Creating chatrooms…`), summary (`Created · Skipped · Failed`, the skipped line, `N
 repositories still have no chatroom.`, `Done`, and a next-batch button while work remains) and
 error (`Could not create chatrooms`, `Close`, `Try again`), with failures listed under `Failed
-(N)`. The cumulative summary stays inline and closes only on `Done`; no toast is shown.
+(N)`. The cumulative summary stays inline and closes only on `Done`.
 Repositories that already have a chatroom are skipped and no agent is started. The UI disables
 create while the machine is offline; the backend itself does not require it. On mobile the dialog
 stays inside the viewport and rows keep their fixed height, truncating text.
