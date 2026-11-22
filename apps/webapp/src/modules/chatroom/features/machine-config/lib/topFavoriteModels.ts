@@ -30,7 +30,7 @@ export function resolveTopFavoritePerRole(
   });
 }
 
-/** User-facing toast for an apply result. */
+/** Inline feedback copy for an apply result, rendered next to the control that ran the apply. */
 export function describeApplyTopFavoritesResult(
   result: ApplyTopFavoritesResult
 ): ApplyTopFavoritesFeedback {

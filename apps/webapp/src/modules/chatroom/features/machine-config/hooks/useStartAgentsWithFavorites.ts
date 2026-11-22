@@ -54,7 +54,7 @@ export interface StartWithFavoritesDialogProps {
 export interface UseStartAgentsWithFavoritesOptions {
   chatroomId: string;
   /**
-   * The caller's start action, including its user-facing error toasts; the caller owns those toasts.
+   * The caller's start action, including its user-facing error feedback; the caller owns that feedback.
    * Resolves when the start request has finished. If it rejects, the controller catches and logs the
    * error once and always returns the flow to `idle`, so no path produces an unhandled rejection.
    */
@@ -281,7 +281,7 @@ export function useStartAgentsWithFavorites({
       try {
         await startRef.current({ appliedCount: count });
       } catch (error) {
-        // The caller owns user-facing error toasts. The controller only logs, so a rejected start never escapes as an unhandled rejection.
+        // The caller owns user-facing error feedback. The controller only logs, so a rejected start never escapes as an unhandled rejection.
         console.error('Start-all request failed; the start flow returned to idle.', error);
       } finally {
         setStartedFromDialog(false);
