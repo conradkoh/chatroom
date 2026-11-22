@@ -6,7 +6,6 @@ import { usePaginatedQuery, type PaginatedQueryReference } from 'convex/react';
 import { useSessionId, useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { AlertTriangle, Loader2, RotateCw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
 import { FileManagerList } from './FileManagerList';
 import { PurgeFilesDialog } from './PurgeFilesDialog';
@@ -161,10 +160,6 @@ function scopeLabelOf(scope: FileStorageScope): 'this chatroom' | 'your account'
   return scope.kind === 'user' ? 'your account' : 'this chatroom';
 }
 
-function deletedCopy(count: number): string {
-  return count === 1 ? 'Deleted 1 file' : `Deleted ${count} files`;
-}
-
 function purgeWatchArgs(
   activePurge: ActivePurge | null,
   sessionId: string | undefined,
@@ -190,8 +185,8 @@ function purgeDrained(activePurge: ActivePurge | null, status: string, results: 
 
 /**
  * Watches the largest remaining file. Once nothing is left at or above the
- * threshold the server-side continuation has drained the purge, so the banner
- * clears and the user gets a final toast.
+ * threshold the server-side continuation has drained the purge, so the progress
+ * banner clears without a separate message.
  */
 function usePurgeCompletion(
   activePurge: ActivePurge | null,
@@ -286,11 +281,8 @@ function usePurgedHandler(
 ) {
   return useCallback(
     (result: { deleted: number; continuing: boolean }) => {
-      if (result.continuing) {
-        setActivePurge({ minSizeBytes: purgeMinSize, deletedSoFar: result.deleted });
-        return;
-      }
-      toast.success(deletedCopy(result.deleted));
+      if (!result.continuing) return;
+      setActivePurge({ minSizeBytes: purgeMinSize, deletedSoFar: result.deleted });
     },
     [purgeMinSize, setActivePurge]
   );
@@ -306,7 +298,6 @@ function StoragePanelContent({ scope }: { scope: FileStorageScope }) {
   const chatroomId = chatroomIdOf(scope);
 
   const finishPurge = useCallback(() => {
-    toast.success('Purge finished');
     setActivePurge(null);
   }, []);
 

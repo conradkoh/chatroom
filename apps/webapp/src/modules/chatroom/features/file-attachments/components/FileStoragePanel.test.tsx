@@ -346,7 +346,7 @@ describe('FileStoragePanel', () => {
     expect(screen.getByTestId('file-attachment-row').textContent).toContain('file-1.png');
   });
 
-  it('shows the purge-in-progress banner and clears to a finished toast reactively', async () => {
+  it('shows the purge-in-progress banner and clears it reactively without a message', async () => {
     mocks.listFiles.mockReturnValue(
       paginationState([makeFile(1, 2 * MB), makeFile(2, 2 * MB), makeFile(3, 2 * MB)], 'Exhausted')
     );
@@ -370,8 +370,9 @@ describe('FileStoragePanel', () => {
     rerender(<FileStoragePanel scope={{ kind: 'user' }} />);
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Purge finished');
+      expect(screen.queryByText(/Purge in progress/)).not.toBeInTheDocument();
     });
-    expect(screen.queryByText(/Purge in progress/)).not.toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
