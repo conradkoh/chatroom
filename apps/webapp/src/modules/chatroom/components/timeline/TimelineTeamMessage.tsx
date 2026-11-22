@@ -1,14 +1,13 @@
 'use client';
 
-import { ArrowRight, ArrowRightLeft, ChevronRight, Info } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { memo, useCallback, useId, useMemo, useState } from 'react';
 
+import { TimelineFileAttachments } from './TimelineFileAttachments';
 import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessageFooter';
 import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
+import { TimelineMessageRoute, TimelineMessageTypeBadge } from './TimelineMessageIdentity';
 import {
-  BADGE_BASE,
-  getSenderClasses,
-  ICON_SIZE,
   TIMELINE_HANDOFF_CHEVRON,
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_META,
@@ -23,7 +22,6 @@ import {
 } from './timelineRowStyles';
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
 import { MessageAttachmentChips } from '../../attachments';
-import { MessageFileAttachments } from '../../features/file-attachments/components/MessageFileAttachments';
 import { getHandoffPreviewText } from '../../timeline/handoffPreview';
 import type { Message } from '../../types/message';
 
@@ -150,42 +148,6 @@ function TimelineHandoffToggle({
   );
 }
 
-function getMessageTypeBadge(type: string) {
-  if (type === 'handoff') {
-    return {
-      className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
-      label: 'handoff',
-      icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
-    };
-  }
-  if (type === 'notice') {
-    return {
-      className: `${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`,
-      label: 'notice',
-      icon: <Info size={ICON_SIZE} className="flex-shrink-0" aria-hidden="true" />,
-    };
-  }
-  return null;
-}
-
-/** File attachments for a handoff; the wrapper owns spacing and the null case. */
-function TimelineFileAttachments({
-  files,
-  showMedia,
-  className,
-}: {
-  files: Message['attachedFiles'];
-  showMedia: boolean;
-  className?: string;
-}) {
-  if (!files?.length) return null;
-  return (
-    <div className={className}>
-      <MessageFileAttachments files={files} showMedia={showMedia} />
-    </div>
-  );
-}
-
 /**
  * The single header row shared by expanded and collapsed states. Keeping one
  * component guarantees identical nav, identity attributes, and layout in both.
@@ -204,8 +166,6 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
   headerNavigation?: TimelineMessageHeaderNavigation;
   flush?: boolean;
 }) {
-  const messageTypeBadge = getMessageTypeBadge(message.type);
-
   return (
     <div
       className={cn(
@@ -218,27 +178,15 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
       data-testid="timeline-message-header"
     >
       <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 justify-self-start">
-        {messageTypeBadge && (
-          <span className={messageTypeBadge.className}>
-            {messageTypeBadge.icon}
-            {messageTypeBadge.label}
-          </span>
-        )}
+        <TimelineMessageTypeBadge type={message.type} />
       </div>
       {headerNavigation && <TimelineMessageHeaderNav {...headerNavigation} />}
       <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 justify-self-end">
-        <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
-        {message.sourcePlatform === 'telegram' && (
-          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-tertiary rounded">
-            Telegram
-          </span>
-        )}
-        {message.targetRole && (
-          <>
-            <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
-            <span className={getSenderClasses(message.targetRole)}>{message.targetRole}</span>
-          </>
-        )}
+        <TimelineMessageRoute
+          senderRole={message.senderRole}
+          targetRole={message.targetRole}
+          sourcePlatform={message.sourcePlatform}
+        />
       </div>
     </div>
   );
