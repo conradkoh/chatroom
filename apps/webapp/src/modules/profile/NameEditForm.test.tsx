@@ -231,6 +231,26 @@ describe('NameEditForm Google disconnect feedback', () => {
     expect(within(dialog).getByRole('button', { name: 'Disconnect' })).toBeEnabled();
   });
 
+  it('ignores Escape while disconnecting, then shows the late failure inside the open dialog', async () => {
+    const pending = deferred<void>();
+    mocks.user = googleUser;
+    mocks.disconnectGoogle.mockReturnValueOnce(pending.promise);
+    render(<NameEditForm />);
+    const user = userEvent.setup();
+    const dialog = await openDisconnectDialog(user);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Disconnect' }));
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+
+    pending.reject(new Error('boom'));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Failed to disconnect Google account'
+    );
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
   it('clears the disconnect alert when the action is retried, then closes with no alert on success', async () => {
     const second = deferred<void>();
     mocks.user = googleUser;

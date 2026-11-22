@@ -211,8 +211,9 @@ export function NameEditForm() {
     }
   }, [disconnectDialog.providerId, disconnectGoogle]);
 
-  // Close disconnect dialog
+  // Close disconnect dialog. Ignored while disconnecting so a late failure lands in a dialog that is still open.
   const closeDisconnectDialog = useCallback(() => {
+    if (disconnectDialog.isDisconnecting) return;
     setDisconnectError(null);
     setDisconnectDialog({
       isOpen: false,
@@ -220,7 +221,7 @@ export function NameEditForm() {
       providerName: '',
       isDisconnecting: false,
     });
-  }, []);
+  }, [disconnectDialog.isDisconnecting]);
 
   // Memoized Google provider info
   const googleProvider = useMemo(
