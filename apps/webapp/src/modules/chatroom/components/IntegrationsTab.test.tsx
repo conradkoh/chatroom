@@ -247,7 +247,7 @@ describe('IntegrationsTab', () => {
       expect(await screen.findByLabelText(/Name/)).toHaveValue('Team alerts');
     });
 
-    it('closes on connect, toasts once and highlights the new row', async () => {
+    it('closes on connect, shows the connect hint on the new row and highlights it', async () => {
       let rows: ReturnType<typeof makeIntegration>[] = [];
       mocks.list.mockImplementation(() => rows);
       mocks.validateBotToken.mockResolvedValue({
@@ -286,10 +286,9 @@ describe('IntegrationsTab', () => {
         config: { botToken: '123456:secret', chatId: TELEGRAM_CHAT_ID },
         enabled: true,
       });
-      expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
-      expect(mocks.toastSuccess).toHaveBeenCalledWith('Telegram connected', {
-        description: 'Use Test on the new row to send a message.',
-      });
+      expect(
+        screen.getByText('Telegram connected. Use Test on the new row to send a message.')
+      ).toBeInTheDocument();
 
       expect(screen.queryByText('Telegram connected!')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();

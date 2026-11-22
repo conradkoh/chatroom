@@ -79,17 +79,17 @@ export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: Int
 
   const [showWizard, setShowWizard] = useState(false);
   const [highlightId, setHighlightId] = useState<Id<'chatroom_integrations'> | null>(null);
+  // Persistent connect hint. Shown under the connected row until another
+  // integration connects (replaces this value) or that row unmounts.
+  const [connectedId, setConnectedId] = useState<Id<'chatroom_integrations'> | null>(null);
 
   const hasIntegrations = integrations && integrations.length > 0;
 
-  // On connect the wizard unmounts; the toast and a short-lived row highlight
-  // replace the old "done" step's job of confirming what just happened.
+  // On connect the wizard unmounts; the row highlight is transient, the hint is not.
   const handleConnected = useCallback((integrationId: Id<'chatroom_integrations'>) => {
     setShowWizard(false);
     setHighlightId(integrationId);
-    toast.success('Telegram connected', {
-      description: 'Use Test on the new row to send a message.',
-    });
+    setConnectedId(integrationId);
   }, []);
 
   useEffect(() => {
@@ -145,6 +145,7 @@ export const IntegrationsTab = memo(function IntegrationsTab({ chatroomId }: Int
               integration={integration}
               chatroomId={chatroomId}
               isHighlighted={integration._id === highlightId}
+              showConnectHint={integration._id === connectedId}
             />
           ))}
         </div>
@@ -186,10 +187,12 @@ const IntegrationCard = memo(function IntegrationCard({
   integration,
   chatroomId,
   isHighlighted,
+  showConnectHint,
 }: {
   integration: IntegrationListItem;
   chatroomId: string;
   isHighlighted: boolean;
+  showConnectHint: boolean;
 }) {
   const updateIntegration = useSessionMutation(api.integrations.update);
   const removeIntegration = useSessionMutation(api.integrations.remove);
@@ -449,6 +452,15 @@ const IntegrationCard = memo(function IntegrationCard({
           </div>
         </div>
       </div>
+
+      {showConnectHint && (
+        <p
+          role="status"
+          className="border-t border-chatroom-border px-4 py-2 text-xs text-chatroom-status-success"
+        >
+          {platformName} connected. Use Test on the new row to send a message.
+        </p>
+      )}
 
       {/* Test Message Dialog */}
       {activePanel === 'test' && (
