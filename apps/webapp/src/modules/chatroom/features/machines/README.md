@@ -148,10 +148,10 @@ is disabled with `Machine is offline`, `Checking machine…` or `Loading reposit
 pending (`Creating chatrooms…`), summary (`Created · Skipped · Failed`, the skipped line, `N
 repositories still have no chatroom.`, `Done`, and a next-batch button while work remains) and
 error (`Could not create chatrooms`, `Close`, `Try again`), with failures listed under `Failed
-(N)`. Closing the dialog toasts the cumulative result. Repositories that already have a chatroom
-are skipped and no agent is started. The UI disables create while the machine is offline; the
-backend itself does not require it. On mobile the dialog stays inside the viewport and rows keep
-their fixed height, truncating text.
+(N)`. The cumulative summary stays inline and closes only on `Done`; no toast is shown.
+Repositories that already have a chatroom are skipped and no agent is started. The UI disables
+create while the machine is offline; the backend itself does not require it. On mobile the dialog
+stays inside the viewport and rows keep their fixed height, truncating text.
 
 ## Delete flow
 
@@ -169,7 +169,7 @@ re-checks ownership and offline status. `DeleteMachineDialog` maps the failures:
 | Error code          | UI                                                                 |
 | ------------------- | ------------------------------------------------------------------ |
 | `MACHINE_ONLINE`    | Switches the open dialog to the blocked variant.                   |
-| `MACHINE_NOT_FOUND` | Closes the dialog and shows a toast.                               |
+| `MACHINE_NOT_FOUND` | Keeps the dialog open with inline copy from `machineErrorCopy.ts`. |
 | anything else       | Keeps the dialog open with inline copy from `machineErrorCopy.ts`. |
 
 Backend invariants (tombstone-first deletion, the `MACHINE_SCOPED_TABLES` registry rule, purge
