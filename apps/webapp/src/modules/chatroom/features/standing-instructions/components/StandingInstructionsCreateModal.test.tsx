@@ -107,7 +107,7 @@ describe('StandingInstructionsCreateModal', () => {
     await user.click(screen.getByText('Confirm'));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Failed to update standing instruction. Please try again.'
+      'Failed to save standing instruction.'
     );
     expect(screen.getByText('Create standing instruction')).toBeInTheDocument();
   });
