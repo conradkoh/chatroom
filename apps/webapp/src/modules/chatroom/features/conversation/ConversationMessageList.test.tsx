@@ -504,6 +504,16 @@ describe('jump to top button', () => {
     fireEvent.scroll(list);
   }
 
+  function userScrollList(
+    list: HTMLElement,
+    scrollTop: number,
+    via: 'wheel' | 'keydown' = 'wheel'
+  ) {
+    if (via === 'wheel') fireEvent.wheel(list);
+    else fireEvent.keyDown(list, { key: 'ArrowUp' });
+    scrollList(list, scrollTop);
+  }
+
   function jumpButton() {
     return document.querySelector('[data-testid="conversation-jump-to-top"]');
   }
@@ -525,14 +535,14 @@ describe('jump to top button', () => {
   it('hidden after a small upward scroll', () => {
     const { list } = renderLongFeed();
     scrollList(list, 1000);
-    scrollList(list, 950);
+    userScrollList(list, 950);
     expect(jumpButton()).toBeNull();
   });
 
   it('visible after an 80px upward scroll, focus stays put', () => {
     const { list } = renderLongFeed();
     scrollList(list, 1000);
-    scrollList(list, 920);
+    userScrollList(list, 920);
 
     const button = screen.getByRole('button', { name: 'Jump to top' });
     expect(button).toBeInTheDocument();
@@ -542,22 +552,24 @@ describe('jump to top button', () => {
   it('not shown for an upward scroll that ends at scrollTop <= 200', () => {
     const { list } = renderLongFeed();
     scrollList(list, 250);
-    scrollList(list, 150);
+    userScrollList(list, 150);
     expect(jumpButton()).toBeNull();
   });
 
-  it('not shown on a short feed', () => {
-    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
-    const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
+  it('a feed that shrinks to non-scrollable never shows the button', () => {
+    const { list, rerender } = renderLongFeed(); // 40 events, scrollHeight 3000
+    scrollList(list, 1000); // lastTop 1000, no user input
+    rerender(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 400, scrollTop: 0 });
-    fireEvent.scroll(list);
+    fireEvent.wheel(list);
+    fireEvent.scroll(list); // clamp to 0 after the user's wheel
     expect(jumpButton()).toBeNull();
   });
 
   it('auto-hides 3000 ms after the last upward move', () => {
     const { list } = renderLongFeed();
     scrollList(list, 1000);
-    scrollList(list, 920);
+    userScrollList(list, 920);
     expect(jumpButton()).not.toBeNull();
 
     act(() => {
@@ -569,7 +581,7 @@ describe('jump to top button', () => {
   it('hides after 40px of downward scroll', () => {
     const { list } = renderLongFeed();
     scrollList(list, 1000);
-    scrollList(list, 920);
+    userScrollList(list, 920);
     expect(jumpButton()).not.toBeNull();
 
     scrollList(list, 960);
@@ -580,7 +592,7 @@ describe('jump to top button', () => {
     const { list } = renderLongFeed();
     Object.defineProperty(list, 'scrollTo', { value: vi.fn(), configurable: true });
     scrollList(list, 1000);
-    scrollList(list, 920);
+    userScrollList(list, 920);
 
     const button = screen.getByRole('button', { name: 'Jump to top' });
     fireEvent.click(button);
@@ -610,7 +622,7 @@ describe('jump to top button', () => {
     })) as unknown as typeof window.matchMedia;
 
     scrollList(list, 1000);
-    scrollList(list, 920);
+    userScrollList(list, 920);
     fireEvent.click(screen.getByRole('button', { name: 'Jump to top' }));
 
     expect(list.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
@@ -619,7 +631,7 @@ describe('jump to top button', () => {
   it('hover pauses the timer', () => {
     const { list } = renderLongFeed();
     scrollList(list, 1000);
-    scrollList(list, 920);
+    userScrollList(list, 920);
     const button = screen.getByRole('button', { name: 'Jump to top' });
 
     fireEvent.mouseEnter(button);
@@ -638,7 +650,7 @@ describe('jump to top button', () => {
   it('focus pauses the timer', () => {
     const { list } = renderLongFeed();
     scrollList(list, 1000);
-    scrollList(list, 920);
+    userScrollList(list, 920);
     const button = screen.getByRole('button', { name: 'Jump to top' });
 
     fireEvent.focus(button);
@@ -654,23 +666,89 @@ describe('jump to top button', () => {
     expect(jumpButton()).toBeNull();
   });
 
+  it('focus and hover holds are independent, so leaving with the mouse keeps the focused button', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    const button = screen.getByRole('button', { name: 'Jump to top' });
+
+    fireEvent.focus(button);
+    fireEvent.mouseEnter(button);
+    fireEvent.mouseLeave(button);
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(jumpButton()).not.toBeNull();
+
+    fireEvent.blur(button);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('keyboard input releases suppression after a click', () => {
+    const { list } = renderLongFeed();
+    Object.defineProperty(list, 'scrollTo', { value: vi.fn(), configurable: true });
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to top' }));
+    expect(jumpButton()).toBeNull();
+
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    userScrollList(list, 900, 'keydown');
+    userScrollList(list, 800, 'keydown');
+    expect(jumpButton()).not.toBeNull();
+  });
+
   it('anchor change hides it', () => {
     const events = Array.from({ length: 40 }, (_, i) => makeEvent(`msg-${i}`));
     const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
     const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 0 });
     scrollList(list, 1000);
-    scrollList(list, 920);
+    userScrollList(list, 920);
     expect(jumpButton()).not.toBeNull();
 
+    // The list's anchor effect writes scrollTop = 0; pin it so that write cannot move the
+    // position and the hide can only come from the hook's resetKey effect.
+    Object.defineProperty(list, 'scrollTop', {
+      get: () => 920,
+      set: () => {},
+      configurable: true,
+    });
     rerender(<ConversationMessageList events={events} anchorId="a2" />);
+    expect(jumpButton()).toBeNull();
+  });
+
+  it('Jump to new messages hides the button', () => {
+    const { list } = renderLongFeed();
+    scrollList(list, 1000);
+    userScrollList(list, 920);
+    expect(jumpButton()).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(200); // let the scroll controller mark the feed unpinned
+    });
+
+    Object.defineProperty(list, 'scrollTo', {
+      value: vi.fn(() => {
+        setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 3000 });
+        fireEvent.scroll(list);
+      }),
+      configurable: true,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to new messages' }));
     expect(jumpButton()).toBeNull();
   });
 
   it('coexists with the jump-to-new-messages chip', () => {
     const { list } = renderLongFeed();
     scrollList(list, 1000);
-    scrollList(list, 900);
+    userScrollList(list, 900);
+    act(() => {
+      vi.advanceTimersByTime(200); // let the scroll controller mark the feed unpinned
+    });
 
     const top = document.querySelector(
       '[data-testid="conversation-jump-to-top"]'
