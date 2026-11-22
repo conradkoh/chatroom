@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimelineTeamMessage } from './TimelineTeamMessage';
@@ -74,7 +75,7 @@ vi.mock('../../attachments', async (importOriginal) => {
 });
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: () => undefined,
+  useSessionQuery: vi.fn(() => undefined),
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
@@ -133,6 +134,7 @@ beforeEach(() => {
   vi.mocked(hasHandoffReport).mockClear();
   vi.mocked(getHandoffPreviewText).mockClear();
   scrollIntoViewMock.mockClear();
+  vi.mocked(useSessionQuery).mockImplementation(() => undefined);
 });
 
 // Exact prod handoff shape whose inline code contains HTML-like text.
@@ -505,6 +507,7 @@ Edge case X
       openDialog();
 
       const dialog = screen.getByRole('dialog', { name: 'Full handoff from planner' });
+      expect(dialog).toHaveAccessibleDescription(/Sent .*Time since previous message/);
       expect(within(dialog).getByTestId('timeline-handoff-dialog-body')).toBeInTheDocument();
       expect(within(dialog).getByTestId('timeline-message-footer')).toBeInTheDocument();
       expect(within(dialog).getByTestId('timeline-markdown-body')).toHaveTextContent(
@@ -781,6 +784,26 @@ Edge case X
       expect(screen.getByTestId('message-file-attachments')).toBeInTheDocument();
       expect(screen.getByText('shot.png')).toBeInTheDocument();
       expect(screen.queryByAltText('shot.png')).not.toBeInTheDocument();
+    });
+
+    it('shows the image in the dialog but not on the bar, because the row passes showMedia only to the dialog', () => {
+      const url = 'https://files.example/shot.png';
+      vi.mocked(useSessionQuery).mockImplementation(() => [{ attachmentId: 'attachment-1', url }]);
+      render(
+        collapsible({
+          ...COLLAPSIBLE_HANDOFF,
+          attachedFiles: FILE_ATTACHMENT_MESSAGE.attachedFiles,
+        })
+      );
+
+      const row = screen.getByTestId('timeline-team-message');
+      expect(within(row).getByText('shot.png')).toBeInTheDocument();
+      expect(within(row).queryByAltText('shot.png')).not.toBeInTheDocument();
+
+      openDialog();
+
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByAltText('shot.png')).toHaveAttribute('src', url);
     });
 
     it('drops the header margin for collapsible rows and keeps eager rows unchanged', () => {
