@@ -65,7 +65,7 @@ describe('ConversationJumpToTopButton', () => {
 
     /** Any Tailwind palette colour utility that is not a chatroom token, or a raw colour literal. */
     const HARD_CODED_COLOUR =
-      /\b(?:bg|text|border|ring|fill|stroke|from|via|to|shadow|outline|decoration)-(?!chatroom-|offset-)(?:[a-z]+-\d{2,3}(?:\/\d+)?|white|black|transparent)\b|#[0-9a-fA-F]{3,8}\b|\brgba?\(|\b(?:oklch|hsl)\(/;
+      /\b(?:bg|text|border|ring(?:-offset)?|fill|stroke|from|via|to|shadow|outline|decoration)-(?!chatroom-)(?:[a-z]+-\d{2,3}(?:\/\d+)?|white|black|transparent)\b|#[0-9a-fA-F]{3,8}\b|\brgba?\(|\b(?:oklch|hsl)\(/;
 
     expect(className).not.toMatch(HARD_CODED_COLOUR);
     // the pattern itself must catch palette and raw colours (guards against a regex that matches nothing):
@@ -73,6 +73,9 @@ describe('ConversationJumpToTopButton', () => {
     expect('text-amber-400').toMatch(HARD_CODED_COLOUR);
     expect('bg-[#ff8800]').toMatch(HARD_CODED_COLOUR);
     expect('bg-chatroom-accent/90').not.toMatch(HARD_CODED_COLOUR);
+    expect('ring-offset-orange-500').toMatch(HARD_CODED_COLOUR);
+    expect('focus-visible:ring-offset-amber-300').toMatch(HARD_CODED_COLOUR);
+    expect('focus-visible:ring-offset-2').not.toMatch(HARD_CODED_COLOUR);
   });
 
   it('uses the shared chip gap and z-index', () => {
