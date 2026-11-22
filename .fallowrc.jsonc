@@ -59,6 +59,13 @@
     "**/test-utils.{ts,tsx}",
     // Test-only characterisation renderer imported by the per-team *.snapshot.test.ts files.
     "**/role-prompt-characterisation.ts",
+    // Temporary: the per-team identity modules land before the section migration that imports
+    // them. Remove these four entries in the commit that routes role identity through the
+    // team registry.
+    "services/backend/prompts/role-identity-fallback.ts",
+    "services/backend/prompts/teams/*/prompts/role-identity.ts",
+    "services/backend/prompts/teams/registry.ts",
+    "services/backend/prompts/types/role-identity.ts",
     "**/vitest.config.{ts,mts}",
     "packages/cli/src/testing/**",
     "packages/cli/src/convex-api/**",
@@ -176,6 +183,9 @@
   "duplicates": {
     "ignore": [
       "**/_generated/**",
+      // Per-team role identity catalogues intentionally repeat verbatim title and description
+      // text; each preset team owns its own file so a change lands in that team only.
+      "services/backend/prompts/teams/*/prompts/role-identity.ts",
       "**/components/ui/**",
       "**/*.test.{ts,tsx}",
       "**/*.spec.{ts,tsx}",
@@ -210,6 +220,9 @@
   "health": {
     "ignore": [
       "**/_generated/**",
+      // Per-team role identity catalogues intentionally repeat verbatim title and description
+      // text; each preset team owns its own file so a change lands in that team only.
+      "services/backend/prompts/teams/*/prompts/role-identity.ts",
       "**/components/ui/**",
       "**/*.test.{ts,tsx}",
       "**/*.spec.{ts,tsx}",
