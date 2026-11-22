@@ -4,6 +4,7 @@ import {
   getTimelineVirtualRowZIndex,
   TIMELINE_HANDOFF_CHEVRON,
   TIMELINE_HANDOFF_CHIPS,
+  TIMELINE_HANDOFF_META,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
   TIMELINE_HANDOFF_TOGGLE,
   TIMELINE_HANDOFF_TOGGLE_LABEL,
@@ -84,5 +85,14 @@ describe('TIMELINE_HANDOFF_TOGGLE_LABEL', () => {
 describe('TIMELINE_HANDOFF_CHIPS', () => {
   it('indents chips to the preview text', () => {
     expect(TIMELINE_HANDOFF_CHIPS).toBe('pl-[2.375rem]');
+  });
+});
+
+describe('TIMELINE_HANDOFF_META', () => {
+  it('never wraps or stacks, so the duration and time stay on one line', () => {
+    expect(TIMELINE_HANDOFF_META).toContain('whitespace-nowrap');
+    expect(TIMELINE_HANDOFF_META).toContain('shrink-0');
+    expect(TIMELINE_HANDOFF_META).toContain('items-center');
+    expect(TIMELINE_HANDOFF_META).not.toContain('flex-col');
   });
 });

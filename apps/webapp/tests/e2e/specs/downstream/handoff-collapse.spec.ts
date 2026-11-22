@@ -85,7 +85,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     ).toHaveText('(code block)');
   });
 
-  test('clamps a long preview and drops the duration on mobile', async ({ page }) => {
+  test('clamps a long preview on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
 
     const longFixture = page.getByTestId('collapse-long');
@@ -97,8 +97,44 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     expect(await toggle.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 
     const normalToggle = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-toggle');
-    await expect(normalToggle.getByTestId('timeline-handoff-duration')).toBeHidden();
-    await expect(normalToggle.getByText(/^\d{1,2}:\d{2}(am|pm)$/)).toBeVisible();
+    await expect(normalToggle.getByTestId('timeline-handoff-duration')).toBeVisible();
+    await expect(normalToggle.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
+    await expect(normalToggle.getByText(/^\d{1,2}:\d{2}(am|pm)$/).first()).toBeVisible();
+  });
+
+  for (const width of [375, 320]) {
+    test(`keeps the duration and time on one line in the summary bar at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+
+      const fixture = page.getByTestId('collapse-long-duration');
+      const toggle = fixture.getByTestId('timeline-handoff-toggle');
+      const preview = fixture.getByTestId('timeline-handoff-preview');
+      const duration = fixture.getByTestId('timeline-handoff-duration');
+      const timeOfDay = toggle.getByText(/^\d{1,2}:\d{2}(am|pm)$/).first();
+
+      await expect(duration).toHaveText('1h 5m');
+      await expect(timeOfDay).toBeVisible();
+      const durationBox = await readBox(duration);
+      const timeBox = await readBox(timeOfDay);
+      // The duration span is a flex item (whole 20px line box); the time-of-day locator
+      // resolves to the inline text box centered inside that line. Comparing the vertical
+      // centres proves they share one line; stacking would separate them by a full line.
+      const centreY = (box: Box) => box.y + box.height / 2;
+      expect(Math.abs(centreY(durationBox) - centreY(timeBox))).toBeLessThanOrEqual(1);
+
+      await readBox(preview, (box) => expect(box.width).toBeGreaterThanOrEqual(120));
+      await readBox(preview, (box) => expect(box.height).toBeLessThanOrEqual(41));
+      expect(await toggle.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    });
+  }
+
+  test('shows the duration and the full date in the summary bar on desktop', async ({ page }) => {
+    const toggle = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-toggle');
+    await expect(toggle.getByTestId('timeline-handoff-duration')).toBeVisible();
+    await expect(toggle.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
+    await expect(toggle).toContainText('15th November 2023');
   });
 
   test('uses the theme hover and text tokens', async ({ page }) => {

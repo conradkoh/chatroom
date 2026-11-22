@@ -703,7 +703,8 @@ Edge case X
       const toggle = screen.getByTestId('timeline-handoff-toggle');
       const collapsedDuration = within(toggle).getByTestId('timeline-handoff-duration');
       expect(collapsedDuration).toHaveTextContent('1m 2s');
-      expect(collapsedDuration).toHaveClass('hidden', 'sm:inline');
+      expect(collapsedDuration).not.toHaveClass('hidden');
+      expect(collapsedDuration).not.toHaveClass('sm:inline');
       expect(screen.getAllByTestId('timeline-handoff-duration')).toHaveLength(1);
 
       fireEvent.click(toggle);

@@ -90,8 +90,10 @@ export const TIMELINE_HANDOFF_TOGGLE_LABEL =
   'min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide leading-5 text-chatroom-text-muted ' +
   'group-hover/handoff-toggle:text-chatroom-text-primary';
 
-/** Right-aligned time column inside the collapsed bar. */
-export const TIMELINE_HANDOFF_META = 'flex shrink-0 items-center gap-1.5 leading-5';
+/** Right-aligned meta column inside the collapsed bar (duration + time). Never wraps and never
+ * stacks: a long duration such as `1h 5m` stays on one line and the preview absorbs the width. */
+export const TIMELINE_HANDOFF_META =
+  'flex shrink-0 items-center gap-1.5 whitespace-nowrap leading-5';
 
 /**
  * Collapsed-row attachment chips. 38px (2.375rem) = 16px bar padding (px-4) + 14px

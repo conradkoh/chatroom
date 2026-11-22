@@ -59,6 +59,16 @@ const LONG: Message = {
   _creationTime: CREATION_TIME,
 };
 
+/** Same long preview with a 1h 5m generation gap: the mobile bar must keep it on one line. */
+const LONG_DURATION: Message = {
+  _id: 'e2e-collapse-long-duration',
+  type: 'handoff',
+  senderRole: 'builder',
+  targetRole: 'planner',
+  content: LONG_CONTENT,
+  _creationTime: CREATION_TIME,
+};
+
 const EAGER: Message = {
   _id: 'e2e-eager-control',
   type: 'handoff',
@@ -116,6 +126,15 @@ export default function TimelineHandoffCollapseTestPage() {
             message={LONG}
             chatroomId="e2e-chatroom"
             collapsible={isCollapsible(LONG)}
+          />
+        </section>
+
+        <section data-testid="collapse-long-duration">
+          <TimelineTeamMessage
+            message={LONG_DURATION}
+            chatroomId="e2e-chatroom"
+            handoffDurationMs={3_900_000}
+            collapsible={isCollapsible(LONG_DURATION)}
           />
         </section>
 

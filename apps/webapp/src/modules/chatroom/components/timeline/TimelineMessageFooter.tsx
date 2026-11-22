@@ -60,14 +60,14 @@ export interface TimelineMessageTimestampProps {
   handoffDurationMs?: number;
   /** Whether the duration is much longer than others in the loaded window (orange). */
   handoffDurationSlow?: boolean;
-  /** Collapsed handoff bar: below `sm`, hide the duration and show the time of day only. */
+  /** Collapsed handoff bar: below `sm`, show the time of day instead of the full date. */
   compact?: boolean;
 }
 
 /**
  * The footer's timestamp cluster, also rendered inside the collapsed handoff bar.
- * `compact` keeps the same markup but swaps the full date for the time of day
- * below `sm`, where the summary bar has no room for the date.
+ * `compact` swaps the full date for the time of day below `sm`, where the summary bar
+ * has no room for the date. The duration and the time never wrap.
  */
 // fallow-ignore-next-line complexity
 export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
@@ -84,15 +84,14 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
           data-duration-tone={handoffDurationSlow ? 'slow' : 'normal'}
           title={formatHandoffDurationTitle(handoffDurationMs, Boolean(handoffDurationSlow))}
           className={cn(
-            'text-[10px] font-mono tabular-nums',
-            handoffDurationSlow ? 'text-chatroom-status-slow' : 'text-chatroom-text-muted',
-            compact && 'hidden sm:inline'
+            'text-[10px] font-mono tabular-nums whitespace-nowrap',
+            handoffDurationSlow ? 'text-chatroom-status-slow' : 'text-chatroom-text-muted'
           )}
         >
           {formatHandoffDuration(handoffDurationMs)}
         </span>
       )}
-      <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
+      <span className="text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted">
         <span title={formatTimestampFull(creationTime)}>
           {compact ? (
             <>
@@ -116,6 +115,8 @@ export interface TimelineMessageFooterProps {
   handoffDurationMs?: number;
   /** Whether the duration is much longer than others in the loaded window (orange). */
   handoffDurationSlow?: boolean;
+  /** Extra classes merged onto the footer root. */
+  className?: string;
 }
 
 /**
@@ -128,6 +129,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
   displayContent,
   handoffDurationMs,
   handoffDurationSlow,
+  className,
 }: TimelineMessageFooterProps) {
   const markdownContent = displayContent ?? message.content;
   const { add: addAttachment, isAttached } = useAttachments();
@@ -148,7 +150,10 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
 
   return (
     <div
-      className="flex justify-between items-center mt-2 pt-1.5"
+      className={cn(
+        'flex flex-wrap justify-between items-center gap-x-3 gap-y-1 mt-2 pt-1.5',
+        className
+      )}
       data-testid="timeline-message-footer"
     >
       <div className="flex items-center gap-1">
@@ -163,7 +168,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
         </button>
         <MessageDownloadMenu message={message} contentOverride={displayContent} />
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-1.5">
         <TimelineMessageTimestamp
           creationTime={message._creationTime}
           handoffDurationMs={handoffDurationMs}
