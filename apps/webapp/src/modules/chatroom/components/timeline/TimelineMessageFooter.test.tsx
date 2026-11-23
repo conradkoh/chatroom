@@ -266,7 +266,9 @@ describe('TimelineMessageTimestamp', () => {
     const slot = screen.getByTestId('timeline-handoff-duration-slot');
     expect(slot).toHaveClass('w-[7ch]', 'shrink-0', 'font-mono', 'text-[10px]');
     expect(slot).toContainElement(screen.getByTestId('timeline-handoff-duration'));
-    expect(screen.getByText(`TS:${CREATION_TIME}`).parentElement).toHaveClass('text-right');
+    expect(screen.getByTestId('timeline-handoff-timestamp')).toContainElement(
+      screen.getByText(`TS:${CREATION_TIME}`)
+    );
   });
 
   it('renders the alignDuration slot even when there is no duration', () => {

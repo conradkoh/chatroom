@@ -78,7 +78,8 @@ export interface TimelineMessageTimestampProps {
 /**
  * Timestamp cluster: the timestamp comes first, then the duration. `alignDuration` wraps the
  * duration in TIMELINE_HANDOFF_DURATION_SLOT so the slot is always present and the timestamp
- * column does not move. Without it, the markup is the pre-existing non-handoff markup.
+ * column does not move. Only handoff rows pass a duration, so the timestamp-then-duration order
+ * is handoff-only in practice. Without `alignDuration` the markup is the pre-existing non-handoff markup.
  */
 // fallow-ignore-next-line complexity
 export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
@@ -89,7 +90,10 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
   alignDuration = false,
 }: TimelineMessageTimestampProps) {
   const timestamp = (
-    <span className={alignDuration ? TIMELINE_HANDOFF_TIMESTAMP : TIMELINE_FOOTER_TIMESTAMP}>
+    <span
+      data-testid={alignDuration ? 'timeline-handoff-timestamp' : undefined}
+      className={alignDuration ? TIMELINE_HANDOFF_TIMESTAMP : TIMELINE_FOOTER_TIMESTAMP}
+    >
       <span title={formatTimestampFull(creationTime)}>
         {compact ? (
           <>

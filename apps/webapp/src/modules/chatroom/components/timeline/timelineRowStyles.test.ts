@@ -142,8 +142,8 @@ describe('TIMELINE_HANDOFF_DURATION_SLOT', () => {
 });
 
 describe('TIMELINE_HANDOFF_TIMESTAMP', () => {
-  it('right-aligns the time of day in the handoff footer', () => {
-    expect(TIMELINE_HANDOFF_TIMESTAMP).toContain('text-right');
+  it('truncates without a text-alignment utility: the time row and the fixed slot own its right edge', () => {
+    expect(TIMELINE_HANDOFF_TIMESTAMP).not.toContain('text-right');
     expect(TIMELINE_HANDOFF_TIMESTAMP).toContain('min-w-0');
     expect(TIMELINE_HANDOFF_TIMESTAMP).toContain('truncate');
     expect(TIMELINE_HANDOFF_TIMESTAMP).toContain('text-chatroom-text-muted');

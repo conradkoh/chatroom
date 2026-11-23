@@ -53,9 +53,13 @@ export const ICON_SIZE = 10;
 export const TIMELINE_HANDOFF_DURATION_SLOT =
   'w-[7ch] shrink-0 truncate text-left font-mono text-[10px] tabular-nums';
 
-/** Handoff timestamp: right-aligned so the time of day ends at a fixed x, 8px before the slot. May truncate only for a prior-year date below ~340px (full value stays in `title`). */
+/**
+ * Handoff timestamp. The time of day ends at a fixed x because its time row is `justify-end` and
+ * the duration slot after it has a fixed width; no text alignment is needed. Truncates only for a
+ * prior-year date at narrow widths (full value stays in `title`).
+ */
 export const TIMELINE_HANDOFF_TIMESTAMP =
-  'min-w-0 truncate text-right text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';
+  'min-w-0 truncate text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';
 
 /**
  * Collapsed bar meta for non-handoff rows: the single-line treatment these bars had before the
