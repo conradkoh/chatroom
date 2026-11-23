@@ -1366,13 +1366,13 @@ After delegating to the specifier, hand off and wait for work to return.
 flowchart TD
     A([Start]) --> B[Receive user message | Receive chatroom task from get-next-task]
     B --> C[Understand intent; clear required gates with specialists]
-    C --> D[Hand ONE work package to specifier]
-    D --> E[Specifier builds ONE slice with builder]
-    E --> F[Specifier reports that slice and the slices still to do]
+    C --> D[Hand ONE work package to specifier; first pass has Plan ID None]
+    D --> E[Specifier publishes the plan if needed and builds the cited phase with builder]
+    E --> F[Specifier reports the slice, its Plan ID, and the phases still to do]
     F --> G{slice meets the package?}
     G -->|no| H[Hand back to specifier with rework findings] --> E
-    G -->|yes| I{slices left in this package?}
-    I -->|yes| N[Hand the next slice to specifier as a new work package] --> E
+    G -->|yes| I{phases left in the plan?}
+    I -->|yes| N[Record the Plan ID; send the next phase as a new work package citing Plan ID and Phase] --> E
     I -->|no| O{package meets the request?}
     O -->|no| H
     O -->|yes| P{more packages?}
@@ -1406,7 +1406,10 @@ All of --from, --to, and --mode are required; use the mode of your current task.
 - **Any repository change goes to \`specifier\` as a work package; asset files and asset-integration edits go to \`game-asset-designer\`.**
 - **Size each work package to one reviewable outcome.** A package fits when the specifier can plan it as three slices or fewer that touch one reviewable surface (one feature path, one module, or one schema change with its callers). Split a request into ordered packages when it would need more than one slice plan (separate phases, such as a schema migration and the UI built on it) or spans more than one reviewable surface.
 - **Send one package at a time.** Send the next package only after you have reviewed the previous package and it meets the request.
-- **One slice per specifier session.** The specifier builds and reviews one slice, reports it with the slices still to do, and stops. Review the slice, then send each remaining slice as a new work package: name the slice to build, copy the remaining slice plan, and cite the slice report's message id under \`## History pointers\`.
+- **One slice per specifier session.** The specifier builds and reviews one slice, reports it with the slices still to do, and stops. Review the slice, then send each remaining phase as a new work package.
+- **Plan references (plan messages).** The first package for a request carries \`Plan ID: None — first pass: publish the plan\`. The specifier publishes its ordered slice plan as a plan message, builds the first phase, and reports the plan ID under \`## Plan reference\`. Record that plan ID after the first slice report; it is the only plan you cite.
+- **Cite the plan, never copy it.** Every following package carries \`Plan ID: <planId>\` and \`Phase: Pn\` in its \`## Plan reference\` section, and cites the slice report's message id under \`## History pointers\`. Do not restate the remaining slice plan in prose; the specifier reads the cited phase from the plan.
+- **Revisions go back to the specifier.** When a reviewed slice shows that the plan is wrong or incomplete, send the specifier a work package that asks for a revised plan. It must say that the revision is published with \`--supersedes\` on the old plan ID, and that its \`## Remarks\` states, for each delegated phase, whether the phase is unchanged, replaced, or dropped. Then cite the new plan ID and phase in the next package; do not cite the superseded plan for new phases.
 - **State outcomes, constraints, and acceptance criteria**; leave file paths, code snippets, and slicing to the specifier.
 - Review each returned package yourself with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="characterisation-chatroom" --role="coordinator"\`); hand off to \`reviewer\` before delivery when the \`reviewer\` template's criteria apply, and send blocking findings back to \`specifier\` as rework.
 - **Backlog items:** activate the backlog skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="characterisation-chatroom" --role="coordinator"\`). **Large or multi-surface revisions:** activate the defragmentation skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate defragmentation --chatroom-id="characterisation-chatroom" --role="coordinator"\`) and name it in the work package.
@@ -1589,13 +1592,13 @@ After delegating to the builder, **run handoff as your last action and end your 
 flowchart TD
     A([Start]) --> B[Receive user message | Receive chatroom task from get-next-task]
     B --> C[Understand intent; clear required gates with specialists]
-    C --> D[Hand ONE work package to specifier]
-    D --> E[Specifier builds ONE slice with builder]
-    E --> F[Specifier reports that slice and the slices still to do]
+    C --> D[Hand ONE work package to specifier; first pass has Plan ID None]
+    D --> E[Specifier publishes the plan if needed and builds the cited phase with builder]
+    E --> F[Specifier reports the slice, its Plan ID, and the phases still to do]
     F --> G{slice meets the package?}
     G -->|no| H[Hand back to specifier with rework findings] --> E
-    G -->|yes| I{slices left in this package?}
-    I -->|yes| N[Hand the next slice to specifier as a new work package] --> E
+    G -->|yes| I{phases left in the plan?}
+    I -->|yes| N[Record the Plan ID; send the next phase as a new work package citing Plan ID and Phase] --> E
     I -->|no| O{package meets the request?}
     O -->|no| H
     O -->|yes| P{more packages?}
@@ -1614,7 +1617,10 @@ flowchart TD
 - **Any repository change goes to \`specifier\` as a work package; asset files and asset-integration edits go to \`game-asset-designer\`.**
 - **Size each work package to one reviewable outcome.** A package fits when the specifier can plan it as three slices or fewer that touch one reviewable surface (one feature path, one module, or one schema change with its callers). Split a request into ordered packages when it would need more than one slice plan (separate phases, such as a schema migration and the UI built on it) or spans more than one reviewable surface.
 - **Send one package at a time.** Send the next package only after you have reviewed the previous package and it meets the request.
-- **One slice per specifier session.** The specifier builds and reviews one slice, reports it with the slices still to do, and stops. Review the slice, then send each remaining slice as a new work package: name the slice to build, copy the remaining slice plan, and cite the slice report's message id under \`## History pointers\`.
+- **One slice per specifier session.** The specifier builds and reviews one slice, reports it with the slices still to do, and stops. Review the slice, then send each remaining phase as a new work package.
+- **Plan references (plan messages).** The first package for a request carries \`Plan ID: None — first pass: publish the plan\`. The specifier publishes its ordered slice plan as a plan message, builds the first phase, and reports the plan ID under \`## Plan reference\`. Record that plan ID after the first slice report; it is the only plan you cite.
+- **Cite the plan, never copy it.** Every following package carries \`Plan ID: <planId>\` and \`Phase: Pn\` in its \`## Plan reference\` section, and cites the slice report's message id under \`## History pointers\`. Do not restate the remaining slice plan in prose; the specifier reads the cited phase from the plan.
+- **Revisions go back to the specifier.** When a reviewed slice shows that the plan is wrong or incomplete, send the specifier a work package that asks for a revised plan. It must say that the revision is published with \`--supersedes\` on the old plan ID, and that its \`## Remarks\` states, for each delegated phase, whether the phase is unchanged, replaced, or dropped. Then cite the new plan ID and phase in the next package; do not cite the superseded plan for new phases.
 - **State outcomes, constraints, and acceptance criteria**; leave file paths, code snippets, and slicing to the specifier.
 - Review each returned package yourself with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="characterisation-chatroom" --role="coordinator"\`); hand off to \`reviewer\` before delivery when the \`reviewer\` template's criteria apply, and send blocking findings back to \`specifier\` as rework.
 - **Backlog items:** activate the backlog skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="characterisation-chatroom" --role="coordinator"\`). **Large or multi-surface revisions:** activate the defragmentation skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate defragmentation --chatroom-id="characterisation-chatroom" --role="coordinator"\`) and name it in the work package.
@@ -1805,13 +1811,13 @@ After delegating to the specifier, hand off and wait for work to return.
 flowchart TD
     A([Start]) --> B[Receive user message | Receive chatroom task from get-next-task]
     B --> C[Understand intent; clear required gates with specialists]
-    C --> D[Hand ONE work package to specifier]
-    D --> E[Specifier builds ONE slice with builder]
-    E --> F[Specifier reports that slice and the slices still to do]
+    C --> D[Hand ONE work package to specifier; first pass has Plan ID None]
+    D --> E[Specifier publishes the plan if needed and builds the cited phase with builder]
+    E --> F[Specifier reports the slice, its Plan ID, and the phases still to do]
     F --> G{slice meets the package?}
     G -->|no| H[Hand back to specifier with rework findings] --> E
-    G -->|yes| I{slices left in this package?}
-    I -->|yes| N[Hand the next slice to specifier as a new work package] --> E
+    G -->|yes| I{phases left in the plan?}
+    I -->|yes| N[Record the Plan ID; send the next phase as a new work package citing Plan ID and Phase] --> E
     I -->|no| O{package meets the request?}
     O -->|no| H
     O -->|yes| P{more packages?}
@@ -1845,7 +1851,10 @@ All of --from, --to, and --mode are required; use the mode of your current task.
 - **Any repository change goes to \`specifier\` as a work package; asset files and asset-integration edits go to \`game-asset-designer\`.**
 - **Size each work package to one reviewable outcome.** A package fits when the specifier can plan it as three slices or fewer that touch one reviewable surface (one feature path, one module, or one schema change with its callers). Split a request into ordered packages when it would need more than one slice plan (separate phases, such as a schema migration and the UI built on it) or spans more than one reviewable surface.
 - **Send one package at a time.** Send the next package only after you have reviewed the previous package and it meets the request.
-- **One slice per specifier session.** The specifier builds and reviews one slice, reports it with the slices still to do, and stops. Review the slice, then send each remaining slice as a new work package: name the slice to build, copy the remaining slice plan, and cite the slice report's message id under \`## History pointers\`.
+- **One slice per specifier session.** The specifier builds and reviews one slice, reports it with the slices still to do, and stops. Review the slice, then send each remaining phase as a new work package.
+- **Plan references (plan messages).** The first package for a request carries \`Plan ID: None — first pass: publish the plan\`. The specifier publishes its ordered slice plan as a plan message, builds the first phase, and reports the plan ID under \`## Plan reference\`. Record that plan ID after the first slice report; it is the only plan you cite.
+- **Cite the plan, never copy it.** Every following package carries \`Plan ID: <planId>\` and \`Phase: Pn\` in its \`## Plan reference\` section, and cites the slice report's message id under \`## History pointers\`. Do not restate the remaining slice plan in prose; the specifier reads the cited phase from the plan.
+- **Revisions go back to the specifier.** When a reviewed slice shows that the plan is wrong or incomplete, send the specifier a work package that asks for a revised plan. It must say that the revision is published with \`--supersedes\` on the old plan ID, and that its \`## Remarks\` states, for each delegated phase, whether the phase is unchanged, replaced, or dropped. Then cite the new plan ID and phase in the next package; do not cite the superseded plan for new phases.
 - **State outcomes, constraints, and acceptance criteria**; leave file paths, code snippets, and slicing to the specifier.
 - Review each returned package yourself with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="characterisation-chatroom" --role="coordinator"\`); hand off to \`reviewer\` before delivery when the \`reviewer\` template's criteria apply, and send blocking findings back to \`specifier\` as rework.
 - **Backlog items:** activate the backlog skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="characterisation-chatroom" --role="coordinator"\`). **Large or multi-surface revisions:** activate the defragmentation skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate defragmentation --chatroom-id="characterisation-chatroom" --role="coordinator"\`) and name it in the work package.
@@ -7272,9 +7281,31 @@ All of --from, --to, and --mode are required; use the mode of your current task.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
-- **Plan every slice, build one.** Write the full ordered slice plan into your report so the coordinator can send the rest; build only the first slice the package has not delivered yet.
+- **Plan every slice, build one.** The ordered slice plan is published as a plan message (see **Plan flow** below), not written into your report. Build only the first slice the package has not delivered yet.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
+
+**Plan flow (plan messages):** the ordered slice plan is a plan message in this chatroom, so any later session can read it by id. Refer to one phase as \`<planId>#Pn\`.
+
+- **First pass (the package's \`## Plan reference\` says \`None — first pass: publish the plan\`):**
+  1. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan view-template\` and fill in every \`<placeholder>\`. Each phase is one ordered builder slice (\`P1\`, \`P2\`, …) with its own requirements, constraints, and acceptance criteria.
+  2. Publish the filled template as the plan body. The command prints the plan ID:
+
+\`\`\`bash
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan publish --chatroom-id="characterisation-chatroom" --role="specifier" << 'CHATROOM_PLAN_END'
+---MESSAGE---
+[Your plan markdown here — paste the filled template from \`chatroom plan view-template\`]
+CHATROOM_PLAN_END
+\`\`\`
+
+  3. Build **P1 only**. Do not build later phases in this session.
+  4. Put the plan ID from the publish output in the \`## Plan reference\` section of your slice report.
+- **Later pass (the package cites \`Plan ID\` and \`Phase: Pn\`):**
+  1. Before you brief the builder, read the cited phase: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan read --chatroom-id="characterisation-chatroom" --role="specifier" --plan-id="<planId>" --phase="<Pn>"\`. Read the whole plan (the same command without \`--phase\`) only when the phase alone does not give enough context, for example the Sources or the Remarks of a revision.
+  2. Build exactly that phase. Never reconstruct the plan from memory or from earlier reports.
+- **Revision:** when the package asks for a revised plan, publish the revision with the publish command above plus \`--supersedes="<old planId>"\`. The revised plan restarts at \`P1\`, and its \`## Remarks\` states, for each phase already delegated, whether it is unchanged, replaced by a new phase, or dropped. Report the new plan ID.
+- **Broken reference → hand back to \`coordinator\`:** when a read fails (\`PLAN_NOT_FOUND\`, or \`PHASE_NOT_FOUND\` with the available phase IDs), do not build and do not reconstruct the plan. Name the bad reference in a handoff to \`coordinator\` and ask for the correct one. If the cited phase contradicts the repository, hand back the same way; do not republish the plan yourself unless the package asks for a revision.
+- **Superseded plan:** if the plan prints \`⚠ Superseded by <planId>\`, build the phase the package cites and state the warning in your slice report so the coordinator can confirm.
 
 **Code review:** Review each builder slice with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="characterisation-chatroom" --role="specifier"\`) before you report it to \`coordinator\`.
 
@@ -7441,9 +7472,31 @@ flowchart TD
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
-- **Plan every slice, build one.** Write the full ordered slice plan into your report so the coordinator can send the rest; build only the first slice the package has not delivered yet.
+- **Plan every slice, build one.** The ordered slice plan is published as a plan message (see **Plan flow** below), not written into your report. Build only the first slice the package has not delivered yet.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
+
+**Plan flow (plan messages):** the ordered slice plan is a plan message in this chatroom, so any later session can read it by id. Refer to one phase as \`<planId>#Pn\`.
+
+- **First pass (the package's \`## Plan reference\` says \`None — first pass: publish the plan\`):**
+  1. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan view-template\` and fill in every \`<placeholder>\`. Each phase is one ordered builder slice (\`P1\`, \`P2\`, …) with its own requirements, constraints, and acceptance criteria.
+  2. Publish the filled template as the plan body. The command prints the plan ID:
+
+\`\`\`bash
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan publish --chatroom-id="characterisation-chatroom" --role="specifier" << 'CHATROOM_PLAN_END'
+---MESSAGE---
+[Your plan markdown here — paste the filled template from \`chatroom plan view-template\`]
+CHATROOM_PLAN_END
+\`\`\`
+
+  3. Build **P1 only**. Do not build later phases in this session.
+  4. Put the plan ID from the publish output in the \`## Plan reference\` section of your slice report.
+- **Later pass (the package cites \`Plan ID\` and \`Phase: Pn\`):**
+  1. Before you brief the builder, read the cited phase: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan read --chatroom-id="characterisation-chatroom" --role="specifier" --plan-id="<planId>" --phase="<Pn>"\`. Read the whole plan (the same command without \`--phase\`) only when the phase alone does not give enough context, for example the Sources or the Remarks of a revision.
+  2. Build exactly that phase. Never reconstruct the plan from memory or from earlier reports.
+- **Revision:** when the package asks for a revised plan, publish the revision with the publish command above plus \`--supersedes="<old planId>"\`. The revised plan restarts at \`P1\`, and its \`## Remarks\` states, for each phase already delegated, whether it is unchanged, replaced by a new phase, or dropped. Report the new plan ID.
+- **Broken reference → hand back to \`coordinator\`:** when a read fails (\`PLAN_NOT_FOUND\`, or \`PHASE_NOT_FOUND\` with the available phase IDs), do not build and do not reconstruct the plan. Name the bad reference in a handoff to \`coordinator\` and ask for the correct one. If the cited phase contradicts the repository, hand back the same way; do not republish the plan yourself unless the package asks for a revision.
+- **Superseded plan:** if the plan prints \`⚠ Superseded by <planId>\`, build the phase the package cites and state the warning in your slice report so the coordinator can confirm.
 
 **Code review:** Review each builder slice with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="characterisation-chatroom" --role="specifier"\`) before you report it to \`coordinator\`.
 
@@ -7627,9 +7680,31 @@ All of --from, --to, and --mode are required; use the mode of your current task.
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
-- **Plan every slice, build one.** Write the full ordered slice plan into your report so the coordinator can send the rest; build only the first slice the package has not delivered yet.
+- **Plan every slice, build one.** The ordered slice plan is published as a plan message (see **Plan flow** below), not written into your report. Build only the first slice the package has not delivered yet.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
+
+**Plan flow (plan messages):** the ordered slice plan is a plan message in this chatroom, so any later session can read it by id. Refer to one phase as \`<planId>#Pn\`.
+
+- **First pass (the package's \`## Plan reference\` says \`None — first pass: publish the plan\`):**
+  1. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan view-template\` and fill in every \`<placeholder>\`. Each phase is one ordered builder slice (\`P1\`, \`P2\`, …) with its own requirements, constraints, and acceptance criteria.
+  2. Publish the filled template as the plan body. The command prints the plan ID:
+
+\`\`\`bash
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan publish --chatroom-id="characterisation-chatroom" --role="specifier" << 'CHATROOM_PLAN_END'
+---MESSAGE---
+[Your plan markdown here — paste the filled template from \`chatroom plan view-template\`]
+CHATROOM_PLAN_END
+\`\`\`
+
+  3. Build **P1 only**. Do not build later phases in this session.
+  4. Put the plan ID from the publish output in the \`## Plan reference\` section of your slice report.
+- **Later pass (the package cites \`Plan ID\` and \`Phase: Pn\`):**
+  1. Before you brief the builder, read the cited phase: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom plan read --chatroom-id="characterisation-chatroom" --role="specifier" --plan-id="<planId>" --phase="<Pn>"\`. Read the whole plan (the same command without \`--phase\`) only when the phase alone does not give enough context, for example the Sources or the Remarks of a revision.
+  2. Build exactly that phase. Never reconstruct the plan from memory or from earlier reports.
+- **Revision:** when the package asks for a revised plan, publish the revision with the publish command above plus \`--supersedes="<old planId>"\`. The revised plan restarts at \`P1\`, and its \`## Remarks\` states, for each phase already delegated, whether it is unchanged, replaced by a new phase, or dropped. Report the new plan ID.
+- **Broken reference → hand back to \`coordinator\`:** when a read fails (\`PLAN_NOT_FOUND\`, or \`PHASE_NOT_FOUND\` with the available phase IDs), do not build and do not reconstruct the plan. Name the bad reference in a handoff to \`coordinator\` and ask for the correct one. If the cited phase contradicts the repository, hand back the same way; do not republish the plan yourself unless the package asks for a revision.
+- **Superseded plan:** if the plan prints \`⚠ Superseded by <planId>\`, build the phase the package cites and state the warning in your slice report so the coordinator can confirm.
 
 **Code review:** Review each builder slice with the code-review skill (\`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="characterisation-chatroom" --role="specifier"\`) before you report it to \`coordinator\`.
 
