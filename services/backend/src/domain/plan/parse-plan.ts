@@ -105,6 +105,8 @@ interface ListedPhase {
 
 const PHASE_ENTRY_PATTERN = /^P([1-9]\d*)\s+[—–-]\s+(.+)$/;
 const TITLE_PATTERN = /^#\s+(.+)$/;
+const STRAY_CONTENT_MESSAGE =
+  'Unindented text after a blank line is not part of the bullet above; indent it under the bullet or start a new "- " item';
 
 interface FenceState {
   inFence: boolean;
@@ -188,9 +190,17 @@ function record(state: ParseState, code: PlanParseErrorCode, line: number, messa
   state.errors.push({ code, line, message });
 }
 
+/**
+ * Content no bullet can take. Inside a recognised section it is a stray
+ * paragraph; outside every section it is an orphan. Reported once per section.
+ */
 function reportOrphan(state: ParseState, line: number): void {
   if (state.orphanReported) return;
   state.orphanReported = true;
+  if (state.currentSection !== null) {
+    record(state, 'PLAN_STRAY_CONTENT', line, STRAY_CONTENT_MESSAGE);
+    return;
+  }
   record(state, 'PLAN_SECTION_ORDER', line, 'Content appears outside any recognised plan section');
 }
 
@@ -483,13 +493,11 @@ function isStrayParagraph(state: ParseState, raw: string, trimmed: string): bool
 }
 
 function recordStrayParagraph(state: ParseState, line: number): void {
-  record(
-    state,
-    'PLAN_STRAY_CONTENT',
-    line,
-    'Unindented text after a blank line is not part of the bullet above; indent it under the bullet or start a new "- " item'
-  );
-  state.currentBullet = null;
+  record(state, 'PLAN_STRAY_CONTENT', line, STRAY_CONTENT_MESSAGE);
+  // Detached: never stored in a list. The rest of this paragraph (no blank line
+  // between) keeps attaching here and is not reported again; a later
+  // blank-separated paragraph still finds an open bullet and is reported.
+  state.currentBullet = { text: '', line };
 }
 
 /** Continuation of the current bullet, else an orphan line. */

@@ -335,6 +335,50 @@ describe('parsePlan', () => {
       expect(errorLine(errors, 'PLAN_STRAY_CONTENT')).toBe(strayLine);
     });
 
+    it('PLAN_STRAY_CONTENT: an in-section paragraph with no open bullet is a stray, not a section-order error', () => {
+      const markdown = makePlan().replace(
+        '## Requirements\n- Requirement one.',
+        '## Requirements\n\nStray paragraph.\n- Requirement one.'
+      );
+      const errors = fail(markdown);
+      const strayLine = markdown.split('\n').indexOf('Stray paragraph.') + 1;
+      expect(errorLine(errors, 'PLAN_STRAY_CONTENT')).toBe(strayLine);
+      expect(errors.some((error) => error.code === 'PLAN_SECTION_ORDER')).toBe(false);
+    });
+
+    it('PLAN_STRAY_CONTENT: the rest of a stray paragraph is not reported again', () => {
+      const markdown = makePlan().replace(
+        '- Requirement one.',
+        '- Requirement one.\n\nStray one.\nStray two.'
+      );
+      const errors = fail(markdown);
+      const strayLine = markdown.split('\n').indexOf('Stray one.') + 1;
+      const strays = errors.filter((error) => error.code === 'PLAN_STRAY_CONTENT');
+      expect(strays).toHaveLength(1);
+      expect(strays[0].line).toBe(strayLine);
+      expect(errors.some((error) => error.code === 'PLAN_SECTION_ORDER')).toBe(false);
+    });
+
+    it('PLAN_STRAY_CONTENT: a blank-separated second stray paragraph is reported at its own line', () => {
+      const markdown = makePlan().replace(
+        '- Requirement one.',
+        '- Requirement one.\n\nStray one.\n\nStray two.'
+      );
+      const errors = fail(markdown);
+      const strays = errors.filter((error) => error.code === 'PLAN_STRAY_CONTENT');
+      expect(strays.map((error) => error.line)).toEqual([
+        markdown.split('\n').indexOf('Stray one.') + 1,
+        markdown.split('\n').indexOf('Stray two.') + 1,
+      ]);
+    });
+
+    it('PLAN_SECTION_ORDER: unindented text outside every section is an orphan', () => {
+      const markdown = makePlan().replace('# Test plan', '# Test plan\n\nOrphan text.');
+      const errors = fail(markdown);
+      const orphanLine = markdown.split('\n').indexOf('Orphan text.') + 1;
+      expect(errorLine(errors, 'PLAN_SECTION_ORDER')).toBe(orphanLine);
+    });
+
     it('keeps indented text after a blank line as part of the bullet', () => {
       const result = parsePlan(
         makePlan().replace('- Requirement one.', '- Requirement one.\n\n  Indented continuation.')
