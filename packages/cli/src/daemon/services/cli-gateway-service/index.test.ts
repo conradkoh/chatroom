@@ -1,7 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { createCliGatewayService } from './index.js';
+import { createCliGatewayService, snapshotSenderAgent } from './index.js';
 import type { AssignedTask, AssignedTaskWithContent } from '../../domain/entities/assigned-task.js';
+
+type ResolveSenderAgent = Parameters<typeof createCliGatewayService>[0]['resolveSenderAgent'];
 
 const inProgressTask: AssignedTask = {
   taskId: 'task-before',
@@ -24,7 +26,11 @@ const nextTask: AssignedTaskWithContent = {
   taskContent: 'next task',
 };
 
-function createService(result: Record<string, unknown>, events: string[]) {
+function createService(
+  result: Record<string, unknown>,
+  events: string[],
+  overrides: { resolveSenderAgent?: ResolveSenderAgent } = {}
+) {
   const listTasksForRole = vi.fn((): readonly AssignedTask[] => [inProgressTask]);
   const mutation = vi.fn(async (_endpoint: unknown, _args: unknown) => {
     events.push('backend');
@@ -42,6 +48,7 @@ function createService(result: Record<string, unknown>, events: string[]) {
     backend: { mutation } as never,
     port: 18765,
     taskService: { loadAssignedTaskForAction, recordHandoffOutcome, listTasksForRole },
+    resolveSenderAgent: overrides.resolveSenderAgent ?? (() => undefined),
     log: (line) => logs.push(line),
   });
   return {
@@ -142,6 +149,7 @@ describe('CLI gateway service', () => {
         }),
         recordHandoffOutcome,
       },
+      resolveSenderAgent: () => undefined,
       log: (line) => logs.push(line),
     });
 
@@ -175,6 +183,7 @@ describe('CLI gateway service', () => {
           })
         ),
       },
+      resolveSenderAgent: () => undefined,
       log: () => undefined,
     });
     let settled = false;
@@ -203,6 +212,7 @@ describe('CLI gateway service', () => {
         loadAssignedTaskForAction: vi.fn(),
         recordHandoffOutcome,
       },
+      resolveSenderAgent: () => undefined,
       log: (line) => logs.push(line),
     });
     await expect(service.handoff({ ...args, targetRole: 'user' })).resolves.toMatchObject({
@@ -227,6 +237,7 @@ describe('CLI gateway service', () => {
         loadAssignedTaskForAction: vi.fn(),
         recordHandoffOutcome: vi.fn(),
       },
+      resolveSenderAgent: () => undefined,
       log: (line) => logs.push(line),
     });
 
@@ -235,5 +246,218 @@ describe('CLI gateway service', () => {
       '[CliGateway:request handoff chatroom=room-1 role=planner]',
       '[CliGateway:backend failure=backend unavailable]',
     ]);
+  });
+});
+
+describe('sender agent snapshot', () => {
+  const claude = { harness: 'claude-sdk', model: 'anthropic/claude-sonnet-4' };
+
+  test('sends the running slot harness and model to the backend', async () => {
+    const resolveSenderAgent = vi.fn(() => claude);
+    const { service, mutation } = createService({ success: true, newTaskId: null }, [], {
+      resolveSenderAgent,
+    });
+
+    await service.handoff({ ...args, targetRole: 'user' });
+
+    expect(resolveSenderAgent).toHaveBeenCalledWith('room-1', 'planner');
+    expect(mutation.mock.calls[0]?.[1]).toMatchObject({ senderAgent: claude });
+  });
+
+  test('sends a harness-only snapshot when the slot has no model', async () => {
+    const { service, mutation } = createService({ success: true, newTaskId: null }, [], {
+      resolveSenderAgent: () => ({ harness: 'codex-sdk' }),
+    });
+
+    await service.handoff({ ...args, targetRole: 'user' });
+
+    expect((mutation.mock.calls[0]?.[1] as { senderAgent: unknown }).senderAgent).toStrictEqual({
+      harness: 'codex-sdk',
+    });
+  });
+
+  test('omits senderAgent entirely when the resolver returns undefined', async () => {
+    const { service, mutation } = createService({ success: true, newTaskId: null }, []);
+
+    await service.handoff({ ...args, targetRole: 'user' });
+
+    expect(mutation.mock.calls[0]?.[1]).not.toHaveProperty('senderAgent');
+  });
+
+  test('strips a client-supplied senderAgent when the daemon has no snapshot', async () => {
+    const { service, mutation } = createService({ success: true, newTaskId: null }, []);
+
+    await service.handoff({
+      ...args,
+      targetRole: 'user',
+      senderAgent: { harness: 'opencode-sdk', model: 'spoofed' },
+    } as never);
+
+    expect(mutation.mock.calls[0]?.[1]).not.toHaveProperty('senderAgent');
+  });
+
+  test('overwrites a client-supplied senderAgent with the daemon snapshot', async () => {
+    const { service, mutation } = createService({ success: true, newTaskId: null }, [], {
+      resolveSenderAgent: () => claude,
+    });
+
+    await service.handoff({
+      ...args,
+      targetRole: 'user',
+      senderAgent: { harness: 'opencode-sdk', model: 'spoofed' },
+    } as never);
+
+    expect(mutation.mock.calls[0]?.[1]).toMatchObject({ senderAgent: claude });
+  });
+
+  test('still completes the handoff when the resolver throws', async () => {
+    const logs: string[] = [];
+    const mutation = vi.fn(async (_endpoint: unknown, _args: unknown) => ({
+      success: true,
+      newTaskId: null,
+    }));
+    const service = createCliGatewayService({
+      backend: { mutation } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => []),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(async () => undefined),
+      },
+      resolveSenderAgent: () => {
+        throw new Error('resolver down');
+      },
+      log: (line) => logs.push(line),
+    });
+
+    await expect(service.handoff({ ...args, targetRole: 'user' })).resolves.toMatchObject({
+      success: true,
+    });
+    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(mutation.mock.calls[0]?.[1]).not.toHaveProperty('senderAgent');
+    expect(logs).toContain(
+      '[CliGateway:sender-agent unavailable chatroom=room-1 role=planner error=resolver down]'
+    );
+  });
+
+  test('retries once without senderAgent when the backend rejects only that argument', async () => {
+    const rejection =
+      'ArgumentValidationError: Object contains extra field `senderAgent` that is not in the validator.';
+    const mutation = vi
+      .fn()
+      .mockRejectedValueOnce(new Error(rejection))
+      .mockResolvedValueOnce({ success: true, newTaskId: null });
+    const logs: string[] = [];
+    const service = createCliGatewayService({
+      backend: { mutation } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => []),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(async () => undefined),
+      },
+      resolveSenderAgent: () => claude,
+      log: (line) => logs.push(line),
+    });
+
+    await expect(service.handoff({ ...args, targetRole: 'user' })).resolves.toMatchObject({
+      success: true,
+    });
+
+    expect(mutation).toHaveBeenCalledTimes(2);
+    expect(mutation.mock.calls[0]?.[1]).toMatchObject({ senderAgent: claude });
+    expect(mutation.mock.calls[1]?.[1]).toMatchObject({
+      chatroomId: 'room-1',
+      senderRole: 'planner',
+      targetRole: 'user',
+    });
+    expect(mutation.mock.calls[1]?.[1]).not.toHaveProperty('senderAgent');
+    expect(logs).toContain(
+      `[CliGateway:sender-agent fallback chatroom=room-1 role=planner error=${rejection}]`
+    );
+  });
+
+  test('does not retry when the backend fails for a reason other than senderAgent', async () => {
+    const error = new Error('backend unavailable');
+    const mutation = vi.fn(async (_endpoint: unknown, _args: unknown) => Promise.reject(error));
+    const service = createCliGatewayService({
+      backend: { mutation } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => []),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(async () => undefined),
+      },
+      resolveSenderAgent: () => claude,
+      log: () => undefined,
+    });
+
+    await expect(service.handoff({ ...args, targetRole: 'user' })).rejects.toBe(error);
+    expect(mutation).toHaveBeenCalledTimes(1);
+  });
+
+  test('rethrows the retry failure when the backend still rejects without the snapshot', async () => {
+    const mutation = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('extra field `senderAgent` that is not in the validator'))
+      .mockRejectedValueOnce(new Error('backend still broken'));
+    const service = createCliGatewayService({
+      backend: { mutation } as never,
+      port: 18765,
+      taskService: {
+        listTasksForRole: vi.fn((): readonly AssignedTask[] => []),
+        loadAssignedTaskForAction: vi.fn(),
+        recordHandoffOutcome: vi.fn(async () => undefined),
+      },
+      resolveSenderAgent: () => claude,
+      log: () => undefined,
+    });
+
+    await expect(service.handoff({ ...args, targetRole: 'user' })).rejects.toThrow(
+      'backend still broken'
+    );
+    expect(mutation).toHaveBeenCalledTimes(2);
+  });
+
+  test('sends the snapshot resolved for the claimed sender role, never a client-supplied one', async () => {
+    const resolveSenderAgent = vi.fn((_chatroomId: string, role: string) =>
+      role === 'builder' ? { harness: 'codex-sdk', model: 'gpt-5-codex' } : claude
+    );
+    const { service, mutation } = createService({ success: true, newTaskId: null }, [], {
+      resolveSenderAgent,
+    });
+
+    await service.handoff({
+      ...args,
+      senderRole: 'builder',
+      targetRole: 'user',
+      senderAgent: claude,
+    } as never);
+
+    expect(resolveSenderAgent).toHaveBeenCalledWith('room-1', 'builder');
+    expect(mutation.mock.calls[0]?.[1]).toMatchObject({
+      senderRole: 'builder',
+      senderAgent: { harness: 'codex-sdk', model: 'gpt-5-codex' },
+    });
+  });
+});
+
+describe('snapshotSenderAgent', () => {
+  test('maps a running slot harness and model', () => {
+    expect(
+      snapshotSenderAgent({ harness: 'claude-sdk', model: 'anthropic/claude-sonnet-4' })
+    ).toStrictEqual({
+      harness: 'claude-sdk',
+      model: 'anthropic/claude-sonnet-4',
+    });
+  });
+  test('omits model when the slot has none', () => {
+    expect(snapshotSenderAgent({ harness: 'codex-sdk', model: undefined })).toStrictEqual({
+      harness: 'codex-sdk',
+    });
+  });
+  test('returns undefined when the slot has no harness (idle or never started)', () => {
+    expect(snapshotSenderAgent({ harness: undefined, model: 'm' })).toBeUndefined();
+    expect(snapshotSenderAgent(undefined)).toBeUndefined();
   });
 });

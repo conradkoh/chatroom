@@ -88,3 +88,37 @@ describe('serializeMessage', () => {
     expect(xml).toContain('from="user"');
   });
 });
+describe('linear header sender snapshot', () => {
+  it('appends harness and model to the first line', () => {
+    const output = serializeMessage(
+      { ...notice, senderAgent: { harness: 'claude-sdk', model: 'anthropic/claude-sonnet-4' } },
+      { profile: 'linear' }
+    );
+    expect(output.split('\n')[0]).toBe(
+      '1970-01-01T00:00:00.000Z | builder → user | harness=claude-sdk model=anthropic/claude-sonnet-4'
+    );
+  });
+  it('appends harness only when the snapshot has no model', () => {
+    const output = serializeMessage(
+      { ...notice, senderAgent: { harness: 'codex-sdk' } },
+      { profile: 'linear' }
+    );
+    expect(output.split('\n')[0]).toBe(
+      '1970-01-01T00:00:00.000Z | builder → user | harness=codex-sdk'
+    );
+  });
+  it('leaves the output byte-identical when there is no snapshot', () => {
+    expect(serializeMessage(notice, { profile: 'linear' })).toBe(
+      '1970-01-01T00:00:00.000Z | builder → user\n\nHeads up'
+    );
+  });
+  it('never changes the context-xml or task-origin profiles', () => {
+    const withSnapshot = { ...notice, senderAgent: { harness: 'claude-sdk', model: 'm' } };
+    expect(
+      serializeMessage(withSnapshot, { profile: 'context-xml', chatroomId: 'c', role: 'builder' })
+    ).toBe(serializeMessage(notice, { profile: 'context-xml', chatroomId: 'c', role: 'builder' }));
+    expect(serializeMessage(withSnapshot, { profile: 'task-origin' })).toBe(
+      serializeMessage(notice, { profile: 'task-origin' })
+    );
+  });
+});

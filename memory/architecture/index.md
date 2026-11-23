@@ -11,5 +11,6 @@
 - [Explicit optional props for intermediate states](explicit-optional-props.md) — distinguish omitted capabilities from temporarily unavailable values at TypeScript component boundaries
 - [Bandwidth at rest across projects](bandwidth-at-rest-scaling.md) — cross-app audit of Convex subscription and heartbeat paths when many projects are idle
 - [Handoff file attachments](handoff-file-attachments.md) — user-addressed handoff files in Convex, upload lifecycle, access rules, quotas, and purge
+- [Handoff sender agent snapshot](handoff-sender-agent.md) — point-in-time harness/model on handoffs, defensive webapp normalization, no placeholder for legacy rows
 - [Trio team coordination](trio-team-coordination.md) — coordinator-centred enforced handoff graph and per-edge session policy for the Trio preset
 - [Machine management invariants](machine-management.md) — tombstone-first deletion, MACHINE_SCOPED_TABLES registry rule, lazy roots/ledger, command nudges, per-row action area

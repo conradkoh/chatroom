@@ -16,6 +16,7 @@ import {
   ledgerEntryValidator,
   ledgerRootValidator,
 } from '../src/domain/entities/repository-ledger';
+import { senderAgentValidator } from '../src/domain/entities/sender-agent';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
 import {
   commitStatusValidator,
@@ -535,6 +536,11 @@ export default defineSchema({
     // Attached files for context
     // Only handoffs addressed to the user may carry file attachments
     attachedFileIds: v.optional(v.array(v.id('chatroom_fileAttachments'))),
+
+    // Handoff messages only: harness + model of the sending agent at handoff time.
+    // Point-in-time snapshot written once on insert and never patched. Absent on
+    // legacy rows, on user/notice/message rows, and when the sender could not be resolved.
+    senderAgent: v.optional(senderAgentValidator),
 
     // Attached chatroom messages for context
     // User can attach existing messages as context for a new message

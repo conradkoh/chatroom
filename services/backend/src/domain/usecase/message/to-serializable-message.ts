@@ -1,5 +1,8 @@
 import type { DeliveryAttachmentsInput } from '../../entities/message-attachments';
-import type { SerializableMessage } from '../../entities/serializable-message';
+import type {
+  SerializableMessage,
+  SerializableSenderAgent,
+} from '../../entities/serializable-message';
 
 export type EnrichedMessageInput = {
   _id: string;
@@ -10,6 +13,7 @@ export type EnrichedMessageInput = {
   content: string;
   taskId?: string | null | undefined;
   task?: { _id: string; status: string; content: string } | null | undefined;
+  senderAgent?: SerializableSenderAgent | undefined;
   attachedTasks?:
     | {
         _id: string;
@@ -63,5 +67,6 @@ export function toSerializableMessage(input: EnrichedMessageInput): Serializable
     content: input.content,
     ...(attachments ? { attachments } : {}),
     ...(normalizeTask(input) ? { task: normalizeTask(input) } : {}),
+    ...(input.senderAgent ? { senderAgent: input.senderAgent } : {}),
   };
 }
