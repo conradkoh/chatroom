@@ -409,6 +409,48 @@ describe('parsePlan', () => {
     });
   });
 
+  describe('content outside phase sub-sections', () => {
+    it('PLAN_SECTION_ORDER: a bullet directly under a phase heading is a sub-section error, not a stray', () => {
+      const markdown = makePlan().replace(
+        '### P1 — Phase 1\n\n#### Requirements',
+        '### P1 — Phase 1\n\n- Bullet under the phase.\n\n#### Requirements'
+      );
+      const errors = fail(markdown);
+      const bulletLine = markdown.split('\n').indexOf('- Bullet under the phase.') + 1;
+      const bulletError = errors.find((error) => error.line === bulletLine);
+      expect(bulletError?.code).toBe('PLAN_SECTION_ORDER');
+      expect(bulletError?.message).toBe(
+        'Content under a phase must sit inside a "#### Depends on", "#### Requirements", "#### Constraints", or "#### Acceptance criteria" sub-section'
+      );
+      expect(errors.some((error) => error.code === 'PLAN_STRAY_CONTENT')).toBe(false);
+    });
+
+    it('PLAN_SECTION_ORDER: a bullet under Phase details before any phase names the phase-block rule', () => {
+      const markdown = makePlan().replace(
+        '## Phase details\n',
+        '## Phase details\n- Bullet before any phase.\n'
+      );
+      const errors = fail(markdown);
+      const bulletLine = markdown.split('\n').indexOf('- Bullet before any phase.') + 1;
+      const bulletError = errors.find((error) => error.line === bulletLine);
+      expect(bulletError?.code).toBe('PLAN_SECTION_ORDER');
+      expect(bulletError?.message).toBe(
+        'Content under "## Phase details" must sit inside a "### Pn — <title>" block'
+      );
+      expect(errors.some((error) => error.code === 'PLAN_STRAY_CONTENT')).toBe(false);
+    });
+
+    it('adds no error of its own under a rejected phase heading', () => {
+      const markdown = makePlan().replace(
+        '### P1 — Phase 1',
+        '### P9 — Phase 9\n- Under the rejected heading.'
+      );
+      const errors = fail(markdown);
+      const bulletLine = markdown.split('\n').indexOf('- Under the rejected heading.') + 1;
+      expect(errors.filter((error) => error.line === bulletLine)).toEqual([]);
+    });
+  });
+
   describe('indented headings', () => {
     it('treats an indented # line as bullet continuation', () => {
       const result = parsePlan(makePlan({ requirements: ['Requirement one.\n  # run this'] }));

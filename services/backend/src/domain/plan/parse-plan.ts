@@ -108,6 +108,10 @@ const PHASE_ENTRY_PATTERN = /^P([1-9]\d*)\s+[—–-]\s+(.+)$/;
 const TITLE_PATTERN = /^#\s+(.+)$/;
 const STRAY_CONTENT_MESSAGE =
   'Unindented text after a blank line is not part of the bullet above; indent it under the bullet or start a new "- " item';
+const PHASE_BLOCK_MESSAGE =
+  'Content under "## Phase details" must sit inside a "### Pn — <title>" block';
+const PHASE_SUBSECTION_MESSAGE =
+  'Content under a phase must sit inside a "#### Depends on", "#### Requirements", "#### Constraints", or "#### Acceptance criteria" sub-section';
 
 interface FenceState {
   inFence: boolean;
@@ -191,13 +195,27 @@ function record(state: ParseState, code: PlanParseErrorCode, line: number, messa
   state.errors.push({ code, line, message });
 }
 
+/** Phase-structure message for content no phase block or sub-section can take; null otherwise. */
+function misplacedPhaseContentMessage(state: ParseState): string | null {
+  if (state.currentSection !== 'phaseDetails') return null;
+  if (state.currentPhase === null) return PHASE_BLOCK_MESSAGE;
+  if (state.currentPhaseSection === null) return PHASE_SUBSECTION_MESSAGE;
+  return null;
+}
+
 /**
- * Content no bullet can take. Inside a recognised section it is a stray
- * paragraph; outside every section it is an orphan. Reported once per section.
+ * Content no bullet can take. In Phase details it is a phase-structure error
+ * (no phase block, or no sub-section). Inside another recognised section it is
+ * a stray paragraph; outside every section it is an orphan. Reported once per section.
  */
 function reportOrphan(state: ParseState, line: number): void {
   if (state.orphanReported) return;
   state.orphanReported = true;
+  const phaseMessage = misplacedPhaseContentMessage(state);
+  if (phaseMessage !== null) {
+    record(state, 'PLAN_SECTION_ORDER', line, phaseMessage);
+    return;
+  }
   if (state.currentSection !== null) {
     record(state, 'PLAN_STRAY_CONTENT', line, STRAY_CONTENT_MESSAGE);
     return;
@@ -326,7 +344,13 @@ function handlePhaseHeading(state: ParseState, heading: string, line: number): v
   state.orphanReported = false;
 
   const entry = resolvePhaseHeadingEntry(state, heading, line);
-  state.currentPhase = entry === null ? null : pushPhaseBlock(state, entry, line);
+  if (entry === null) {
+    state.currentPhase = null;
+    // The rejected heading already has its error; its body is not reported again.
+    state.orphanReported = true;
+    return;
+  }
+  state.currentPhase = pushPhaseBlock(state, entry, line);
 }
 
 function isInsidePhaseBlock(state: ParseState, phase: PhaseBlock | null): phase is PhaseBlock {
@@ -375,7 +399,7 @@ function handlePhaseSectionHeading(state: ParseState, text: string, line: number
       line,
       'Phase sub-section headings are only valid inside a "### Pn" block'
     );
-    state.orphanReported = false;
+    state.orphanReported = true;
     return;
   }
   const name = lookupPhaseSectionName(text);
@@ -386,11 +410,12 @@ function handlePhaseSectionHeading(state: ParseState, text: string, line: number
       line,
       `Unrecognised phase sub-section "#### ${text.trim()}"`
     );
-    state.orphanReported = false;
+    state.orphanReported = true;
     return;
   }
   state.currentPhaseSection = openPhaseSection(state, phase, name, line);
-  state.orphanReported = false;
+  // A rejected (duplicate or out-of-order) sub-section already has its error; its body is not reported again.
+  state.orphanReported = state.currentPhaseSection === null;
 }
 
 type TopLevelListSection = 'sources' | 'requirements' | 'constraints';
