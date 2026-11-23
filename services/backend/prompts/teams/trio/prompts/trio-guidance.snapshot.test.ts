@@ -101,11 +101,25 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('do not try to contact `product-manager`');
     expect(guidance).not.toContain('**Product manager before scoping a new ambiguous feature:**');
     expect(guidance).not.toContain('hand off to `product-manager`');
-    expect(guidance).toContain('Plan every slice, build one.');
+    expect(guidance).toContain('Decide your round.');
     expect(guidance).toContain('chatroom plan view-template');
-    expect(guidance).toContain('Build **P1 only**.');
+    expect(guidance).toContain('does not commit you to delivering it one phase at a time');
+    expect(guidance).toContain('Delegation cost and batching');
+    expect(guidance).not.toMatch(/one slice per|build one|Build \*\*P1 only\*\*/);
     expect(guidance).toContain('Put the plan ID from the publish output');
     expect(guidance).toContain('Never reconstruct the plan from memory or from earlier reports.');
+    // The whole-plan read comes first: the specifier cannot know how many phases
+    // it takes before reading the plan, so the phase read is the follow-up.
+    expect(guidance).toContain(
+      '(the same command without `--phase`) to choose the phases this round takes'
+    );
+    expect(guidance).not.toContain('For more than one phase, read the whole plan');
+    const wholePlanReadIndex = guidance.indexOf('read the whole plan with `');
+    const phaseFollowUpIndex = guidance.indexOf(
+      'Once you have chosen a phase and need only its detail, read that phase with `'
+    );
+    expect(wholePlanReadIndex).toBeGreaterThan(-1);
+    expect(phaseFollowUpIndex).toBeGreaterThan(wholePlanReadIndex);
     expect(guidance).toContain('--plan-id="<planId>" --phase="<Pn>"`');
     expect(guidance).toContain('**Broken reference → hand back to `coordinator`:**');
     expect(guidance).toContain('`--supersedes="<old planId>"`');
