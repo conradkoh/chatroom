@@ -922,6 +922,69 @@ Edge case X
       expect(screen.queryByTestId('timeline-sender-agent')).not.toBeInTheDocument();
     });
 
+    it('shows the agent line in the collapsed bar meta with the bar budgets, hidden below sm', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
+
+      const chip = chipIn(screen.getByTestId('timeline-handoff-meta')) as HTMLElement;
+      expectSnapshotChip(chip);
+      expect(chip).toHaveAttribute('data-placement', 'bar');
+      expect(chip).toHaveClass('max-sm:hidden', 'sm:max-w-[44ch]', 'md:max-w-[56ch]');
+      expect(within(chip).getByTestId('timeline-sender-agent-harness')).toHaveClass(
+        'sm:max-w-[12ch]',
+        'md:max-w-[16ch]'
+      );
+      expect(within(chip).getByTestId('timeline-sender-agent-model')).toHaveClass('max-w-full');
+    });
+
+    it('puts exactly one agent line in the collapsed bar and none in its header', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
+
+      const trigger = screen.getByTestId('timeline-handoff-trigger');
+      expect(within(trigger).getAllByTestId('timeline-sender-agent')).toHaveLength(1);
+      expect(chipIn(screen.getByTestId('timeline-message-header'))).toBeNull();
+    });
+
+    it('stacks the time row above the agent line in a right-anchored meta column', () => {
+      render(
+        <TimelineTeamMessage
+          message={SNAPSHOT_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={420_000}
+          collapsible
+        />
+      );
+
+      const meta = screen.getByTestId('timeline-handoff-meta');
+      expect(meta).toHaveClass('flex-col', 'items-end', 'max-w-[55%]');
+      expect(meta.children).toHaveLength(2);
+      const [timeRow, agentLine] = Array.from(meta.children) as HTMLElement[];
+      expect(timeRow).toHaveClass('h-5', 'justify-end');
+      expect(timeRow.lastElementChild).toBe(
+        within(timeRow).getByTestId('timeline-handoff-duration-slot')
+      );
+      expect(within(timeRow).getByTestId('timeline-handoff-duration')).toHaveTextContent('7m 0s');
+      expect(agentLine).toBe(chipIn(meta));
+    });
+
+    it('keeps an empty duration slot in the bar when the handoff has no duration', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
+
+      const slot = within(screen.getByTestId('timeline-handoff-meta')).getByTestId(
+        'timeline-handoff-duration-slot'
+      );
+      expect(slot).toHaveClass('w-[7ch]', 'shrink-0', 'font-mono', 'text-[10px]');
+      expect(slot).toBeEmptyDOMElement();
+    });
+
+    it('renders the time row alone in the bar for a legacy handoff', () => {
+      render(<TimelineTeamMessage message={LEGACY_HANDOFF} chatroomId="room-1" collapsible />);
+
+      const meta = screen.getByTestId('timeline-handoff-meta');
+      expect(chipIn(meta)).toBeNull();
+      expect(meta.children).toHaveLength(1);
+      expect(within(meta).getByTestId('timeline-handoff-duration-slot')).toBeInTheDocument();
+    });
+
     it('keeps the chip out of the dialog header and puts exactly one in the dialog footer', () => {
       render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
 
@@ -966,7 +1029,7 @@ Edge case X
 
       const rows = screen.getAllByTestId('timeline-team-message');
       expect(rows).toHaveLength(2);
-      expect(chipIn(rows[0] as HTMLElement)).toBeNull();
+      expect(chipIn(rows[0] as HTMLElement)).toHaveAttribute('data-placement', 'bar');
       expect(chipIn(rows[1] as HTMLElement)).toBeNull();
 
       fireEvent.click(within(rows[0] as HTMLElement).getByTestId('timeline-handoff-trigger'));

@@ -117,10 +117,17 @@ export const TIMELINE_HANDOFF_TRIGGER_LABEL =
   'min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wide leading-5 text-chatroom-text-muted ' +
   'group-hover/handoff-trigger:text-chatroom-text-primary';
 
-/** Right-aligned meta column inside the collapsed bar (duration + time). Never wraps and never
- * stacks: a long duration such as `1h 5m` stays on one line and the preview absorbs the width. */
+/**
+ * Collapsed bar meta column: two right-anchored lines, top-aligned with the first preview line.
+ * Line 1 is the time row (timestamp + duration slot). Line 2 is the agent line, hidden below `sm`.
+ * `max-w-[55%]` keeps the preview at least 45% of the bar width.
+ */
 export const TIMELINE_HANDOFF_META =
-  'flex shrink-0 items-center gap-1.5 whitespace-nowrap leading-5';
+  'flex min-w-0 max-w-[55%] shrink-0 flex-col items-end leading-5';
+
+/** Collapsed bar line 1: timestamp then the fixed duration slot, right-anchored, 20px tall. */
+export const TIMELINE_HANDOFF_META_TIME_ROW =
+  'flex h-5 items-center justify-end gap-2 whitespace-nowrap';
 
 /**
  * Collapsed-row attachment chips. 38px (2.375rem) = 16px bar padding (px-4) + 14px

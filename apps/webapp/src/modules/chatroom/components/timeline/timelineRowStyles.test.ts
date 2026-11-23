@@ -14,6 +14,7 @@ import {
   TIMELINE_HANDOFF_FOOTER_AGENT_ROW,
   TIMELINE_HANDOFF_FOOTER_TIME_ROW,
   TIMELINE_HANDOFF_META,
+  TIMELINE_HANDOFF_META_TIME_ROW,
   TIMELINE_HANDOFF_OPEN_ICON,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
   TIMELINE_HANDOFF_TIMESTAMP,
@@ -109,13 +110,23 @@ describe('TIMELINE_HANDOFF_CHIPS', () => {
 });
 
 describe('TIMELINE_HANDOFF_META', () => {
-  it('never wraps or stacks, so the duration and time stay on one line at every width', () => {
-    expect(TIMELINE_HANDOFF_META).toContain('whitespace-nowrap');
+  it('is a right-anchored two-line column that takes at most 55% of the bar', () => {
+    expect(TIMELINE_HANDOFF_META).toContain('flex-col');
+    expect(TIMELINE_HANDOFF_META).toContain('items-end');
+    expect(TIMELINE_HANDOFF_META).toContain('max-w-[55%]');
     expect(TIMELINE_HANDOFF_META).toContain('shrink-0');
-    expect(TIMELINE_HANDOFF_META).toContain('items-center');
-    expect(TIMELINE_HANDOFF_META).not.toContain('flex-col');
+    expect(TIMELINE_HANDOFF_META).toContain('leading-5');
     expect(TIMELINE_HANDOFF_META).not.toContain('hidden');
     expect(TIMELINE_HANDOFF_META).not.toContain('sm:');
+  });
+});
+
+describe('TIMELINE_HANDOFF_META_TIME_ROW', () => {
+  it('is one 20px line that right-aligns the timestamp and duration slot', () => {
+    expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('h-5');
+    expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('items-center');
+    expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('justify-end');
+    expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('whitespace-nowrap');
   });
 });
 

@@ -6,10 +6,15 @@ import { memo, useCallback, useId, useMemo, useRef, useState, type RefObject } f
 import { TimelineFileAttachments } from './TimelineFileAttachments';
 import { TimelineHandoffDetailsDialog } from './TimelineHandoffDetailsDialog';
 import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessageFooter';
-import { TimelineMessageRoute, TimelineMessageTypeBadge } from './TimelineMessageIdentity';
+import {
+  TimelineMessageRoute,
+  TimelineMessageTypeBadge,
+  TimelineSenderAgentChip,
+} from './TimelineMessageIdentity';
 import {
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_META,
+  TIMELINE_HANDOFF_META_TIME_ROW,
   TIMELINE_HANDOFF_OPEN_ICON,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
   TIMELINE_HANDOFF_TRIGGER,
@@ -22,20 +27,24 @@ import {
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
 import { MessageAttachmentChips } from '../../attachments';
 import { getHandoffPreviewText } from '../../timeline/handoffPreview';
-import type { Message } from '../../types/message';
+import type { Message, SenderAgentSnapshot } from '../../types/message';
 
 import { cn } from '@/lib/utils';
 
-/** Collapsed bar content: the preview (or the empty label) plus the duration and time. */
+/** Collapsed bar content: the preview (or the empty label) plus the two-line meta column. */
 function HandoffTriggerSummary({
   preview,
   previewId,
+  type,
+  senderAgent,
   creationTime,
   handoffDurationMs,
   handoffDurationSlow,
 }: {
   preview: string;
   previewId: string;
+  type: string;
+  senderAgent: SenderAgentSnapshot | undefined;
   creationTime: number;
   handoffDurationMs?: number;
   /** Whether the duration is much longer than others in the loaded window (orange). */
@@ -54,13 +63,17 @@ function HandoffTriggerSummary({
       ) : (
         <span className={TIMELINE_HANDOFF_TRIGGER_LABEL}>Show full handoff</span>
       )}
-      <span className={TIMELINE_HANDOFF_META}>
-        <TimelineMessageTimestamp
-          creationTime={creationTime}
-          handoffDurationMs={handoffDurationMs}
-          handoffDurationSlow={handoffDurationSlow}
-          compact
-        />
+      <span data-testid="timeline-handoff-meta" className={TIMELINE_HANDOFF_META}>
+        <span className={TIMELINE_HANDOFF_META_TIME_ROW}>
+          <TimelineMessageTimestamp
+            creationTime={creationTime}
+            handoffDurationMs={handoffDurationMs}
+            handoffDurationSlow={handoffDurationSlow}
+            compact
+            alignDuration={type === 'handoff'}
+          />
+        </span>
+        <TimelineSenderAgentChip type={type} senderAgent={senderAgent} placement="bar" />
       </span>
     </>
   );
@@ -74,6 +87,8 @@ function TimelineHandoffTrigger({
   buttonRef,
   preview,
   previewId,
+  type,
+  senderAgent,
   creationTime,
   handoffDurationMs,
   handoffDurationSlow,
@@ -83,6 +98,8 @@ function TimelineHandoffTrigger({
   /** getHandoffPreviewText output; '' when the content has no visible text. */
   preview: string;
   previewId: string;
+  type: string;
+  senderAgent: SenderAgentSnapshot | undefined;
   creationTime: number;
   handoffDurationMs?: number;
   handoffDurationSlow?: boolean;
@@ -104,6 +121,8 @@ function TimelineHandoffTrigger({
       <HandoffTriggerSummary
         preview={preview}
         previewId={previewId}
+        type={type}
+        senderAgent={senderAgent}
         creationTime={creationTime}
         handoffDurationMs={handoffDurationMs}
         handoffDurationSlow={handoffDurationSlow}
@@ -207,6 +226,8 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
             buttonRef={triggerRef}
             preview={preview}
             previewId={previewId}
+            type={message.type}
+            senderAgent={message.senderAgent}
             creationTime={message._creationTime}
             handoffDurationMs={handoffDurationMs}
             handoffDurationSlow={handoffDurationSlow}
