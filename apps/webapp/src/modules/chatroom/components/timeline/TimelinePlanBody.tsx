@@ -30,6 +30,30 @@ interface CopyHandlers {
   onCopy: (text: string, key: string) => void;
 }
 
+/** Text the live region announces. Empty until a copy settles. */
+function copyStatusText(copiedKey: string | null, failedKey: string | null): string {
+  if (copiedKey !== null) return 'Copied';
+  if (failedKey !== null) return 'Copy failed';
+  return '';
+}
+
+/** The one visually hidden live region per plan body. The only place copy results are announced. */
+function CopyStatusAnnouncement({
+  copiedKey,
+  failedKey,
+}: Pick<CopyHandlers, 'copiedKey' | 'failedKey'>) {
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      data-testid="timeline-plan-copy-status"
+      className="sr-only"
+    >
+      {copyStatusText(copiedKey, failedKey)}
+    </span>
+  );
+}
+
 /** Plan id chip (+ Supersedes chip when present). Full ids are in the `title` tooltip. */
 function PlanIdControls({
   messageId,
@@ -213,15 +237,18 @@ export const TimelinePlanBody = memo(function TimelinePlanBody({ message }: { me
   const copyProps = { copiedKey, failedKey, onCopy };
 
   return (
-    <div
-      data-testid="timeline-plan-body"
-      className="@container min-w-0 space-y-4 border-l-2 border-chatroom-border-strong pl-3"
-    >
-      {plan ? (
-        <PlanContent message={message} plan={plan} {...copyProps} />
-      ) : (
-        <PlanFallback message={message} {...copyProps} />
-      )}
-    </div>
+    <>
+      <CopyStatusAnnouncement copiedKey={copiedKey} failedKey={failedKey} />
+      <div
+        data-testid="timeline-plan-body"
+        className="@container min-w-0 space-y-4 border-l-2 border-chatroom-border-strong pl-3"
+      >
+        {plan ? (
+          <PlanContent message={message} plan={plan} {...copyProps} />
+        ) : (
+          <PlanFallback message={message} {...copyProps} />
+        )}
+      </div>
+    </>
   );
 });

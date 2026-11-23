@@ -175,7 +175,6 @@ export const TimelinePlanPhaseDetail = memo(function TimelinePlanPhaseDetail({
           <a
             href={`#${phasesId}`}
             onClick={jumpOnClick(phasesId)}
-            tabIndex={-1}
             data-testid="timeline-plan-back-to-phases"
             className={cn(
               TIMELINE_PLAN_CONTROL,

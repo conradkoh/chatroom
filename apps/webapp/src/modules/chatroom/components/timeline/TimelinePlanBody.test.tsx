@@ -259,6 +259,17 @@ describe('TimelinePlanBody through the feed row', () => {
     expect(window.location.hash).toBe('');
   });
 
+  it('keeps every back-link in the keyboard tab order', () => {
+    renderRow(planMessage());
+    const links = screen.getAllByTestId('timeline-plan-back-to-phases');
+    expect(links.length).toBeGreaterThan(1);
+    for (const link of links) {
+      expect(link).not.toHaveAttribute('tabindex');
+      act(() => link.focus());
+      expect(document.activeElement).toBe(link);
+    }
+  });
+
   describe('copy feedback', () => {
     let writeText: ReturnType<typeof vi.fn>;
 
@@ -327,14 +338,42 @@ describe('TimelinePlanBody through the feed row', () => {
       await flushMicrotasks();
 
       expect(consoleError).toHaveBeenCalled();
-      expect(screen.getByText('Copy failed')).toBeInTheDocument();
-      expect(screen.queryByRole('status')).toBeNull();
+      const failures = screen.getAllByText('Copy failed');
+      expect(failures).toHaveLength(2);
+      expect(failures.some((node) => node.classList.contains('text-chatroom-status-error'))).toBe(
+        true
+      );
 
       fireEvent.click(screen.getByTestId('timeline-plan-id-copy'));
       await flushMicrotasks();
 
       expect(screen.queryByText('Copy failed')).not.toBeInTheDocument();
       expect(screen.getByTestId('timeline-plan-id-copy')).toHaveAttribute('data-copied', 'true');
+    });
+
+    it('renders one polite live region per plan body and it is empty before a copy', () => {
+      renderRow(planMessage());
+      const status = screen.getByRole('status');
+      expect(screen.getAllByRole('status')).toHaveLength(1);
+      expect(status).toHaveAttribute('aria-live', 'polite');
+      expect(status).toHaveTextContent(/^$/);
+    });
+
+    it('announces a successful copy through the live region', async () => {
+      renderRow(planMessage());
+      fireEvent.click(screen.getByTestId('timeline-plan-id-copy'));
+      await flushMicrotasks();
+      expect(screen.getByRole('status')).toHaveTextContent(/^Copied$/);
+    });
+
+    it('announces a failed copy through the live region', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      writeText.mockRejectedValueOnce(new Error('denied'));
+      renderRow(planMessage());
+      fireEvent.click(screen.getByTestId('timeline-plan-id-copy'));
+      await flushMicrotasks();
+      expect(consoleError).toHaveBeenCalled();
+      expect(screen.getByRole('status')).toHaveTextContent(/^Copy failed$/);
     });
   });
 
