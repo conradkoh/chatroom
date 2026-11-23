@@ -412,13 +412,14 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       // centres proves they share one line; stacking would separate them by a full line.
       const centreY = (box: Box) => box.y + box.height / 2;
       expect(Math.abs(centreY(durationBox) - centreY(timeBox))).toBeLessThanOrEqual(1);
-      // A centre check alone cannot see overlap or reordering: the time must start at or
-      // after the duration's right edge, and both must sit inside the trigger's right edge.
-      const durationRight = durationBox.x + durationBox.width;
+      // A centre check alone cannot see overlap or reordering: the fixed duration slot must
+      // start at or after the time's right edge, and both must sit inside the trigger's right
+      // edge. The slot is fixed-width, so it also proves the time column does not move.
+      const timeRight = timeBox.x + timeBox.width;
       const triggerRight = triggerBox.x + triggerBox.width;
-      expect(timeBox.x).toBeGreaterThanOrEqual(durationRight - 1);
-      expect(durationRight).toBeLessThanOrEqual(triggerRight + 1);
-      expect(timeBox.x + timeBox.width).toBeLessThanOrEqual(triggerRight + 1);
+      expect(durationBox.x).toBeGreaterThanOrEqual(timeRight - 1);
+      expect(durationBox.x + durationBox.width).toBeLessThanOrEqual(triggerRight + 1);
+      expect(timeRight).toBeLessThanOrEqual(triggerRight + 1);
 
       await readBox(preview, (box) => expect(box.width).toBeGreaterThanOrEqual(120));
       await readBox(preview, (box) => expect(box.height).toBeLessThanOrEqual(41));
