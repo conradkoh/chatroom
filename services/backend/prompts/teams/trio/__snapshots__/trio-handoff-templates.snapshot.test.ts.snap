@@ -137,7 +137,7 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping.
+Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, keep only the \`## Verification scope\` line that applies: \`round-final\` for the round's final brief, \`focused\` for the others.
 
 \`\`\`\`markdown
 ## Summary
@@ -199,7 +199,6 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 ## Verification scope
 \`focused\` — run the tests that touch this brief's files.
 \`round-final\` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.
-Delete the scope that does not apply; the round's final brief is \`round-final\`, the others are \`focused\`.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -499,7 +498,7 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping.
+Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, keep only the \`## Verification scope\` line that applies: \`round-final\` for the round's final brief, \`focused\` for the others.
 
 \`\`\`\`markdown
 ## Summary
@@ -561,7 +560,6 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 ## Verification scope
 \`focused\` — run the tests that touch this brief's files.
 \`round-final\` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.
-Delete the scope that does not apply; the round's final brief is \`round-final\`, the others are \`focused\`.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>

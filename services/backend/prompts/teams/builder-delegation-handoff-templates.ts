@@ -27,7 +27,7 @@ interface BatchingFragments {
  */
 function getBatchingFragments(batching: boolean): BatchingFragments {
   const roundGuidance = batching
-    ? 'A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping.'
+    ? "A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, keep only the `## Verification scope` line that applies: `round-final` for the round's final brief, `focused` for the others."
     : 'Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.';
 
   const endToEndRequirement = batching
@@ -39,7 +39,6 @@ function getBatchingFragments(batching: boolean): BatchingFragments {
         '## Verification scope',
         "`focused` — run the tests that touch this brief's files.",
         '`round-final` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.',
-        "Delete the scope that does not apply; the round's final brief is `round-final`, the others are `focused`.",
         '',
         '',
       ].join('\n')
