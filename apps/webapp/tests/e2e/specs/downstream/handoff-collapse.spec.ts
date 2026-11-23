@@ -594,4 +594,58 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       .getByTestId('timeline-handoff-trigger');
     await expect(trigger.getByTestId('timeline-sender-agent')).toBeHidden();
   });
+
+  for (const width of [1280, 320]) {
+    test(`collapses a plan to one compact bar that opens the plan dialog at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+
+      const fixture = page.getByTestId('collapse-plan');
+      const row = fixture.getByTestId('timeline-team-message');
+      const trigger = fixture.getByTestId('timeline-plan-trigger');
+      const title = fixture.getByTestId('timeline-plan-summary-title');
+      const phases = fixture.getByTestId('timeline-plan-summary-phases');
+      const right = (box: Box) => box.x + box.width;
+
+      // One summary button: no handoff bar, no markdown body and no dialog until the bar is opened.
+      await expect(row).toHaveAttribute('data-message-type', 'plan');
+      await expect(fixture.getByTestId('timeline-handoff-trigger')).toHaveCount(0);
+      await expect(trigger).toHaveAttribute('aria-label', 'Show full plan: Ship the plan row');
+      await expect(page.getByTestId('timeline-plan-body')).toHaveCount(0);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+
+      // Title and phase overview render from the parsed fixture.
+      await expect(title).toHaveText('Ship the plan row');
+      await expect(phases).toContainText('2 phases');
+      await expect(phases).toContainText('P1');
+      await expect(phases).toContainText('Schema');
+      await expect(phases).toContainText('Render');
+
+      // Compact geometry. The bar is at most 80px (70px from its CSS), and the overview at most two 16px lines.
+      const triggerBox = await readBox(trigger, (box) =>
+        expect(box.height).toBeLessThanOrEqual(80)
+      );
+      const titleBox = await readBox(title);
+      const phasesBox = await readBox(phases, (box) => expect(box.height).toBeLessThanOrEqual(33));
+      // The header may wrap at 320px, so the whole row gets a looser cap.
+      await readBox(row, (box) => expect(box.height).toBeLessThanOrEqual(140));
+
+      // Nothing overflows the bar horizontally: the bar scrolls by no width and the text stays inside its right edge.
+      expect(await trigger.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+      expect(right(titleBox)).toBeLessThanOrEqual(right(triggerBox) + 0.5);
+      expect(right(phasesBox)).toBeLessThanOrEqual(right(triggerBox) + 0.5);
+
+      // Click opens the full plan; initial focus lands in the dialog body.
+      await trigger.click();
+      await expect(page.getByRole('dialog', { name: 'Full plan from specifier' })).toBeVisible();
+      await expect(page.getByTestId('timeline-plan-body')).toBeVisible();
+      await expect(page.getByTestId('timeline-handoff-dialog-body')).toBeFocused();
+
+      // Escape closes the dialog and returns focus to the bar.
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+    });
+  }
 });
