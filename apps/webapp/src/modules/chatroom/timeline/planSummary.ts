@@ -2,8 +2,7 @@ import { getHandoffPreviewText } from './handoffPreview';
 import { readPlan } from './readPlan';
 
 /** Phases listed in the collapsed bar before "+K more". */
-// fallow-ignore-next-line unused-export
-export const PLAN_SUMMARY_MAX_PHASES = 4;
+const PLAN_SUMMARY_MAX_PHASES = 4;
 
 export type PlanSummary =
   | {
