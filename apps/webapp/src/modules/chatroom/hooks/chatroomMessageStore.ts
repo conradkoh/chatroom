@@ -33,5 +33,6 @@ export function toMessage(m: any): Message {
     isQueued: m.isQueued,
     contextCreatedBy: m.contextCreatedBy,
     scheduledPromptId: m.scheduledPromptId,
+    supersedesPlanId: m.supersedesPlanId,
   };
 }

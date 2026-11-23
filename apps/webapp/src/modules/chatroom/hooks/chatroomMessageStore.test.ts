@@ -65,4 +65,30 @@ describe('toMessage', () => {
 
     expect(message.senderAgent).toBeUndefined();
   });
+
+  it('carries supersedesPlanId from a raw plan row', () => {
+    const message = toMessage({
+      _id: 'plan-new-1',
+      type: 'plan',
+      senderRole: 'specifier',
+      content: '# Plan',
+      _creationTime: 1000,
+      supersedesPlanId: 'plan-old-1234',
+    });
+
+    expect(message.supersedesPlanId).toBe('plan-old-1234');
+  });
+
+  it('leaves supersedesPlanId undefined when the row has none', () => {
+    const message = toMessage({
+      _id: 'plan-new-2',
+      type: 'plan',
+      senderRole: 'specifier',
+      content: '# Plan',
+      _creationTime: 1000,
+    });
+
+    expect(message.supersedesPlanId).toBeUndefined();
+
+  });
 });

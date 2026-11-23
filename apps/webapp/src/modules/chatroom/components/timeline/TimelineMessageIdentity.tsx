@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, ArrowRightLeft, Info } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Info, ListChecks } from 'lucide-react';
 
 import {
   BADGE_BASE,
@@ -21,7 +21,7 @@ const SENDER_AGENT_PLACEMENT_CLASS = {
   dialog: TIMELINE_SENDER_AGENT_CHIP_DIALOG,
 } as const;
 
-/** Type badge for handoff and notice messages. Every other message type renders nothing. */
+/** Type badge for handoff, notice and plan messages. Every other message type renders nothing. */
 export function TimelineMessageTypeBadge({ type }: { type: string }) {
   if (type === 'handoff') {
     return (
@@ -36,6 +36,16 @@ export function TimelineMessageTypeBadge({ type }: { type: string }) {
       <span className={`${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`}>
         <Info size={ICON_SIZE} className="flex-shrink-0" aria-hidden="true" />
         notice
+      </span>
+    );
+  }
+  if (type === 'plan') {
+    return (
+      <span
+        className={`${BADGE_BASE} bg-chatroom-bg-tertiary text-chatroom-text-primary ring-1 ring-inset ring-chatroom-border-strong`}
+      >
+        <ListChecks size={ICON_SIZE} className="flex-shrink-0" aria-hidden="true" />
+        plan
       </span>
     );
   }

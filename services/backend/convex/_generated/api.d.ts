@@ -112,6 +112,7 @@ import type * as messageList from "../messageList.js";
 import type * as messages from "../messages.js";
 import type * as migrations from "../migrations.js";
 import type * as participants from "../participants.js";
+import type * as plans from "../plans.js";
 import type * as presentations from "../presentations.js";
 import type * as prompts_webapp from "../prompts/webapp.js";
 import type * as repositoryLedger from "../repositoryLedger.js";
@@ -269,6 +270,7 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   migrations: typeof migrations;
   participants: typeof participants;
+  plans: typeof plans;
   presentations: typeof presentations;
   "prompts/webapp": typeof prompts_webapp;
   repositoryLedger: typeof repositoryLedger;

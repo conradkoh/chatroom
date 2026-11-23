@@ -122,3 +122,47 @@ describe('linear header sender snapshot', () => {
     );
   });
 });
+
+describe('linear plan tagging', () => {
+  const base: SerializableMessage = {
+    _id: 'p1',
+    _creationTime: 0,
+    senderRole: 'specifier',
+    type: 'plan',
+    content: '# Plan\n\n## Phases\n- P1 — One',
+  };
+
+  it('tags plan messages with type=plan in the linear header', () => {
+    expect(serializeMessage(base, { profile: 'linear' })).toBe(
+      `1970-01-01T00:00:00.000Z | specifier | type=plan\n\n${base.content}`
+    );
+  });
+
+  it('tags before the sender snapshot when both are present', () => {
+    expect(
+      serializeMessage(
+        { ...base, senderAgent: { harness: 'claude-sdk', model: 'm' } },
+        { profile: 'linear' }
+      ).split('\n')[0]
+    ).toBe('1970-01-01T00:00:00.000Z | specifier | type=plan | harness=claude-sdk model=m');
+  });
+
+  it('leaves every other message type byte-identical', () => {
+    for (const type of ['message', 'handoff', 'join', 'progress', 'new-context', 'notice']) {
+      const message: SerializableMessage = { ...base, type };
+      expect(serializeMessage(message, { profile: 'linear' })).toBe(
+        `1970-01-01T00:00:00.000Z | specifier\n\n${base.content}`
+      );
+    }
+  });
+
+  it('does not tag plan content in the context-xml profile', () => {
+    const xml = serializeMessage(base, {
+      profile: 'context-xml',
+      chatroomId: 'c',
+      role: 'specifier',
+    });
+    expect(xml).toContain('type="plan"');
+    expect(xml).not.toContain('| type=plan');
+  });
+});

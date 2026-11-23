@@ -62,6 +62,8 @@ export interface Message {
    */
   senderAgent?: SenderAgentSnapshot;
   taskId?: string;
+  /** For plan messages: the message id of the plan this one supersedes (advisory; the row shows it, nothing else). */
+  supersedesPlanId?: string;
   /** Source platform for messages from external integrations (e.g. 'telegram') */
   sourcePlatform?: string;
   /** Attached backlog tasks for context */

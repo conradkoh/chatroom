@@ -5,6 +5,7 @@ import { memo } from 'react';
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
 import { HandoffReportView } from './HandoffReportView';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
+import { TimelinePlanBody } from './TimelinePlanBody';
 import type { Message } from '../../types/message';
 import {
   normalizeChatroomMarkdownContent,
@@ -13,14 +14,25 @@ import {
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
 
-type TeamMessageBodyView = 'envelope' | 'report' | 'markdown';
+type TeamMessageBodyView = 'envelope' | 'report' | 'markdown' | 'plan';
 
-/** Selects the handoff-specific view; non-handoff messages always use markdown. */
-function selectBodyView(message: Message, renderContent: string): TeamMessageBodyView {
-  if (message.type !== 'handoff') return 'markdown';
+/** Handoff content shape: envelope first, then report, else plain markdown. */
+function selectHandoffView(renderContent: string): TeamMessageBodyView {
   if (hasHandoffEnvelope(renderContent)) return 'envelope';
-  if (hasHandoffReport(renderContent)) return 'report';
-  return 'markdown';
+  return hasHandoffReport(renderContent) ? 'report' : 'markdown';
+}
+
+/** Selects the view. Plans render the structured plan body; handoffs select envelope/report; everything else is markdown. */
+function selectBodyView(message: Message, renderContent: string): TeamMessageBodyView {
+  if (message.type === 'plan') return 'plan';
+  if (message.type !== 'handoff') return 'markdown';
+  return selectHandoffView(renderContent);
+}
+
+/** Handoffs are normalized and unwrapped; every other type renders its stored content. */
+function resolveRenderContent(message: Message): string {
+  if (message.type !== 'handoff') return message.content;
+  return normalizeChatroomMarkdownContent(unwrapMarkdownPresentationFence(message.content));
 }
 
 /**
@@ -35,12 +47,12 @@ export const TimelineTeamMessageBody = memo(function TimelineTeamMessageBody({
 }: {
   message: Message;
 }) {
-  const renderContent =
-    message.type === 'handoff'
-      ? normalizeChatroomMarkdownContent(unwrapMarkdownPresentationFence(message.content))
-      : message.content;
+  const renderContent = resolveRenderContent(message);
   const view = selectBodyView(message, renderContent);
 
+  if (view === 'plan') {
+    return <TimelinePlanBody message={message} />;
+  }
   if (view === 'envelope') {
     return <HandoffEnvelopeView content={renderContent} variant="timeline" />;
   }

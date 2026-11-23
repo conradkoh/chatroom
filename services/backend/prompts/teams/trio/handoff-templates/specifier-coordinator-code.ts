@@ -49,6 +49,11 @@ ${getHandoffNotApplicableSectionComment('Describe current state after this slice
 ## Slices still to do
 <the remaining slices of this work package, in build order, each with its goal and the files it touches; or \`None — the package is complete.\`>
 
+## Plan reference
+Plan ID: <planId> (newly published | unchanged | superseded by <planId>)
+Phases delivered: <P1, …, Pn>
+Next phase: <Pn, or None — plan complete>
+
 ${getHandoffQualityPrinciplesSectionBlock('work')}
 
 ## Proof of Completion

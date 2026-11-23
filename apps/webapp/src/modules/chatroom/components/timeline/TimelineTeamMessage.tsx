@@ -137,6 +137,7 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
         TIMELINE_MESSAGE_HEADER_STICKY
       )}
       data-testid="timeline-message-header"
+      data-timeline-row-header
     >
       <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 empty:hidden">
         <TimelineMessageTypeBadge type={message.type} />
@@ -205,6 +206,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       className={`${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
       data-testid="timeline-team-message"
       data-message-type={message.type}
+      data-timeline-row
     >
       <TimelineTeamMessageHeader message={message} flush={collapsible} />
 

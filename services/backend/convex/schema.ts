@@ -481,8 +481,12 @@ export default defineSchema({
       v.literal('progress'),
       v.literal('new-context'), // Displayed when a new context is created
       // Agent → user interim message; no task transition (chatroom notify-user)
-      v.literal('notice')
+      v.literal('notice'),
+      // Agent-published phased plan (chatroom plan publish); immutable
+      v.literal('plan')
     ),
+    // Revision link for type: 'plan' messages; points at the plan this one supersedes
+    supersedesPlanId: v.optional(v.id('chatroom_messages')),
     // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
     contextCreatedBy: v.optional(v.string()),
     /** @deprecated Task classification removed from product. Field retained for existing documents. */
@@ -587,7 +591,8 @@ export default defineSchema({
       v.literal('join'),
       v.literal('progress'),
       v.literal('new-context'),
-      v.literal('notice')
+      v.literal('notice'),
+      v.literal('plan')
     ),
     isTimeline: v.boolean(),
     taskId: v.optional(v.id('chatroom_tasks')),

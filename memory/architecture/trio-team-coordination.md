@@ -56,6 +56,24 @@ session boundaries per handoff edge.
    or fewer, one reviewable surface) and sends the next package only after the
    previous one is reviewed. This is a prompt and template change only;
    `handoffSessionRules` are unchanged.
+   **Amended by decision 6:** the remaining slice plan is no longer restated in
+   each slice report or copied into each package. It lives in one plan message,
+   and the report and the packages cite its plan id and phase.
+6. **The slice plan is a plan message.** On its first pass the specifier
+   publishes the ordered slice plan with `chatroom plan publish`, builds only
+   the first phase, and reports the plan id under `## Plan reference` (newly
+   published, unchanged, or superseded by a new id). The coordinator records
+   that id and sends each following package citing `Plan ID` and `Phase`. The
+   specifier reads the cited phase with `chatroom plan read` before it briefs the
+   builder, and never reconstructs a plan from memory or earlier reports. A
+   revision is a new plan published with `--supersedes`: the coordinator asks
+   for it, the revision's `## Remarks` states which delegated phases are
+   unchanged, replaced, or dropped, and the coordinator cites the new plan id
+   from then on. A broken reference goes back to the coordinator. The plan
+   format and its invariants are in [Plan messages](/architecture/plan-messages.md).
+   Decision 6 adds no edge, session rule, or role: `coordinator` → `specifier`
+   stays `new`, and the specifier still hands back only to `builder` and
+   `coordinator`.
 
 ## Known gap
 

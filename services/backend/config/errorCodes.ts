@@ -177,6 +177,9 @@ export type BackendErrorCode =
   | 'TOO_MANY_ATTACHMENTS'
   | 'INVALID_ANCHOR'
   | 'NO_ACTIVE_TASK'
+  | 'INVALID_PLAN'
+  | 'INVALID_SUPERSEDES'
+  | 'PLAN_NOT_FOUND'
 
   // ── Scheduled prompts & standing instructions ─────────────────────
   | 'CONTENT_TOO_LONG'
@@ -491,6 +494,12 @@ export const BACKEND_ERROR_CODES = {
   INVALID_ANCHOR: 'INVALID_ANCHOR',
   /** The sender role has no active task, so it cannot post an interim notice */
   NO_ACTIVE_TASK: 'NO_ACTIVE_TASK',
+  /** The plan markdown does not match the plan template */
+  INVALID_PLAN: 'INVALID_PLAN',
+  /** The message being superseded is not a plan in this chatroom */
+  INVALID_SUPERSEDES: 'INVALID_SUPERSEDES',
+  /** No plan message matches the given id in this chatroom */
+  PLAN_NOT_FOUND: 'PLAN_NOT_FOUND',
 
   // ── Scheduled prompts & standing instructions ─────────────────────
   /** Content exceeds the maximum length */
@@ -732,6 +741,10 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.TOO_MANY_ATTACHMENTS,
   BACKEND_ERROR_CODES.INVALID_ANCHOR,
   BACKEND_ERROR_CODES.NO_ACTIVE_TASK,
+
+  BACKEND_ERROR_CODES.INVALID_PLAN,
+  BACKEND_ERROR_CODES.INVALID_SUPERSEDES,
+  BACKEND_ERROR_CODES.PLAN_NOT_FOUND,
 
   // Scheduled prompts & standing instructions
   BACKEND_ERROR_CODES.CONTENT_TOO_LONG,

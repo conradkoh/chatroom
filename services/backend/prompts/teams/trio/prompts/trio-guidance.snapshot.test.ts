@@ -57,6 +57,13 @@ describe('trio role guidance', () => {
     expect(guidance.indexOf('**Product manager before scoping')).toBeLessThan(
       guidance.indexOf('**Bug reports go to triage first:**')
     );
+    expect(guidance).toContain('Record that plan ID after the first slice report');
+    expect(guidance).toContain(
+      'Every following package carries `Plan ID: <planId>` and `Phase: Pn`'
+    );
+    expect(guidance).toContain('`Plan ID: None — first pass: publish the plan`');
+    expect(guidance).toContain('`--supersedes` on the old plan ID');
+    expect(guidance).not.toContain('copy the remaining slice plan');
   });
 
   test.each(GUIDANCE_VARIANTS)('specifier guidance (%s)', (variant, nativeIntegration) => {
@@ -94,6 +101,23 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('do not try to contact `product-manager`');
     expect(guidance).not.toContain('**Product manager before scoping a new ambiguous feature:**');
     expect(guidance).not.toContain('hand off to `product-manager`');
+    expect(guidance).toContain('Plan every slice, build one.');
+    expect(guidance).toContain('chatroom plan view-template');
+    expect(guidance).toContain('Build **P1 only**.');
+    expect(guidance).toContain('Put the plan ID from the publish output');
+    expect(guidance).toContain('Never reconstruct the plan from memory or from earlier reports.');
+    expect(guidance).toContain('--plan-id="<planId>" --phase="<Pn>"`');
+    expect(guidance).toContain('**Broken reference → hand back to `coordinator`:**');
+    expect(guidance).toContain('`--supersedes="<old planId>"`');
+  });
+
+  test('specifier guidance names only plan errors the CLI prints', () => {
+    const guidance = getGuidance('specifier', false);
+
+    expect(guidance).not.toContain('PHASE_NOT_FOUND');
+    expect(guidance).not.toContain('PLAN_NOT_FOUND');
+    expect(guidance).toContain('Phase not found: <Pn>');
+    expect(guidance).toContain('Plan not found: <planId>');
   });
 
   test.each(GUIDANCE_VARIANTS)('builder guidance (%s)', (variant, nativeIntegration) => {
