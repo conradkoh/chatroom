@@ -13,7 +13,7 @@
  */
 
 import type { ParsedPlan } from './parse-plan';
-import { PLAN_NONE_TOKEN } from './plan-template-spec';
+import { PLAN_NONE_TOKEN, PLAN_PHASE_SEPARATOR } from './plan-template-spec';
 
 /** Append a bullet list, falling back to `- None.` for an empty list. */
 function appendBullets(lines: string[], items: string[]): void {
@@ -48,9 +48,9 @@ export function renderPlanPhase(plan: ParsedPlan, phaseId: string): string | nul
   lines.push('## Phases');
   for (const phase of plan.phases) {
     if (phase.id === target.id) {
-      lines.push(`- **${phase.id} — ${phase.title}** (selected phase)`);
+      lines.push(`- **${phase.id} ${PLAN_PHASE_SEPARATOR} ${phase.title}** (selected phase)`);
     } else {
-      lines.push(`- ${phase.id} — ${phase.title}`);
+      lines.push(`- ${phase.id} ${PLAN_PHASE_SEPARATOR} ${phase.title}`);
     }
   }
   lines.push('');
@@ -58,7 +58,7 @@ export function renderPlanPhase(plan: ParsedPlan, phaseId: string): string | nul
   lines.push('## Phase details');
   lines.push('');
 
-  lines.push(`### ${target.id} — ${target.title}`);
+  lines.push(`### ${target.id} ${PLAN_PHASE_SEPARATOR} ${target.title}`);
   lines.push('');
 
   if (target.dependsOn.length > 0) {
