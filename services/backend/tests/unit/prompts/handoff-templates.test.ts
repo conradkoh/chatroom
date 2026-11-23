@@ -517,7 +517,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Requirements (acceptance criteria)
       - <verifiable outcome the builder can self-check>
-      - Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+      - Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
       ## Test seams
       - <behavior>: seam <public interface or port>; catches <what>; misses <what>
@@ -628,7 +628,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Requirements (acceptance criteria)
       - <verifiable outcome the builder can self-check>
-      - Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+      - Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
       ## Test seams
       - <behavior>: seam <public interface or port>; catches <what>; misses <what>

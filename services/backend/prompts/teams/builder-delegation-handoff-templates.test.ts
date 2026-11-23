@@ -15,7 +15,7 @@ describe('getBuilderDelegationBriefTemplate', () => {
     expect(body).not.toContain('## Verification scope');
     expect(body).toContain('Keep one slice ≈ one focused review surface.');
     expect(body).toContain(
-      '- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.'
+      '- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features.'
     );
   });
 
@@ -32,6 +32,20 @@ describe('getBuilderDelegationBriefTemplate', () => {
     expect(body).toContain("on the round's final brief");
     expect(body.indexOf('## Verification flags')).toBeLessThan(body.indexOf('## What to avoid'));
   });
+
+  test.each([false, true])(
+    'end-to-end line names alternative evidence when e2e is not applicable (batching=%s)',
+    (batching) => {
+      const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching });
+
+      expect(body).toContain('a CLI run, an API call, a UI action, or the template render');
+      expect(body).toContain(
+        'When the brief marks `e2e` `not applicable`, the Requirements must name which of these alternatives is the end-to-end evidence.'
+      );
+      expect(body).not.toContain('Include at least one end-to-end check');
+      expect(body).not.toContain('When the brief marks e2e `required`');
+    }
+  );
 
   test.each([false, true])('every kind is flagged in both variants (batching=%s)', (batching) => {
     const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching });

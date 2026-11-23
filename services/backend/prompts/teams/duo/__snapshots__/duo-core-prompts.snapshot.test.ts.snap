@@ -50,7 +50,7 @@ All of --from, --to, and --mode are required; use the mode of your current task.
 - Verification follows the brief's \`## Verification flags\`: always run typecheck and lint; run each other kind the brief marks \`required\` with its listed command; do not run a broader scope than the brief asks for. Record every run, every \`not run\`, and every \`not applicable\` kind in your hand-back
 
 **Completion gates (before PR or handoff):**
-- All **(Required)** files done; verified as the brief's \`## Verification flags\` require: every \`required\` kind ran, and typecheck and lint always ran. When the brief marks e2e \`required\`, the feature works end-to-end (CLI command runnable, API reachable, or UI action functional)
+- All **(Required)** files done; verified as the brief's \`## Verification flags\` require: every \`required\` kind ran with its listed command, and typecheck and lint always ran. The feature works end-to-end as the brief's Requirements name it (a CLI run, an API call, a UI action, or the template render); when the brief marks \`e2e\` \`not applicable\`, the alternative evidence those Requirements name is the end-to-end check
 - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
 
  "
@@ -100,7 +100,7 @@ flowchart TD
 - Verification follows the brief's \`## Verification flags\`: always run typecheck and lint; run each other kind the brief marks \`required\` with its listed command; do not run a broader scope than the brief asks for. Record every run, every \`not run\`, and every \`not applicable\` kind in your hand-back
 
 **Completion gates (before PR or handoff):**
-- All **(Required)** files done; verified as the brief's \`## Verification flags\` require: every \`required\` kind ran, and typecheck and lint always ran. When the brief marks e2e \`required\`, the feature works end-to-end (CLI command runnable, API reachable, or UI action functional)
+- All **(Required)** files done; verified as the brief's \`## Verification flags\` require: every \`required\` kind ran with its listed command, and typecheck and lint always ran. The feature works end-to-end as the brief's Requirements name it (a CLI run, an API call, a UI action, or the template render); when the brief marks \`e2e\` \`not applicable\`, the alternative evidence those Requirements name is the end-to-end check
 - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
 
  "
@@ -261,7 +261,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
@@ -460,7 +460,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>

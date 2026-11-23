@@ -212,7 +212,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified.
+- Name at least one end-to-end evidence for the feature on the round's final brief: a CLI run, an API call, a UI action, or the template render. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
@@ -604,7 +604,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified.
+- Name at least one end-to-end evidence for the feature on the round's final brief: a CLI run, an API call, a UI action, or the template render. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>

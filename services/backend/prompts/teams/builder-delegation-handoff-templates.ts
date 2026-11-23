@@ -69,8 +69,8 @@ function getBatchingFragments(batching: boolean): BatchingFragments {
     : 'Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.';
 
   const endToEndRequirement = batching
-    ? "- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified."
-    : '- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.';
+    ? "- Name at least one end-to-end evidence for the feature on the round's final brief: a CLI run, an API call, a UI action, or the template render. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified. When the brief marks `e2e` `not applicable`, the Requirements must name which of these alternatives is the end-to-end evidence."
+    : '- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks `e2e` `not applicable`, the Requirements must name which of these alternatives is the end-to-end evidence.';
 
   return {
     roundGuidance,
