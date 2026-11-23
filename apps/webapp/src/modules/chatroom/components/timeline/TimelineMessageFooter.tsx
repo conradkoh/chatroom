@@ -5,6 +5,15 @@ import { Check, Copy, Paperclip } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
+import { TimelineSenderAgentChip } from './TimelineMessageIdentity';
+import {
+  TIMELINE_FOOTER_TIMESTAMP,
+  TIMELINE_HANDOFF_DURATION_SLOT,
+  TIMELINE_HANDOFF_FOOTER,
+  TIMELINE_HANDOFF_FOOTER_AGENT_ROW,
+  TIMELINE_HANDOFF_FOOTER_TIME_ROW,
+  TIMELINE_HANDOFF_TIMESTAMP,
+} from './timelineRowStyles';
 import { useAttachments } from '../../attachments';
 import { formatHandoffDuration, formatHandoffDurationTitle } from '../../timeline/handoffTiming';
 import type { Message } from '../../types/message';
@@ -62,12 +71,14 @@ export interface TimelineMessageTimestampProps {
   handoffDurationSlow?: boolean;
   /** Collapsed handoff bar: below `sm`, show the time of day instead of the full date. */
   compact?: boolean;
+  /** Handoff rows only: timestamp then a fixed 7ch duration slot that renders even when empty. */
+  alignDuration?: boolean;
 }
 
 /**
- * The footer's timestamp cluster, also rendered inside the collapsed handoff bar.
- * `compact` swaps the full date for the time of day below `sm`, where the summary bar
- * has no room for the date. The duration and the time never wrap.
+ * Timestamp cluster: the timestamp comes first, then the duration. `alignDuration` wraps the
+ * duration in TIMELINE_HANDOFF_DURATION_SLOT so the slot is always present and the timestamp
+ * column does not move. Without it, the markup is the pre-existing non-handoff markup.
  */
 // fallow-ignore-next-line complexity
 export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
@@ -75,37 +86,84 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
   handoffDurationMs,
   handoffDurationSlow,
   compact = false,
+  alignDuration = false,
 }: TimelineMessageTimestampProps) {
+  const timestamp = (
+    <span className={alignDuration ? TIMELINE_HANDOFF_TIMESTAMP : TIMELINE_FOOTER_TIMESTAMP}>
+      <span title={formatTimestampFull(creationTime)}>
+        {compact ? (
+          <>
+            <span className="hidden sm:inline">{formatTimestamp(creationTime)}</span>
+            <span className="sm:hidden">{formatTimeOfDay(creationTime)}</span>
+          </>
+        ) : (
+          formatTimestamp(creationTime)
+        )}
+      </span>
+    </span>
+  );
+  const duration =
+    handoffDurationMs !== undefined ? (
+      <span
+        data-testid="timeline-handoff-duration"
+        data-duration-tone={handoffDurationSlow ? 'slow' : 'normal'}
+        title={formatHandoffDurationTitle(handoffDurationMs, Boolean(handoffDurationSlow))}
+        className={cn(
+          'text-[10px] font-mono tabular-nums whitespace-nowrap',
+          handoffDurationSlow ? 'text-chatroom-status-slow' : 'text-chatroom-text-muted'
+        )}
+      >
+        {formatHandoffDuration(handoffDurationMs)}
+      </span>
+    ) : null;
   return (
     <>
-      {handoffDurationMs !== undefined && (
+      {timestamp}
+      {alignDuration ? (
         <span
-          data-testid="timeline-handoff-duration"
-          data-duration-tone={handoffDurationSlow ? 'slow' : 'normal'}
-          title={formatHandoffDurationTitle(handoffDurationMs, Boolean(handoffDurationSlow))}
-          className={cn(
-            'text-[10px] font-mono tabular-nums whitespace-nowrap',
-            handoffDurationSlow ? 'text-chatroom-status-slow' : 'text-chatroom-text-muted'
-          )}
+          data-testid="timeline-handoff-duration-slot"
+          className={TIMELINE_HANDOFF_DURATION_SLOT}
         >
-          {formatHandoffDuration(handoffDurationMs)}
+          {duration}
         </span>
+      ) : (
+        duration
       )}
-      <span className="text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted">
-        <span title={formatTimestampFull(creationTime)}>
-          {compact ? (
-            <>
-              <span className="hidden sm:inline">{formatTimestamp(creationTime)}</span>
-              <span className="sm:hidden">{formatTimeOfDay(creationTime)}</span>
-            </>
-          ) : (
-            formatTimestamp(creationTime)
-          )}
-        </span>
-      </span>
     </>
   );
 });
+
+/** Copy, attach-as-context and download. Shared by the handoff grid and the default footer. */
+function FooterControls({
+  className,
+  message,
+  displayContent,
+  markdownContent,
+  isAddedToContext,
+  onAddToContext,
+}: {
+  className: string;
+  message: Message;
+  displayContent?: string;
+  markdownContent: string;
+  isAddedToContext: boolean;
+  onAddToContext: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <div className={className}>
+      <CopyMarkdownButton content={markdownContent} />
+      <button
+        type="button"
+        onClick={onAddToContext}
+        className="flex items-center justify-center w-6 h-6 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
+        title={isAddedToContext ? 'Added to context' : 'Add to context'}
+      >
+        <Paperclip size={12} />
+      </button>
+      <MessageDownloadMenu message={message} contentOverride={displayContent} />
+    </div>
+  );
+}
 
 export interface TimelineMessageFooterProps {
   message: Message;
@@ -121,7 +179,8 @@ export interface TimelineMessageFooterProps {
 
 /**
  * Message footer: copy content, attach-as-context, and creation timestamp.
- * Matches pre-revamp MessageFeed footer UX; timestamp always in footer (not header).
+ * Handoff messages use a 2-row grid: controls | time row, then the agent line across both
+ * columns. Every other type keeps the pre-existing flex-wrap footer.
  */
 // fallow-ignore-next-line complexity
 export const TimelineMessageFooter = memo(function TimelineMessageFooter({
@@ -148,6 +207,40 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
     [addAttachment, message._id, markdownContent, message.senderRole]
   );
 
+  if (message.type === 'handoff') {
+    return (
+      <div
+        className={cn(TIMELINE_HANDOFF_FOOTER, className)}
+        data-testid="timeline-message-footer"
+        data-footer-layout="handoff"
+      >
+        <FooterControls
+          className="flex shrink-0 items-center gap-1"
+          message={message}
+          displayContent={displayContent}
+          markdownContent={markdownContent}
+          isAddedToContext={isAddedToContext}
+          onAddToContext={handleAddToContext}
+        />
+        <div data-testid="timeline-footer-time-row" className={TIMELINE_HANDOFF_FOOTER_TIME_ROW}>
+          <TimelineMessageTimestamp
+            creationTime={message._creationTime}
+            handoffDurationMs={handoffDurationMs}
+            handoffDurationSlow={handoffDurationSlow}
+            alignDuration
+          />
+        </div>
+        <div data-testid="timeline-footer-agent-row" className={TIMELINE_HANDOFF_FOOTER_AGENT_ROW}>
+          <TimelineSenderAgentChip
+            type={message.type}
+            senderAgent={message.senderAgent}
+            placement="footer"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -156,18 +249,14 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
       )}
       data-testid="timeline-message-footer"
     >
-      <div className="flex items-center gap-1">
-        <CopyMarkdownButton content={markdownContent} />
-        <button
-          type="button"
-          onClick={handleAddToContext}
-          className="flex items-center justify-center w-6 h-6 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
-          title={isAddedToContext ? 'Added to context' : 'Add to context'}
-        >
-          <Paperclip size={12} />
-        </button>
-        <MessageDownloadMenu message={message} contentOverride={displayContent} />
-      </div>
+      <FooterControls
+        className="flex items-center gap-1"
+        message={message}
+        displayContent={displayContent}
+        markdownContent={markdownContent}
+        isAddedToContext={isAddedToContext}
+        onAddToContext={handleAddToContext}
+      />
       <div className="ml-auto flex items-center gap-1.5">
         <TimelineMessageTimestamp
           creationTime={message._creationTime}

@@ -865,12 +865,27 @@ Edge case X
     const chipIn = (container: HTMLElement) =>
       within(container).queryByTestId('timeline-sender-agent');
 
-    it('does not show the agent line in an eager row header', () => {
+    /** The snapshot renders both segments; spacing comes from the flex gap, not text. */
+    const expectSnapshotChip = (chip: HTMLElement | null) => {
+      expect(chip).not.toBeNull();
+      const element = chip as HTMLElement;
+      expect(element).toHaveAttribute('title', 'Harness: opencode · Model: gpt-5.1-codex');
+      expect(within(element).getByText('opencode')).toBeInTheDocument();
+      expect(within(element).getByText('gpt-5.1-codex')).toBeInTheDocument();
+    };
+
+    it('moves the agent line from an eager row header into its footer', () => {
       render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" />);
 
       const header = screen.getByTestId('timeline-message-header');
       expect(chipIn(header)).toBeNull();
       expect(within(header).getByText('handoff')).toBeInTheDocument();
+
+      const footer = screen.getByTestId('timeline-message-footer');
+      const chip = chipIn(footer);
+      expectSnapshotChip(chip);
+      expect(chip).toHaveAttribute('data-placement', 'footer');
+      expect(footer).toHaveAttribute('data-footer-layout', 'handoff');
     });
 
     it('renders no chip in the collapsed row header and does not open the dialog', () => {
@@ -891,6 +906,9 @@ Edge case X
       expect(within(badgeSlot).getByText('handoff')).toBeInTheDocument();
       expect(header).not.toHaveTextContent('unknown');
       expect(header).not.toHaveTextContent('—');
+
+      const agentRow = screen.getByTestId('timeline-footer-agent-row');
+      expect(agentRow).toBeEmptyDOMElement();
     });
 
     it('renders no chip for a non-handoff message even when a snapshot is present', () => {
@@ -904,7 +922,7 @@ Edge case X
       expect(screen.queryByTestId('timeline-sender-agent')).not.toBeInTheDocument();
     });
 
-    it('keeps the chip out of the dialog header and names the sender in the description', () => {
+    it('keeps the chip out of the dialog header and puts exactly one in the dialog footer', () => {
       render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
 
       fireEvent.click(screen.getByTestId('timeline-handoff-trigger'));
@@ -914,12 +932,17 @@ Edge case X
       });
       const dialogHeader = within(dialog).getByTestId('timeline-handoff-dialog-header');
       expect(chipIn(dialogHeader)).toBeNull();
+
+      const footer = within(dialog).getByTestId('timeline-message-footer');
+      expect(within(footer).getAllByTestId('timeline-sender-agent')).toHaveLength(1);
+      expectSnapshotChip(chipIn(footer));
+      expect(chipIn(footer)).toHaveAttribute('data-placement', 'footer');
       expect(dialog).toHaveAccessibleDescription(
         /Sent by builder using opencode, model gpt-5\.1-codex\./
       );
     });
 
-    it('leaves the dialog description unchanged for a legacy handoff', () => {
+    it('leaves the dialog description and footer unchanged for a legacy handoff', () => {
       render(<TimelineTeamMessage message={LEGACY_HANDOFF} chatroomId="room-1" collapsible />);
 
       fireEvent.click(screen.getByTestId('timeline-handoff-trigger'));
@@ -928,6 +951,7 @@ Edge case X
         name: 'Full handoff from builder to planner',
       });
       expect(chipIn(within(dialog).getByTestId('timeline-handoff-dialog-header'))).toBeNull();
+      expect(chipIn(within(dialog).getByTestId('timeline-message-footer'))).toBeNull();
       expect(dialog).toHaveAccessibleDescription(/^Sent /);
       expect(dialog).not.toHaveAccessibleDescription(/Sent by/);
     });
@@ -951,6 +975,7 @@ Edge case X
         name: 'Full handoff from builder to planner',
       });
       expect(chipIn(within(dialog).getByTestId('timeline-handoff-dialog-header'))).toBeNull();
+      expectSnapshotChip(chipIn(within(dialog).getByTestId('timeline-message-footer')));
       expect(dialog).toHaveAccessibleDescription(
         /Sent by builder using opencode, model gpt-5\.1-codex\./
       );

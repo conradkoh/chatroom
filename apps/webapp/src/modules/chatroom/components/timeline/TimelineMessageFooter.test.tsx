@@ -65,13 +65,13 @@ describe('TimelineMessageFooter', () => {
     expect(screen.getByText('TS:1700000000000')).toBeInTheDocument();
   });
 
-  it('shows handoff duration before the existing timestamp', () => {
+  it('shows the handoff duration after the timestamp', () => {
     renderFooter(makeMessage(), { handoffDurationMs: 62_000 });
 
     const duration = screen.getByTestId('timeline-handoff-duration');
     expect(duration).toHaveTextContent('1m 2s');
     expect(duration).toHaveAttribute('title', 'Time since previous message: 1m 2s');
-    expect(duration.compareDocumentPosition(screen.getByText('TS:1700000000000'))).toBe(
+    expect(screen.getByText('TS:1700000000000').compareDocumentPosition(duration)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
   });
@@ -97,6 +97,98 @@ describe('TimelineMessageFooter', () => {
     );
     const footer = screen.getByTestId('timeline-message-footer');
     expect(footer).toHaveClass('custom-footer-class', 'flex-wrap', 'mt-2');
+  });
+
+  describe('handoff layout', () => {
+    const HANDOFF: Message = {
+      _id: 'msg-handoff',
+      type: 'handoff',
+      senderRole: 'builder',
+      targetRole: 'planner',
+      content: 'Handoff content',
+      _creationTime: 1_700_000_000_000,
+      senderAgent: { harness: 'opencode', model: 'gpt-5.1-codex' },
+    };
+
+    it('is a two-column grid: controls | time row, then the agent row across both columns', () => {
+      renderFooter(HANDOFF, { handoffDurationMs: 62_000 });
+
+      const footer = screen.getByTestId('timeline-message-footer');
+      expect(footer).toHaveAttribute('data-footer-layout', 'handoff');
+      expect(footer).toHaveClass('grid', 'grid-cols-[auto_minmax(0,1fr)]');
+
+      const [controls, timeRow, agentRow] = Array.from(footer.children) as HTMLElement[];
+      expect(controls).toContainElement(screen.getByTitle('Copy as markdown'));
+      expect(controls).toContainElement(screen.getByTitle('Download message'));
+      expect(controls).toContainElement(screen.getByTitle('Add to context'));
+
+      expect(timeRow).toBe(screen.getByTestId('timeline-footer-time-row'));
+      expect(timeRow).toHaveClass('justify-end');
+      expect(timeRow.children).toHaveLength(2);
+      const [timestamp, slot] = Array.from(timeRow.children) as HTMLElement[];
+      expect(timestamp).toHaveTextContent('TS:1700000000000');
+      expect(slot).toBe(screen.getByTestId('timeline-handoff-duration-slot'));
+      expect(slot).toHaveClass('w-[7ch]', 'shrink-0', 'font-mono', 'text-[10px]');
+      expect(slot).toContainElement(screen.getByTestId('timeline-handoff-duration'));
+
+      expect(agentRow).toBe(screen.getByTestId('timeline-footer-agent-row'));
+      expect(agentRow).toHaveClass('col-span-2', 'justify-end');
+      expect(screen.getByTestId('timeline-sender-agent')).toHaveAttribute(
+        'data-placement',
+        'footer'
+      );
+    });
+
+    it('renders the empty duration slot and keeps the timestamp when there is no timing', () => {
+      renderFooter(HANDOFF);
+
+      const slot = screen.getByTestId('timeline-handoff-duration-slot');
+      expect(slot).toBeEmptyDOMElement();
+      expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
+
+      const timeRow = screen.getByTestId('timeline-footer-time-row');
+      expect(timeRow).toContainElement(screen.getByText('TS:1700000000000'));
+    });
+
+    it('leaves the agent row empty for a legacy handoff without a snapshot', () => {
+      renderFooter({ ...HANDOFF, senderAgent: undefined });
+
+      const agentRow = screen.getByTestId('timeline-footer-agent-row');
+      expect(agentRow).toBeEmptyDOMElement();
+      expect(screen.queryByTestId('timeline-sender-agent')).not.toBeInTheDocument();
+    });
+
+    it('renders only the harness in the agent row when the snapshot has no model', () => {
+      renderFooter({ ...HANDOFF, senderAgent: { harness: 'opencode' } });
+
+      const chip = screen.getByTestId('timeline-sender-agent');
+      expect(chip).toHaveTextContent('opencode');
+      expect(chip.textContent).toBe('opencode');
+      expect(screen.getByTestId('timeline-footer-agent-row')).toContainElement(chip);
+    });
+  });
+
+  describe('non-handoff layout', () => {
+    it('keeps the flex-wrap footer with no duration slot and no agent row', () => {
+      renderFooter(makeMessage({ type: 'notice' }), { handoffDurationMs: 62_000 });
+
+      const footer = screen.getByTestId('timeline-message-footer');
+      expect(footer).toHaveClass('flex', 'flex-wrap', 'justify-between');
+      expect(footer).not.toHaveClass('grid');
+      expect(footer).not.toHaveAttribute('data-footer-layout');
+      expect(screen.queryByTestId('timeline-handoff-duration-slot')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-footer-agent-row')).not.toBeInTheDocument();
+      expect(screen.getByTestId('timeline-handoff-duration')).toBeInTheDocument();
+    });
+
+    it('keeps the timestamp before the duration for a non-handoff row', () => {
+      renderFooter(makeMessage({ type: 'plan' }), { handoffDurationMs: 62_000 });
+
+      const duration = screen.getByTestId('timeline-handoff-duration');
+      expect(screen.getByText('TS:1700000000000').compareDocumentPosition(duration)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    });
   });
 });
 
@@ -157,6 +249,29 @@ describe('TimelineMessageTimestamp', () => {
     expect(duration).toHaveClass('whitespace-nowrap');
     expect(duration).not.toHaveClass('hidden');
     expect(duration).not.toHaveClass('sm:inline');
+  });
+
+  it('wraps the duration in the fixed slot when alignDuration is set', () => {
+    render(
+      <TimelineMessageTimestamp
+        creationTime={CREATION_TIME}
+        handoffDurationMs={62_000}
+        alignDuration
+      />
+    );
+
+    const slot = screen.getByTestId('timeline-handoff-duration-slot');
+    expect(slot).toHaveClass('w-[7ch]', 'shrink-0', 'font-mono', 'text-[10px]');
+    expect(slot).toContainElement(screen.getByTestId('timeline-handoff-duration'));
+    expect(screen.getByText(`TS:${CREATION_TIME}`).parentElement).toHaveClass('text-right');
+  });
+
+  it('renders the alignDuration slot even when there is no duration', () => {
+    render(<TimelineMessageTimestamp creationTime={CREATION_TIME} alignDuration />);
+
+    expect(screen.getByTestId('timeline-handoff-duration-slot')).toBeEmptyDOMElement();
+    expect(screen.queryByTestId('timeline-handoff-duration')).not.toBeInTheDocument();
+    expect(screen.getByText(`TS:${CREATION_TIME}`)).toBeInTheDocument();
   });
 
   it('renders the compact variant with responsive duration and time-of-day spans', () => {
