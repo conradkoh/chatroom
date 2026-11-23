@@ -33,6 +33,15 @@ const NORMAL: Message = {
   _creationTime: CREATION_TIME,
 };
 
+/** Same handoff with one attached task: the attachment chips indent must line up with the stacked meta. */
+const CHIPS: Message = {
+  ...NORMAL,
+  _id: 'e2e-collapse-chips',
+  attachedTasks: [
+    { _id: 'e2e-attached-task', content: 'Attached task for the chips indent fixture' },
+  ],
+};
+
 const EMPTY: Message = {
   _id: 'e2e-collapse-empty',
   type: 'handoff',
@@ -329,6 +338,15 @@ export default function TimelineHandoffCollapseTestPage() {
             </div>
             <div aria-hidden="true" className="h-[480px]" />
           </div>
+        </section>
+
+        <section data-testid="collapse-chips">
+          <TimelineTeamMessage
+            message={CHIPS}
+            chatroomId="e2e-chatroom"
+            handoffDurationMs={252_000}
+            collapsible={isCollapsible(CHIPS)}
+          />
         </section>
       </main>
     </AttachmentsProvider>

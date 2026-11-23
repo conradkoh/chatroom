@@ -450,27 +450,79 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     });
   }
 
-  test('stacks the meta below the content under 640px and sits beside it from 640px', async ({
+  test('stacks the handoff and plan meta below the content under 640px and sits beside it from 640px', async ({
     page,
   }) => {
-    const trigger = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-trigger');
-    const preview = trigger.getByTestId('timeline-handoff-preview');
-    const meta = trigger.getByTestId('timeline-handoff-meta');
+    const handoff = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-trigger');
+    const handoffPreview = handoff.getByTestId('timeline-handoff-preview');
+    const handoffMeta = handoff.getByTestId('timeline-handoff-meta');
+
+    const plan = page.getByTestId('collapse-plan');
+    const planTrigger = plan.getByTestId('timeline-plan-trigger');
+    const planTitle = plan.getByTestId('timeline-plan-summary-title');
+    const planPhases = plan.getByTestId('timeline-plan-summary-phases');
+    // The plain meta has no test id: it is the trigger's last child. Its timestamp span carries the text,
+    // which starts at the 22px stacked indent, so compare that span rather than the meta box.
+    const planMeta = planTrigger.locator(':scope > :last-child');
+    const planTime = planMeta.locator(':scope > span').first();
 
     await page.setViewportSize({ width: 639, height: 800 });
-    const stackedTrigger = await readBox(trigger);
-    const stackedPreview = await readBox(preview);
-    const stackedMeta = await readBox(meta);
-    expect(stackedMeta.y).toBeGreaterThanOrEqual(stackedPreview.y + stackedPreview.height - 1);
-    expect(stackedTrigger.height).toBeLessThanOrEqual(84);
+    const stackedHandoff = await readBox(handoff);
+    const stackedPreview = await readBox(handoffPreview);
+    const stackedHandoffMeta = await readBox(handoffMeta);
+    expect(stackedHandoffMeta.y).toBeGreaterThanOrEqual(
+      stackedPreview.y + stackedPreview.height - 1
+    );
+    expect(stackedHandoff.height).toBeLessThanOrEqual(84);
+
+    const stackedPlan = await readBox(planTrigger, (box) =>
+      expect(box.height).toBeLessThanOrEqual(84)
+    );
+    const stackedTitle = await readBox(planTitle);
+    const stackedPhases = await readBox(planPhases);
+    const stackedPlanMeta = await readBox(planMeta);
+    const stackedPlanTime = await readBox(planTime);
+    expect(stackedPlanMeta.y).toBeGreaterThanOrEqual(stackedPhases.y + stackedPhases.height - 1);
+    expect(Math.abs(stackedPlanTime.x - stackedTitle.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(stackedPlanTime.x - stackedPhases.x)).toBeLessThanOrEqual(1);
+    expect(stackedPlan.height).toBeLessThanOrEqual(84);
 
     await page.setViewportSize({ width: 640, height: 800 });
-    const sideTrigger = await readBox(trigger);
-    const sidePreview = await readBox(preview);
-    const sideMeta = await readBox(meta);
-    expect(sideMeta.x).toBeGreaterThanOrEqual(rightEdge(sidePreview) - 1);
-    expect(sideTrigger.height).toBeLessThanOrEqual(60);
+    const sideHandoff = await readBox(handoff);
+    const sidePreview = await readBox(handoffPreview);
+    const sideHandoffMeta = await readBox(handoffMeta);
+    expect(sideHandoffMeta.x).toBeGreaterThanOrEqual(rightEdge(sidePreview) - 1);
+    expect(sideHandoff.height).toBeLessThanOrEqual(60);
+
+    const sidePlan = await readBox(planTrigger, (box) =>
+      expect(box.height).toBeLessThanOrEqual(64)
+    );
+    const sideTitle = await readBox(planTitle);
+    const sidePlanMeta = await readBox(planMeta);
+    expect(sidePlanMeta.x).toBeGreaterThanOrEqual(rightEdge(sideTitle) - 1);
+    // Beside the title: the meta starts on the title's first line, not below it.
+    expect(sidePlanMeta.y).toBeLessThan(sideTitle.y + sideTitle.height);
+    expect(sidePlan.height).toBeLessThanOrEqual(64);
   });
+
+  for (const width of [375, 320]) {
+    test(`lines the attachment chips up with the stacked meta indent at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const fixture = page.getByTestId('collapse-chips');
+      const chipButton = fixture.getByRole('button', { name: 'View attached task' });
+      await expect(chipButton).toBeVisible();
+      // The chip's outer shell (the element with the border) is what carries the chip's left edge.
+      // Confirm which element that is in the DOM before measuring. Its left edge is the chips row's left
+      // edge. Record the choice in the commit message if it is not the button's direct parent.
+      const chipShell = chipButton.locator('xpath=..');
+      const timestamp = fixture.getByTestId('timeline-handoff-timestamp');
+      const timeBox = await readBox(timestamp);
+      const chipBox = await readBox(chipShell);
+      expect(Math.abs(chipBox.x - timeBox.x)).toBeLessThanOrEqual(1);
+    });
+  }
 
   test('shows the duration and the full date in the summary bar on desktop', async ({ page }) => {
     const trigger = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-trigger');
@@ -705,11 +757,11 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       await expect(phases).toContainText('Schema');
       await expect(phases).toContainText('Render');
 
-      // Compact geometry. Below the 640px breakpoint the meta stacks under the content, so the cap is
-      // looser there.
+      // Compact geometry. Below 640px the meta stacks under the content (measured 75px); side by side it is
+      // 55px. The caps leave a few px of slack, not a whole extra line.
       const stacked = width < 640;
       const triggerBox = await readBox(trigger, (box) =>
-        expect(box.height).toBeLessThanOrEqual(stacked ? 100 : 80)
+        expect(box.height).toBeLessThanOrEqual(stacked ? 84 : 64)
       );
       const titleBox = await readBox(title);
       const phasesBox = await readBox(phases, (box) => expect(box.height).toBeLessThanOrEqual(33));
