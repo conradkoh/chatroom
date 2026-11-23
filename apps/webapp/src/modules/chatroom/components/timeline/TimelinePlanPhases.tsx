@@ -83,7 +83,7 @@ export const TimelinePlanPhaseIndex = memo(function TimelinePlanPhaseIndex({
       <h4
         id={indexId}
         tabIndex={-1}
-        className={cn('mb-1 scroll-mt-10', TIMELINE_PLAN_LABEL, TIMELINE_PLAN_FOCUS)}
+        className={cn('mb-1', TIMELINE_PLAN_LABEL, TIMELINE_PLAN_FOCUS)}
       >
         Phases · {phases.length}
       </h4>
@@ -157,7 +157,7 @@ export const TimelinePlanPhaseDetail = memo(function TimelinePlanPhaseDetail({
           id={headingId}
           tabIndex={-1}
           className={cn(
-            'scroll-mt-10 min-w-0 flex-1 text-sm font-bold text-chatroom-text-primary [overflow-wrap:anywhere]',
+            'min-w-0 flex-1 text-sm font-bold text-chatroom-text-primary [overflow-wrap:anywhere]',
             TIMELINE_PLAN_FOCUS
           )}
         >

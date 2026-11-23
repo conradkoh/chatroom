@@ -248,6 +248,21 @@ describe('TimelinePlanBody through the feed row', () => {
     expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' });
   });
 
+  it.each([
+    ['single-line', 40],
+    ['wrapped to two lines', 72],
+  ])('offsets a phase jump by the measured %s sticky header', (_label, headerHeight) => {
+    renderRow(planMessage());
+    const header = screen.getByTestId('timeline-message-header');
+    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue({ height: headerHeight } as DOMRect);
+
+    fireEvent.click(screen.getByTestId('timeline-plan-phase-link-P2'));
+
+    expect(document.getElementById('plan-plan-1-P2')?.style.scrollMarginTop).toBe(
+      `${headerHeight}px`
+    );
+  });
+
   it('goes back to the phase index', () => {
     renderRow(planMessage());
 

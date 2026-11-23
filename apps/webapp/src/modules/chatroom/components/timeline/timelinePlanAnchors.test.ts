@@ -88,3 +88,45 @@ describe('jumpToPlanAnchor', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' });
   });
 });
+
+describe('jumpToPlanAnchor sticky-header offset', () => {
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
+
+  beforeEach(() => {
+    // jsdom has no scrollIntoView; the scroll position is out of scope for this seam.
+    Element.prototype.scrollIntoView = vi.fn() as unknown as Element['scrollIntoView'];
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+  });
+
+  /** Builds a row: sticky header, then the body holding the target heading. */
+  function renderRow(headerHeight: number): HTMLElement {
+    document.body.innerHTML = `
+      <div data-timeline-row>
+        <div data-timeline-row-header></div>
+        <div><h4 id="plan-m1-P2" tabindex="-1">Phase two</h4></div>
+      </div>`;
+    const header = document.querySelector<HTMLElement>('[data-timeline-row-header]');
+    if (!header) throw new Error('header missing');
+    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue({ height: headerHeight } as DOMRect);
+    return document.getElementById('plan-m1-P2') as HTMLElement;
+  }
+
+  it.each([
+    ['single-line', 40],
+    ['wrapped to two lines', 72],
+  ])('clears a %s sticky header', (_label, headerHeight) => {
+    const target = renderRow(headerHeight);
+    jumpToPlanAnchor('plan-m1-P2');
+    expect(target.style.scrollMarginTop).toBe(`${headerHeight}px`);
+  });
+
+  it('uses no offset for a target outside a timeline row', () => {
+    document.body.innerHTML = '<h4 id="plan-m1-P3" tabindex="-1">Loose</h4>';
+    jumpToPlanAnchor('plan-m1-P3');
+    expect(document.getElementById('plan-m1-P3')?.style.scrollMarginTop).toBe('0px');
+  });
+});
