@@ -79,7 +79,6 @@ function HandoffTriggerSummary({
               creationTime={creationTime}
               handoffDurationMs={handoffDurationMs}
               handoffDurationSlow={handoffDurationSlow}
-              compact
               alignDuration
               durationSlotClassName={TIMELINE_HANDOFF_META_DURATION_SLOT}
             />
@@ -92,7 +91,6 @@ function HandoffTriggerSummary({
             creationTime={creationTime}
             handoffDurationMs={handoffDurationMs}
             handoffDurationSlow={handoffDurationSlow}
-            compact
           />
         </span>
       )}

@@ -1209,6 +1209,21 @@ Edge case X
       ).toBeTruthy();
     });
 
+    it('shows the full timestamp in the collapsed handoff bar with no responsive time-of-day span', () => {
+      render(
+        <TimelineTeamMessage
+          message={SNAPSHOT_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={420_000}
+          collapsible
+        />
+      );
+
+      const timestamp = screen.getByTestId('timeline-handoff-timestamp');
+      expect(timestamp.querySelector('.sm\\:hidden, .hidden')).toBeNull();
+      expect(timestamp.querySelector('[title]')?.children).toHaveLength(0);
+    });
+
     it('does not put the meta inside the content region', () => {
       render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
 

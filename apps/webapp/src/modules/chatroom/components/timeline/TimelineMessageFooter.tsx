@@ -17,11 +17,7 @@ import {
 import { useAttachments } from '../../attachments';
 import { formatHandoffDuration, formatHandoffDurationTitle } from '../../timeline/handoffTiming';
 import type { Message } from '../../types/message';
-import {
-  formatTimeOfDay,
-  formatTimestamp,
-  formatTimestampFull,
-} from '../../utils/chatroomTimestamp';
+import { formatTimestamp, formatTimestampFull } from '../../utils/chatroomTimestamp';
 
 import { cn } from '@/lib/utils';
 
@@ -69,8 +65,6 @@ export interface TimelineMessageTimestampProps {
   handoffDurationMs?: number;
   /** Whether the duration is much longer than others in the loaded window (orange). */
   handoffDurationSlow?: boolean;
-  /** Collapsed handoff bar: below `sm`, show the time of day instead of the full date. */
-  compact?: boolean;
   /** Handoff rows only: timestamp then a fixed 7ch duration slot that renders even when empty. */
   alignDuration?: boolean;
   /** Class for the duration slot when `alignDuration` is set. Defaults to the fixed 7ch slot used by the expanded footer. */
@@ -88,7 +82,6 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
   creationTime,
   handoffDurationMs,
   handoffDurationSlow,
-  compact = false,
   alignDuration = false,
   durationSlotClassName = TIMELINE_HANDOFF_DURATION_SLOT,
 }: TimelineMessageTimestampProps) {
@@ -97,16 +90,7 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
       data-testid={alignDuration ? 'timeline-handoff-timestamp' : undefined}
       className={alignDuration ? TIMELINE_HANDOFF_TIMESTAMP : TIMELINE_FOOTER_TIMESTAMP}
     >
-      <span title={formatTimestampFull(creationTime)}>
-        {compact ? (
-          <>
-            <span className="hidden sm:inline">{formatTimestamp(creationTime)}</span>
-            <span className="sm:hidden">{formatTimeOfDay(creationTime)}</span>
-          </>
-        ) : (
-          formatTimestamp(creationTime)
-        )}
-      </span>
+      <span title={formatTimestampFull(creationTime)}>{formatTimestamp(creationTime)}</span>
     </span>
   );
   const duration =
