@@ -159,7 +159,7 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 - [ ] I confirm that the lightweight checks (typecheck, and lint) ran on the code I changed
 - [ ] I confirm that every verification kind the brief marked \`required\` ran, and I recorded its command and result below
 - [ ] I confirm that every verification kind the brief marked \`not applicable\` is recorded below with the brief's reason
-Record each kind below, in this order, with its command and result, \`not run: <reason>\`, or \`not applicable: <the brief's reason>\`:
+Record each kind below, in this order, with its command and result. Typecheck and lint always run: record their command and result only. If either cannot run, put the blocker under \`## Blockers / questions\` and do not write \`not run\` here. For every other kind, write \`not run: <reason>\` or \`not applicable: <the brief's reason>\`.
 - \`typecheck\` — <ran: command → result>
 - \`lint\` — <ran: command → result>
 - \`unit tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
@@ -167,7 +167,7 @@ Record each kind below, in this order, with its command and result, \`not run: <
 - \`e2e\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
 
 ## Timing report
-<!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. -->
+<!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. Typecheck and lint always run, so record their duration; if either cannot run, it is a blocker under \`## Blockers / questions\`, not a \`not run\` row. -->
 - Brief reading: <duration | not run>
 - Implementation (code and tests written): <duration | not run>
 - Typecheck: <duration>
@@ -360,7 +360,7 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 - [ ] I confirm that the lightweight checks (typecheck, and lint) ran on the code I changed
 - [ ] I confirm that every verification kind the brief marked \`required\` ran, and I recorded its command and result below
 - [ ] I confirm that every verification kind the brief marked \`not applicable\` is recorded below with the brief's reason
-Record each kind below, in this order, with its command and result, \`not run: <reason>\`, or \`not applicable: <the brief's reason>\`:
+Record each kind below, in this order, with its command and result. Typecheck and lint always run: record their command and result only. If either cannot run, put the blocker under \`## Blockers / questions\` and do not write \`not run\` here. For every other kind, write \`not run: <reason>\` or \`not applicable: <the brief's reason>\`.
 - \`typecheck\` — <ran: command → result>
 - \`lint\` — <ran: command → result>
 - \`unit tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
@@ -368,7 +368,7 @@ Record each kind below, in this order, with its command and result, \`not run: <
 - \`e2e\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
 
 ## Timing report
-<!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. -->
+<!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. Typecheck and lint always run, so record their duration; if either cannot run, it is a blocker under \`## Blockers / questions\`, not a \`not run\` row. -->
 - Brief reading: <duration | not run>
 - Implementation (code and tests written): <duration | not run>
 - Typecheck: <duration>

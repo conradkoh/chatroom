@@ -34,11 +34,29 @@ describe('getBuilderHandbackTemplate', () => {
     }
   });
 
+  test('typecheck and lint are always run, never recorded as not run', () => {
+    expect(body).toContain('record their command and result only');
+
+    for (const label of ['typecheck', 'lint']) {
+      const resultLine = body.split('\n').find((line) => line.includes(`- \`${label}\` —`));
+      expect(resultLine).toBeDefined();
+      expect(resultLine).not.toContain('not run');
+    }
+
+    for (const label of ['Typecheck', 'Lint']) {
+      const timingRow = body.split('\n').find((line) => line.startsWith(`- ${label}:`));
+      expect(timingRow).toBeDefined();
+      expect(timingRow).not.toContain('not run');
+    }
+  });
+
   test('timing report sits between code change verification and blockers, with every activity row and a total', () => {
     expect(body.indexOf('## Code Change Verification')).toBeLessThan(
       body.indexOf('## Timing report')
     );
-    expect(body.indexOf('## Timing report')).toBeLessThan(body.indexOf('## Blockers / questions'));
+    expect(body.indexOf('## Timing report')).toBeLessThan(
+      body.indexOf('## Blockers / questions\n')
+    );
     for (const row of [
       'Brief reading',
       'Implementation (code and tests written)',

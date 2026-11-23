@@ -27,7 +27,7 @@ function getVerificationKindTimingLine(kind: VerificationKind): string {
 /** Timing rows: one per activity, so an activity that did not happen is written `not run`, never omitted. */
 function getTimingReportSection(): string {
   return `## Timing report
-<!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. -->
+<!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. Typecheck and lint always run, so record their duration; if either cannot run, it is a blocker under \`## Blockers / questions\`, not a \`not run\` row. -->
 - Brief reading: <duration | not run>
 - Implementation (code and tests written): <duration | not run>
 ${VERIFICATION_KINDS.map(getVerificationKindTimingLine).join('\n')}
@@ -76,7 +76,7 @@ ${getFileReferenceProofOfCompletionExample()}
 
 ## Code Change Verification
 ${BUILDER_CODE_CHANGE_VERIFICATION_CONFIRMATION}
-Record each kind below, in this order, with its command and result, \`not run: <reason>\`, or \`not applicable: <the brief's reason>\`:
+Record each kind below, in this order, with its command and result. Typecheck and lint always run: record their command and result only. If either cannot run, put the blocker under \`## Blockers / questions\` and do not write \`not run\` here. For every other kind, write \`not run: <reason>\` or \`not applicable: <the brief's reason>\`.
 ${VERIFICATION_KINDS.map(getVerificationKindResultLine).join('\n')}
 
 ${getTimingReportSection()}
