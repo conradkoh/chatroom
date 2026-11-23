@@ -298,14 +298,22 @@ describe('plans', () => {
       })
     ).rejects.toMatchObject({ data: { code: 'EMPTY_CONTENT' } });
 
-    await expect(
-      t.mutation(api.plans.publish, {
+    const oversized = 'x'.repeat(40_001);
+    const error = await t
+      .mutation(api.plans.publish, {
         sessionId,
         chatroomId,
         senderRole: 'builder',
-        content: 'x'.repeat(40_001),
+        content: oversized,
       })
-    ).rejects.toMatchObject({ data: { code: 'PLAN_TOO_LONG' } });
+      .catch((thrown: { data?: { code?: string; errors?: unknown[] } }) => thrown);
+
+    expect(error.data?.code).toBe('INVALID_PLAN');
+    expect(error.data?.errors).toContainEqual({
+      code: 'PLAN_TOO_LONG',
+      line: 1,
+      message: 'Plan must be 40000 characters or less (got 40001)',
+    });
 
     expect(await countMessages(chatroomId)).toBe(countBefore);
   });

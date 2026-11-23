@@ -90,20 +90,14 @@ function publishFailureErrors(err: PublishFailure): readonly PlanParseError[] {
 }
 
 function printPublishFailure(err: PublishFailure): void {
+  const code = err.errorData?.code;
+  if (code === 'INVALID_PLAN') return printInvalidPlan(publishFailureErrors(err));
+
   console.error('\n❌ Plan not published');
   console.error(`\n${publishFailureMessage(err)}`);
-
-  const code = err.errorData?.code;
-  if (code === 'INVALID_PLAN') return printInvalidPlanDetails(publishFailureErrors(err));
   if (code === 'NO_ACTIVE_TASK') {
     console.error('\n💡 `plan publish` only works while you are working on a task.');
   }
-}
-
-/** INVALID_PLAN from the backend: the plan body is echoed back with a hint. */
-function printInvalidPlanDetails(errors: readonly PlanParseError[]): void {
-  printPlanErrors(errors);
-  printTemplateHint();
 }
 
 function printPublishError(err: PublishPlanError): void {

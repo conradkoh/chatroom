@@ -27,18 +27,14 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { ResolvedChatroom } from '../../../../convex/lib/chatroomTeam';
 import { isPlanInChatroom } from '../../plan/is-plan-in-chatroom';
 import { parsePlan, type ParsedPlan } from '../../plan/parse-plan';
-import { PLAN_MAX_CHARS } from '../../plan/plan-template-spec';
 
-/** Reject blank content and content above the template limit. */
-function assertContentWithinLimits(content: string): void {
+/**
+ * Reject blank content. Length is checked by `parsePlan` (`PLAN_TOO_LONG`), so an
+ * over-long plan fails as `INVALID_PLAN` with the parser's error list.
+ */
+function assertContentNotEmpty(content: string): void {
   if (content.trim().length === 0) {
     throw new ConvexError({ code: 'EMPTY_CONTENT', message: 'Plan content cannot be empty' });
-  }
-  if (content.length > PLAN_MAX_CHARS) {
-    throw new ConvexError({
-      code: 'PLAN_TOO_LONG',
-      message: `Plan content must be ${PLAN_MAX_CHARS} characters or less (got ${content.length})`,
-    });
   }
 }
 
@@ -87,8 +83,7 @@ async function assertSupersedesTarget(
  * Throws a `ConvexError` with a stable `code` on any failure:
  * - `INVALID_ROLE` — sender is `user` or not part of the team configuration
  * - `EMPTY_CONTENT` — content is blank after trimming
- * - `PLAN_TOO_LONG` — content exceeds `PLAN_MAX_CHARS`
- * - `INVALID_PLAN` — content does not match the plan template (`errors` lists all violations)
+ * - `INVALID_PLAN` — content does not match the plan template or exceeds the length limit; `errors` lists every violation as `{ code, line, message }`, including `PLAN_TOO_LONG` on line 1
  * - `NO_ACTIVE_TASK` — sender has no active task to publish from
  * - `INVALID_SUPERSEDES` — the target message is not a plan in this chatroom
  */
@@ -104,7 +99,7 @@ export async function publishPlan(
 ): Promise<{ messageId: Id<'chatroom_messages'>; phaseIds: string[] }> {
   const chatroomId = args.chatroom._id;
   assertValidSenderRole(args.chatroom, args.senderRole);
-  assertContentWithinLimits(args.content);
+  assertContentNotEmpty(args.content);
   const parsed = requireValidPlan(args.content);
   await assertSenderHasActiveTask(ctx, chatroomId, args.senderRole);
   await assertSupersedesTarget(ctx, chatroomId, args.supersedesPlanId);

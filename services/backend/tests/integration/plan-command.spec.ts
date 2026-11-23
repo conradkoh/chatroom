@@ -172,6 +172,18 @@ describe('plan CLI end-to-end', () => {
     expect(stderr()).toContain('P1, P2');
   });
 
+  test('an over-limit plan exits 1 with the PLAN_TOO_LONG line and publishes nothing', async () => {
+    const { chatroomId, deps } = await setup('too-long');
+
+    await publishPlan(chatroomId, { role: 'builder', content: 'x'.repeat(40_001) }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(stderr()).toContain(
+      'line 1: PLAN_TOO_LONG — Plan must be 40000 characters or less (got 40001)'
+    );
+    expect(stdout()).not.toContain('✅ Plan published');
+  });
+
   test('a malformed plan id reports PLAN_NOT_FOUND', async () => {
     const { chatroomId, deps } = await setup('not-found');
 

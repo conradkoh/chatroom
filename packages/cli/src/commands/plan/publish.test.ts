@@ -188,6 +188,30 @@ describe('publishPlan', () => {
     expect(stderr()).toContain('line 12: PLAN_PHASE_DETAIL_MISSING');
   });
 
+  test('prints a backend over-limit rejection exactly like the pre-check', async () => {
+    const deps = createMockDeps();
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new ConvexError({
+        code: 'INVALID_PLAN',
+        message: 'Plan does not match the plan template',
+        errors: [
+          {
+            code: 'PLAN_TOO_LONG',
+            line: 1,
+            message: 'Plan must be 40000 characters or less (got 40001)',
+          },
+        ],
+      })
+    );
+
+    await publishPlan(TEST_CHATROOM_ID, { role: 'specifier', content: VALID_PLAN }, deps);
+
+    expect(stderr()).toContain(
+      '   line 1: PLAN_TOO_LONG — Plan must be 40000 characters or less (got 40001)'
+    );
+    expect(stderr()).not.toContain('Plan does not match the plan template');
+  });
+
   test('explains NO_ACTIVE_TASK failures', async () => {
     const deps = createMockDeps();
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
