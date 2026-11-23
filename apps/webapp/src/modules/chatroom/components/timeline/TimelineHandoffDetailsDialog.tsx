@@ -64,7 +64,7 @@ function getDialogDescription(
 }
 
 /**
- * Full details of a collapsible handoff row, rendered in a modal dialog.
+ * Full details of a collapsible handoff or plan row, rendered in a modal dialog.
  *
  * The row owns `open` and mounts this only after the first open, so the markdown
  * body is parsed only when a reader asks for it. The dialog is a flex column with a
@@ -84,6 +84,7 @@ export const TimelineHandoffDetailsDialog = memo(function TimelineHandoffDetails
 }: TimelineHandoffDetailsDialogProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const description = getDialogDescription(message, handoffDurationMs, handoffDurationSlow);
+  const isPlan = message.type === 'plan';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -124,11 +125,11 @@ export const TimelineHandoffDetailsDialog = memo(function TimelineHandoffDetails
           ref={bodyRef}
           tabIndex={0}
           role="region"
-          aria-label="Handoff content"
+          aria-label={isPlan ? 'Plan content' : 'Handoff content'}
           data-testid="timeline-handoff-dialog-body"
           className="px-4 py-3 overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent"
         >
-          {message.content.trim() === '' ? (
+          {!isPlan && message.content.trim() === '' ? (
             <p
               data-testid="timeline-handoff-dialog-empty"
               className="text-sm italic text-chatroom-text-muted"

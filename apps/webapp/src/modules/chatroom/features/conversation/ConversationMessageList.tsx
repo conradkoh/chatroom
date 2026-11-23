@@ -25,19 +25,6 @@ import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 const LOAD_MORE_THRESHOLD = 120;
 
 /**
- * First appended plan row taller than the viewport, if any. Such a plan opens at its
- * title for a pinned reader instead of snapping to its last lines.
- */
-function findTallAppendedPlanRow(el: HTMLElement, appended: TimelineEvent[]): HTMLElement | null {
-  for (const event of appended) {
-    if (event.kind !== 'team_message' || event.message.type !== 'plan') continue;
-    const row = el.querySelector<HTMLElement>(`[data-message-id="${event.id}"]`);
-    if (row && row.offsetHeight > el.clientHeight) return row;
-  }
-  return null;
-}
-
-/**
  * Memoized timeline row. Its props are only the event and its index, so an append
  * (which leaves existing events and indexes unchanged) re-renders only the new row.
  */
@@ -127,23 +114,11 @@ export function ConversationMessageList({
     const heightDiff = newScrollHeight - prevScrollHeightRef.current;
     const eventsAdded = events.length > prevEventCountRef.current;
     if (eventsAdded && heightDiff > 0 && prevScrollHeightRef.current > 0) {
-      // Only tail appends (not load-more prepends) can be a new plan at the end of the list.
-      const tallPlanRow =
-        controller.current.isPinned && !wasLoadingMoreRef.current
-          ? findTallAppendedPlanRow(el, events.slice(prevEventCountRef.current))
-          : null;
-      if (tallPlanRow) {
-        // Open the plan at its title. The scroll controller unpins on the resulting scroll
-        // event (not at bottom), and the "Jump to new messages" chip offers the tail.
-        el.scrollTop = tallPlanRow.offsetTop;
-      } else {
-        controller.current.onNewMessages(heightDiff, wasLoadingMoreRef.current, false);
-      }
+      controller.current.onNewMessages(heightDiff, wasLoadingMoreRef.current, false);
     }
     prevScrollHeightRef.current = newScrollHeight;
     prevEventCountRef.current = events.length;
-    // The effect keys on the length; `events` is read only to slice the appended tail.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The effect keys on the length; `events` itself is not read here.
   }, [events.length, controller]);
 
   if (events.length === 0) {

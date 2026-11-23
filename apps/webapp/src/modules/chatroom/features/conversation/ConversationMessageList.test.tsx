@@ -773,58 +773,18 @@ describe('jump to top button', () => {
   });
 });
 
-describe('tall pinned plan arrival', () => {
-  const PLAN_CONTENT = [
-    '# Arrival plan',
-    '',
-    '## Sources',
-    '',
-    '- None.',
-    '',
-    '## Requirements',
-    '',
-    '- Land on the title.',
-    '',
-    '## Constraints',
-    '',
-    '- None.',
-    '',
-    '## Phases',
-    '',
-    '- P1 — One',
-    '',
-    '## Phase details',
-    '',
-    '### P1 — One',
-    '',
-    '#### Requirements',
-    '',
-    '- Land on the title.',
-    '',
-    '#### Constraints',
-    '',
-    '- None.',
-    '',
-    '#### Acceptance criteria',
-    '',
-    '- Arrival works.',
-  ].join('\n');
-
-  /** Geometry stubs: jsdom has no layout, so height and offsets are the external port. */
+describe('pinned tail follow on append', () => {
+  /** Geometry stubs: jsdom has no layout, so the scroll metrics are the external port. */
   let container: { clientHeight: number; scrollHeight: number; scrollTop: number };
-  let rows: Record<string, { offsetHeight: number; offsetTop: number }>;
 
   const originalDescriptors = {
     scrollHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight'),
     clientHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight'),
     scrollTop: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop'),
-    offsetHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight'),
-    offsetTop: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetTop'),
   };
 
   beforeEach(() => {
     container = { clientHeight: 400, scrollHeight: 800, scrollTop: 400 };
-    rows = {};
     const isContainer = (el: HTMLElement) => el.dataset.testid === 'conversation-message-list';
     Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
       configurable: true,
@@ -847,49 +807,12 @@ describe('tall pinned plan arrival', () => {
         if (isContainer(this)) container.scrollTop = value;
       },
     });
-    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
-      configurable: true,
-      get(this: HTMLElement) {
-        const id = this.dataset.messageId;
-        return id ? (rows[id]?.offsetHeight ?? 0) : 0;
-      },
-    });
-    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
-      configurable: true,
-      get(this: HTMLElement) {
-        const id = this.dataset.messageId;
-        return id ? (rows[id]?.offsetTop ?? 0) : 0;
-      },
-    });
   });
 
   afterEach(() => {
-    if (originalDescriptors.scrollHeight) {
-      Object.defineProperty(
-        HTMLElement.prototype,
-        'scrollHeight',
-        originalDescriptors.scrollHeight
-      );
-    }
-    if (originalDescriptors.clientHeight) {
-      Object.defineProperty(
-        HTMLElement.prototype,
-        'clientHeight',
-        originalDescriptors.clientHeight
-      );
-    }
-    if (originalDescriptors.scrollTop) {
-      Object.defineProperty(HTMLElement.prototype, 'scrollTop', originalDescriptors.scrollTop);
-    }
-    if (originalDescriptors.offsetHeight) {
-      Object.defineProperty(
-        HTMLElement.prototype,
-        'offsetHeight',
-        originalDescriptors.offsetHeight
-      );
-    }
-    if (originalDescriptors.offsetTop) {
-      Object.defineProperty(HTMLElement.prototype, 'offsetTop', originalDescriptors.offsetTop);
+    for (const key of ['scrollHeight', 'clientHeight', 'scrollTop'] as const) {
+      const descriptor = originalDescriptors[key];
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, key, descriptor);
     }
   });
 
@@ -900,19 +823,11 @@ describe('tall pinned plan arrival', () => {
     content: 'Hello',
     _creationTime: 1,
   });
-  const planEvent = mapMessageToTimelineEvent({
-    _id: 'plan-tall',
-    type: 'plan',
-    senderRole: 'specifier',
-    content: PLAN_CONTENT,
-    _creationTime: 2,
-  });
-  const tallHandoffEvent = mapMessageToTimelineEvent({
-    _id: 'handoff-tall',
-    type: 'handoff',
-    senderRole: 'builder',
-    targetRole: 'planner',
-    content: 'Tall handoff',
+  const appendedEvent = mapMessageToTimelineEvent({
+    _id: 'user-2',
+    type: 'message',
+    senderRole: 'user',
+    content: 'Next',
     _creationTime: 3,
   });
 
@@ -920,65 +835,14 @@ describe('tall pinned plan arrival', () => {
     return document.querySelector<HTMLElement>('[data-testid="conversation-message-list"]')!;
   }
 
-  /** Render one event, let the mount effects settle, then pin to the bottom. */
-  function renderPinned() {
-    const result = renderList(<ConversationMessageList events={[userEvent]} anchorId="a1" />);
-    const list = listEl();
-    container.scrollTop = 400;
-    fireEvent.scroll(list);
-    return { ...result, list };
-  }
-
-  function jumpChip() {
-    return document.querySelector('[data-testid="conversation-jump-to-new-messages"]');
-  }
-
-  it('opens an appended tall plan at its title when pinned', () => {
-    const { rerender } = renderPinned();
-    rows['plan-tall'] = { offsetHeight: 2000, offsetTop: 350 };
-    container.scrollHeight = 1600;
-
-    rerender(<ConversationMessageList events={[userEvent, planEvent]} anchorId="a1" />);
-
-    expect(listEl().scrollTop).toBe(350);
-    expect(jumpChip()).toBeNull();
-
-    fireEvent.scroll(listEl());
-
-    expect(listEl().scrollTop).toBe(350);
-    expect(jumpChip()).not.toBeNull();
-  });
-
-  it('snaps to the bottom for an appended plan shorter than the viewport', () => {
-    const { rerender } = renderPinned();
-    rows['plan-tall'] = { offsetHeight: 100, offsetTop: 350 };
-    container.scrollHeight = 1600;
-
-    rerender(<ConversationMessageList events={[userEvent, planEvent]} anchorId="a1" />);
-
-    expect(listEl().scrollTop).toBe(1200);
-  });
-
-  it('leaves the position alone for an appended tall plan when unpinned', () => {
+  it('snaps a pinned feed to the bottom when a non-plan row is appended', () => {
     const { rerender } = renderList(<ConversationMessageList events={[userEvent]} anchorId="a1" />);
-    // Mount parked the feed at the top; the feed is unpinned.
-    container.scrollTop = 120;
-    fireEvent.wheel(listEl());
+    // Mount parked the feed at the top; scroll to the bottom so the feed is pinned.
+    container.scrollTop = 400;
     fireEvent.scroll(listEl());
-    rows['plan-tall'] = { offsetHeight: 2000, offsetTop: 350 };
     container.scrollHeight = 1600;
 
-    rerender(<ConversationMessageList events={[userEvent, planEvent]} anchorId="a1" />);
-
-    expect(listEl().scrollTop).toBe(120);
-  });
-
-  it('snaps to the bottom for an appended tall non-plan row when pinned', () => {
-    const { rerender } = renderPinned();
-    rows['handoff-tall'] = { offsetHeight: 2000, offsetTop: 350 };
-    container.scrollHeight = 1600;
-
-    rerender(<ConversationMessageList events={[userEvent, tallHandoffEvent]} anchorId="a1" />);
+    rerender(<ConversationMessageList events={[userEvent, appendedEvent]} anchorId="a1" />);
 
     expect(listEl().scrollTop).toBe(1200);
   });

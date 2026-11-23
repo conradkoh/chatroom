@@ -111,6 +111,51 @@ const BASE_MESSAGE: Message = {
   _creationTime: 1000,
 };
 
+const PLAN_BODY = [
+  '# Ship the plan row',
+  '',
+  '## Sources',
+  '',
+  '- None.',
+  '',
+  '## Requirements',
+  '',
+  '- Render the plan.',
+  '',
+  '## Constraints',
+  '',
+  '- None.',
+  '',
+  '## Phases',
+  '',
+  '- P1 — One',
+  '',
+  '## Phase details',
+  '',
+  '### P1 — One',
+  '',
+  '#### Requirements',
+  '',
+  '- Render it.',
+  '',
+  '#### Constraints',
+  '',
+  '- None.',
+  '',
+  '#### Acceptance criteria',
+  '',
+  '- It renders.',
+].join('\n');
+
+const PLAN_MESSAGE: Message = {
+  ...BASE_MESSAGE,
+  _id: 'plan-1',
+  type: 'plan',
+  senderRole: 'specifier',
+  targetRole: undefined,
+  content: PLAN_BODY,
+};
+
 const FILE_ATTACHMENT_MESSAGE: Message = {
   ...BASE_MESSAGE,
   targetRole: 'user',
@@ -371,64 +416,16 @@ Edge case X
   });
 
   describe('plan messages', () => {
-    const PLAN_BODY = [
-      '# Ship the plan row',
-      '',
-      '## Sources',
-      '',
-      '- None.',
-      '',
-      '## Requirements',
-      '',
-      '- Render the plan.',
-      '',
-      '## Constraints',
-      '',
-      '- None.',
-      '',
-      '## Phases',
-      '',
-      '- P1 — One',
-      '',
-      '## Phase details',
-      '',
-      '### P1 — One',
-      '',
-      '#### Requirements',
-      '',
-      '- Render it.',
-      '',
-      '#### Constraints',
-      '',
-      '- None.',
-      '',
-      '#### Acceptance criteria',
-      '',
-      '- It renders.',
-    ].join('\n');
+    it('collapses a plan behind a plan trigger with no body mounted', () => {
+      render(<TimelineTeamMessage message={PLAN_MESSAGE} chatroomId="room-1" collapsible />);
 
-    const PLAN_MESSAGE: Message = {
-      ...BASE_MESSAGE,
-      _id: 'plan-1',
-      type: 'plan',
-      senderRole: 'specifier',
-      targetRole: undefined,
-      content: PLAN_BODY,
-    };
-
-    it('renders expanded with a plan badge and no handoff trigger or dialog', () => {
-      render(
-        <TimelineTeamMessage message={PLAN_MESSAGE} chatroomId="room-1" collapsible={false} />
-      );
-
-      expect(screen.getByTestId('timeline-team-message')).toHaveAttribute(
-        'data-message-type',
-        'plan'
-      );
-      expect(screen.getByText('plan')).toBeInTheDocument();
+      const root = screen.getByTestId('timeline-team-message');
+      expect(root).toHaveAttribute('data-message-type', 'plan');
+      expect(within(root).getByText('plan')).toBeInTheDocument();
+      expect(screen.getByTestId('timeline-plan-trigger')).toBeInTheDocument();
       expect(screen.queryByTestId('timeline-handoff-trigger')).not.toBeInTheDocument();
       expect(screen.queryByRole('dialog')).toBeNull();
-      expect(screen.getByTestId('timeline-plan-body')).toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-plan-body')).not.toBeInTheDocument();
 
       const route = screen.getByTestId('timeline-message-header-route');
       expect(within(route).getByText('specifier')).toBeInTheDocument();
@@ -857,6 +854,144 @@ Edge case X
         'justify-end',
         'flex-wrap'
       );
+    });
+  });
+
+  describe('collapsible plan rows', () => {
+    const collapsiblePlan = (overrides: Partial<Message> = {}) => (
+      <TimelineTeamMessage
+        message={{ ...PLAN_MESSAGE, ...overrides }}
+        chatroomId="room-1"
+        collapsible
+      />
+    );
+
+    const openDialog = () => fireEvent.click(screen.getByTestId('timeline-plan-trigger'));
+
+    it('collapses a plan into a plan trigger with the title in its accessible name', () => {
+      render(collapsiblePlan());
+
+      const trigger = screen.getByTestId('timeline-plan-trigger');
+      const phases = within(trigger).getByTestId('timeline-plan-summary-phases');
+      expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+      expect(trigger).toHaveAccessibleName('Show full plan: Ship the plan row');
+      expect(trigger).toHaveAttribute('title', 'Show full plan');
+      expect(trigger).toHaveAttribute('aria-describedby', phases.id);
+      expect(screen.queryByTestId('timeline-handoff-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-plan-body')).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('shows the one-phase summary in the bar and no plan body before opening', () => {
+      markdownBodyMock.mockClear();
+      render(collapsiblePlan());
+
+      const trigger = screen.getByTestId('timeline-plan-trigger');
+      expect(within(trigger).getByText('1 phase')).toBeInTheDocument();
+      expect(within(trigger).getByTestId('timeline-plan-summary-phases').textContent).toMatch(
+        /P1 One$/
+      );
+      expect(screen.queryByTestId('timeline-plan-body')).not.toBeInTheDocument();
+      expect(markdownBodyMock).not.toHaveBeenCalled();
+    });
+
+    it('opens the full plan in a dialog with the unchanged body and a Plan content region', () => {
+      render(collapsiblePlan());
+
+      openDialog();
+
+      const dialog = screen.getByRole('dialog', { name: 'Full plan from specifier' });
+      expect(within(dialog).getByTestId('timeline-plan-body')).toBeInTheDocument();
+      const region = within(dialog).getByRole('region', { name: 'Plan content' });
+      expect(region).toHaveTextContent('One');
+    });
+
+    it('opens with Enter and closes with Escape, returning focus to the bar', async () => {
+      const user = userEvent.setup();
+      render(collapsiblePlan());
+      const trigger = screen.getByTestId('timeline-plan-trigger');
+
+      trigger.focus();
+      await user.keyboard('{Enter}');
+      expect(screen.getByRole('dialog', { name: 'Full plan from specifier' })).toBeInTheDocument();
+
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(trigger));
+    });
+
+    it('reopens with Space after closing', async () => {
+      const user = userEvent.setup();
+      render(collapsiblePlan());
+      const trigger = screen.getByTestId('timeline-plan-trigger');
+
+      openDialog();
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+      trigger.focus();
+      await user.keyboard(' ');
+      expect(screen.getByRole('dialog', { name: 'Full plan from specifier' })).toBeInTheDocument();
+    });
+
+    it('shows the plain-text fallback bar for prose and the raw-markdown fallback when opened', () => {
+      render(collapsiblePlan({ content: 'Just some prose, not a plan.' }));
+
+      const trigger = screen.getByTestId('timeline-plan-trigger');
+      expect(within(trigger).getByTestId('timeline-plan-preview-fallback')).toHaveTextContent(
+        'Just some prose, not a plan.'
+      );
+      expect(trigger).toHaveAccessibleName('Show full plan');
+
+      openDialog();
+
+      const dialog = screen.getByRole('dialog', { name: 'Full plan from specifier' });
+      expect(
+        within(dialog).getByText('Plan did not match the template. Showing raw markdown.')
+      ).toBeInTheDocument();
+    });
+
+    it('shows the Show full plan label and No plan content. for blank content', () => {
+      render(collapsiblePlan({ content: '   ' }));
+
+      const trigger = screen.getByTestId('timeline-plan-trigger');
+      expect(trigger.textContent).toContain('Show full plan');
+      expect(
+        within(trigger).queryByTestId('timeline-plan-preview-fallback')
+      ).not.toBeInTheDocument();
+      expect(trigger).toHaveAccessibleName('Show full plan');
+
+      openDialog();
+
+      const dialog = screen.getByRole('dialog', { name: 'Full plan from specifier' });
+      expect(within(dialog).getByText('No plan content.')).toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-handoff-dialog-empty')).not.toBeInTheDocument();
+    });
+
+    it('keeps the timestamp-only meta for a plan bar', () => {
+      render(collapsiblePlan());
+
+      const trigger = screen.getByTestId('timeline-plan-trigger');
+      expect(within(trigger).queryByTestId('timeline-handoff-meta')).not.toBeInTheDocument();
+      const meta = trigger.lastElementChild as HTMLElement;
+      expect(meta).toHaveClass(...TIMELINE_BAR_META_PLAIN.split(' '));
+    });
+
+    it('keeps the handoff trigger and its preview text for a collapsible handoff', () => {
+      const handoff: Message = {
+        ...BASE_MESSAGE,
+        senderRole: 'builder',
+        targetRole: 'planner',
+        content: 'Preview sentence one.\nPreview sentence two.\n\nDeferred body sentence.',
+      };
+      render(<TimelineTeamMessage message={handoff} chatroomId="room-1" collapsible />);
+
+      const trigger = screen.getByTestId('timeline-handoff-trigger');
+      expect(screen.queryByTestId('timeline-plan-trigger')).not.toBeInTheDocument();
+      expect(within(trigger).getByTestId('timeline-handoff-preview')).toHaveTextContent(
+        'Preview sentence one. Preview sentence two.'
+      );
+      expect(trigger).toHaveAccessibleName('Show full handoff');
     });
   });
 

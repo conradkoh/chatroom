@@ -98,8 +98,17 @@ function renderRow(message: Message) {
   );
 }
 
+/** Plan bodies mount only inside the details dialog, so open it before inspecting the body. */
+function openPlan(message: Message) {
+  const view = renderRow(message);
+  fireEvent.click(screen.getByTestId('timeline-plan-trigger'));
+  const dialog = screen.getByRole('dialog', { name: 'Full plan from specifier' });
+  return { ...view, dialog };
+}
+
 const scrollIntoViewMock = vi.fn();
 const originalScrollIntoView = Element.prototype.scrollIntoView;
+const originalMatchMedia = window.matchMedia;
 
 beforeEach(() => {
   scrollIntoViewMock.mockClear();
@@ -108,6 +117,8 @@ beforeEach(() => {
 
 afterEach(() => {
   Element.prototype.scrollIntoView = originalScrollIntoView;
+  // Restore the polyfill: the reduced-motion case replaces it for the rest of the file otherwise.
+  window.matchMedia = originalMatchMedia;
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -118,16 +129,32 @@ async function flushMicrotasks() {
 }
 
 describe('TimelinePlanBody through the feed row', () => {
-  it('renders the fixture as a structured plan row', () => {
+  it('collapses by default', () => {
+    renderRow(planMessage());
+
+    const trigger = screen.getByTestId('timeline-plan-trigger');
+    expect(within(trigger).getByTestId('timeline-plan-summary-title')).toHaveTextContent(
+      'Add plan messages to the chatroom'
+    );
+    expect(within(trigger).getByText('3 phases')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByTestId('timeline-plan-body')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-plan-title')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-plan-phase-index')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-plan-id-copy')).not.toBeInTheDocument();
+  });
+
+  it('renders the fixture as a structured plan in the dialog', () => {
     expect(parsePlan(PLAN_FIXTURE).ok).toBe(true);
 
-    renderRow(planMessage({ supersedesPlanId: 'plan-old-id-1234' }));
+    const { dialog } = openPlan(planMessage({ supersedesPlanId: 'plan-old-id-1234' }));
 
     const root = screen.getByTestId('timeline-team-message');
     expect(root).toHaveAttribute('data-message-type', 'plan');
-    expect(screen.getByText('plan')).toBeInTheDocument();
+    expect(within(root).getByText('plan')).toBeInTheDocument();
     expect(screen.queryByTestId('timeline-handoff-trigger')).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByTestId('timeline-plan-trigger')).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
     expect(screen.getByTestId('timeline-plan-body')).toBeInTheDocument();
 
     // Header route renders the sender only (no target arrow).
@@ -140,7 +167,7 @@ describe('TimelinePlanBody through the feed row', () => {
     );
     expect(screen.getByTestId('timeline-plan-id-copy')).toBeInTheDocument();
     expect(screen.getByTitle('plan-old-id-1234')).toHaveTextContent('plan-o…1234');
-    expect(screen.getByText('3 phases')).toBeInTheDocument();
+    expect(within(dialog).getByText('3 phases')).toBeInTheDocument();
 
     expect(document.querySelectorAll('[data-testid^="timeline-plan-phase-link-"]')).toHaveLength(3);
     expect(screen.getByTestId('timeline-plan-phase-P1')).toBeInTheDocument();
@@ -165,14 +192,14 @@ describe('TimelinePlanBody through the feed row', () => {
       supersedesPlanId: 'plan-old-id-1234',
     });
 
-    renderRow(feedMessage);
+    openPlan(feedMessage);
 
     expect(screen.getByTestId('timeline-plan-supersedes')).toBeInTheDocument();
     expect(screen.getByTitle('plan-old-id-1234')).toHaveTextContent('plan-o…1234');
   });
 
   it('orders header, then the phase index, then Requirements', () => {
-    renderRow(planMessage());
+    openPlan(planMessage());
 
     const title = screen.getByTestId('timeline-plan-title');
     const index = screen.getByTestId('timeline-plan-phase-index');
@@ -184,10 +211,10 @@ describe('TimelinePlanBody through the feed row', () => {
   });
 
   it('renders muted None for every empty list instead of the None. token', () => {
-    renderRow(planMessage());
+    const { dialog } = openPlan(planMessage());
 
     // Plan-level Constraints and every phase's Constraints are `None.` in the fixture.
-    const none = screen.getAllByText('None');
+    const none = within(dialog).getAllByText('None');
     expect(none).toHaveLength(3);
     for (const node of none) expect(node).toHaveClass('italic', 'text-chatroom-text-muted');
     expect(screen.queryByText('None.')).not.toBeInTheDocument();
@@ -197,9 +224,9 @@ describe('TimelinePlanBody through the feed row', () => {
   });
 
   it('resolves every index link and depends chip to an element id in the DOM', () => {
-    const { container } = renderRow(planMessage());
+    const { dialog } = openPlan(planMessage());
 
-    const links = container.querySelectorAll<HTMLAnchorElement>(
+    const links = dialog.querySelectorAll<HTMLAnchorElement>(
       '[data-testid^="timeline-plan-phase-link-"], [data-testid^="timeline-plan-depends-"]'
     );
     expect(links).toHaveLength(5);
@@ -210,18 +237,18 @@ describe('TimelinePlanBody through the feed row', () => {
   });
 
   it('jumps to the phase heading on an index link click without touching the hash', () => {
-    renderRow(planMessage());
+    openPlan(planMessage());
 
     fireEvent.click(screen.getByTestId('timeline-plan-phase-link-P2'));
 
     expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
     expect(document.activeElement).toBe(document.getElementById('plan-plan-1-P2') as HTMLElement);
     expect(window.location.hash).toBe('');
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Full plan from specifier' })).toBeInTheDocument();
   });
 
   it('jumps from a depends chip to the referenced phase', () => {
-    renderRow(planMessage());
+    openPlan(planMessage());
 
     fireEvent.click(screen.getByTestId('timeline-plan-depends-P2-P1'));
 
@@ -241,30 +268,27 @@ describe('TimelinePlanBody through the feed row', () => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     })) as unknown as typeof window.matchMedia;
-    renderRow(planMessage());
+    openPlan(planMessage());
 
     fireEvent.click(screen.getByTestId('timeline-plan-phase-link-P1'));
 
     expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' });
   });
 
-  it.each([
-    ['single-line', 40],
-    ['wrapped to two lines', 72],
-  ])('offsets a phase jump by the measured %s sticky header', (_label, headerHeight) => {
-    renderRow(planMessage());
-    const header = screen.getByTestId('timeline-message-header');
-    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue({ height: headerHeight } as DOMRect);
+  it('scrolls the phase heading into the dialog body and focuses it', () => {
+    openPlan(planMessage());
 
     fireEvent.click(screen.getByTestId('timeline-plan-phase-link-P2'));
 
-    expect(document.getElementById('plan-plan-1-P2')?.style.scrollMarginTop).toBe(
-      `${headerHeight}px`
-    );
+    const target = document.getElementById('plan-plan-1-P2') as HTMLElement;
+    expect(screen.getByTestId('timeline-handoff-dialog-body')).toContainElement(target);
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
+    expect(document.activeElement).toBe(target);
+    expect(window.location.hash).toBe('');
   });
 
   it('goes back to the phase index', () => {
-    renderRow(planMessage());
+    openPlan(planMessage());
 
     fireEvent.click(screen.getAllByTestId('timeline-plan-back-to-phases')[0]);
 
@@ -275,7 +299,7 @@ describe('TimelinePlanBody through the feed row', () => {
   });
 
   it('keeps every back-link in the keyboard tab order', () => {
-    renderRow(planMessage());
+    openPlan(planMessage());
     const links = screen.getAllByTestId('timeline-plan-back-to-phases');
     expect(links.length).toBeGreaterThan(1);
     for (const link of links) {
@@ -297,8 +321,8 @@ describe('TimelinePlanBody through the feed row', () => {
     });
 
     it('copies the plan id and resets after 2000ms', async () => {
+      openPlan(planMessage());
       vi.useFakeTimers();
-      renderRow(planMessage());
 
       fireEvent.click(screen.getByTestId('timeline-plan-id-copy'));
       await flushMicrotasks();
@@ -319,7 +343,7 @@ describe('TimelinePlanBody through the feed row', () => {
     });
 
     it('copies the phase reference from the index and marks the detail button too', async () => {
-      renderRow(planMessage());
+      openPlan(planMessage());
 
       fireEvent.click(screen.getByTestId('timeline-plan-phase-copy-P2'));
       await flushMicrotasks();
@@ -340,7 +364,7 @@ describe('TimelinePlanBody through the feed row', () => {
     });
 
     it('copies the superseded plan id', async () => {
-      renderRow(planMessage({ supersedesPlanId: 'plan-old-id-1234' }));
+      openPlan(planMessage({ supersedesPlanId: 'plan-old-id-1234' }));
 
       fireEvent.click(screen.getByTestId('timeline-plan-supersedes'));
       await flushMicrotasks();
@@ -351,7 +375,7 @@ describe('TimelinePlanBody through the feed row', () => {
     it('shows an inline failure until the next copy attempt', async () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       writeText.mockRejectedValueOnce(new Error('denied'));
-      renderRow(planMessage());
+      openPlan(planMessage());
 
       fireEvent.click(screen.getByTestId('timeline-plan-id-copy'));
       await flushMicrotasks();
@@ -371,7 +395,7 @@ describe('TimelinePlanBody through the feed row', () => {
     });
 
     it('renders one polite live region per plan body and it is empty before a copy', () => {
-      renderRow(planMessage());
+      openPlan(planMessage());
       const status = screen.getByRole('status');
       expect(screen.getAllByRole('status')).toHaveLength(1);
       expect(status).toHaveAttribute('aria-live', 'polite');
@@ -379,7 +403,7 @@ describe('TimelinePlanBody through the feed row', () => {
     });
 
     it('announces a successful copy through the live region', async () => {
-      renderRow(planMessage());
+      openPlan(planMessage());
       fireEvent.click(screen.getByTestId('timeline-plan-id-copy'));
       await flushMicrotasks();
       expect(screen.getByRole('status')).toHaveTextContent(/^Copied$/);
@@ -388,7 +412,7 @@ describe('TimelinePlanBody through the feed row', () => {
     it('announces a failed copy through the live region', async () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       writeText.mockRejectedValueOnce(new Error('denied'));
-      renderRow(planMessage());
+      openPlan(planMessage());
       fireEvent.click(screen.getByTestId('timeline-plan-id-copy'));
       await flushMicrotasks();
       expect(consoleError).toHaveBeenCalled();
@@ -397,7 +421,7 @@ describe('TimelinePlanBody through the feed row', () => {
   });
 
   it('shows the plan id control and a muted notice for blank content', () => {
-    renderRow(planMessage({ content: '   \n\n  ' }));
+    openPlan(planMessage({ content: '   \n\n  ' }));
 
     expect(screen.getByTestId('timeline-plan-id-copy')).toBeInTheDocument();
     expect(screen.getByText('No plan content.')).toBeInTheDocument();
@@ -405,7 +429,7 @@ describe('TimelinePlanBody through the feed row', () => {
   });
 
   it('falls back to raw markdown for content that does not match the template', () => {
-    renderRow(planMessage({ content: 'Just some prose, not a plan.' }));
+    openPlan(planMessage({ content: 'Just some prose, not a plan.' }));
 
     const fallback = screen.getByTestId('timeline-plan-fallback');
     expect(
@@ -418,40 +442,40 @@ describe('TimelinePlanBody through the feed row', () => {
 
   it('renders a one-phase plan without a back link', () => {
     expect(parsePlan(planWithPhases(1)).ok).toBe(true);
-    renderRow(planMessage({ content: planWithPhases(1) }));
+    const { dialog } = openPlan(planMessage({ content: planWithPhases(1) }));
 
-    expect(screen.getByText('1 phase')).toBeInTheDocument();
-    expect(screen.getByText('Phases · 1')).toBeInTheDocument();
+    expect(within(dialog).getByText('1 phase')).toBeInTheDocument();
+    expect(within(dialog).getByText('Phases · 1')).toBeInTheDocument();
     expect(screen.queryByTestId('timeline-plan-back-to-phases')).not.toBeInTheDocument();
     expect(document.querySelectorAll('[data-testid^="timeline-plan-phase-link-"]')).toHaveLength(1);
   });
 
   it('renders a 20-phase plan with 20 index entries and 20 detail blocks', () => {
     expect(parsePlan(planWithPhases(20)).ok).toBe(true);
-    renderRow(planMessage({ content: planWithPhases(20) }));
+    const { dialog } = openPlan(planMessage({ content: planWithPhases(20) }));
 
-    expect(screen.getByText('20 phases')).toBeInTheDocument();
+    expect(within(dialog).getByText('20 phases')).toBeInTheDocument();
     expect(document.querySelectorAll('[data-testid^="timeline-plan-phase-link-"]')).toHaveLength(
       20
     );
     expect(document.querySelectorAll('[data-testid^="timeline-plan-phase-P"]')).toHaveLength(20);
-    expect(screen.queryByTestId('timeline-handoff-trigger')).not.toBeInTheDocument();
+    expect(screen.getByTestId('timeline-plan-trigger')).toBeInTheDocument();
 
     const list = screen.getByTestId('timeline-plan-phase-index').querySelector('ol');
     expect(list?.className).toContain('@xl:columns-2');
   });
 
   it('keeps the index single column below eight phases', () => {
-    renderRow(planMessage());
+    openPlan(planMessage());
 
     const list = screen.getByTestId('timeline-plan-phase-index').querySelector('ol');
     expect(list?.className).not.toContain('@xl:columns-2');
   });
 
   it('uses container queries and only chatroom colour tokens', () => {
-    renderRow(planMessage());
+    const { dialog } = openPlan(planMessage());
 
-    const body = screen.getByTestId('timeline-plan-body');
+    const body = within(dialog).getByTestId('timeline-plan-body');
     expect(body.className).toContain('@container');
 
     const hardCodedColour =
@@ -461,5 +485,16 @@ describe('TimelinePlanBody through the feed row', () => {
       .join(' ');
     expect(classes).not.toBe('');
     expect(classes).not.toMatch(hardCodedColour);
+
+    // The collapsed bar stays on the same tokens as the body.
+    const bar = screen.getByTestId('timeline-plan-trigger');
+    const barClasses = [
+      bar,
+      ...bar.querySelectorAll<HTMLElement>('[data-testid^="timeline-plan-summary"]'),
+    ]
+      .flatMap((node) => Array.from(node.classList))
+      .join(' ');
+    expect(barClasses).not.toBe('');
+    expect(barClasses).not.toMatch(hardCodedColour);
   });
 });

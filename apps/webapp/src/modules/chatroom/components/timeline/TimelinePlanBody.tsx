@@ -1,6 +1,6 @@
 'use client';
 
-import { parsePlan, type ParsedPlan } from '@workspace/backend/src/domain/plan/parse-plan';
+import type { ParsedPlan } from '@workspace/backend/src/domain/plan/parse-plan';
 import { memo, useCallback, useMemo } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
@@ -9,20 +9,11 @@ import { TimelinePlanCopyButton } from './TimelinePlanCopyButton';
 import { toPlanMarkdownList } from './timelinePlanMarkdown';
 import { TimelinePlanPhaseDetail, TimelinePlanPhaseIndex } from './TimelinePlanPhases';
 import { TIMELINE_PLAN_LABEL } from './timelineRowStyles';
+import { readPlan } from '../../timeline/readPlan';
 import type { Message } from '../../types/message';
 
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { cn } from '@/lib/utils';
-
-/** Parse failure and thrown exceptions both return null: the caller falls back to raw markdown. */
-function readPlan(content: string): ParsedPlan | null {
-  try {
-    const result = parsePlan(content);
-    return result.ok ? result.plan : null;
-  } catch {
-    return null;
-  }
-}
 
 interface CopyHandlers {
   copiedKey: string | null;
