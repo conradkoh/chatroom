@@ -409,6 +409,22 @@ describe('parsePlan', () => {
     });
   });
 
+  describe('indented headings', () => {
+    it('treats an indented # line as bullet continuation', () => {
+      const result = parsePlan(makePlan({ requirements: ['Requirement one.\n  # run this'] }));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.plan.requirements).toEqual(['Requirement one.\n  # run this']);
+    });
+
+    it('treats an indented ## line as bullet continuation', () => {
+      const result = parsePlan(makePlan({ requirements: ['Requirement one.\n  ## run this'] }));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.plan.requirements).toEqual(['Requirement one.\n  ## run this']);
+    });
+  });
+
   describe('error codes', () => {
     it('PLAN_TITLE_MISSING', () => {
       const markdown = makePlan().split('\n').slice(2).join('\n');

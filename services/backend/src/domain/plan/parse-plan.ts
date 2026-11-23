@@ -481,7 +481,12 @@ function isBulletOpenAfterBlank(state: ParseState): boolean {
 
 /** True for a non-empty line that starts in column 1 (no leading whitespace). */
 function isUnindentedLine(raw: string, trimmed: string): boolean {
-  return trimmed.length > 0 && !/^\s/.test(raw);
+  return trimmed.length > 0 && startsInColumnOne(raw);
+}
+
+/** Headings start in column 1; indented text continues the bullet above. */
+function startsInColumnOne(raw: string): boolean {
+  return !/^\s/.test(raw);
 }
 
 /**
@@ -585,7 +590,9 @@ const HEADING_HANDLERS: readonly { prefix: string; handle: HeadingHandler }[] = 
 ];
 
 function handleStructuredLine(state: ParseState, raw: string, trimmed: string, line: number): void {
-  const heading = HEADING_HANDLERS.find((entry) => trimmed.startsWith(entry.prefix));
+  const heading = startsInColumnOne(raw)
+    ? HEADING_HANDLERS.find((entry) => trimmed.startsWith(entry.prefix))
+    : undefined;
   if (heading) {
     heading.handle(state, trimmed.slice(heading.prefix.length), line);
     return;
