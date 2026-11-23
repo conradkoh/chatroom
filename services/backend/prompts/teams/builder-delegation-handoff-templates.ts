@@ -6,11 +6,50 @@ export interface BuilderDelegationBriefOptions {
   delegatorRole: string;
   /** 'self' when the delegator clears research/triage/architect gates itself (duo planner); otherwise the role that clears them. */
   gatesOwner: 'self' | string;
+  /**
+   * Batching variant (trio specifier): the delegator groups phases into rounds, so the
+   * brief carries the round-final verification scope. Duo leaves this unset; its output
+   * must stay byte-identical.
+   */
+  batching?: boolean;
+}
+
+interface BatchingFragments {
+  roundGuidance: string;
+  endToEndRequirement: string;
+  verificationScopeSection: string;
+}
+
+/**
+ * Fragments that differ between the default incremental brief and the trio
+ * batching brief. Kept out of the template function so the two paths stay easy
+ * to read and the rendering function stays simple.
+ */
+function getBatchingFragments(batching: boolean): BatchingFragments {
+  const roundGuidance = batching
+    ? 'A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping.'
+    : 'Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.';
+
+  const endToEndRequirement = batching
+    ? "- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified."
+    : '- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.';
+
+  const verificationScopeSection = batching
+    ? [
+        '## Verification scope',
+        "`focused` — run the tests that touch this brief's files.",
+        '`round-final` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.',
+        '',
+        '',
+      ].join('\n')
+    : '';
+
+  return { roundGuidance, endToEndRequirement, verificationScopeSection };
 }
 
 /** Returns the markdown delegation-brief template body. */
 export function getBuilderDelegationBriefTemplate(options: BuilderDelegationBriefOptions): string {
-  const { delegatorRole, gatesOwner } = options;
+  const { delegatorRole, gatesOwner, batching = false } = options;
 
   const prelude =
     gatesOwner === 'self'
@@ -23,6 +62,9 @@ export function getBuilderDelegationBriefTemplate(options: BuilderDelegationBrie
 
 **Division of labor:** You (${delegatorRole}) own turning the work package into file-level builder slices and sequencing them. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.`;
 
+  const { roundGuidance, endToEndRequirement, verificationScopeSection } =
+    getBatchingFragments(batching);
+
   return `${getDelegationBriefIntro()}
 
 ${prelude}
@@ -31,7 +73,7 @@ ${prelude}
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+Guidance for you (not part of the message): ${roundGuidance}
 
 \`\`\`\`markdown
 ## Summary
@@ -83,14 +125,14 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+${endToEndRequirement}
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
 - or: no test seam — <reason>
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
 
-## What to avoid
+${verificationScopeSection}## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
 - Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
 - Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.

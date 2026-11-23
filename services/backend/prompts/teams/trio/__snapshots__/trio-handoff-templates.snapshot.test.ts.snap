@@ -137,7 +137,7 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping.
 
 \`\`\`\`markdown
 ## Summary
@@ -189,12 +189,16 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
 - or: no test seam — <reason>
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+## Verification scope
+\`focused\` — run the tests that touch this brief's files.
+\`round-final\` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -494,7 +498,7 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping.
 
 \`\`\`\`markdown
 ## Summary
@@ -546,12 +550,16 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
 - or: no test seam — <reason>
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+## Verification scope
+\`focused\` — run the tests that touch this brief's files.
+\`round-final\` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
