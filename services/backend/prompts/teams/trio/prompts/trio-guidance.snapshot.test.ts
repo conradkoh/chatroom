@@ -66,7 +66,10 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('**You hold the plan.**');
     expect(guidance).toContain('after 2 failed rework rounds on a round');
     expect(guidance).not.toMatch(
-      /Size each work package|Send one package at a time|One slice per specifier session/
+      /Size each work package|Send one package at a time|One slice per specifier session/i
+    );
+    expect(guidance).toContain(
+      'You may raise a concern about a grouping; you do not resize the round.'
     );
   });
 
@@ -109,7 +112,20 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('chatroom plan view-template');
     expect(guidance).toContain('does not commit you to delivering it one phase at a time');
     expect(guidance).toContain('Delegation cost and batching');
-    expect(guidance).not.toMatch(/one slice per|build one|Build \*\*P1 only\*\*/);
+    expect(guidance).not.toMatch(/one slice per|build one|Build \*\*P1 only\*\*/i);
+    const bulletLines = guidance.split('\n');
+    const finishedBullet = bulletLines.find((line) =>
+      line.includes('**When the round is finished**')
+    );
+    const blockedBullet = bulletLines.find((line) =>
+      line.includes('**When you are blocked or stopping early**')
+    );
+    expect(finishedBullet).toContain('round-final');
+    expect(blockedBullet).toBeDefined();
+    expect(blockedBullet).not.toContain('round-final');
+    expect(guidance).toContain(
+      'land that phase as its own round, run its `round-final` verification, and report; the later phases follow in the next round.'
+    );
     expect(guidance).toContain('Put the plan ID from the publish output');
     expect(guidance).toContain('Never reconstruct the plan from memory or from earlier reports.');
     expect(guidance).toContain(
