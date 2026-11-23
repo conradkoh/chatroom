@@ -83,3 +83,17 @@ export const TIMELINE_HANDOFF_META =
  * icon + 8px gap-2, so the chips line up with the preview text above them.
  */
 export const TIMELINE_HANDOFF_CHIPS = 'pl-[2.375rem]';
+
+/** 10px caps label used for plan-level and per-phase section labels. */
+export const TIMELINE_PLAN_LABEL =
+  'text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted';
+
+/** Focus ring shared by plan links, copy controls and jump targets. */
+export const TIMELINE_PLAN_FOCUS =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent';
+
+/** Copy / jump control chrome (icon-only or label+icon). */
+export const TIMELINE_PLAN_CONTROL =
+  'inline-flex items-center gap-1 text-chatroom-text-muted transition-colors motion-reduce:transition-none ' +
+  'hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary ' +
+  TIMELINE_PLAN_FOCUS;

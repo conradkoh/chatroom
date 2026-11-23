@@ -369,6 +369,72 @@ Edge case X
     });
   });
 
+  describe('plan messages', () => {
+    const PLAN_BODY = [
+      '# Ship the plan row',
+      '',
+      '## Sources',
+      '',
+      '- None.',
+      '',
+      '## Requirements',
+      '',
+      '- Render the plan.',
+      '',
+      '## Constraints',
+      '',
+      '- None.',
+      '',
+      '## Phases',
+      '',
+      '- P1 — One',
+      '',
+      '## Phase details',
+      '',
+      '### P1 — One',
+      '',
+      '#### Requirements',
+      '',
+      '- Render it.',
+      '',
+      '#### Constraints',
+      '',
+      '- None.',
+      '',
+      '#### Acceptance criteria',
+      '',
+      '- It renders.',
+    ].join('\n');
+
+    const PLAN_MESSAGE: Message = {
+      ...BASE_MESSAGE,
+      _id: 'plan-1',
+      type: 'plan',
+      senderRole: 'specifier',
+      targetRole: undefined,
+      content: PLAN_BODY,
+    };
+
+    it('renders expanded with a plan badge and no handoff trigger or dialog', () => {
+      render(
+        <TimelineTeamMessage message={PLAN_MESSAGE} chatroomId="room-1" collapsible={false} />
+      );
+
+      expect(screen.getByTestId('timeline-team-message')).toHaveAttribute(
+        'data-message-type',
+        'plan'
+      );
+      expect(screen.getByText('plan')).toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-handoff-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(screen.getByTestId('timeline-plan-body')).toBeInTheDocument();
+
+      const route = screen.getByTestId('timeline-message-header-route');
+      expect(within(route).getByText('specifier')).toBeInTheDocument();
+      expect(route.querySelector('svg')).toBeNull();
+    });
+  });
+
   it('renders no type badge for a plain team message and exposes its type on the root', () => {
     const plainMessage: Message = {
       ...BASE_MESSAGE,

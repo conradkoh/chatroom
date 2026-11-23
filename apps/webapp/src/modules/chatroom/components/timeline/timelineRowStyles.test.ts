@@ -10,10 +10,16 @@ import {
   TIMELINE_HANDOFF_TRIGGER_LABEL,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
+  TIMELINE_PLAN_CONTROL,
+  TIMELINE_PLAN_LABEL,
   TIMELINE_ROW_ROOT,
   TIMELINE_SCROLL_CONTAINER,
   TIMELINE_SCROLL_CONTAINER_STYLE,
 } from './timelineRowStyles';
+
+/** Any Tailwind palette colour utility that is not a chatroom token, or a raw colour literal. */
+const HARD_CODED_COLOUR =
+  /\b(?:bg|text|border|ring(?:-offset)?|fill|stroke|from|via|to|shadow|outline|decoration)-(?!chatroom-)(?:[a-z]+-\d{2,3}(?:\/\d+)?|white|black|transparent)\b|#[0-9a-fA-F]{3,8}\b|\brgba?\(|\b(?:oklch|hsl)\(/;
 
 describe('getTimelineVirtualRowZIndex', () => {
   it('returns 1-based index for virtual row stacking', () => {
@@ -99,5 +105,22 @@ describe('TIMELINE_HANDOFF_META', () => {
     expect(TIMELINE_HANDOFF_META).not.toContain('flex-col');
     expect(TIMELINE_HANDOFF_META).not.toContain('hidden');
     expect(TIMELINE_HANDOFF_META).not.toContain('sm:');
+  });
+});
+
+describe('TIMELINE_PLAN_LABEL', () => {
+  it('is a small caps label using only chatroom tokens', () => {
+    expect(TIMELINE_PLAN_LABEL).toContain('uppercase');
+    expect(TIMELINE_PLAN_LABEL).toContain('text-chatroom-text-muted');
+    expect(TIMELINE_PLAN_LABEL).not.toMatch(HARD_CODED_COLOUR);
+  });
+});
+
+describe('TIMELINE_PLAN_CONTROL', () => {
+  it('is a hoverable, focus-ringed control with reduced-motion support', () => {
+    expect(TIMELINE_PLAN_CONTROL).toContain('hover:bg-chatroom-bg-hover');
+    expect(TIMELINE_PLAN_CONTROL).toContain('focus-visible:ring-chatroom-accent');
+    expect(TIMELINE_PLAN_CONTROL).toContain('motion-reduce:transition-none');
+    expect(TIMELINE_PLAN_CONTROL).not.toMatch(HARD_CODED_COLOUR);
   });
 });
