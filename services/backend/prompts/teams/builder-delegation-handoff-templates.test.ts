@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { getBuilderDelegationBriefTemplate } from './builder-delegation-handoff-templates';
+import { VERIFICATION_KINDS } from '../utils/verification-kinds';
 
 const DUO_PLANNER = { delegatorRole: 'planner', gatesOwner: 'self' } as const;
 
@@ -63,5 +64,13 @@ describe('getBuilderDelegationBriefTemplate', () => {
     expect(body).toContain('`unit tests` — **required** or **not applicable: <reason>**');
     expect(body).toContain('`integration tests` — **required** or **not applicable: <reason>**');
     expect(body).toContain('`e2e` — **required** or **not applicable: <reason>**');
+  });
+
+  test.each([false, true])('every shared kind reaches the flags line (batching=%s)', (batching) => {
+    const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching });
+
+    for (const kind of VERIFICATION_KINDS) {
+      expect(body).toContain(`- \`${kind.label}\` — `);
+    }
   });
 });

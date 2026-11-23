@@ -1,5 +1,6 @@
 import { getFileReferenceGuidanceComment } from '../utils/file-reference-guidance';
 import { getDelegationBriefIntro } from '../utils/handoff-section-guidance';
+import { VERIFICATION_KINDS, type VerificationKind } from '../utils/verification-kinds';
 
 export interface BuilderDelegationBriefOptions {
   /** Role writing the brief: 'planner' in the duo preset. */
@@ -21,19 +22,16 @@ interface BatchingFragments {
   verificationFlagsSection: string;
 }
 
-/**
- * Flag lines shared by both variants. The brief author replaces each placeholder and
- * marks every kind `required` or `not applicable: <reason>`. Typecheck and lint are
- * always run by the builder, so they are never `not applicable`.
- */
-const VERIFICATION_FLAG_LINES = [
-  '- `typecheck` — **required**. Lightweight: the builder always runs it, so never mark it `not applicable`. Command: `pnpm turbo run typecheck --filter=<package>`',
-  '- `lint` — **required**. Lightweight: the builder always runs it, so never mark it `not applicable`. Command: `pnpm exec eslint <files in scope>`',
-  '- `unit tests` — **required** or **not applicable: <reason>**. Command: `pnpm --dir <workspace> exec vitest run <test files in scope>`',
-  '- `integration tests` — **required** or **not applicable: <reason>**. Command: `pnpm --dir <workspace> exec vitest run <integration specs in scope>`; the chatroom-cli suite is `pnpm --filter chatroom-cli test:integration`',
-  '- `e2e` — **required** or **not applicable: <reason>**. Command: `pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium`',
-  '`<workspace>` is a directory: `services/backend`, `apps/webapp`, `packages/cli`, or `packages/shared`. `--filter` takes the package name: `@workspace/backend`, `@workspace/webapp`, `chatroom-cli`, or `@workspace/shared`.',
-];
+function getVerificationKindFlagLine(kind: VerificationKind): string {
+  const choice = kind.lightweight
+    ? '**required**. Lightweight: the builder always runs it, so never mark it `not applicable`.'
+    : '**required** or **not applicable: <reason>**.';
+  const note = kind.note ? ` ${kind.note}` : '';
+  return `- \`${kind.label}\` — ${choice} Command: \`${kind.command}\`${note}`;
+}
+
+const WORKSPACE_PROSE_LINE =
+  '`<workspace>` is a directory: `services/backend`, `apps/webapp`, `packages/cli`, or `packages/shared`. `--filter` takes the package name: `@workspace/backend`, `@workspace/webapp`, `chatroom-cli`, or `@workspace/shared`.';
 
 function getScopeLines(batching: boolean): string[] {
   const focused =
@@ -53,7 +51,8 @@ function getVerificationFlagsSection(batching: boolean): string {
     '## Verification flags',
     'Mark each kind `required` or `not applicable: <reason>`. The builder runs every `required` kind with the command shown, always runs typecheck and lint, and records each `not applicable` kind in its hand-back.',
     ...getScopeLines(batching),
-    ...VERIFICATION_FLAG_LINES,
+    ...VERIFICATION_KINDS.map(getVerificationKindFlagLine),
+    WORKSPACE_PROSE_LINE,
     '',
     '',
   ].join('\n');

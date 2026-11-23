@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { getBuilderHandbackTemplate } from './builder-handback-handoff-templates';
 import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
+import { VERIFICATION_KINDS } from '../utils/verification-kinds';
 
 const QUERY: HandoffTemplateQuery = {
   fromRole: 'builder',
@@ -21,10 +22,16 @@ describe('getBuilderHandbackTemplate', () => {
   });
 
   test('records each verification kind with ran, not run, or not applicable', () => {
-    for (const kind of ['`typecheck`', '`lint`', '`unit tests`', '`integration tests`', '`e2e`']) {
-      expect(body).toContain(`- ${kind} —`);
+    for (const kind of VERIFICATION_KINDS) {
+      expect(body).toContain(`- \`${kind.label}\` —`);
     }
     expect(body).toContain('not applicable: the brief');
+  });
+
+  test('timing report lists a row for every shared verification kind', () => {
+    for (const kind of VERIFICATION_KINDS) {
+      expect(body).toContain(`- ${kind.timingLabel}:`);
+    }
   });
 
   test('timing report sits between code change verification and blockers, with every activity row and a total', () => {

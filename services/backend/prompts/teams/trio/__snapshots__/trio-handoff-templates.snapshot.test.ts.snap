@@ -54,8 +54,8 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 - [ ] I confirm that every verification kind the brief marked \`required\` ran, and I recorded its command and result below
 - [ ] I confirm that every verification kind the brief marked \`not applicable\` is recorded below with the brief's reason
 Record each kind below, in this order, with its command and result, \`not run: <reason>\`, or \`not applicable: <the brief's reason>\`:
-- \`typecheck\` — <ran: command → result | not run: reason>
-- \`lint\` — <ran: command → result | not run: reason>
+- \`typecheck\` — <ran: command → result>
+- \`lint\` — <ran: command → result>
 - \`unit tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
 - \`integration tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
 - \`e2e\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
@@ -64,8 +64,8 @@ Record each kind below, in this order, with its command and result, \`not run: <
 <!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. -->
 - Brief reading: <duration | not run>
 - Implementation (code and tests written): <duration | not run>
-- Typecheck: <duration | not run>
-- Lint: <duration | not run>
+- Typecheck: <duration>
+- Lint: <duration>
 - Unit tests: <duration | not run | not applicable>
 - Integration tests: <duration | not run | not applicable>
 - E2E: <duration | not run | not applicable>
@@ -227,7 +227,7 @@ Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this bri
 - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
 - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
 - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
-- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\`; the chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`
+- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\` The chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`.
 - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
 \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
@@ -317,8 +317,8 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 - [ ] I confirm that every verification kind the brief marked \`required\` ran, and I recorded its command and result below
 - [ ] I confirm that every verification kind the brief marked \`not applicable\` is recorded below with the brief's reason
 Record each kind below, in this order, with its command and result, \`not run: <reason>\`, or \`not applicable: <the brief's reason>\`:
-- \`typecheck\` — <ran: command → result | not run: reason>
-- \`lint\` — <ran: command → result | not run: reason>
+- \`typecheck\` — <ran: command → result>
+- \`lint\` — <ran: command → result>
 - \`unit tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
 - \`integration tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
 - \`e2e\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
@@ -327,8 +327,8 @@ Record each kind below, in this order, with its command and result, \`not run: <
 <!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. -->
 - Brief reading: <duration | not run>
 - Implementation (code and tests written): <duration | not run>
-- Typecheck: <duration | not run>
-- Lint: <duration | not run>
+- Typecheck: <duration>
+- Lint: <duration>
 - Unit tests: <duration | not run | not applicable>
 - Integration tests: <duration | not run | not applicable>
 - E2E: <duration | not run | not applicable>
@@ -619,7 +619,7 @@ Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this bri
 - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
 - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
 - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
-- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\`; the chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`
+- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\` The chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`.
 - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
 \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
