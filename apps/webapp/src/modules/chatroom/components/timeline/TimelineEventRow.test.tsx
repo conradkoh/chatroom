@@ -1,7 +1,8 @@
 /**
  * TimelineEventRow — delegates to the correct cell by event.kind.
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -48,6 +49,58 @@ const TEST_CHATROOM_ID = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2';
 const AMP = String.fromCharCode(38);
 
 const STATUS_LABELS = ['pending', 'acknowledged', 'in progress', 'done', 'cancelled', 'backlog'];
+
+/** A valid two-phase plan, built with the same shape the parser accepts in the other plan suites. */
+const PLAN_CONTENT = [
+  '# Ship the plan row',
+  '',
+  '## Sources',
+  '',
+  '- src-1',
+  '',
+  '## Requirements',
+  '',
+  '- Ship it.',
+  '',
+  '## Constraints',
+  '',
+  '- None.',
+  '',
+  '## Phases',
+  '',
+  '- P1 — Schema',
+  '- P2 — Render',
+  '',
+  '## Phase details',
+  '',
+  '### P1 — Schema',
+  '',
+  '#### Requirements',
+  '',
+  '- Add schema.',
+  '',
+  '#### Constraints',
+  '',
+  '- None.',
+  '',
+  '#### Acceptance criteria',
+  '',
+  '- Parses.',
+  '',
+  '### P2 — Render',
+  '',
+  '#### Requirements',
+  '',
+  '- Render.',
+  '',
+  '#### Constraints',
+  '',
+  '- None.',
+  '',
+  '#### Acceptance criteria',
+  '',
+  '- Renders.',
+].join('\n');
 
 describe('TimelineEventRow', () => {
   it('renders user message cell', () => {
@@ -164,5 +217,63 @@ describe('TimelineEventRow', () => {
     expect(screen.getByTestId('timeline-team-message')).toBeInTheDocument();
     expect(screen.getByText(/Bad entity handoff/)).toBeInTheDocument();
     expect(screen.queryByTestId('timeline-row-error')).not.toBeInTheDocument();
+  });
+});
+
+describe('TimelineEventRow plan rows', () => {
+  const planEvent = () =>
+    mapMessageToTimelineEvent(
+      makeMessage({
+        _id: 'plan-row-1',
+        type: 'plan',
+        senderRole: 'specifier',
+        content: PLAN_CONTENT,
+        _creationTime: 1_000,
+      })
+    );
+
+  it('collapses a plan row to the summary bar with no body mounted', () => {
+    renderRow(<TimelineEventRow event={planEvent()} chatroomId={TEST_CHATROOM_ID} />);
+
+    const trigger = screen.getByTestId('timeline-plan-trigger');
+    expect(within(trigger).getByTestId('timeline-plan-summary-title')).toHaveTextContent(
+      'Ship the plan row'
+    );
+    expect(within(trigger).getByText('2 phases')).toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-plan-body')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-plan-title')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-plan-phase-index')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('opens the full plan with Enter and closes with Escape, returning focus to the bar', async () => {
+    const user = userEvent.setup();
+    renderRow(<TimelineEventRow event={planEvent()} chatroomId={TEST_CHATROOM_ID} />);
+    const trigger = screen.getByTestId('timeline-plan-trigger');
+
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    const dialog = screen.getByRole('dialog', { name: 'Full plan from specifier' });
+    expect(within(dialog).getByTestId('timeline-plan-body')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('timeline-plan-title')).toHaveTextContent(
+      'Ship the plan row'
+    );
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('opens with a click and closes with the header close button, returning focus to the bar', async () => {
+    const user = userEvent.setup();
+    renderRow(<TimelineEventRow event={planEvent()} chatroomId={TEST_CHATROOM_ID} />);
+    const trigger = screen.getByTestId('timeline-plan-trigger');
+
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Full plan from specifier' })).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('timeline-handoff-dialog-close'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });

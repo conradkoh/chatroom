@@ -134,6 +134,65 @@ const TALL: Message = {
   _creationTime: CREATION_TIME,
 };
 
+const PLAN_CONTENT = [
+  '# Ship the plan row',
+  '',
+  '## Sources',
+  '',
+  '- src-1',
+  '',
+  '## Requirements',
+  '',
+  '- Ship it.',
+  '',
+  '## Constraints',
+  '',
+  '- None.',
+  '',
+  '## Phases',
+  '',
+  '- P1 — Schema',
+  '- P2 — Render',
+  '',
+  '## Phase details',
+  '',
+  '### P1 — Schema',
+  '',
+  '#### Requirements',
+  '',
+  '- Add schema.',
+  '',
+  '#### Constraints',
+  '',
+  '- None.',
+  '',
+  '#### Acceptance criteria',
+  '',
+  '- Parses.',
+  '',
+  '### P2 — Render',
+  '',
+  '#### Requirements',
+  '',
+  '- Render.',
+  '',
+  '#### Constraints',
+  '',
+  '- None.',
+  '',
+  '#### Acceptance criteria',
+  '',
+  '- Renders.',
+].join('\n');
+
+const PLAN: Message = {
+  _id: 'e2e-collapse-plan',
+  type: 'plan',
+  senderRole: 'specifier',
+  content: PLAN_CONTENT,
+  _creationTime: CREATION_TIME,
+};
+
 /** Development-only fixture for browser verification of the collapsed handoff bar. */
 export default function TimelineHandoffCollapseTestPage() {
   const [isDark, setIsDark] = useState(false);
@@ -217,6 +276,14 @@ export default function TimelineHandoffCollapseTestPage() {
             message={TALL}
             chatroomId="e2e-chatroom"
             collapsible={isCollapsible(TALL)}
+          />
+        </section>
+
+        <section data-testid="collapse-plan">
+          <TimelineTeamMessage
+            message={PLAN}
+            chatroomId="e2e-chatroom"
+            collapsible={isCollapsible(PLAN)}
           />
         </section>
 
