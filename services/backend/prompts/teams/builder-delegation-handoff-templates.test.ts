@@ -5,13 +5,21 @@ import { getBuilderDelegationBriefTemplate } from './builder-delegation-handoff-
 const DUO_PLANNER = { delegatorRole: 'planner', gatesOwner: 'self' } as const;
 
 describe('getBuilderDelegationBriefTemplate', () => {
-  test('duo brief carries verification flags fixed to focused scope', () => {
+  test('duo brief offers focused and round-final scope and defaults to focused guidance', () => {
     const body = getBuilderDelegationBriefTemplate(DUO_PLANNER);
 
     expect(getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching: false })).toBe(body);
     expect(body).toContain('## Verification flags');
-    expect(body).toContain('Scope: `focused` — each run covers only the test files');
-    expect(body).not.toContain('round-final');
+    expect(body).toContain('Scope: <`focused` | `round-final`>');
+    expect(body).toContain(
+      "- `focused` — each run covers only the test files and workspaces that touch this brief's files."
+    );
+    expect(body).toContain(
+      '- `round-final` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed'
+    );
+    expect(body).toContain(
+      'set the `## Verification flags` scope to `focused` for each slice and to `round-final` for the final slice, which runs the full pass once.'
+    );
     expect(body).not.toContain('## Verification scope');
     expect(body).toContain('Keep one slice ≈ one focused review surface.');
     expect(body).toContain(

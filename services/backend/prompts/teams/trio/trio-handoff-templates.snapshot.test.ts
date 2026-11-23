@@ -138,7 +138,7 @@ describe('trio handoff template snapshots', () => {
     expect(body).toContain('## Shared contracts (specifier-owned)');
   });
 
-  test('specifier → builder brief carries verification flags; duo planner → builder is fixed to focused scope', () => {
+  test('specifier → builder brief carries verification flags; duo planner → builder offers both scopes', () => {
     const specifierToBuilder = trioPairs.find(
       (pair) => pair.fromRole === 'specifier' && pair.toRole === 'builder'
     )!;
@@ -153,8 +153,8 @@ describe('trio handoff template snapshots', () => {
     });
     expect(duoBody).toBeTruthy();
     expect(duoBody).toContain('## Verification flags');
-    expect(duoBody).toContain('Scope: `focused`');
-    expect(duoBody).not.toContain('round-final');
+    expect(duoBody).toContain('Scope: <`focused` | `round-final`>');
+    expect(duoBody).toContain('- `round-final` — each run covers the full scope');
   });
 
   test('coordinator → specifier brief carries specialist inputs and history pointers', () => {

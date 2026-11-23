@@ -465,7 +465,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once. In the brief body, set the \`## Verification flags\` scope to \`focused\` for each slice and to \`round-final\` for the final slice, which runs the full pass once.
 
       \`\`\`\`markdown
       ## Summary
@@ -526,7 +526,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Verification flags
       Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
-      Scope: \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+      Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
+      - \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+      - \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
       - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
       - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
       - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
@@ -576,7 +578,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once. In the brief body, set the \`## Verification flags\` scope to \`focused\` for each slice and to \`round-final\` for the final slice, which runs the full pass once.
 
       \`\`\`\`markdown
       ## Summary
@@ -637,7 +639,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Verification flags
       Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
-      Scope: \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+      Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
+      - \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+      - \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
       - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
       - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
       - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
