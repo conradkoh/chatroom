@@ -11,8 +11,8 @@
  * - Reports *all* errors in a single pass, each with a 1-based line number.
  * - Errors are sorted by line asc, then code asc, so output is deterministic.
  * - Headings and bullets inside fenced code blocks (``` or ~~~) are content.
- * - `None.` is honoured only for `Sources`, `Constraints` and per-phase
- *   `Depends on`; anywhere else it is an error.
+ * - `None.` is honoured only for `Sources`, `Constraints`, per-phase
+ *   `Constraints`, and per-phase `Depends on`; anywhere else it is an error.
  */
 
 import {
@@ -68,7 +68,32 @@ interface PhaseBlock {
   sections: Map<PlanPhaseSectionName, Bullet[]>;
 }
 
+/** Mutable state accumulated by the single document scan. */
+interface ParseState {
+  errors: PlanParseError[];
+  title: string | null;
+  firstContentSeen: boolean;
+  lastSectionRank: number;
+  currentSection: PlanSectionName | null;
+  currentPhase: PhaseBlock | null;
+  currentPhaseSection: PlanPhaseSectionName | null;
+  currentBullet: Bullet | null;
+  orphanReported: boolean;
+  sectionHeadings: Map<PlanSectionName, number>;
+  sectionBullets: Map<PlanSectionName, Bullet[]>;
+  remarksLines: string[];
+  phaseListBullets: Bullet[];
+  phaseBlocks: PhaseBlock[];
+}
+
+interface ListedPhase {
+  id: string;
+  title: string;
+  line: number;
+}
+
 const PHASE_ENTRY_PATTERN = /^P([1-9]\d*)\s+[—–-]\s+(.+)$/;
+const TITLE_PATTERN = /^#\s+(.+)$/;
 
 /** Trim a fully-assembled bullet: drop trailing whitespace/newlines only. */
 function trimItem(text: string): string {
@@ -106,51 +131,233 @@ function phaseNumber(id: string): number {
   return Number.parseInt(id.slice(1), 10);
 }
 
-export function parsePlan(markdown: string): ParsePlanResult {
-  const lines = markdown.split(/\r?\n/);
-  const lastLineNumber = lines.length;
-  const errors: PlanParseError[] = [];
-  const record = (code: PlanParseErrorCode, line: number, message: string) => {
-    errors.push({ code, line, message });
+function createState(errors: PlanParseError[]): ParseState {
+  return {
+    errors,
+    title: null,
+    firstContentSeen: false,
+    lastSectionRank: -1,
+    currentSection: null,
+    currentPhase: null,
+    currentPhaseSection: null,
+    currentBullet: null,
+    orphanReported: false,
+    sectionHeadings: new Map(),
+    sectionBullets: new Map(),
+    remarksLines: [],
+    phaseListBullets: [],
+    phaseBlocks: [],
   };
+}
 
-  if (markdown.length > PLAN_MAX_CHARS) {
+function record(state: ParseState, code: PlanParseErrorCode, line: number, message: string): void {
+  state.errors.push({ code, line, message });
+}
+
+function reportOrphan(state: ParseState, line: number): void {
+  if (state.orphanReported) return;
+  state.orphanReported = true;
+  record(state, 'PLAN_SECTION_ORDER', line, 'Content appears outside any recognised plan section');
+}
+
+function listedPhaseIds(state: ParseState): Set<string> {
+  return new Set(
+    state.phaseListBullets
+      .map((bullet) => parsePhaseEntry(trimItem(bullet.text)))
+      .filter((parsed): parsed is { id: string; title: string } => parsed !== null)
+      .map((parsed) => parsed.id)
+  );
+}
+
+function appendBullet(state: ParseState, target: Bullet[], raw: string, line: number): void {
+  const bullet: Bullet = { text: raw.slice(2), line };
+  target.push(bullet);
+  state.currentBullet = bullet;
+}
+
+function handlePlanSectionHeading(state: ParseState, trimmed: string, line: number): void {
+  state.currentBullet = null;
+  state.currentPhase = null;
+  state.currentPhaseSection = null;
+  state.orphanReported = false;
+
+  const name = lookupSectionName(trimmed.slice(3));
+  if (!name) {
+    record(state, 'PLAN_SECTION_ORDER', line, `Unrecognised section heading "${trimmed}"`);
+    state.currentSection = null;
+    return;
+  }
+  if (state.sectionHeadings.has(name)) {
+    record(state, 'PLAN_SECTION_ORDER', line, `Duplicate section heading "${trimmed}"`);
+    state.currentSection = null;
+    return;
+  }
+  const rank = PLAN_SECTION_ORDER.indexOf(name);
+  if (rank <= state.lastSectionRank) {
+    record(state, 'PLAN_SECTION_ORDER', line, `Section heading "${trimmed}" is out of order`);
+    state.currentSection = null;
+    return;
+  }
+  state.sectionHeadings.set(name, line);
+  state.lastSectionRank = rank;
+  state.currentSection = name;
+}
+
+function handlePhaseHeading(state: ParseState, heading: string, line: number): void {
+  state.currentBullet = null;
+  state.currentPhaseSection = null;
+
+  if (state.currentSection !== 'phaseDetails') {
     record(
-      'PLAN_TOO_LONG',
-      1,
-      `Plan must be ${PLAN_MAX_CHARS} characters or less (got ${markdown.length})`
+      state,
+      'PLAN_SECTION_ORDER',
+      line,
+      'Phase detail headings are only valid inside "## Phase details"'
     );
+    state.currentPhase = null;
+    state.orphanReported = false;
+    return;
   }
 
-  let title: string | null = null;
-  let firstContentSeen = false;
-  let lastSectionRank = -1;
-  let currentSection: PlanSectionName | null = null;
-  let currentPhase: PhaseBlock | null = null;
-  let currentPhaseSection: PlanPhaseSectionName | null = null;
-  let currentBullet: Bullet | null = null;
-  let orphanReported = false;
+  const entry = parsePhaseEntry(heading);
+  if (!entry) {
+    record(
+      state,
+      'PLAN_PHASE_DETAIL_UNLISTED',
+      line,
+      `Phase detail heading "${heading}" must look like "P1 — <title>"`
+    );
+    state.currentPhase = null;
+    state.orphanReported = false;
+    return;
+  }
+  if (state.phaseBlocks.some((block) => block.id === entry.id)) {
+    record(state, 'PLAN_PHASE_DETAIL_UNLISTED', line, `Duplicate phase detail block "${entry.id}"`);
+    state.currentPhase = null;
+    state.orphanReported = false;
+    return;
+  }
+  if (!listedPhaseIds(state).has(entry.id)) {
+    record(
+      state,
+      'PLAN_PHASE_DETAIL_UNLISTED',
+      line,
+      `Phase detail "${entry.id}" is not listed in "## Phases"`
+    );
+    state.currentPhase = null;
+    state.orphanReported = false;
+    return;
+  }
+
+  const block: PhaseBlock = {
+    id: entry.id,
+    title: entry.title,
+    line,
+    lastSectionRank: -1,
+    sections: new Map(),
+  };
+  state.phaseBlocks.push(block);
+  state.currentPhase = block;
+  state.currentPhaseSection = null;
+  state.orphanReported = false;
+}
+
+function handlePhaseSectionHeading(state: ParseState, trimmed: string, line: number): void {
+  state.currentBullet = null;
+  const phase = state.currentPhase;
+  if (state.currentSection !== 'phaseDetails' || !phase) {
+    record(
+      state,
+      'PLAN_SECTION_ORDER',
+      line,
+      'Phase sub-section headings are only valid inside a "### Pn" block'
+    );
+    state.orphanReported = false;
+    return;
+  }
+
+  const name = lookupPhaseSectionName(trimmed.slice(5));
+  if (!name) {
+    record(state, 'PLAN_SECTION_ORDER', line, `Unrecognised phase sub-section "${trimmed}"`);
+    state.orphanReported = false;
+    return;
+  }
+  const rank = PLAN_PHASE_SECTION_ORDER.indexOf(name);
+  if (phase.sections.has(name)) {
+    record(state, 'PLAN_SECTION_ORDER', line, `Duplicate phase sub-section "${trimmed}"`);
+    return;
+  }
+  if (rank <= phase.lastSectionRank) {
+    record(state, 'PLAN_SECTION_ORDER', line, `Phase sub-section "${trimmed}" is out of order`);
+    return;
+  }
+  phase.lastSectionRank = rank;
+  state.currentPhaseSection = name;
+  phase.sections.set(name, []);
+  state.orphanReported = false;
+}
+
+function handleBulletLine(state: ParseState, raw: string, line: number): void {
+  if (state.currentSection === 'remarks') {
+    state.remarksLines.push(raw);
+    return;
+  }
+  if (state.currentSection === 'phases') {
+    state.phaseListBullets.push({ text: raw.slice(2), line });
+    state.currentBullet = null;
+    return;
+  }
+  if (
+    state.currentSection === 'sources' ||
+    state.currentSection === 'requirements' ||
+    state.currentSection === 'constraints'
+  ) {
+    const list = state.sectionBullets.get(state.currentSection) ?? [];
+    appendBullet(state, list, raw, line);
+    state.sectionBullets.set(state.currentSection, list);
+    return;
+  }
+  if (state.currentSection === 'phaseDetails' && state.currentPhase && state.currentPhaseSection) {
+    const list = state.currentPhase.sections.get(state.currentPhaseSection) ?? [];
+    appendBullet(state, list, raw, line);
+    state.currentPhase.sections.set(state.currentPhaseSection, list);
+    return;
+  }
+  reportOrphan(state, line);
+}
+
+/** Handle a plain content line, including fence content. */
+function handleContentLine(state: ParseState, raw: string, trimmed: string, line: number): void {
+  if (state.currentSection === 'remarks') {
+    state.remarksLines.push(raw);
+    return;
+  }
+  if (state.currentSection === 'phases') {
+    record(
+      state,
+      'PLAN_PHASE_ID_INVALID',
+      line,
+      'Phase list entries must be a single line of the form "- P1 — <title>"'
+    );
+    return;
+  }
+  if (state.currentBullet) {
+    state.currentBullet.text += `\n${raw}`;
+    return;
+  }
+  if (trimmed.length > 0) reportOrphan(state, line);
+}
+
+/** Single fence-aware pass over the document, populating `state`. */
+function scanDocument(lines: string[], state: ParseState): void {
   let inFence = false;
   let fenceMarker: string | null = null;
 
-  const sectionHeadings = new Map<PlanSectionName, number>();
-  const sectionBullets = new Map<PlanSectionName, Bullet[]>();
-  const remarksLines: string[] = [];
-  const phaseListBullets: Bullet[] = [];
-  const phaseBlocks: PhaseBlock[] = [];
-
-  const reportOrphan = (line: number) => {
-    if (orphanReported) return;
-    orphanReported = true;
-    record('PLAN_SECTION_ORDER', line, 'Content appears outside any recognised plan section');
-  };
-
   for (let index = 0; index < lines.length; index++) {
-    const lineNumber = index + 1;
+    const line = index + 1;
     const raw = lines[index];
     const trimmed = raw.trim();
 
-    // ── Fence tracking (must run before heading/bullet detection) ─────────
     const isFenceLine = trimmed.startsWith('```') || trimmed.startsWith('~~~');
     if (isFenceLine) {
       if (!inFence) {
@@ -163,271 +370,94 @@ export function parsePlan(markdown: string): ParsePlanResult {
     }
 
     if (inFence || isFenceLine) {
-      if (currentSection === 'remarks') {
-        remarksLines.push(raw);
-      } else if (currentSection === 'phases') {
-        // Fences are not meaningful in a single-line phase list.
-        record(
-          'PLAN_PHASE_ID_INVALID',
-          lineNumber,
-          'Phase list entries must be a single line of the form "- P1 — <title>"'
-        );
-      } else if (currentBullet) {
-        currentBullet.text += `\n${raw}`;
-      } else if (trimmed.length > 0) {
-        reportOrphan(lineNumber);
-      }
+      handleContentLine(state, raw, trimmed, line);
       continue;
     }
 
-    // ── Blank lines are ignored (except in Remarks) ───────────────────────
     if (trimmed.length === 0) {
-      if (currentSection === 'remarks') remarksLines.push(raw);
+      if (state.currentSection === 'remarks') state.remarksLines.push(raw);
       continue;
     }
 
-    // ── Title (first non-blank line) ──────────────────────────────────────
-    if (!firstContentSeen) {
-      firstContentSeen = true;
-      const titleMatch = /^#\s+(.+)$/.exec(trimmed);
+    if (!state.firstContentSeen) {
+      state.firstContentSeen = true;
+      const titleMatch = TITLE_PATTERN.exec(trimmed);
       if (titleMatch) {
-        title = titleMatch[1].trim();
+        state.title = titleMatch[1].trim();
         continue;
       }
-      record('PLAN_TITLE_MISSING', lineNumber, 'The plan title must be an H1 on the first line');
+      record(state, 'PLAN_TITLE_MISSING', line, 'The plan title must be an H1 on the first line');
     }
 
-    // ── Headings ──────────────────────────────────────────────────────────
     if (trimmed.startsWith('#### ')) {
-      const name = lookupPhaseSectionName(trimmed.slice(5));
-      currentBullet = null;
-      if (currentSection !== 'phaseDetails' || !currentPhase) {
-        record(
-          'PLAN_SECTION_ORDER',
-          lineNumber,
-          'Phase sub-section headings are only valid inside a "### Pn" block'
-        );
-        orphanReported = false;
-        continue;
-      }
-      if (!name) {
-        record('PLAN_SECTION_ORDER', lineNumber, `Unrecognised phase sub-section "${trimmed}"`);
-        orphanReported = false;
-        continue;
-      }
-      const rank = PLAN_PHASE_SECTION_ORDER.indexOf(name);
-      if (currentPhase.sections.has(name)) {
-        record('PLAN_SECTION_ORDER', lineNumber, `Duplicate phase sub-section "${trimmed}"`);
-      } else if (rank <= currentPhase.lastSectionRank) {
-        record('PLAN_SECTION_ORDER', lineNumber, `Phase sub-section "${trimmed}" is out of order`);
-      } else {
-        currentPhase.lastSectionRank = rank;
-        currentPhaseSection = name;
-        currentPhase.sections.set(name, []);
-        orphanReported = false;
-      }
-      continue;
+      handlePhaseSectionHeading(state, trimmed, line);
+    } else if (trimmed.startsWith('### ')) {
+      handlePhaseHeading(state, trimmed.slice(4), line);
+    } else if (trimmed.startsWith('## ')) {
+      handlePlanSectionHeading(state, trimmed, line);
+    } else if (trimmed.startsWith('# ')) {
+      record(state, 'PLAN_SECTION_ORDER', line, 'Only one H1 (the plan title) is allowed');
+    } else if (raw.startsWith('- ')) {
+      handleBulletLine(state, raw, line);
+    } else {
+      handleContentLine(state, raw, trimmed, line);
     }
-
-    if (trimmed.startsWith('### ')) {
-      const heading = trimmed.slice(4);
-      currentBullet = null;
-      currentPhaseSection = null;
-      if (currentSection !== 'phaseDetails') {
-        record(
-          'PLAN_SECTION_ORDER',
-          lineNumber,
-          'Phase detail headings are only valid inside "## Phase details"'
-        );
-        currentPhase = null;
-        orphanReported = false;
-        continue;
-      }
-      const entry = parsePhaseEntry(heading);
-      const listedIds = new Set(
-        phaseListBullets
-          .map((bullet) => parsePhaseEntry(trimItem(bullet.text)))
-          .filter((parsed): parsed is { id: string; title: string } => parsed !== null)
-          .map((parsed) => parsed.id)
-      );
-      if (!entry) {
-        record(
-          'PLAN_PHASE_DETAIL_UNLISTED',
-          lineNumber,
-          `Phase detail heading "${heading}" must look like "P1 — <title>"`
-        );
-        currentPhase = null;
-        orphanReported = false;
-        continue;
-      }
-      if (phaseBlocks.some((block) => block.id === entry.id)) {
-        record(
-          'PLAN_PHASE_DETAIL_UNLISTED',
-          lineNumber,
-          `Duplicate phase detail block "${entry.id}"`
-        );
-        currentPhase = null;
-        orphanReported = false;
-        continue;
-      }
-      if (!listedIds.has(entry.id)) {
-        record(
-          'PLAN_PHASE_DETAIL_UNLISTED',
-          lineNumber,
-          `Phase detail "${entry.id}" is not listed in "## Phases"`
-        );
-        currentPhase = null;
-        orphanReported = false;
-        continue;
-      }
-      const block: PhaseBlock = {
-        id: entry.id,
-        title: entry.title,
-        line: lineNumber,
-        lastSectionRank: -1,
-        sections: new Map(),
-      };
-      phaseBlocks.push(block);
-      currentPhase = block;
-      currentPhaseSection = null;
-      orphanReported = false;
-      continue;
-    }
-
-    if (trimmed.startsWith('## ')) {
-      const name = lookupSectionName(trimmed.slice(3));
-      currentBullet = null;
-      currentPhase = null;
-      currentPhaseSection = null;
-      orphanReported = false;
-      const rank = name ? PLAN_SECTION_ORDER.indexOf(name) : -1;
-      if (!name) {
-        record('PLAN_SECTION_ORDER', lineNumber, `Unrecognised section heading "${trimmed}"`);
-        currentSection = null;
-      } else if (sectionHeadings.has(name)) {
-        record('PLAN_SECTION_ORDER', lineNumber, `Duplicate section heading "${trimmed}"`);
-        currentSection = null;
-      } else if (rank <= lastSectionRank) {
-        record('PLAN_SECTION_ORDER', lineNumber, `Section heading "${trimmed}" is out of order`);
-        currentSection = null;
-      } else {
-        sectionHeadings.set(name, lineNumber);
-        lastSectionRank = rank;
-        currentSection = name;
-      }
-      continue;
-    }
-
-    if (trimmed.startsWith('# ')) {
-      record('PLAN_SECTION_ORDER', lineNumber, 'Only one H1 (the plan title) is allowed');
-      continue;
-    }
-
-    // ── Bullets (must start at column 0) ──────────────────────────────────
-    if (raw.startsWith('- ')) {
-      const text = raw.slice(2);
-      if (currentSection === 'remarks') {
-        remarksLines.push(raw);
-        continue;
-      }
-      if (currentSection === 'phases') {
-        phaseListBullets.push({ text, line: lineNumber });
-        currentBullet = null;
-        continue;
-      }
-      if (
-        currentSection === 'sources' ||
-        currentSection === 'requirements' ||
-        currentSection === 'constraints'
-      ) {
-        const bullet: Bullet = { text, line: lineNumber };
-        const list = sectionBullets.get(currentSection) ?? [];
-        list.push(bullet);
-        sectionBullets.set(currentSection, list);
-        currentBullet = bullet;
-        continue;
-      }
-      if (currentSection === 'phaseDetails' && currentPhase && currentPhaseSection) {
-        const list = currentPhase.sections.get(currentPhaseSection) ?? [];
-        const bullet: Bullet = { text, line: lineNumber };
-        list.push(bullet);
-        currentPhase.sections.set(currentPhaseSection, list);
-        currentBullet = bullet;
-        continue;
-      }
-      reportOrphan(lineNumber);
-      continue;
-    }
-
-    // ── Plain content (continuation or orphan) ────────────────────────────
-    if (currentSection === 'remarks') {
-      remarksLines.push(raw);
-      continue;
-    }
-    if (currentSection === 'phases') {
-      record(
-        'PLAN_PHASE_ID_INVALID',
-        lineNumber,
-        'Phase list entries must be a single line of the form "- P1 — <title>"'
-      );
-      continue;
-    }
-    if (currentBullet) {
-      currentBullet.text += `\n${raw}`;
-      continue;
-    }
-    reportOrphan(lineNumber);
   }
+}
 
-  if (!firstContentSeen) {
-    record('PLAN_TITLE_MISSING', 1, 'The plan title must be an H1 on the first line');
+function finaliseBullets(bullets: Bullet[]): Bullet[] {
+  return bullets
+    .map((bullet) => ({ ...bullet, text: trimItem(bullet.text) }))
+    .filter((bullet) => bullet.text.trim().length > 0);
+}
+
+function finaliseBulletsInState(state: ParseState): void {
+  for (const [name, bullets] of state.sectionBullets) {
+    state.sectionBullets.set(name, finaliseBullets(bullets));
   }
-
-  // ── Finalise bullets: trim trailing whitespace and drop empty items ─────
-  const finalise = (bullets: Bullet[]): Bullet[] =>
-    bullets
-      .map((bullet) => ({ ...bullet, text: trimItem(bullet.text) }))
-      .filter((bullet) => bullet.text.trim().length > 0);
-
-  const finalSectionBullets = new Map<PlanSectionName, Bullet[]>();
-  for (const [name, bullets] of sectionBullets) {
-    finalSectionBullets.set(name, finalise(bullets));
-  }
-  const finalPhaseListBullets = finalise(phaseListBullets);
-  for (const block of phaseBlocks) {
+  state.phaseListBullets = finaliseBullets(state.phaseListBullets);
+  for (const block of state.phaseBlocks) {
     for (const [name, bullets] of block.sections) {
-      block.sections.set(name, finalise(bullets));
+      block.sections.set(name, finaliseBullets(bullets));
     }
   }
+}
 
-  // ── Missing required plan sections ──────────────────────────────────────
+function validateMissingSections(state: ParseState, lastLineNumber: number): void {
   for (const name of PLAN_REQUIRED_SECTIONS) {
-    if (sectionHeadings.has(name)) continue;
+    if (state.sectionHeadings.has(name)) continue;
     const rank = PLAN_SECTION_ORDER.indexOf(name);
     let line = lastLineNumber;
     for (let next = rank + 1; next < PLAN_SECTION_ORDER.length; next++) {
-      const nextName = PLAN_SECTION_ORDER[next];
-      const nextHeading = sectionHeadings.get(nextName);
+      const nextHeading = state.sectionHeadings.get(PLAN_SECTION_ORDER[next]);
       if (nextHeading !== undefined) {
         line = nextHeading;
         break;
       }
     }
     record(
+      state,
       'PLAN_SECTION_MISSING',
       line,
       `Missing required section "## ${PLAN_SECTION_NAMES[name]}"`
     );
   }
+}
 
-  // ── Phases list ─────────────────────────────────────────────────────────
-  const phasesHeading = sectionHeadings.get('phases');
-  const phaseList = finalPhaseListBullets.map((bullet) => ({
+/** Validate the `## Phases` list and return the sequentially valid entries. */
+function collectPhaseList(state: ParseState): {
+  listedEntries: ListedPhase[];
+  listedIds: Set<string>;
+} {
+  const phasesHeading = state.sectionHeadings.get('phases');
+  const phaseList = state.phaseListBullets.map((bullet) => ({
     bullet,
     entry: parsePhaseEntry(bullet.text),
   }));
+
   if (phasesHeading !== undefined && phaseList.length === 0) {
     record(
+      state,
       'PLAN_PHASE_LIST_EMPTY',
       phasesHeading,
       'The "## Phases" section must list at least one phase'
@@ -435,16 +465,19 @@ export function parsePlan(markdown: string): ParsePlanResult {
   }
   if (phaseList.length > PLAN_MAX_PHASES) {
     record(
+      state,
       'PLAN_TOO_MANY_PHASES',
       phaseList[PLAN_MAX_PHASES].bullet.line,
       `A plan may declare at most ${PLAN_MAX_PHASES} phases`
     );
   }
-  const listedEntries: { id: string; title: string; line: number }[] = [];
+
+  const listedEntries: ListedPhase[] = [];
   phaseList.forEach(({ bullet, entry }, index) => {
     const expectedId = `P${index + 1}`;
     if (!entry) {
       record(
+        state,
         'PLAN_PHASE_ID_INVALID',
         bullet.line,
         `Phase entry "${bullet.text.trim()}" must look like "- Pn — <title>"`
@@ -453,6 +486,7 @@ export function parsePlan(markdown: string): ParsePlanResult {
     }
     if (entry.id !== expectedId) {
       record(
+        state,
         'PLAN_PHASE_ID_INVALID',
         bullet.line,
         `Phase ids must be sequential: expected "${expectedId}", got "${entry.id}"`
@@ -461,184 +495,241 @@ export function parsePlan(markdown: string): ParsePlanResult {
     }
     listedEntries.push({ id: entry.id, title: entry.title, line: bullet.line });
   });
-  const listedIds = new Set(listedEntries.map((entry) => entry.id));
 
-  // ── Plan-level list sections ────────────────────────────────────────────
-  const readPlanListSection = (name: PlanSectionName, noneAllowed: boolean): string[] => {
-    const heading = sectionHeadings.get(name);
-    if (heading === undefined) return [];
-    const bullets = finalSectionBullets.get(name) ?? [];
-    if (bullets.length === 0) {
+  return { listedEntries, listedIds: new Set(listedEntries.map((entry) => entry.id)) };
+}
+
+function readPlanListSection(
+  state: ParseState,
+  name: PlanSectionName,
+  noneAllowed: boolean
+): string[] {
+  const heading = state.sectionHeadings.get(name);
+  if (heading === undefined) return [];
+  const bullets = state.sectionBullets.get(name) ?? [];
+  if (bullets.length === 0) {
+    record(
+      state,
+      'PLAN_SECTION_EMPTY',
+      heading,
+      `The "## ${PLAN_SECTION_NAMES[name]}" section must not be empty`
+    );
+    return [];
+  }
+
+  const noneBullets = bullets.filter((bullet) => isNoneToken(bullet.text));
+  const items = bullets.filter((bullet) => !isNoneToken(bullet.text));
+  if (!noneAllowed) {
+    if (noneBullets.length > 0) {
       record(
+        state,
         'PLAN_SECTION_EMPTY',
-        heading,
-        `The "## ${PLAN_SECTION_NAMES[name]}" section must not be empty`
-      );
-      return [];
-    }
-    const noneBullets = bullets.filter((bullet) => isNoneToken(bullet.text));
-    const items = bullets.filter((bullet) => !isNoneToken(bullet.text));
-    if (!noneAllowed) {
-      if (noneBullets.length > 0) {
-        record(
-          'PLAN_SECTION_EMPTY',
-          noneBullets[0].line,
-          `"${PLAN_NONE_TOKEN}" is not allowed in "## ${PLAN_SECTION_NAMES[name]}"`
-        );
-      }
-      return items.map((bullet) => bullet.text);
-    }
-    if (noneBullets.length > 0 && bullets.length > 1) {
-      record(
-        'PLAN_SECTION_ORDER',
         noneBullets[0].line,
-        `"${PLAN_NONE_TOKEN}" must be the only item in "${PLAN_SECTION_NAMES[name]}"`
+        `"${PLAN_NONE_TOKEN}" is not allowed in "## ${PLAN_SECTION_NAMES[name]}"`
       );
-      return items.map((bullet) => bullet.text);
     }
-    if (noneBullets.length > 0) return [];
     return items.map((bullet) => bullet.text);
-  };
-
-  const sources = readPlanListSection('sources', PLAN_NONE_ALLOWED_SECTIONS.includes('sources'));
-  const requirements = readPlanListSection(
-    'requirements',
-    PLAN_NONE_ALLOWED_SECTIONS.includes('requirements')
-  );
-  const constraints = readPlanListSection(
-    'constraints',
-    PLAN_NONE_ALLOWED_SECTIONS.includes('constraints')
-  );
-
-  // ── Remarks ─────────────────────────────────────────────────────────────
-  const remarksHeading = sectionHeadings.get('remarks');
-  let remarks: string | null = null;
-  if (remarksHeading !== undefined) {
-    const raw = remarksLines.join('\n').trim();
-    if (raw.length === 0) {
-      record('PLAN_SECTION_EMPTY', remarksHeading, 'The "## Remarks" section must not be empty');
-    } else {
-      remarks = raw;
-    }
   }
-
-  // ── Phase details cross-check ───────────────────────────────────────────
-  const phaseDetailsHeading = sectionHeadings.get('phaseDetails');
-  if (phaseDetailsHeading !== undefined) {
-    const blocksById = new Map(phaseBlocks.map((block) => [block.id, block]));
-    for (const entry of listedEntries) {
-      const block = blocksById.get(entry.id);
-      if (!block) {
-        record(
-          'PLAN_PHASE_DETAIL_MISSING',
-          phaseDetailsHeading,
-          `Missing "### ${entry.id} — ${entry.title}" block in "## Phase details"`
-        );
-        continue;
-      }
-      if (block.title !== entry.title) {
-        record(
-          'PLAN_PHASE_TITLE_MISMATCH',
-          block.line,
-          `Phase "${entry.id}" title must match the list: expected "${entry.title}", got "${block.title}"`
-        );
-      }
-    }
+  if (noneBullets.length > 0 && bullets.length > 1) {
+    record(
+      state,
+      'PLAN_SECTION_ORDER',
+      noneBullets[0].line,
+      `"${PLAN_NONE_TOKEN}" must be the only item in "${PLAN_SECTION_NAMES[name]}"`
+    );
+    return items.map((bullet) => bullet.text);
   }
+  if (noneBullets.length > 0) return [];
+  return items.map((bullet) => bullet.text);
+}
 
-  // ── Phase sub-sections ──────────────────────────────────────────────────
-  const parsedPhases: ParsedPhase[] = [];
-  const blocksById = new Map(phaseBlocks.map((block) => [block.id, block]));
+function readRemarks(state: ParseState): string | null {
+  const heading = state.sectionHeadings.get('remarks');
+  if (heading === undefined) return null;
+  const raw = state.remarksLines.join('\n').trim();
+  if (raw.length === 0) {
+    record(state, 'PLAN_SECTION_EMPTY', heading, 'The "## Remarks" section must not be empty');
+    return null;
+  }
+  return raw;
+}
+
+function validatePhaseDetails(state: ParseState, listedEntries: ListedPhase[]): void {
+  const phaseDetailsHeading = state.sectionHeadings.get('phaseDetails');
+  if (phaseDetailsHeading === undefined) return;
+
+  const blocksById = new Map(state.phaseBlocks.map((block) => [block.id, block]));
   for (const entry of listedEntries) {
     const block = blocksById.get(entry.id);
     if (!block) {
-      parsedPhases.push({
+      record(
+        state,
+        'PLAN_PHASE_DETAIL_MISSING',
+        phaseDetailsHeading,
+        `Missing "### ${entry.id} — ${entry.title}" block in "## Phase details"`
+      );
+      continue;
+    }
+    if (block.title !== entry.title) {
+      record(
+        state,
+        'PLAN_PHASE_TITLE_MISMATCH',
+        block.line,
+        `Phase "${entry.id}" title must match the list: expected "${entry.title}", got "${block.title}"`
+      );
+    }
+  }
+}
+
+function readPhaseSection(
+  state: ParseState,
+  block: PhaseBlock,
+  name: PlanPhaseSectionName
+): string[] {
+  const bullets = block.sections.get(name) ?? [];
+  if (bullets.length === 0) {
+    record(
+      state,
+      'PLAN_PHASE_SECTION_MISSING',
+      block.line,
+      `Phase "${block.id}" is missing its "${PLAN_PHASE_SECTION_NAMES[name]}" sub-section`
+    );
+    return [];
+  }
+
+  const noneBullets = bullets.filter((bullet) => isNoneToken(bullet.text));
+  const items = bullets.filter((bullet) => !isNoneToken(bullet.text));
+  if (!PLAN_NONE_ALLOWED_PHASE_SECTIONS.includes(name)) {
+    if (noneBullets.length > 0) {
+      record(
+        state,
+        'PLAN_PHASE_SECTION_MISSING',
+        noneBullets[0].line,
+        `"${PLAN_NONE_TOKEN}" is not allowed in "${block.id}" ${PLAN_PHASE_SECTION_NAMES[name]}`
+      );
+    }
+    return items.map((bullet) => bullet.text);
+  }
+  if (noneBullets.length > 0 && bullets.length > 1) {
+    record(
+      state,
+      'PLAN_SECTION_ORDER',
+      noneBullets[0].line,
+      `"${PLAN_NONE_TOKEN}" must be the only item in "${block.id}" ${PLAN_PHASE_SECTION_NAMES[name]}`
+    );
+    return items.map((bullet) => bullet.text);
+  }
+  if (noneBullets.length > 0) return [];
+  return items.map((bullet) => bullet.text);
+}
+
+function validateDependsOn(state: ParseState, block: PhaseBlock, listedIds: Set<string>): string[] {
+  const bullets = block.sections.get('dependsOn') ?? [];
+  const noneBullets = bullets.filter((bullet) => isNoneToken(bullet.text));
+  let candidates = bullets;
+  if (noneBullets.length > 0 && bullets.length > 1) {
+    record(
+      state,
+      'PLAN_SECTION_ORDER',
+      noneBullets[0].line,
+      `"${PLAN_NONE_TOKEN}" must be the only entry in "${block.id}" Depends on`
+    );
+    candidates = bullets.filter((bullet) => !isNoneToken(bullet.text));
+  } else if (noneBullets.length > 0) {
+    return [];
+  }
+
+  const currentNumber = phaseNumber(block.id);
+  const validated: string[] = [];
+  for (const bullet of candidates) {
+    const text = bullet.text.trim();
+    const match = PLAN_PHASE_ID_PATTERN.exec(text);
+    const referenced = match ? `P${match[1]}` : null;
+    if (!referenced || phaseNumber(referenced) >= currentNumber || !listedIds.has(referenced)) {
+      record(
+        state,
+        'PLAN_DEPENDS_ON_INVALID',
+        bullet.line,
+        `"${text}" must reference an earlier phase listed in "## Phases"`
+      );
+      continue;
+    }
+    validated.push(referenced);
+  }
+  return validated;
+}
+
+function buildParsedPhases(
+  state: ParseState,
+  listedEntries: ListedPhase[],
+  listedIds: Set<string>
+): ParsedPhase[] {
+  const blocksById = new Map(state.phaseBlocks.map((block) => [block.id, block]));
+  return listedEntries.map((entry) => {
+    const block = blocksById.get(entry.id);
+    if (!block) {
+      return {
         id: entry.id,
         title: entry.title,
         dependsOn: [],
         requirements: [],
         constraints: [],
         acceptance: [],
-      });
-      continue;
+      };
     }
-
-    const readPhaseSection = (name: PlanPhaseSectionName): string[] => {
-      const bullets = block.sections.get(name) ?? [];
-      const noneAllowed = PLAN_NONE_ALLOWED_PHASE_SECTIONS.includes(name);
-      if (bullets.length === 0) {
-        record(
-          'PLAN_PHASE_SECTION_MISSING',
-          block.line,
-          `Phase "${block.id}" is missing its "${PLAN_PHASE_SECTION_NAMES[name]}" sub-section`
-        );
-        return [];
-      }
-      const noneBullets = bullets.filter((bullet) => isNoneToken(bullet.text));
-      const items = bullets.filter((bullet) => !isNoneToken(bullet.text));
-      if (!noneAllowed) {
-        if (noneBullets.length > 0) {
-          record(
-            'PLAN_PHASE_SECTION_MISSING',
-            noneBullets[0].line,
-            `"${PLAN_NONE_TOKEN}" is not allowed in "${block.id}" ${PLAN_PHASE_SECTION_NAMES[name]}`
-          );
-        }
-        return items.map((bullet) => bullet.text);
-      }
-      if (noneBullets.length > 0 && bullets.length > 1) {
-        record(
-          'PLAN_SECTION_ORDER',
-          noneBullets[0].line,
-          `"${PLAN_NONE_TOKEN}" must be the only item in "${block.id}" ${PLAN_PHASE_SECTION_NAMES[name]}`
-        );
-        return items.map((bullet) => bullet.text);
-      }
-      if (noneBullets.length > 0) return [];
-      return items.map((bullet) => bullet.text);
-    };
-
-    // `Depends on` is optional; when present, `None.` means "no dependencies".
-    const dependsOnBullets = block.sections.get('dependsOn') ?? [];
-    const noneDepends = dependsOnBullets.filter((bullet) => isNoneToken(bullet.text));
-    let dependsOn: Bullet[] = [];
-    if (noneDepends.length > 0 && dependsOnBullets.length > 1) {
-      record(
-        'PLAN_SECTION_ORDER',
-        noneDepends[0].line,
-        `"${PLAN_NONE_TOKEN}" must be the only entry in "${block.id}" Depends on`
-      );
-      dependsOn = dependsOnBullets.filter((bullet) => !isNoneToken(bullet.text));
-    } else if (noneDepends.length === 0) {
-      dependsOn = dependsOnBullets;
-    }
-
-    const currentNumber = phaseNumber(block.id);
-    const validatedDependsOn: string[] = [];
-    for (const bullet of dependsOn) {
-      const text = bullet.text.trim();
-      const match = PLAN_PHASE_ID_PATTERN.exec(text);
-      const referenced = match ? `P${match[1]}` : null;
-      if (!referenced || phaseNumber(referenced) >= currentNumber || !listedIds.has(referenced)) {
-        record(
-          'PLAN_DEPENDS_ON_INVALID',
-          bullet.line,
-          `"${text}" must reference an earlier phase listed in "## Phases"`
-        );
-        continue;
-      }
-      validatedDependsOn.push(referenced);
-    }
-
-    parsedPhases.push({
+    return {
       id: block.id,
       title: block.title,
-      dependsOn: validatedDependsOn,
-      requirements: readPhaseSection('requirements'),
-      constraints: readPhaseSection('constraints'),
-      acceptance: readPhaseSection('acceptance'),
-    });
+      dependsOn: validateDependsOn(state, block, listedIds),
+      requirements: readPhaseSection(state, block, 'requirements'),
+      constraints: readPhaseSection(state, block, 'constraints'),
+      acceptance: readPhaseSection(state, block, 'acceptance'),
+    };
+  });
+}
+
+export function parsePlan(markdown: string): ParsePlanResult {
+  const lines = markdown.split(/\r?\n/);
+  const errors: PlanParseError[] = [];
+  const state = createState(errors);
+
+  if (markdown.length > PLAN_MAX_CHARS) {
+    record(
+      state,
+      'PLAN_TOO_LONG',
+      1,
+      `Plan must be ${PLAN_MAX_CHARS} characters or less (got ${markdown.length})`
+    );
   }
+
+  scanDocument(lines, state);
+
+  if (!state.firstContentSeen) {
+    record(state, 'PLAN_TITLE_MISSING', 1, 'The plan title must be an H1 on the first line');
+  }
+
+  finaliseBulletsInState(state);
+  validateMissingSections(state, lines.length);
+
+  const { listedEntries, listedIds } = collectPhaseList(state);
+  const sources = readPlanListSection(
+    state,
+    'sources',
+    PLAN_NONE_ALLOWED_SECTIONS.includes('sources')
+  );
+  const requirements = readPlanListSection(
+    state,
+    'requirements',
+    PLAN_NONE_ALLOWED_SECTIONS.includes('requirements')
+  );
+  const constraints = readPlanListSection(
+    state,
+    'constraints',
+    PLAN_NONE_ALLOWED_SECTIONS.includes('constraints')
+  );
+  const remarks = readRemarks(state);
+  validatePhaseDetails(state, listedEntries);
+  const phases = buildParsedPhases(state, listedEntries, listedIds);
 
   if (errors.length > 0) {
     errors.sort((a, b) => (a.line === b.line ? a.code.localeCompare(b.code) : a.line - b.line));
@@ -648,11 +739,11 @@ export function parsePlan(markdown: string): ParsePlanResult {
   return {
     ok: true,
     plan: {
-      title: title ?? '',
+      title: state.title ?? '',
       sources,
       requirements,
       constraints,
-      phases: parsedPhases,
+      phases,
       remarks,
     },
   };
