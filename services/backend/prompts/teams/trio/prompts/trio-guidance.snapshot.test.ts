@@ -57,13 +57,17 @@ describe('trio role guidance', () => {
     expect(guidance.indexOf('**Product manager before scoping')).toBeLessThan(
       guidance.indexOf('**Bug reports go to triage first:**')
     );
-    expect(guidance).toContain('Record that plan ID after the first slice report');
-    expect(guidance).toContain(
-      'Every following package carries `Plan ID: <planId>` and `Phase: Pn`'
-    );
+    expect(guidance).toContain('Record the plan id from its first report.');
+    expect(guidance).toContain('remind it what the plan already delivered and what remains');
     expect(guidance).toContain('`Plan ID: None — first pass: publish the plan`');
     expect(guidance).toContain('`--supersedes` on the old plan ID');
     expect(guidance).not.toContain('copy the remaining slice plan');
+    expect(guidance).toContain('**The specifier decides the work.**');
+    expect(guidance).toContain('**You hold the plan.**');
+    expect(guidance).toContain('after 2 failed rework rounds on a package');
+    expect(guidance).not.toMatch(
+      /Size each work package|Send one package at a time|One slice per specifier session/
+    );
   });
 
   test.each(GUIDANCE_VARIANTS)('specifier guidance (%s)', (variant, nativeIntegration) => {
