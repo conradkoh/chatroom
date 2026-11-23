@@ -82,6 +82,25 @@ const EAGER: Message = {
   _creationTime: CREATION_TIME,
 };
 
+/** Exactly 64 characters: the longest harness segment the normalizer keeps without an ellipsis. */
+const LONG_HARNESS = 'harness-'.repeat(8);
+const LONG_HARNESS_AGENT = { harness: LONG_HARNESS, model: 'claude-sonnet-5-5-long-model-name' };
+
+/** 100h 10m: the first 8-character duration. */
+const HUGE_DURATION_MS = 100 * 3_600_000 + 10 * 60_000;
+
+const COLLAPSE_LONG_HARNESS: Message = {
+  ...NORMAL,
+  _id: 'e2e-collapse-long-harness',
+  senderAgent: LONG_HARNESS_AGENT,
+};
+
+const EAGER_LONG_HARNESS: Message = {
+  ...EAGER,
+  _id: 'e2e-eager-long-harness',
+  senderAgent: LONG_HARNESS_AGENT,
+};
+
 /** Feed-stability fixture: a collapsible handoff and the row below it, inside a real inner scroller. */
 const FEED_ROW: Message = {
   ...NORMAL,
@@ -175,6 +194,24 @@ export default function TimelineHandoffCollapseTestPage() {
           />
         </section>
 
+        <section data-testid="collapse-huge-duration">
+          <TimelineTeamMessage
+            message={{ ...NORMAL, _id: 'e2e-collapse-huge-duration' }}
+            chatroomId="e2e-chatroom"
+            handoffDurationMs={HUGE_DURATION_MS}
+            collapsible={isCollapsible(NORMAL)}
+          />
+        </section>
+
+        <section data-testid="collapse-long-harness">
+          <TimelineTeamMessage
+            message={COLLAPSE_LONG_HARNESS}
+            chatroomId="e2e-chatroom"
+            handoffDurationMs={252_000}
+            collapsible={isCollapsible(COLLAPSE_LONG_HARNESS)}
+          />
+        </section>
+
         <section data-testid="collapse-tall">
           <TimelineTeamMessage
             message={TALL}
@@ -188,6 +225,15 @@ export default function TimelineHandoffCollapseTestPage() {
             message={EAGER}
             chatroomId="e2e-chatroom"
             collapsible={isCollapsible(EAGER)}
+          />
+        </section>
+
+        <section data-testid="eager-long-harness">
+          <TimelineTeamMessage
+            message={EAGER_LONG_HARNESS}
+            chatroomId="e2e-chatroom"
+            handoffDurationMs={62_000}
+            collapsible={isCollapsible(EAGER_LONG_HARNESS)}
           />
         </section>
 

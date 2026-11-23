@@ -9,11 +9,13 @@ import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessa
 import {
   TimelineMessageRoute,
   TimelineMessageTypeBadge,
-  TimelineSenderAgentChip,
+  TimelineSenderAgentLine,
 } from './TimelineMessageIdentity';
 import {
+  TIMELINE_BAR_META_PLAIN,
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_META,
+  TIMELINE_HANDOFF_META_TIME_ROW,
   TIMELINE_HANDOFF_OPEN_ICON,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
   TIMELINE_HANDOFF_TRIGGER,
@@ -26,20 +28,24 @@ import {
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
 import { MessageAttachmentChips } from '../../attachments';
 import { getHandoffPreviewText } from '../../timeline/handoffPreview';
-import type { Message } from '../../types/message';
+import type { Message, SenderAgentSnapshot } from '../../types/message';
 
 import { cn } from '@/lib/utils';
 
-/** Collapsed bar content: the preview (or the empty label) plus the duration and time. */
+/** Collapsed bar content: the preview (or the empty label) plus the meta. Handoffs get the two-line meta column; other rows keep their pre-PR single-line meta. */
 function HandoffTriggerSummary({
   preview,
   previewId,
+  type,
+  senderAgent,
   creationTime,
   handoffDurationMs,
   handoffDurationSlow,
 }: {
   preview: string;
   previewId: string;
+  type: string;
+  senderAgent: SenderAgentSnapshot | undefined;
   creationTime: number;
   handoffDurationMs?: number;
   /** Whether the duration is much longer than others in the loaded window (orange). */
@@ -58,14 +64,29 @@ function HandoffTriggerSummary({
       ) : (
         <span className={TIMELINE_HANDOFF_TRIGGER_LABEL}>Show full handoff</span>
       )}
-      <span className={TIMELINE_HANDOFF_META}>
-        <TimelineMessageTimestamp
-          creationTime={creationTime}
-          handoffDurationMs={handoffDurationMs}
-          handoffDurationSlow={handoffDurationSlow}
-          compact
-        />
-      </span>
+      {type === 'handoff' ? (
+        <span data-testid="timeline-handoff-meta" className={TIMELINE_HANDOFF_META}>
+          <span className={TIMELINE_HANDOFF_META_TIME_ROW}>
+            <TimelineMessageTimestamp
+              creationTime={creationTime}
+              handoffDurationMs={handoffDurationMs}
+              handoffDurationSlow={handoffDurationSlow}
+              compact
+              alignDuration
+            />
+          </span>
+          <TimelineSenderAgentLine type={type} senderAgent={senderAgent} placement="bar" />
+        </span>
+      ) : (
+        <span className={TIMELINE_BAR_META_PLAIN}>
+          <TimelineMessageTimestamp
+            creationTime={creationTime}
+            handoffDurationMs={handoffDurationMs}
+            handoffDurationSlow={handoffDurationSlow}
+            compact
+          />
+        </span>
+      )}
     </>
   );
 }
@@ -78,6 +99,8 @@ function TimelineHandoffTrigger({
   buttonRef,
   preview,
   previewId,
+  type,
+  senderAgent,
   creationTime,
   handoffDurationMs,
   handoffDurationSlow,
@@ -87,6 +110,8 @@ function TimelineHandoffTrigger({
   /** getHandoffPreviewText output; '' when the content has no visible text. */
   preview: string;
   previewId: string;
+  type: string;
+  senderAgent: SenderAgentSnapshot | undefined;
   creationTime: number;
   handoffDurationMs?: number;
   handoffDurationSlow?: boolean;
@@ -108,6 +133,8 @@ function TimelineHandoffTrigger({
       <HandoffTriggerSummary
         preview={preview}
         previewId={previewId}
+        type={type}
+        senderAgent={senderAgent}
         creationTime={creationTime}
         handoffDurationMs={handoffDurationMs}
         handoffDurationSlow={handoffDurationSlow}
@@ -141,11 +168,6 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
     >
       <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 empty:hidden">
         <TimelineMessageTypeBadge type={message.type} />
-        <TimelineSenderAgentChip
-          type={message.type}
-          senderAgent={message.senderAgent}
-          placement="row"
-        />
       </div>
       <div
         className="ml-auto flex items-center justify-end flex-wrap gap-x-1.5 gap-y-1 min-w-0"
@@ -216,6 +238,8 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
             buttonRef={triggerRef}
             preview={preview}
             previewId={previewId}
+            type={message.type}
+            senderAgent={message.senderAgent}
             creationTime={message._creationTime}
             handoffDurationMs={handoffDurationMs}
             handoffDurationSlow={handoffDurationSlow}

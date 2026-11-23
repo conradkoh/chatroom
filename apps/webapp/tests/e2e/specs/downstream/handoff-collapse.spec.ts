@@ -4,6 +4,10 @@ import { TAG_DOWNSTREAM } from '../../support/tags';
 
 type Box = NonNullable<Awaited<ReturnType<Locator['boundingBox']>>>;
 
+/** Fixture literals: exactly 64 characters is the longest harness segment the normalizer keeps. */
+const LONG_HARNESS = 'harness-'.repeat(8);
+const LONG_MODEL = 'claude-sonnet-5-5-long-model-name';
+
 /**
  * Reads a locator's bounding box with retries. The root layout re-mounts shortly after
  * `load`, so a one-shot read can hit a detached node (null) or a pre-mount layout.
@@ -407,18 +411,18 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       const triggerBox = await readBox(trigger);
       const durationBox = await readBox(duration);
       const timeBox = await readBox(timeOfDay);
-      // The duration span is a flex item (whole 20px line box); the time-of-day locator
-      // resolves to the inline text box centered inside that line. Comparing the vertical
-      // centres proves they share one line; stacking would separate them by a full line.
+      // The duration and the time of day are inline text inside their own boxes. Comparing the
+      // vertical centres proves they share one line; stacking would separate them by a full line.
       const centreY = (box: Box) => box.y + box.height / 2;
       expect(Math.abs(centreY(durationBox) - centreY(timeBox))).toBeLessThanOrEqual(1);
-      // A centre check alone cannot see overlap or reordering: the time must start at or
-      // after the duration's right edge, and both must sit inside the trigger's right edge.
-      const durationRight = durationBox.x + durationBox.width;
+      // A centre check alone cannot see overlap or reordering: the duration slot must start at or
+      // after the time's right edge, and both must sit inside the trigger's right edge. The cross-row
+      // right-edge and slot checks live in the alignment tests below.
+      const timeRight = timeBox.x + timeBox.width;
       const triggerRight = triggerBox.x + triggerBox.width;
-      expect(timeBox.x).toBeGreaterThanOrEqual(durationRight - 1);
-      expect(durationRight).toBeLessThanOrEqual(triggerRight + 1);
-      expect(timeBox.x + timeBox.width).toBeLessThanOrEqual(triggerRight + 1);
+      expect(durationBox.x).toBeGreaterThanOrEqual(timeRight - 1);
+      expect(durationBox.x + durationBox.width).toBeLessThanOrEqual(triggerRight + 1);
+      expect(timeRight).toBeLessThanOrEqual(triggerRight + 1);
 
       await readBox(preview, (box) => expect(box.width).toBeGreaterThanOrEqual(120));
       await readBox(preview, (box) => expect(box.height).toBeLessThanOrEqual(41));
@@ -477,5 +481,117 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       await page.keyboard.press('Escape');
       await expect(page.getByRole('dialog')).toHaveCount(0);
     });
+  });
+
+  const rightEdge = (box: Box) => box.x + box.width;
+
+  for (const width of [320, 1280]) {
+    test(`aligns the timestamp right edge and duration slot across bars at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const withDuration = page
+        .getByTestId('collapse-normal')
+        .getByTestId('timeline-handoff-trigger');
+      const withoutDuration = page
+        .getByTestId('collapse-empty')
+        .getByTestId('timeline-handoff-trigger');
+      await expect(withDuration.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
+      await expect(withoutDuration.getByTestId('timeline-handoff-duration')).toHaveCount(0);
+
+      const timeA = await readBox(withDuration.getByTestId('timeline-handoff-timestamp'));
+      const timeB = await readBox(withoutDuration.getByTestId('timeline-handoff-timestamp'));
+      const slotA = await readBox(withDuration.getByTestId('timeline-handoff-duration-slot'));
+      const slotB = await readBox(withoutDuration.getByTestId('timeline-handoff-duration-slot'));
+      expect(Math.abs(rightEdge(timeA) - rightEdge(timeB))).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(slotA.x - slotB.x)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(slotA.width - slotB.width)).toBeLessThanOrEqual(0.5);
+    });
+
+    test(`aligns the eager footer timestamp with and without a duration at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const plain = page.getByTestId('eager-control').getByTestId('timeline-handoff-timestamp');
+      const withDuration = page
+        .getByTestId('eager-long-harness')
+        .getByTestId('timeline-handoff-timestamp');
+      await expect(
+        page.getByTestId('eager-long-harness').getByTestId('timeline-handoff-duration')
+      ).toHaveText('1m 2s');
+
+      expect(
+        Math.abs(rightEdge(await readBox(plain)) - rightEdge(await readBox(withDuration)))
+      ).toBeLessThanOrEqual(0.5);
+    });
+
+    test(`keeps a 100h duration inside its slot at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const huge = page
+        .getByTestId('collapse-huge-duration')
+        .getByTestId('timeline-handoff-trigger');
+      const normal = page.getByTestId('collapse-empty').getByTestId('timeline-handoff-trigger');
+      await expect(huge.getByTestId('timeline-handoff-duration')).toHaveText('100h 10m');
+      await expect(huge.getByTestId('timeline-handoff-duration')).toHaveAttribute(
+        'title',
+        'Time since previous message: 100h 10m'
+      );
+      // The slot clips an over-wide value instead of growing: the ellipsis rule is computed
+      // style, so this fails if the slot loses `truncate` even when the width stays 7ch.
+      const durationSlot = huge.getByTestId('timeline-handoff-duration-slot');
+      await expect(durationSlot).toHaveCSS('text-overflow', 'ellipsis');
+      await expect(durationSlot).toHaveCSS('overflow-x', 'hidden');
+
+      const slotHuge = await readBox(huge.getByTestId('timeline-handoff-duration-slot'));
+      const slotNormal = await readBox(normal.getByTestId('timeline-handoff-duration-slot'));
+      expect(Math.abs(slotHuge.width - slotNormal.width)).toBeLessThanOrEqual(0.5);
+      const timeHuge = await readBox(huge.getByTestId('timeline-handoff-timestamp'));
+      const timeNormal = await readBox(normal.getByTestId('timeline-handoff-timestamp'));
+      expect(Math.abs(rightEdge(timeHuge) - rightEdge(timeNormal))).toBeLessThanOrEqual(0.5);
+      expect(await huge.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+    });
+
+    test(`keeps the model visible beside a 64-character harness in the eager footer at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const agentRow = page
+        .getByTestId('eager-long-harness')
+        .getByTestId('timeline-footer-agent-row');
+      await expect(agentRow.getByTestId('timeline-sender-agent-harness')).toHaveText(LONG_HARNESS);
+      const model = agentRow.getByTestId('timeline-sender-agent-model');
+      await expect(model).toHaveText(LONG_MODEL);
+
+      const modelBox = await readBox(model);
+      const rowBox = await readBox(agentRow);
+      expect(modelBox.width).toBeGreaterThanOrEqual(60);
+      expect(rightEdge(modelBox)).toBeLessThanOrEqual(rightEdge(rowBox) + 0.5);
+      expect(await agentRow.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+    });
+  }
+
+  test('keeps the model visible beside a 64-character harness in the summary bar on desktop', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const trigger = page
+      .getByTestId('collapse-long-harness')
+      .getByTestId('timeline-handoff-trigger');
+    const model = trigger.getByTestId('timeline-sender-agent-model');
+    await expect(model).toHaveText(LONG_MODEL);
+
+    const modelBox = await readBox(model);
+    const triggerBox = await readBox(trigger);
+    expect(modelBox.width).toBeGreaterThanOrEqual(60);
+    expect(rightEdge(modelBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 0.5);
+    expect(await trigger.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+  });
+
+  test('hides the agent line in the summary bar below sm', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    const trigger = page
+      .getByTestId('collapse-long-harness')
+      .getByTestId('timeline-handoff-trigger');
+    await expect(trigger.getByTestId('timeline-sender-agent')).toBeHidden();
   });
 });
