@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 export interface TimelinePlanCopyButtonProps {
   testId: string;
-  /** Accessible name, e.g. "Copy plan id", "Copy P2 reference". */
+  /** Accessible name, constant across copy states, e.g. "Copy plan id", "Copy P2 reference". The result is announced by the plan body's live region. */
   label: string;
   copied: boolean;
   failed: boolean;
@@ -41,7 +41,6 @@ export function TimelinePlanCopyButton({
   text,
   className,
 }: TimelinePlanCopyButtonProps) {
-  const stateLabel = copied ? 'Copied' : label;
   return (
     <>
       <button
@@ -49,8 +48,8 @@ export function TimelinePlanCopyButton({
         data-testid={testId}
         data-copied={copied}
         onClick={onCopy}
-        aria-label={stateLabel}
-        title={stateLabel}
+        aria-label={label}
+        title={label}
         className={cn(TIMELINE_PLAN_CONTROL, 'shrink-0', className)}
       >
         <CopyLabel copied={copied} text={text} />

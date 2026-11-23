@@ -306,6 +306,10 @@ describe('TimelinePlanBody through the feed row', () => {
       expect(writeText).toHaveBeenCalledWith('plan-1');
       expect(screen.getByTestId('timeline-plan-id-copy')).toHaveAttribute('data-copied', 'true');
       expect(screen.getByTestId('timeline-plan-id-copy')).toHaveTextContent('Copied');
+      expect(screen.getByTestId('timeline-plan-id-copy')).toHaveAttribute(
+        'aria-label',
+        'Copy plan id'
+      );
 
       act(() => {
         vi.advanceTimersByTime(2000);
@@ -323,11 +327,11 @@ describe('TimelinePlanBody through the feed row', () => {
       expect(writeText).toHaveBeenCalledWith('plan-1#P2');
       expect(screen.getByTestId('timeline-plan-phase-copy-P2')).toHaveAttribute(
         'aria-label',
-        'Copied'
+        'Copy P2 reference'
       );
       expect(screen.getByTestId('timeline-plan-phase-detail-copy-P2')).toHaveAttribute(
         'aria-label',
-        'Copied'
+        'Copy P2 reference'
       );
       expect(screen.getByTestId('timeline-plan-phase-copy-P1')).toHaveAttribute(
         'aria-label',
