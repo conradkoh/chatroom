@@ -164,3 +164,23 @@ export const TIMELINE_PLAN_CONTROL =
   'inline-flex items-center gap-1 text-chatroom-text-muted transition-colors motion-reduce:transition-none ' +
   'hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary ' +
   TIMELINE_PLAN_FOCUS;
+
+/** Plan bar content column: title line over the phase overview line. */
+export const TIMELINE_PLAN_SUMMARY_COLUMN = 'flex min-w-0 flex-1 flex-col gap-0.5';
+
+/** Plan title: one 20px line, bold, truncates. Centres the 14px icon (mt-[3px]) like the handoff bar. */
+export const TIMELINE_PLAN_SUMMARY_TITLE =
+  'block min-w-0 truncate text-sm font-bold leading-5 text-chatroom-text-primary';
+
+/** Phase overview: at most two 16px lines. */
+export const TIMELINE_PLAN_SUMMARY_PHASES =
+  'block min-w-0 line-clamp-2 [overflow-wrap:anywhere] text-xs leading-4 text-chatroom-text-secondary ' +
+  'group-hover/handoff-trigger:text-chatroom-text-primary';
+
+/** "3 PHASES" count prefix. */
+export const TIMELINE_PLAN_SUMMARY_COUNT =
+  'mr-2 font-mono text-[10px] font-bold uppercase tracking-wide tabular-nums text-chatroom-text-muted';
+
+/** "P1" id before each phase title. */
+export const TIMELINE_PLAN_SUMMARY_PHASE_ID =
+  'font-mono text-[10px] font-bold tabular-nums text-chatroom-text-muted';
