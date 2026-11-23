@@ -7241,8 +7241,8 @@ flowchart TD
 
 - **To implement a phase or group of phases** → Hand off to \`builder\` with the \`specifier\` → \`builder\` brief
 - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
-- **When the round is finished** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report, after the round's final brief has passed its \`round-final\` verification (full suite, typecheck, lint, and the e2e the round affects).
-- **When you are blocked, or stopping early** → Hand off to \`coordinator\` with the report at once: state what you delivered, which verification did not run, and what you need decided. You decide when a round ends: when the plan's phases are done, when a decision is outside your remit, or when continuing would cost more than reporting and resuming.
+- **When the round is finished** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report, after the round's final brief has passed its \`round-final\` verification (full suite, typecheck, lint, and the e2e the round affects). You decide when a round ends: when the plan's phases are done, or when continuing would cost more than reporting and resuming.
+- **When you are blocked** → Hand off to \`coordinator\` with the report at once: state what you delivered, which verification did not run, and what you need decided.
 - **Your handoff targets are \`builder\` and \`coordinator\` only.** To reach any other role, including \`user\` and every specialist, hand back to \`coordinator\` with the request. Never run \`chatroom handoff --next-role=<other role>\`. Do not use \`chatroom message(s) send\` — it persists \`senderRole=user\` and bypasses the enforced handoff graph.
 - **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.
 
@@ -7444,8 +7444,8 @@ flowchart TD
 
 - **To implement a phase or group of phases** → Hand off to \`builder\` with the \`specifier\` → \`builder\` brief
 - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
-- **When the round is finished** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report, after the round's final brief has passed its \`round-final\` verification (full suite, typecheck, lint, and the e2e the round affects).
-- **When you are blocked, or stopping early** → Hand off to \`coordinator\` with the report at once: state what you delivered, which verification did not run, and what you need decided. You decide when a round ends: when the plan's phases are done, when a decision is outside your remit, or when continuing would cost more than reporting and resuming.
+- **When the round is finished** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report, after the round's final brief has passed its \`round-final\` verification (full suite, typecheck, lint, and the e2e the round affects). You decide when a round ends: when the plan's phases are done, or when continuing would cost more than reporting and resuming.
+- **When you are blocked** → Hand off to \`coordinator\` with the report at once: state what you delivered, which verification did not run, and what you need decided.
 - **Your handoff targets are \`builder\` and \`coordinator\` only.** To reach any other role, including \`user\` and every specialist, hand back to \`coordinator\` with the request. Never run \`chatroom handoff --next-role=<other role>\`. Do not use \`chatroom message(s) send\` — it persists \`senderRole=user\` and bypasses the enforced handoff graph.
 - **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.
 
@@ -7654,8 +7654,8 @@ flowchart TD
 
 - **To implement a phase or group of phases** → Hand off to \`builder\` with the \`specifier\` → \`builder\` brief
 - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
-- **When the round is finished** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report, after the round's final brief has passed its \`round-final\` verification (full suite, typecheck, lint, and the e2e the round affects).
-- **When you are blocked, or stopping early** → Hand off to \`coordinator\` with the report at once: state what you delivered, which verification did not run, and what you need decided. You decide when a round ends: when the plan's phases are done, when a decision is outside your remit, or when continuing would cost more than reporting and resuming.
+- **When the round is finished** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report, after the round's final brief has passed its \`round-final\` verification (full suite, typecheck, lint, and the e2e the round affects). You decide when a round ends: when the plan's phases are done, or when continuing would cost more than reporting and resuming.
+- **When you are blocked** → Hand off to \`coordinator\` with the report at once: state what you delivered, which verification did not run, and what you need decided.
 - **Your handoff targets are \`builder\` and \`coordinator\` only.** To reach any other role, including \`user\` and every specialist, hand back to \`coordinator\` with the request. Never run \`chatroom handoff --next-role=<other role>\`. Do not use \`chatroom message(s) send\` — it persists \`senderRole=user\` and bypasses the enforced handoff graph.
 - **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.
 
