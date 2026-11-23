@@ -47,7 +47,7 @@ ${getHandoffNotApplicableSectionComment('Describe current state after this round
 <one line per phase: phase id and title, builder handoff message id, commits, files changed, rework rounds>
 
 ## Verification run
-<what ran at which stage: focused tests per phase, full suite / typecheck / lint / e2e at the round's end, with the command and result>
+<what ran at which stage: focused tests per phase, full suite / typecheck / lint / e2e at the round's end, with the command and result; and anything that did not run, and why (blocked or early stop)>
 
 ## What the plan still has
 <a reminder for the next round, not an assignment: the phases not yet delivered, in plan order, each with its title; or \`None — the plan is complete.\`>

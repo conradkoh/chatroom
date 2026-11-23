@@ -74,7 +74,7 @@ function getSpecifierBatchingGuidelines(): string {
   return `**Delegation cost and batching — your call.** Each builder delegation starts a fresh session, and a builder round trip is slow: it implements, commits, and runs verification (unit suite, typecheck, lint, sometimes e2e), which can take many minutes. Eight phases delivered one per round pays that cost eight times.
 
 - **Group by verification stage.** Phases whose acceptance is checked by the same run at the end of the round, and which do not invalidate each other, can go in one round; run the expensive checks once at the end.
-- **A batch that fails is harder to diagnose.** A large batch makes attribution and repair slower, especially when a phase changes a shared contract, a schema, a public API, or anything later phases build on. When that is the risk, land and verify it before continuing.
+- **A batch that fails is harder to diagnose.** A large batch makes attribution and repair slower, especially when a phase changes a shared contract, a schema, a public API, or anything later phases build on. When that is the risk, land that phase as its own round, run its \`round-final\` verification, and report; the later phases follow in the next round.
 - **Weigh latency against the cost of a late failure for this task, then decide.** There is no fixed limit on phases per round or slices per session, and no rule that a slice must be end-to-end shippable on its own; the round must be.
 - **Report why you chose that grouping** so the coordinator can raise a concern before the next round.`;
 }
@@ -91,13 +91,6 @@ function getSpecifierPlanFlow(params: {
 }): string {
   const { cliEnvPrefix, chatroomId, role } = params;
   const publishCommand = planPublishCommand({ cliEnvPrefix, chatroomId, role });
-  const readPhaseCommand = planReadCommand({
-    cliEnvPrefix,
-    chatroomId,
-    role,
-    planId: '<planId>',
-    phase: '<Pn>',
-  });
   const readPlanCommand = planReadCommand({ cliEnvPrefix, chatroomId, role, planId: '<planId>' });
 
   return `**Plan flow (plan messages):** the ordered slice plan is a plan message in this chatroom, so any later session can read it by id. Refer to one phase as \`<planId>#Pn\`.
@@ -112,9 +105,7 @@ ${publishCommand}
 
   3. Decide your round. Publishing the plan does not commit you to delivering it one phase at a time: take every phase when the plan is low-risk, take fewer when a phase is risky or ambiguous.
   4. Put the plan ID from the publish output in the Plan reference of your round report: the \`## Plan reference\` section in code mode, the \`Plan reference:\` label in chat.
-- **Later pass (the package cites \`Plan ID\`):**
-  1. Before you brief the builder, read the whole plan with \`${readPlanCommand}\` (the same command without \`--phase\`) to choose the phases this round takes and to read the Remarks of a revision. Once you have chosen a phase and need only its detail, read that phase with \`${readPhaseCommand}\`.
-  2. Read the plan and the phases you are taking. The coordinator's reminder says what is already delivered; you choose what to take next. Never reconstruct the plan from memory or from earlier reports.
+- **Later pass (the package cites \`Plan ID\`):** before you brief the builder, read the whole plan once with \`${readPlanCommand}\`. Choose the phases this round takes from it, and read the Remarks of a revision there. The coordinator's reminder says what is already delivered; you choose what to take next. Never reconstruct the plan from memory or from earlier reports.
 - **Revision:** when the package asks for a revised plan, publish the revision with the publish command above plus \`--supersedes="<old planId>"\`. The revised plan restarts at \`P1\`, and its \`## Remarks\` states, for each phase already delegated, whether it is unchanged, replaced by a new phase, or dropped. Report the new plan ID.
 - **Broken reference → hand back to \`coordinator\`:** when a read fails with \`Plan not found: <planId>\`, or prints \`Phase not found: <Pn>\` followed by \`Available phases: …\`, do not build and do not reconstruct the plan. Name the bad reference in a handoff to \`coordinator\` and ask for the correct one. If the cited phase contradicts the repository, hand back the same way; do not republish the plan yourself unless the package asks for a revision.
 - **Superseded plan:** if the plan prints \`⚠ Superseded by <planId>\`, take the phases you deliver in this round and state the warning in your round report so the coordinator can confirm.`;

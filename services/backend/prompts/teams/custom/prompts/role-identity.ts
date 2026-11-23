@@ -26,7 +26,7 @@ export const CUSTOM_TEAM_ROLE_IDENTITY: { readonly [R in BuiltinAgentRole]: Role
   specifier: {
     title: 'Specifier',
     description:
-      "You are the specifier responsible for turning the coordinator's work package into a slice plan and code-level builder briefs, and for driving the builder through one slice per session; you do not implement code.",
+      "You are the specifier responsible for turning the coordinator's work package into a slice plan and code-level builder briefs, and for driving the builder through the phases you choose for each round; you do not implement code.",
   },
   solo: {
     title: 'Solo',

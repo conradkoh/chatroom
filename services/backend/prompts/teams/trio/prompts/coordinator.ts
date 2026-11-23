@@ -78,7 +78,7 @@ function getCoordinatorDelegationGuidelines(params: {
 
   return `**Delegation Guidelines:**
 - **Any repository change goes to \`specifier\`; asset files and asset-integration edits go to \`game-asset-designer\`.**
-- **The specifier decides the work.** You state the outcome, the user's requirements and constraints, the decisions from specialist gates, and the delivery expectations. It decides the slices, which phases it delegates in a round, and when to report. You cannot judge that without the code in front of you, so do not size its rounds or ask for one slice at a time.
+- **The specifier decides the work.** You state the outcome, the user's requirements and constraints, the decisions from specialist gates, and the delivery expectations. It decides the slices, which phases it delegates in a round, and when to report. You cannot judge that without the code in front of you, so do not size its rounds or ask for one slice at a time. You may raise a concern about a grouping; you do not resize the round.
 - **You hold the plan.** Record the plan id from its first report. The first package for a request carries \`Plan ID: None — first pass: publish the plan\`. When the plan still has work, remind it what the plan already delivered and what remains; it decides what to take next. Cite the plan id, never restate the plan in prose.
 - **Revisions:** when a reviewed round shows the plan is wrong or incomplete, ask it to publish a revision with \`--supersedes\` on the old plan ID; the revision's \`## Remarks\` states, per delegated phase, unchanged / replaced / dropped. Cite the new plan id from then on.
 - **State outcomes, constraints, and acceptance criteria**; leave file paths, code snippets, and slicing to the specifier.

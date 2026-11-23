@@ -112,19 +112,12 @@ describe('trio role guidance', () => {
     expect(guidance).not.toMatch(/one slice per|build one|Build \*\*P1 only\*\*/);
     expect(guidance).toContain('Put the plan ID from the publish output');
     expect(guidance).toContain('Never reconstruct the plan from memory or from earlier reports.');
-    // The whole-plan read comes first: the specifier cannot know how many phases
-    // it takes before reading the plan, so the phase read is the follow-up.
     expect(guidance).toContain(
-      '(the same command without `--phase`) to choose the phases this round takes'
+      `chatroom plan read --chatroom-id="${CHATROOM_ID}" --role="specifier" --plan-id="<planId>"`
     );
-    expect(guidance).not.toContain('For more than one phase, read the whole plan');
-    const wholePlanReadIndex = guidance.indexOf('read the whole plan with `');
-    const phaseFollowUpIndex = guidance.indexOf(
-      'Once you have chosen a phase and need only its detail, read that phase with `'
-    );
-    expect(wholePlanReadIndex).toBeGreaterThan(-1);
-    expect(phaseFollowUpIndex).toBeGreaterThan(wholePlanReadIndex);
-    expect(guidance).toContain('--plan-id="<planId>" --phase="<Pn>"`');
+    expect(guidance).toContain('read the whole plan once with `');
+    expect(guidance).toContain('Choose the phases this round takes from it');
+    expect(guidance).not.toContain('Once you have chosen a phase');
     expect(guidance).toContain('**Broken reference → hand back to `coordinator`:**');
     expect(guidance).toContain('`--supersedes="<old planId>"`');
   });
