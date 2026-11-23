@@ -8,7 +8,6 @@
  * failure.
  */
 
-import { ConvexError } from 'convex/values';
 import { Effect } from 'effect';
 
 import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
@@ -25,11 +24,6 @@ import { formatAuthError, formatChatroomIdError } from '../../utils/error-format
 export interface PlanErrorData {
   code?: string | undefined;
   message?: string | undefined;
-}
-
-/** Extract the structured ConvexError payload from a failure cause. */
-export function planErrorData(cause: Error): PlanErrorData | undefined {
-  return cause instanceof ConvexError ? (cause.data as PlanErrorData) : undefined;
 }
 
 /** True for the session/chatroom-id failures every chatroom command can hit. */

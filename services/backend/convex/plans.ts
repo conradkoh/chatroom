@@ -17,6 +17,7 @@ import { mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
+import { isPlanInChatroom } from '../src/domain/plan/is-plan-in-chatroom';
 import { publishPlan } from '../src/domain/usecase/message/publish-plan';
 
 /** Bound on the advisory "superseded by" scan; no new index. */
@@ -50,13 +51,6 @@ async function loadMessageRow(
   const id = ctx.db.normalizeId('chatroom_messages', planId);
   if (id === null) return null;
   return await ctx.db.get('chatroom_messages', id);
-}
-
-function isPlanInChatroom(
-  row: Doc<'chatroom_messages'> | null,
-  chatroomId: Id<'chatroom_rooms'>
-): row is Doc<'chatroom_messages'> {
-  return row !== null && row.chatroomId === chatroomId && row.type === 'plan';
 }
 
 /** Resolve the plan row or throw `PLAN_NOT_FOUND` (malformed, non-plan, other room). */

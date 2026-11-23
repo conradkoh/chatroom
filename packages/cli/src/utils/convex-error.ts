@@ -66,17 +66,18 @@ export function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
+/** Returns the object payload carried by a ConvexError, or undefined for non-ConvexError values and non-object data. */
+export function getConvexErrorData<T extends object>(error: unknown): T | undefined {
+  if (!(error instanceof ConvexError)) return undefined;
+  const data = (error as ConvexError<Value>).data;
+  return data !== null && typeof data === 'object' ? (data as T) : undefined;
+}
+
 /** Returns the structured application code carried by a ConvexError object. */
 // fallow-ignore-next-line unused-export complexity
 export function getConvexErrorCode(error: unknown): string | undefined {
-  if (!(error instanceof ConvexError)) return undefined;
-
-  const data = (error as ConvexError<Value>).data;
-  if (data !== null && typeof data === 'object' && 'code' in data) {
-    const code = (data as { code: unknown }).code;
-    if (typeof code === 'string') return code;
-  }
-  return undefined;
+  const code = getConvexErrorData<{ code?: unknown }>(error)?.code;
+  return typeof code === 'string' ? code : undefined;
 }
 
 /** Identifies the terminal backend response that disables local file-tree sync. */

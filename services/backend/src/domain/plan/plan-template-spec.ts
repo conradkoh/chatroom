@@ -106,3 +106,18 @@ export type PlanParseErrorCode =
   | 'PLAN_TOO_MANY_PHASES'
   | 'PLAN_FENCE_UNCLOSED'
   | 'PLAN_STRAY_CONTENT';
+
+/** `## <Section>` heading line for a plan-level section. */
+export function planSectionHeading(name: PlanSectionName): string {
+  return `${PLAN_HEADINGS.section}${PLAN_SECTION_NAMES[name]}`;
+}
+
+/** `#### <Sub-section>` heading line for a phase sub-section. */
+export function planPhaseSectionHeading(name: PlanPhaseSectionName): string {
+  return `${PLAN_HEADINGS.phaseSection}${PLAN_PHASE_SECTION_NAMES[name]}`;
+}
+
+/** `### Pn — <title>` heading line that opens a phase detail block. */
+export function planPhaseHeading(id: string, title: string): string {
+  return `${PLAN_HEADINGS.phase}${id} ${PLAN_PHASE_SEPARATOR} ${title}`;
+}

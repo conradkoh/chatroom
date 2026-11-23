@@ -8,13 +8,20 @@
  *
  * Constraints:
  * - Pure: no I/O, no Convex types.
- * - Omits `#### Depends on` when the phase has no dependencies.
+ * - Omits the phase "Depends on" sub-section when the phase has no dependencies.
  * - Empty lists render as a single `- None.` bullet.
  * - Multi-line items keep their continuation lines indented by two spaces.
  */
 
 import type { ParsedPhase, ParsedPlan } from './parse-plan';
-import { PLAN_NONE_TOKEN, PLAN_PHASE_SEPARATOR } from './plan-template-spec';
+import {
+  PLAN_HEADINGS,
+  PLAN_NONE_TOKEN,
+  PLAN_PHASE_SEPARATOR,
+  planPhaseHeading,
+  planPhaseSectionHeading,
+  planSectionHeading,
+} from './plan-template-spec';
 
 /** Append a bullet list, falling back to `- None.` for an empty list. */
 function appendBullets(lines: string[], items: string[]): void {
@@ -41,23 +48,23 @@ function appendPhaseList(lines: string[], plan: ParsedPlan, targetId: string): v
 }
 
 function appendPhaseBlock(lines: string[], target: ParsedPhase): void {
-  lines.push(`### ${target.id} ${PLAN_PHASE_SEPARATOR} ${target.title}`, '');
+  lines.push(planPhaseHeading(target.id, target.title), '');
 
   if (target.dependsOn.length > 0) {
-    lines.push('#### Depends on');
+    lines.push(planPhaseSectionHeading('dependsOn'));
     appendBullets(lines, target.dependsOn);
     lines.push('');
   }
 
-  lines.push('#### Requirements');
+  lines.push(planPhaseSectionHeading('requirements'));
   appendBullets(lines, target.requirements);
   lines.push('');
 
-  lines.push('#### Constraints');
+  lines.push(planPhaseSectionHeading('constraints'));
   appendBullets(lines, target.constraints);
   lines.push('');
 
-  lines.push('#### Acceptance criteria');
+  lines.push(planPhaseSectionHeading('acceptance'));
   appendBullets(lines, target.acceptance);
 }
 
@@ -66,15 +73,15 @@ export function renderPlanPhase(plan: ParsedPlan, phaseId: string): string | nul
   if (!target) return null;
 
   const lines: string[] = [];
-  lines.push(`# ${plan.title}`, '');
+  lines.push(`${PLAN_HEADINGS.title}${plan.title}`, '');
 
-  lines.push('## Requirements');
+  lines.push(planSectionHeading('requirements'));
   appendBullets(lines, plan.requirements);
-  lines.push('', '## Constraints');
+  lines.push('', planSectionHeading('constraints'));
   appendBullets(lines, plan.constraints);
-  lines.push('', '## Phases');
+  lines.push('', planSectionHeading('phases'));
   appendPhaseList(lines, plan, target.id);
-  lines.push('', '## Phase details', '');
+  lines.push('', planSectionHeading('phaseDetails'), '');
 
   appendPhaseBlock(lines, target);
   return lines.join('\n');

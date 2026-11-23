@@ -22,9 +22,10 @@ import { ConvexError } from 'convex/values';
 
 import { insertChatroomMessage } from './message-read-model';
 import { assertValidSenderRole, senderHasActiveTask } from './message-sender-guards';
-import type { Doc, Id } from '../../../../convex/_generated/dataModel';
+import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { ResolvedChatroom } from '../../../../convex/lib/chatroomTeam';
+import { isPlanInChatroom } from '../../plan/is-plan-in-chatroom';
 import { parsePlan, type ParsedPlan } from '../../plan/parse-plan';
 import { PLAN_MAX_CHARS } from '../../plan/plan-template-spec';
 
@@ -64,14 +65,6 @@ async function assertSenderHasActiveTask(
     code: 'NO_ACTIVE_TASK',
     message: `Role "${senderRole}" has no active task. plan publish only works while you are working on a task. If you already ran handoff for this task, end your turn.`,
   });
-}
-
-/** True when the row is a plan message in the target chatroom. */
-function isPlanInChatroom(
-  target: Doc<'chatroom_messages'> | null,
-  chatroomId: Id<'chatroom_rooms'>
-): target is Doc<'chatroom_messages'> {
-  return target !== null && target.chatroomId === chatroomId && target.type === 'plan';
 }
 
 async function assertSupersedesTarget(

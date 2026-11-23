@@ -12,7 +12,6 @@ import { Effect } from 'effect';
 
 import {
   isSessionFailure,
-  planErrorData,
   printSessionFailure,
   runPlanCommand,
   type PlanErrorData,
@@ -24,7 +23,7 @@ import {
   requireSessionForChatroomEffect,
 } from '../../infrastructure/services/index.js';
 import type { CommandSessionFailure, SessionService } from '../../infrastructure/services/index.js';
-import { getErrorMessage } from '../../utils/convex-error.js';
+import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
 
 export interface ReadPlanOptions {
   role: string;
@@ -61,7 +60,7 @@ interface ReadFailure {
 }
 
 function toReadFailure(cause: Error): ReadPlanError {
-  return { _tag: 'PlanReadFailed', cause, errorData: planErrorData(cause) };
+  return { _tag: 'PlanReadFailed', cause, errorData: getConvexErrorData<PlanErrorData>(cause) };
 }
 
 function normalizePhaseId(phase: string): string {

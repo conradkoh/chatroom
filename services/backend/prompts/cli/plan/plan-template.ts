@@ -22,25 +22,14 @@ import {
   PLAN_PHASE_SECTION_NAMES,
   PLAN_REQUIRED_PHASE_SECTIONS,
   PLAN_SECTION_NAMES,
-  type PlanPhaseSectionName,
-  type PlanSectionName,
+  planPhaseHeading,
+  planPhaseSectionHeading,
+  planSectionHeading,
 } from '../../../src/domain/plan/plan-template-spec';
 
 export interface PlanTemplateParams {
   nativeIntegration?: boolean | undefined;
   cliEnvPrefix?: string | undefined;
-}
-
-function planSection(name: PlanSectionName): string {
-  return `${PLAN_HEADINGS.section}${PLAN_SECTION_NAMES[name]}`;
-}
-
-function phaseSection(name: PlanPhaseSectionName): string {
-  return `${PLAN_HEADINGS.phaseSection}${PLAN_PHASE_SECTION_NAMES[name]}`;
-}
-
-function phaseHeading(id: string, title: string): string {
-  return `${PLAN_HEADINGS.phase}${id} ${PLAN_PHASE_SEPARATOR} ${title}`;
 }
 
 function phaseListEntry(id: string, title: string): string {
@@ -59,51 +48,51 @@ function skeletonLines(): string[] {
   return [
     `${PLAN_HEADINGS.title}<plan title>`,
     '',
-    planSection('sources'),
+    planSectionHeading('sources'),
     '- <user request message id, specialist design ids, and the work package id>',
     '',
-    planSection('requirements'),
+    planSectionHeading('requirements'),
     '- <requirement>',
     '',
-    planSection('constraints'),
+    planSectionHeading('constraints'),
     planConstraintsLine(),
     '',
-    planSection('phases'),
+    planSectionHeading('phases'),
     phaseListEntry('P1', '<phase 1 title>'),
     phaseListEntry('P2', '<phase 2 title>'),
     '',
-    planSection('phaseDetails'),
+    planSectionHeading('phaseDetails'),
     '',
-    phaseHeading('P1', '<phase 1 title>'),
+    planPhaseHeading('P1', '<phase 1 title>'),
     '',
-    phaseSection('dependsOn'),
+    planPhaseSectionHeading('dependsOn'),
     none,
     '',
-    phaseSection('requirements'),
+    planPhaseSectionHeading('requirements'),
     '- <what this phase delivers>',
     '',
     // Per-phase Constraints may render `- None.` (PLAN_NONE_ALLOWED_PHASE_SECTIONS).
-    phaseSection('constraints'),
+    planPhaseSectionHeading('constraints'),
     none,
     '',
-    phaseSection('acceptance'),
+    planPhaseSectionHeading('acceptance'),
     '- <observable done-condition, including one end-to-end check>',
     '',
-    phaseHeading('P2', '<phase 2 title>'),
+    planPhaseHeading('P2', '<phase 2 title>'),
     '',
-    phaseSection('dependsOn'),
+    planPhaseSectionHeading('dependsOn'),
     '- P1',
     '',
-    phaseSection('requirements'),
+    planPhaseSectionHeading('requirements'),
     '- <what this phase delivers>',
     '',
-    phaseSection('constraints'),
+    planPhaseSectionHeading('constraints'),
     '- <phase 2 constraint>',
     '',
-    phaseSection('acceptance'),
+    planPhaseSectionHeading('acceptance'),
     '- <observable done-condition, including one end-to-end check>',
     '',
-    planSection('remarks'),
+    planSectionHeading('remarks'),
     '<optional: revisions and which delegated phases are unchanged, replaced, or dropped — omit this section when empty>',
   ];
 }
