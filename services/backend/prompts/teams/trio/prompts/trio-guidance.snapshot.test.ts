@@ -111,6 +111,15 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('`--supersedes="<old planId>"`');
   });
 
+  test('specifier guidance names only plan errors the CLI prints', () => {
+    const guidance = getGuidance('specifier', false);
+
+    expect(guidance).not.toContain('PHASE_NOT_FOUND');
+    expect(guidance).not.toContain('PLAN_NOT_FOUND');
+    expect(guidance).toContain('Phase not found: <Pn>');
+    expect(guidance).toContain('Plan not found: <planId>');
+  });
+
   test.each(GUIDANCE_VARIANTS)('builder guidance (%s)', (variant, nativeIntegration) => {
     const guidance = getGuidance('builder', nativeIntegration);
 

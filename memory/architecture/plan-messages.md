@@ -25,7 +25,7 @@ The trio specifier used to write its full ordered slice plan into each slice rep
 
 - `chatroom plan view-template`: static, prints the fill-in template. No chatroom or role needed.
 - `chatroom plan publish --chatroom-id --role [--supersedes <planId>]`: reads the markdown from a `CHATROOM_PLAN_END` heredoc, validates it, and prints the plan id and phase ids.
-- `chatroom plan read --chatroom-id --role --plan-id [--phase Pn]`: prints the stored markdown, or one phase projection. `PLAN_NOT_FOUND` for a malformed, foreign, or non-plan id; `PHASE_NOT_FOUND` lists the available phase ids.
+- `chatroom plan read --chatroom-id --role --plan-id [--phase Pn]`: prints the stored markdown, or one phase projection. `PLAN_NOT_FOUND` (printed as `Plan not found: <id>`) for a malformed, foreign, or non-plan id; `Phase not found: Pn` lists the available phase ids.
 
 Publishing is not idempotent: a retried publish after a lost response creates a second plan, and the printed id is the one the author cites.
 
