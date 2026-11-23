@@ -567,18 +567,20 @@ planCommand
   .command('read')
   .description('Read a published plan, or one phase of it')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
+  .option('--role <role>', 'Accepted for compatibility; reading a plan does not need it')
   .requiredOption('--plan-id <id>', 'Plan message id (from plan publish)')
   .option('--phase <id>', 'Phase id to project (e.g. P2)')
-  .action(async (options: { chatroomId: string; role: string; planId: string; phase?: string }) => {
-    await maybeRequireAuth();
-    const { readPlan } = await import('./commands/plan/read.js');
-    await readPlan(options.chatroomId, {
-      role: options.role,
-      planId: options.planId,
-      ...(options.phase ? { phase: options.phase } : {}),
-    });
-  });
+  .action(
+    async (options: { chatroomId: string; role?: string; planId: string; phase?: string }) => {
+      await maybeRequireAuth();
+      const { readPlan } = await import('./commands/plan/read.js');
+      await readPlan(options.chatroomId, {
+        role: options.role,
+        planId: options.planId,
+        ...(options.phase ? { phase: options.phase } : {}),
+      });
+    }
+  );
 
 const agenticQueryCommand = program
   .command('agentic-query')

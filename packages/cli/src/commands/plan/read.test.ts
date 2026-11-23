@@ -127,6 +127,18 @@ describe('readPlan', () => {
     expect(output).toContain(VALID_PLAN);
   });
 
+  test('reads a plan without --role', async () => {
+    const deps = createMockDeps();
+
+    await readPlan(TEST_CHATROOM_ID, { planId: 'plan_1' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    const output = stdout();
+    expect(output).toContain('Plan ID: plan_1');
+    expect(output).toContain('Author: specifier');
+    expect(output).toContain(VALID_PLAN);
+  });
+
   test('reports supersede links when present', async () => {
     const deps = createMockDeps({ ...PLAN_DETAIL, supersedes: 'plan_0', supersededBy: 'plan_2' });
 

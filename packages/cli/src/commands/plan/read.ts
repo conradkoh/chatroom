@@ -26,7 +26,8 @@ import type { CommandSessionFailure, SessionService } from '../../infrastructure
 import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
 
 export interface ReadPlanOptions {
-  role: string;
+  /** Accepted so the prompt text keeps working. The backend identifies the reader from the session, so this is not read. */
+  role?: string | undefined;
   planId: string;
   phase?: string | undefined;
 }
