@@ -51,7 +51,13 @@ jobs:
       - name: Test builtin prompt and handoff contracts
         run: >
           pnpm --dir services/backend exec vitest run
-          prompts/templates.test.ts
+          prompts/teams/role-identity-resolution.test.ts
+          prompts/teams/team-prompt-modules.test.ts
+          prompts/teams/team-isolation.test.ts
+          prompts/teams/duo/duo-role-prompts.snapshot.test.ts
+          prompts/teams/solo/solo-role-prompts.snapshot.test.ts
+          prompts/teams/trio/trio-role-prompts.snapshot.test.ts
+          prompts/teams/custom/custom-role-prompts.snapshot.test.ts
           prompts/builtin-role-contracts.test.ts
           prompts/cli/handoff-templates/index.test.ts
           prompts/cli/handoff-templates/list-templates.test.ts
