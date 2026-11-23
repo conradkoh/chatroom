@@ -9,6 +9,7 @@
  */
 
 import { getTrioSharedThreadLine } from './shared-thread';
+import { planPublishCommand, planReadCommand } from '../../../cli/plan/command';
 import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
 import { buildCmdHelper, getHandoffTemplateDiscoveryGuidance } from '../../../cli/sections';
 import {
@@ -60,9 +61,49 @@ function getSpecifierSlicingGuidelines(): string {
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
-- **Plan every slice, build one.** Write the full ordered slice plan into your report so the coordinator can send the rest; build only the first slice the package has not delivered yet.
+- **Plan every slice, build one.** The ordered slice plan is published as a plan message (see **Plan flow** below), not written into your report. Build only the first slice the package has not delivered yet.
 - **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).`;
+}
+
+/**
+ * Plan flow for the trio specifier. Command text comes from the shipped plan
+ * command helpers (`cli/plan/command.ts`); the view-template command has no
+ * chatroom arguments, so it is written inline as the CLI defines it.
+ */
+function getSpecifierPlanFlow(params: {
+  cliEnvPrefix: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+}): string {
+  const { cliEnvPrefix, chatroomId, role } = params;
+  const publishCommand = planPublishCommand({ cliEnvPrefix, chatroomId, role });
+  const readPhaseCommand = planReadCommand({
+    cliEnvPrefix,
+    chatroomId,
+    role,
+    planId: '<planId>',
+    phase: '<Pn>',
+  });
+
+  return `**Plan flow (plan messages):** the ordered slice plan is a plan message in this chatroom, so any later session can read it by id. Refer to one phase as \`<planId>#Pn\`.
+
+- **First pass (the package's \`## Plan reference\` says \`None — first pass: publish the plan\`):**
+  1. Run \`${cliEnvPrefix}chatroom plan view-template\` and fill in every \`<placeholder>\`. Each phase is one ordered builder slice (\`P1\`, \`P2\`, …) with its own requirements, constraints, and acceptance criteria.
+  2. Publish the filled template as the plan body. The command prints the plan ID:
+
+\`\`\`bash
+${publishCommand}
+\`\`\`
+
+  3. Build **P1 only**. Do not build later phases in this session.
+  4. Put the plan ID from the publish output in the \`## Plan reference\` section of your slice report.
+- **Later pass (the package cites \`Plan ID\` and \`Phase: Pn\`):**
+  1. Before you brief the builder, read the cited phase: \`${readPhaseCommand}\`. Read the whole plan (the same command without \`--phase\`) only when the phase alone does not give enough context, for example the Sources or the Remarks of a revision.
+  2. Build exactly that phase. Never reconstruct the plan from memory or from earlier reports.
+- **Revision:** when the package asks for a revised plan, publish the revision with the publish command above plus \`--supersedes="<old planId>"\`. The revised plan restarts at \`P1\`, and its \`## Remarks\` states, for each phase already delegated, whether it is unchanged, replaced by a new phase, or dropped. Report the new plan ID.
+- **Broken reference → hand back to \`coordinator\`:** when a read fails (\`PLAN_NOT_FOUND\`, or \`PHASE_NOT_FOUND\` with the available phase IDs), do not build and do not reconstruct the plan. Name the bad reference in a handoff to \`coordinator\` and ask for the correct one. If the cited phase contradicts the repository, hand back the same way; do not republish the plan yourself unless the package asks for a revision.
+- **Superseded plan:** if the plan prints \`⚠ Superseded by <planId>\`, build the phase the package cites and state the warning in your slice report so the coordinator can confirm.`;
 }
 
 export function getSpecifierGuidance(ctx: PlannerGuidanceParams): string {
@@ -96,6 +137,8 @@ ${getHandoffTemplateDiscoveryGuidance({ teamId: 'trio', role, nativeIntegration 
 **Slicing Guidelines:**
 
 ${getSpecifierSlicingGuidelines()}
+
+${getSpecifierPlanFlow({ cliEnvPrefix, chatroomId, role })}
 
 **Code review:** Review each builder slice with the code-review skill (${cmd('skill activate code-review')}) before you report it to \`coordinator\`.
 
