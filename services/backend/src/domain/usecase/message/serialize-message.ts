@@ -14,15 +14,23 @@ function attachmentContext(options: SerializeMessageOptions) {
   return { chatroomId: options.chatroomId ?? '', role: options.role ?? '' };
 }
 
+/** Linear attachments block, including its trailing newline when non-empty. */
+function linearAttachments(message: SerializableMessage, options: SerializeMessageOptions): string {
+  if (!message.attachments) return '';
+  const block = renderDeliveryAttachmentsBlock(
+    message.attachments,
+    attachmentContext(options)
+  ).join('\n');
+  return block ? `${block}\n` : '';
+}
+
 function serializeLinearMessage(
   message: SerializableMessage,
   options: SerializeMessageOptions
 ): string {
   const target = message.targetRole ? ` → ${message.targetRole}` : '';
-  const attachments = message.attachments
-    ? renderDeliveryAttachmentsBlock(message.attachments, attachmentContext(options)).join('\n')
-    : '';
-  return `${new Date(message._creationTime).toISOString()} | ${message.senderRole}${target}\n${attachments ? `${attachments}\n` : ''}\n${message.content}`;
+  const typeTag = message.type === 'plan' ? ' | type=plan' : '';
+  return `${new Date(message._creationTime).toISOString()} | ${message.senderRole}${target}${typeTag}\n${linearAttachments(message, options)}\n${message.content}`;
 }
 
 function serializeTaskOriginMessage(message: SerializableMessage): string {
