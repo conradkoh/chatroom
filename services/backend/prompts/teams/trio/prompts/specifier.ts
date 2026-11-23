@@ -45,7 +45,7 @@ function getSpecifierHandoffRules(nativeIntegration?: boolean): string {
 
 ${continuityBlock}- **To implement a phase or group of phases** → Hand off to \`builder\` with the \`specifier\` → \`builder\` brief
 - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
-- **When the round passes your review, or you are blocked on a decision you cannot make** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report. The report covers everything you delivered in this round. You decide when a round ends: when the plan's phases are done, when a decision is outside your remit, or when continuing would cost more than reporting and resuming.
+- **When the round passes your review, or you are blocked on a decision you cannot make** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report. The report covers everything you delivered in this round. Report only after the round's final brief has passed its \`round-final\` verification (full suite, typecheck, lint, and the e2e the round affects). If you stop before that, say in the report which verification did not run and why. You decide when a round ends: when the plan's phases are done, when a decision is outside your remit, or when continuing would cost more than reporting and resuming.
 - **Your handoff targets are \`builder\` and \`coordinator\` only.** To reach any other role, including \`user\` and every specialist, hand back to \`coordinator\` with the request. Never run \`chatroom handoff --next-role=<other role>\`. Do not use \`chatroom message(s) send\` — it persists \`senderRole=user\` and bypasses the enforced handoff graph.
 - **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.`;
 }
@@ -75,7 +75,7 @@ function getSpecifierBatchingGuidelines(): string {
 - **Group by verification stage.** Phases whose acceptance is checked by the same run at the end of the round, and which do not invalidate each other, can go in one round; run the expensive checks once at the end.
 - **A batch that fails is harder to diagnose.** A large batch makes attribution and repair slower, especially when a phase changes a shared contract, a schema, a public API, or anything later phases build on. When that is the risk, land and verify it before continuing.
 - **Weigh latency against the cost of a late failure for this task, then decide.** There is no fixed limit on phases per round or slices per session, and no rule that a slice must be end-to-end shippable on its own; the round must be.
-- **Report why you chose that grouping** so the coordinator can rebalance the next round if it disagrees.`;
+- **Report why you chose that grouping** so the coordinator can raise a concern before the next round.`;
 }
 
 /**

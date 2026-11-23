@@ -84,7 +84,7 @@ function getCoordinatorDelegationGuidelines(params: {
 - **State outcomes, constraints, and acceptance criteria**; leave file paths, code snippets, and slicing to the specifier.
 - Review each round with the code-review skill (${cmd('skill activate code-review')}); hand off to \`reviewer\` before delivery when its criteria apply, and send blocking findings back as rework.
 - **Backlog items:** activate the backlog skill (${cmd('skill activate backlog')}). **Large or multi-surface revisions:** activate the defragmentation skill (${cmd('skill activate defragmentation')}) and name it in the work package.
-- **If stuck:** after 2 failed rework rounds on a package → replan it, or hand off to \`user\` with the blocker and what you need.`;
+- **If stuck:** after 2 failed rework rounds on a round → replan it, or hand off to \`user\` with the blocker and what you need.`;
 }
 
 export function getCoordinatorGuidance(ctx: PlannerGuidanceParams): string {

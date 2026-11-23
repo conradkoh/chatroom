@@ -64,7 +64,7 @@ describe('trio role guidance', () => {
     expect(guidance).not.toContain('copy the remaining slice plan');
     expect(guidance).toContain('**The specifier decides the work.**');
     expect(guidance).toContain('**You hold the plan.**');
-    expect(guidance).toContain('after 2 failed rework rounds on a package');
+    expect(guidance).toContain('after 2 failed rework rounds on a round');
     expect(guidance).not.toMatch(
       /Size each work package|Send one package at a time|One slice per specifier session/
     );
