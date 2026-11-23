@@ -73,7 +73,7 @@ export const TIMELINE_AGENT_MODEL = 'min-w-0 truncate';
 /** The `·` separator. */
 export const TIMELINE_AGENT_DOT = 'shrink-0';
 
-/** Per-placement budgets. `footer` is used in P1; `bar` is used in P2 (do not wire it up in P1). */
+/** Per-placement agent-line budgets: `footer` for the eager handoff footer and the details dialog footer, `bar` for the collapsed handoff bar meta. */
 export const TIMELINE_AGENT_PLACEMENT = {
   footer: {
     line: '',
