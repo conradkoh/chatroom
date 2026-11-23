@@ -73,7 +73,10 @@ vi.mock('../hooks/useChatInputFileDrop', () => ({
 }));
 
 vi.mock('../hooks/useStartInNewSessionPreference', () => ({
-  useStartInNewSessionPreference: () => ({ startInNewSession: false }),
+  useStartInNewSessionPreference: () => ({
+    startInNewSession: false,
+    setStartInNewSession: vi.fn(),
+  }),
 }));
 
 vi.mock('../hooks/useFileReferenceAutocomplete', () => ({
