@@ -44,19 +44,49 @@ export const BADGE_BASE =
 
 export const ICON_SIZE = 10;
 
-/**
- * Sender harness + model chip. Same 10px inline-flex metrics as BADGE_BASE so the header height
- * does not change; no uppercase, no bold, no icon, and only the muted approved tokens.
- */
-export const TIMELINE_SENDER_AGENT_CHIP =
-  'inline-flex min-w-0 items-center gap-1 whitespace-nowrap text-[10px] px-1.5 py-0.5 ' +
-  'text-chatroom-text-muted bg-chatroom-bg-tertiary';
+/** Duration slot: fixed 7ch (longest `59m 59s` / `23h 59m`). font-mono text-[10px] is on this same element so `ch` = 6px. Rendered for handoffs even when empty, so the timestamp column never moves. */
+export const TIMELINE_HANDOFF_DURATION_SLOT =
+  'w-[7ch] shrink-0 text-left font-mono text-[10px] tabular-nums whitespace-nowrap';
 
-/** Row header placement: capped so a long label cannot push the right-aligned route off the line. */
-export const TIMELINE_SENDER_AGENT_CHIP_ROW = 'max-w-[10rem] sm:max-w-[16rem]';
+/** Handoff timestamp: right-aligned so the time of day ends at a fixed x, 8px before the slot. May truncate only for a prior-year date below ~340px (full value stays in `title`). */
+export const TIMELINE_HANDOFF_TIMESTAMP =
+  'min-w-0 truncate text-right text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';
 
-/** Dialog header placement: the dialog header has the full width. */
-export const TIMELINE_SENDER_AGENT_CHIP_DIALOG = 'max-w-full';
+/** Timestamp for non-handoff footers. Byte-identical to the class string the timestamp used before this change. */
+export const TIMELINE_FOOTER_TIMESTAMP =
+  'text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';
+
+/** Handoff footer root: 2 columns. Row 1 = controls | time row. Row 2 = agent line spanning both columns. */
+export const TIMELINE_HANDOFF_FOOTER =
+  'mt-2 pt-1.5 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5';
+export const TIMELINE_HANDOFF_FOOTER_TIME_ROW =
+  'flex min-w-0 items-center justify-end gap-2 whitespace-nowrap';
+export const TIMELINE_HANDOFF_FOOTER_AGENT_ROW = 'col-span-2 flex min-w-0 justify-end empty:hidden';
+
+/** Agent line: plain muted mono text with no background, padding or icon, so its right edge is flush with the duration slot. */
+export const TIMELINE_AGENT_LINE =
+  'inline-flex min-w-0 max-w-full items-center gap-1 whitespace-nowrap font-mono text-[10px] leading-4 text-chatroom-text-muted';
+/** Harness segment: its own cap, never shrinks below it. */
+export const TIMELINE_AGENT_HARNESS = 'shrink-0 truncate';
+/** Model segment: takes the remainder of the line. */
+export const TIMELINE_AGENT_MODEL = 'min-w-0 truncate';
+/** The `·` separator. */
+export const TIMELINE_AGENT_DOT = 'shrink-0';
+
+/** Per-placement budgets. `footer` is used in P1; `bar` is used in P2 (do not wire it up in P1). */
+export const TIMELINE_AGENT_PLACEMENT = {
+  footer: {
+    line: '',
+    harness: 'max-w-[14ch] sm:max-w-[20ch]',
+    model: 'max-w-[40ch] sm:max-w-[65ch]',
+  },
+  bar: {
+    line: 'max-sm:hidden sm:max-w-[44ch] md:max-w-[56ch]',
+    harness: 'sm:max-w-[12ch] md:max-w-[16ch]',
+    model: 'max-w-full',
+  },
+} as const;
+export type SenderAgentPlacement = keyof typeof TIMELINE_AGENT_PLACEMENT;
 
 export function getSenderClasses(role: string): string {
   const base = 'font-bold text-[10px] uppercase tracking-wide';

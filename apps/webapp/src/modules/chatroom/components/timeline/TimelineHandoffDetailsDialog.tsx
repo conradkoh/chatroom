@@ -5,11 +5,7 @@ import { memo, useRef, type RefObject } from 'react';
 
 import { TimelineFileAttachments } from './TimelineFileAttachments';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
-import {
-  TimelineMessageRoute,
-  TimelineMessageTypeBadge,
-  TimelineSenderAgentChip,
-} from './TimelineMessageIdentity';
+import { TimelineMessageRoute, TimelineMessageTypeBadge } from './TimelineMessageIdentity';
 import { TimelineTeamMessageBody } from './TimelineTeamMessageBody';
 import { MessageAttachmentChips } from '../../attachments';
 import { formatHandoffDurationTitle } from '../../timeline/handoffTiming';
@@ -111,11 +107,6 @@ export const TimelineHandoffDetailsDialog = memo(function TimelineHandoffDetails
               senderRole={message.senderRole}
               targetRole={message.targetRole}
               sourcePlatform={message.sourcePlatform}
-            />
-            <TimelineSenderAgentChip
-              type={message.type}
-              senderAgent={message.senderAgent}
-              placement="dialog"
             />
           </div>
           <DialogTitle className="sr-only">{getDialogName(message)}</DialogTitle>

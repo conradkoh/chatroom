@@ -845,7 +845,7 @@ Edge case X
     });
   });
 
-  describe('sender agent chip', () => {
+  describe('sender agent line placement', () => {
     const SNAPSHOT_HANDOFF: Message = {
       ...BASE_MESSAGE,
       senderRole: 'builder',
@@ -865,34 +865,19 @@ Edge case X
     const chipIn = (container: HTMLElement) =>
       within(container).queryByTestId('timeline-sender-agent');
 
-    /** The snapshot renders both segments; spacing comes from the flex gap, not text. */
-    const expectSnapshotChip = (chip: HTMLElement | null) => {
-      expect(chip).not.toBeNull();
-      const element = chip as HTMLElement;
-      expect(element).toHaveAttribute('title', 'Harness: opencode · Model: gpt-5.1-codex');
-      expect(within(element).getByText('opencode')).toBeInTheDocument();
-      expect(within(element).getByText('gpt-5.1-codex')).toBeInTheDocument();
-    };
-
-    it('shows the chip after the badge in an eager row header', () => {
+    it('does not show the agent line in an eager row header', () => {
       render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" />);
 
       const header = screen.getByTestId('timeline-message-header');
-      const chip = chipIn(header);
-      expectSnapshotChip(chip);
-      expect(chip).toHaveClass('max-w-[10rem]', 'sm:max-w-[16rem]');
-
-      const badge = within(header).getByText('handoff');
-      expect(
-        badge.compareDocumentPosition(chip as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy();
+      expect(chipIn(header)).toBeNull();
+      expect(within(header).getByText('handoff')).toBeInTheDocument();
     });
 
-    it('shows the chip in the collapsed row header without opening the dialog', () => {
+    it('renders no chip in the collapsed row header and does not open the dialog', () => {
       render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
 
       const header = screen.getByTestId('timeline-message-header');
-      expectSnapshotChip(chipIn(header));
+      expect(chipIn(header)).toBeNull();
       expect(screen.queryByRole('dialog')).toBeNull();
     });
 
@@ -919,7 +904,7 @@ Edge case X
       expect(screen.queryByTestId('timeline-sender-agent')).not.toBeInTheDocument();
     });
 
-    it('adds the chip to the dialog header and names the sender in the description', () => {
+    it('keeps the chip out of the dialog header and names the sender in the description', () => {
       render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
 
       fireEvent.click(screen.getByTestId('timeline-handoff-trigger'));
@@ -928,8 +913,7 @@ Edge case X
         name: 'Full handoff from builder to planner',
       });
       const dialogHeader = within(dialog).getByTestId('timeline-handoff-dialog-header');
-      expectSnapshotChip(chipIn(dialogHeader));
-      expect(chipIn(dialogHeader)).toHaveClass('max-w-full');
+      expect(chipIn(dialogHeader)).toBeNull();
       expect(dialog).toHaveAccessibleDescription(
         /Sent by builder using opencode, model gpt-5\.1-codex\./
       );
@@ -948,7 +932,7 @@ Edge case X
       expect(dialog).not.toHaveAccessibleDescription(/Sent by/);
     });
 
-    it('distinguishes a snapshot handoff from a legacy handoff in one feed', () => {
+    it('keeps the snapshot and legacy handoffs distinguishable in one feed', () => {
       render(
         <div>
           <TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />
@@ -958,7 +942,7 @@ Edge case X
 
       const rows = screen.getAllByTestId('timeline-team-message');
       expect(rows).toHaveLength(2);
-      expectSnapshotChip(chipIn(rows[0] as HTMLElement));
+      expect(chipIn(rows[0] as HTMLElement)).toBeNull();
       expect(chipIn(rows[1] as HTMLElement)).toBeNull();
 
       fireEvent.click(within(rows[0] as HTMLElement).getByTestId('timeline-handoff-trigger'));
@@ -966,7 +950,7 @@ Edge case X
       const dialog = screen.getByRole('dialog', {
         name: 'Full handoff from builder to planner',
       });
-      expectSnapshotChip(chipIn(within(dialog).getByTestId('timeline-handoff-dialog-header')));
+      expect(chipIn(within(dialog).getByTestId('timeline-handoff-dialog-header'))).toBeNull();
       expect(dialog).toHaveAccessibleDescription(
         /Sent by builder using opencode, model gpt-5\.1-codex\./
       );

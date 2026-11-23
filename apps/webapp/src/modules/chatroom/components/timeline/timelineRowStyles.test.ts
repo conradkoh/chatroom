@@ -2,10 +2,21 @@ import { describe, it, expect } from 'vitest';
 
 import {
   getTimelineVirtualRowZIndex,
+  TIMELINE_AGENT_DOT,
+  TIMELINE_AGENT_HARNESS,
+  TIMELINE_AGENT_LINE,
+  TIMELINE_AGENT_MODEL,
+  TIMELINE_AGENT_PLACEMENT,
+  TIMELINE_FOOTER_TIMESTAMP,
   TIMELINE_HANDOFF_CHIPS,
+  TIMELINE_HANDOFF_DURATION_SLOT,
+  TIMELINE_HANDOFF_FOOTER,
+  TIMELINE_HANDOFF_FOOTER_AGENT_ROW,
+  TIMELINE_HANDOFF_FOOTER_TIME_ROW,
   TIMELINE_HANDOFF_META,
   TIMELINE_HANDOFF_OPEN_ICON,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
+  TIMELINE_HANDOFF_TIMESTAMP,
   TIMELINE_HANDOFF_TRIGGER,
   TIMELINE_HANDOFF_TRIGGER_LABEL,
   TIMELINE_MESSAGE_BODY,
@@ -105,6 +116,89 @@ describe('TIMELINE_HANDOFF_META', () => {
     expect(TIMELINE_HANDOFF_META).not.toContain('flex-col');
     expect(TIMELINE_HANDOFF_META).not.toContain('hidden');
     expect(TIMELINE_HANDOFF_META).not.toContain('sm:');
+  });
+});
+
+describe('TIMELINE_HANDOFF_DURATION_SLOT', () => {
+  it('is a fixed 7ch slot that carries its own mono 10px font so ch resolves correctly', () => {
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('w-[7ch]');
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('shrink-0');
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('font-mono');
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('text-[10px]');
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('whitespace-nowrap');
+  });
+});
+
+describe('TIMELINE_HANDOFF_TIMESTAMP', () => {
+  it('right-aligns the time of day in the handoff footer', () => {
+    expect(TIMELINE_HANDOFF_TIMESTAMP).toContain('text-right');
+    expect(TIMELINE_HANDOFF_TIMESTAMP).toContain('min-w-0');
+    expect(TIMELINE_HANDOFF_TIMESTAMP).toContain('truncate');
+    expect(TIMELINE_HANDOFF_TIMESTAMP).toContain('text-chatroom-text-muted');
+  });
+});
+
+describe('TIMELINE_FOOTER_TIMESTAMP', () => {
+  it('keeps the pre-change non-handoff timestamp classes', () => {
+    expect(TIMELINE_FOOTER_TIMESTAMP).toBe(
+      'text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted'
+    );
+  });
+});
+
+describe('TIMELINE_HANDOFF_FOOTER', () => {
+  it('is a two-column grid with the controls and the time row on the first row', () => {
+    expect(TIMELINE_HANDOFF_FOOTER).toContain('grid');
+    expect(TIMELINE_HANDOFF_FOOTER).toContain('grid-cols-[auto_minmax(0,1fr)]');
+    expect(TIMELINE_HANDOFF_FOOTER).toContain('mt-2');
+    expect(TIMELINE_HANDOFF_FOOTER).toContain('pt-1.5');
+  });
+});
+
+describe('TIMELINE_HANDOFF_FOOTER_TIME_ROW', () => {
+  it('pushes the timestamp and duration to the right edge', () => {
+    expect(TIMELINE_HANDOFF_FOOTER_TIME_ROW).toContain('justify-end');
+    expect(TIMELINE_HANDOFF_FOOTER_TIME_ROW).toContain('min-w-0');
+    expect(TIMELINE_HANDOFF_FOOTER_TIME_ROW).toContain('whitespace-nowrap');
+  });
+});
+
+describe('TIMELINE_HANDOFF_FOOTER_AGENT_ROW', () => {
+  it('spans both columns and right-flushes the agent line, collapsing when empty', () => {
+    expect(TIMELINE_HANDOFF_FOOTER_AGENT_ROW).toContain('col-span-2');
+    expect(TIMELINE_HANDOFF_FOOTER_AGENT_ROW).toContain('justify-end');
+    expect(TIMELINE_HANDOFF_FOOTER_AGENT_ROW).toContain('empty:hidden');
+  });
+});
+
+describe('TIMELINE_AGENT_LINE', () => {
+  it('is plain muted mono text with no background, padding or uppercase', () => {
+    expect(TIMELINE_AGENT_LINE).toContain('font-mono');
+    expect(TIMELINE_AGENT_LINE).toContain('text-[10px]');
+    expect(TIMELINE_AGENT_LINE).toContain('text-chatroom-text-muted');
+    expect(TIMELINE_AGENT_LINE).not.toContain('uppercase');
+    expect(TIMELINE_AGENT_LINE).not.toMatch(/\bpx-/);
+    expect(TIMELINE_AGENT_LINE).not.toMatch(/\bbg-/);
+    expect(TIMELINE_AGENT_LINE).not.toMatch(HARD_CODED_COLOUR);
+  });
+});
+
+describe('TIMELINE_AGENT_PLACEMENT', () => {
+  it('gives the footer and the bar different harness and model budgets', () => {
+    expect(TIMELINE_AGENT_PLACEMENT.footer.harness).toBe('max-w-[14ch] sm:max-w-[20ch]');
+    expect(TIMELINE_AGENT_PLACEMENT.footer.model).toBe('max-w-[40ch] sm:max-w-[65ch]');
+    expect(TIMELINE_AGENT_PLACEMENT.footer.line).toBe('');
+    expect(TIMELINE_AGENT_PLACEMENT.bar.line).toContain('max-sm:hidden');
+    expect(TIMELINE_AGENT_PLACEMENT.bar.harness).toContain('md:max-w-[16ch]');
+    expect(TIMELINE_AGENT_PLACEMENT.bar.model).toBe('max-w-full');
+  });
+});
+
+describe('TIMELINE_AGENT_HARNESS / TIMELINE_AGENT_MODEL / TIMELINE_AGENT_DOT', () => {
+  it('keeps the harness capped, the model flexible, and the dot fixed', () => {
+    expect(TIMELINE_AGENT_HARNESS).toBe('shrink-0 truncate');
+    expect(TIMELINE_AGENT_MODEL).toBe('min-w-0 truncate');
+    expect(TIMELINE_AGENT_DOT).toBe('shrink-0');
   });
 });
 

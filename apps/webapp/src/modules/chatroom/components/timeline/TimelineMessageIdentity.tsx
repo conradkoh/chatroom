@@ -6,20 +6,17 @@ import {
   BADGE_BASE,
   getSenderClasses,
   ICON_SIZE,
-  TIMELINE_SENDER_AGENT_CHIP,
-  TIMELINE_SENDER_AGENT_CHIP_DIALOG,
-  TIMELINE_SENDER_AGENT_CHIP_ROW,
+  TIMELINE_AGENT_DOT,
+  TIMELINE_AGENT_HARNESS,
+  TIMELINE_AGENT_LINE,
+  TIMELINE_AGENT_MODEL,
+  TIMELINE_AGENT_PLACEMENT,
+  type SenderAgentPlacement,
 } from './timelineRowStyles';
 import { getSenderAgentLabel, getSenderAgentTitle } from '../../timeline/senderAgentLabel';
 import type { SenderAgentSnapshot } from '../../types/message';
 
 import { cn } from '@/lib/utils';
-
-/** Placement-specific width cap. A lookup keeps the chip's own branch count at the minimum. */
-const SENDER_AGENT_PLACEMENT_CLASS = {
-  row: TIMELINE_SENDER_AGENT_CHIP_ROW,
-  dialog: TIMELINE_SENDER_AGENT_CHIP_DIALOG,
-} as const;
 
 /** Type badge for handoff, notice and plan messages. Every other message type renders nothing. */
 export function TimelineMessageTypeBadge({ type }: { type: string }) {
@@ -85,8 +82,9 @@ export function TimelineMessageRoute({
 }
 
 /**
- * Harness · model chip for handoff messages. Renders nothing unless the type is `handoff`
+ * Harness · model agent line for handoff messages. Renders nothing unless the type is `handoff`
  * and the snapshot normalizes to a usable harness; no placeholder text for legacy rows.
+ * Each segment has its own budget from TIMELINE_AGENT_PLACEMENT; the model takes the remainder.
  */
 export function TimelineSenderAgentChip({
   type,
@@ -95,23 +93,35 @@ export function TimelineSenderAgentChip({
 }: {
   type: string;
   senderAgent: SenderAgentSnapshot | undefined;
-  placement: 'row' | 'dialog';
+  placement: SenderAgentPlacement;
 }) {
   const label = getSenderAgentLabel(type, senderAgent);
   if (!label) return null;
+  const budget = TIMELINE_AGENT_PLACEMENT[placement];
   return (
     <span
       data-testid="timeline-sender-agent"
+      data-placement={placement}
       title={getSenderAgentTitle(label)}
-      className={cn(TIMELINE_SENDER_AGENT_CHIP, SENDER_AGENT_PLACEMENT_CLASS[placement])}
+      className={cn(TIMELINE_AGENT_LINE, budget.line)}
     >
-      <span className="shrink-0">{label.harness}</span>
+      <span
+        data-testid="timeline-sender-agent-harness"
+        className={cn(TIMELINE_AGENT_HARNESS, budget.harness)}
+      >
+        {label.harness}
+      </span>
       {label.model !== undefined && (
         <>
-          <span aria-hidden="true" className="shrink-0">
+          <span aria-hidden="true" className={TIMELINE_AGENT_DOT}>
             ·
           </span>
-          <span className="truncate min-w-0">{label.model}</span>
+          <span
+            data-testid="timeline-sender-agent-model"
+            className={cn(TIMELINE_AGENT_MODEL, budget.model)}
+          >
+            {label.model}
+          </span>
         </>
       )}
     </span>

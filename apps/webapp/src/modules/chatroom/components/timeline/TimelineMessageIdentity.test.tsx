@@ -106,25 +106,27 @@ describe('TimelineSenderAgentChip', () => {
   const chip = (props: {
     type?: string;
     senderAgent?: { harness: string; model?: string };
-    placement?: 'row' | 'dialog';
+    placement?: 'footer' | 'bar';
   }) => (
     <TimelineSenderAgentChip
       type={props.type ?? 'handoff'}
       senderAgent={props.senderAgent}
-      placement={props.placement ?? 'row'}
+      placement={props.placement ?? 'footer'}
     />
   );
 
-  it('renders harness · model with a muted chip and a descriptive title', () => {
+  it('renders harness · model as muted mono text with a descriptive title', () => {
     render(chip({ senderAgent: { harness: 'opencode', model: 'gpt-5.1-codex' } }));
 
     const element = screen.getByTestId('timeline-sender-agent');
     expect(within(element).getByText('opencode')).toBeInTheDocument();
     expect(within(element).getByText('gpt-5.1-codex')).toBeInTheDocument();
     expect(element).toHaveAttribute('title', 'Harness: opencode · Model: gpt-5.1-codex');
-    expect(element).toHaveClass('text-chatroom-text-muted', 'bg-chatroom-bg-tertiary');
-    expect(element).toHaveClass('inline-flex', 'text-[10px]', 'px-1.5', 'py-0.5', 'min-w-0');
+    expect(element).toHaveClass('text-chatroom-text-muted', 'font-mono', 'text-[10px]');
+    expect(element).toHaveClass('inline-flex', 'min-w-0', 'max-w-full');
     expect(element.className).not.toContain('uppercase');
+    expect(element.className).not.toContain('px-');
+    expect(element.className).not.toContain('bg-');
     expect(element.querySelector('svg')).toBeNull();
   });
 
@@ -144,29 +146,41 @@ describe('TimelineSenderAgentChip', () => {
     const element = screen.getByTestId('timeline-sender-agent');
     const [harness, dot, model] = Array.from(element.children) as HTMLElement[];
     expect(harness).toHaveTextContent('opencode');
-    expect(harness).toHaveClass('shrink-0');
+    expect(harness).toHaveClass('shrink-0', 'truncate', 'max-w-[14ch]', 'sm:max-w-[20ch]');
     expect(dot).toHaveTextContent('·');
     expect(dot).toHaveAttribute('aria-hidden', 'true');
     expect(dot).toHaveClass('shrink-0');
     expect(model).toHaveTextContent('gpt-5.1-codex');
-    expect(model).toHaveClass('truncate', 'min-w-0');
+    expect(model).toHaveClass('min-w-0', 'truncate', 'max-w-[40ch]', 'sm:max-w-[65ch]');
   });
 
-  it('caps the row placement width so the route keeps its space', () => {
-    render(chip({ senderAgent: { harness: 'opencode' }, placement: 'row' }));
-
-    expect(screen.getByTestId('timeline-sender-agent')).toHaveClass(
-      'max-w-[10rem]',
-      'sm:max-w-[16rem]'
+  it('uses the footer placement budget and marks the placement in the DOM', () => {
+    render(
+      chip({ senderAgent: { harness: 'opencode', model: 'gpt-5.1-codex' }, placement: 'footer' })
     );
-  });
-
-  it('lets the dialog placement use the full header width', () => {
-    render(chip({ senderAgent: { harness: 'opencode' }, placement: 'dialog' }));
 
     const element = screen.getByTestId('timeline-sender-agent');
-    expect(element).toHaveClass('max-w-full');
-    expect(element.className).not.toContain('max-w-[10rem]');
+    expect(element).toHaveAttribute('data-placement', 'footer');
+    expect(screen.getByTestId('timeline-sender-agent-harness')).toHaveClass(
+      'max-w-[14ch]',
+      'sm:max-w-[20ch]'
+    );
+    expect(screen.getByTestId('timeline-sender-agent-model')).toHaveClass(
+      'max-w-[40ch]',
+      'sm:max-w-[65ch]'
+    );
+    expect(element.className).not.toContain('sm:max-w-[44ch]');
+  });
+
+  it('defines but does not apply the bar placement unless asked', () => {
+    render(
+      chip({ senderAgent: { harness: 'opencode', model: 'gpt-5.1-codex' }, placement: 'bar' })
+    );
+
+    const element = screen.getByTestId('timeline-sender-agent');
+    expect(element).toHaveAttribute('data-placement', 'bar');
+    expect(element).toHaveClass('sm:max-w-[44ch]', 'md:max-w-[56ch]', 'max-sm:hidden');
+    expect(screen.getByTestId('timeline-sender-agent-model')).toHaveClass('max-w-full');
   });
 
   it('clips a long model in both the text and the title', () => {
