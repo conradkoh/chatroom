@@ -10,7 +10,9 @@
  * - Pure: no I/O, no Convex types.
  * - Omits the phase "Depends on" sub-section when the phase has no dependencies.
  * - Empty lists render as a single `- None.` bullet.
- * - Multi-line items keep their continuation lines indented by two spaces.
+ * - Multi-line items add two spaces to each continuation line, on top of the
+ *   indentation the parser kept, so an unindented continuation lines up under
+ *   the bullet text.
  */
 
 import type { ParsedPhase, ParsedPlan } from './parse-plan';
