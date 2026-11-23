@@ -16,6 +16,7 @@ import {
   TIMELINE_BAR_META_PLAIN,
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_META,
+  TIMELINE_HANDOFF_META_DURATION_SLOT,
   TIMELINE_HANDOFF_META_TIME_ROW,
   TIMELINE_HANDOFF_OPEN_ICON,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
@@ -80,6 +81,7 @@ function HandoffTriggerSummary({
               handoffDurationSlow={handoffDurationSlow}
               compact
               alignDuration
+              durationSlotClassName={TIMELINE_HANDOFF_META_DURATION_SLOT}
             />
           </span>
           <TimelineSenderAgentLine type={type} senderAgent={senderAgent} placement="bar" />

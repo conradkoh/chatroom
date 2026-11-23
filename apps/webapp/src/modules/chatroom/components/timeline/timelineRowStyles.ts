@@ -45,14 +45,21 @@ export const BADGE_BASE =
 export const ICON_SIZE = 10;
 
 /**
- * Duration slot: fixed 7ch from `sm` up, so durations share one left x and the timestamp column never
- * moves. From `sm`, values 8 characters or longer clip with an ellipsis (for example `100h 10m`); the full
- * value stays in the duration's `title`. Below `sm` the slot takes its content width and does not clip,
- * so the full value shows on the meta row. font-mono text-[10px] is on this same element so `ch` = 6px.
- * Rendered for handoffs even when empty.
+ * Duration slot: fixed 7ch, so durations share one left x and the timestamp column never moves.
+ * Values 8 characters or longer clip with an ellipsis (for example `100h 10m`); the full value stays
+ * in the duration's `title`. font-mono text-[10px] is on this same element so `ch` = 6px. Rendered
+ * for handoffs even when empty.
  */
 export const TIMELINE_HANDOFF_DURATION_SLOT =
-  'w-[7ch] shrink-0 truncate text-left font-mono text-[10px] tabular-nums max-sm:w-auto max-sm:overflow-visible';
+  'w-[7ch] shrink-0 truncate text-left font-mono text-[10px] tabular-nums';
+
+/**
+ * Collapsed bar duration slot: the shared 7ch slot, but unclipped and auto width below `sm` so the full
+ * value (for example `100h 10m`) shows on the stacked meta row. The expanded footer keeps the plain
+ * TIMELINE_HANDOFF_DURATION_SLOT.
+ */
+export const TIMELINE_HANDOFF_META_DURATION_SLOT =
+  TIMELINE_HANDOFF_DURATION_SLOT + ' max-sm:w-auto max-sm:overflow-visible';
 
 /**
  * Handoff timestamp. The time of day ends at a fixed x because its time row is `justify-end` and

@@ -16,6 +16,7 @@ import {
   TIMELINE_HANDOFF_FOOTER_AGENT_ROW,
   TIMELINE_HANDOFF_FOOTER_TIME_ROW,
   TIMELINE_HANDOFF_META,
+  TIMELINE_HANDOFF_META_DURATION_SLOT,
   TIMELINE_HANDOFF_META_TIME_ROW,
   TIMELINE_HANDOFF_OPEN_ICON,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
@@ -150,15 +151,19 @@ describe('TIMELINE_HANDOFF_META_TIME_ROW', () => {
 });
 
 describe('TIMELINE_HANDOFF_DURATION_SLOT', () => {
-  it('is a fixed 7ch slot that clips longer values and carries its own mono 10px font so ch resolves correctly', () => {
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('w-[7ch]');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('shrink-0');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('font-mono');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('text-[10px]');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('truncate');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).not.toContain('whitespace-nowrap');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('max-sm:w-auto');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('max-sm:overflow-visible');
+  it('is exactly the fixed 7ch slot used by the expanded footer at every width', () => {
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).toBe(
+      'w-[7ch] shrink-0 truncate text-left font-mono text-[10px] tabular-nums'
+    );
+  });
+});
+
+describe('TIMELINE_HANDOFF_META_DURATION_SLOT', () => {
+  it('extends the 7ch slot with an unclipped auto width below sm for the collapsed bar', () => {
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('w-[7ch]');
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('truncate');
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('max-sm:w-auto');
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('max-sm:overflow-visible');
   });
 });
 

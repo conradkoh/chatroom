@@ -1135,6 +1135,23 @@ Edge case X
       expect(slot).toBeEmptyDOMElement();
     });
 
+    it('unclips and auto-sizes the bar duration slot below sm', () => {
+      render(
+        <TimelineTeamMessage
+          message={SNAPSHOT_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={360_600_000}
+          collapsible
+        />
+      );
+
+      const slot = within(screen.getByTestId('timeline-handoff-meta')).getByTestId(
+        'timeline-handoff-duration-slot'
+      );
+      expect(slot).toHaveClass('max-sm:w-auto', 'max-sm:overflow-visible');
+      expect(slot).toHaveTextContent('100h 10m');
+    });
+
     it('renders the time row alone in the bar for a legacy handoff', () => {
       render(<TimelineTeamMessage message={LEGACY_HANDOFF} chatroomId="room-1" collapsible />);
 

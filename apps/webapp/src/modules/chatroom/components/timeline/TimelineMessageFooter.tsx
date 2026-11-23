@@ -73,6 +73,8 @@ export interface TimelineMessageTimestampProps {
   compact?: boolean;
   /** Handoff rows only: timestamp then a fixed 7ch duration slot that renders even when empty. */
   alignDuration?: boolean;
+  /** Class for the duration slot when `alignDuration` is set. Defaults to the fixed 7ch slot used by the expanded footer. */
+  durationSlotClassName?: string;
 }
 
 /**
@@ -88,6 +90,7 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
   handoffDurationSlow,
   compact = false,
   alignDuration = false,
+  durationSlotClassName = TIMELINE_HANDOFF_DURATION_SLOT,
 }: TimelineMessageTimestampProps) {
   const timestamp = (
     <span
@@ -124,10 +127,7 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
     <>
       {timestamp}
       {alignDuration ? (
-        <span
-          data-testid="timeline-handoff-duration-slot"
-          className={TIMELINE_HANDOFF_DURATION_SLOT}
-        >
+        <span data-testid="timeline-handoff-duration-slot" className={durationSlotClassName}>
           {duration}
         </span>
       ) : (

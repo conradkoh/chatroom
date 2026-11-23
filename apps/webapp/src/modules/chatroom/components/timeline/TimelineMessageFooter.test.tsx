@@ -271,6 +271,20 @@ describe('TimelineMessageTimestamp', () => {
     );
   });
 
+  it('keeps the fixed 7ch duration slot in the expanded footer at every width', () => {
+    render(
+      <TimelineMessageTimestamp
+        creationTime={CREATION_TIME}
+        handoffDurationMs={62_000}
+        alignDuration
+      />
+    );
+
+    const slot = screen.getByTestId('timeline-handoff-duration-slot');
+    expect(slot).toHaveClass('w-[7ch]');
+    expect(slot).not.toHaveClass('max-sm:w-auto');
+  });
+
   it('renders the alignDuration slot even when there is no duration', () => {
     render(<TimelineMessageTimestamp creationTime={CREATION_TIME} alignDuration />);
 
