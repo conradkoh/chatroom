@@ -12,5 +12,6 @@
 - [Bandwidth at rest across projects](bandwidth-at-rest-scaling.md) — cross-app audit of Convex subscription and heartbeat paths when many projects are idle
 - [Handoff file attachments](handoff-file-attachments.md) — user-addressed handoff files in Convex, upload lifecycle, access rules, quotas, and purge
 - [Trio team coordination](trio-team-coordination.md) — coordinator-centred enforced handoff graph and per-edge session policy for the Trio preset
+- [Plan messages](plan-messages.md) — phased plans as immutable `plan` chat messages, one parser, `planId#Pn` references, `--supersedes` revisions, and the distinction from `docs/plans/`
 - [Per-team prompt isolation](/architecture/team-prompt-isolation.md) — duo, solo, and trio role identity, guidance, and team context live under each team's folder and resolve through one registry
 - [Machine management invariants](machine-management.md) — tombstone-first deletion, MACHINE_SCOPED_TABLES registry rule, lazy roots/ledger, command nudges, per-row action area
