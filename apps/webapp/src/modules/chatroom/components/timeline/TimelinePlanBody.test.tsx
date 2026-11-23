@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimelineEventRow } from './TimelineEventRow';
 import { AttachmentsProvider } from '../../attachments';
+import { toMessage } from '../../hooks/chatroomMessageStore';
 import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
 import type { Message } from '../../types/message';
 
@@ -225,6 +226,22 @@ describe('TimelinePlanBody through the feed row', () => {
     expect(
       screen.getByText('The plan row renders title, phases, and per-phase details.')
     ).toBeInTheDocument();
+  });
+
+  it('shows the Supersedes chip for a raw feed row published with --supersedes', () => {
+    const feedMessage = toMessage({
+      _id: 'plan-new-1',
+      type: 'plan',
+      senderRole: 'specifier',
+      content: PLAN_FIXTURE,
+      _creationTime: 1_000,
+      supersedesPlanId: 'plan-old-id-1234',
+    });
+
+    renderRow(feedMessage);
+
+    expect(screen.getByTestId('timeline-plan-supersedes')).toBeInTheDocument();
+    expect(screen.getByTitle('plan-old-id-1234')).toHaveTextContent('plan-o…1234');
   });
 
   it('orders header, then the phase index, then Requirements', () => {
