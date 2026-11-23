@@ -467,3 +467,33 @@ describe('createTask — handoff markdown preservation', () => {
     expect(inserted.content).toBe(handoffBody);
   });
 });
+
+describe('createTask — out-of-range numeric entity', () => {
+  // Built from a char code so this file never holds a literal out-of-range entity.
+  const AMP = String.fromCharCode(38);
+  // Numeric reference for code point 0x110000 (1114112), which is above the Unicode maximum.
+  const badEntityContent = `Result ${AMP}#1114112; stays as written.`;
+
+  test('accepts content with the 0x110000 numeric entity and stores the row', async () => {
+    const { sessionId } = await createTestSession('create-task-bad-entity-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const { taskId } = await t.run(async (ctx) => {
+      return await createTask(ctx, {
+        chatroomId,
+        createdBy: 'user',
+        content: badEntityContent,
+        queuePosition: 0,
+        startInNewSession: false,
+      });
+    });
+
+    const inserted = await t.run(async (ctx) => {
+      const task = await ctx.db.get('chatroom_tasks', taskId);
+      if (!task) throw new Error('created task not found');
+      return task;
+    });
+
+    expect(inserted.content).toBe(badEntityContent);
+  });
+});
