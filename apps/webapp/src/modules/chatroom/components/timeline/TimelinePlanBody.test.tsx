@@ -108,6 +108,7 @@ function openPlan(message: Message) {
 
 const scrollIntoViewMock = vi.fn();
 const originalScrollIntoView = Element.prototype.scrollIntoView;
+const originalMatchMedia = window.matchMedia;
 
 beforeEach(() => {
   scrollIntoViewMock.mockClear();
@@ -116,6 +117,8 @@ beforeEach(() => {
 
 afterEach(() => {
   Element.prototype.scrollIntoView = originalScrollIntoView;
+  // Restore the polyfill: the reduced-motion case replaces it for the rest of the file otherwise.
+  window.matchMedia = originalMatchMedia;
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -272,16 +275,16 @@ describe('TimelinePlanBody through the feed row', () => {
     expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' });
   });
 
-  it('does not offset jumps inside the dialog', () => {
-    // The dialog is portaled outside the timeline row, so there is no row header to measure.
-    // Its header is pinned, not sticky, and the scroll margin is therefore 0.
-    const { dialog } = openPlan(planMessage());
-    const header = screen.getByTestId('timeline-message-header');
-    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue({ height: 72 } as DOMRect);
+  it('scrolls the phase heading into the dialog body and focuses it', () => {
+    openPlan(planMessage());
 
-    fireEvent.click(within(dialog).getByTestId('timeline-plan-phase-link-P2'));
+    fireEvent.click(screen.getByTestId('timeline-plan-phase-link-P2'));
 
-    expect(document.getElementById('plan-plan-1-P2')?.style.scrollMarginTop).toBe('0px');
+    const target = document.getElementById('plan-plan-1-P2') as HTMLElement;
+    expect(screen.getByTestId('timeline-handoff-dialog-body')).toContainElement(target);
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
+    expect(document.activeElement).toBe(target);
+    expect(window.location.hash).toBe('');
   });
 
   it('goes back to the phase index', () => {
