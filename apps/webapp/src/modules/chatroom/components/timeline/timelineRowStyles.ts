@@ -62,9 +62,9 @@ export const TIMELINE_HANDOFF_META_DURATION_SLOT =
   TIMELINE_HANDOFF_DURATION_SLOT + ' max-sm:w-auto max-sm:overflow-visible';
 
 /**
- * Handoff timestamp. The time of day ends at a fixed x because its time row is `justify-end` and
- * the duration slot after it has a fixed width; no text alignment is needed. Truncates only for a
- * prior-year date at narrow widths (full value stays in `title`).
+ * Handoff timestamp: the full date and time at every width. It ends at a fixed x because its time row
+ * is `justify-end` and the fixed-width duration slot follows it. It truncates (`min-w-0 truncate`) only
+ * when its row runs out of room. The full value stays in the inner span's `title`.
  */
 export const TIMELINE_HANDOFF_TIMESTAMP =
   'min-w-0 truncate text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';

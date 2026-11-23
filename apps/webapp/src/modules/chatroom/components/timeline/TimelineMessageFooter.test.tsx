@@ -129,6 +129,8 @@ describe('TimelineMessageFooter', () => {
       expect(timestamp).toHaveTextContent('TS:1700000000000');
       expect(slot).toBe(screen.getByTestId('timeline-handoff-duration-slot'));
       expect(slot).toHaveClass('w-[7ch]', 'shrink-0', 'font-mono', 'text-[10px]');
+      expect(slot).not.toHaveClass('max-sm:w-auto');
+      expect(slot).not.toHaveClass('max-sm:overflow-visible');
       expect(slot).toContainElement(screen.getByTestId('timeline-handoff-duration'));
 
       expect(agentRow).toBe(screen.getByTestId('timeline-footer-agent-row'));
