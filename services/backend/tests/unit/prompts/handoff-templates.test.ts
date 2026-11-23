@@ -403,7 +403,30 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
       ## Code Change Verification
-      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
+      - [ ] I confirm that the lightweight checks (typecheck, and lint) ran on the code I changed
+      - [ ] I confirm that every verification kind the brief marked \`required\` ran, and I recorded its command and result below
+      - [ ] I confirm that every verification kind the brief marked \`not applicable\` is recorded below with the brief's reason
+      Record each kind below, in this order, with its command and result, \`not run: <reason>\`, or \`not applicable: <the brief's reason>\`:
+      - \`typecheck\` — <ran: command → result | not run: reason>
+      - \`lint\` — <ran: command → result | not run: reason>
+      - \`unit tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
+      - \`integration tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
+      - \`e2e\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
+
+      ## Timing report
+      <!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. -->
+      - Brief reading: <duration | not run>
+      - Implementation (code and tests written): <duration | not run>
+      - Typecheck: <duration | not run>
+      - Lint: <duration | not run>
+      - Unit tests: <duration | not run | not applicable>
+      - Integration tests: <duration | not run | not applicable>
+      - E2E: <duration | not run | not applicable>
+      - Commits: <duration | not run>
+      - Push and PR: <duration | not run | not applicable>
+      - Other activities: <name — duration, one line each | not applicable>
+      - Slowest activity and why: <one phrase>
+      - Total: <duration>
 
       ## Blockers / questions
       <!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->

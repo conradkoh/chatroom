@@ -1,6 +1,6 @@
 import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
-import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../utils/code-change-verification';
+import { BUILDER_CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../utils/code-change-verification';
 import { getDelegationBriefDisclosureBlock } from '../utils/delegation-disclosure';
 import { getFileReferenceProofOfCompletionExample } from '../utils/file-reference-guidance';
 import { getHandoffQualityPrinciplesSectionBlock } from '../utils/handoff-quality-principles';
@@ -9,6 +9,31 @@ import {
   getHandoffReportTemplateIntro,
 } from '../utils/handoff-section-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../utils/role-guidance-disclosure';
+
+/** One line per verification kind; the brief's flags decide which lines apply. */
+const VERIFICATION_KIND_LINES = [
+  '- `typecheck` — <ran: command → result | not run: reason>',
+  '- `lint` — <ran: command → result | not run: reason>',
+  "- `unit tests` — <ran: command → result | not run: reason | not applicable: the brief's reason>",
+  "- `integration tests` — <ran: command → result | not run: reason | not applicable: the brief's reason>",
+  "- `e2e` — <ran: command → result | not run: reason | not applicable: the brief's reason>",
+].join('\n');
+
+/** Timing rows: one per activity, so an activity that did not happen is written `not run`, never omitted. */
+const TIMING_REPORT_SECTION = `## Timing report
+<!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. -->
+- Brief reading: <duration | not run>
+- Implementation (code and tests written): <duration | not run>
+- Typecheck: <duration | not run>
+- Lint: <duration | not run>
+- Unit tests: <duration | not run | not applicable>
+- Integration tests: <duration | not run | not applicable>
+- E2E: <duration | not run | not applicable>
+- Commits: <duration | not run>
+- Push and PR: <duration | not run | not applicable>
+- Other activities: <name — duration, one line each | not applicable>
+- Slowest activity and why: <one phrase>
+- Total: <duration>`;
 
 /** Returns the markdown handback template body the builder uses when returning work. */
 export function getBuilderHandbackTemplate(query: HandoffTemplateQuery): string {
@@ -47,7 +72,11 @@ ${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
 ## Code Change Verification
-${CODE_CHANGE_VERIFICATION_CONFIRMATION}
+${BUILDER_CODE_CHANGE_VERIFICATION_CONFIRMATION}
+Record each kind below, in this order, with its command and result, \`not run: <reason>\`, or \`not applicable: <the brief's reason>\`:
+${VERIFICATION_KIND_LINES}
+
+${TIMING_REPORT_SECTION}
 
 ## Blockers / questions
 ${getHandoffNotApplicableSectionComment('List blockers')}
