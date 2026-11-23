@@ -195,6 +195,7 @@ interface SendFlowArgs {
   sending: boolean;
   chatroomId: string;
   startInNewSession: boolean;
+  setStartInNewSession: (value: boolean) => void;
   conversationMode: ConversationMode;
   snippetAttachments: { id: string; fileSource: string; selectedContent: string }[];
   attachedTasks: { id: string }[];
@@ -215,6 +216,7 @@ async function runSendFlow({
   sending,
   chatroomId,
   startInNewSession,
+  setStartInNewSession,
   conversationMode,
   snippetAttachments,
   attachedTasks,
@@ -260,6 +262,9 @@ async function runSendFlow({
         attachedMessageIds: attachedMessages.map((msg) => msg.id),
       }),
     });
+    // One-time use: the new-session toggle applies only to the message just sent.
+    // Reset it only after the send succeeded, so a failed send keeps it on for the retry.
+    if (startInNewSession) setStartInNewSession(false);
     setMessage('');
     setSendError(null);
     localStorage.removeItem(draftKey);
@@ -299,7 +304,7 @@ export function MessageInput({
   workingDir = null,
   onUploadComplete,
 }: MessageInputProps) {
-  const { startInNewSession } = useStartInNewSessionPreference();
+  const { startInNewSession, setStartInNewSession } = useStartInNewSessionPreference();
   const { mode: conversationMode } = useConversationMode();
   const draftKey = `chatroom-draft:${chatroomId}`;
   const [message, setMessage] = useState(() => {
@@ -480,6 +485,7 @@ export function MessageInput({
         sending,
         chatroomId,
         startInNewSession,
+        setStartInNewSession,
         conversationMode,
         snippetAttachments,
         attachedTasks,
@@ -508,6 +514,7 @@ export function MessageInput({
       draftKey,
       onMessageSent,
       startInNewSession,
+      setStartInNewSession,
     ]
   );
 
