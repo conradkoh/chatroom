@@ -45,15 +45,16 @@ describe('trio handoff template snapshots', () => {
     }
   });
 
-  test('specifier → coordinator code report covers one slice and the slices still to do', () => {
+  test('specifier → coordinator code report covers the round and what the plan still has', () => {
     const body = renderSpecifierToCoordinator('code');
 
     const headings = [
       '## Summary',
       '## Template Disclosure Confirmation',
       '## What exists today',
-      '## Slice delivered',
-      '## Slices still to do',
+      '## What this round delivered',
+      '## Verification run',
+      '## What the plan still has',
       '## Proof of Principles',
       '## Proof of Completion',
       '## Code Change Verification',
@@ -78,6 +79,9 @@ describe('trio handoff template snapshots', () => {
       '**Proof of verification (verifier review):**',
       '## Backlog Pending User Review Confirmation',
       'I confirm that I read the current chatroom task context',
+      '## Slice delivered',
+      '## Slices still to do',
+      'Phase: <Pn>',
     ]) {
       expect(body).not.toContain(absent);
     }
@@ -90,9 +94,13 @@ describe('trio handoff template snapshots', () => {
     expect(body).toContain(
       'Plan ID: <planId> (newly published | unchanged | superseded by <planId>)'
     );
-    expect(body).toContain('Phases delivered: <P1, …, Pn>');
-    expect(body).toContain('Next phase: <Pn, or None — plan complete>');
-    expect(body.indexOf('## Slices still to do')).toBeLessThan(body.indexOf('## Plan reference'));
+    expect(body).toContain('Phases delivered so far: <P1, …, Pn>');
+    expect(body).toContain(
+      'What remains: <the phases not yet delivered, or `None — plan complete`>'
+    );
+    expect(body.indexOf('## What the plan still has')).toBeLessThan(
+      body.indexOf('## Plan reference')
+    );
   });
 
   test('plan reference: coordinator → specifier brief cites the plan and the read command', () => {
@@ -103,10 +111,13 @@ describe('trio handoff template snapshots', () => {
 
     expect(body).toContain('## Plan reference');
     expect(body).toContain('Plan ID: <planId>, or `None — first pass: publish the plan`');
-    expect(body).toContain('Phase: <Pn>, or `None — first pass: publish the plan`');
     expect(body).toContain(
-      'chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>" --phase="<Pn>"'
+      'Delivered so far: <phases the plan already landed and anything left open; or `Nothing yet.`>'
     );
+    expect(body).toContain(
+      'chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>"'
+    );
+    expect(body).not.toContain('Phase: <Pn>');
   });
 
   test('specifier → coordinator chat reply is a short body, not the report', () => {
