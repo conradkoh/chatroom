@@ -1,9 +1,10 @@
 /**
  * Render Plan Phase
  *
- * Pure renderer that projects one phase of a parsed plan back to markdown for
- * `plan read --phase` (CLI slice). It reuses the same template tokens as the
- * parser so rendered output round-trips through `parsePlan`.
+ * Projects one phase of a parsed plan to markdown for `plan read --phase`.
+ * The output is a human-facing projection, not a re-parseable plan: the
+ * selected phase is bold-marked in the phase list, `Sources`/`Remarks` are
+ * omitted, and only the selected phase's detail block is rendered.
  *
  * Constraints:
  * - Pure: no I/O, no Convex types.
@@ -12,7 +13,7 @@
  * - Multi-line items keep their continuation lines indented by two spaces.
  */
 
-import type { ParsedPlan } from './parse-plan';
+import type { ParsedPhase, ParsedPlan } from './parse-plan';
 import { PLAN_NONE_TOKEN, PLAN_PHASE_SEPARATOR } from './plan-template-spec';
 
 /** Append a bullet list, falling back to `- None.` for an empty list. */
@@ -28,38 +29,19 @@ function appendBullets(lines: string[], items: string[]): void {
   }
 }
 
-export function renderPlanPhase(plan: ParsedPlan, phaseId: string): string | null {
-  const target = plan.phases.find((phase) => phase.id === phaseId);
-  if (!target) return null;
-
-  const lines: string[] = [];
-
-  lines.push(`# ${plan.title}`);
-  lines.push('');
-
-  lines.push('## Requirements');
-  appendBullets(lines, plan.requirements);
-  lines.push('');
-
-  lines.push('## Constraints');
-  appendBullets(lines, plan.constraints);
-  lines.push('');
-
-  lines.push('## Phases');
-  for (const phase of plan.phases) {
-    if (phase.id === target.id) {
-      lines.push(`- **${phase.id} ${PLAN_PHASE_SEPARATOR} ${phase.title}** (selected phase)`);
-    } else {
-      lines.push(`- ${phase.id} ${PLAN_PHASE_SEPARATOR} ${phase.title}`);
-    }
+function renderPhaseListEntry(phase: ParsedPhase, targetId: string): string {
+  if (phase.id === targetId) {
+    return `- **${phase.id} ${PLAN_PHASE_SEPARATOR} ${phase.title}** (selected phase)`;
   }
-  lines.push('');
+  return `- ${phase.id} ${PLAN_PHASE_SEPARATOR} ${phase.title}`;
+}
 
-  lines.push('## Phase details');
-  lines.push('');
+function appendPhaseList(lines: string[], plan: ParsedPlan, targetId: string): void {
+  for (const phase of plan.phases) lines.push(renderPhaseListEntry(phase, targetId));
+}
 
-  lines.push(`### ${target.id} ${PLAN_PHASE_SEPARATOR} ${target.title}`);
-  lines.push('');
+function appendPhaseBlock(lines: string[], target: ParsedPhase): void {
+  lines.push(`### ${target.id} ${PLAN_PHASE_SEPARATOR} ${target.title}`, '');
 
   if (target.dependsOn.length > 0) {
     lines.push('#### Depends on');
@@ -77,6 +59,23 @@ export function renderPlanPhase(plan: ParsedPlan, phaseId: string): string | nul
 
   lines.push('#### Acceptance criteria');
   appendBullets(lines, target.acceptance);
+}
 
+export function renderPlanPhase(plan: ParsedPlan, phaseId: string): string | null {
+  const target = plan.phases.find((phase) => phase.id === phaseId);
+  if (!target) return null;
+
+  const lines: string[] = [];
+  lines.push(`# ${plan.title}`, '');
+
+  lines.push('## Requirements');
+  appendBullets(lines, plan.requirements);
+  lines.push('', '## Constraints');
+  appendBullets(lines, plan.constraints);
+  lines.push('', '## Phases');
+  appendPhaseList(lines, plan, target.id);
+  lines.push('', '## Phase details', '');
+
+  appendPhaseBlock(lines, target);
   return lines.join('\n');
 }

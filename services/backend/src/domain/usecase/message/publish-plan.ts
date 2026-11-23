@@ -22,11 +22,71 @@ import { ConvexError } from 'convex/values';
 
 import { insertChatroomMessage } from './message-read-model';
 import { assertValidSenderRole, senderHasActiveTask } from './message-sender-guards';
-import type { Id } from '../../../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { ResolvedChatroom } from '../../../../convex/lib/chatroomTeam';
-import { parsePlan } from '../../plan/parse-plan';
+import { parsePlan, type ParsedPlan } from '../../plan/parse-plan';
 import { PLAN_MAX_CHARS } from '../../plan/plan-template-spec';
+
+/** Reject blank content and content above the template limit. */
+function assertContentWithinLimits(content: string): void {
+  if (content.trim().length === 0) {
+    throw new ConvexError({ code: 'EMPTY_CONTENT', message: 'Plan content cannot be empty' });
+  }
+  if (content.length > PLAN_MAX_CHARS) {
+    throw new ConvexError({
+      code: 'PLAN_TOO_LONG',
+      message: `Plan content must be ${PLAN_MAX_CHARS} characters or less (got ${content.length})`,
+    });
+  }
+}
+
+/** Run the shared parser and return the parsed plan, or throw INVALID_PLAN. */
+function requireValidPlan(content: string): ParsedPlan {
+  const parsed = parsePlan(content);
+  if (!parsed.ok) {
+    throw new ConvexError({
+      code: 'INVALID_PLAN',
+      message: 'Plan does not match the plan template',
+      errors: parsed.errors.map((error) => ({ ...error })),
+    });
+  }
+  return parsed.plan;
+}
+
+async function assertSenderHasActiveTask(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  senderRole: string
+): Promise<void> {
+  if (await senderHasActiveTask(ctx, chatroomId, senderRole)) return;
+  throw new ConvexError({
+    code: 'NO_ACTIVE_TASK',
+    message: `Role "${senderRole}" has no active task. plan publish only works while you are working on a task. If you already ran handoff for this task, end your turn.`,
+  });
+}
+
+/** True when the row is a plan message in the target chatroom. */
+function isPlanInChatroom(
+  target: Doc<'chatroom_messages'> | null,
+  chatroomId: Id<'chatroom_rooms'>
+): target is Doc<'chatroom_messages'> {
+  return target !== null && target.chatroomId === chatroomId && target.type === 'plan';
+}
+
+async function assertSupersedesTarget(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  planId: Id<'chatroom_messages'> | undefined
+): Promise<void> {
+  if (planId === undefined) return;
+  const target = await ctx.db.get('chatroom_messages', planId);
+  if (isPlanInChatroom(target, chatroomId)) return;
+  throw new ConvexError({
+    code: 'INVALID_SUPERSEDES',
+    message: `Cannot supersede message ${planId}: it must be a plan in this chatroom`,
+  });
+}
 
 /**
  * Validate and store a plan message.
@@ -51,46 +111,10 @@ export async function publishPlan(
 ): Promise<{ messageId: Id<'chatroom_messages'>; phaseIds: string[] }> {
   const chatroomId = args.chatroom._id;
   assertValidSenderRole(args.chatroom, args.senderRole);
-
-  if (args.content.trim().length === 0) {
-    throw new ConvexError({
-      code: 'EMPTY_CONTENT',
-      message: 'Plan content cannot be empty',
-    });
-  }
-
-  if (args.content.length > PLAN_MAX_CHARS) {
-    throw new ConvexError({
-      code: 'PLAN_TOO_LONG',
-      message: `Plan content must be ${PLAN_MAX_CHARS} characters or less (got ${args.content.length})`,
-    });
-  }
-
-  const parsed = parsePlan(args.content);
-  if (!parsed.ok) {
-    throw new ConvexError({
-      code: 'INVALID_PLAN',
-      message: 'Plan does not match the plan template',
-      errors: parsed.errors.map((error) => ({ ...error })),
-    });
-  }
-
-  if (!(await senderHasActiveTask(ctx, chatroomId, args.senderRole))) {
-    throw new ConvexError({
-      code: 'NO_ACTIVE_TASK',
-      message: `Role "${args.senderRole}" has no active task. plan publish only works while you are working on a task. If you already ran handoff for this task, end your turn.`,
-    });
-  }
-
-  if (args.supersedesPlanId) {
-    const target = await ctx.db.get('chatroom_messages', args.supersedesPlanId);
-    if (!target || target.chatroomId !== chatroomId || target.type !== 'plan') {
-      throw new ConvexError({
-        code: 'INVALID_SUPERSEDES',
-        message: `Cannot supersede message ${args.supersedesPlanId}: it must be a plan in this chatroom`,
-      });
-    }
-  }
+  assertContentWithinLimits(args.content);
+  const parsed = requireValidPlan(args.content);
+  await assertSenderHasActiveTask(ctx, chatroomId, args.senderRole);
+  await assertSupersedesTarget(ctx, chatroomId, args.supersedesPlanId);
 
   const messageId = await insertChatroomMessage(ctx, {
     chatroomId,
@@ -100,5 +124,5 @@ export async function publishPlan(
     ...(args.supersedesPlanId ? { supersedesPlanId: args.supersedesPlanId } : {}),
   });
 
-  return { messageId, phaseIds: parsed.plan.phases.map((phase) => phase.id) };
+  return { messageId, phaseIds: parsed.phases.map((phase) => phase.id) };
 }

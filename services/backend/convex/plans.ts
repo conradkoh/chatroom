@@ -12,7 +12,9 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
+import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { publishPlan } from '../src/domain/usecase/message/publish-plan';
@@ -41,30 +43,57 @@ export const publish = mutation({
   },
 });
 
+async function loadMessageRow(
+  ctx: QueryCtx,
+  planId: string
+): Promise<Doc<'chatroom_messages'> | null> {
+  const id = ctx.db.normalizeId('chatroom_messages', planId);
+  if (id === null) return null;
+  return await ctx.db.get('chatroom_messages', id);
+}
+
+function isPlanInChatroom(
+  row: Doc<'chatroom_messages'> | null,
+  chatroomId: Id<'chatroom_rooms'>
+): row is Doc<'chatroom_messages'> {
+  return row !== null && row.chatroomId === chatroomId && row.type === 'plan';
+}
+
+/** Resolve the plan row or throw `PLAN_NOT_FOUND` (malformed, non-plan, other room). */
+async function requirePlanRow(
+  ctx: QueryCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  planId: string
+): Promise<Doc<'chatroom_messages'>> {
+  const row = await loadMessageRow(ctx, planId);
+  if (isPlanInChatroom(row, chatroomId)) return row;
+  throw new ConvexError({ code: 'PLAN_NOT_FOUND', message: `Plan not found: ${planId}` });
+}
+
+/** Advisory only: at most 50 later plans from the same sender are scanned. */
+async function findSupersedingPlan(
+  ctx: QueryCtx,
+  row: Doc<'chatroom_messages'>
+): Promise<Doc<'chatroom_messages'> | null> {
+  const laterPlans = await ctx.db
+    .query('chatroom_messages')
+    .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+      q
+        .eq('chatroomId', row.chatroomId)
+        .eq('senderRole', row.senderRole)
+        .eq('type', 'plan')
+        .gt('_creationTime', row._creationTime)
+    )
+    .take(SUPERSEDED_BY_SCAN_LIMIT);
+  return laterPlans.find((candidate) => candidate.supersedesPlanId === row._id) ?? null;
+}
+
 export const get = query({
   args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms'), planId: v.string() },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const planId = ctx.db.normalizeId('chatroom_messages', args.planId);
-    const row = planId ? await ctx.db.get('chatroom_messages', planId) : null;
-    if (!row || row.chatroomId !== args.chatroomId || row.type !== 'plan') {
-      throw new ConvexError({ code: 'PLAN_NOT_FOUND', message: `Plan not found: ${args.planId}` });
-    }
-
-    // Advisory only: at most 50 later plans from the same sender are scanned.
-    const laterPlans = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q
-          .eq('chatroomId', row.chatroomId)
-          .eq('senderRole', row.senderRole)
-          .eq('type', 'plan')
-          .gt('_creationTime', row._creationTime)
-      )
-      .take(SUPERSEDED_BY_SCAN_LIMIT);
-    const successor = laterPlans.find((candidate) => candidate.supersedesPlanId === row._id);
-
+    const row = await requirePlanRow(ctx, args.chatroomId, args.planId);
+    const successor = await findSupersedingPlan(ctx, row);
     return {
       planId: row._id,
       senderRole: row.senderRole,
