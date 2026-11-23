@@ -8,7 +8,6 @@ import {
   TIMELINE_AGENT_MODEL,
   TIMELINE_AGENT_PLACEMENT,
   TIMELINE_BAR_META_PLAIN,
-  TIMELINE_BAR_META_STACKED,
   TIMELINE_FOOTER_TIMESTAMP,
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_DURATION_SLOT,
@@ -31,6 +30,14 @@ import {
   TIMELINE_SCROLL_CONTAINER,
   TIMELINE_SCROLL_CONTAINER_STYLE,
 } from './timelineRowStyles';
+
+/** Below-sm stacking classes as literals: the private stacked constant is not importable. */
+const BELOW_SM_STACKING_CLASSES = [
+  'max-sm:basis-full',
+  'max-sm:max-w-full',
+  'max-sm:pl-[1.375rem]',
+  'max-sm:leading-4',
+];
 
 /** Any Tailwind palette colour utility that is not a chatroom token, or a raw colour literal. */
 const HARD_CODED_COLOUR =
@@ -136,6 +143,12 @@ describe('TIMELINE_HANDOFF_META', () => {
     expect(TIMELINE_HANDOFF_META).toContain('max-sm:pl-[1.375rem]');
     expect(TIMELINE_HANDOFF_META).toContain('max-sm:leading-4');
   });
+
+  it('stacks below sm with the below-sm stacking classes', () => {
+    for (const cls of BELOW_SM_STACKING_CLASSES) {
+      expect(TIMELINE_HANDOFF_META.split(' ')).toContain(cls);
+    }
+  });
 });
 
 describe('TIMELINE_HANDOFF_META_TIME_ROW', () => {
@@ -167,17 +180,9 @@ describe('TIMELINE_HANDOFF_META_DURATION_SLOT', () => {
   });
 });
 
-describe('TIMELINE_BAR_META_STACKED', () => {
-  it('is exactly the below-sm stacking classes', () => {
-    expect(TIMELINE_BAR_META_STACKED).toBe(
-      'max-sm:basis-full max-sm:max-w-full max-sm:pl-[1.375rem] max-sm:leading-4'
-    );
-  });
-});
-
 describe('TIMELINE_BAR_META_PLAIN', () => {
-  it('stacks below sm by composing TIMELINE_BAR_META_STACKED', () => {
-    for (const cls of TIMELINE_BAR_META_STACKED.split(' ')) {
+  it('stacks below sm with the below-sm stacking classes', () => {
+    for (const cls of BELOW_SM_STACKING_CLASSES) {
       expect(TIMELINE_BAR_META_PLAIN.split(' ')).toContain(cls);
     }
   });

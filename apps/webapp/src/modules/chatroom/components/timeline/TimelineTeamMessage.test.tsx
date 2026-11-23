@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TIMELINE_BAR_META_PLAIN, TIMELINE_BAR_META_STACKED } from './timelineRowStyles';
+import { TIMELINE_BAR_META_PLAIN } from './timelineRowStyles';
 import { TimelineTeamMessage } from './TimelineTeamMessage';
 import type * as AttachmentsModule from '../../attachments';
 import type * as PreviewModule from '../../timeline/handoffPreview';
@@ -15,6 +15,14 @@ import type * as EnvelopeModule from '../../utils/parseHandoffEnvelope';
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 import type * as ReportModule from '../../utils/parseHandoffReport';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
+
+/** Below-sm stacking classes as literals: the private stacked constant is not importable. */
+const BELOW_SM_STACKING_CLASSES = [
+  'max-sm:basis-full',
+  'max-sm:max-w-full',
+  'max-sm:pl-[1.375rem]',
+  'max-sm:leading-4',
+];
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -982,7 +990,7 @@ Edge case X
 
       const trigger = screen.getByTestId('timeline-plan-trigger');
       const meta = trigger.lastElementChild as HTMLElement;
-      expect(meta).toHaveClass(...TIMELINE_BAR_META_STACKED.split(' '));
+      expect(meta).toHaveClass(...BELOW_SM_STACKING_CLASSES);
       expect(trigger).toHaveClass('max-sm:flex-wrap');
     });
 
@@ -1180,7 +1188,7 @@ Edge case X
       const trigger = screen.getByTestId('timeline-handoff-trigger');
       expect(trigger).toHaveClass('max-sm:flex-wrap', 'max-sm:gap-y-1');
       const meta = screen.getByTestId('timeline-handoff-meta');
-      expect(meta).toHaveClass(...TIMELINE_BAR_META_STACKED.split(' '));
+      expect(meta).toHaveClass(...BELOW_SM_STACKING_CLASSES);
       expect(meta).toHaveClass('max-w-[55%]');
     });
 

@@ -70,13 +70,13 @@ export const TIMELINE_HANDOFF_TIMESTAMP =
   'min-w-0 truncate text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';
 
 /**
- * Below `sm` (640px) the bar meta wraps onto its own full-width row under the summary content, indented
- * to the content's left edge: 16px padding + 14px icon + 8px gap = 1.375rem. The 16px line keeps the
- * stacked row short. From `sm` upward these classes have no effect. Composed by the other bar meta
- * constants below and pinned by the unit tests; no component imports it directly.
+ * Below `sm` (640px) the bar meta wraps onto its own full-width row under the summary content. Its
+ * 1.375rem (22px) left padding is the 14px icon plus the 8px gap. The bar's own 16px padding already
+ * sits before the meta box, so the text lines up with the content's left edge. The 16px line keeps
+ * the stacked row short. From `sm` upward these classes have no effect. Module-private: composed into
+ * TIMELINE_HANDOFF_META and TIMELINE_BAR_META_PLAIN, which are the exports the tests pin.
  */
-// fallow-ignore-next-line unused-export
-export const TIMELINE_BAR_META_STACKED =
+const TIMELINE_BAR_META_STACKED =
   'max-sm:basis-full max-sm:max-w-full max-sm:pl-[1.375rem] max-sm:leading-4';
 
 /**
