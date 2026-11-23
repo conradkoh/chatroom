@@ -182,7 +182,7 @@ describe('completion-gates guidance', () => {
   test('builder guidance includes completion gates', () => {
     const guidance = getBuilderGuidance(builderParams);
     expect(guidance).toContain('Completion gates');
-    expect(guidance).toContain('verified end-to-end');
+    expect(guidance).toContain('verified as the brief');
     expect(guidance).toContain('mark-for-review');
   });
 

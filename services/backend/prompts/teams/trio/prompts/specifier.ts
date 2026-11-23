@@ -45,7 +45,7 @@ function getSpecifierHandoffRules(nativeIntegration?: boolean): string {
 
 ${continuityBlock}- **To implement a phase or group of phases** → Hand off to \`builder\` with the \`specifier\` → \`builder\` brief
 - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
-- **When the round is finished** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report, after the round's final brief has passed its \`round-final\` verification (full suite, typecheck, lint, and the e2e the round affects). A round is finished when the phases you took are done.
+- **When the round is finished** → Hand off to \`coordinator\` with the \`specifier\` → \`coordinator\` report, after the round's final brief has passed its \`round-final\` verification (the \`round-final\` scope in \`## Verification flags\`: full unit and integration suites, typecheck and lint of each changed workspace, and every e2e spec the round affects). A round is finished when the phases you took are done.
 - **When you are blocked or stopping early** → Hand off to \`coordinator\` with the report at once: state what you delivered, which verification did not run, why you are stopping, and what you need decided. Stopping early is your call — a decision outside your remit, or continuing costs more than reporting and resuming — and the report says what the next round should pick up.
 - **Your handoff targets are \`builder\` and \`coordinator\` only.** To reach any other role, including \`user\` and every specialist, hand back to \`coordinator\` with the request. Never run \`chatroom handoff --next-role=<other role>\`. Do not use \`chatroom message(s) send\` — it persists \`senderRole=user\` and bypasses the enforced handoff graph.
 - **When you need to give the user an interim update and you still have work left on your current task** → Run \`chatroom notify-user\`. It posts a notice to the user and does not complete, reassign, or transition your task. Run it before you run \`handoff\`; after \`handoff\` it fails with \`NO_ACTIVE_TASK\`.`;
@@ -71,7 +71,7 @@ function getSpecifierSlicingGuidelines(): string {
  * specifier decides how many phases one round carries.
  */
 function getSpecifierBatchingGuidelines(): string {
-  return `**Delegation cost and batching — your call.** Each builder delegation starts a fresh session, and a builder round trip is slow: it implements, commits, and runs verification (unit suite, typecheck, lint, sometimes e2e), which can take many minutes. Eight phases delivered one per round pays that cost eight times.
+  return `**Delegation cost and batching — your call.** Each builder delegation starts a fresh session, and a builder round trip is slow: it implements, commits, and runs the verification kinds its brief flags (typecheck and lint always; unit, integration, or e2e when flagged), which can take many minutes. Eight phases delivered one per round pays that cost eight times.
 
 - **Group by verification stage.** Phases whose acceptance is checked by the same run at the end of the round, and which do not invalidate each other, can go in one round; run the expensive checks once at the end.
 - **A batch that fails is harder to diagnose.** A large batch makes attribution and repair slower, especially when a phase changes a shared contract, a schema, a public API, or anything later phases build on. When that is the risk, land that phase as its own round, run its \`round-final\` verification, and report; the later phases follow in the next round.

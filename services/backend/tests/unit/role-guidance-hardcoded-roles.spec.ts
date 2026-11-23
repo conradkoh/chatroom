@@ -199,9 +199,10 @@ describe('getBuilderGuidance', () => {
       - Follow established patterns and best practices from the codebase
       - Handle edge cases and error scenarios
       - Commit work with descriptive, atomic commit messages
+      - Verification follows the brief's \`## Verification flags\`: always run typecheck and lint; run each other kind the brief marks \`required\` with its listed command; do not run a broader scope than the brief asks for. Record every run, every \`not run\`, and every \`not applicable\` kind in your hand-back
 
       **Completion gates (before PR or handoff):**
-      - All **(Required)** files done; **verified end-to-end** (user-facing feature works: CLI command runnable, API reachable, or UI action functional)
+      - All **(Required)** files done; verified as the brief's \`## Verification flags\` require: every \`required\` kind ran, and typecheck and lint always ran. When the brief marks e2e \`required\`, the feature works end-to-end (CLI command runnable, API reachable, or UI action functional)
       - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
       "
     `);
