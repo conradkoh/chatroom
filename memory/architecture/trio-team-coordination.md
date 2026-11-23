@@ -55,7 +55,7 @@ session boundaries per handoff edge.
    `specifier` (decision 2) still resets the specifier's context per package and
    per rework round. This is a prompt and template change only;
    `handoffSessionRules` are unchanged.
-6. **The slice plan is a plan message.** On its first pass the specifier
+6. **The ordered plan is a plan message.** On its first pass the specifier
    publishes the ordered plan with `chatroom plan publish`, takes the phases its
    first round delivers, and reports the plan id under `## Plan reference` (newly
    published, unchanged, or superseded by a new id). The coordinator records
@@ -79,10 +79,11 @@ session boundaries per handoff edge.
    large batch that fails is slower to repair, so a risky or contract-changing
    phase (shared contract, schema, public API, anything later phases build on)
    lands and is verified alone first. The specifier reports why it grouped the
-   phases so the coordinator can rebalance. The coordinator holds the plan and
-   reminds the specifier of what is delivered only while work remains. There is
-   no fixed limit on phases per round or slices per session. The coordinator's
-   escalation after 2 failed rework rounds stays.
+   phases so the coordinator can raise a concern before the next round. The
+   coordinator holds the plan and reminds the specifier of what is delivered
+   only while work remains. There is no fixed limit on phases per round or
+   slices per session. The coordinator's escalation after 2 failed rework rounds
+   stays.
 
 ## Known gap
 
