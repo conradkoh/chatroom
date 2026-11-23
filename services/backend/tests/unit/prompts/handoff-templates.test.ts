@@ -501,6 +501,16 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - or: no test seam — <reason>
       - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
 
+      ## Verification flags
+      Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
+      Scope: \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+      - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
+      - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
+      - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
+      - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\`; the chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`
+      - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
+      \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
+
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
       - Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
@@ -601,6 +611,16 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <behavior>: seam <public interface or port>; catches <what>; misses <what>
       - or: no test seam — <reason>
       - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+      ## Verification flags
+      Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
+      Scope: \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+      - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
+      - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
+      - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
+      - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\`; the chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`
+      - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
+      \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>

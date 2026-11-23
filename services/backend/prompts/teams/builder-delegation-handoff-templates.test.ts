@@ -5,33 +5,41 @@ import { getBuilderDelegationBriefTemplate } from './builder-delegation-handoff-
 const DUO_PLANNER = { delegatorRole: 'planner', gatesOwner: 'self' } as const;
 
 describe('getBuilderDelegationBriefTemplate', () => {
-  test('default output is unchanged when batching is unset or false', () => {
-    const defaultBody = getBuilderDelegationBriefTemplate(DUO_PLANNER);
+  test('duo brief carries verification flags fixed to focused scope', () => {
+    const body = getBuilderDelegationBriefTemplate(DUO_PLANNER);
 
-    expect(getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching: false })).toBe(
-      defaultBody
-    );
-    expect(defaultBody).not.toContain('## Verification scope');
-    expect(defaultBody).not.toContain('round-final');
-    expect(defaultBody).toContain('Keep one slice ≈ one focused review surface.');
-    expect(defaultBody).toContain(
+    expect(getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching: false })).toBe(body);
+    expect(body).toContain('## Verification flags');
+    expect(body).toContain('Scope: `focused` — each run covers only the test files');
+    expect(body).not.toContain('round-final');
+    expect(body).not.toContain('## Verification scope');
+    expect(body).toContain('Keep one slice ≈ one focused review surface.');
+    expect(body).toContain(
       '- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.'
     );
   });
 
-  test('batching output carries the verification scope section before What to avoid', () => {
-    const batchBody = getBuilderDelegationBriefTemplate({
+  test('batching brief offers focused and round-final scope with concrete definitions', () => {
+    const body = getBuilderDelegationBriefTemplate({
       delegatorRole: 'specifier',
       gatesOwner: 'coordinator',
       batching: true,
     });
 
-    expect(batchBody).toContain('## Verification scope');
-    expect(batchBody).toContain('`focused`');
-    expect(batchBody).toContain('`round-final`');
-    expect(batchBody).toContain("on the round's final brief");
-    expect(batchBody.indexOf('## Verification scope')).toBeLessThan(
-      batchBody.indexOf('## What to avoid')
-    );
+    expect(body).toContain('## Verification flags');
+    expect(body).toContain('Scope: <`focused` | `round-final`>');
+    expect(body).toContain('- `round-final` — each run covers the full scope');
+    expect(body).toContain("on the round's final brief");
+    expect(body.indexOf('## Verification flags')).toBeLessThan(body.indexOf('## What to avoid'));
+  });
+
+  test.each([false, true])('every kind is flagged in both variants (batching=%s)', (batching) => {
+    const body = getBuilderDelegationBriefTemplate({ ...DUO_PLANNER, batching });
+
+    expect(body).toContain('`typecheck` — **required**. Lightweight');
+    expect(body).toContain('`lint` — **required**. Lightweight');
+    expect(body).toContain('`unit tests` — **required** or **not applicable: <reason>**');
+    expect(body).toContain('`integration tests` — **required** or **not applicable: <reason>**');
+    expect(body).toContain('`e2e` — **required** or **not applicable: <reason>**');
   });
 });

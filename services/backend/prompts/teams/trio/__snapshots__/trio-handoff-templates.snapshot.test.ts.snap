@@ -137,7 +137,7 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, keep only the \`## Verification scope\` line that applies: \`round-final\` for the round's final brief, \`focused\` for the others.
+Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, set the \`## Verification flags\` scope to \`round-final\` for the round's final brief and \`focused\` for the others.
 
 \`\`\`\`markdown
 ## Summary
@@ -196,9 +196,17 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 - or: no test seam — <reason>
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
 
-## Verification scope
-\`focused\` — run the tests that touch this brief's files.
-\`round-final\` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.
+## Verification flags
+Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
+Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
+- \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+- \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace the round changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec the round affects.
+- \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
+- \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
+- \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
+- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\`; the chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`
+- \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
+\`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -498,7 +506,7 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, keep only the \`## Verification scope\` line that applies: \`round-final\` for the round's final brief, \`focused\` for the others.
+Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, set the \`## Verification flags\` scope to \`round-final\` for the round's final brief and \`focused\` for the others.
 
 \`\`\`\`markdown
 ## Summary
@@ -557,9 +565,17 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 - or: no test seam — <reason>
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
 
-## Verification scope
-\`focused\` — run the tests that touch this brief's files.
-\`round-final\` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.
+## Verification flags
+Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
+Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
+- \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+- \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace the round changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec the round affects.
+- \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
+- \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
+- \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
+- \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\`; the chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`
+- \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
+\`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
