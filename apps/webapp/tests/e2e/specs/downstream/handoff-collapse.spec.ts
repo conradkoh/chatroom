@@ -411,6 +411,8 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       const duration = fixture.getByTestId('timeline-handoff-duration');
 
       await expect(timestamp).toHaveText('15th November 2023, 12:14pm');
+      // The timestamp carries `truncate`, so matching text alone does not prove it fits.
+      expect(await timestamp.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
       await expect(duration).toHaveText('1h 5m');
 
       const triggerBox = await readBox(trigger);
@@ -430,6 +432,8 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       expect(durationBox.x).toBeGreaterThanOrEqual(rightEdge(timeBox) - 1);
       // Duration fully visible: inside the trigger and not clipped by its slot.
       expect(rightEdge(durationBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 1);
+      // The timestamp sits inside the bar too.
+      expect(rightEdge(timeBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 1);
       expect(
         await fixture
           .getByTestId('timeline-handoff-duration-slot')
@@ -624,27 +628,31 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     expect(await huge.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
   });
 
-  test('renders 100h 10m unclipped on the stacked row at 320px', async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 800 });
-    const huge = page.getByTestId('collapse-huge-duration').getByTestId('timeline-handoff-trigger');
-    const duration = huge.getByTestId('timeline-handoff-duration');
-    const slot = huge.getByTestId('timeline-handoff-duration-slot');
-    await expect(duration).toHaveText('100h 10m');
-    await expect(duration).toHaveAttribute('title', 'Time since previous message: 100h 10m');
-    await expect(slot).toHaveCSS('overflow-x', 'visible');
+  for (const width of [375, 320]) {
+    test(`renders 100h 10m unclipped on the stacked row at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const huge = page
+        .getByTestId('collapse-huge-duration')
+        .getByTestId('timeline-handoff-trigger');
+      const duration = huge.getByTestId('timeline-handoff-duration');
+      const slot = huge.getByTestId('timeline-handoff-duration-slot');
+      await expect(duration).toHaveText('100h 10m');
+      await expect(duration).toHaveAttribute('title', 'Time since previous message: 100h 10m');
+      await expect(slot).toHaveCSS('overflow-x', 'visible');
 
-    const durationBox = await readBox(duration);
-    const slotBox = await readBox(slot);
-    const triggerBox = await readBox(huge);
-    expect(slotBox.width).toBeGreaterThanOrEqual(durationBox.width - 0.5);
-    expect(rightEdge(durationBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 0.5);
-    expect(await huge.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
-      )
-    ).toBe(true);
-  });
+      const durationBox = await readBox(duration);
+      const slotBox = await readBox(slot);
+      const triggerBox = await readBox(huge);
+      expect(slotBox.width).toBeGreaterThanOrEqual(durationBox.width - 0.5);
+      expect(rightEdge(durationBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 0.5);
+      expect(await huge.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+        )
+      ).toBe(true);
+    });
+  }
 
   test('keeps the model visible beside a 64-character harness in the summary bar on desktop', async ({
     page,
@@ -671,7 +679,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await expect(trigger.getByTestId('timeline-sender-agent')).toBeHidden();
   });
 
-  for (const width of [1280, 320]) {
+  for (const width of [1280, 375, 320]) {
     test(`collapses a plan to one compact bar that opens the plan dialog at ${width}px`, async ({
       page,
     }) => {
@@ -697,21 +705,23 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       await expect(phases).toContainText('Schema');
       await expect(phases).toContainText('Render');
 
-      // Compact geometry. Below 640px the meta stacks under the content, so the cap is looser there.
+      // Compact geometry. Below the 640px breakpoint the meta stacks under the content, so the cap is
+      // looser there.
+      const stacked = width < 640;
       const triggerBox = await readBox(trigger, (box) =>
-        expect(box.height).toBeLessThanOrEqual(width === 320 ? 100 : 80)
+        expect(box.height).toBeLessThanOrEqual(stacked ? 100 : 80)
       );
       const titleBox = await readBox(title);
       const phasesBox = await readBox(phases, (box) => expect(box.height).toBeLessThanOrEqual(33));
       const metaBox = await readBox(trigger.locator(':scope > :last-child'));
-      if (width === 320) {
+      if (stacked) {
         // Stacked: the plain meta sits below the phases overview.
         expect(metaBox.y).toBeGreaterThanOrEqual(phasesBox.y + phasesBox.height - 1);
       } else {
         // Side by side: the plain meta starts right of the title.
         expect(metaBox.x).toBeGreaterThanOrEqual(rightEdge(titleBox) - 1);
       }
-      // The header may wrap at 320px, so the whole row gets a looser cap.
+      // The header may wrap below the breakpoint, so the whole row gets a looser cap.
       await readBox(row, (box) => expect(box.height).toBeLessThanOrEqual(140));
 
       // Nothing overflows the bar horizontally: the bar scrolls by no width and the text stays inside its right edge.
