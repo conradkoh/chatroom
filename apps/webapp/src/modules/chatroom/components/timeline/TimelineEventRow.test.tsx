@@ -44,6 +44,9 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
 
 const TEST_CHATROOM_ID = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2';
 
+// Ampersand built from a char code: keeps this file free of a literal out-of-range entity.
+const AMP = String.fromCharCode(38);
+
 const STATUS_LABELS = ['pending', 'acknowledged', 'in progress', 'done', 'cancelled', 'backlog'];
 
 describe('TimelineEventRow', () => {
@@ -145,5 +148,21 @@ describe('TimelineEventRow', () => {
 
     expect(screen.getByText('Delivered body.')).toBeInTheDocument();
     expect(screen.queryByTestId('timeline-handoff-preview')).not.toBeInTheDocument();
+  });
+
+  it('renders a handoff carrying an out-of-range numeric entity without the row fallback', () => {
+    const event = mapMessageToTimelineEvent(
+      makeMessage({
+        type: 'handoff',
+        senderRole: 'builder',
+        targetRole: 'user',
+        content: `Bad entity handoff ${AMP}#1114112; end`,
+      })
+    );
+    renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
+
+    expect(screen.getByTestId('timeline-team-message')).toBeInTheDocument();
+    expect(screen.getByText(/Bad entity handoff/)).toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-row-error')).not.toBeInTheDocument();
   });
 });
