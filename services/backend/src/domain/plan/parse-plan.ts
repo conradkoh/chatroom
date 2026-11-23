@@ -14,6 +14,7 @@
  * - A code fence must be closed by a bare run of the same character at least as
  *   long as its opener; an unclosed fence is `PLAN_FENCE_UNCLOSED` at its
  *   opening line.
+ * - Input longer than `PLAN_MAX_CHARS` returns only `PLAN_TOO_LONG` on line 1; the body is not scanned.
  * - Unindented text after a blank line is `PLAN_STRAY_CONTENT`; indented text
  *   after a blank line still continues the bullet above.
  * - Headings start in column 1; indented `#` text is bullet continuation.
@@ -934,14 +935,16 @@ function buildParsedPhases(
   });
 }
 
-function recordLengthError(state: ParseState, markdown: string): void {
-  if (markdown.length <= PLAN_MAX_CHARS) return;
-  record(
-    state,
-    'PLAN_TOO_LONG',
-    1,
-    `Plan must be ${PLAN_MAX_CHARS} characters or less (got ${markdown.length})`
-  );
+/** The single error for input over `PLAN_MAX_CHARS`; such input is not scanned. */
+function lengthError(markdown: string): PlanParseError {
+  // Named constant with shorthand `code`, mirroring `record()`, keeps parser
+  // data codes out of the backend ConvexError registry scan.
+  const code: PlanParseErrorCode = 'PLAN_TOO_LONG';
+  return {
+    code,
+    line: 1,
+    message: `Plan must be ${PLAN_MAX_CHARS} characters or less (got ${markdown.length})`,
+  };
 }
 
 function recordEmptyDocumentError(state: ParseState): void {
@@ -966,11 +969,12 @@ function buildParsedPlan(
 }
 
 export function parsePlan(markdown: string): ParsePlanResult {
+  if (markdown.length > PLAN_MAX_CHARS) return { ok: false, errors: [lengthError(markdown)] };
+
   const lines = markdown.split(/\r?\n/);
   const errors: PlanParseError[] = [];
   const state = createState(errors);
 
-  recordLengthError(state, markdown);
   scanDocument(lines, state);
   recordEmptyDocumentError(state);
   finaliseBulletsInState(state);

@@ -530,6 +530,15 @@ describe('parsePlan', () => {
     });
   });
 
+  describe('over-long input', () => {
+    it('returns exactly one PLAN_TOO_LONG error for a 1 MB body and does not scan it', () => {
+      const errors = fail('## x\n'.repeat(200_000));
+      expect(errors.map(({ code, line, message }) => [code, line, message])).toEqual([
+        ['PLAN_TOO_LONG', 1, 'Plan must be 40000 characters or less (got 1000000)'],
+      ]);
+    });
+  });
+
   it('never throws on blank, garbage, or over-long input', () => {
     expect(() => parsePlan('')).not.toThrow();
     expect(() => parsePlan('garbage')).not.toThrow();
