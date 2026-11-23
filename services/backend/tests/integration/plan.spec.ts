@@ -218,6 +218,41 @@ describe('plans', () => {
     expect(await countMessages(chatroomId)).toBe(countBefore);
   });
 
+  test('rejects a plan with an unclosed fence and returns the parser error list', async () => {
+    const { sessionId } = await createTestSession('plan-unclosed-fence');
+    const { chatroomId } = await setupActiveBuilder(sessionId);
+    const countBefore = await countMessages(chatroomId);
+    const content = makePlanMarkdown(2).replace(
+      '## Remarks\nTest plan.',
+      '## Remarks\n\nExample:\n  ```\n  never closed'
+    );
+    const fenceLine = content.split('\n').indexOf('  ```') + 1;
+
+    const error = await t
+      .mutation(api.plans.publish, {
+        sessionId,
+        chatroomId,
+        senderRole: 'builder',
+        content,
+      })
+      .catch((thrown: { data?: { code?: string; errors?: unknown[] } }) => thrown);
+
+    const parsed = parsePlan(content);
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+
+    expect(error.data?.code).toBe('INVALID_PLAN');
+    expect(error.data?.errors).toEqual(parsed.errors);
+    expect(error.data?.errors).toEqual([
+      {
+        code: 'PLAN_FENCE_UNCLOSED',
+        line: fenceLine,
+        message: `Code fence opened on line ${fenceLine} is never closed`,
+      },
+    ]);
+    expect(await countMessages(chatroomId)).toBe(countBefore);
+  });
+
   test('rejects the user role and unknown roles', async () => {
     const { sessionId } = await createTestSession('plan-invalid-role');
     const { chatroomId } = await setupActiveBuilder(sessionId);

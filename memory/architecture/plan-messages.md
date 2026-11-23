@@ -32,7 +32,8 @@ Publishing is not idempotent: a retried publish after a lost response creates a 
 ## Template and validation
 
 - Required sections: title (H1), Sources, Requirements, Constraints, Phases, and Phase details. Every phase needs Requirements, Constraints, and Acceptance criteria. Depends on and Remarks are optional. `None.` is allowed only for Sources, Constraints, Depends on, and a phase's Constraints.
-- Headings inside fenced code blocks are ignored, so phase bodies may contain code.
+- Headings inside fenced code blocks are ignored, so phase bodies may contain code. A code fence must be closed: an unclosed fence is rejected at the opening line (`PLAN_FENCE_UNCLOSED`).
+- Blank lines do not end a bullet when the following line is indented: indented text keeps continuing the bullet above. An unindented line after a blank line is not attributed to the bullet above; it is rejected at its own line (`PLAN_STRAY_CONTENT`). Unindented text directly under a bullet with no blank line is a Markdown lazy continuation and stays part of the bullet.
 - Limits: 40 000 characters and 20 phases.
 - Every error is reported in one pass with a line number. A plan that fails validation is never stored, so a missing phase detail is a rejection, not a partial plan.
 

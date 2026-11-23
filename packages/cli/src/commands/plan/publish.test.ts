@@ -154,6 +154,18 @@ describe('publishPlan', () => {
     expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
+  test('rejects a plan with an unclosed fence before writing anything', async () => {
+    const deps = createMockDeps();
+    const unclosedFence = VALID_PLAN.replace('- P1 acceptance.', '- P1 acceptance.\n  ```');
+    const fenceLine = unclosedFence.split('\n').indexOf('  ```') + 1;
+
+    await publishPlan(TEST_CHATROOM_ID, { role: 'specifier', content: unclosedFence }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(stderr()).toContain(`line ${fenceLine}: PLAN_FENCE_UNCLOSED`);
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
   test('reports backend INVALID_PLAN errors with line numbers', async () => {
     const deps = createMockDeps();
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(

@@ -11,6 +11,10 @@
  * - Reports *all* errors in a single pass, each with a 1-based line number.
  * - Errors are sorted by line asc, then code asc, so output is deterministic.
  * - Headings and bullets inside fenced code blocks (``` or ~~~) are content.
+ * - A code fence must be closed; an unclosed fence is `PLAN_FENCE_UNCLOSED` at
+ *   its opening line.
+ * - Unindented text after a blank line is `PLAN_STRAY_CONTENT`; indented text
+ *   after a blank line still continues the bullet above.
  * - `None.` is honoured only for `Sources`, `Constraints`, per-phase
  *   `Constraints`, and per-phase `Depends on`; anywhere else it is an error.
  */
@@ -85,6 +89,10 @@ interface ParseState {
   remarksLines: string[];
   phaseListBullets: Bullet[];
   phaseBlocks: PhaseBlock[];
+  /** Previous physical line was blank (scan-loop context). */
+  blankBefore: boolean;
+  /** This line was inside an already-open fence: body or closer (scan-loop context). */
+  insideFence: boolean;
 }
 
 interface ListedPhase {
@@ -99,6 +107,8 @@ const TITLE_PATTERN = /^#\s+(.+)$/;
 interface FenceState {
   inFence: boolean;
   marker: string | null;
+  /** 1-based line of the opening delimiter; meaningful while `inFence` is true. */
+  openedAt: number;
 }
 
 /** Context for one bullet list; drives `None.` policy and messages. */
@@ -164,6 +174,8 @@ function createState(errors: PlanParseError[]): ParseState {
     remarksLines: [],
     phaseListBullets: [],
     phaseBlocks: [],
+    blankBefore: false,
+    insideFence: false,
   };
 }
 
@@ -447,6 +459,34 @@ function recordPhaseListContentError(state: ParseState, line: number): void {
   );
 }
 
+/** True when a bullet is open and the previous physical line was blank. */
+function isBulletOpenAfterBlank(state: ParseState): boolean {
+  return state.currentBullet !== null && state.blankBefore && !state.insideFence;
+}
+
+/** True for a non-empty line that starts in column 1 (no leading whitespace). */
+function isUnindentedLine(raw: string, trimmed: string): boolean {
+  return trimmed.length > 0 && !/^\s/.test(raw);
+}
+
+/**
+ * Unindented text after a blank line cannot continue a bullet; the template's
+ * sections accept only bullets, so it is rejected rather than attributed.
+ */
+function isStrayParagraph(state: ParseState, raw: string, trimmed: string): boolean {
+  return isBulletOpenAfterBlank(state) && isUnindentedLine(raw, trimmed);
+}
+
+function recordStrayParagraph(state: ParseState, line: number): void {
+  record(
+    state,
+    'PLAN_STRAY_CONTENT',
+    line,
+    'Unindented text after a blank line is not part of the bullet above; indent it under the bullet or start a new "- " item'
+  );
+  state.currentBullet = null;
+}
+
 /** Continuation of the current bullet, else an orphan line. */
 function handleContentFallback(
   state: ParseState,
@@ -454,6 +494,7 @@ function handleContentFallback(
   trimmed: string,
   line: number
 ): void {
+  if (isStrayParagraph(state, raw, trimmed)) return recordStrayParagraph(state, line);
   if (appendContinuation(state, raw)) return;
   if (trimmed.length > 0) reportOrphan(state, line);
 }
@@ -476,11 +517,12 @@ function closeFence(fence: FenceState, trimmed: string): void {
  * delimiter. A closing fence only matches the marker that opened it, so a
  * `~~~` block may contain ``` lines.
  */
-function updateFenceState(fence: FenceState, trimmed: string): boolean {
+function updateFenceState(fence: FenceState, trimmed: string, line: number): boolean {
   if (!isFenceDelimiter(trimmed)) return false;
   if (!fence.inFence) {
     fence.inFence = true;
     fence.marker = trimmed.slice(0, 3);
+    fence.openedAt = line;
     return true;
   }
   closeFence(fence, trimmed);
@@ -488,8 +530,8 @@ function updateFenceState(fence: FenceState, trimmed: string): boolean {
 }
 
 /** Fence-aware test: updates the fence state and reports fenced content lines. */
-function isFenceContent(fence: FenceState, trimmed: string): boolean {
-  const isDelimiter = updateFenceState(fence, trimmed);
+function isFenceContent(fence: FenceState, trimmed: string, line: number): boolean {
+  const isDelimiter = updateFenceState(fence, trimmed, line);
   return fence.inFence || isDelimiter;
 }
 
@@ -545,8 +587,9 @@ function handleStructuredLine(state: ParseState, raw: string, trimmed: string, l
 /** One fence-aware document line. */
 function scanLine(state: ParseState, fence: FenceState, raw: string, line: number): void {
   const trimmed = raw.trim();
+  state.insideFence = fence.inFence; // read before this line can open or close a fence
 
-  if (isFenceContent(fence, trimmed)) {
+  if (isFenceContent(fence, trimmed, line)) {
     handleContentLine(state, raw, trimmed, line);
     return;
   }
@@ -557,9 +600,18 @@ function scanLine(state: ParseState, fence: FenceState, raw: string, line: numbe
 
 /** Single fence-aware pass over the document, populating `state`. */
 function scanDocument(lines: string[], state: ParseState): void {
-  const fence: FenceState = { inFence: false, marker: null };
+  const fence: FenceState = { inFence: false, marker: null, openedAt: 0 };
   for (let index = 0; index < lines.length; index++) {
+    state.blankBefore = index > 0 && lines[index - 1].trim().length === 0;
     scanLine(state, fence, lines[index], index + 1);
+  }
+  if (fence.inFence) {
+    record(
+      state,
+      'PLAN_FENCE_UNCLOSED',
+      fence.openedAt,
+      `Code fence opened on line ${fence.openedAt} is never closed`
+    );
   }
 }
 

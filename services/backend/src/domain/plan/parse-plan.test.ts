@@ -2,7 +2,7 @@
  * parsePlan — Unit Tests
  *
  * Covers the golden backward-compatibility fixture, the happy path, every one
- * of the 13 error codes and the two limit rules. Tests are written against the
+ * of the 15 error codes and the two limit rules. Tests are written against the
  * pure exported seam `parsePlan`; they never reach into parser internals.
  */
 
@@ -273,6 +273,66 @@ describe('parsePlan', () => {
     it('rejects P0', () => {
       const errors = fail(makePlan({ phases: [{ id: 'P0', title: 'Phase 0' }] }));
       expect(errors.some((error) => error.code === 'PLAN_PHASE_ID_INVALID')).toBe(true);
+    });
+  });
+
+  describe('unclosed code fences', () => {
+    it('PLAN_FENCE_UNCLOSED: an open fence in the last bullet is rejected at its opening line', () => {
+      const markdown = makePlan({
+        phases: [
+          { id: 'P1', title: 'Phase 1', acceptance: ['Phase acceptance.', 'Example:\n  ```'] },
+        ],
+        remarks: 'Remarks text.',
+      });
+      const errors = fail(markdown);
+      const fenceLine = markdown.split('\n').indexOf('  ```') + 1;
+      expect(errorLine(errors, 'PLAN_FENCE_UNCLOSED')).toBe(fenceLine);
+    });
+
+    it('PLAN_FENCE_UNCLOSED: a closed fence is not an error', () => {
+      const markdown = makePlan({ requirements: ['Example:\n  ```\n  code\n  ```'] });
+      expect(parsePlan(markdown).ok).toBe(true);
+    });
+  });
+
+  describe('stray paragraphs', () => {
+    it('PLAN_STRAY_CONTENT: unindented text after a blank line is rejected at its own line', () => {
+      const markdown = makePlan().replace(
+        '- Requirement one.',
+        '- Requirement one.\n\nStray paragraph.'
+      );
+      const errors = fail(markdown);
+      const strayLine = markdown.split('\n').indexOf('Stray paragraph.') + 1;
+      expect(errorLine(errors, 'PLAN_STRAY_CONTENT')).toBe(strayLine);
+    });
+
+    it('keeps indented text after a blank line as part of the bullet', () => {
+      const result = parsePlan(
+        makePlan().replace('- Requirement one.', '- Requirement one.\n\n  Indented continuation.')
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.plan.requirements).toEqual(['Requirement one.\n  Indented continuation.']);
+    });
+
+    it('keeps unindented text directly under a bullet (no blank line) as lazy continuation', () => {
+      const result = parsePlan(
+        makePlan().replace('- Requirement one.', '- Requirement one.\nLazy continuation.')
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.plan.requirements).toEqual(['Requirement one.\nLazy continuation.']);
+    });
+
+    it('keeps an unindented blank-separated line inside an open fence as fence content', () => {
+      const result = parsePlan(
+        makePlan({ requirements: ['Example:\n  ```\n\nunindented inside fence\n  ```'] })
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.plan.requirements).toEqual([
+        'Example:\n  ```\n\nunindented inside fence\n  ```',
+      ]);
     });
   });
 
