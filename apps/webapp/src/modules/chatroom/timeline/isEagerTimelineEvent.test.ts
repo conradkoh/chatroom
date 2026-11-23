@@ -51,12 +51,20 @@ describe('isEagerTimelineEvent', () => {
     ).toBe(true);
   });
 
-  it('treats agent plan messages without a target as eager', () => {
+  it('collapses agent plan messages without a target', () => {
     expect(
       isEagerTimelineEvent(
         event('team_message', { senderRole: 'specifier', targetRole: undefined, type: 'plan' })
       )
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('collapses plan messages even when targeted at the user', () => {
+    expect(
+      isEagerTimelineEvent(
+        event('team_message', { senderRole: 'specifier', targetRole: 'user', type: 'plan' })
+      )
+    ).toBe(false);
   });
 
   it('collapses agent-to-agent handoffs', () => {

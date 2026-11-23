@@ -416,19 +416,16 @@ Edge case X
   });
 
   describe('plan messages', () => {
-    it('renders expanded with a plan badge and no handoff trigger or dialog', () => {
-      render(
-        <TimelineTeamMessage message={PLAN_MESSAGE} chatroomId="room-1" collapsible={false} />
-      );
+    it('collapses a plan behind a plan trigger with no body mounted', () => {
+      render(<TimelineTeamMessage message={PLAN_MESSAGE} chatroomId="room-1" collapsible />);
 
-      expect(screen.getByTestId('timeline-team-message')).toHaveAttribute(
-        'data-message-type',
-        'plan'
-      );
-      expect(screen.getByText('plan')).toBeInTheDocument();
+      const root = screen.getByTestId('timeline-team-message');
+      expect(root).toHaveAttribute('data-message-type', 'plan');
+      expect(within(root).getByText('plan')).toBeInTheDocument();
+      expect(screen.getByTestId('timeline-plan-trigger')).toBeInTheDocument();
       expect(screen.queryByTestId('timeline-handoff-trigger')).not.toBeInTheDocument();
       expect(screen.queryByRole('dialog')).toBeNull();
-      expect(screen.getByTestId('timeline-plan-body')).toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-plan-body')).not.toBeInTheDocument();
 
       const route = screen.getByTestId('timeline-message-header-route');
       expect(within(route).getByText('specifier')).toBeInTheDocument();
