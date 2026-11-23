@@ -7,6 +7,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessageFooter';
+import { TIMELINE_FOOTER_TIMESTAMP } from './timelineRowStyles';
 import { AttachmentsProvider } from '../../attachments';
 import type { Message } from '../../types/message';
 
@@ -170,7 +171,7 @@ describe('TimelineMessageFooter', () => {
 
   describe('non-handoff layout', () => {
     it('keeps the flex-wrap footer with no duration slot and no agent row', () => {
-      renderFooter(makeMessage({ type: 'notice' }), { handoffDurationMs: 62_000 });
+      renderFooter(makeMessage({ type: 'notice' }));
 
       const footer = screen.getByTestId('timeline-message-footer');
       expect(footer).toHaveClass('flex', 'flex-wrap', 'justify-between');
@@ -178,15 +179,17 @@ describe('TimelineMessageFooter', () => {
       expect(footer).not.toHaveAttribute('data-footer-layout');
       expect(screen.queryByTestId('timeline-handoff-duration-slot')).not.toBeInTheDocument();
       expect(screen.queryByTestId('timeline-footer-agent-row')).not.toBeInTheDocument();
-      expect(screen.getByTestId('timeline-handoff-duration')).toBeInTheDocument();
     });
 
-    it('keeps the timestamp before the duration for a non-handoff row', () => {
-      renderFooter(makeMessage({ type: 'plan' }), { handoffDurationMs: 62_000 });
+    it('renders a plan footer as the flex-wrap footer with the plain timestamp and no slot', () => {
+      renderFooter(makeMessage({ type: 'plan' }));
 
-      const duration = screen.getByTestId('timeline-handoff-duration');
-      expect(screen.getByText('TS:1700000000000').compareDocumentPosition(duration)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
+      const footer = screen.getByTestId('timeline-message-footer');
+      expect(footer).toHaveClass('flex', 'flex-wrap');
+      expect(screen.queryByTestId('timeline-handoff-duration-slot')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-handoff-timestamp')).not.toBeInTheDocument();
+      expect(screen.getByText('TS:1700000000000').parentElement).toHaveClass(
+        ...TIMELINE_FOOTER_TIMESTAMP.split(' ')
       );
     });
   });

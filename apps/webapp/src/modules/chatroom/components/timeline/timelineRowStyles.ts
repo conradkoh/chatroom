@@ -57,6 +57,13 @@ export const TIMELINE_HANDOFF_DURATION_SLOT =
 export const TIMELINE_HANDOFF_TIMESTAMP =
   'min-w-0 truncate text-right text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';
 
+/**
+ * Collapsed bar meta for non-handoff rows: the single-line treatment these bars had before the
+ * handoff meta column existed. Non-handoff rows never get a time row or an agent line.
+ */
+export const TIMELINE_BAR_META_PLAIN =
+  'flex shrink-0 items-center gap-1.5 whitespace-nowrap leading-5';
+
 /** Timestamp for non-handoff footers. Byte-identical to the class string the timestamp used before this change. */
 export const TIMELINE_FOOTER_TIMESTAMP =
   'text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';

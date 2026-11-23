@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TIMELINE_BAR_META_PLAIN } from './timelineRowStyles';
 import { TimelineTeamMessage } from './TimelineTeamMessage';
 import type * as AttachmentsModule from '../../attachments';
 import type * as PreviewModule from '../../timeline/handoffPreview';
@@ -523,6 +524,20 @@ Edge case X
       expect(screen.queryByRole('dialog')).toBeNull();
       expect(container.querySelector('.prose')).toBeNull();
       expect(screen.queryByText(/Deferred body sentence/)).not.toBeInTheDocument();
+    });
+
+    it('keeps the pre-PR single-line meta for a collapsible non-handoff row', () => {
+      const plainMessage: Message = { ...COLLAPSIBLE_HANDOFF, type: 'message' };
+      render(collapsible(plainMessage));
+
+      const trigger = screen.getByTestId('timeline-handoff-trigger');
+      const meta = trigger.lastElementChild as HTMLElement;
+      expect(meta).toHaveClass(...TIMELINE_BAR_META_PLAIN.split(' '));
+      expect(meta).not.toHaveAttribute('data-testid');
+      expect(screen.queryByTestId('timeline-handoff-meta')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-footer-time-row')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-sender-agent')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-handoff-duration-slot')).not.toBeInTheDocument();
     });
 
     it('does not parse or mount markdown until the dialog is first opened', () => {

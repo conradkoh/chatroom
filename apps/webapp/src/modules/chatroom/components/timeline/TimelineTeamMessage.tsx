@@ -12,6 +12,7 @@ import {
   TimelineSenderAgentLine,
 } from './TimelineMessageIdentity';
 import {
+  TIMELINE_BAR_META_PLAIN,
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_META,
   TIMELINE_HANDOFF_META_TIME_ROW,
@@ -31,7 +32,7 @@ import type { Message, SenderAgentSnapshot } from '../../types/message';
 
 import { cn } from '@/lib/utils';
 
-/** Collapsed bar content: the preview (or the empty label) plus the two-line meta column. */
+/** Collapsed bar content: the preview (or the empty label) plus the meta. Handoffs get the two-line meta column; other rows keep their pre-PR single-line meta. */
 function HandoffTriggerSummary({
   preview,
   previewId,
@@ -63,18 +64,29 @@ function HandoffTriggerSummary({
       ) : (
         <span className={TIMELINE_HANDOFF_TRIGGER_LABEL}>Show full handoff</span>
       )}
-      <span data-testid="timeline-handoff-meta" className={TIMELINE_HANDOFF_META}>
-        <span className={TIMELINE_HANDOFF_META_TIME_ROW}>
+      {type === 'handoff' ? (
+        <span data-testid="timeline-handoff-meta" className={TIMELINE_HANDOFF_META}>
+          <span className={TIMELINE_HANDOFF_META_TIME_ROW}>
+            <TimelineMessageTimestamp
+              creationTime={creationTime}
+              handoffDurationMs={handoffDurationMs}
+              handoffDurationSlow={handoffDurationSlow}
+              compact
+              alignDuration
+            />
+          </span>
+          <TimelineSenderAgentLine type={type} senderAgent={senderAgent} placement="bar" />
+        </span>
+      ) : (
+        <span className={TIMELINE_BAR_META_PLAIN}>
           <TimelineMessageTimestamp
             creationTime={creationTime}
             handoffDurationMs={handoffDurationMs}
             handoffDurationSlow={handoffDurationSlow}
             compact
-            alignDuration={type === 'handoff'}
           />
         </span>
-        <TimelineSenderAgentLine type={type} senderAgent={senderAgent} placement="bar" />
-      </span>
+      )}
     </>
   );
 }
