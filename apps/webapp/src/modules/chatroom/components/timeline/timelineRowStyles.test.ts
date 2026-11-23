@@ -131,12 +131,13 @@ describe('TIMELINE_HANDOFF_META_TIME_ROW', () => {
 });
 
 describe('TIMELINE_HANDOFF_DURATION_SLOT', () => {
-  it('is a fixed 7ch slot that carries its own mono 10px font so ch resolves correctly', () => {
+  it('is a fixed 7ch slot that clips longer values and carries its own mono 10px font so ch resolves correctly', () => {
     expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('w-[7ch]');
     expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('shrink-0');
     expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('font-mono');
     expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('text-[10px]');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('whitespace-nowrap');
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('truncate');
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).not.toContain('whitespace-nowrap');
   });
 });
 

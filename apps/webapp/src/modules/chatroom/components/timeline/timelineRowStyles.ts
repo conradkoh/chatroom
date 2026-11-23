@@ -44,9 +44,14 @@ export const BADGE_BASE =
 
 export const ICON_SIZE = 10;
 
-/** Duration slot: fixed 7ch (longest `59m 59s` / `23h 59m`). font-mono text-[10px] is on this same element so `ch` = 6px. Rendered for handoffs even when empty, so the timestamp column never moves. */
+/**
+ * Duration slot: fixed 7ch, so durations share one left x and the timestamp column never moves.
+ * Values 8 characters or longer clip with an ellipsis (for example `100h 10m`); the full value stays
+ * in the duration's `title`. font-mono text-[10px] is on this same element so `ch` = 6px. Rendered
+ * for handoffs even when empty.
+ */
 export const TIMELINE_HANDOFF_DURATION_SLOT =
-  'w-[7ch] shrink-0 text-left font-mono text-[10px] tabular-nums whitespace-nowrap';
+  'w-[7ch] shrink-0 truncate text-left font-mono text-[10px] tabular-nums';
 
 /** Handoff timestamp: right-aligned so the time of day ends at a fixed x, 8px before the slot. May truncate only for a prior-year date below ~340px (full value stays in `title`). */
 export const TIMELINE_HANDOFF_TIMESTAMP =
