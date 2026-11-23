@@ -9,7 +9,7 @@ import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessa
 import {
   TimelineMessageRoute,
   TimelineMessageTypeBadge,
-  TimelineSenderAgentChip,
+  TimelineSenderAgentLine,
 } from './TimelineMessageIdentity';
 import {
   TIMELINE_HANDOFF_CHIPS,
@@ -73,7 +73,7 @@ function HandoffTriggerSummary({
             alignDuration={type === 'handoff'}
           />
         </span>
-        <TimelineSenderAgentChip type={type} senderAgent={senderAgent} placement="bar" />
+        <TimelineSenderAgentLine type={type} senderAgent={senderAgent} placement="bar" />
       </span>
     </>
   );

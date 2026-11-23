@@ -86,7 +86,7 @@ export function TimelineMessageRoute({
  * and the snapshot normalizes to a usable harness; no placeholder text for legacy rows.
  * Each segment has its own budget from TIMELINE_AGENT_PLACEMENT; the model takes the remainder.
  */
-export function TimelineSenderAgentChip({
+export function TimelineSenderAgentLine({
   type,
   senderAgent,
   placement,

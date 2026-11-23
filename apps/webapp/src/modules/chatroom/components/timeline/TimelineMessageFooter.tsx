@@ -5,7 +5,7 @@ import { Check, Copy, Paperclip } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { MessageDownloadMenu } from './MessageDownloadMenu';
-import { TimelineSenderAgentChip } from './TimelineMessageIdentity';
+import { TimelineSenderAgentLine } from './TimelineMessageIdentity';
 import {
   TIMELINE_FOOTER_TIMESTAMP,
   TIMELINE_HANDOFF_DURATION_SLOT,
@@ -231,7 +231,7 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
           />
         </div>
         <div data-testid="timeline-footer-agent-row" className={TIMELINE_HANDOFF_FOOTER_AGENT_ROW}>
-          <TimelineSenderAgentChip
+          <TimelineSenderAgentLine
             type={message.type}
             senderAgent={message.senderAgent}
             placement="footer"

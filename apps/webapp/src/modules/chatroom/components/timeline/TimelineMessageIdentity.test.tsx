@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   TimelineMessageRoute,
   TimelineMessageTypeBadge,
-  TimelineSenderAgentChip,
+  TimelineSenderAgentLine,
 } from './TimelineMessageIdentity';
 
 describe('TimelineMessageTypeBadge', () => {
@@ -102,13 +102,13 @@ describe('TimelineMessageRoute', () => {
   });
 });
 
-describe('TimelineSenderAgentChip', () => {
+describe('TimelineSenderAgentLine', () => {
   const chip = (props: {
     type?: string;
     senderAgent?: { harness: string; model?: string };
     placement?: 'footer' | 'bar';
   }) => (
-    <TimelineSenderAgentChip
+    <TimelineSenderAgentLine
       type={props.type ?? 'handoff'}
       senderAgent={props.senderAgent}
       placement={props.placement ?? 'footer'}
@@ -172,7 +172,7 @@ describe('TimelineSenderAgentChip', () => {
     expect(element.className).not.toContain('sm:max-w-[44ch]');
   });
 
-  it('defines but does not apply the bar placement unless asked', () => {
+  it('applies the bar budgets when placement is bar', () => {
     render(
       chip({ senderAgent: { harness: 'opencode', model: 'gpt-5.1-codex' }, placement: 'bar' })
     );
