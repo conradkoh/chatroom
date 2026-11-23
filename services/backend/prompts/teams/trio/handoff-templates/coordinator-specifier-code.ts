@@ -12,20 +12,19 @@ import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance
 /**
  * Returns the work-package brief the coordinator sends to the specifier. The
  * specifier cannot contact specialists, so the package must carry every
- * decision and message id it needs. Each package carries one slice of work to
- * the specifier; follow-on slices are new packages that cite the plan by ID and
- * phase instead of restating it.
+ * decision and message id it needs. Each package states the outcome and what the
+ * plan has already delivered; a follow-on package cites the plan by ID instead
+ * of restating it.
  */
 export function getCoordinatorSpecifierCodeTemplate(query: HandoffTemplateQuery): string {
-  const readPhaseCommand = planReadCommand({
+  const readPlanCommand = planReadCommand({
     cliEnvPrefix: query.cliEnvPrefix ?? '',
     chatroomId: query.chatroomId,
     role: 'specifier',
     planId: '<planId>',
-    phase: '<Pn>',
   });
 
-  return `Instructions (not part of the message): Delegate ONE work package to the \`specifier\`. The specifier plans the package as file-level builder slices, drives the builder through ONE slice, and hands a slice report back to you that names the slices still to do. The first package for a request carries \`Plan ID: None — first pass: publish the plan\`; the specifier publishes the phased plan and builds its first phase. Every later package names the phase to build under \`## Plan reference\` instead of restating the plan. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Do not write file-level code instructions yourself; state outcomes, constraints, and acceptance criteria. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
+  return `Instructions (not part of the message): Delegate one work package to the \`specifier\`. State the outcome, the user's requirements and constraints, the specialist decisions, the delivery expectations, and what the plan has already delivered. The specifier plans the slices, decides which phases it delegates in this round, drives the builder through them, and reports back. Builder rounds are slow — it may be a while before you hear back. Do not size its rounds or write file-level code instructions. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
 
 ${getDelegationBriefIntro()}
 
@@ -49,8 +48,8 @@ ${getFileReferenceGuidanceComment()}
 
 ## Plan reference
 Plan ID: <planId>, or \`None — first pass: publish the plan\`
-Phase: <Pn>, or \`None — first pass: publish the plan\`
-When \`Phase\` names a phase, read it before you brief the builder: \`${readPhaseCommand}\`
+Delivered so far: <phases the plan already landed and anything left open; or \`Nothing yet.\`>
+Read the plan when useful: \`${readPlanCommand}\`
 
 ## Rework findings (prior round)
 <message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or \`None.\`>
@@ -62,6 +61,6 @@ When \`Phase\` names a phase, read it before you brief the builder: \`${readPhas
 <commit, branch, push, and PR expectations from the user; or \`None stated.\`>
 
 ## History pointers
-<message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior slice report when this package continues a slice plan; or \`None.\`>
+<message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior round report when this package continues a plan; or \`None.\`>
 \`\`\``;
 }

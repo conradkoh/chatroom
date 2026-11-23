@@ -45,35 +45,45 @@ session boundaries per handoff edge.
    `handoffGraph: 'advisory'` and an empty rule list. They continue to inherit
    the sender task's envelope policy, and their configured-membership handoff
    lists are unaffected.
-5. **One slice per specifier session; small packages.** The specifier plans a
-   work package as ordered slices but builds only one per session. After the
-   builder delivers that slice and the specifier reviews it, the specifier hands
-   a slice report to `coordinator` that names the slices still to do, and stops.
-   The coordinator reviews the slice and sends each remaining slice as a new work
-   package, so the `new` policy on `coordinator` → `specifier` (decision 2)
-   resets the specifier's context per slice rather than per package. The
-   coordinator sizes each package to one reviewable outcome (about three slices
-   or fewer, one reviewable surface) and sends the next package only after the
-   previous one is reviewed. This is a prompt and template change only;
+5. **The specifier chooses the round; the coordinator holds the plan.** The
+   specifier plans a work package as ordered phases and decides which phases one
+   round delivers (decision 7). After the round it hands a round report to
+   `coordinator` that states what was delivered, the plan id, and what the plan
+   still has, then stops. The coordinator reviews the round and, while the plan
+   still has work, reminds the specifier what is delivered and what remains; it
+   does not assign the next phase. The `new` policy on `coordinator` →
+   `specifier` (decision 2) still resets the specifier's context per package and
+   per rework round. This is a prompt and template change only;
    `handoffSessionRules` are unchanged.
-   **Amended by decision 6:** the remaining slice plan is no longer restated in
-   each slice report or copied into each package. It lives in one plan message,
-   and the report and the packages cite its plan id and phase.
-6. **The slice plan is a plan message.** On its first pass the specifier
-   publishes the ordered slice plan with `chatroom plan publish`, builds only
-   the first phase, and reports the plan id under `## Plan reference` (newly
+6. **The ordered plan is a plan message.** On its first pass the specifier
+   publishes the ordered plan with `chatroom plan publish`, takes the phases its
+   first round delivers, and reports the plan id under `## Plan reference` (newly
    published, unchanged, or superseded by a new id). The coordinator records
-   that id and sends each following package citing `Plan ID` and `Phase`. The
-   specifier reads the cited phase with `chatroom plan read` before it briefs the
-   builder, and never reconstructs a plan from memory or earlier reports. A
-   revision is a new plan published with `--supersedes`: the coordinator asks
-   for it, the revision's `## Remarks` states which delegated phases are
-   unchanged, replaced, or dropped, and the coordinator cites the new plan id
-   from then on. A broken reference goes back to the coordinator. The plan
-   format and its invariants are in [Plan messages](/architecture/plan-messages.md).
-   Decision 6 adds no edge, session rule, or role: `coordinator` → `specifier`
-   stays `new`, and the specifier still hands back only to `builder` and
-   `coordinator`.
+   that id and cites it in each following package, with a `Delivered so far`
+   reminder. The specifier reads the plan, or the phase it takes, with
+   `chatroom plan read` before it briefs the builder, and never reconstructs a
+   plan from memory or earlier reports. A revision is a new plan published with
+   `--supersedes`: the coordinator asks for it, the revision's `## Remarks`
+   states which delegated phases are unchanged, replaced, or dropped, and the
+   coordinator cites the new plan id from then on. A broken reference goes back
+   to the coordinator. The plan format and its invariants are in
+   [Plan messages](/architecture/plan-messages.md). Decision 6 adds no edge,
+   session rule, or role: `coordinator` → `specifier` stays `new`, and the
+   specifier still hands back only to `builder` and `coordinator`.
+7. **Delegation cadence is the specifier's call.** A builder round trip is slow
+   and verification-heavy: it implements, commits, and runs the unit suite,
+   typecheck, lint, and sometimes e2e checks, which can take many minutes, and
+   each delegation starts a fresh builder session. The specifier groups phases by
+   verification stage: phases checked by the same end-of-round run, and not
+   invalidating each other, share a round. Diagnosis cost is the counterweight: a
+   large batch that fails is slower to repair, so a risky or contract-changing
+   phase (shared contract, schema, public API, anything later phases build on)
+   lands and is verified alone first. The specifier reports why it grouped the
+   phases so the coordinator can raise a concern before the next round. The
+   coordinator holds the plan and reminds the specifier of what is delivered
+   only while work remains. There is no fixed limit on phases per round or
+   slices per session. The coordinator's escalation after 2 failed rework rounds
+   stays.
 
 ## Known gap
 

@@ -57,13 +57,20 @@ describe('trio role guidance', () => {
     expect(guidance.indexOf('**Product manager before scoping')).toBeLessThan(
       guidance.indexOf('**Bug reports go to triage first:**')
     );
-    expect(guidance).toContain('Record that plan ID after the first slice report');
-    expect(guidance).toContain(
-      'Every following package carries `Plan ID: <planId>` and `Phase: Pn`'
-    );
+    expect(guidance).toContain('Record the plan id from its first report.');
+    expect(guidance).toContain('remind it what the plan already delivered and what remains');
     expect(guidance).toContain('`Plan ID: None — first pass: publish the plan`');
     expect(guidance).toContain('`--supersedes` on the old plan ID');
     expect(guidance).not.toContain('copy the remaining slice plan');
+    expect(guidance).toContain('**The specifier decides the work.**');
+    expect(guidance).toContain('**You hold the plan.**');
+    expect(guidance).toContain('after 2 failed rework rounds on a round');
+    expect(guidance).not.toMatch(
+      /Size each work package|Send one package at a time|One slice per specifier session/i
+    );
+    expect(guidance).toContain(
+      'You may raise a concern about a grouping; you do not resize the round.'
+    );
   });
 
   test.each(GUIDANCE_VARIANTS)('specifier guidance (%s)', (variant, nativeIntegration) => {
@@ -101,12 +108,32 @@ describe('trio role guidance', () => {
     expect(guidance).toContain('do not try to contact `product-manager`');
     expect(guidance).not.toContain('**Product manager before scoping a new ambiguous feature:**');
     expect(guidance).not.toContain('hand off to `product-manager`');
-    expect(guidance).toContain('Plan every slice, build one.');
+    expect(guidance).toContain('Decide your round.');
     expect(guidance).toContain('chatroom plan view-template');
-    expect(guidance).toContain('Build **P1 only**.');
+    expect(guidance).toContain('does not commit you to delivering it one phase at a time');
+    expect(guidance).toContain('Delegation cost and batching');
+    expect(guidance).not.toMatch(/one slice per|build one|Build \*\*P1 only\*\*/i);
+    const bulletLines = guidance.split('\n');
+    const finishedBullet = bulletLines.find((line) =>
+      line.includes('**When the round is finished**')
+    );
+    const blockedBullet = bulletLines.find((line) =>
+      line.includes('**When you are blocked or stopping early**')
+    );
+    expect(finishedBullet).toContain('round-final');
+    expect(blockedBullet).toBeDefined();
+    expect(blockedBullet).not.toContain('round-final');
+    expect(guidance).toContain(
+      'land that phase as its own round, run its `round-final` verification, and report; the later phases follow in the next round.'
+    );
     expect(guidance).toContain('Put the plan ID from the publish output');
     expect(guidance).toContain('Never reconstruct the plan from memory or from earlier reports.');
-    expect(guidance).toContain('--plan-id="<planId>" --phase="<Pn>"`');
+    expect(guidance).toContain(
+      `chatroom plan read --chatroom-id="${CHATROOM_ID}" --role="specifier" --plan-id="<planId>"`
+    );
+    expect(guidance).toContain('read the whole plan once with `');
+    expect(guidance).toContain('Choose the phases this round takes from it');
+    expect(guidance).not.toContain('Once you have chosen a phase');
     expect(guidance).toContain('**Broken reference → hand back to `coordinator`:**');
     expect(guidance).toContain('`--supersedes="<old planId>"`');
   });

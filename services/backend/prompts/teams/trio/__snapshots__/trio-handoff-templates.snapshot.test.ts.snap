@@ -68,7 +68,7 @@ exports[`trio handoff template snapshots > trio non-specialist pairs (chat) > co
 
 Handoff template \`coordinator\` → \`specifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Instructions (not part of the message): Delegate ONE work package to the \`specifier\`. The specifier plans the package as file-level builder slices, drives the builder through ONE slice, and hands a slice report back to you that names the slices still to do. The first package for a request carries \`Plan ID: None — first pass: publish the plan\`; the specifier publishes the phased plan and builds its first phase. Every later package names the phase to build under \`## Plan reference\` instead of restating the plan. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Do not write file-level code instructions yourself; state outcomes, constraints, and acceptance criteria. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
+Instructions (not part of the message): Delegate one work package to the \`specifier\`. State the outcome, the user's requirements and constraints, the specialist decisions, the delivery expectations, and what the plan has already delivered. The specifier plans the slices, decides which phases it delegates in this round, drives the builder through them, and reports back. Builder rounds are slow — it may be a while before you hear back. Do not size its rounds or write file-level code instructions. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
 
 **Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
@@ -92,8 +92,8 @@ Instructions (not part of the message): Delegate ONE work package to the \`speci
 
 ## Plan reference
 Plan ID: <planId>, or \`None — first pass: publish the plan\`
-Phase: <Pn>, or \`None — first pass: publish the plan\`
-When \`Phase\` names a phase, read it before you brief the builder: \`chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>" --phase="<Pn>"\`
+Delivered so far: <phases the plan already landed and anything left open; or \`Nothing yet.\`>
+Read the plan when useful: \`chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>"\`
 
 ## Rework findings (prior round)
 <message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or \`None.\`>
@@ -105,7 +105,7 @@ When \`Phase\` names a phase, read it before you brief the builder: \`chatroom p
 <commit, branch, push, and PR expectations from the user; or \`None stated.\`>
 
 ## History pointers
-<message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior slice report when this package continues a slice plan; or \`None.\`>
+<message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior round report when this package continues a plan; or \`None.\`>
 \`\`\`"
 `;
 
@@ -137,7 +137,7 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, keep only the \`## Verification scope\` line that applies: \`round-final\` for the round's final brief, \`focused\` for the others.
 
 \`\`\`\`markdown
 ## Summary
@@ -189,12 +189,16 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
 - or: no test seam — <reason>
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+## Verification scope
+\`focused\` — run the tests that touch this brief's files.
+\`round-final\` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -219,12 +223,12 @@ Handoff template \`specifier\` → \`coordinator\` (copy only the body sections 
 
 Instructions (not part of the message): chat response for the coordinator —
 \`\`\`markdown
-<write only the concise status the coordinator needs: what this slice delivered, the slices still to do, blockers, and decisions it must make; do not add handoff XML sections, proofs, or report headings>
+<write only the concise status the coordinator needs: what this round delivered, what the plan still has, blockers, and decisions it must make; do not add handoff XML sections, proofs, or report headings>
 
 Plan reference:
 Plan ID: <planId> (newly published | unchanged | superseded by <planId>)
-Phases delivered: <P1, …, Pn>
-Next phase: <Pn, or None — plan complete>
+Phases delivered so far: <P1, …, Pn>
+What remains: <phases not yet delivered, or None — plan complete>
 \`\`\`"
 `;
 
@@ -296,7 +300,7 @@ exports[`trio handoff template snapshots > trio non-specialist pairs (code) > co
 
 Handoff template \`coordinator\` → \`specifier\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
-Instructions (not part of the message): Delegate ONE work package to the \`specifier\`. The specifier plans the package as file-level builder slices, drives the builder through ONE slice, and hands a slice report back to you that names the slices still to do. The first package for a request carries \`Plan ID: None — first pass: publish the plan\`; the specifier publishes the phased plan and builds its first phase. Every later package names the phase to build under \`## Plan reference\` instead of restating the plan. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Do not write file-level code instructions yourself; state outcomes, constraints, and acceptance criteria. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
+Instructions (not part of the message): Delegate one work package to the \`specifier\`. State the outcome, the user's requirements and constraints, the specialist decisions, the delivery expectations, and what the plan has already delivered. The specifier plans the slices, decides which phases it delegates in this round, drives the builder through them, and reports back. Builder rounds are slow — it may be a while before you hear back. Do not size its rounds or write file-level code instructions. Clear every required gate first (researcher, triage, architect, uiux-engineer, game-asset-designer) and include the decisions from their briefs, citing message ids — the specifier cannot contact those roles. Each package starts the specifier in a fresh session: include everything it needs, or name the message ids it must read with \`chatroom messages download\`.
 
 **Delegation Brief** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
 
@@ -320,8 +324,8 @@ Instructions (not part of the message): Delegate ONE work package to the \`speci
 
 ## Plan reference
 Plan ID: <planId>, or \`None — first pass: publish the plan\`
-Phase: <Pn>, or \`None — first pass: publish the plan\`
-When \`Phase\` names a phase, read it before you brief the builder: \`chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>" --phase="<Pn>"\`
+Delivered so far: <phases the plan already landed and anything left open; or \`Nothing yet.\`>
+Read the plan when useful: \`chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>"\`
 
 ## Rework findings (prior round)
 <message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or \`None.\`>
@@ -333,7 +337,7 @@ When \`Phase\` names a phase, read it before you brief the builder: \`chatroom p
 <commit, branch, push, and PR expectations from the user; or \`None stated.\`>
 
 ## History pointers
-<message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior slice report when this package continues a slice plan; or \`None.\`>
+<message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior round report when this package continues a plan; or \`None.\`>
 \`\`\`"
 `;
 
@@ -494,7 +498,7 @@ Handoff template \`specifier\` → \`builder\` (copy only the body sections belo
 
 **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+Guidance for you (not part of the message): A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, keep only the \`## Verification scope\` line that applies: \`round-final\` for the round's final brief, \`focused\` for the others.
 
 \`\`\`\`markdown
 ## Summary
@@ -546,12 +550,16 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
-- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified.
 
 ## Test seams
 - <behavior>: seam <public interface or port>; catches <what>; misses <what>
 - or: no test seam — <reason>
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+## Verification scope
+\`focused\` — run the tests that touch this brief's files.
+\`round-final\` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -580,7 +588,7 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 
 \`\`\`markdown
 ## Summary
-<what this slice delivered, or why it stopped, in plain terms; say which slice of the package this report covers>
+<what this round delivered, and why the round ended where it did, in plain terms>
 
 ## Template Disclosure Confirmation
 - [ ] I confirm that I have seen this template at the start of this work package, before driving the builder
@@ -588,19 +596,22 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`chatroom get-role-guidance --chatroom-id="test-chatroom-id" --role="specifier"\`. You do not need to re-read it on every task if you have already read it once. -->
 
 ## What exists today
-<!-- REQUIRED. Describe current state after this slice, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-<current state after this slice: what the user can now do, what is in place, how the system behaves>
+<!-- REQUIRED. Describe current state after this round, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+<current state after this round: what the user can now do, what is in place, how the system behaves>
 
-## Slice delivered
-<the one builder slice this report covers: builder handoff message id, commits, files changed, rework rounds>
+## What this round delivered
+<one line per phase: phase id and title, builder handoff message id, commits, files changed, rework rounds>
 
-## Slices still to do
-<the remaining slices of this work package, in build order, each with its goal and the files it touches; or \`None — the package is complete.\`>
+## Verification run
+<what ran at which stage: focused tests per phase, full suite / typecheck / lint / e2e at the round's end, with the command and result; and anything that did not run, and why (blocked or early stop)>
+
+## What the plan still has
+<a reminder for the next round, not an assignment: the phases not yet delivered, in plan order, each with its title; or \`None — the plan is complete.\`>
 
 ## Plan reference
 Plan ID: <planId> (newly published | unchanged | superseded by <planId>)
-Phases delivered: <P1, …, Pn>
-Next phase: <Pn, or None — plan complete>
+Phases delivered so far: <P1, …, Pn>
+What remains: <the phases not yet delivered, or \`None — plan complete\`>
 
 ## Proof of Principles
 <!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
@@ -628,7 +639,7 @@ Next phase: <Pn, or None — plan complete>
 ## Proof of Completion
 <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
-<for each acceptance criterion in the work package: met / not met / left to a remaining slice, with evidence (test names and output, commands run, commits)>
+<for each acceptance criterion in the work package: met / not met / left to a later round, with evidence (test names and output, commands run, commits)>
 
 ## Code Change Verification
 - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)

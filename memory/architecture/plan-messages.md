@@ -10,7 +10,7 @@ status: active
 
 ## Context
 
-The trio specifier used to write its full ordered slice plan into each slice report, and the coordinator copied the remaining slice plan into every following work package. A fresh session has no memory of the earlier report, so the plan drifted, got reconstructed from prose, or was lost between slices. A plan is now a first-class chat artifact: the specifier publishes it once, every role can read it by id, and the coordinator delegates one phase at a time by citing the plan id and the phase id. The trio flow that uses it is described in [Trio team coordination](/architecture/trio-team-coordination.md), decision 6.
+The trio specifier used to write its full ordered slice plan into each slice report, and the coordinator copied the remaining slice plan into every following work package. A fresh session has no memory of the earlier report, so the plan drifted, got reconstructed from prose, or was lost between slices. A plan is now a first-class chat artifact: the specifier publishes it once, every role can read it by id, and the coordinator delegates by citing the plan id, with a `Delivered so far` reminder, while the specifier chooses the phases of each round. The trio flow that uses it is described in [Trio team coordination](/architecture/trio-team-coordination.md), decision 6.
 
 ## Decisions
 

@@ -1,6 +1,6 @@
 /**
  * Key: `trio:specifier->coordinator@code` (bucket `code`).
- * Specifier → coordinator slice report. Body only: the pair resolver prepends the
+ * Specifier → coordinator round report. Body only: the pair resolver prepends the
  * recipient callout and the title line.
  */
 
@@ -17,10 +17,10 @@ import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-dis
 import { getUnresolvedDecisionsSectionBlock } from '../../../utils/unresolved-decisions';
 
 /**
- * Returns the report the specifier hands to the coordinator after the builder
- * delivers ONE slice and the specifier reviews it.
+ * Returns the report the specifier hands to the coordinator after one round: the
+ * builder delivered one or more phases and the specifier reviewed them.
  *
- * This is a slice report, not an entry-point report: it carries the standards
+ * This is a round report, not an entry-point report: it carries the standards
  * the coordinator needs to write the user report, without the entry-point
  * verification workflow (`user`-facing reports own that).
  */
@@ -29,7 +29,7 @@ export function getSpecifierCoordinatorCodeTemplate(query: HandoffTemplateQuery)
 
 \`\`\`markdown
 ## Summary
-<what this slice delivered, or why it stopped, in plain terms; say which slice of the package this report covers>
+<what this round delivered, and why the round ended where it did, in plain terms>
 
 ## Template Disclosure Confirmation
 - [ ] I confirm that I have seen this template at the start of this work package, before driving the builder
@@ -40,25 +40,28 @@ ${getRoleGuidanceDisclosureBlock({
 })}
 
 ## What exists today
-${getHandoffNotApplicableSectionComment('Describe current state after this slice')}
-<current state after this slice: what the user can now do, what is in place, how the system behaves>
+${getHandoffNotApplicableSectionComment('Describe current state after this round')}
+<current state after this round: what the user can now do, what is in place, how the system behaves>
 
-## Slice delivered
-<the one builder slice this report covers: builder handoff message id, commits, files changed, rework rounds>
+## What this round delivered
+<one line per phase: phase id and title, builder handoff message id, commits, files changed, rework rounds>
 
-## Slices still to do
-<the remaining slices of this work package, in build order, each with its goal and the files it touches; or \`None — the package is complete.\`>
+## Verification run
+<what ran at which stage: focused tests per phase, full suite / typecheck / lint / e2e at the round's end, with the command and result; and anything that did not run, and why (blocked or early stop)>
+
+## What the plan still has
+<a reminder for the next round, not an assignment: the phases not yet delivered, in plan order, each with its title; or \`None — the plan is complete.\`>
 
 ## Plan reference
 Plan ID: <planId> (newly published | unchanged | superseded by <planId>)
-Phases delivered: <P1, …, Pn>
-Next phase: <Pn, or None — plan complete>
+Phases delivered so far: <P1, …, Pn>
+What remains: <the phases not yet delivered, or \`None — plan complete\`>
 
 ${getHandoffQualityPrinciplesSectionBlock('work')}
 
 ## Proof of Completion
 ${getFileReferenceProofOfCompletionExample()}
-<for each acceptance criterion in the work package: met / not met / left to a remaining slice, with evidence (test names and output, commands run, commits)>
+<for each acceptance criterion in the work package: met / not met / left to a later round, with evidence (test names and output, commands run, commits)>
 
 ## Code Change Verification
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
