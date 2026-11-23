@@ -34,6 +34,11 @@ import { getConfig } from '../prompts/config/index';
 import type { AttachedFileView } from '../src/domain/entities/file-attachment';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
 import { isActiveParticipant } from '../src/domain/entities/participant';
+import {
+  normalizeSenderAgent,
+  senderAgentInputValidator,
+  type SenderAgentInput,
+} from '../src/domain/entities/sender-agent';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { getLastSentLaunchRequestForRole } from '../src/domain/usecase/agent/get-last-sent-launch-request';
@@ -585,6 +590,9 @@ export async function runHandoffHandler(
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
     attachedFileIds?: Id<'chatroom_fileAttachments'>[] | undefined;
+    // Informational sender snapshot; same caller trust as `senderRole`. Normalized
+    // before storage, and a bad value never fails the handoff.
+    senderAgent?: SenderAgentInput | undefined;
   }
 ): Promise<HandoffResult> {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -847,6 +855,10 @@ export async function runHandoffHandler(
 
   const handoffContent = args.content;
 
+  // Normalize the sender snapshot at write time. Dropped values never fail the handoff.
+  // Informational metadata with the same caller trust as `senderRole`; never authorization.
+  const senderAgent = normalizeSenderAgent(args.senderAgent);
+
   // Step 2: Send the handoff message
   const messageId = await insertChatroomMessage(ctx, {
     chatroomId: args.chatroomId,
@@ -854,6 +866,7 @@ export async function runHandoffHandler(
     content: handoffContent,
     targetRole: args.targetRole,
     type: 'handoff',
+    ...(senderAgent ? { senderAgent } : {}),
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
     ...(taskOriginMessageId && { taskOriginMessageId }),
@@ -989,6 +1002,7 @@ export const handoff = mutation({
     targetRole: v.string(),
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     attachedFileIds: v.optional(v.array(v.id('chatroom_fileAttachments'))),
+    senderAgent: v.optional(senderAgentInputValidator),
   },
   handler: async (ctx, args) => {
     return runHandoffHandler(ctx, args);

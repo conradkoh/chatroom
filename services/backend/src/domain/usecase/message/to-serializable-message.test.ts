@@ -55,4 +55,29 @@ describe('toSerializableMessage', () => {
     const withoutTask = toSerializableMessage({ ...base });
     expect(serializeMessage(withoutTask, { profile: 'context-xml' })).not.toContain('<task');
   });
+
+  it('passes the sender agent snapshot through only when present', () => {
+    expect(
+      toSerializableMessage({
+        ...base,
+        senderAgent: { harness: 'claude-sdk', model: 'm' },
+      }).senderAgent
+    ).toStrictEqual({ harness: 'claude-sdk', model: 'm' });
+    expect(toSerializableMessage(base)).not.toHaveProperty('senderAgent');
+  });
+
+  it('renders a handoff row with a snapshot as a linear header (end-to-end)', () => {
+    const row = {
+      ...base,
+      _creationTime: Date.UTC(2026, 10, 22, 10, 0, 0),
+      senderRole: 'planner',
+      targetRole: 'builder',
+      type: 'handoff',
+      content: 'go',
+      senderAgent: { harness: 'claude-sdk', model: 'anthropic/claude-sonnet-4' },
+    };
+    expect(serializeMessage(toSerializableMessage(row), { profile: 'linear' }).split('\n')[0]).toBe(
+      '2026-11-22T10:00:00.000Z | planner → builder | harness=claude-sdk model=anthropic/claude-sonnet-4'
+    );
+  });
 });

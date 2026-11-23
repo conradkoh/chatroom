@@ -1,3 +1,5 @@
+import type { SenderAgentInput } from '@workspace/backend/src/domain/entities/sender-agent.js';
+
 import { api } from '../../../api.js';
 import type { HandoffGatewayOps, HandoffResult } from '../../../commands/handoff/deps.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
@@ -6,8 +8,18 @@ import type { TaskService } from '../service-interfaces.js';
 
 export type CliGatewayLog = { timestamp: number; message: string };
 
+/**
+ * Live harness/model of the sending agent, captured by the daemon at handoff time.
+ * Same shape the backend accepts: reuses the backend's lenient input type.
+ */
+export type SenderAgentSnapshot = SenderAgentInput;
+
+type HandoffArgs = Parameters<HandoffGatewayOps['handoff']>[0];
+/** What the gateway commits to the backend: the CLI args plus the daemon-owned snapshot. */
+type CommitHandoffArgs = HandoffArgs & { senderAgent?: SenderAgentSnapshot | undefined };
+
 export interface CliGatewayService {
-  handoff(args: Parameters<HandoffGatewayOps['handoff']>[0]): Promise<HandoffResult>;
+  handoff(args: HandoffArgs): Promise<HandoffResult>;
   debugState(): { port: number; logs: readonly CliGatewayLog[] };
 }
 
@@ -16,6 +28,11 @@ export function createCliGatewayService(deps: {
   port: number;
   taskService: Pick<TaskService, 'recordHandoffOutcome' | 'loadAssignedTaskForAction'> &
     Partial<Pick<TaskService, 'listTasksForRole'>>;
+  /**
+   * Resolves the sender's live harness/model for a handoff. May return undefined.
+   * If it throws, the handoff still proceeds without a snapshot.
+   */
+  resolveSenderAgent: (chatroomId: string, role: string) => SenderAgentSnapshot | undefined;
   log?: (message: string) => void;
 }): CliGatewayService {
   const logs: CliGatewayLog[] = [];
@@ -27,8 +44,13 @@ export function createCliGatewayService(deps: {
   return {
     handoff: async (args) => {
       writeLog(`request handoff chatroom=${args.chatroomId} role=${args.senderRole}`);
+      const senderAgent = captureSenderAgent(deps, args, writeLog);
       const taskIdsBeforeCommit = getActiveTaskIdsForRole(deps, args);
-      const result = await commitHandoffMutation(deps, args, writeLog);
+      const result = await commitHandoffMutation(
+        deps,
+        withDaemonSenderAgent(args, senderAgent),
+        writeLog
+      );
       writeLog(`backend result success=${result.success}`);
       if (result.success) {
         await syncTaskServiceAfterHandoff(deps, args, result, taskIdsBeforeCommit, writeLog);
@@ -37,6 +59,47 @@ export function createCliGatewayService(deps: {
     },
     debugState: () => ({ port: deps.port, logs: [...logs] }),
   };
+}
+
+/**
+ * Maps a live agent slot to the snapshot stored on the handoff. Undefined when the
+ * slot has no harness (never started, or reset to idle). Model is omitted when unset.
+ */
+export function snapshotSenderAgent(
+  slot: { harness?: string | undefined; model?: string | undefined } | undefined
+): SenderAgentSnapshot | undefined {
+  if (!slot?.harness) return undefined;
+  return slot.model ? { harness: slot.harness, model: slot.model } : { harness: slot.harness };
+}
+
+/** Resolves the snapshot without ever throwing: a resolver failure only drops the snapshot. */
+function captureSenderAgent(
+  deps: Pick<Parameters<typeof createCliGatewayService>[0], 'resolveSenderAgent'>,
+  args: HandoffArgs,
+  writeLog: (message: string) => void
+): SenderAgentSnapshot | undefined {
+  try {
+    return deps.resolveSenderAgent(args.chatroomId, args.senderRole);
+  } catch (error) {
+    writeLog(
+      `sender-agent unavailable chatroom=${args.chatroomId} role=${args.senderRole} error=${error instanceof Error ? error.message : String(error)}`
+    );
+    return undefined;
+  }
+}
+
+/**
+ * The daemon owns sender identity. Any `senderAgent` the client put in the socket
+ * payload is dropped; only the daemon-resolved snapshot (if any) is committed.
+ */
+function withDaemonSenderAgent(
+  args: HandoffArgs,
+  senderAgent: SenderAgentSnapshot | undefined
+): CommitHandoffArgs {
+  const { senderAgent: _clientSupplied, ...trusted } = args as HandoffArgs & {
+    senderAgent?: unknown;
+  };
+  return senderAgent ? { ...trusted, senderAgent } : trusted;
 }
 
 /**
@@ -58,17 +121,69 @@ function getActiveTaskIdsForRole(
   );
 }
 
-/** Runs the backend handoff mutation, logging and rethrowing on failure. */
+/** Message of a thrown value, for logs. */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * True when Convex rejected the call because the backend's `messages.handoff`
+ * validator has no `senderAgent` field (a backend older than this CLI).
+ */
+function isUnknownSenderAgentArgError(error: unknown): boolean {
+  const message = errorMessage(error);
+  return (
+    message.includes('senderAgent') &&
+    /extra field|not in the validator|ArgumentValidationError/.test(message)
+  );
+}
+
+/** True when a failed handoff should be retried without the daemon-owned snapshot. */
+function shouldRetryWithoutSnapshot(args: CommitHandoffArgs, error: unknown): boolean {
+  return Boolean(args.senderAgent) && isUnknownSenderAgentArgError(error);
+}
+
+/**
+ * Retries the handoff without the daemon-owned snapshot, logging and rethrowing on failure.
+ * Convex validates arguments before the handler runs, so the rejected first call wrote
+ * nothing and this retry cannot duplicate a handoff.
+ */
+async function retryHandoffWithoutSnapshot(
+  deps: { backend: BackendOps },
+  args: CommitHandoffArgs,
+  firstError: unknown,
+  writeLog: (message: string) => void
+): Promise<HandoffResult> {
+  writeLog(
+    `sender-agent fallback chatroom=${args.chatroomId} role=${args.senderRole} error=${errorMessage(firstError)}`
+  );
+  const { senderAgent: _snapshot, ...withoutSnapshot } = args;
+  try {
+    return (await deps.backend.mutation(api.messages.handoff, withoutSnapshot)) as HandoffResult;
+  } catch (retryError) {
+    writeLog(`backend failure=${errorMessage(retryError)}`);
+    throw retryError;
+  }
+}
+
+/**
+ * Runs the backend handoff mutation, logging and rethrowing on failure.
+ * If the backend rejects only the daemon-owned `senderAgent` argument, retries once
+ * without it so the handoff still commits.
+ */
 async function commitHandoffMutation(
   deps: { backend: BackendOps },
-  args: Parameters<HandoffGatewayOps['handoff']>[0],
+  args: CommitHandoffArgs,
   writeLog: (message: string) => void
 ): Promise<HandoffResult> {
   try {
     return (await deps.backend.mutation(api.messages.handoff, args)) as HandoffResult;
   } catch (error) {
-    writeLog(`backend failure=${error instanceof Error ? error.message : String(error)}`);
-    throw error;
+    if (!shouldRetryWithoutSnapshot(args, error)) {
+      writeLog(`backend failure=${errorMessage(error)}`);
+      throw error;
+    }
+    return await retryHandoffWithoutSnapshot(deps, args, error, writeLog);
   }
 }
 

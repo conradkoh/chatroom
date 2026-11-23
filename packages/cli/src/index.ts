@@ -505,6 +505,83 @@ program
     });
   });
 
+// ============================================================================
+// PLAN COMMANDS (agent-published phased plans)
+// ============================================================================
+
+const planCommand = program
+  .command('plan')
+  .description('Publish and read agent-authored phased plans');
+
+planCommand
+  .command('view-template')
+  .description('Print the plan template (static; no chatroom required)')
+  .option('--chatroom-id <id>', 'Ignored (accepted for copy-paste compatibility)')
+  .option('--role <role>', 'Ignored (accepted for copy-paste compatibility)')
+  .action(async () => {
+    const { printPlanViewTemplate } = await import('./commands/plan/view-template.js');
+    printPlanViewTemplate();
+  });
+
+planCommand
+  .command('publish')
+  .description('Publish a phased plan message (reads markdown from stdin)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--supersedes <planId>', 'Plan message id this plan replaces')
+  .action(async (options: { chatroomId: string; role: string; supersedes?: string }) => {
+    await maybeRequireAuth();
+
+    const { decode } = await import('./utils/serialization/decode/index.js');
+    const stdinContent = await readStdin();
+
+    let message: string;
+    try {
+      const { PLAN_STDIN_DELIMITER, validateStdinHeredocBody } =
+        await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+      const decoded = decode(stdinContent, { singleParam: 'message' });
+      message = decoded.message;
+      validateStdinHeredocBody(message, PLAN_STDIN_DELIMITER);
+    } catch (err) {
+      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+      process.exit(1);
+    }
+
+    if (!message || message.trim().length === 0) {
+      console.error('❌ Plan is empty');
+      console.error(
+        `   Usage: chatroom plan publish --chatroom-id=<id> --role=<role> << 'CHATROOM_PLAN_END'`
+      );
+      process.exit(1);
+    }
+
+    const { publishPlan } = await import('./commands/plan/publish.js');
+    await publishPlan(options.chatroomId, {
+      role: options.role,
+      content: message,
+      ...(options.supersedes ? { supersedesPlanId: options.supersedes } : {}),
+    });
+  });
+
+planCommand
+  .command('read')
+  .description('Read a published plan, or one phase of it')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .option('--role <role>', 'Accepted for compatibility; reading a plan does not need it')
+  .requiredOption('--plan-id <id>', 'Plan message id (from plan publish)')
+  .option('--phase <id>', 'Phase id to project (e.g. P2)')
+  .action(
+    async (options: { chatroomId: string; role?: string; planId: string; phase?: string }) => {
+      await maybeRequireAuth();
+      const { readPlan } = await import('./commands/plan/read.js');
+      await readPlan(options.chatroomId, {
+        role: options.role,
+        planId: options.planId,
+        ...(options.phase ? { phase: options.phase } : {}),
+      });
+    }
+  );
+
 const agenticQueryCommand = program
   .command('agentic-query')
   .description('Agentic search/ask query commands');

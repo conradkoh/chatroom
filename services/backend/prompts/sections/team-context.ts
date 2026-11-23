@@ -8,51 +8,18 @@
  * See docs/prompt-engineering/design.md
  */
 
+import { isPresetTeam, TEAM_PROMPT_MODULES } from '../teams/registry';
 import type { SelectorContext, PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 
 /**
  * Generate the team context knowledge section.
  *
- * This is the "Duo Team Context" block that sits before the base role guidance.
- * It provides team-specific rules (e.g., "NEVER hand off directly to user" for duo).
+ * The team-specific block (for example duo's "Team Context" rules that sit before
+ * role guidance) comes from the team's prompt module. Teams without a block, and
+ * unknown teams, render empty content.
  */
 export function getTeamContextSection(ctx: SelectorContext): PromptSection {
-  if (ctx.team === 'duo') {
-    return createSection('team-context', 'knowledge', getDuoContext(ctx));
-  }
-
-  // Unknown team — no team context
-  return createSection('team-context', 'knowledge', '');
-}
-
-function getDuoContext(ctx: SelectorContext): string {
-  const normalizedRole = ctx.role.toLowerCase();
-
-  if (normalizedRole === 'planner') {
-    return getDuoPlannerContext(ctx);
-  }
-  if (normalizedRole === 'builder') {
-    return getDuoBuilderContext();
-  }
-
-  return '';
-}
-
-function getDuoPlannerContext(_ctx: SelectorContext): string {
-  return `**Duo Team Context:**
- - You are the entry point — you communicate directly with the user
- - You coordinate with the builder for implementation tasks
- - You are ultimately accountable for all work quality
- - After reviewing builder work, complete any required review and verifier-gate steps before delivering results to the user
- - **Only you can hand off to \`user\`**`;
-}
-
-function getDuoBuilderContext(): string {
-  return `**Duo Team Context:**
- - You work with a planner who coordinates work and communicates with the user
- - You do NOT communicate directly with the user — hand off to the planner instead
- - Focus on implementation; the planner handles user communication and delivery
- - After completing work, hand off back to planner
- - **NEVER hand off directly to \`user\`** — always go through the planner`;
+  const content = isPresetTeam(ctx.team) ? TEAM_PROMPT_MODULES[ctx.team].getTeamContext(ctx) : '';
+  return createSection('team-context', 'knowledge', content);
 }

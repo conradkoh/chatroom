@@ -44,6 +44,20 @@ export const BADGE_BASE =
 
 export const ICON_SIZE = 10;
 
+/**
+ * Sender harness + model chip. Same 10px inline-flex metrics as BADGE_BASE so the header height
+ * does not change; no uppercase, no bold, no icon, and only the muted approved tokens.
+ */
+export const TIMELINE_SENDER_AGENT_CHIP =
+  'inline-flex min-w-0 items-center gap-1 whitespace-nowrap text-[10px] px-1.5 py-0.5 ' +
+  'text-chatroom-text-muted bg-chatroom-bg-tertiary';
+
+/** Row header placement: capped so a long label cannot push the right-aligned route off the line. */
+export const TIMELINE_SENDER_AGENT_CHIP_ROW = 'max-w-[10rem] sm:max-w-[16rem]';
+
+/** Dialog header placement: the dialog header has the full width. */
+export const TIMELINE_SENDER_AGENT_CHIP_DIALOG = 'max-w-full';
+
 export function getSenderClasses(role: string): string {
   const base = 'font-bold text-[10px] uppercase tracking-wide';
   if (role.toLowerCase() === 'user') {
@@ -83,3 +97,17 @@ export const TIMELINE_HANDOFF_META =
  * icon + 8px gap-2, so the chips line up with the preview text above them.
  */
 export const TIMELINE_HANDOFF_CHIPS = 'pl-[2.375rem]';
+
+/** 10px caps label used for plan-level and per-phase section labels. */
+export const TIMELINE_PLAN_LABEL =
+  'text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted';
+
+/** Focus ring shared by plan links, copy controls and jump targets. */
+export const TIMELINE_PLAN_FOCUS =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent';
+
+/** Copy / jump control chrome (icon-only or label+icon). */
+export const TIMELINE_PLAN_CONTROL =
+  'inline-flex items-center gap-1 text-chatroom-text-muted transition-colors motion-reduce:transition-none ' +
+  'hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary ' +
+  TIMELINE_PLAN_FOCUS;

@@ -1,5 +1,6 @@
 import * as nodePath from 'node:path';
 
+import type { SerializableSenderAgent } from '@workspace/backend/src/domain/entities/serializable-message';
 import { serializeMessage } from '@workspace/backend/src/domain/usecase/message/serialize-message';
 import type { EnrichedMessageInput } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
 import { toSerializableMessage } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
@@ -40,6 +41,7 @@ type DownloadMessage = {
   type: string;
   content: string;
   targetRole?: string | null | undefined;
+  senderAgent?: SerializableSenderAgent | undefined;
   taskId?: string | null | undefined;
   attachedTasks?: EnrichedMessageInput['attachedTasks'] | undefined;
   attachedBacklogItems?: EnrichedMessageInput['attachedBacklogItems'] | undefined;
@@ -208,6 +210,7 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
       createdAt: string;
       senderRole: string;
       targetRole?: string | null | undefined;
+      senderAgent?: SerializableSenderAgent | undefined;
     }[] = [];
     for (const msg of messages) {
       const file = messageFilename(msg);
@@ -230,6 +233,7 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
         createdAt: new Date(msg._creationTime).toISOString(),
         senderRole: msg.senderRole,
         targetRole: msg.targetRole,
+        senderAgent: msg.senderAgent,
       });
     }
 

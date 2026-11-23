@@ -16,6 +16,7 @@ import {
   ledgerEntryValidator,
   ledgerRootValidator,
 } from '../src/domain/entities/repository-ledger';
+import { senderAgentValidator } from '../src/domain/entities/sender-agent';
 import { taskTransitionSourceValidator } from '../src/domain/entities/task-status-signal';
 import {
   commitStatusValidator,
@@ -480,8 +481,12 @@ export default defineSchema({
       v.literal('progress'),
       v.literal('new-context'), // Displayed when a new context is created
       // Agent → user interim message; no task transition (chatroom notify-user)
-      v.literal('notice')
+      v.literal('notice'),
+      // Agent-published phased plan (chatroom plan publish); immutable
+      v.literal('plan')
     ),
+    // Revision link for type: 'plan' messages; points at the plan this one supersedes
+    supersedesPlanId: v.optional(v.id('chatroom_messages')),
     // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
     contextCreatedBy: v.optional(v.string()),
     /** @deprecated Task classification removed from product. Field retained for existing documents. */
@@ -536,6 +541,11 @@ export default defineSchema({
     // Only handoffs addressed to the user may carry file attachments
     attachedFileIds: v.optional(v.array(v.id('chatroom_fileAttachments'))),
 
+    // Handoff messages only: harness + model of the sending agent at handoff time.
+    // Point-in-time snapshot written once on insert and never patched. Absent on
+    // legacy rows, on user/notice/message rows, and when the sender could not be resolved.
+    senderAgent: v.optional(senderAgentValidator),
+
     // Attached chatroom messages for context
     // User can attach existing messages as context for a new message
     attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
@@ -581,7 +591,8 @@ export default defineSchema({
       v.literal('join'),
       v.literal('progress'),
       v.literal('new-context'),
-      v.literal('notice')
+      v.literal('notice'),
+      v.literal('plan')
     ),
     isTimeline: v.boolean(),
     taskId: v.optional(v.id('chatroom_tasks')),

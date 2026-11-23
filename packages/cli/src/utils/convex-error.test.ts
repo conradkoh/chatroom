@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getConvexErrorCode,
+  getConvexErrorData,
   getErrorMessage,
   isFileTreeSyncDisabledError,
 } from './convex-error.js';
@@ -120,6 +121,27 @@ describe('getErrorMessage', () => {
     it('converts numbers to string', () => {
       expect(getErrorMessage(404)).toBe('404');
     });
+  });
+});
+
+describe('getConvexErrorData', () => {
+  it('returns the object data for a ConvexError with code and message', () => {
+    const data = { code: 'INVALID_PLAN', message: 'Plan does not match the plan template' };
+    const error = new ConvexError(data);
+
+    expect(getConvexErrorData(error)).toEqual(data);
+  });
+
+  it('returns undefined for a ConvexError with string data', () => {
+    const error = new ConvexError('just a message');
+
+    expect(getConvexErrorData(error)).toBeUndefined();
+  });
+
+  it('returns undefined for a plain Error', () => {
+    const error = new Error('plain failure');
+
+    expect(getConvexErrorData(error)).toBeUndefined();
   });
 });
 

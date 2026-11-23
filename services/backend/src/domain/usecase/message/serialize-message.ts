@@ -1,6 +1,9 @@
 import { renderDeliveryAttachmentsBlock } from '../../../../prompts/attachments/render-delivery-attachments';
 import { escapeXmlAttribute, escapeXmlText } from '../../../../prompts/attachments/xml';
-import type { SerializableMessage } from '../../entities/serializable-message';
+import type {
+  SerializableMessage,
+  SerializableSenderAgent,
+} from '../../entities/serializable-message';
 
 export type MessageSerializationProfile = 'linear' | 'context-xml' | 'task-origin';
 export interface SerializeMessageOptions {
@@ -14,15 +17,37 @@ function attachmentContext(options: SerializeMessageOptions) {
   return { chatroomId: options.chatroomId ?? '', role: options.role ?? '' };
 }
 
+/**
+ * Linear header suffix for a handoff snapshot: ` | harness=<h>[ model=<m>]`, or '' when absent.
+ * Linear profile only: `context-xml` and `task-origin` deliberately omit the snapshot.
+ */
+function linearSenderAgentSuffix(senderAgent: SerializableSenderAgent | undefined): string {
+  if (!senderAgent) return '';
+  const model = senderAgent.model ? ` model=${senderAgent.model}` : '';
+  return ` | harness=${senderAgent.harness}${model}`;
+}
+
+/** Linear attachments block, including its trailing newline when non-empty. */
+function linearAttachments(message: SerializableMessage, options: SerializeMessageOptions): string {
+  if (!message.attachments) return '';
+  const block = renderDeliveryAttachmentsBlock(
+    message.attachments,
+    attachmentContext(options)
+  ).join('\n');
+  return block ? `${block}\n` : '';
+
+}
+
 function serializeLinearMessage(
   message: SerializableMessage,
   options: SerializeMessageOptions
 ): string {
   const target = message.targetRole ? ` → ${message.targetRole}` : '';
-  const attachments = message.attachments
-    ? renderDeliveryAttachmentsBlock(message.attachments, attachmentContext(options)).join('\n')
-    : '';
-  return `${new Date(message._creationTime).toISOString()} | ${message.senderRole}${target}\n${attachments ? `${attachments}\n` : ''}\n${message.content}`;
+  // Header order: type tag first (intrinsic to the message), then the sender-agent snapshot.
+  const typeTag = message.type === 'plan' ? ' | type=plan' : '';
+  const header = `${new Date(message._creationTime).toISOString()} | ${message.senderRole}${target}${typeTag}${linearSenderAgentSuffix(message.senderAgent)}`;
+  return `${header}\n${linearAttachments(message, options)}\n${message.content}`;
+
 }
 
 function serializeTaskOriginMessage(message: SerializableMessage): string {

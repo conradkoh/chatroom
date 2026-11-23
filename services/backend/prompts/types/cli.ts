@@ -49,6 +49,23 @@ export interface NotifyUserParams extends CommandContext {
 }
 
 // ============================================================================
+// plan command types
+// ============================================================================
+
+export interface PlanPublishParams extends CommandContext {
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+}
+
+export interface PlanReadParams extends CommandContext {
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  planId?: string | undefined;
+  /** Phase id to project (e.g. P2); omitted reads the whole plan. */
+  phase?: string | undefined;
+}
+
+// ============================================================================
 // get-next-task command types
 // ============================================================================
 

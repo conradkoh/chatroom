@@ -1,7 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { TimelineMessageRoute, TimelineMessageTypeBadge } from './TimelineMessageIdentity';
+import {
+  TimelineMessageRoute,
+  TimelineMessageTypeBadge,
+  TimelineSenderAgentChip,
+} from './TimelineMessageIdentity';
 
 describe('TimelineMessageTypeBadge', () => {
   it('renders the handoff badge with purple tokens and a leading icon', () => {
@@ -17,6 +21,15 @@ describe('TimelineMessageTypeBadge', () => {
     const badge = screen.getByText('notice');
     expect(badge).toHaveClass('bg-chatroom-status-info/15', 'text-chatroom-status-info');
     expect(badge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('renders the plan badge with neutral tokens and a decorative icon', () => {
+    render(<TimelineMessageTypeBadge type="plan" />);
+    const badge = screen.getByText('plan');
+    expect(badge.tagName).toBe('SPAN');
+    expect(badge).toHaveClass('bg-chatroom-bg-tertiary', 'text-chatroom-text-primary');
+    expect(badge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(badge.className).not.toMatch(/chatroom-status-(success|info|purple|warning|error)/);
   });
 
   it.each(['message', 'user', ''])('renders nothing for type %j', (type) => {
@@ -86,5 +99,93 @@ describe('TimelineMessageRoute', () => {
     expect(group.querySelector('svg')).not.toBeNull();
     expect(group).not.toContainElement(screen.getByText('user'));
     expect(group).not.toContainElement(screen.getByText('Telegram'));
+  });
+});
+
+describe('TimelineSenderAgentChip', () => {
+  const chip = (props: {
+    type?: string;
+    senderAgent?: { harness: string; model?: string };
+    placement?: 'row' | 'dialog';
+  }) => (
+    <TimelineSenderAgentChip
+      type={props.type ?? 'handoff'}
+      senderAgent={props.senderAgent}
+      placement={props.placement ?? 'row'}
+    />
+  );
+
+  it('renders harness · model with a muted chip and a descriptive title', () => {
+    render(chip({ senderAgent: { harness: 'opencode', model: 'gpt-5.1-codex' } }));
+
+    const element = screen.getByTestId('timeline-sender-agent');
+    expect(within(element).getByText('opencode')).toBeInTheDocument();
+    expect(within(element).getByText('gpt-5.1-codex')).toBeInTheDocument();
+    expect(element).toHaveAttribute('title', 'Harness: opencode · Model: gpt-5.1-codex');
+    expect(element).toHaveClass('text-chatroom-text-muted', 'bg-chatroom-bg-tertiary');
+    expect(element).toHaveClass('inline-flex', 'text-[10px]', 'px-1.5', 'py-0.5', 'min-w-0');
+    expect(element.className).not.toContain('uppercase');
+    expect(element.querySelector('svg')).toBeNull();
+  });
+
+  it('renders only the harness when there is no model', () => {
+    render(chip({ senderAgent: { harness: 'opencode' } }));
+
+    const element = screen.getByTestId('timeline-sender-agent');
+    expect(element).toHaveTextContent('opencode');
+    expect(element.textContent).toBe('opencode');
+    expect(element).toHaveAttribute('title', 'Harness: opencode');
+    expect(element.children).toHaveLength(1);
+  });
+
+  it('keeps the harness shrink-proof, the model truncatable, and the dot decorative', () => {
+    render(chip({ senderAgent: { harness: 'opencode', model: 'gpt-5.1-codex' } }));
+
+    const element = screen.getByTestId('timeline-sender-agent');
+    const [harness, dot, model] = Array.from(element.children) as HTMLElement[];
+    expect(harness).toHaveTextContent('opencode');
+    expect(harness).toHaveClass('shrink-0');
+    expect(dot).toHaveTextContent('·');
+    expect(dot).toHaveAttribute('aria-hidden', 'true');
+    expect(dot).toHaveClass('shrink-0');
+    expect(model).toHaveTextContent('gpt-5.1-codex');
+    expect(model).toHaveClass('truncate', 'min-w-0');
+  });
+
+  it('caps the row placement width so the route keeps its space', () => {
+    render(chip({ senderAgent: { harness: 'opencode' }, placement: 'row' }));
+
+    expect(screen.getByTestId('timeline-sender-agent')).toHaveClass(
+      'max-w-[10rem]',
+      'sm:max-w-[16rem]'
+    );
+  });
+
+  it('lets the dialog placement use the full header width', () => {
+    render(chip({ senderAgent: { harness: 'opencode' }, placement: 'dialog' }));
+
+    const element = screen.getByTestId('timeline-sender-agent');
+    expect(element).toHaveClass('max-w-full');
+    expect(element.className).not.toContain('max-w-[10rem]');
+  });
+
+  it('clips a long model in both the text and the title', () => {
+    render(chip({ senderAgent: { harness: 'opencode', model: 'x'.repeat(70) } }));
+
+    const element = screen.getByTestId('timeline-sender-agent');
+    const expected = `${'x'.repeat(64)}…`;
+    expect(element).toHaveAttribute('title', `Harness: opencode · Model: ${expected}`);
+    expect(within(element).getByText('opencode')).toBeInTheDocument();
+    expect(within(element).getByText(expected)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['handoff', undefined],
+    ['handoff', { harness: '   ' }],
+    ['notice', { harness: 'opencode', model: 'gpt' }],
+    ['message', { harness: 'opencode', model: 'gpt' }],
+  ] as const)('renders nothing for %j with snapshot %j', (type, senderAgent) => {
+    const { container } = render(chip({ type, senderAgent }));
+    expect(container).toBeEmptyDOMElement();
   });
 });

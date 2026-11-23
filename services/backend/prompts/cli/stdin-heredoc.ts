@@ -20,6 +20,9 @@ export const AGENTIC_QUERY_STDIN_DELIMITER = 'CHATROOM_AGENTIC_QUERY_END';
 /** Bash heredoc terminator for `chatroom notify-user` stdin. */
 export const NOTIFY_USER_STDIN_DELIMITER = 'CHATROOM_NOTIFY_END';
 
+/** Bash heredoc terminator for `chatroom plan publish` stdin. */
+export const PLAN_STDIN_DELIMITER = 'CHATROOM_PLAN_END';
+
 /** Bash heredoc terminator for enhancer handoff stdin (legacy name retained). */
 export const ENHANCER_STDIN_DELIMITER = 'CHATROOM_ENHANCER_END';
 
@@ -35,6 +38,7 @@ const RESERVED_STDIN_HEREDOC_DELIMITERS = [
   BACKLOG_STDIN_DELIMITER,
   AGENTIC_QUERY_STDIN_DELIMITER,
   NOTIFY_USER_STDIN_DELIMITER,
+  PLAN_STDIN_DELIMITER,
   ENHANCER_STDIN_DELIMITER,
   CLASSIFY_STDIN_DELIMITER,
 ] as const;

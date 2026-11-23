@@ -64,17 +64,17 @@ function sinceLayer(query: any) {
   });
 }
 
-describe('downloadMessagesEffect with sinceMessageId', () => {
-  // Mirrors backend listSinceMessage semantics: messages from the sinceMessageId
-  // onward (inclusive, ascending), capped at the requested limit.
-  function makeQuery(ALL: any[]) {
-    return vi.fn().mockImplementation(async (_endpoint: unknown, args: any) => {
-      const idx = ALL.findIndex((m) => m._id === args.sinceMessageId);
-      const start = idx === -1 ? 0 : idx;
-      return ALL.slice(start, start + args.limit);
-    });
-  }
+// Mirrors backend listSinceMessage semantics: messages from the sinceMessageId
+// onward (inclusive, ascending), capped at the requested limit.
+function makeQuery(ALL: any[]) {
+  return vi.fn().mockImplementation(async (_endpoint: unknown, args: any) => {
+    const idx = ALL.findIndex((m) => m._id === args.sinceMessageId);
+    const start = idx === -1 ? 0 : idx;
+    return ALL.slice(start, start + args.limit);
+  });
+}
 
+describe('downloadMessagesEffect with sinceMessageId', () => {
   test('fetches forward history via listSinceMessage and writes manifest with sinceMessageId', async () => {
     const ALL = sinceMessages();
     const query = makeQuery(ALL);
@@ -149,5 +149,53 @@ describe('downloadMessagesEffect with sinceMessageId', () => {
     expect(manifest.count).toBe(600);
     expect(manifest.complete).toBe(true);
     expect(manifest.sinceMessageId).toBe(ALL[0]._id);
+  });
+});
+
+describe('downloadMessagesEffect sender snapshot', () => {
+  const legacyRow = {
+    _id: 'msg_legacy_snapshot_123',
+    _creationTime: 1_000,
+    senderRole: 'user',
+    type: 'message',
+    content: 'do it',
+    targetRole: 'planner',
+  };
+  const handoffRow = {
+    _id: 'msg_handoff_snapshot_456',
+    _creationTime: 2_000,
+    senderRole: 'planner',
+    type: 'handoff',
+    content: 'done',
+    targetRole: 'user',
+    senderAgent: { harness: 'claude-sdk', model: 'anthropic/claude-sonnet-4' },
+  };
+
+  test('writes the snapshot into the linear header and manifest, and leaves legacy rows unchanged', async () => {
+    const ALL = [legacyRow, handoffRow];
+    const query = makeQuery(ALL);
+    const fs = createFakeFs();
+    const layer = Layer.mergeAll(sinceLayer(query), Layer.succeed(MessagesFsService, fs));
+
+    await Effect.runPromise(
+      downloadMessagesEffect(TEST_CHATROOM_ID, {
+        role: 'planner',
+        limit: 10,
+        sinceMessageId: legacyRow._id,
+      }).pipe(Effect.provide(layer))
+    );
+
+    const manifestPath = [...fs.files.keys()].find((p) => p.endsWith('manifest.json'));
+    const manifest = JSON.parse(fs.files.get(manifestPath as string) as string);
+    const entryFor = (id: string) => manifest.messages.find((m: { id: string }) => m.id === id);
+    const fileFor = (id: string) =>
+      [...fs.files.entries()].find(([p]) => p.endsWith(entryFor(id).file))?.[1] as string;
+
+    expect(fileFor(handoffRow._id).split('\n')[0]).toBe(
+      '1970-01-01T00:00:02.000Z | planner → user | harness=claude-sdk model=anthropic/claude-sonnet-4'
+    );
+    expect(fileFor(legacyRow._id).split('\n')[0]).toBe('1970-01-01T00:00:01.000Z | user → planner');
+    expect(entryFor(handoffRow._id).senderAgent).toStrictEqual(handoffRow.senderAgent);
+    expect(entryFor(legacyRow._id)).not.toHaveProperty('senderAgent');
   });
 });

@@ -6,7 +6,11 @@ import { memo, useCallback, useId, useMemo, useRef, useState, type RefObject } f
 import { TimelineFileAttachments } from './TimelineFileAttachments';
 import { TimelineHandoffDetailsDialog } from './TimelineHandoffDetailsDialog';
 import { TimelineMessageFooter, TimelineMessageTimestamp } from './TimelineMessageFooter';
-import { TimelineMessageRoute, TimelineMessageTypeBadge } from './TimelineMessageIdentity';
+import {
+  TimelineMessageRoute,
+  TimelineMessageTypeBadge,
+  TimelineSenderAgentChip,
+} from './TimelineMessageIdentity';
 import {
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_META,
@@ -133,9 +137,15 @@ const TimelineTeamMessageHeader = memo(function TimelineTeamMessageHeader({
         TIMELINE_MESSAGE_HEADER_STICKY
       )}
       data-testid="timeline-message-header"
+      data-timeline-row-header
     >
       <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 empty:hidden">
         <TimelineMessageTypeBadge type={message.type} />
+        <TimelineSenderAgentChip
+          type={message.type}
+          senderAgent={message.senderAgent}
+          placement="row"
+        />
       </div>
       <div
         className="ml-auto flex items-center justify-end flex-wrap gap-x-1.5 gap-y-1 min-w-0"
@@ -196,6 +206,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       className={`${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
       data-testid="timeline-team-message"
       data-message-type={message.type}
+      data-timeline-row
     >
       <TimelineTeamMessageHeader message={message} flush={collapsible} />
 

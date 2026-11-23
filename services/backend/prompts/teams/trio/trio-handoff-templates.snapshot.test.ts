@@ -83,6 +83,32 @@ describe('trio handoff template snapshots', () => {
     }
   });
 
+  test('plan reference: specifier → coordinator report names the plan and its phases', () => {
+    const body = renderSpecifierToCoordinator('code');
+
+    expect(body).toContain('## Plan reference');
+    expect(body).toContain(
+      'Plan ID: <planId> (newly published | unchanged | superseded by <planId>)'
+    );
+    expect(body).toContain('Phases delivered: <P1, …, Pn>');
+    expect(body).toContain('Next phase: <Pn, or None — plan complete>');
+    expect(body.indexOf('## Slices still to do')).toBeLessThan(body.indexOf('## Plan reference'));
+  });
+
+  test('plan reference: coordinator → specifier brief cites the plan and the read command', () => {
+    const coordinatorToSpecifier = trioPairs.find(
+      (pair) => pair.fromRole === 'coordinator' && pair.toRole === 'specifier'
+    )!;
+    const body = render(coordinatorToSpecifier, 'code');
+
+    expect(body).toContain('## Plan reference');
+    expect(body).toContain('Plan ID: <planId>, or `None — first pass: publish the plan`');
+    expect(body).toContain('Phase: <Pn>, or `None — first pass: publish the plan`');
+    expect(body).toContain(
+      'chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>" --phase="<Pn>"'
+    );
+  });
+
   test('specifier → coordinator chat reply is a short body, not the report', () => {
     const body = renderSpecifierToCoordinator('chat');
 

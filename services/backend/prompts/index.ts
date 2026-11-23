@@ -5,7 +5,6 @@
  *   Low-level generators: generateGeneralInstructions, generateRolePrompt
  *   Final output composers: composeSystemPrompt, composeInitMessage, composeInitPrompt
  */
-export { getRoleTemplate, type RoleTemplate } from './templates';
 export { composeNativeSystemPrompt } from './native/system-prompt';
 // fallow-ignore-next-line unused-export
 export { composeRoleGuidance } from './role-guidance';

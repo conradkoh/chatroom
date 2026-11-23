@@ -38,4 +38,57 @@ describe('toMessage', () => {
 
     expect(message.attachedFiles).toBeUndefined();
   });
+
+  it('passes the handoff sender agent snapshot through unchanged', () => {
+    const senderAgent = { harness: 'opencode', model: 'gpt-5.1-codex' };
+
+    const message = toMessage({
+      _id: 'msg-1',
+      type: 'handoff',
+      senderRole: 'builder',
+      content: 'Done',
+      _creationTime: 1000,
+      senderAgent,
+    });
+
+    expect(message.senderAgent).toEqual(senderAgent);
+  });
+
+  it('leaves senderAgent undefined for legacy rows', () => {
+    const message = toMessage({
+      _id: 'msg-1',
+      type: 'handoff',
+      senderRole: 'builder',
+      content: 'Done',
+      _creationTime: 1000,
+    });
+
+    expect(message.senderAgent).toBeUndefined();
+  });
+
+  it('carries supersedesPlanId from a raw plan row', () => {
+    const message = toMessage({
+      _id: 'plan-new-1',
+      type: 'plan',
+      senderRole: 'specifier',
+      content: '# Plan',
+      _creationTime: 1000,
+      supersedesPlanId: 'plan-old-1234',
+    });
+
+    expect(message.supersedesPlanId).toBe('plan-old-1234');
+  });
+
+  it('leaves supersedesPlanId undefined when the row has none', () => {
+    const message = toMessage({
+      _id: 'plan-new-2',
+      type: 'plan',
+      senderRole: 'specifier',
+      content: '# Plan',
+      _creationTime: 1000,
+    });
+
+    expect(message.supersedesPlanId).toBeUndefined();
+
+  });
 });

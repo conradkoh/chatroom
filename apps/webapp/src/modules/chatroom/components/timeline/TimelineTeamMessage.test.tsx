@@ -369,6 +369,72 @@ Edge case X
     });
   });
 
+  describe('plan messages', () => {
+    const PLAN_BODY = [
+      '# Ship the plan row',
+      '',
+      '## Sources',
+      '',
+      '- None.',
+      '',
+      '## Requirements',
+      '',
+      '- Render the plan.',
+      '',
+      '## Constraints',
+      '',
+      '- None.',
+      '',
+      '## Phases',
+      '',
+      '- P1 — One',
+      '',
+      '## Phase details',
+      '',
+      '### P1 — One',
+      '',
+      '#### Requirements',
+      '',
+      '- Render it.',
+      '',
+      '#### Constraints',
+      '',
+      '- None.',
+      '',
+      '#### Acceptance criteria',
+      '',
+      '- It renders.',
+    ].join('\n');
+
+    const PLAN_MESSAGE: Message = {
+      ...BASE_MESSAGE,
+      _id: 'plan-1',
+      type: 'plan',
+      senderRole: 'specifier',
+      targetRole: undefined,
+      content: PLAN_BODY,
+    };
+
+    it('renders expanded with a plan badge and no handoff trigger or dialog', () => {
+      render(
+        <TimelineTeamMessage message={PLAN_MESSAGE} chatroomId="room-1" collapsible={false} />
+      );
+
+      expect(screen.getByTestId('timeline-team-message')).toHaveAttribute(
+        'data-message-type',
+        'plan'
+      );
+      expect(screen.getByText('plan')).toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-handoff-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(screen.getByTestId('timeline-plan-body')).toBeInTheDocument();
+
+      const route = screen.getByTestId('timeline-message-header-route');
+      expect(within(route).getByText('specifier')).toBeInTheDocument();
+      expect(route.querySelector('svg')).toBeNull();
+    });
+  });
+
   it('renders no type badge for a plain team message and exposes its type on the root', () => {
     const plainMessage: Message = {
       ...BASE_MESSAGE,
@@ -775,6 +841,134 @@ Edge case X
         'ml-auto',
         'justify-end',
         'flex-wrap'
+      );
+    });
+  });
+
+  describe('sender agent chip', () => {
+    const SNAPSHOT_HANDOFF: Message = {
+      ...BASE_MESSAGE,
+      senderRole: 'builder',
+      targetRole: 'planner',
+      content: 'Preview line.\n\nDeferred body sentence.',
+      senderAgent: { harness: 'opencode', model: 'gpt-5.1-codex' },
+    };
+
+    /** Same shape without the snapshot, as legacy rows arrive from the backend. */
+    const LEGACY_HANDOFF: Message = {
+      ...BASE_MESSAGE,
+      senderRole: 'builder',
+      targetRole: 'planner',
+      content: 'Preview line.\n\nDeferred body sentence.',
+    };
+
+    const chipIn = (container: HTMLElement) =>
+      within(container).queryByTestId('timeline-sender-agent');
+
+    /** The snapshot renders both segments; spacing comes from the flex gap, not text. */
+    const expectSnapshotChip = (chip: HTMLElement | null) => {
+      expect(chip).not.toBeNull();
+      const element = chip as HTMLElement;
+      expect(element).toHaveAttribute('title', 'Harness: opencode · Model: gpt-5.1-codex');
+      expect(within(element).getByText('opencode')).toBeInTheDocument();
+      expect(within(element).getByText('gpt-5.1-codex')).toBeInTheDocument();
+    };
+
+    it('shows the chip after the badge in an eager row header', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" />);
+
+      const header = screen.getByTestId('timeline-message-header');
+      const chip = chipIn(header);
+      expectSnapshotChip(chip);
+      expect(chip).toHaveClass('max-w-[10rem]', 'sm:max-w-[16rem]');
+
+      const badge = within(header).getByText('handoff');
+      expect(
+        badge.compareDocumentPosition(chip as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    });
+
+    it('shows the chip in the collapsed row header without opening the dialog', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
+
+      const header = screen.getByTestId('timeline-message-header');
+      expectSnapshotChip(chipIn(header));
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('renders no chip and keeps the header structure for a legacy handoff', () => {
+      render(<TimelineTeamMessage message={LEGACY_HANDOFF} chatroomId="room-1" />);
+
+      const header = screen.getByTestId('timeline-message-header');
+      expect(chipIn(header)).toBeNull();
+      const badgeSlot = header.firstElementChild as HTMLElement;
+      expect(badgeSlot).toHaveClass('flex', 'flex-wrap', 'min-w-0', 'empty:hidden');
+      expect(within(badgeSlot).getByText('handoff')).toBeInTheDocument();
+      expect(header).not.toHaveTextContent('unknown');
+      expect(header).not.toHaveTextContent('—');
+    });
+
+    it('renders no chip for a non-handoff message even when a snapshot is present', () => {
+      render(
+        <TimelineTeamMessage
+          message={{ ...SNAPSHOT_HANDOFF, type: 'notice' }}
+          chatroomId="room-1"
+        />
+      );
+
+      expect(screen.queryByTestId('timeline-sender-agent')).not.toBeInTheDocument();
+    });
+
+    it('adds the chip to the dialog header and names the sender in the description', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
+
+      fireEvent.click(screen.getByTestId('timeline-handoff-trigger'));
+
+      const dialog = screen.getByRole('dialog', {
+        name: 'Full handoff from builder to planner',
+      });
+      const dialogHeader = within(dialog).getByTestId('timeline-handoff-dialog-header');
+      expectSnapshotChip(chipIn(dialogHeader));
+      expect(chipIn(dialogHeader)).toHaveClass('max-w-full');
+      expect(dialog).toHaveAccessibleDescription(
+        /Sent by builder using opencode, model gpt-5\.1-codex\./
+      );
+    });
+
+    it('leaves the dialog description unchanged for a legacy handoff', () => {
+      render(<TimelineTeamMessage message={LEGACY_HANDOFF} chatroomId="room-1" collapsible />);
+
+      fireEvent.click(screen.getByTestId('timeline-handoff-trigger'));
+
+      const dialog = screen.getByRole('dialog', {
+        name: 'Full handoff from builder to planner',
+      });
+      expect(chipIn(within(dialog).getByTestId('timeline-handoff-dialog-header'))).toBeNull();
+      expect(dialog).toHaveAccessibleDescription(/^Sent /);
+      expect(dialog).not.toHaveAccessibleDescription(/Sent by/);
+    });
+
+    it('distinguishes a snapshot handoff from a legacy handoff in one feed', () => {
+      render(
+        <div>
+          <TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />
+          <TimelineTeamMessage message={LEGACY_HANDOFF} chatroomId="room-1" collapsible />
+        </div>
+      );
+
+      const rows = screen.getAllByTestId('timeline-team-message');
+      expect(rows).toHaveLength(2);
+      expectSnapshotChip(chipIn(rows[0] as HTMLElement));
+      expect(chipIn(rows[1] as HTMLElement)).toBeNull();
+
+      fireEvent.click(within(rows[0] as HTMLElement).getByTestId('timeline-handoff-trigger'));
+
+      const dialog = screen.getByRole('dialog', {
+        name: 'Full handoff from builder to planner',
+      });
+      expectSnapshotChip(chipIn(within(dialog).getByTestId('timeline-handoff-dialog-header')));
+      expect(dialog).toHaveAccessibleDescription(
+        /Sent by builder using opencode, model gpt-5\.1-codex\./
       );
     });
   });

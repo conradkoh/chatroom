@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  findReservedDelimiterLines,
   formatStdinHeredocCommand,
   HANDOFF_MESSAGE_MARKER,
   HANDOFF_STDIN_DELIMITER,
+  PLAN_STDIN_DELIMITER,
   validateStdinHeredocBody,
 } from './stdin-heredoc';
 
@@ -49,5 +51,12 @@ describe('validateStdinHeredocBody', () => {
         HANDOFF_STDIN_DELIMITER
       )
     ).toThrow(HANDOFF_STDIN_DELIMITER);
+  });
+});
+
+describe('PLAN_STDIN_DELIMITER', () => {
+  test('is the namespaced plan terminator and is reserved', () => {
+    expect(PLAN_STDIN_DELIMITER).toBe('CHATROOM_PLAN_END');
+    expect(findReservedDelimiterLines('CHATROOM_PLAN_END')).toEqual(['CHATROOM_PLAN_END']);
   });
 });
