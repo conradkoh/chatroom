@@ -44,7 +44,6 @@ import {
 } from './sections/role-identity';
 import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import { buildSelectorContext } from './selector-context';
-// getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
 import type {
   ActivatedSkillSnapshot,
   ComposedInitPrompt,

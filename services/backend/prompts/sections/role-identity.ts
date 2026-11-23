@@ -8,7 +8,7 @@
  * See docs/prompt-engineering/design.md
  */
 
-import { getRoleTemplate } from '../templates';
+import { resolveRoleIdentity } from '../teams/registry';
 import type { SelectorContext, PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 
@@ -25,8 +25,8 @@ export function getTeamHeaderSection(teamName: string): PromptSection {
  * E.g., "## Your Role: PLANNER"
  */
 export function getRoleTitleSection(ctx: SelectorContext): PromptSection {
-  const template = getRoleTemplate(ctx.role);
-  return createSection('role-title', 'knowledge', `## Your Role: ${template.title.toUpperCase()}`);
+  const { title } = resolveRoleIdentity(ctx);
+  return createSection('role-title', 'knowledge', `## Your Role: ${title.toUpperCase()}`);
 }
 
 /**
@@ -34,6 +34,6 @@ export function getRoleTitleSection(ctx: SelectorContext): PromptSection {
  * E.g., "You are the team coordinator responsible for..."
  */
 export function getRoleDescriptionSection(ctx: SelectorContext): PromptSection {
-  const template = getRoleTemplate(ctx.role);
-  return createSection('role-description', 'knowledge', template.description);
+  const { description } = resolveRoleIdentity(ctx);
+  return createSection('role-description', 'knowledge', description);
 }

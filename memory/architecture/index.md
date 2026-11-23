@@ -13,4 +13,5 @@
 - [Handoff file attachments](handoff-file-attachments.md) — user-addressed handoff files in Convex, upload lifecycle, access rules, quotas, and purge
 - [Handoff sender agent snapshot](handoff-sender-agent.md) — point-in-time harness/model on handoffs, defensive webapp normalization, no placeholder for legacy rows
 - [Trio team coordination](trio-team-coordination.md) — coordinator-centred enforced handoff graph and per-edge session policy for the Trio preset
+- [Per-team prompt isolation](/architecture/team-prompt-isolation.md) — duo, solo, and trio role identity, guidance, and team context live under each team's folder and resolve through one registry
 - [Machine management invariants](machine-management.md) — tombstone-first deletion, MACHINE_SCOPED_TABLES registry rule, lazy roots/ledger, command nudges, per-row action area

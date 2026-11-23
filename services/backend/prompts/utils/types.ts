@@ -19,10 +19,3 @@ export interface InitPromptInput {
   teamRoles: string[];
   teamEntryPoint?: string | undefined;
 }
-
-export interface RoleTemplate {
-  name: string;
-  responsibilities: string[];
-  capabilities: string[];
-  description: string;
-}

@@ -7,9 +7,7 @@
 import { getTeamPresetId } from '@workspace/shared/domain/team-presets';
 
 import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
-import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
-import { getSoloRoleGuidanceFromContext } from './teams/solo/prompts/fromContext';
-import { getTrioRoleGuidanceFromContext } from './teams/trio/prompts/fromContext';
+import { isPresetTeam, TEAM_PROMPT_MODULES } from './teams/registry';
 import type { SelectorContext } from './types/sections';
 import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 import type { TeamKind } from '../src/domain/entities/team-kind';
@@ -95,21 +93,10 @@ export function buildSelectorContext(params: {
   };
 }
 
-// fallow-ignore-next-line complexity
 export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
   try {
-    if (ctx.team === 'solo') {
-      const result = getSoloRoleGuidanceFromContext(ctx);
-      if (result !== null) return result;
-    }
-
-    if (ctx.team === 'duo') {
-      const result = getDuoRoleGuidanceFromContext(ctx);
-      if (result !== null) return result;
-    }
-
-    if (ctx.team === 'trio') {
-      const result = getTrioRoleGuidanceFromContext(ctx);
+    if (isPresetTeam(ctx.team)) {
+      const result = TEAM_PROMPT_MODULES[ctx.team].getRoleGuidance(ctx);
       if (result !== null) return result;
     }
   } catch {
