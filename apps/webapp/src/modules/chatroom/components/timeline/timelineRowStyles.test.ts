@@ -7,6 +7,7 @@ import {
   TIMELINE_AGENT_LINE,
   TIMELINE_AGENT_MODEL,
   TIMELINE_AGENT_PLACEMENT,
+  TIMELINE_BAR_META_PLAIN,
   TIMELINE_FOOTER_TIMESTAMP,
   TIMELINE_HANDOFF_CHIPS,
   TIMELINE_HANDOFF_DURATION_SLOT,
@@ -14,6 +15,7 @@ import {
   TIMELINE_HANDOFF_FOOTER_AGENT_ROW,
   TIMELINE_HANDOFF_FOOTER_TIME_ROW,
   TIMELINE_HANDOFF_META,
+  TIMELINE_HANDOFF_META_DURATION_SLOT,
   TIMELINE_HANDOFF_META_TIME_ROW,
   TIMELINE_HANDOFF_OPEN_ICON,
   TIMELINE_HANDOFF_PREVIEW_TEXT,
@@ -28,6 +30,14 @@ import {
   TIMELINE_SCROLL_CONTAINER,
   TIMELINE_SCROLL_CONTAINER_STYLE,
 } from './timelineRowStyles';
+
+/** Below-sm stacking classes as literals: the private stacked constant is not importable. */
+const BELOW_SM_STACKING_CLASSES = [
+  'max-sm:basis-full',
+  'max-sm:max-w-full',
+  'max-sm:pl-[1.375rem]',
+  'max-sm:leading-4',
+];
 
 /** Any Tailwind palette colour utility that is not a chatroom token, or a raw colour literal. */
 const HARD_CODED_COLOUR =
@@ -78,6 +88,11 @@ describe('TIMELINE_HANDOFF_TRIGGER', () => {
     expect(TIMELINE_HANDOFF_TRIGGER).toContain('focus-visible:ring-chatroom-accent');
     expect(TIMELINE_HANDOFF_TRIGGER).toContain('motion-reduce:transition-none');
   });
+
+  it('wraps its children below sm so the meta drops to a second row', () => {
+    expect(TIMELINE_HANDOFF_TRIGGER).toContain('max-sm:flex-wrap');
+    expect(TIMELINE_HANDOFF_TRIGGER).toContain('max-sm:gap-y-1');
+  });
 });
 
 describe('TIMELINE_HANDOFF_OPEN_ICON', () => {
@@ -106,6 +121,7 @@ describe('TIMELINE_HANDOFF_TRIGGER_LABEL', () => {
 describe('TIMELINE_HANDOFF_CHIPS', () => {
   it('indents chips to the preview text', () => {
     expect(TIMELINE_HANDOFF_CHIPS).toBe('pl-[2.375rem]');
+    expect(TIMELINE_HANDOFF_CHIPS).toContain('pl-[2.375rem]');
   });
 });
 
@@ -117,27 +133,58 @@ describe('TIMELINE_HANDOFF_META', () => {
     expect(TIMELINE_HANDOFF_META).toContain('shrink-0');
     expect(TIMELINE_HANDOFF_META).toContain('leading-5');
     expect(TIMELINE_HANDOFF_META).not.toContain('hidden');
-    expect(TIMELINE_HANDOFF_META).not.toContain('sm:');
+  });
+
+  it('stacks below sm and never takes a desktop-only sm override', () => {
+    expect(TIMELINE_HANDOFF_META).not.toMatch(/(^|\s)sm:/);
+    expect(TIMELINE_HANDOFF_META).toContain('max-sm:items-start');
+    expect(TIMELINE_HANDOFF_META).toContain('max-sm:basis-full');
+    expect(TIMELINE_HANDOFF_META).toContain('max-sm:max-w-full');
+    expect(TIMELINE_HANDOFF_META).toContain('max-sm:pl-[1.375rem]');
+    expect(TIMELINE_HANDOFF_META).toContain('max-sm:leading-4');
+  });
+
+  it('stacks below sm with the below-sm stacking classes', () => {
+    for (const cls of BELOW_SM_STACKING_CLASSES) {
+      expect(TIMELINE_HANDOFF_META.split(' ')).toContain(cls);
+    }
   });
 });
 
 describe('TIMELINE_HANDOFF_META_TIME_ROW', () => {
-  it('is one 20px line that right-aligns the timestamp and duration slot', () => {
+  it('is one line that right-aligns the timestamp and duration slot: 20px from sm, 16px below', () => {
     expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('h-5');
     expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('items-center');
     expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('justify-end');
     expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('whitespace-nowrap');
+    expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('max-sm:h-4');
+    expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('max-sm:justify-start');
+    expect(TIMELINE_HANDOFF_META_TIME_ROW).not.toMatch(/(^|\s)sm:/);
   });
 });
 
 describe('TIMELINE_HANDOFF_DURATION_SLOT', () => {
-  it('is a fixed 7ch slot that clips longer values and carries its own mono 10px font so ch resolves correctly', () => {
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('w-[7ch]');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('shrink-0');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('font-mono');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('text-[10px]');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).toContain('truncate');
-    expect(TIMELINE_HANDOFF_DURATION_SLOT).not.toContain('whitespace-nowrap');
+  it('is exactly the fixed 7ch slot used by the expanded footer at every width', () => {
+    expect(TIMELINE_HANDOFF_DURATION_SLOT).toBe(
+      'w-[7ch] shrink-0 truncate text-left font-mono text-[10px] tabular-nums'
+    );
+  });
+});
+
+describe('TIMELINE_HANDOFF_META_DURATION_SLOT', () => {
+  it('extends the 7ch slot with an unclipped auto width below sm for the collapsed bar', () => {
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('w-[7ch]');
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('truncate');
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('max-sm:w-auto');
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('max-sm:overflow-visible');
+  });
+});
+
+describe('TIMELINE_BAR_META_PLAIN', () => {
+  it('stacks below sm with the below-sm stacking classes', () => {
+    for (const cls of BELOW_SM_STACKING_CLASSES) {
+      expect(TIMELINE_BAR_META_PLAIN.split(' ')).toContain(cls);
+    }
   });
 });
 

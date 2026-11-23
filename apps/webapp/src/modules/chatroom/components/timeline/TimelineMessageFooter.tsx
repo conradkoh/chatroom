@@ -17,11 +17,7 @@ import {
 import { useAttachments } from '../../attachments';
 import { formatHandoffDuration, formatHandoffDurationTitle } from '../../timeline/handoffTiming';
 import type { Message } from '../../types/message';
-import {
-  formatTimeOfDay,
-  formatTimestamp,
-  formatTimestampFull,
-} from '../../utils/chatroomTimestamp';
+import { formatTimestamp, formatTimestampFull } from '../../utils/chatroomTimestamp';
 
 import { cn } from '@/lib/utils';
 
@@ -69,41 +65,33 @@ export interface TimelineMessageTimestampProps {
   handoffDurationMs?: number;
   /** Whether the duration is much longer than others in the loaded window (orange). */
   handoffDurationSlow?: boolean;
-  /** Collapsed handoff bar: below `sm`, show the time of day instead of the full date. */
-  compact?: boolean;
   /** Handoff rows only: timestamp then a fixed 7ch duration slot that renders even when empty. */
   alignDuration?: boolean;
+  /** Class for the duration slot when `alignDuration` is set. Defaults to the fixed 7ch slot used by the expanded footer. */
+  durationSlotClassName?: string;
 }
 
 /**
- * Timestamp cluster: the timestamp comes first, then the duration. `alignDuration` wraps the
- * duration in TIMELINE_HANDOFF_DURATION_SLOT so the slot is always present and the timestamp
- * column does not move. Only handoff rows pass a duration, so the timestamp-then-duration order
- * is handoff-only in practice. Without `alignDuration` the markup is the pre-existing non-handoff markup.
+ * Timestamp cluster: the timestamp comes first, then the duration. `alignDuration` wraps the duration in
+ * a fixed slot (`durationSlotClassName`, default TIMELINE_HANDOFF_DURATION_SLOT) so the slot is always
+ * present and the timestamp column does not move. Only handoff rows pass a duration, so the
+ * timestamp-then-duration order is handoff-only in practice. Without `alignDuration` the markup is the
+ * pre-existing non-handoff markup.
  */
 // fallow-ignore-next-line complexity
 export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
   creationTime,
   handoffDurationMs,
   handoffDurationSlow,
-  compact = false,
   alignDuration = false,
+  durationSlotClassName = TIMELINE_HANDOFF_DURATION_SLOT,
 }: TimelineMessageTimestampProps) {
   const timestamp = (
     <span
       data-testid={alignDuration ? 'timeline-handoff-timestamp' : undefined}
       className={alignDuration ? TIMELINE_HANDOFF_TIMESTAMP : TIMELINE_FOOTER_TIMESTAMP}
     >
-      <span title={formatTimestampFull(creationTime)}>
-        {compact ? (
-          <>
-            <span className="hidden sm:inline">{formatTimestamp(creationTime)}</span>
-            <span className="sm:hidden">{formatTimeOfDay(creationTime)}</span>
-          </>
-        ) : (
-          formatTimestamp(creationTime)
-        )}
-      </span>
+      <span title={formatTimestampFull(creationTime)}>{formatTimestamp(creationTime)}</span>
     </span>
   );
   const duration =
@@ -124,10 +112,7 @@ export const TimelineMessageTimestamp = memo(function TimelineMessageTimestamp({
     <>
       {timestamp}
       {alignDuration ? (
-        <span
-          data-testid="timeline-handoff-duration-slot"
-          className={TIMELINE_HANDOFF_DURATION_SLOT}
-        >
+        <span data-testid="timeline-handoff-duration-slot" className={durationSlotClassName}>
           {duration}
         </span>
       ) : (

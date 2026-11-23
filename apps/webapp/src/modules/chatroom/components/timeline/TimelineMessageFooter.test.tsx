@@ -28,7 +28,6 @@ Object.defineProperty(window, 'matchMedia', {
 vi.mock('../../utils/chatroomTimestamp', () => ({
   formatTimestamp: (time: number) => `TS:${time}`,
   formatTimestampFull: (time: number) => `TS_FULL:${time}`,
-  formatTimeOfDay: (time: number) => `TOD:${time}`,
 }));
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
@@ -130,6 +129,8 @@ describe('TimelineMessageFooter', () => {
       expect(timestamp).toHaveTextContent('TS:1700000000000');
       expect(slot).toBe(screen.getByTestId('timeline-handoff-duration-slot'));
       expect(slot).toHaveClass('w-[7ch]', 'shrink-0', 'font-mono', 'text-[10px]');
+      expect(slot).not.toHaveClass('max-sm:w-auto');
+      expect(slot).not.toHaveClass('max-sm:overflow-visible');
       expect(slot).toContainElement(screen.getByTestId('timeline-handoff-duration'));
 
       expect(agentRow).toBe(screen.getByTestId('timeline-footer-agent-row'));
@@ -198,7 +199,7 @@ describe('TimelineMessageFooter', () => {
 describe('TimelineMessageTimestamp', () => {
   const CREATION_TIME = 1_700_000_000_000;
 
-  it('renders the footer timestamp markup in non-compact mode', () => {
+  it('renders the footer timestamp markup', () => {
     render(<TimelineMessageTimestamp creationTime={CREATION_TIME} handoffDurationMs={62_000} />);
 
     const duration = screen.getByTestId('timeline-handoff-duration');
@@ -213,7 +214,6 @@ describe('TimelineMessageTimestamp', () => {
 
     const fullDate = screen.getByText(`TS:${CREATION_TIME}`);
     expect(fullDate).toHaveAttribute('title', `TS_FULL:${CREATION_TIME}`);
-    expect(screen.queryByText(`TOD:${CREATION_TIME}`)).not.toBeInTheDocument();
   });
 
   it('renders a slow duration in orange with the relative tooltip', () => {
@@ -236,13 +236,12 @@ describe('TimelineMessageTimestamp', () => {
     expect(duration).not.toHaveClass('text-chatroom-text-muted');
   });
 
-  it('keeps a slow duration visible at every width in compact mode', () => {
+  it('keeps a slow duration visible at every width', () => {
     render(
       <TimelineMessageTimestamp
         creationTime={CREATION_TIME}
         handoffDurationMs={420_000}
         handoffDurationSlow
-        compact
       />
     );
 
@@ -271,6 +270,20 @@ describe('TimelineMessageTimestamp', () => {
     );
   });
 
+  it('keeps the fixed 7ch duration slot in the expanded footer at every width', () => {
+    render(
+      <TimelineMessageTimestamp
+        creationTime={CREATION_TIME}
+        handoffDurationMs={62_000}
+        alignDuration
+      />
+    );
+
+    const slot = screen.getByTestId('timeline-handoff-duration-slot');
+    expect(slot).toHaveClass('w-[7ch]');
+    expect(slot).not.toHaveClass('max-sm:w-auto');
+  });
+
   it('renders the alignDuration slot even when there is no duration', () => {
     render(<TimelineMessageTimestamp creationTime={CREATION_TIME} alignDuration />);
 
@@ -279,22 +292,22 @@ describe('TimelineMessageTimestamp', () => {
     expect(screen.getByText(`TS:${CREATION_TIME}`)).toBeInTheDocument();
   });
 
-  it('renders the compact variant with responsive duration and time-of-day spans', () => {
-    render(
-      <TimelineMessageTimestamp creationTime={CREATION_TIME} handoffDurationMs={62_000} compact />
+  it.each([
+    ['plain', false],
+    ['alignDuration', true],
+  ])('renders only the full formatTimestamp text in %s mode', (_mode, alignDuration) => {
+    const { container } = render(
+      <TimelineMessageTimestamp
+        creationTime={CREATION_TIME}
+        handoffDurationMs={62_000}
+        alignDuration={alignDuration}
+      />
     );
 
-    const duration = screen.getByTestId('timeline-handoff-duration');
-    expect(duration).toHaveTextContent('1m 2s');
-    expect(duration).not.toHaveClass('hidden');
-    expect(duration).not.toHaveClass('sm:inline');
-    expect(duration).toHaveClass('whitespace-nowrap');
-
     const fullDate = screen.getByText(`TS:${CREATION_TIME}`);
-    expect(fullDate).toHaveClass('hidden', 'sm:inline');
-    expect(fullDate.parentElement).toHaveAttribute('title', `TS_FULL:${CREATION_TIME}`);
-
-    const timeOfDay = screen.getByText(`TOD:${CREATION_TIME}`);
-    expect(timeOfDay).toHaveClass('sm:hidden');
+    expect(fullDate).toHaveAttribute('title', `TS_FULL:${CREATION_TIME}`);
+    expect(fullDate.children).toHaveLength(0);
+    expect(container.querySelector('.sm\\:hidden')).toBeNull();
+    expect(container.querySelector('.hidden')).toBeNull();
   });
 });

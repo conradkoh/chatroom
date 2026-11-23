@@ -16,6 +16,14 @@ import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 import type * as ReportModule from '../../utils/parseHandoffReport';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
 
+/** Below-sm stacking classes as literals: the private stacked constant is not importable. */
+const BELOW_SM_STACKING_CLASSES = [
+  'max-sm:basis-full',
+  'max-sm:max-w-full',
+  'max-sm:pl-[1.375rem]',
+  'max-sm:leading-4',
+];
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
@@ -977,6 +985,15 @@ Edge case X
       expect(meta).toHaveClass(...TIMELINE_BAR_META_PLAIN.split(' '));
     });
 
+    it('renders a plan bar meta as the last child of its trigger and stacks it below sm', () => {
+      render(collapsiblePlan());
+
+      const trigger = screen.getByTestId('timeline-plan-trigger');
+      const meta = trigger.lastElementChild as HTMLElement;
+      expect(meta).toHaveClass(...BELOW_SM_STACKING_CLASSES);
+      expect(trigger).toHaveClass('max-sm:flex-wrap');
+    });
+
     it('keeps the handoff trigger and its preview text for a collapsible handoff', () => {
       const handoff: Message = {
         ...BASE_MESSAGE,
@@ -1126,6 +1143,23 @@ Edge case X
       expect(slot).toBeEmptyDOMElement();
     });
 
+    it('unclips and auto-sizes the bar duration slot below sm', () => {
+      render(
+        <TimelineTeamMessage
+          message={SNAPSHOT_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={360_600_000}
+          collapsible
+        />
+      );
+
+      const slot = within(screen.getByTestId('timeline-handoff-meta')).getByTestId(
+        'timeline-handoff-duration-slot'
+      );
+      expect(slot).toHaveClass('max-sm:w-auto', 'max-sm:overflow-visible');
+      expect(slot).toHaveTextContent('100h 10m');
+    });
+
     it('renders the time row alone in the bar for a legacy handoff', () => {
       render(<TimelineTeamMessage message={LEGACY_HANDOFF} chatroomId="room-1" collapsible />);
 
@@ -1133,6 +1167,80 @@ Edge case X
       expect(chipIn(meta)).toBeNull();
       expect(meta.children).toHaveLength(1);
       expect(within(meta).getByTestId('timeline-handoff-duration-slot')).toBeInTheDocument();
+    });
+
+    it('lays out the collapsed bar as icon, then content, then meta, all inside the same button', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
+
+      const trigger = screen.getByTestId('timeline-handoff-trigger');
+      const children = Array.from(trigger.children);
+      expect(children).toHaveLength(3);
+      expect(children[0].tagName.toLowerCase()).toBe('svg');
+      const meta = screen.getByTestId('timeline-handoff-meta');
+      expect(meta.parentElement).toBe(trigger);
+      expect(children.indexOf(meta)).toBe(children.length - 1);
+      expect(children.at(-1)).toBe(meta);
+    });
+
+    it('wraps the meta to its own row below sm', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
+
+      const trigger = screen.getByTestId('timeline-handoff-trigger');
+      expect(trigger).toHaveClass('max-sm:flex-wrap', 'max-sm:gap-y-1');
+      const meta = screen.getByTestId('timeline-handoff-meta');
+      expect(meta).toHaveClass(...BELOW_SM_STACKING_CLASSES);
+      expect(meta).toHaveClass('max-w-[55%]');
+    });
+
+    it('puts the timestamp before the duration slot and the agent line after the time row', () => {
+      render(
+        <TimelineTeamMessage
+          message={SNAPSHOT_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={420_000}
+          collapsible
+        />
+      );
+
+      const meta = screen.getByTestId('timeline-handoff-meta');
+      const timeRow = meta.firstElementChild as HTMLElement;
+      const timestamp = within(timeRow).getByTestId('timeline-handoff-timestamp');
+      const slot = within(timeRow).getByTestId('timeline-handoff-duration-slot');
+      expect(
+        timestamp.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+
+      const agentLine = timeRow.nextElementSibling as HTMLElement;
+      expect(agentLine).toBe(chipIn(meta));
+      expect(
+        timeRow.compareDocumentPosition(agentLine) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    });
+
+    it('shows the full timestamp in the collapsed handoff bar with no responsive time-of-day span', () => {
+      render(
+        <TimelineTeamMessage
+          message={SNAPSHOT_HANDOFF}
+          chatroomId="room-1"
+          handoffDurationMs={420_000}
+          collapsible
+        />
+      );
+
+      const timestamp = screen.getByTestId('timeline-handoff-timestamp');
+      expect(timestamp.querySelector('.sm\\:hidden, .hidden')).toBeNull();
+      expect(timestamp.querySelector('[title]')?.children).toHaveLength(0);
+    });
+
+    it('does not put the meta inside the content region', () => {
+      render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
+
+      const trigger = screen.getByTestId('timeline-handoff-trigger');
+      const meta = screen.getByTestId('timeline-handoff-meta');
+      const preview = screen.getByTestId('timeline-handoff-preview');
+      expect(preview.contains(meta)).toBe(false);
+      expect(meta.contains(preview)).toBe(false);
+      expect(trigger.contains(meta)).toBe(true);
     });
 
     it('keeps the chip out of the dialog header and puts exactly one in the dialog footer', () => {

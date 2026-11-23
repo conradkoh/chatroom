@@ -70,6 +70,8 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
   const triggerFor = (page: Page, fixtureId: string) =>
     page.getByTestId(fixtureId).getByTestId('timeline-handoff-trigger');
 
+  const rightEdge = (box: Box) => box.x + box.width;
+
   test('collapses agent-to-agent handoffs to a compact summary bar', async ({ page }) => {
     const fixture = page.getByTestId('collapse-normal');
     const row = fixture.getByTestId('timeline-team-message');
@@ -391,11 +393,13 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       .getByTestId('timeline-handoff-trigger');
     await expect(normalTrigger.getByTestId('timeline-handoff-duration')).toBeVisible();
     await expect(normalTrigger.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
-    await expect(normalTrigger.getByText(/^\d{1,2}:\d{2}(am|pm)$/).first()).toBeVisible();
+    await expect(normalTrigger.getByTestId('timeline-handoff-timestamp')).toHaveText(
+      '15th November 2023, 12:14pm'
+    );
   });
 
   for (const width of [375, 320]) {
-    test(`keeps the duration and time on one line in the summary bar at ${width}px`, async ({
+    test(`stacks the timestamp and duration on their own row below the content at ${width}px`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 800 });
@@ -403,30 +407,120 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       const fixture = page.getByTestId('collapse-long-duration');
       const trigger = fixture.getByTestId('timeline-handoff-trigger');
       const preview = fixture.getByTestId('timeline-handoff-preview');
+      const timestamp = fixture.getByTestId('timeline-handoff-timestamp');
       const duration = fixture.getByTestId('timeline-handoff-duration');
-      const timeOfDay = trigger.getByText(/^\d{1,2}:\d{2}(am|pm)$/).first();
 
+      await expect(timestamp).toHaveText('15th November 2023, 12:14pm');
+      // The timestamp carries `truncate`, so matching text alone does not prove it fits.
+      expect(await timestamp.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
       await expect(duration).toHaveText('1h 5m');
-      await expect(timeOfDay).toBeVisible();
+
       const triggerBox = await readBox(trigger);
+      const previewBox = await readBox(preview, (box) =>
+        expect(box.height).toBeLessThanOrEqual(41)
+      );
+      const timeBox = await readBox(timestamp);
       const durationBox = await readBox(duration);
-      const timeBox = await readBox(timeOfDay);
-      // The duration and the time of day are inline text inside their own boxes. Comparing the
-      // vertical centres proves they share one line; stacking would separate them by a full line.
+
+      // Stacked: the meta row starts at or below the preview's bottom edge.
+      expect(timeBox.y).toBeGreaterThanOrEqual(previewBox.y + previewBox.height - 1);
+      // Left-aligned with the content: the timestamp starts where the preview starts (±1).
+      expect(Math.abs(timeBox.x - previewBox.x)).toBeLessThanOrEqual(1);
+      // Timestamp and duration share one row (vertical centres within 1px), duration after the timestamp.
       const centreY = (box: Box) => box.y + box.height / 2;
       expect(Math.abs(centreY(durationBox) - centreY(timeBox))).toBeLessThanOrEqual(1);
-      // A centre check alone cannot see overlap or reordering: the duration slot must start at or
-      // after the time's right edge, and both must sit inside the trigger's right edge. The cross-row
-      // right-edge and slot checks live in the alignment tests below.
-      const timeRight = timeBox.x + timeBox.width;
-      const triggerRight = triggerBox.x + triggerBox.width;
-      expect(durationBox.x).toBeGreaterThanOrEqual(timeRight - 1);
-      expect(durationBox.x + durationBox.width).toBeLessThanOrEqual(triggerRight + 1);
-      expect(timeRight).toBeLessThanOrEqual(triggerRight + 1);
+      expect(durationBox.x).toBeGreaterThanOrEqual(rightEdge(timeBox) - 1);
+      // Duration fully visible: inside the trigger and not clipped by its slot.
+      expect(rightEdge(durationBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 1);
+      // The timestamp sits inside the bar too.
+      expect(rightEdge(timeBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 1);
+      expect(
+        await fixture
+          .getByTestId('timeline-handoff-duration-slot')
+          .evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)
+      ).toBe(true);
 
       await readBox(preview, (box) => expect(box.width).toBeGreaterThanOrEqual(120));
-      await readBox(preview, (box) => expect(box.height).toBeLessThanOrEqual(41));
-      expect(await trigger.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      expect(await trigger.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+        )
+      ).toBe(true);
+    });
+  }
+
+  test('stacks the handoff and plan meta below the content under 640px and sits beside it from 640px', async ({
+    page,
+  }) => {
+    const handoff = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-trigger');
+    const handoffPreview = handoff.getByTestId('timeline-handoff-preview');
+    const handoffMeta = handoff.getByTestId('timeline-handoff-meta');
+
+    const plan = page.getByTestId('collapse-plan');
+    const planTrigger = plan.getByTestId('timeline-plan-trigger');
+    const planTitle = plan.getByTestId('timeline-plan-summary-title');
+    const planPhases = plan.getByTestId('timeline-plan-summary-phases');
+    // The plain meta has no test id: it is the trigger's last child. Its timestamp span carries the text,
+    // which starts at the 22px stacked indent, so compare that span rather than the meta box.
+    const planMeta = planTrigger.locator(':scope > :last-child');
+    const planTime = planMeta.locator(':scope > span').first();
+
+    await page.setViewportSize({ width: 639, height: 800 });
+    const stackedHandoff = await readBox(handoff);
+    const stackedPreview = await readBox(handoffPreview);
+    const stackedHandoffMeta = await readBox(handoffMeta);
+    expect(stackedHandoffMeta.y).toBeGreaterThanOrEqual(
+      stackedPreview.y + stackedPreview.height - 1
+    );
+    expect(stackedHandoff.height).toBeLessThanOrEqual(84);
+
+    const stackedPlan = await readBox(planTrigger, (box) =>
+      expect(box.height).toBeLessThanOrEqual(84)
+    );
+    const stackedTitle = await readBox(planTitle);
+    const stackedPhases = await readBox(planPhases);
+    const stackedPlanMeta = await readBox(planMeta);
+    const stackedPlanTime = await readBox(planTime);
+    expect(stackedPlanMeta.y).toBeGreaterThanOrEqual(stackedPhases.y + stackedPhases.height - 1);
+    expect(Math.abs(stackedPlanTime.x - stackedTitle.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(stackedPlanTime.x - stackedPhases.x)).toBeLessThanOrEqual(1);
+    expect(stackedPlan.height).toBeLessThanOrEqual(84);
+
+    await page.setViewportSize({ width: 640, height: 800 });
+    const sideHandoff = await readBox(handoff);
+    const sidePreview = await readBox(handoffPreview);
+    const sideHandoffMeta = await readBox(handoffMeta);
+    expect(sideHandoffMeta.x).toBeGreaterThanOrEqual(rightEdge(sidePreview) - 1);
+    expect(sideHandoff.height).toBeLessThanOrEqual(60);
+
+    const sidePlan = await readBox(planTrigger, (box) =>
+      expect(box.height).toBeLessThanOrEqual(64)
+    );
+    const sideTitle = await readBox(planTitle);
+    const sidePlanMeta = await readBox(planMeta);
+    expect(sidePlanMeta.x).toBeGreaterThanOrEqual(rightEdge(sideTitle) - 1);
+    // Beside the title: the meta starts on the title's first line, not below it.
+    expect(sidePlanMeta.y).toBeLessThan(sideTitle.y + sideTitle.height);
+    expect(sidePlan.height).toBeLessThanOrEqual(64);
+  });
+
+  for (const width of [375, 320]) {
+    test(`lines the attachment chips up with the stacked meta indent at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const fixture = page.getByTestId('collapse-chips');
+      const chipButton = fixture.getByRole('button', { name: 'View attached task' });
+      await expect(chipButton).toBeVisible();
+      // The chip's outer shell (the element with the border) is what carries the chip's left edge.
+      // Confirm which element that is in the DOM before measuring. Its left edge is the chips row's left
+      // edge. Record the choice in the commit message if it is not the button's direct parent.
+      const chipShell = chipButton.locator('xpath=..');
+      const timestamp = fixture.getByTestId('timeline-handoff-timestamp');
+      const timeBox = await readBox(timestamp);
+      const chipBox = await readBox(chipShell);
+      expect(Math.abs(chipBox.x - timeBox.x)).toBeLessThanOrEqual(1);
     });
   }
 
@@ -483,31 +577,49 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     });
   });
 
-  const rightEdge = (box: Box) => box.x + box.width;
+  test('aligns the timestamp right edge and duration slot across bars at 1280px', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const withDuration = page
+      .getByTestId('collapse-normal')
+      .getByTestId('timeline-handoff-trigger');
+    const withoutDuration = page
+      .getByTestId('collapse-empty')
+      .getByTestId('timeline-handoff-trigger');
+    await expect(withDuration.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
+    await expect(withoutDuration.getByTestId('timeline-handoff-duration')).toHaveCount(0);
+
+    const timeA = await readBox(withDuration.getByTestId('timeline-handoff-timestamp'));
+    const timeB = await readBox(withoutDuration.getByTestId('timeline-handoff-timestamp'));
+    const slotA = await readBox(withDuration.getByTestId('timeline-handoff-duration-slot'));
+    const slotB = await readBox(withoutDuration.getByTestId('timeline-handoff-duration-slot'));
+    expect(Math.abs(rightEdge(timeA) - rightEdge(timeB))).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(slotA.x - slotB.x)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(slotA.width - slotB.width)).toBeLessThanOrEqual(0.5);
+  });
+
+  test('aligns the timestamp left edges across bars and puts the duration after the timestamp at 320px', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    const withDuration = page
+      .getByTestId('collapse-normal')
+      .getByTestId('timeline-handoff-trigger');
+    const withoutDuration = page
+      .getByTestId('collapse-empty')
+      .getByTestId('timeline-handoff-trigger');
+    await expect(withDuration.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
+    await expect(withoutDuration.getByTestId('timeline-handoff-duration')).toHaveCount(0);
+
+    const timeA = await readBox(withDuration.getByTestId('timeline-handoff-timestamp'));
+    const timeB = await readBox(withoutDuration.getByTestId('timeline-handoff-timestamp'));
+    const durationA = await readBox(withDuration.getByTestId('timeline-handoff-duration'));
+    expect(Math.abs(timeA.x - timeB.x)).toBeLessThanOrEqual(0.5);
+    expect(durationA.x).toBeGreaterThanOrEqual(rightEdge(timeA) - 0.5);
+  });
 
   for (const width of [320, 1280]) {
-    test(`aligns the timestamp right edge and duration slot across bars at ${width}px`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width, height: 800 });
-      const withDuration = page
-        .getByTestId('collapse-normal')
-        .getByTestId('timeline-handoff-trigger');
-      const withoutDuration = page
-        .getByTestId('collapse-empty')
-        .getByTestId('timeline-handoff-trigger');
-      await expect(withDuration.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
-      await expect(withoutDuration.getByTestId('timeline-handoff-duration')).toHaveCount(0);
-
-      const timeA = await readBox(withDuration.getByTestId('timeline-handoff-timestamp'));
-      const timeB = await readBox(withoutDuration.getByTestId('timeline-handoff-timestamp'));
-      const slotA = await readBox(withDuration.getByTestId('timeline-handoff-duration-slot'));
-      const slotB = await readBox(withoutDuration.getByTestId('timeline-handoff-duration-slot'));
-      expect(Math.abs(rightEdge(timeA) - rightEdge(timeB))).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(slotA.x - slotB.x)).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(slotA.width - slotB.width)).toBeLessThanOrEqual(0.5);
-    });
-
     test(`aligns the eager footer timestamp with and without a duration at ${width}px`, async ({
       page,
     }) => {
@@ -523,32 +635,6 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       expect(
         Math.abs(rightEdge(await readBox(plain)) - rightEdge(await readBox(withDuration)))
       ).toBeLessThanOrEqual(0.5);
-    });
-
-    test(`keeps a 100h duration inside its slot at ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 800 });
-      const huge = page
-        .getByTestId('collapse-huge-duration')
-        .getByTestId('timeline-handoff-trigger');
-      const normal = page.getByTestId('collapse-empty').getByTestId('timeline-handoff-trigger');
-      await expect(huge.getByTestId('timeline-handoff-duration')).toHaveText('100h 10m');
-      await expect(huge.getByTestId('timeline-handoff-duration')).toHaveAttribute(
-        'title',
-        'Time since previous message: 100h 10m'
-      );
-      // The slot clips an over-wide value instead of growing: the ellipsis rule is computed
-      // style, so this fails if the slot loses `truncate` even when the width stays 7ch.
-      const durationSlot = huge.getByTestId('timeline-handoff-duration-slot');
-      await expect(durationSlot).toHaveCSS('text-overflow', 'ellipsis');
-      await expect(durationSlot).toHaveCSS('overflow-x', 'hidden');
-
-      const slotHuge = await readBox(huge.getByTestId('timeline-handoff-duration-slot'));
-      const slotNormal = await readBox(normal.getByTestId('timeline-handoff-duration-slot'));
-      expect(Math.abs(slotHuge.width - slotNormal.width)).toBeLessThanOrEqual(0.5);
-      const timeHuge = await readBox(huge.getByTestId('timeline-handoff-timestamp'));
-      const timeNormal = await readBox(normal.getByTestId('timeline-handoff-timestamp'));
-      expect(Math.abs(rightEdge(timeHuge) - rightEdge(timeNormal))).toBeLessThanOrEqual(0.5);
-      expect(await huge.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
     });
 
     test(`keeps the model visible beside a 64-character harness in the eager footer at ${width}px`, async ({
@@ -567,6 +653,56 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       expect(modelBox.width).toBeGreaterThanOrEqual(60);
       expect(rightEdge(modelBox)).toBeLessThanOrEqual(rightEdge(rowBox) + 0.5);
       expect(await agentRow.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+    });
+  }
+
+  test('keeps a 100h duration inside its slot at 1280px', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const huge = page.getByTestId('collapse-huge-duration').getByTestId('timeline-handoff-trigger');
+    const normal = page.getByTestId('collapse-empty').getByTestId('timeline-handoff-trigger');
+    await expect(huge.getByTestId('timeline-handoff-duration')).toHaveText('100h 10m');
+    await expect(huge.getByTestId('timeline-handoff-duration')).toHaveAttribute(
+      'title',
+      'Time since previous message: 100h 10m'
+    );
+    // The slot clips an over-wide value instead of growing: the ellipsis rule is computed
+    // style, so this fails if the slot loses `truncate` even when the width stays 7ch.
+    const durationSlot = huge.getByTestId('timeline-handoff-duration-slot');
+    await expect(durationSlot).toHaveCSS('text-overflow', 'ellipsis');
+    await expect(durationSlot).toHaveCSS('overflow-x', 'hidden');
+
+    const slotHuge = await readBox(huge.getByTestId('timeline-handoff-duration-slot'));
+    const slotNormal = await readBox(normal.getByTestId('timeline-handoff-duration-slot'));
+    expect(Math.abs(slotHuge.width - slotNormal.width)).toBeLessThanOrEqual(0.5);
+    const timeHuge = await readBox(huge.getByTestId('timeline-handoff-timestamp'));
+    const timeNormal = await readBox(normal.getByTestId('timeline-handoff-timestamp'));
+    expect(Math.abs(rightEdge(timeHuge) - rightEdge(timeNormal))).toBeLessThanOrEqual(0.5);
+    expect(await huge.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+  });
+
+  for (const width of [375, 320]) {
+    test(`renders 100h 10m unclipped on the stacked row at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const huge = page
+        .getByTestId('collapse-huge-duration')
+        .getByTestId('timeline-handoff-trigger');
+      const duration = huge.getByTestId('timeline-handoff-duration');
+      const slot = huge.getByTestId('timeline-handoff-duration-slot');
+      await expect(duration).toHaveText('100h 10m');
+      await expect(duration).toHaveAttribute('title', 'Time since previous message: 100h 10m');
+      await expect(slot).toHaveCSS('overflow-x', 'visible');
+
+      const durationBox = await readBox(duration);
+      const slotBox = await readBox(slot);
+      const triggerBox = await readBox(huge);
+      expect(slotBox.width).toBeGreaterThanOrEqual(durationBox.width - 0.5);
+      expect(rightEdge(durationBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 0.5);
+      expect(await huge.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+        )
+      ).toBe(true);
     });
   }
 
@@ -595,7 +731,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await expect(trigger.getByTestId('timeline-sender-agent')).toBeHidden();
   });
 
-  for (const width of [1280, 320]) {
+  for (const width of [1280, 375, 320]) {
     test(`collapses a plan to one compact bar that opens the plan dialog at ${width}px`, async ({
       page,
     }) => {
@@ -606,7 +742,6 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       const trigger = fixture.getByTestId('timeline-plan-trigger');
       const title = fixture.getByTestId('timeline-plan-summary-title');
       const phases = fixture.getByTestId('timeline-plan-summary-phases');
-      const right = (box: Box) => box.x + box.width;
 
       // One summary button: no handoff bar, no markdown body and no dialog until the bar is opened.
       await expect(row).toHaveAttribute('data-message-type', 'plan');
@@ -622,19 +757,29 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       await expect(phases).toContainText('Schema');
       await expect(phases).toContainText('Render');
 
-      // Compact geometry. The bar is at most 80px (70px from its CSS), and the overview at most two 16px lines.
+      // Compact geometry. Below 640px the meta stacks under the content (measured 75px); side by side it is
+      // 55px. The caps leave a few px of slack, not a whole extra line.
+      const stacked = width < 640;
       const triggerBox = await readBox(trigger, (box) =>
-        expect(box.height).toBeLessThanOrEqual(80)
+        expect(box.height).toBeLessThanOrEqual(stacked ? 84 : 64)
       );
       const titleBox = await readBox(title);
       const phasesBox = await readBox(phases, (box) => expect(box.height).toBeLessThanOrEqual(33));
-      // The header may wrap at 320px, so the whole row gets a looser cap.
+      const metaBox = await readBox(trigger.locator(':scope > :last-child'));
+      if (stacked) {
+        // Stacked: the plain meta sits below the phases overview.
+        expect(metaBox.y).toBeGreaterThanOrEqual(phasesBox.y + phasesBox.height - 1);
+      } else {
+        // Side by side: the plain meta starts right of the title.
+        expect(metaBox.x).toBeGreaterThanOrEqual(rightEdge(titleBox) - 1);
+      }
+      // The header may wrap below the breakpoint, so the whole row gets a looser cap.
       await readBox(row, (box) => expect(box.height).toBeLessThanOrEqual(140));
 
       // Nothing overflows the bar horizontally: the bar scrolls by no width and the text stays inside its right edge.
       expect(await trigger.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
-      expect(right(titleBox)).toBeLessThanOrEqual(right(triggerBox) + 0.5);
-      expect(right(phasesBox)).toBeLessThanOrEqual(right(triggerBox) + 0.5);
+      expect(rightEdge(titleBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 0.5);
+      expect(rightEdge(phasesBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 0.5);
 
       // Click opens the full plan; initial focus lands in the dialog body.
       await trigger.click();
@@ -648,4 +793,25 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       await expect(trigger).toBeFocused();
     });
   }
+
+  test('keeps the stacked bars the same height in dark mode at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    const handoff = page.getByTestId('collapse-normal').getByTestId('timeline-handoff-trigger');
+    const plan = page.getByTestId('collapse-plan').getByTestId('timeline-plan-trigger');
+    const duration = handoff.getByTestId('timeline-handoff-duration');
+
+    const lightHandoff = await readBox(handoff);
+    const lightPlan = await readBox(plan);
+
+    await page.getByTestId('theme-dark-toggle').click();
+    await page.mouse.move(0, 0);
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+
+    const darkHandoff = await readBox(handoff);
+    const darkPlan = await readBox(plan);
+    expect(Math.abs(darkHandoff.height - lightHandoff.height)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(darkPlan.height - lightPlan.height)).toBeLessThanOrEqual(0.5);
+    await expect(duration).toBeVisible();
+    await expect(duration).toHaveText('4m 12s');
+  });
 });

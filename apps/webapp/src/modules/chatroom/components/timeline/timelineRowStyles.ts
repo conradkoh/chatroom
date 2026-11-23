@@ -54,19 +54,38 @@ export const TIMELINE_HANDOFF_DURATION_SLOT =
   'w-[7ch] shrink-0 truncate text-left font-mono text-[10px] tabular-nums';
 
 /**
- * Handoff timestamp. The time of day ends at a fixed x because its time row is `justify-end` and
- * the duration slot after it has a fixed width; no text alignment is needed. Truncates only for a
- * prior-year date at narrow widths (full value stays in `title`).
+ * Collapsed bar duration slot: the shared 7ch slot, but unclipped and auto width below `sm` so the full
+ * value (for example `100h 10m`) shows on the stacked meta row. The expanded footer keeps the plain
+ * TIMELINE_HANDOFF_DURATION_SLOT.
+ */
+export const TIMELINE_HANDOFF_META_DURATION_SLOT =
+  TIMELINE_HANDOFF_DURATION_SLOT + ' max-sm:w-auto max-sm:overflow-visible';
+
+/**
+ * Handoff timestamp: the full date and time at every width. It ends at a fixed x because its time row
+ * is `justify-end` and the fixed-width duration slot follows it. It truncates (`min-w-0 truncate`) only
+ * when its row runs out of room. The full value stays in the inner span's `title`.
  */
 export const TIMELINE_HANDOFF_TIMESTAMP =
   'min-w-0 truncate text-[10px] font-mono font-bold tabular-nums whitespace-nowrap text-chatroom-text-muted';
 
 /**
+ * Below `sm` (640px) the bar meta wraps onto its own full-width row under the summary content. Its
+ * 1.375rem (22px) left padding is the 14px icon plus the 8px gap. The bar's own 16px padding already
+ * sits before the meta box, so the text lines up with the content's left edge. The 16px line keeps
+ * the stacked row short. From `sm` upward these classes have no effect. Module-private: composed into
+ * TIMELINE_HANDOFF_META and TIMELINE_BAR_META_PLAIN, which are the exports the tests pin.
+ */
+const TIMELINE_BAR_META_STACKED =
+  'max-sm:basis-full max-sm:max-w-full max-sm:pl-[1.375rem] max-sm:leading-4';
+
+/**
  * Collapsed bar meta for non-handoff rows: the single-line treatment these bars had before the
  * handoff meta column existed. Non-handoff rows never get a time row or an agent line.
+ * Below `sm` it stacks under the content (see TIMELINE_BAR_META_STACKED).
  */
 export const TIMELINE_BAR_META_PLAIN =
-  'flex shrink-0 items-center gap-1.5 whitespace-nowrap leading-5';
+  'flex shrink-0 items-center gap-1.5 whitespace-nowrap leading-5 ' + TIMELINE_BAR_META_STACKED;
 
 /** Timestamp for non-handoff footers. Byte-identical to the class string the timestamp used before this change. */
 export const TIMELINE_FOOTER_TIMESTAMP =
@@ -113,9 +132,9 @@ export function getSenderClasses(role: string): string {
   return `${base} text-chatroom-status-info`;
 }
 
-/** Full-width summary bar for collapsible handoff rows. It opens the details dialog, so the row height never changes. */
+/** Full-width summary bar for collapsible handoff rows. It opens the details dialog, so the row height never changes. Below `sm` the meta wraps to a second row. */
 export const TIMELINE_HANDOFF_TRIGGER =
-  'group/handoff-trigger flex w-full items-start gap-2 px-4 py-2 text-left cursor-pointer ' +
+  'group/handoff-trigger flex w-full items-start gap-2 max-sm:flex-wrap max-sm:gap-y-1 px-4 py-2 text-left cursor-pointer ' +
   'transition-[background-color,opacity] duration-100 motion-reduce:transition-none hover:bg-chatroom-bg-hover active:opacity-80 ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent';
 
@@ -134,16 +153,17 @@ export const TIMELINE_HANDOFF_TRIGGER_LABEL =
   'group-hover/handoff-trigger:text-chatroom-text-primary';
 
 /**
- * Collapsed bar meta column: two right-anchored lines, top-aligned with the first preview line.
- * Line 1 is the time row (timestamp + duration slot). Line 2 is the agent line, hidden below `sm`.
- * `max-w-[55%]` keeps the preview at least 45% of the bar width.
+ * Collapsed bar meta column. From `sm`: two right-anchored lines, top-aligned with the first preview
+ * line, capped at `max-w-[55%]`. Line 1 is the time row (timestamp + duration slot). Line 2 is the agent
+ * line, hidden below `sm`. Below `sm` it is a full-width row under the content, left-aligned.
  */
 export const TIMELINE_HANDOFF_META =
-  'flex min-w-0 max-w-[55%] shrink-0 flex-col items-end leading-5';
+  'flex min-w-0 max-w-[55%] shrink-0 flex-col items-end leading-5 max-sm:items-start ' +
+  TIMELINE_BAR_META_STACKED;
 
-/** Collapsed bar line 1: timestamp then the fixed duration slot, right-anchored, 20px tall. */
+/** Collapsed bar line 1: timestamp then the fixed duration slot. 20px tall from `sm`, 16px below. */
 export const TIMELINE_HANDOFF_META_TIME_ROW =
-  'flex h-5 items-center justify-end gap-2 whitespace-nowrap';
+  'flex h-5 items-center justify-end gap-2 whitespace-nowrap max-sm:h-4 max-sm:max-w-full max-sm:justify-start';
 
 /**
  * Collapsed-row attachment chips. 38px (2.375rem) = 16px bar padding (px-4) + 14px
