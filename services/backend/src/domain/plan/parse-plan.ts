@@ -11,10 +11,12 @@
  * - Reports *all* errors in a single pass, each with a 1-based line number.
  * - Errors are sorted by line asc, then code asc, so output is deterministic.
  * - Headings and bullets inside fenced code blocks (``` or ~~~) are content.
- * - A code fence must be closed; an unclosed fence is `PLAN_FENCE_UNCLOSED` at
- *   its opening line.
+ * - A code fence must be closed by a bare run of the same character at least as
+ *   long as its opener; an unclosed fence is `PLAN_FENCE_UNCLOSED` at its
+ *   opening line.
  * - Unindented text after a blank line is `PLAN_STRAY_CONTENT`; indented text
  *   after a blank line still continues the bullet above.
+ * - Headings start in column 1; indented `#` text is bullet continuation.
  * - `None.` is honoured only for `Sources`, `Constraints`, per-phase
  *   `Constraints`, and per-phase `Depends on`; anywhere else it is an error.
  */
@@ -106,7 +108,10 @@ const TITLE_PATTERN = /^#\s+(.+)$/;
 
 interface FenceState {
   inFence: boolean;
-  marker: string | null;
+  /** Character that opened the fence (` or ~); null while no fence is open. */
+  fenceChar: string | null;
+  /** Length of the opening run; a closer must be at least this long. */
+  fenceLength: number;
   /** 1-based line of the opening delimiter; meaningful while `inFence` is true. */
   openedAt: number;
 }
@@ -499,40 +504,40 @@ function handleContentFallback(
   if (trimmed.length > 0) reportOrphan(state, line);
 }
 
-/** True for a ``` or ~~~ fence delimiter line. */
-function isFenceDelimiter(trimmed: string): boolean {
-  return trimmed.startsWith('```') || trimmed.startsWith('~~~');
-}
+/** A fence opener: a run of 3+ backticks or tildes at the start of the trimmed line. */
+const FENCE_OPENER_PATTERN = /^(`{3,}|~{3,})/;
+/** A fence closer: a trimmed line made of nothing but a run of 3+ backticks or tildes. */
+const FENCE_CLOSER_PATTERN = /^(`{3,}|~{3,})$/;
 
-/** Close the fence when the line repeats the marker that opened it. */
-function closeFence(fence: FenceState, trimmed: string): void {
-  if (fence.marker === null) return;
-  if (!trimmed.startsWith(fence.marker)) return;
-  fence.inFence = false;
-  fence.marker = null;
+/** True when a trimmed line is a bare closer for the open fence. */
+function isFenceCloser(fence: FenceState, trimmed: string): boolean {
+  const closer = FENCE_CLOSER_PATTERN.exec(trimmed);
+  return (
+    closer !== null && closer[1][0] === fence.fenceChar && closer[1].length >= fence.fenceLength
+  );
 }
 
 /**
- * Update the fence state for one line and report whether the line is a fence
- * delimiter. A closing fence only matches the marker that opened it, so a
- * `~~~` block may contain ``` lines.
+ * Advance the fence state for one trimmed line. Returns true when the line is
+ * part of a fence (opener, body, or closer). A closer must use the opener's
+ * character and be at least as long as the opener, so a 4-backtick fence may
+ * contain ``` lines and a ```python line inside a fence is content.
  */
-function updateFenceState(fence: FenceState, trimmed: string, line: number): boolean {
-  if (!isFenceDelimiter(trimmed)) return false;
+function isFenceLine(fence: FenceState, trimmed: string, line: number): boolean {
   if (!fence.inFence) {
+    const opener = FENCE_OPENER_PATTERN.exec(trimmed);
+    if (opener === null) return false;
     fence.inFence = true;
-    fence.marker = trimmed.slice(0, 3);
+    fence.fenceChar = opener[1][0];
+    fence.fenceLength = opener[1].length;
     fence.openedAt = line;
     return true;
   }
-  closeFence(fence, trimmed);
+  if (isFenceCloser(fence, trimmed)) {
+    fence.inFence = false;
+    fence.fenceChar = null;
+  }
   return true;
-}
-
-/** Fence-aware test: updates the fence state and reports fenced content lines. */
-function isFenceContent(fence: FenceState, trimmed: string, line: number): boolean {
-  const isDelimiter = updateFenceState(fence, trimmed, line);
-  return fence.inFence || isDelimiter;
 }
 
 /** Consume a blank line; remarks keep their blank lines verbatim. */
@@ -589,7 +594,7 @@ function scanLine(state: ParseState, fence: FenceState, raw: string, line: numbe
   const trimmed = raw.trim();
   state.insideFence = fence.inFence; // read before this line can open or close a fence
 
-  if (isFenceContent(fence, trimmed, line)) {
+  if (isFenceLine(fence, trimmed, line)) {
     handleContentLine(state, raw, trimmed, line);
     return;
   }
@@ -600,7 +605,7 @@ function scanLine(state: ParseState, fence: FenceState, raw: string, line: numbe
 
 /** Single fence-aware pass over the document, populating `state`. */
 function scanDocument(lines: string[], state: ParseState): void {
-  const fence: FenceState = { inFence: false, marker: null, openedAt: 0 };
+  const fence: FenceState = { inFence: false, fenceChar: null, fenceLength: 0, openedAt: 0 };
   for (let index = 0; index < lines.length; index++) {
     state.blankBefore = index > 0 && lines[index - 1].trim().length === 0;
     scanLine(state, fence, lines[index], index + 1);

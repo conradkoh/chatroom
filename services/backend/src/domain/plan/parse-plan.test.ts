@@ -293,6 +293,35 @@ describe('parsePlan', () => {
       const markdown = makePlan({ requirements: ['Example:\n  ```\n  code\n  ```'] });
       expect(parsePlan(markdown).ok).toBe(true);
     });
+
+    it('keeps a plain ``` line and a heading inside a 4-backtick fence', () => {
+      const result = parsePlan(
+        makePlan({ requirements: ['Example:\n  ````\n  ```\n  # Not a section\n  ````'] })
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.plan.requirements).toEqual([
+        'Example:\n  ````\n  ```\n  # Not a section\n  ````',
+      ]);
+    });
+
+    it('treats ```python inside a ``` fence as content', () => {
+      const result = parsePlan(
+        makePlan({ requirements: ['Example:\n  ```\n  ```python\n  ## Not a section\n  ```'] })
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.plan.requirements).toEqual([
+        'Example:\n  ```\n  ```python\n  ## Not a section\n  ```',
+      ]);
+    });
+
+    it('PLAN_FENCE_UNCLOSED: a 4-backtick opener needs a 4-backtick closer', () => {
+      const markdown = makePlan({ requirements: ['Example:\n  ````\n  ```'] });
+      const errors = fail(markdown);
+      const fenceLine = markdown.split('\n').indexOf('  ````') + 1;
+      expect(errorLine(errors, 'PLAN_FENCE_UNCLOSED')).toBe(fenceLine);
+    });
   });
 
   describe('stray paragraphs', () => {
