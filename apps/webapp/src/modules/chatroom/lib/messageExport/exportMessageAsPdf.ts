@@ -1,15 +1,17 @@
 import type { jsPDF } from 'jspdf';
 
 import {
-  buildMessageExportDom,
+  buildMarkdownExportDom,
   MESSAGE_EXPORT_WIDTH_PX,
   offscreenExportRootStyle,
-} from './buildMessageExportDom';
+  type MarkdownExportHeader,
+} from './buildMarkdownExportDom';
 import {
   computePdfPageSlices,
   type PdfBlockBounds,
   type PdfPageSlice,
 } from './computePdfPageSlices';
+import { getDownloadFormat } from './downloadFormats';
 import {
   messageExportFilename,
   promptSaveFile,
@@ -18,7 +20,6 @@ import {
 } from './downloadTextFile';
 import type { Message } from '../../types/message';
 
-const PDF_MIME_TYPE = 'application/pdf';
 const PAGE_MARGIN_PT = 40;
 const A4_WIDTH_PT = 595.28;
 const A4_HEIGHT_PT = 841.89;
@@ -35,7 +36,7 @@ const MAX_RASTER_SCALE = 2;
 const PAGE_IMAGE_QUALITY = 0.9;
 
 /**
- * Exports a message as an image-based (non-selectable text) A4 PDF.
+ * Exports markdown as an image-based (non-selectable text) A4 PDF.
  *
  * Constraints:
  * - The save prompt runs first so the native file picker keeps the user gesture.
@@ -45,18 +46,24 @@ const PAGE_IMAGE_QUALITY = 0.9;
  *   single block is taller than a page.
  * - Raster scale is clamped so the canvas never exceeds the browser height or area limits.
  * - Pages are JPEG (quality 0.9) to keep the file shareable; text stays legible at 100% zoom.
+ * - The height is clamped to one pixel so an empty document still rasterises exactly one A4 page.
+ * - Without `header` the document is the body only (file exports); with it, the chat header.
  */
-export async function exportMessageAsPdf(message: Message): Promise<SaveFileResult> {
-  const suggestedName = messageExportFilename(message, 'pdf');
-  const saveTarget = await promptSaveFile(suggestedName, {
-    mimeType: PDF_MIME_TYPE,
-    extensions: ['.pdf'],
-    description: 'PDF Document',
+export async function exportMarkdownAsPdf(args: {
+  markdown: string;
+  suggestedName: string;
+  header?: MarkdownExportHeader;
+}): Promise<SaveFileResult> {
+  const definition = getDownloadFormat('pdf');
+  const saveTarget = await promptSaveFile(args.suggestedName, {
+    mimeType: definition.mimeType,
+    extensions: [definition.extension],
+    description: definition.saveDescription,
   });
   if (saveTarget.kind === 'cancelled') return 'cancelled';
 
-  const { root, pageBlocks } = await buildMessageExportDom(
-    message,
+  const { root, pageBlocks } = await buildMarkdownExportDom(
+    { markdown: args.markdown, header: args.header },
     // Off-screen but VISIBLE: html2canvas skips visibility:hidden. Do not add visibility:hidden.
     offscreenExportRootStyle('')
   );
@@ -66,7 +73,8 @@ export async function exportMessageAsPdf(message: Message): Promise<SaveFileResu
       import('html2canvas-pro'),
       import('jspdf'),
     ]);
-    const heightPx = root.scrollHeight;
+    // An empty document has no blocks and no height; clamp so it still rasterises one A4 page.
+    const heightPx = Math.max(root.scrollHeight, 1);
     const scale = Math.min(
       MAX_RASTER_SCALE,
       MAX_CANVAS_PX / heightPx,
@@ -88,10 +96,22 @@ export async function exportMessageAsPdf(message: Message): Promise<SaveFileResu
     );
     const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
     addSlicesToPdf(pdf, canvas, slices, scale);
-    return writeBlobToSaveTarget(saveTarget, suggestedName, pdf.output('blob'));
+    return writeBlobToSaveTarget(saveTarget, args.suggestedName, pdf.output('blob'));
   } finally {
     document.body.removeChild(root);
   }
+}
+
+/** Chat export: same pipeline with the message header and the `chatroom-<role>-<ts>` name. */
+export async function exportMessageAsPdf(message: Message): Promise<SaveFileResult> {
+  return exportMarkdownAsPdf({
+    markdown: message.content,
+    suggestedName: messageExportFilename(message, 'pdf'),
+    header: {
+      label: message.senderRole ?? 'message',
+      timestamp: new Date(message._creationTime).toLocaleString(),
+    },
+  });
 }
 
 /** Block bounds relative to the export root, in CSS px. */

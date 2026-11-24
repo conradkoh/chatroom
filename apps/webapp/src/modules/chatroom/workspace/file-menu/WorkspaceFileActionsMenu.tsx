@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Copy, MoreHorizontal } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import type { WorkspaceFileCopyInfo, WorkspaceFileMenuProps } from './types';
 import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
@@ -33,6 +33,7 @@ export const WorkspaceFileActionsMenu = memo(function WorkspaceFileActionsMenu({
 }: WorkspaceFileActionsMenuProps) {
   const isMoreTrigger = triggerVariant === 'more';
   const { copied, markCopied } = useCopiedIndicator();
+  const [open, setOpen] = useState(false);
   const menuHandlers = useMemo(
     () => ({
       ...handlers,
@@ -40,6 +41,8 @@ export const WorkspaceFileActionsMenu = memo(function WorkspaceFileActionsMenu({
         markCopied();
         handlers.onCopied?.(info);
       },
+      // Downloads keep the menu open while DOCX/PDF runs; the dispatcher closes it when done.
+      onRequestClose: () => setOpen(false),
     }),
     [handlers, markCopied]
   );
@@ -47,7 +50,7 @@ export const WorkspaceFileActionsMenu = memo(function WorkspaceFileActionsMenu({
   const triggerLabel = isMoreTrigger ? 'More copy options' : 'Copy file';
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         type="button"
         className={cn(

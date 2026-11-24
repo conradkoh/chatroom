@@ -1,14 +1,33 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkspaceFileMenuProps } from './types';
 import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
+import {
+  exportFileAsDocx,
+  exportFileAsPdf,
+  saveTextFile,
+  type SaveFileResult,
+} from '../../lib/messageExport';
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+vi.mock('../../lib/messageExport', async () => {
+  const formats = (await vi.importActual('../../lib/messageExport/downloadFormats')) as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...formats,
+    saveTextFile: vi.fn().mockResolvedValue('saved'),
+    exportFileAsDocx: vi.fn().mockResolvedValue('saved'),
+    exportFileAsPdf: vi.fn().mockResolvedValue('saved'),
+  };
+});
 
 const writeText = vi.fn();
 
@@ -163,5 +182,235 @@ describe('WorkspaceFileMenuItems copy reporting', () => {
       expect(onCopied).toHaveBeenCalledWith({ truncated: false });
     });
     expect(writeText).toHaveBeenCalledWith('foo.ts');
+  });
+});
+
+const markdownState = {
+  relativePath: 'docs/README.md',
+  workingDir: '/workspace/project',
+  content: 'file body',
+  contentStatus: 'ready' as const,
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+function isBefore(first: HTMLElement, second: HTMLElement): boolean {
+  return (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+}
+
+describe('WorkspaceFileMenuItems download section', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.mocked(saveTextFile).mockResolvedValue('saved');
+    vi.mocked(exportFileAsDocx).mockResolvedValue('saved');
+  });
+
+  it('lists the three download rows for a ready markdown file, between Content and the file actions', () => {
+    renderMenu({ state: markdownState });
+
+    expect(screen.getByText('Download')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as DOCX' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).toBeInTheDocument();
+
+    expect(isBefore(screen.getByText('Path'), screen.getByText('Content'))).toBe(true);
+    expect(isBefore(screen.getByText('Content'), screen.getByText('Download'))).toBe(true);
+    expect(isBefore(screen.getByText('Download'), screen.getByText('Rename'))).toBe(true);
+  });
+
+  it('hides the download section for a non-markdown file', () => {
+    renderMenu();
+    expect(screen.queryByText('Download')).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Download as Markdown' })).toBeNull();
+  });
+
+  it('hides the download section for a directory node', () => {
+    renderMenu({ state: { ...markdownState, nodeType: 'directory' } });
+    expect(screen.queryByText('Download')).not.toBeInTheDocument();
+  });
+
+  it('shows one muted reason and disables every row for a truncated file', () => {
+    renderMenu({ state: { ...markdownState, contentTruncated: true } });
+
+    const reasons = screen.getAllByTestId('workspace-download-disabled-reason');
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toHaveTextContent('File is larger than the 500 KB preview limit.');
+    for (const name of ['Download as Markdown', 'Download as DOCX', 'Download as PDF']) {
+      expect(screen.getByRole('menuitem', { name })).toHaveAttribute('aria-disabled', 'true');
+    }
+  });
+
+  it('keeps every row enabled for an empty markdown file', () => {
+    renderMenu({ state: { ...markdownState, content: '' } });
+
+    for (const name of ['Download as Markdown', 'Download as DOCX', 'Download as PDF']) {
+      expect(screen.getByRole('menuitem', { name })).not.toHaveAttribute('aria-disabled', 'true');
+    }
+  });
+
+  it('links every disabled download row to the visible reason', () => {
+    renderMenu({
+      state: { relativePath: 'docs/README.md', workingDir: '/workspace/project', content: null },
+    });
+    const reason = screen.getByTestId('workspace-download-disabled-reason');
+    expect(reason).toHaveTextContent('File content is unavailable.');
+    expect(reason.id).not.toBe('');
+    for (const name of ['Download as Markdown', 'Download as DOCX', 'Download as PDF']) {
+      expect(screen.getByRole('menuitem', { name })).toHaveAttribute('aria-describedby', reason.id);
+    }
+  });
+
+  it('leaves ready download rows without a description reference', () => {
+    renderMenu({
+      state: { relativePath: 'docs/README.md', workingDir: '/workspace/project', content: 'body' },
+    });
+    expect(screen.queryByTestId('workspace-download-disabled-reason')).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).not.toHaveAttribute(
+      'aria-describedby'
+    );
+  });
+
+  it('shows the DOCX busy label on the active row only and disables every row', async () => {
+    const onRequestClose = vi.fn();
+    const pending = deferred<'saved'>();
+    vi.mocked(exportFileAsDocx).mockReturnValueOnce(pending.promise);
+    renderMenu({ state: markdownState, handlers: { onRequestClose } });
+
+    fireEvent.click(screen.getByText('Download as DOCX'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Preparing DOCX...' })).toBeInTheDocument()
+    );
+    expect(screen.getByRole('menuitem', { name: 'Preparing DOCX...' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.queryByText('Preparing PDF...')).not.toBeInTheDocument();
+    expect(exportFileAsDocx).toHaveBeenCalledWith('docs/README.md', 'file body');
+
+    pending.resolve('saved');
+    await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.queryByRole('menuitem', { name: 'Preparing DOCX...' })).not.toBeInTheDocument()
+    );
+  });
+
+  it('saves markdown bytes under the source base name', async () => {
+    renderMenu({ state: markdownState });
+
+    fireEvent.click(screen.getByText('Download as Markdown'));
+
+    await waitFor(() =>
+      expect(saveTextFile).toHaveBeenCalledWith('README.md', 'file body', 'text/markdown', [
+        '.md',
+        '.markdown',
+        '.mdx',
+      ])
+    );
+  });
+});
+
+describe('WorkspaceFileMenuItems download in-flight state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.mocked(saveTextFile).mockResolvedValue('saved');
+    vi.mocked(exportFileAsDocx).mockResolvedValue('saved');
+    vi.mocked(exportFileAsPdf).mockResolvedValue('saved');
+  });
+
+  it('keeps every download row disabled after the menu closes and reopens mid-run', async () => {
+    const pending = deferred<SaveFileResult>();
+    vi.mocked(exportFileAsDocx).mockReturnValueOnce(pending.promise);
+    const first = renderMenu({ state: markdownState });
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download as DOCX' }));
+    await screen.findByRole('menuitem', { name: 'Preparing DOCX...' });
+    first.unmount(); // Escape or outside click unmounts the menu content
+
+    renderMenu({ state: markdownState });
+    expect(await screen.findByRole('menuitem', { name: 'Preparing DOCX...' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download as PDF' }));
+    expect(exportFileAsPdf).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pending.resolve('saved');
+      await pending.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Download as DOCX' })).not.toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
+    );
+  });
+
+  it('disables every download row, without a busy label, while a Markdown save is in flight', async () => {
+    const pending = deferred<SaveFileResult>();
+    vi.mocked(saveTextFile).mockReturnValueOnce(pending.promise);
+    renderMenu({ state: markdownState });
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download as Markdown' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as DOCX' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+
+    await act(async () => {
+      pending.resolve('saved');
+      await pending.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).not.toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
+    );
   });
 });

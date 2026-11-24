@@ -2,6 +2,7 @@
 
 import {
   Copy,
+  Download,
   ExternalLink,
   FilePlus,
   FolderOpen,
@@ -10,9 +11,12 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
-import { memo, type ReactNode } from 'react';
+import { memo, useId, type ReactNode } from 'react';
 
+import { resolveFileDownloadAvailability } from './fileDownloadAvailability';
 import type { WorkspaceFileCopyInfo, WorkspaceFileMenuProps } from './types';
+import { useFileDownloadActions } from './useFileDownloadActions';
+import { DOWNLOAD_FORMATS } from '../../lib/messageExport';
 import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
 import {
   copyFileContentToClipboard,
@@ -26,6 +30,8 @@ import { DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdo
 
 interface Section {
   label?: string;
+  description?: string;
+  descriptionId?: string;
   items: ReactNode[];
 }
 
@@ -37,11 +43,15 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
   const {
     relativePath,
     workingDir,
+    nodeType,
     content,
+    contentStatus,
     contentTruncated,
     contentDisabled = false,
     fileContentLabel = 'Copy File Content',
   } = state;
+
+  const downloadReasonId = useId();
 
   // A success never shows text here. The host decides what, if anything, to show.
   const reportCopy = (
@@ -162,6 +172,46 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
     sections.push({ label: 'Content', items: contentItems });
   }
 
+  // Download section — shared availability gate and dispatcher, hidden for non-markdown files.
+  const availability = resolveFileDownloadAvailability({
+    filePath: relativePath,
+    nodeType,
+    status: contentStatus,
+    content,
+    truncated: contentTruncated,
+  });
+  const { busyFormat, run } = useFileDownloadActions({
+    filePath: relativePath,
+    workingDir,
+    content: content ?? null,
+    enabled: availability.kind === 'ready',
+    onStart: handlers.onDownloadStart,
+    onError: handlers.onDownloadError,
+    onRequestClose: handlers.onRequestClose,
+  });
+  if (availability.kind !== 'hidden') {
+    const reasonRef = availability.kind === 'disabled' ? downloadReasonId : undefined;
+    sections.push({
+      label: 'Download',
+      descriptionId: downloadReasonId,
+      description: availability.kind === 'disabled' ? availability.reason : undefined,
+      items: DOWNLOAD_FORMATS.map((definition) => (
+        <WorkspaceDropdownMenuItem
+          key={definition.format}
+          icon={Download}
+          closeOnClick={false}
+          disabled={busyFormat !== null || availability.kind !== 'ready'}
+          aria-describedby={reasonRef}
+          onSelect={() => run(definition.format)}
+        >
+          {busyFormat === definition.format && definition.busyLabel
+            ? definition.busyLabel
+            : definition.label}
+        </WorkspaceDropdownMenuItem>
+      )),
+    });
+  }
+
   // File section
   const fileItems: ReactNode[] = [];
   if (visibility.rename && handlers.onRename) {
@@ -206,6 +256,15 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
         <div key={index}>
           {index > 0 && <DropdownMenuSeparator />}
           {section.label && <DropdownMenuLabel>{section.label}</DropdownMenuLabel>}
+          {section.description ? (
+            <p
+              id={section.descriptionId}
+              data-testid="workspace-download-disabled-reason"
+              className="max-w-[15rem] whitespace-normal px-2.5 pb-1 text-[11px] leading-snug text-chatroom-text-muted select-none"
+            >
+              {section.description}
+            </p>
+          ) : null}
           {section.items}
         </div>
       ))}

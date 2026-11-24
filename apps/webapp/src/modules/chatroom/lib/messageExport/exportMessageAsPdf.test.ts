@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { exportMessageAsPdf } from './exportMessageAsPdf';
+import { exportMarkdownAsPdf, exportMessageAsPdf } from './exportMessageAsPdf';
 import type { Message } from '../../types/message';
 
 const mocks = vi.hoisted(() => ({
@@ -267,5 +267,24 @@ describe('exportMessageAsPdf', () => {
 
     expect(document.querySelector('.chatroom-root')).toBeNull();
     expect(mocks.writeBlobToSaveTarget).not.toHaveBeenCalled();
+  });
+
+  it('renders an empty markdown file as exactly one A4 page', async () => {
+    stubLayout(() => ({ top: 0, bottom: 0 }), 0);
+
+    const result = await exportMarkdownAsPdf({ markdown: '', suggestedName: 'README.pdf' });
+
+    expect(result).toBe('downloaded');
+    expect(mocks.promptSaveFile).toHaveBeenCalledWith('README.pdf', {
+      mimeType: 'application/pdf',
+      extensions: ['.pdf'],
+      description: 'PDF Document',
+    });
+    expect(mocks.html2canvas).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({ height: 1 })
+    );
+    expect(mocks.addImage).toHaveBeenCalledTimes(1);
+    expect(mocks.addPage).not.toHaveBeenCalled();
   });
 });

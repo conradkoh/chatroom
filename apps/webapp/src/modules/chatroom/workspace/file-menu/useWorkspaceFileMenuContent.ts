@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import { isMarkdownFile } from '../file-renderers';
-import type { WorkspaceFileMenuContentState } from './types';
+import type { WorkspaceFileContentStatus, WorkspaceFileMenuContentState } from './types';
 import { useFileContent } from '../hooks/useFileContent';
 
 export function useWorkspaceFileMenuContent(machineId: string | null, workingDir: string | null) {
@@ -36,8 +36,18 @@ export function useWorkspaceFileMenuContent(machineId: string | null, workingDir
 
       const contentTruncated = pathMatches ? menuFileContent?.truncated : undefined;
 
+      // Live status: an unresolved request is loading, a resolved-missing file is not-found.
+      // Hosts show this reason instead of a static "unavailable".
+      const contentStatus: WorkspaceFileContentStatus =
+        !pathMatches || menuFileContent === undefined
+          ? 'loading'
+          : menuFileContent === null
+            ? 'not-found'
+            : 'ready';
+
       return {
         content,
+        contentStatus,
         contentTruncated,
         contentDisabled: !canCopy,
         fileContentLabel: isMarkdownFile(filePath) ? 'Copy as Markdown' : 'Copy File Content',

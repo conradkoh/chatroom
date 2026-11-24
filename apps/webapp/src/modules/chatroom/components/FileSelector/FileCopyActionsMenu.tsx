@@ -3,7 +3,11 @@
 import { Check, Copy } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
-import { WorkspaceFileActionsMenu, type WorkspaceFileCopyInfo } from '../../workspace/file-menu';
+import {
+  buildFilePreviewMenuProps,
+  WorkspaceFileActionsMenu,
+  type FilePreviewMenuArgs,
+} from '../../workspace/file-menu';
 import {
   copyFileContentToClipboard,
   copyFileNameToClipboard,
@@ -12,29 +16,8 @@ import {
 import { useCopiedIndicator } from '@/hooks/useCopiedIndicator';
 import { cn } from '@/lib/utils';
 
-export interface FileCopyActionsMenuProps {
-  relativePath: string;
-  workingDir: string | null;
-  content: string | null;
-  /** True when `content` is a truncated copy of the file. Reported through onCopied; never shown here. */
-  contentTruncated?: boolean;
-  contentDisabled?: boolean;
+export interface FileCopyActionsMenuProps extends FilePreviewMenuArgs {
   className?: string;
-  /** When false, omits "Copy File Name" from the dropdown (use inline CopyFileNameButton). */
-  showFileName?: boolean;
-  /** When false, omits file content from the dropdown (desktop uses CopyFileContentButton). */
-  showFileContent?: boolean;
-  fileContentLabel?: string;
-  /** `copy` = mobile all-in-one menu; `more` = desktop path-only overflow menu. */
-  triggerVariant?: 'copy' | 'more';
-  /** When provided, shows "Open in Explorer" at bottom of dropdown. */
-  onOpenInExplorer?: () => void;
-  /** When provided, shows "Open File on Remote" in Path section. */
-  onOpenFileOnRemote?: () => void;
-  /** Receives a copy failure message. The host shows it in its own slot. */
-  onCopyError?: (message: string) => void;
-  /** Called after a copy succeeds, with what was copied. Hosts may clear their own copy failure. Never show copy text here. */
-  onCopied?: (info: WorkspaceFileCopyInfo) => void;
 }
 
 interface CopyHostCallbacks {
@@ -129,42 +112,15 @@ export const CopyFileContentButton = memo(function CopyFileContentButton({
 });
 
 export const FileCopyActionsMenu = memo(function FileCopyActionsMenu({
-  relativePath,
-  workingDir,
-  content,
-  contentTruncated,
-  contentDisabled,
   className,
-  showFileName = true,
-  showFileContent = true,
-  fileContentLabel = 'Copy File Content',
-  triggerVariant = 'copy',
-  onOpenInExplorer,
-  onOpenFileOnRemote,
-  onCopyError,
-  onCopied,
+  ...menuArgs
 }: FileCopyActionsMenuProps) {
+  const menuProps = buildFilePreviewMenuProps(menuArgs);
   return (
     <WorkspaceFileActionsMenu
       className={className}
-      triggerVariant={triggerVariant}
-      state={{
-        relativePath,
-        workingDir,
-        content,
-        contentTruncated,
-        contentDisabled,
-        fileContentLabel,
-      }}
-      handlers={{ onOpenInExplorer, onOpenFileOnRemote, onCopyError, onCopied }}
-      visibility={{
-        copyFileName: showFileName,
-        copyRelativePath: true,
-        copyFullPath: true,
-        copyFileContent: showFileContent,
-        openInExplorer: !!onOpenInExplorer,
-        openFileOnRemote: !!onOpenFileOnRemote,
-      }}
+      triggerVariant={menuArgs.triggerVariant}
+      {...menuProps}
     />
   );
 });

@@ -371,6 +371,12 @@ export const FileExplorerPanel = memo(
         copyFeedbackShownRef.current = false;
         clearExplorerFeedback();
       }, [clearExplorerFeedback]);
+      // A download is neither copy- nor tree-sync-owned. Every start clears the slot.
+      const startDownload = useCallback(() => {
+        treeSyncErrorShownRef.current = false;
+        copyFeedbackShownRef.current = false;
+        clearExplorerFeedback();
+      }, [clearExplorerFeedback]);
 
       const openFileOnRemoteFromExplorer = useCallback(
         (filePath: string) => {
@@ -486,6 +492,8 @@ export const FileExplorerPanel = memo(
               // A copy outcome is copy-owned. A truncated copy shows the warning; any other success clears only copy-owned feedback.
               onCopied: copySucceeded,
               onCopyError: showCopyError,
+              onDownloadStart: startDownload,
+              onDownloadError: showFileOpError,
             },
             visibility,
           };
@@ -497,6 +505,8 @@ export const FileExplorerPanel = memo(
           trackContextMenuFile,
           copySucceeded,
           showCopyError,
+          startDownload,
+          showFileOpError,
         ]
       );
 

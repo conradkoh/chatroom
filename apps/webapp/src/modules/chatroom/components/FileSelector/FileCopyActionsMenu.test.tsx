@@ -13,6 +13,7 @@ const defaultProps = {
   relativePath: 'src/foo.ts',
   workingDir: '/workspace/project',
   content: 'file body',
+  contentStatus: 'ready' as const,
   contentDisabled: false,
 };
 

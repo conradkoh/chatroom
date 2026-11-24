@@ -10,6 +10,8 @@ import {
   buildMessageMarkdownDownload,
   exportMessageAsDocx,
   exportMessageAsPdf,
+  DOWNLOAD_FORMATS,
+  getDownloadFormat,
 } from '../../lib/messageExport';
 import type { Message } from '../../types/message';
 
@@ -53,7 +55,7 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
       await exportMessageAsDocx(exportMessage);
     } catch (error) {
       console.error('[MessageDownloadMenu] DOCX export failed', error);
-      showError('Failed to prepare DOCX');
+      showError(getDownloadFormat('docx').failureMessage);
     } finally {
       setBusyAction(null);
       setOpen(false);
@@ -67,12 +69,14 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
       await exportMessageAsPdf(exportMessage);
     } catch (error) {
       console.error('[MessageDownloadMenu] PDF export failed', error);
-      showError('Failed to prepare PDF');
+      showError(getDownloadFormat('pdf').failureMessage);
     } finally {
       setBusyAction(null);
       setOpen(false);
     }
   }, [exportMessage, clearFeedback, showError]);
+
+  const handlers = { md: handleMarkdown, docx: handleDocx, pdf: handlePdf } as const;
 
   return (
     <>
@@ -93,15 +97,20 @@ export function MessageDownloadMenu({ message, contentOverride }: MessageDownloa
         }
       >
         <PickerScrollBody>
-          <PickerOptionRow selected={false} onSelect={handleMarkdown} disabled={busy}>
-            <span>Download as Markdown</span>
-          </PickerOptionRow>
-          <PickerOptionRow selected={false} onSelect={handleDocx} disabled={busy}>
-            <span>{busyAction === 'docx' ? 'Preparing DOCX...' : 'Download as DOCX'}</span>
-          </PickerOptionRow>
-          <PickerOptionRow selected={false} onSelect={handlePdf} disabled={busy}>
-            <span>{busyAction === 'pdf' ? 'Preparing PDF...' : 'Download as PDF'}</span>
-          </PickerOptionRow>
+          {DOWNLOAD_FORMATS.map((definition) => (
+            <PickerOptionRow
+              key={definition.format}
+              selected={false}
+              onSelect={handlers[definition.format]}
+              disabled={busy}
+            >
+              <span>
+                {busyAction === definition.format && definition.busyLabel
+                  ? definition.busyLabel
+                  : definition.label}
+              </span>
+            </PickerOptionRow>
+          ))}
         </PickerScrollBody>
       </ResponsivePickerShell>
       {/* Outside the picker on purpose: the menu closes after every action, including a failed one,

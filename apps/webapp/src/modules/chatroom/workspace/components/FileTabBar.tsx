@@ -30,6 +30,10 @@ interface FileTabBarProps {
   onCopied?: (info: WorkspaceFileCopyInfo) => void;
   /** Called with the failure message when a file-tab copy command fails. */
   onCopyError?: (message: string) => void;
+  /** Called before a tab download starts; the dashboard clears its feedback strip. */
+  onDownloadStart?: () => void;
+  /** Called with the format-specific failure copy; the dashboard shows it in dashboard-feedback. */
+  onDownloadError?: (message: string) => void;
   enableDragSplit?: boolean;
 }
 
@@ -47,6 +51,8 @@ export const FileTabBar = memo(function FileTabBar({
   onOpenFileOnRemote,
   onCopied,
   onCopyError,
+  onDownloadStart,
+  onDownloadError,
   enableDragSplit = false,
 }: FileTabBarProps) {
   const { trackContextMenuFile, getMenuContentStateForPath } = useWorkspaceFileMenuContent(
@@ -60,6 +66,43 @@ export const FileTabBar = memo(function FileTabBar({
       onCloseOthers(key);
     },
     [onCloseOthers]
+  );
+
+  // One menu definition for both markdown-capable tab kinds: file tabs and preview tabs
+  // point at the same source file, so their download and copy item sets must match exactly.
+  const buildFileTabMenuProps = useCallback(
+    (filePath: string, key: string) => ({
+      state: { relativePath: filePath, workingDir },
+      handlers: {
+        onOpenFileOnRemote: onOpenFileOnRemote
+          ? () => void onOpenFileOnRemote(filePath)
+          : undefined,
+        onCloseOthers: () => handleCloseOthers(key),
+        onCopied,
+        onCopyError,
+        onDownloadStart,
+        onDownloadError,
+      },
+      visibility: {
+        copyFileName: true,
+        copyRelativePath: true,
+        copyFullPath: true,
+        copyFileContent: true,
+        openFileOnRemote: !!onOpenFileOnRemote,
+        closeOthers: true,
+        closeOthersDisabled: tabs.length <= 1,
+      },
+    }),
+    [
+      workingDir,
+      onOpenFileOnRemote,
+      handleCloseOthers,
+      onCopied,
+      onCopyError,
+      onDownloadStart,
+      onDownloadError,
+      tabs.length,
+    ]
   );
 
   const handleDragStart = useCallback(
@@ -99,29 +142,12 @@ export const FileTabBar = memo(function FileTabBar({
               draggable={enableDragSplit}
               onDragStart={handleDragStart(key)}
               onContextMenu={
-                tab.kind === 'file'
-                  ? (filePath, event) => {
-                      trackContextMenuFile(filePath);
-                      openAtPointer(event, {
-                        state: { relativePath: filePath, workingDir },
-                        handlers: {
-                          onOpenFileOnRemote: onOpenFileOnRemote
-                            ? () => void onOpenFileOnRemote(filePath)
-                            : undefined,
-                          onCloseOthers: () => handleCloseOthers(key),
-                          onCopied,
-                          onCopyError,
-                        },
-                        visibility: {
-                          copyFileName: true,
-                          copyRelativePath: true,
-                          copyFullPath: true,
-                          copyFileContent: true,
-                          openFileOnRemote: !!onOpenFileOnRemote,
-                          closeOthers: true,
-                          closeOthersDisabled: tabs.length <= 1,
-                        },
-                      });
+                tab.kind === 'file' || tab.kind === 'preview'
+                  ? (_tabKey, event) => {
+                      // Read the path from the tab, never the callback key: a preview tab's
+                      // key is `rightTabKey(filePath, 'preview')`, not the file path.
+                      trackContextMenuFile(tab.filePath);
+                      openAtPointer(event, buildFileTabMenuProps(tab.filePath, key));
                     }
                   : tab.kind === 'agentic-query'
                     ? (_tabKey, event) => {

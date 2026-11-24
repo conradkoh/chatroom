@@ -1,9 +1,24 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React, { createRef } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileExplorerPanel, type FileExplorerPanelHandle } from './FileExplorerPanel';
+import { exportFileAsDocx } from '../../lib/messageExport';
+import { useFileContent } from '../hooks/useFileContent';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
+
+vi.mock('../../lib/messageExport', async () => {
+  const formats = (await vi.importActual('../../lib/messageExport/downloadFormats')) as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...formats,
+    saveTextFile: vi.fn().mockResolvedValue('saved'),
+    exportFileAsDocx: vi.fn().mockResolvedValue('saved'),
+    exportFileAsPdf: vi.fn().mockResolvedValue('saved'),
+  };
+});
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
@@ -350,5 +365,103 @@ describe('FileExplorerPanel context menu', () => {
 
     fireEvent.click(await screen.findByText('Copy File Name'));
     expect(writeText).toHaveBeenCalledWith('index.ts');
+  });
+});
+
+describe('FileExplorerPanel markdown downloads', () => {
+  type NodeTarget = { path: string; type: 'file' | 'directory'; name: string };
+
+  function contextMenuEvent() {
+    return new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 10,
+      clientY: 20,
+    });
+  }
+
+  function openNodeMenu(node: NodeTarget) {
+    act(() => {
+      (lastExplorerProps.onNodeContextMenu as (node: NodeTarget, event: MouseEvent) => void)(
+        node,
+        contextMenuEvent()
+      );
+    });
+  }
+
+  function openRootMenu() {
+    act(() => {
+      (lastExplorerProps.onEmptyAreaContextMenu as (event: MouseEvent) => void)(contextMenuEvent());
+    });
+  }
+
+  function mockReadyMarkdown() {
+    vi.mocked(useFileContent).mockReturnValue({
+      content: '# Hi',
+      encoding: 'utf-8',
+      truncated: false,
+      fetchedAt: 1,
+    });
+  }
+
+  it('offers the Download group on a markdown file row', async () => {
+    mockReadyMarkdown();
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    openNodeMenu({ path: 'docs/README.md', type: 'file', name: 'README.md' });
+
+    expect(await screen.findByText('Download')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as DOCX' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).toBeInTheDocument();
+  });
+
+  it('disables the group with the loading reason while content resolves', async () => {
+    vi.mocked(useFileContent).mockReturnValue(undefined);
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    openNodeMenu({ path: 'docs/README.md', type: 'file', name: 'README.md' });
+
+    expect(await screen.findByText('Loading file content…')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as DOCX' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+  });
+
+  it('shows no Download group on a folder row', async () => {
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    openNodeMenu({ path: 'docs', type: 'directory', name: 'docs' });
+
+    expect(await screen.findByText('Rename')).toBeInTheDocument();
+    expect(screen.queryByText('Download')).not.toBeInTheDocument();
+  });
+
+  it('shows no Download group on the explorer root', async () => {
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    openRootMenu();
+
+    expect(await screen.findByText('New File')).toBeInTheDocument();
+    expect(screen.queryByText('Download')).not.toBeInTheDocument();
+  });
+
+  it('renders a failed DOCX download in explorer-feedback as an error', async () => {
+    mockReadyMarkdown();
+    vi.mocked(exportFileAsDocx).mockRejectedValueOnce(new Error('boom'));
+    render(<FileExplorerPanel {...defaultProps} workingDir="/workspace/project" />);
+
+    openNodeMenu({ path: 'docs/README.md', type: 'file', name: 'README.md' });
+    fireEvent.click(await screen.findByText('Download as DOCX'));
+
+    const feedback = await screen.findByTestId('explorer-feedback');
+    expect(feedback).toHaveAttribute('role', 'alert');
+    expect(feedback).toHaveTextContent('Failed to prepare DOCX');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  afterEach(() => {
+    vi.mocked(useFileContent).mockReturnValue(null);
   });
 });

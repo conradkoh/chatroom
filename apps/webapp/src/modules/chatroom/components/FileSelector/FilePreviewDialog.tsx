@@ -34,6 +34,12 @@ import { usePendingFileHighlight } from '../../context/PendingFileHighlightConte
 import { WorkspaceFileLinkProvider } from '../../context/WorkspaceFileLinkContext';
 import { FileContentActionBar } from '../../workspace/components/FileContentActionBar';
 import {
+  buildFilePreviewMenuProps,
+  useWorkspaceFileContextMenu,
+  type FilePreviewMenuArgs,
+  type WorkspaceFileContentStatus,
+} from '../../workspace/file-menu';
+import {
   isMarkdownFile,
   isCsvFile,
   getDefaultViewMode,
@@ -359,6 +365,7 @@ const FileContentPanel = memo(function FileContentPanel({
   canCopyContent,
   onCopied,
   onCopyError,
+  onHeaderContextMenu,
 }: {
   filePath: string | null;
   contentResult: FileContentResult | null | undefined;
@@ -368,6 +375,8 @@ const FileContentPanel = memo(function FileContentPanel({
   canCopyContent: boolean;
   onCopied: (info: CopySucceededInfo) => void;
   onCopyError: (message: string) => void;
+  /** Right-click on the action bar only; the body keeps native text selection. */
+  onHeaderContextMenu?: (event: React.MouseEvent) => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   useContainedSelectAll(contentRef);
@@ -437,6 +446,7 @@ const FileContentPanel = memo(function FileContentPanel({
           onCopy={handleCopyContent}
           copied={copied}
           disabled={!canCopyContent}
+          onContextMenu={onHeaderContextMenu}
         />
       )}
       <div
@@ -510,6 +520,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const {
     feedback: copyFeedback,
     showCopyError,
+    showError: showDownloadError,
     copySucceeded,
     clear: clearCopyFeedback,
   } = useCopyOwnedFeedback();
@@ -534,6 +545,61 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
   const isBinary = effectiveFilePath ? isBinaryFile(effectiveFilePath) : false;
   const canCopyContent = contentResult != null && !isBinary;
   const copyContentLabel = isMarkdown ? 'Copy as Markdown' : 'Copy File Content';
+
+  const contentStatus: WorkspaceFileContentStatus =
+    contentResult === undefined ? 'loading' : contentResult === null ? 'not-found' : 'ready';
+
+  const previewMenuArgs: FilePreviewMenuArgs = useMemo(
+    () => ({
+      relativePath: effectiveFilePath ?? '',
+      workingDir,
+      content: contentResult?.content ?? null,
+      contentStatus,
+      contentTruncated: contentResult?.truncated,
+      contentDisabled: !canCopyContent,
+      fileContentLabel: copyContentLabel,
+      triggerVariant: 'more',
+      onOpenInExplorer: onOpenInExplorer
+        ? () => {
+            onOpenInExplorer(effectiveFilePath ?? '');
+            onClose();
+          }
+        : undefined,
+      onOpenFileOnRemote: onOpenFileOnRemote
+        ? () => void onOpenFileOnRemote(effectiveFilePath ?? '')
+        : undefined,
+      onCopyError: showCopyError,
+      onCopied: copySucceeded,
+      onDownloadStart: clearCopyFeedback,
+      onDownloadError: showDownloadError,
+    }),
+    [
+      effectiveFilePath,
+      workingDir,
+      contentResult,
+      contentStatus,
+      canCopyContent,
+      copyContentLabel,
+      onOpenInExplorer,
+      onClose,
+      onOpenFileOnRemote,
+      showCopyError,
+      copySucceeded,
+      clearCopyFeedback,
+      showDownloadError,
+    ]
+  );
+
+  const previewMenuProps = useMemo(
+    () => buildFilePreviewMenuProps(previewMenuArgs),
+    [previewMenuArgs]
+  );
+
+  // The live menu state is the same definition the `...` menu renders, so the header
+  // right-click cannot drift from it while content resolves.
+  const getPreviewMenuContentState = useCallback(() => previewMenuProps.state, [previewMenuProps]);
+
+  const { openAtPointer, contextMenu } = useWorkspaceFileContextMenu(getPreviewMenuContentState);
 
   // Close mobile tree when selecting a file
   const handleMobileSelectFile = useCallback(
@@ -582,30 +648,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
             <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted font-mono truncate min-w-0">
               {effectiveFilePath}
             </span>
-            {effectiveFilePath && (
-              <FileCopyActionsMenu
-                relativePath={effectiveFilePath}
-                workingDir={workingDir}
-                content={contentResult?.content ?? null}
-                contentTruncated={contentResult?.truncated}
-                contentDisabled={!canCopyContent}
-                fileContentLabel={copyContentLabel}
-                triggerVariant="more"
-                onOpenInExplorer={
-                  onOpenInExplorer
-                    ? () => {
-                        onOpenInExplorer(effectiveFilePath);
-                        onClose();
-                      }
-                    : undefined
-                }
-                onOpenFileOnRemote={
-                  onOpenFileOnRemote ? () => void onOpenFileOnRemote(effectiveFilePath) : undefined
-                }
-                onCopyError={showCopyError}
-                onCopied={copySucceeded}
-              />
-            )}
+            {effectiveFilePath && <FileCopyActionsMenu {...previewMenuArgs} />}
             {contentResult?.truncated && (
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 shrink-0">
                 TRUNCATED
@@ -687,6 +730,9 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
               canCopyContent={canCopyContent}
               onCopied={copySucceeded}
               onCopyError={showCopyError}
+              onHeaderContextMenu={
+                isMarkdown ? (event) => openAtPointer(event, previewMenuProps) : undefined
+              }
             />
           </FixedModalBody>
         </div>
@@ -696,6 +742,7 @@ export const FilePreviewDialog = memo(function FilePreviewDialog({
           data-testid="file-preview-feedback"
           className="mx-4 mb-2 shrink-0"
         />
+        {contextMenu}
       </FixedModalContent>
     </FixedModal>
   );

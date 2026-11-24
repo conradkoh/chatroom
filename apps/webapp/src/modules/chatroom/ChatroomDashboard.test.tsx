@@ -79,7 +79,12 @@ const defaultProps = {
   onOpenPreview: vi.fn(),
   onOpenTableView: vi.fn(),
   agenticFocusToken: 0,
-  copyHandlers: { onCopied: vi.fn(), onCopyError: vi.fn() },
+  fileMenuHandlers: {
+    onCopied: vi.fn(),
+    onCopyError: vi.fn(),
+    onDownloadStart: vi.fn(),
+    onDownloadError: vi.fn(),
+  },
 };
 
 beforeAll(() => {

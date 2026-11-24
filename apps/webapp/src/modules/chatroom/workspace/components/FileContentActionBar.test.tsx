@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FileContentActionBar } from './FileContentActionBar';
@@ -33,5 +33,16 @@ describe('FileContentActionBar', () => {
     );
     expect(screen.getByTestId('leading')).toHaveTextContent('Leading');
     expect(screen.getByTestId('trailing')).toHaveTextContent('Trailing');
+  });
+
+  it('fires onContextMenu when the bar is right-clicked', () => {
+    const onContextMenu = vi.fn();
+    render(
+      <FileContentActionBar copyLabel="Copy" onCopy={vi.fn()} onContextMenu={onContextMenu} />
+    );
+
+    fireEvent.contextMenu(screen.getByTestId('file-content-action-bar'));
+
+    expect(onContextMenu).toHaveBeenCalledTimes(1);
   });
 });

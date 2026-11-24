@@ -1,11 +1,25 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { FileTabBar } from './FileTabBar';
 import { WORKSPACE_HEADER_ROW_HEIGHT_CLASS } from './WorkspaceTabBar';
+import { exportFileAsDocx } from '../../lib/messageExport';
 import { useFileContent } from '../hooks/useFileContent';
 import type { EditorTab } from '../hooks/useFileTabs';
 import { previewTabDoubleClickAction } from '../utils/explorerExpandHandlers';
+
+vi.mock('../../lib/messageExport', async () => {
+  const formats = (await vi.importActual('../../lib/messageExport/downloadFormats')) as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...formats,
+    saveTextFile: vi.fn().mockResolvedValue('saved'),
+    exportFileAsDocx: vi.fn().mockResolvedValue('saved'),
+    exportFileAsPdf: vi.fn().mockResolvedValue('saved'),
+  };
+});
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
@@ -288,6 +302,125 @@ describe('FileTabBar copy reporting', () => {
     await copyFileContentFromTab();
 
     await waitFor(() => expect(onCopied).toHaveBeenCalledWith({ truncated: false }));
+  });
+
+  afterEach(() => {
+    vi.mocked(useFileContent).mockReturnValue(null);
+  });
+});
+
+describe('FileTabBar markdown downloads', () => {
+  const markdownTabs: EditorTab[] = [
+    { kind: 'file', filePath: 'docs/README.md', name: 'README.md', isPinned: true },
+    {
+      kind: 'preview',
+      filePath: 'docs/README.md',
+      name: 'README.md (Preview)',
+      isPinned: true,
+    },
+  ];
+
+  const markdownProps = {
+    ...defaultProps,
+    tabs: markdownTabs,
+    activeTabKey: 'docs/README.md',
+  };
+
+  function mockReadyMarkdown() {
+    vi.mocked(useFileContent).mockReturnValue({
+      content: '# Hello',
+      encoding: 'utf-8',
+      truncated: false,
+      fetchedAt: 1,
+    });
+  }
+
+  async function collectMenuItems() {
+    const items = await screen.findAllByRole('menuitem');
+    return items.map((item) => ({
+      name: item.textContent?.trim() ?? '',
+      disabled: item.getAttribute('aria-disabled') === 'true',
+    }));
+  }
+
+  it('renders the same item set for a markdown file tab and its preview tab', async () => {
+    mockReadyMarkdown();
+
+    render(<FileTabBar {...markdownProps} />);
+    fireEvent.contextMenu(screen.getAllByTitle('docs/README.md')[0]);
+    const fileTabItems = await collectMenuItems();
+
+    cleanup();
+
+    render(<FileTabBar {...markdownProps} />);
+    fireEvent.contextMenu(screen.getAllByTitle('docs/README.md')[1]);
+    const previewTabItems = await collectMenuItems();
+
+    expect(previewTabItems).toEqual(fileTabItems);
+
+    const fileTabNames = fileTabItems.map((item) => item.name);
+    expect(fileTabNames.filter((name) => name.startsWith('Download as'))).toEqual([
+      'Download as Markdown',
+      'Download as DOCX',
+      'Download as PDF',
+    ]);
+    expect(fileTabItems.at(-1)).toMatchObject({ name: 'Close Others', disabled: false });
+  });
+
+  it('shows the loading reason while content resolves and the not-found reason when missing', async () => {
+    vi.mocked(useFileContent).mockReturnValue(undefined);
+    render(<FileTabBar {...markdownProps} />);
+    fireEvent.contextMenu(screen.getAllByTitle('docs/README.md')[0]);
+
+    expect(await screen.findByText('Loading file content…')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+
+    cleanup();
+
+    vi.mocked(useFileContent).mockReturnValue(null);
+    render(<FileTabBar {...markdownProps} />);
+    fireEvent.contextMenu(screen.getAllByTitle('docs/README.md')[0]);
+
+    expect(await screen.findByText('File not found.')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+  });
+
+  it('shows no Download group on a non-markdown file tab', async () => {
+    render(<FileTabBar {...defaultProps} />);
+
+    fireEvent.contextMenu(screen.getByTitle('src/b.ts'));
+
+    expect(await screen.findByRole('menuitem', { name: /copy file content/i })).toBeInTheDocument();
+    expect(screen.queryByText('Download')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: /download as markdown/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('reports a failed DOCX download to onDownloadError', async () => {
+    mockReadyMarkdown();
+    vi.mocked(exportFileAsDocx).mockRejectedValueOnce(new Error('boom'));
+    const onDownloadStart = vi.fn();
+    const onDownloadError = vi.fn();
+
+    render(
+      <FileTabBar
+        {...markdownProps}
+        onDownloadStart={onDownloadStart}
+        onDownloadError={onDownloadError}
+      />
+    );
+    fireEvent.contextMenu(screen.getAllByTitle('docs/README.md')[0]);
+    fireEvent.click(await screen.findByText('Download as DOCX'));
+
+    await waitFor(() => expect(onDownloadError).toHaveBeenCalledWith('Failed to prepare DOCX'));
+    expect(onDownloadStart).toHaveBeenCalled();
   });
 
   afterEach(() => {
