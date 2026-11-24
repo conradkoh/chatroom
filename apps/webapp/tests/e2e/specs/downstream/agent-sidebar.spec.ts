@@ -131,7 +131,7 @@ async function assertCollapsedSidebar(section: Locator, team: CanonicalTeam): Pr
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   expect(await toggle.getAttribute('aria-controls')).toBeNull();
   await expect(toggle).toHaveAccessibleName(
-    `Ephemeral agents: 0 online, ${n} offline, 0 errored. Show group.`
+    `Ephemeral (${n}): 0 online, ${n} offline, 0 errored. Show group.`
   );
   await expect(section.getByTestId('ephemeral-agent-group-body')).toHaveCount(0);
 }
@@ -141,7 +141,7 @@ async function expandEphemeralGroup(section: Locator, team: CanonicalTeam): Prom
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(toggle).toHaveAccessibleName(
-    `Ephemeral agents: 0 online, ${team.ephemeralRoles.length} offline, 0 errored. Hide group.`
+    `Ephemeral (${team.ephemeralRoles.length}): 0 online, ${team.ephemeralRoles.length} offline, 0 errored. Hide group.`
   );
   // aria-controls must point at the rendered body. Resolve it by id, not by a CSS selector (React ids are not CSS-safe).
   const bodyTestId = await toggle.evaluate((el) =>

@@ -94,7 +94,7 @@ function statusRow(role: string, status: StatusValue): AgentRoleStatusReadModel 
   return { role, roleKind: 'ephemeral', status, projectedAt: Date.now() };
 }
 
-const ephemeralToggle = () => screen.getByRole('button', { name: /^Ephemeral agents:/ });
+const ephemeralToggle = () => screen.getByRole('button', { name: /^Ephemeral \(\d+\):/ });
 const expandEphemeralGroup = () => fireEvent.click(ephemeralToggle());
 
 describe('AgentPanel', () => {
@@ -329,7 +329,7 @@ describe('AgentPanel', () => {
     );
 
     expect(screen.queryByText(/Ephemeral/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Ephemeral agents:/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Ephemeral \(\d+\):/ })).toBeNull();
   });
 
   it('renders one collapsed group row with zero online, all offline, and no member rows', () => {

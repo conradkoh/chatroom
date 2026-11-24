@@ -37,7 +37,7 @@ describe('EphemeralAgentGroup', () => {
     renderGroup();
 
     const button = screen.getByRole('button', {
-      name: 'Ephemeral agents: 1 online, 6 offline, 1 errored. Show group.',
+      name: 'Ephemeral (8): 1 online, 6 offline, 1 errored. Show group.',
     });
     expect(button).toHaveAttribute('aria-expanded', 'false');
     expect(button).not.toHaveAttribute('aria-controls');
@@ -59,7 +59,7 @@ describe('EphemeralAgentGroup', () => {
     expect(button).toHaveAttribute('aria-expanded', 'true');
     expect(button).toHaveAttribute('aria-controls', body.id);
     expect(button).toHaveAccessibleName(
-      'Ephemeral agents: 1 online, 6 offline, 1 errored. Hide group.'
+      'Ephemeral (8): 1 online, 6 offline, 1 errored. Hide group.'
     );
     expect(screen.getByText('member-a')).toBeInTheDocument();
     expect(screen.getByText('member-b')).toBeInTheDocument();
@@ -75,7 +75,7 @@ describe('EphemeralAgentGroup', () => {
     expect(screen.queryByText(/^\d+ errored$/)).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', {
-        name: 'Ephemeral agents: statuses loading. Show group.',
+        name: 'Ephemeral (8): statuses loading. Show group.',
       })
     ).toBeInTheDocument();
   });

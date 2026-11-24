@@ -6,6 +6,7 @@ import {
   EPHEMERAL_GROUP_LOADING_LABEL,
   deriveEphemeralAgentGroups,
   ephemeralGroupAriaLabel,
+  ephemeralGroupTitle,
   getCountIndicatorClass,
   getCountTextClass,
 } from './ephemeralAgentGroupDerivation';
@@ -168,25 +169,26 @@ describe('deriveEphemeralAgentGroups', () => {
 describe('ephemeralGroupAriaLabel', () => {
   const counts = { online: 1, offline: 6, errored: 1, total: 8 };
 
-  it('describes counts and the show action when collapsed', () => {
-    expect(ephemeralGroupAriaLabel({ expanded: false, counts })).toBe(
-      'Ephemeral agents: 1 online, 6 offline, 1 errored. Show group.'
+  it('starts with the visible title and describes counts with the show action when collapsed', () => {
+    expect(ephemeralGroupAriaLabel({ expanded: false, total: 8, counts })).toBe(
+      'Ephemeral (8): 1 online, 6 offline, 1 errored. Show group.'
     );
   });
 
   it('describes the hide action when expanded', () => {
-    expect(ephemeralGroupAriaLabel({ expanded: true, counts })).toBe(
-      'Ephemeral agents: 1 online, 6 offline, 1 errored. Hide group.'
+    expect(ephemeralGroupAriaLabel({ expanded: true, total: 8, counts })).toBe(
+      'Ephemeral (8): 1 online, 6 offline, 1 errored. Hide group.'
     );
   });
 
-  it('describes loading when counts are unavailable', () => {
-    expect(ephemeralGroupAriaLabel({ expanded: false, counts: null })).toBe(
-      'Ephemeral agents: statuses loading. Show group.'
+  it('describes loading with the visible title when counts are unavailable', () => {
+    expect(ephemeralGroupAriaLabel({ expanded: false, total: 8, counts: null })).toBe(
+      'Ephemeral (8): statuses loading. Show group.'
     );
   });
 
-  it('exposes stable loading and empty labels', () => {
+  it('exposes the visible title and stable loading and empty labels', () => {
+    expect(ephemeralGroupTitle(8)).toBe('Ephemeral (8)');
     expect(EPHEMERAL_GROUP_LOADING_LABEL).toBe('Loading statuses…');
     expect(EPHEMERAL_GROUP_EMPTY_LABEL).toBe('No agents in group');
   });

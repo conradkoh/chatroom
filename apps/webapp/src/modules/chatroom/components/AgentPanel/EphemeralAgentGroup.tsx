@@ -7,6 +7,7 @@ import {
   EPHEMERAL_GROUP_EMPTY_LABEL,
   EPHEMERAL_GROUP_LOADING_LABEL,
   ephemeralGroupAriaLabel,
+  ephemeralGroupTitle,
   getCountIndicatorClass,
   getCountTextClass,
   type EphemeralCountKind,
@@ -56,7 +57,7 @@ export function EphemeralAgentGroup({
           type="button"
           aria-expanded={expanded}
           aria-controls={expanded ? bodyId : undefined}
-          aria-label={ephemeralGroupAriaLabel({ expanded, counts })}
+          aria-label={ephemeralGroupAriaLabel({ expanded, total, counts })}
           data-testid="ephemeral-agent-group-toggle"
           onClick={onToggle}
           className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-chatroom-bg-hover focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-chatroom-accent"
@@ -71,7 +72,7 @@ export function EphemeralAgentGroup({
           />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-chatroom-text-primary">
-              Ephemeral ({total})
+              {ephemeralGroupTitle(total)}
             </span>
             <EphemeralCountSummary counts={counts} />
           </span>

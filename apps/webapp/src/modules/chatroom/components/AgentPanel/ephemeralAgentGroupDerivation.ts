@@ -72,18 +72,26 @@ export function deriveEphemeralAgentGroups(
   };
 }
 
+/** Visible title of the disclosure row and the start of its accessible name. */
+export function ephemeralGroupTitle(total: number): string {
+  return `Ephemeral (${total})`;
+}
+
 /**
- * Accessible name for the disclosure toggle. Screen readers announce the count
- * summary and the action the toggle performs.
+ * Accessible name for the disclosure toggle. It begins with the visible title so
+ * label-in-name holds (voice control users can speak the visible text), then
+ * states the counts in words and the action the toggle performs.
  */
 export function ephemeralGroupAriaLabel(args: {
   expanded: boolean;
+  total: number;
   counts: EphemeralGroupCounts | null;
 }): string {
+  const title = ephemeralGroupTitle(args.total);
   const action = args.expanded ? 'Hide group.' : 'Show group.';
-  if (!args.counts) return `Ephemeral agents: statuses loading. ${action}`;
+  if (!args.counts) return `${title}: statuses loading. ${action}`;
   const { online, offline, errored } = args.counts;
-  return `Ephemeral agents: ${online} online, ${offline} offline, ${errored} errored. ${action}`;
+  return `${title}: ${online} online, ${offline} offline, ${errored} errored. ${action}`;
 }
 
 /**
