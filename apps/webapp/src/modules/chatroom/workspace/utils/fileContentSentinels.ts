@@ -33,7 +33,11 @@ export function isWorkspaceNotRegisteredError(content: string | undefined): bool
 export const FILE_BINARY_PLACEHOLDER = '[Binary file]';
 
 /**
- * Prefix of the daemon placeholder for a path the remote explorer refuses to open.
- * The daemon emits `[File blocked: <reason>]`; match the prefix including the colon.
+ * Daemon placeholder for a path the remote explorer refuses to open. The daemon sends one
+ * line, `[File blocked: <reason>]`. Text that only starts with that prefix is file content.
  */
-export const FILE_BLOCKED_PLACEHOLDER_PREFIX = '[File blocked:';
+const FILE_BLOCKED_PLACEHOLDER_PATTERN = /^\[File blocked: [^\n]*\]\s*$/;
+
+export function isFileBlockedError(content: string): boolean {
+  return FILE_BLOCKED_PLACEHOLDER_PATTERN.test(content);
+}

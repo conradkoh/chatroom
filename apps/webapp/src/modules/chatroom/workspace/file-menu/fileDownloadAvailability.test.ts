@@ -135,6 +135,15 @@ describe('resolveFileDownloadAvailability', () => {
     ).toEqual({ kind: 'disabled', reason: 'This file is blocked from reading.' });
   });
 
+  it('is ready for a markdown file that starts with a daemon-like blocked line followed by body text', () => {
+    expect(
+      resolveFileDownloadAvailability({
+        filePath: 'docs/README.md',
+        content: '[File blocked: see the policy]\n\nBody',
+      })
+    ).toEqual({ kind: 'ready' });
+  });
+
   it.each([
     ['[Binary file]', 'Binary files cannot be downloaded.'],
     ['[File not found]', 'File not found.'],

@@ -3,8 +3,8 @@ import { isMarkdownFile } from '../file-renderers';
 import type { WorkspaceFileContentStatus } from './types';
 import {
   FILE_BINARY_PLACEHOLDER,
-  FILE_BLOCKED_PLACEHOLDER_PREFIX,
   FILE_READ_ERROR_PLACEHOLDER,
+  isFileBlockedError,
   isFileNotFoundError,
   isWorkspaceNotRegisteredError,
 } from '../utils/fileContentSentinels';
@@ -57,9 +57,7 @@ export function resolveFileDownloadAvailability(
   if (typeof content === 'string') {
     if (content === FILE_BINARY_PLACEHOLDER) return disabled(FILE_DOWNLOAD_REASON.binary);
     if (isFileNotFoundError(content)) return disabled(FILE_DOWNLOAD_REASON.notFound);
-    if (content.startsWith(FILE_BLOCKED_PLACEHOLDER_PREFIX)) {
-      return disabled(FILE_DOWNLOAD_REASON.blocked);
-    }
+    if (isFileBlockedError(content)) return disabled(FILE_DOWNLOAD_REASON.blocked);
     if (content === FILE_READ_ERROR_PLACEHOLDER) return disabled(FILE_DOWNLOAD_REASON.readError);
     if (isWorkspaceNotRegisteredError(content)) {
       return disabled(FILE_DOWNLOAD_REASON.workspaceUnavailable);
