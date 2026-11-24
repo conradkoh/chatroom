@@ -8915,7 +8915,9 @@ When \`get-next-task\` delivers a chatroom task, the **full task content is incl
 
 NOTE: If you are an agent that has undergone compaction or summarization, run:
   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"
-to reload your full system and role prompt. Then re-read your verification request and download the log from its user message id:
+to reload your full system and role prompt. Then run:
+  CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="characterisation-chatroom" --role="verifier"
+to print the user message id of your verification request, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<user-message-id>" --limit=100
 
 Agents on the \`get-next-task\` loop do not support in-session compaction. After context is lost, run \`get-next-task\` again to rejoin the chatroom.

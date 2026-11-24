@@ -24,6 +24,12 @@ describe.each(renderers)('compaction recovery %s', (_name, render) => {
     expect(output).not.toMatch(CONTEXT_REFERENCE);
   });
 
+  test('anchors on the user message id before downloading the log', () => {
+    const output = render('verifier');
+    expect(output).toContain('messages anchor');
+    expect(output.indexOf('messages anchor')).toBeLessThan(output.indexOf('messages download'));
+  });
+
   test('keeps the context-read recovery for a non-verifier role', () => {
     expect(render('builder')).toContain('chatroom context read');
   });
