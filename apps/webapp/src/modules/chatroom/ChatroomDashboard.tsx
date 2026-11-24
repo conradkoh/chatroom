@@ -389,10 +389,12 @@ interface ExplorerContentProps {
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
   agenticFocusToken: number;
-  /** Sinks for file-tab copy commands; the dashboard strip owns the feedback slot. */
-  copyHandlers: {
+  /** Sinks for file-tab copy and download commands; the dashboard strip owns the feedback slot. */
+  fileMenuHandlers: {
     onCopied: (info: { truncated: boolean }) => void;
     onCopyError: (message: string) => void;
+    onDownloadStart: () => void;
+    onDownloadError: (message: string) => void;
   };
 }
 
@@ -410,7 +412,7 @@ function areExplorerContentStaticPropsEqual(
     prev.onOpenTableView === next.onOpenTableView &&
     prev.onSendSelectionToComposer === next.onSendSelectionToComposer &&
     prev.agenticFocusToken === next.agenticFocusToken &&
-    prev.copyHandlers === next.copyHandlers
+    prev.fileMenuHandlers === next.fileMenuHandlers
   );
 }
 
@@ -445,7 +447,7 @@ export const ExplorerContent = memo(function ExplorerContent({
   onOpenTableView,
   onSendSelectionToComposer,
   agenticFocusToken,
-  copyHandlers,
+  fileMenuHandlers,
 }: ExplorerContentProps) {
   const machineId = activeWorkspace?.machineId ?? '';
   const workingDir = activeWorkspace?.workingDir ?? '';
@@ -547,7 +549,7 @@ export const ExplorerContent = memo(function ExplorerContent({
       onToggleExpanded={fileTabs.toggleExpanded}
       onOpenFileOnRemote={handleOpenFileOnRemote}
       enableDragSplit
-      {...copyHandlers}
+      {...fileMenuHandlers}
     />
   ) : null;
 
@@ -606,7 +608,7 @@ export const ExplorerContent = memo(function ExplorerContent({
                       onToggleExpanded={fileTabs.toggleExpanded}
                       onOpenFileOnRemote={handleOpenFileOnRemote}
                       enableDragSplit
-                      {...copyHandlers}
+                      {...fileMenuHandlers}
                     />
                     {activePrimaryTab ? (
                       <ExplorerEditorTabContent tab={activePrimaryTab} {...editorTabContentProps} />
@@ -637,7 +639,7 @@ export const ExplorerContent = memo(function ExplorerContent({
                       onTogglePreviewExpanded={fileTabs.togglePreviewExpanded}
                       onOpenFileOnRemote={handleOpenFileOnRemote}
                       enableDragSplit
-                      {...copyHandlers}
+                      {...fileMenuHandlers}
                     />
                   ) : null
                 }
@@ -867,6 +869,7 @@ function ChatroomDashboardContent({
   const {
     feedback: dashboardFeedback,
     showCopyError: showDashboardCopyError,
+    showError: showDashboardDownloadError,
     copySucceeded: dashboardCopySucceeded,
     clear: clearDashboardFeedback,
     report: reportDashboardFeedback,
@@ -1418,9 +1421,19 @@ function ChatroomDashboardContent({
   }, [gitHubRepoUrl]);
 
   // ─── Multi-workspace command palette commands ──────────────────────────────
-  const dashboardCopyHandlers = useMemo(
-    () => ({ onCopied: dashboardCopySucceeded, onCopyError: showDashboardCopyError }),
-    [dashboardCopySucceeded, showDashboardCopyError]
+  const dashboardFileMenuHandlers = useMemo(
+    () => ({
+      onCopied: dashboardCopySucceeded,
+      onCopyError: showDashboardCopyError,
+      onDownloadStart: clearDashboardFeedback,
+      onDownloadError: showDashboardDownloadError,
+    }),
+    [
+      dashboardCopySucceeded,
+      showDashboardCopyError,
+      clearDashboardFeedback,
+      showDashboardDownloadError,
+    ]
   );
 
   const [workspaceCommands, setWorkspaceCommands] = useState<CommandItem[]>([]);
@@ -1933,7 +1946,7 @@ function ChatroomDashboardContent({
                                 onOpenTableView={handleOpenTableView}
                                 onSendSelectionToComposer={handleExplorerSelectionToComposer}
                                 agenticFocusToken={agenticFocusToken}
-                                copyHandlers={dashboardCopyHandlers}
+                                fileMenuHandlers={dashboardFileMenuHandlers}
                               />
                             ) : (
                               sourceControlPanel
@@ -2022,7 +2035,7 @@ function ChatroomDashboardContent({
                           onOpenTableView={handleOpenTableView}
                           onSendSelectionToComposer={handleExplorerSelectionToComposer}
                           agenticFocusToken={agenticFocusToken}
-                          copyHandlers={dashboardCopyHandlers}
+                          fileMenuHandlers={dashboardFileMenuHandlers}
                         />
                       )}
                     </div>
@@ -2084,7 +2097,8 @@ function ChatroomDashboardContent({
                   </div>
                   <WorkspaceBottomBar
                     onSwitchToSourceControl={handleSwitchToSourceControl}
-                    {...dashboardCopyHandlers}
+                    onCopied={dashboardCopySucceeded}
+                    onCopyError={showDashboardCopyError}
                   />
                 </div>
 
