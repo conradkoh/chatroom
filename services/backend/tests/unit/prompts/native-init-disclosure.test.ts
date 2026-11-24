@@ -172,7 +172,7 @@ describe('Native init — commands reference', () => {
     expect(prompt).toContain('## Planner Operating Model');
     expect(prompt).toContain('get-system-prompt');
     expect(prompt).toContain('get-role-guidance');
-    expect(prompt).toContain('context read');
+    expect(prompt).not.toContain('context read');
   });
 });
 

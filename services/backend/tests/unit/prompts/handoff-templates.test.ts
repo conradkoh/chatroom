@@ -275,9 +275,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - Verifier request message id: <id of your verifier handoff> · Round: <1 | 2>
       - Verdict message id: <id of the verifier's verdict handoff> · Verdict user message id: <id> (must equal the current last user message)
       - Verdict gaps (only if not ACHIEVED): <each unmet item, or \`None.\`>
-      - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
-      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. State the context goal and confirm it was achieved. -->
-      - Context goal: <state the context goal and confirm it was achieved>
       - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
         - <requirement> — <PR URL, commit hash, or file evidence>
       - Files changed (code tasks — list every file modified):
@@ -743,9 +740,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - Verifier request message id: <id of your verifier handoff> · Round: <1 | 2>
       - Verdict message id: <id of the verifier's verdict handoff> · Verdict user message id: <id> (must equal the current last user message)
       - Verdict gaps (only if not ACHIEVED): <each unmet item, or \`None.\`>
-      - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
-      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. State the context goal and confirm it was achieved. -->
-      - Context goal: <state the context goal and confirm it was achieved>
       - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
         - <requirement> — <PR URL, commit hash, or file evidence>
       - Files changed (code tasks — list every file modified):
@@ -1037,26 +1031,30 @@ describe('handoff-templates > invariants', () => {
     expect(template).toContain('(Required) files done');
   });
 
-  test('planner → user includes context-read HTML comment', () => {
+  test('planner → user carries no context-read attestation', () => {
     const template = resolveDeliveredHandoffTemplate({
       teamId: 'duo',
       fromRole: 'planner',
       toRole: 'user',
       role: 'planner',
     });
-    expect(template).toContain('<!-- Read context before handoff if not already done this task:');
-    expect(template).toContain('chatroom context read');
+    expect(template).not.toContain('Read context before handoff');
+    expect(template).not.toContain('chatroom context read');
+    expect(template).not.toContain('Context goal');
+    expect(template).toContain('I confirm I verified the user');
   });
 
-  test('solo → user includes context-read HTML comment', () => {
+  test('solo → user carries no context-read attestation', () => {
     const template = resolveDeliveredHandoffTemplate({
       teamId: 'solo',
       fromRole: 'solo',
       toRole: 'user',
       role: 'solo',
     });
-    expect(template).toContain('<!-- Read context before handoff if not already done this task:');
-    expect(template).toContain('chatroom context read');
+    expect(template).not.toContain('Read context before handoff');
+    expect(template).not.toContain('chatroom context read');
+    expect(template).not.toContain('Context goal');
+    expect(template).toContain('I confirm I verified the user');
   });
 
   test('planner → user includes role-guidance HTML comment with resolved command', () => {

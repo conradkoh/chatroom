@@ -12,17 +12,20 @@ describe('general knowledge sections', () => {
     expect(text).toContain('`user-centricity` (1 skill available)');
     expect(text).toContain('`data-design` (1 skill available)');
     expect(text).not.toContain('`structural-decisions` (1 skill available)');
-    expect(text).toContain('context read');
+    expect(text).not.toMatch(/chatroom context|context read/i);
     expect(text).toContain('messages download');
     expect(text).toContain('truncated=true');
     expect(text).toContain('get-system-prompt');
     expect(text).toContain('get-role-guidance');
   });
-  it('keeps the context-read reference for a non-verifier role', () => {
-    const text = getGeneralKnowledgeSections({ chatroomId: 'room', role: 'builder', convexUrl: '' })
-      .map((section) => section.content)
-      .join('\n');
-    expect(text).toContain('chatroom context read');
+  it('renders the same reference text for the verifier and other roles', () => {
+    const render = (role: string) =>
+      getGeneralKnowledgeSections({ chatroomId: 'room', role, convexUrl: '' })
+        .map((section) => section.content)
+        .join('\n');
+    expect(render('builder').replaceAll('builder', '<role>')).toBe(
+      render('verifier').replaceAll('verifier', '<role>')
+    );
   });
   it('drops every context-read reference for the verifier', () => {
     const text = getGeneralKnowledgeSections({

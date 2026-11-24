@@ -137,7 +137,6 @@ describe('Duo Team > Builder > System Prompt', () => {
       ### History Retrieval
 
       **When to use which source:**
-      - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\` — Current-task grounding only (pinned goal, recent inline history). Not sufficient for cross-task summaries.
       - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --format=linear --limit=10\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
       - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\` — Locate the user's last message and print the \`--since-message-id\` to download history since that anchor (proof of verification before handing off to \`user\`).
 
@@ -160,15 +159,13 @@ describe('Duo Team > Builder > System Prompt', () => {
       ### Reference commands
       - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --format=linear --limit=10\`
       - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
 
-      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
       ## Two-Level Model: Session vs Chatroom Task
 
@@ -216,7 +213,7 @@ describe('Duo Team > Builder > System Prompt', () => {
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items not shown in the delivery.
 
       ⚠️ Completing a **chatroom task** does NOT end your **session**. After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -225,8 +222,9 @@ describe('Duo Team > Builder > System Prompt', () => {
       NOTE: If you are an agent that has undergone compaction or summarization, run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="builder"
       to reload your full system and role prompt. Then run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"
-      to see your current chatroom task context.
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="builder"
+      to print the user message id of your current task, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --since-message-id="<user-message-id>" --limit=100
 
       Agents on the \`get-next-task\` loop do not support in-session compaction. After context is lost, run \`get-next-task\` again to rejoin the chatroom.
 
@@ -249,7 +247,7 @@ describe('Duo Team > Builder > System Prompt', () => {
 
       ### Start Working
 
-      The task body contains your work description. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      The task body contains your work description. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items not shown in the delivery.
 
 
        **Duo Team Context:**
@@ -342,15 +340,13 @@ describe('Duo Team > Builder > System Prompt', () => {
       ### Reference commands
       - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --format=linear --limit=10\`
       - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
 
-      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
       ### Next
 

@@ -1,5 +1,4 @@
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from './code-change-verification';
-import { getContextReadDisclosureBlock } from './context-disclosure';
 import { getFileReferenceProofOfCompletionExample } from './file-reference-guidance';
 import { getHandoffQualityPrinciplesSectionBlock } from './handoff-quality-principles';
 import { getHandoffNotApplicableSectionComment } from './handoff-section-guidance';
@@ -9,28 +8,9 @@ import { getRoleGuidanceDisclosureBlock } from './role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 
-export interface HandoffReportTemplateBodyOptions {
-  /**
-   * Renders the verification Proof of Completion block instead of the default one.
-   * - `entry-point`: planner, solo and coordinator handoffs to `user`. Carries the context-read disclosure.
-   * - `verifier`: the verifier's copy of the user's template. It judges requirements and log message ids, so it carries no context-read disclosure.
-   * Omit for the default Proof of Completion.
-   */
-  proofOfVerification?: 'entry-point' | 'verifier' | undefined;
-}
-
 export function getHandoffReportTemplateBody(
-  roleGuidanceContext?: RoleGuidanceCommandParams,
-  options: HandoffReportTemplateBodyOptions = {}
+  roleGuidanceContext?: RoleGuidanceCommandParams
 ): string {
-  const contextReadLines =
-    options.proofOfVerification === 'entry-point'
-      ? [
-          getContextReadDisclosureBlock(roleGuidanceContext),
-          '- Context goal: <state the context goal and confirm it was achieved>',
-        ]
-      : [];
-
   return `<handoff-overview>
 <!-- When the task is informational (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed. Do not rely on earlier \`notify-user\` notices or session text. -->
 ## Summary
@@ -55,18 +35,12 @@ ${getHandoffNotApplicableSectionComment('List planning steps for trivial single-
 ${getHandoffQualityPrinciplesSectionBlock()}
 
 ## Proof of Completion
-${
-  options.proofOfVerification
-    ? `${[getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext), ...contextReadLines].join('\n')}
+${getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext)}
 - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
   - <requirement> — <PR URL, commit hash, or file evidence>
 - Files changed (code tasks — list every file modified):
 ${getFileReferenceProofOfCompletionExample()}
-  - <additional files as needed>`
-    : `${getContextReadDisclosureBlock(roleGuidanceContext)}
-${getFileReferenceProofOfCompletionExample()}
-<evidence the goal was met — list every file you (or the builder) modified>`
-}
+  - <additional files as needed>
 ## Backlog Tasks Implemented
 ${getHandoffNotApplicableSectionComment('List backlog items addressed if none were in scope')}
 - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>

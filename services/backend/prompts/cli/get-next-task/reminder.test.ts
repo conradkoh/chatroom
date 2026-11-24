@@ -30,8 +30,13 @@ describe.each(renderers)('compaction recovery %s', (_name, render) => {
     expect(output.indexOf('messages anchor')).toBeLessThan(output.indexOf('messages download'));
   });
 
-  test('keeps the context-read recovery for a non-verifier role', () => {
-    expect(render('builder')).toContain('chatroom context read');
+  test('recovers a non-verifier role through the message log, not context read', () => {
+    const output = render('builder');
+
+    expect(output).toContain('get-system-prompt');
+    expect(output).toContain('chatroom messages anchor');
+    expect(output).toContain('chatroom messages download');
+    expect(output).not.toContain('context read');
   });
 
   test('treats the verifier role case-insensitively', () => {

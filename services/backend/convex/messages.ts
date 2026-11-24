@@ -1887,7 +1887,7 @@ export const getContextForRole = query({
     const enrichedMessages = await Promise.all(
       contextMessages.map(async (message) => {
         const task = message.taskId ? await ctx.db.get('chatroom_tasks', message.taskId) : null;
-        // Agents discover pending/acknowledged tasks only through get-next-task, not context read.
+        // Agents discover pending/acknowledged tasks only through get-next-task.
         if (task && (task.status === 'pending' || task.status === 'acknowledged')) return null;
 
         const attachments = await enrichMessageAttachments(ctx, message);

@@ -20,6 +20,6 @@ export function getPlannerUserCodeTemplate(
   return `${getHandoffReportTemplateIntro()}
 
 \`\`\`markdown
-${getHandoffReportTemplateBody(roleGuidanceContext, { proofOfVerification: 'entry-point' })}
+${getHandoffReportTemplateBody(roleGuidanceContext)}
 \`\`\``;
 }
