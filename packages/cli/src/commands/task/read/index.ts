@@ -72,7 +72,6 @@ type TaskReadMutationResult = {
   taskId: string;
   status: string;
   content: string;
-  context?: string | null | undefined;
   attachedBacklogItems?: unknown[] | null | undefined;
   attachedSnippets?: unknown[] | null | undefined;
   attachedTasks?: unknown[] | null | undefined;
@@ -91,7 +90,6 @@ function buildTaskPromptFromReadResult(
     content: result.content,
     chatroomId,
     role,
-    context: result.context && typeof result.context === 'object' ? result.context : undefined,
     attachedBacklogItems: Array.isArray(result.attachedBacklogItems)
       ? (result.attachedBacklogItems as { _id: string; content: string; status: string }[])
       : undefined,

@@ -171,6 +171,38 @@ describe('Context Read — Pinned Context', () => {
     expect(context.currentContext).toBeNull();
   });
 
+  test('task read does not inject the pinned context', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-task-read-no-context');
+    const chatroomId = await createDuoPlannerChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    // Seed a pinned context that must not be injected into task reads
+    await seedPinnedContext(chatroomId, {
+      content: 'Pinned context that must not be injected',
+      role: 'planner',
+    });
+
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'Do the work',
+      createdBy: 'user',
+    });
+    await t.run((ctx) => ctx.db.patch('chatroom_tasks', taskId, { assignedTo: 'planner' }));
+
+    // ===== ACT =====
+    const result = await t.mutation(api.tasks.readTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
+    });
+
+    // ===== ASSERTIONS =====
+    expect(result).not.toHaveProperty('context');
+  });
+
   test('uses triggerMessageId from pinned context as the message window anchor', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-trigger-message-id-anchor');

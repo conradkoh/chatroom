@@ -493,8 +493,8 @@ export class GetNextTaskSession {
         `⚠️ TASK CLAIMED BUT DELIVERY FAILED — ${sanitizeUnknownForTerminal((deliveryError as Error).message)}`,
         `Task ID: ${task._id}\n` +
           `The task has been claimed for your role.\n` +
-          `Use context read to see your current task:\n\n` +
-          `   ${this.cliEnvPrefix} chatroom context read --chatroom-id=${this.chatroomId} --role=${this.role}`
+          `Use messages download to see your current task:\n\n` +
+          `   ${this.cliEnvPrefix} chatroom messages download --chatroom-id=${this.chatroomId} --role=${this.role} --format=linear --limit=10`
       );
     }
   }
