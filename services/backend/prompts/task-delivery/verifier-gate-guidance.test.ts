@@ -66,9 +66,9 @@ describe('shouldIncludeVerifierGate', () => {
 });
 
 describe('appendVerifierGateGuidance', () => {
-  function renderGate(reworkRole: string | null = 'builder'): string {
+  function renderGate(reworkRole: string | null | undefined = 'builder'): string {
     const lines: string[] = ['existing line'];
-    appendVerifierGateGuidance(lines, { reworkRole });
+    appendVerifierGateGuidance(lines, { reworkRole: reworkRole ?? null });
     return lines.join('\n');
   }
 
@@ -125,12 +125,15 @@ describe('appendVerifierGateGuidance', () => {
     );
   });
 
-  test('step 1 asks for log message ids, not a context id', () => {
-    const output = renderGate();
+  test.each([undefined, 'builder', 'specifier', null])(
+    'step 1 asks for the log message ids of every message carrying the claimed work (rework role: %s)',
+    (reworkRole) => {
+      const output = renderGate(reworkRole);
 
-    expect(output).toContain('log message ids');
-    expect(output).not.toMatch(/context id|chatroom context|context read/i);
-  });
+      expect(output).toContain('the log message ids (every message carrying the claimed work');
+      expect(output).not.toMatch(/context id|chatroom context|context read/i);
+    }
+  );
 
   test('states the UNAVAILABLE delivery rule', () => {
     expect(renderGate()).toContain('Verifier review: UNAVAILABLE (<reason>)');
