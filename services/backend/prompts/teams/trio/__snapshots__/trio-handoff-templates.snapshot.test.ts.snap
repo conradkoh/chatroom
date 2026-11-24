@@ -62,18 +62,26 @@ Record each kind below, in this order, with its command and result. Typecheck an
 
 ## Timing report
 <!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. Typecheck and lint always run, so record their duration; if either cannot run, it is a blocker under \`## Blockers / questions\`, not a \`not run\` row. -->
-- Brief reading: <duration | not run>
-- Implementation (code and tests written): <duration | not run>
-- Typecheck: <duration>
-- Lint: <duration>
-- Unit tests: <duration | not run | not applicable>
-- Integration tests: <duration | not run | not applicable>
-- E2E: <duration | not run | not applicable>
-- Commits: <duration | not run>
-- Push and PR: <duration | not run | not applicable>
-- Other activities: <name — duration, one line each | not applicable>
-- Slowest activity and why: <one phrase>
-- Total: <duration>
+<!-- Ordering: sort the rows that have a duration by duration, descending, so the slowest activity is the first data row. Put each \`not run\` and \`not applicable\` row after the timed rows, in the order listed here. Keep \`Total\` as the last row. Replace the Other activity row with one row per other activity you performed, or with \`| Other activities | not applicable |\` when there were none. -->
+| Activity | Duration |
+|---|---|
+| Brief reading | <duration or \`not run\`> |
+| Implementation (code and tests written) | <duration or \`not run\`> |
+| Typecheck | <duration> |
+| Lint | <duration> |
+| Unit tests | <duration, \`not run\`, or \`not applicable\` |
+| Integration tests | <duration, \`not run\`, or \`not applicable\` |
+| E2E | <duration, \`not run\`, or \`not applicable\` |
+| Commits | <duration or \`not run\`> |
+| Push and PR | <duration, \`not run\`, or \`not applicable\`> |
+| Other activity: <activity name> | <duration> |
+| Total | <duration> |
+
+Slowest activity and why: <activity name, then one phrase why it was slowest>
+
+## Anomalies
+<!-- REQUIRED. List each anomaly you hit during the run, such as a flaky or retried test, a nondeterministic failure, an unexpected test failure, or an environment or tooling problem; for each one, give the observed evidence (the command, the exact error or failing assertion, and how many runs failed or passed) and a proposed fix, or state why no fix is proposed, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <anomaly>: <observed evidence>; proposed fix: <fix, or "none proposed: <reason>">
 
 ## Blockers / questions
 <!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
@@ -325,18 +333,26 @@ Record each kind below, in this order, with its command and result. Typecheck an
 
 ## Timing report
 <!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. Typecheck and lint always run, so record their duration; if either cannot run, it is a blocker under \`## Blockers / questions\`, not a \`not run\` row. -->
-- Brief reading: <duration | not run>
-- Implementation (code and tests written): <duration | not run>
-- Typecheck: <duration>
-- Lint: <duration>
-- Unit tests: <duration | not run | not applicable>
-- Integration tests: <duration | not run | not applicable>
-- E2E: <duration | not run | not applicable>
-- Commits: <duration | not run>
-- Push and PR: <duration | not run | not applicable>
-- Other activities: <name — duration, one line each | not applicable>
-- Slowest activity and why: <one phrase>
-- Total: <duration>
+<!-- Ordering: sort the rows that have a duration by duration, descending, so the slowest activity is the first data row. Put each \`not run\` and \`not applicable\` row after the timed rows, in the order listed here. Keep \`Total\` as the last row. Replace the Other activity row with one row per other activity you performed, or with \`| Other activities | not applicable |\` when there were none. -->
+| Activity | Duration |
+|---|---|
+| Brief reading | <duration or \`not run\`> |
+| Implementation (code and tests written) | <duration or \`not run\`> |
+| Typecheck | <duration> |
+| Lint | <duration> |
+| Unit tests | <duration, \`not run\`, or \`not applicable\` |
+| Integration tests | <duration, \`not run\`, or \`not applicable\` |
+| E2E | <duration, \`not run\`, or \`not applicable\` |
+| Commits | <duration or \`not run\`> |
+| Push and PR | <duration, \`not run\`, or \`not applicable\`> |
+| Other activity: <activity name> | <duration> |
+| Total | <duration> |
+
+Slowest activity and why: <activity name, then one phrase why it was slowest>
+
+## Anomalies
+<!-- REQUIRED. List each anomaly you hit during the run, such as a flaky or retried test, a nondeterministic failure, an unexpected test failure, or an environment or tooling problem; for each one, give the observed evidence (the command, the exact error or failing assertion, and how many runs failed or passed) and a proposed fix, or state why no fix is proposed, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+- <anomaly>: <observed evidence>; proposed fix: <fix, or "none proposed: <reason>">
 
 ## Blockers / questions
 <!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->

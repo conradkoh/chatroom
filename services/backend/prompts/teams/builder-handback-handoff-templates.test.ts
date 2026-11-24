@@ -30,7 +30,7 @@ describe('getBuilderHandbackTemplate', () => {
 
   test('timing report lists a row for every shared verification kind', () => {
     for (const kind of VERIFICATION_KINDS) {
-      expect(body).toContain(`- ${kind.timingLabel}:`);
+      expect(body).toContain(`| ${kind.timingLabel} |`);
     }
   });
 
@@ -44,7 +44,7 @@ describe('getBuilderHandbackTemplate', () => {
     }
 
     for (const label of ['Typecheck', 'Lint']) {
-      const timingRow = body.split('\n').find((line) => line.startsWith(`- ${label}:`));
+      const timingRow = body.split('\n').find((line) => line.startsWith(`| ${label} |`));
       expect(timingRow).toBeDefined();
       expect(timingRow).not.toContain('not run');
     }
@@ -67,12 +67,47 @@ describe('getBuilderHandbackTemplate', () => {
       'E2E',
       'Commits',
       'Push and PR',
-      'Other activities',
+      'Other activity:',
       'Total',
     ]) {
-      expect(body).toContain(`- ${row}:`);
+      expect(body).toContain(`| ${row}`);
     }
     expect(body).toContain('`not run`');
     expect(body).toContain('`not applicable`');
+  });
+
+  test('timing report is a Duration table ordered by duration descending', () => {
+    expect(body).toContain('| Activity | Duration |');
+    expect(body).toContain('|---|---|');
+    expect(body).toContain('sort the rows that have a duration by duration, descending');
+    expect(body).toContain('Slowest activity and why:');
+    expect(body.indexOf('| Activity | Duration |')).toBeGreaterThan(
+      body.indexOf('## Timing report')
+    );
+  });
+
+  test('anomalies section is required, sits after the timing report, and before blockers', () => {
+    expect(body).toContain('## Anomalies');
+    expect(body.indexOf('## Timing report')).toBeLessThan(body.indexOf('## Anomalies'));
+    expect(body.indexOf('## Anomalies')).toBeLessThan(body.indexOf('## Blockers / questions\n'));
+  });
+
+  test('anomalies section says Not Applicable. when there are none', () => {
+    const section = body.slice(
+      body.indexOf('## Anomalies'),
+      body.indexOf('## Blockers / questions\n')
+    );
+    expect(section).toContain('write exactly "Not Applicable." with no explanation');
+    expect(section).toContain('Do not omit this section');
+  });
+
+  test('anomalies section asks for evidence and a proposed fix', () => {
+    const section = body.slice(
+      body.indexOf('## Anomalies'),
+      body.indexOf('## Blockers / questions\n')
+    );
+    expect(section).toContain('observed evidence');
+    expect(section).toContain('flaky or retried test');
+    expect(section).toContain('proposed fix');
   });
 });

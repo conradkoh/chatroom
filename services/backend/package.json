@@ -1,6 +1,6 @@
 {
   "name": "@workspace/backend",
-  "version": "1.149.4",
+  "version": "1.149.5",
   "description": "",
   "main": "index.js",
   "scripts": {
