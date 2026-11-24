@@ -97,11 +97,6 @@ async function executeRun(run: DownloadRun): Promise<void> {
   }
 }
 
-/** Only DOCX/PDF have a busy label; Markdown runs without a progress state. */
-function busyFormatFor(format: DownloadFormat): DownloadFormat | null {
-  return getDownloadFormat(format).busyLabel ? format : null;
-}
-
 /** A run needs an enabled host, no run in flight, and loaded content (`''` counts). */
 function isDownloadable(
   enabled: boolean,
@@ -129,12 +124,13 @@ export function useFileDownloadActions({
   run: (format: DownloadFormat) => void;
 } {
   const key = downloadKey(workingDir, filePath);
-  const inFlight = useSyncExternalStore(
+  // Any in-flight run disables every row. Only DOCX and PDF carry a busy label; the row
+  // render checks `busyLabel`, so Markdown shows no progress text.
+  const busyFormat = useSyncExternalStore(
     subscribeInFlight,
     () => readInFlight(key),
     () => null
   );
-  const busyFormat = inFlight === null ? null : busyFormatFor(inFlight);
 
   const run = useCallback(
     (format: DownloadFormat) => {

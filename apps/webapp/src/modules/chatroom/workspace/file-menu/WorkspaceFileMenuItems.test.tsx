@@ -379,4 +379,38 @@ describe('WorkspaceFileMenuItems download in-flight state', () => {
       )
     );
   });
+
+  it('disables every download row, without a busy label, while a Markdown save is in flight', async () => {
+    const pending = deferred<SaveFileResult>();
+    vi.mocked(saveTextFile).mockReturnValueOnce(pending.promise);
+    renderMenu({ state: markdownState });
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download as Markdown' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as DOCX' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+
+    await act(async () => {
+      pending.resolve('saved');
+      await pending.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).not.toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
+    );
+  });
 });
