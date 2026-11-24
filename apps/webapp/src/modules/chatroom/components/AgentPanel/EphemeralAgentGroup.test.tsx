@@ -88,6 +88,26 @@ describe('EphemeralAgentGroup', () => {
     expect(screen.getByText('0 errored')).toBeInTheDocument();
   });
 
+  it('applies the muted indicator and text classes to zero counts through the rendered component', () => {
+    renderGroup({ counts: { online: 0, offline: 8, errored: 0, total: 8 } });
+
+    const online = screen.getByText('0 online');
+    const errored = screen.getByText('0 errored');
+    // The indicator dot is the aria-hidden sibling that precedes the count text.
+    expect(online.previousElementSibling).toHaveClass('bg-chatroom-text-muted/40');
+    expect(online).toHaveClass('text-chatroom-text-muted');
+    expect(errored.previousElementSibling).toHaveClass('bg-chatroom-text-muted/40');
+    expect(errored).toHaveClass('text-chatroom-text-muted');
+  });
+
+  it('applies the error indicator and text classes to a non-zero errored count through the rendered component', () => {
+    renderGroup(); // COUNTS.errored is 1
+
+    const errored = screen.getByText('1 errored');
+    expect(errored.previousElementSibling).toHaveClass('bg-chatroom-status-error');
+    expect(errored).toHaveClass('text-chatroom-status-error');
+  });
+
   it('shows the empty line instead of children when the group has no members', () => {
     renderGroup({ expanded: true, memberCount: 0 });
 
