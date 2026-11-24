@@ -403,7 +403,30 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
       ## Code Change Verification
-      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
+      - [ ] I confirm that the lightweight checks (typecheck and lint) ran on the code I changed
+      - [ ] I confirm that every verification kind the brief marked \`required\` ran, and I recorded its command and result below
+      - [ ] I confirm that every verification kind the brief marked \`not applicable\` is recorded below with the brief's reason
+      Record each kind below, in this order, with its command and result. Typecheck and lint always run: record their command and result only. If either cannot run, put the blocker under \`## Blockers / questions\` and do not write \`not run\` here. For every other kind, write \`not run: <reason>\` or \`not applicable: <the brief's reason>\`.
+      - \`typecheck\` — <ran: command → result>
+      - \`lint\` — <ran: command → result>
+      - \`unit tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
+      - \`integration tests\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
+      - \`e2e\` — <ran: command → result | not run: reason | not applicable: the brief's reason>
+
+      ## Timing report
+      <!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. Typecheck and lint always run, so record their duration; if either cannot run, it is a blocker under \`## Blockers / questions\`, not a \`not run\` row. -->
+      - Brief reading: <duration | not run>
+      - Implementation (code and tests written): <duration | not run>
+      - Typecheck: <duration>
+      - Lint: <duration>
+      - Unit tests: <duration | not run | not applicable>
+      - Integration tests: <duration | not run | not applicable>
+      - E2E: <duration | not run | not applicable>
+      - Commits: <duration | not run>
+      - Push and PR: <duration | not run | not applicable>
+      - Other activities: <name — duration, one line each | not applicable>
+      - Slowest activity and why: <one phrase>
+      - Total: <duration>
 
       ## Blockers / questions
       <!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
@@ -442,7 +465,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once. In the brief body, set the \`## Verification flags\` scope to \`focused\` for each slice and to \`round-final\` for the final slice, which runs the full pass once.
 
       \`\`\`\`markdown
       ## Summary
@@ -494,12 +517,24 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Requirements (acceptance criteria)
       - <verifiable outcome the builder can self-check>
-      - Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+      - Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
       ## Test seams
       - <behavior>: seam <public interface or port>; catches <what>; misses <what>
       - or: no test seam — <reason>
       - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+      ## Verification flags
+      Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
+      Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
+      - \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+      - \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
+      - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
+      - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
+      - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
+      - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\` The chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`.
+      - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
+      \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
@@ -543,7 +578,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Test seams:** Fill \`## Test seams\` in the brief body for each behavior the slice changes. See the \`test-seam\` glossary term for what a seam is.
 
-      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.
+      Guidance for you (not part of the message): Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once. In the brief body, set the \`## Verification flags\` scope to \`focused\` for each slice and to \`round-final\` for the final slice, which runs the full pass once.
 
       \`\`\`\`markdown
       ## Summary
@@ -595,12 +630,24 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Requirements (acceptance criteria)
       - <verifiable outcome the builder can self-check>
-      - Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
+      - Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks \`e2e\` \`not applicable\`, the Requirements must name which of these alternatives is the end-to-end evidence.
 
       ## Test seams
       - <behavior>: seam <public interface or port>; catches <what>; misses <what>
       - or: no test seam — <reason>
       - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
+
+      ## Verification flags
+      Mark each kind \`required\` or \`not applicable: <reason>\`. The builder runs every \`required\` kind with the command shown, always runs typecheck and lint, and records each \`not applicable\` kind in its hand-back.
+      Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this brief's scope and keep only that definition below.
+      - \`focused\` — each run covers only the test files and workspaces that touch this brief's files.
+      - \`round-final\` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (\`pnpm lint\` for the whole repository), and every e2e spec this brief affects.
+      - \`typecheck\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm turbo run typecheck --filter=<package>\`
+      - \`lint\` — **required**. Lightweight: the builder always runs it, so never mark it \`not applicable\`. Command: \`pnpm exec eslint <files in scope>\`
+      - \`unit tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <test files in scope>\`
+      - \`integration tests\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir <workspace> exec vitest run <integration specs in scope>\` The chatroom-cli suite is \`pnpm --filter chatroom-cli test:integration\`.
+      - \`e2e\` — **required** or **not applicable: <reason>**. Command: \`pnpm --dir apps/webapp exec playwright test --config=tests/e2e/playwright.config.ts <specs in scope> --project=chromium\`
+      \`<workspace>\` is a directory: \`services/backend\`, \`apps/webapp\`, \`packages/cli\`, or \`packages/shared\`. \`--filter\` takes the package name: \`@workspace/backend\`, \`@workspace/webapp\`, \`chatroom-cli\`, or \`@workspace/shared\`.
 
       ## What to avoid
       - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>

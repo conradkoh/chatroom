@@ -1,5 +1,6 @@
 import { getFileReferenceGuidanceComment } from '../utils/file-reference-guidance';
 import { getDelegationBriefIntro } from '../utils/handoff-section-guidance';
+import { VERIFICATION_KINDS, type VerificationKind } from '../utils/verification-kinds';
 
 export interface BuilderDelegationBriefOptions {
   /** Role writing the brief: 'planner' in the duo preset. */
@@ -8,8 +9,9 @@ export interface BuilderDelegationBriefOptions {
   gatesOwner: 'self' | string;
   /**
    * Batching variant (trio specifier): the delegator groups phases into rounds, so the
-   * brief carries the round-final verification scope. Duo leaves this unset; its output
-   * must stay byte-identical.
+   * round-final definition speaks of the round. Duo leaves this unset: it delegates
+   * incremental slices, so the round-final definition speaks of the brief and the
+   * guidance puts the full pass on the final slice. Both variants offer both scopes.
    */
   batching?: boolean;
 }
@@ -17,7 +19,43 @@ export interface BuilderDelegationBriefOptions {
 interface BatchingFragments {
   roundGuidance: string;
   endToEndRequirement: string;
-  verificationScopeSection: string;
+  verificationFlagsSection: string;
+}
+
+function getVerificationKindFlagLine(kind: VerificationKind): string {
+  const choice = kind.lightweight
+    ? '**required**. Lightweight: the builder always runs it, so never mark it `not applicable`.'
+    : '**required** or **not applicable: <reason>**.';
+  const note = kind.note ? ` ${kind.note}` : '';
+  return `- \`${kind.label}\` — ${choice} Command: \`${kind.command}\`${note}`;
+}
+
+const WORKSPACE_PROSE_LINE =
+  '`<workspace>` is a directory: `services/backend`, `apps/webapp`, `packages/cli`, or `packages/shared`. `--filter` takes the package name: `@workspace/backend`, `@workspace/webapp`, `chatroom-cli`, or `@workspace/shared`.';
+
+function getScopeLines(batching: boolean): string[] {
+  const focused =
+    "`focused` — each run covers only the test files and workspaces that touch this brief's files.";
+  const roundFinal = batching
+    ? '`round-final` — each run covers the full scope: the full unit suite and full integration suite of every workspace the round changed, typecheck and lint of those workspaces (`pnpm lint` for the whole repository), and every e2e spec the round affects.'
+    : '`round-final` — each run covers the full scope: the full unit suite and full integration suite of every workspace this brief changed, typecheck and lint of those workspaces (`pnpm lint` for the whole repository), and every e2e spec this brief affects.';
+  return [
+    "Scope: <`focused` | `round-final`> — replace the placeholder with this brief's scope and keep only that definition below.",
+    `- ${focused}`,
+    `- ${roundFinal}`,
+  ];
+}
+
+function getVerificationFlagsSection(batching: boolean): string {
+  return [
+    '## Verification flags',
+    'Mark each kind `required` or `not applicable: <reason>`. The builder runs every `required` kind with the command shown, always runs typecheck and lint, and records each `not applicable` kind in its hand-back.',
+    ...getScopeLines(batching),
+    ...VERIFICATION_KINDS.map(getVerificationKindFlagLine),
+    WORKSPACE_PROSE_LINE,
+    '',
+    '',
+  ].join('\n');
 }
 
 /**
@@ -27,24 +65,18 @@ interface BatchingFragments {
  */
 function getBatchingFragments(batching: boolean): BatchingFragments {
   const roundGuidance = batching
-    ? "A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, keep only the `## Verification scope` line that applies: `round-final` for the round's final brief, `focused` for the others."
-    : 'Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.';
+    ? "A builder round trip is slow — implement, commit, verify. Group phases when one verification pass covers them, and land a risky or contract-changing phase alone. You decide the grouping. In the brief body, set the `## Verification flags` scope to `round-final` for the round's final brief and `focused` for the others."
+    : 'Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once. In the brief body, set the `## Verification flags` scope to `focused` for each slice and to `round-final` for the final slice, which runs the full pass once.';
 
   const endToEndRequirement = batching
-    ? "- Include at least one end-to-end check **on the round's final brief**. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified."
-    : '- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.';
+    ? "- Name at least one end-to-end evidence for the feature on the round's final brief: a CLI run, an API call, a UI action, or the template render. Earlier briefs need focused evidence only; the round as a whole must be end-to-end verified. When the brief marks `e2e` `not applicable`, the Requirements must name which of these alternatives is the end-to-end evidence."
+    : '- Name at least one end-to-end evidence that the feature works: a CLI run, an API call, a UI action, or the template render. Unit tests alone are insufficient for new features. When the brief marks `e2e` `not applicable`, the Requirements must name which of these alternatives is the end-to-end evidence.';
 
-  const verificationScopeSection = batching
-    ? [
-        '## Verification scope',
-        "`focused` — run the tests that touch this brief's files.",
-        '`round-final` — run the full unit suite, typecheck, lint, and the e2e specs this round affects.',
-        '',
-        '',
-      ].join('\n')
-    : '';
-
-  return { roundGuidance, endToEndRequirement, verificationScopeSection };
+  return {
+    roundGuidance,
+    endToEndRequirement,
+    verificationFlagsSection: getVerificationFlagsSection(batching),
+  };
 }
 
 /** Returns the markdown delegation-brief template body. */
@@ -62,7 +94,7 @@ export function getBuilderDelegationBriefTemplate(options: BuilderDelegationBrie
 
 **Division of labor:** You (${delegatorRole}) own turning the work package into file-level builder slices and sequencing them. Copy any UI/UX target markup, classes, styles, and drawings from the work package into UI implementation briefs; the builder implements the components.`;
 
-  const { roundGuidance, endToEndRequirement, verificationScopeSection } =
+  const { roundGuidance, endToEndRequirement, verificationFlagsSection } =
     getBatchingFragments(batching);
 
   return `${getDelegationBriefIntro()}
@@ -132,7 +164,7 @@ ${endToEndRequirement}
 - or: no test seam — <reason>
 - For each named seam: write a failing test first, then make it pass (red-green). If the seam is \`no test seam\`, delete this line.
 
-${verificationScopeSection}## What to avoid
+${verificationFlagsSection}## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
 - Do not test private methods or mock internal collaborators. A test that breaks on refactor while behavior is unchanged is wrong.
 - Do not derive expected values by re-running the code's own formula. Take them from a known-good literal, a worked example, or the spec.

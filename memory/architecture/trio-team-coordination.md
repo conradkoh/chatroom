@@ -71,9 +71,10 @@ session boundaries per handoff edge.
    session rule, or role: `coordinator` → `specifier` stays `new`, and the
    specifier still hands back only to `builder` and `coordinator`.
 7. **Delegation cadence is the specifier's call.** A builder round trip is slow
-   and verification-heavy: it implements, commits, and runs the unit suite,
-   typecheck, lint, and sometimes e2e checks, which can take many minutes, and
-   each delegation starts a fresh builder session. The specifier groups phases by
+   and verification-heavy: it implements, commits, and runs the verification
+   kinds its brief flags (typecheck and lint always; unit, integration, or e2e
+   when flagged), which can take many minutes, and each delegation starts a
+   fresh builder session. The specifier groups phases by
    verification stage: phases checked by the same end-of-round run, and not
    invalidating each other, share a round. Diagnosis cost is the counterweight: a
    large batch that fails is slower to repair, so a risky or contract-changing

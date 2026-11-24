@@ -1,6 +1,6 @@
 import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
-import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../utils/code-change-verification';
+import { BUILDER_CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../utils/code-change-verification';
 import { getDelegationBriefDisclosureBlock } from '../utils/delegation-disclosure';
 import { getFileReferenceProofOfCompletionExample } from '../utils/file-reference-guidance';
 import { getHandoffQualityPrinciplesSectionBlock } from '../utils/handoff-quality-principles';
@@ -9,6 +9,34 @@ import {
   getHandoffReportTemplateIntro,
 } from '../utils/handoff-section-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../utils/role-guidance-disclosure';
+import { VERIFICATION_KINDS, type VerificationKind } from '../utils/verification-kinds';
+
+function getVerificationKindResultLine(kind: VerificationKind): string {
+  const outcomes = kind.lightweight
+    ? '<ran: command → result>'
+    : "<ran: command → result | not run: reason | not applicable: the brief's reason>";
+  return `- \`${kind.label}\` — ${outcomes}`;
+}
+
+function getVerificationKindTimingLine(kind: VerificationKind): string {
+  return kind.lightweight
+    ? `- ${kind.timingLabel}: <duration>`
+    : `- ${kind.timingLabel}: <duration | not run | not applicable>`;
+}
+
+/** Timing rows: one per activity, so an activity that did not happen is written `not run`, never omitted. */
+function getTimingReportSection(): string {
+  return `## Timing report
+<!-- REQUIRED. Record the wall-clock duration of each activity you performed, as m:ss or h:mm:ss. Measure with timestamps (for example \`date +%s\` before and after each step). Write \`not run\` for an activity you did not perform and \`not applicable\` when it does not apply to this brief. Do not omit a row. Typecheck and lint always run, so record their duration; if either cannot run, it is a blocker under \`## Blockers / questions\`, not a \`not run\` row. -->
+- Brief reading: <duration | not run>
+- Implementation (code and tests written): <duration | not run>
+${VERIFICATION_KINDS.map(getVerificationKindTimingLine).join('\n')}
+- Commits: <duration | not run>
+- Push and PR: <duration | not run | not applicable>
+- Other activities: <name — duration, one line each | not applicable>
+- Slowest activity and why: <one phrase>
+- Total: <duration>`;
+}
 
 /** Returns the markdown handback template body the builder uses when returning work. */
 export function getBuilderHandbackTemplate(query: HandoffTemplateQuery): string {
@@ -47,7 +75,11 @@ ${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
 ## Code Change Verification
-${CODE_CHANGE_VERIFICATION_CONFIRMATION}
+${BUILDER_CODE_CHANGE_VERIFICATION_CONFIRMATION}
+Record each kind below, in this order, with its command and result. Typecheck and lint always run: record their command and result only. If either cannot run, put the blocker under \`## Blockers / questions\` and do not write \`not run\` here. For every other kind, write \`not run: <reason>\` or \`not applicable: <the brief's reason>\`.
+${VERIFICATION_KINDS.map(getVerificationKindResultLine).join('\n')}
+
+${getTimingReportSection()}
 
 ## Blockers / questions
 ${getHandoffNotApplicableSectionComment('List blockers')}
