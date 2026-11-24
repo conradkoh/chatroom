@@ -20,6 +20,6 @@ export function getCoordinatorUserCodeTemplate(
   return `${getHandoffReportTemplateIntro()}
 
 \`\`\`markdown
-${getHandoffReportTemplateBody(roleGuidanceContext, { includeProofOfVerification: true })}
+${getHandoffReportTemplateBody(roleGuidanceContext, { proofOfVerification: 'entry-point' })}
 \`\`\``;
 }

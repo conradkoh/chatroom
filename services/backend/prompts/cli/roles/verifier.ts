@@ -44,7 +44,7 @@ export function getVerifierGuidance(params: VerifierGuidanceParams): string {
 
 The user's handoff template is the contract for what the user expects from the work. Judge the work against it. In code modes the user receives the report below:
 
-${getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true, includeContextReadDisclosure: false })}
+${getHandoffReportTemplateBody(undefined, { proofOfVerification: 'verifier' })}
 
 In chat mode the user receives this instead:
 

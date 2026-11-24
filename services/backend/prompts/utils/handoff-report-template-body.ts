@@ -10,14 +10,13 @@ import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 
 export interface HandoffReportTemplateBodyOptions {
-  /** Entry-point handoffs (planner/solo → user) must verify the user's full request before delivery. */
-  includeProofOfVerification?: boolean | undefined;
   /**
-   * Whether the verification Proof of Completion carries the context-read checkbox and the
-   * `Context goal` line. Default true. The verifier passes false: it judges requirements and
-   * log message ids, not a context read. Applies to the `includeProofOfVerification` branch only.
+   * Renders the verification Proof of Completion block instead of the default one.
+   * - `entry-point`: planner, solo and coordinator handoffs to `user`. Carries the context-read disclosure.
+   * - `verifier`: the verifier's copy of the user's template. It judges requirements and log message ids, so it carries no context-read disclosure.
+   * Omit for the default Proof of Completion.
    */
-  includeContextReadDisclosure?: boolean | undefined;
+  proofOfVerification?: 'entry-point' | 'verifier' | undefined;
 }
 
 export function getHandoffReportTemplateBody(
@@ -25,7 +24,7 @@ export function getHandoffReportTemplateBody(
   options: HandoffReportTemplateBodyOptions = {}
 ): string {
   const contextReadLines =
-    options.includeProofOfVerification && options.includeContextReadDisclosure !== false
+    options.proofOfVerification === 'entry-point'
       ? [
           getContextReadDisclosureBlock(roleGuidanceContext),
           '- Context goal: <state the context goal and confirm it was achieved>',
@@ -57,7 +56,7 @@ ${getHandoffQualityPrinciplesSectionBlock()}
 
 ## Proof of Completion
 ${
-  options.includeProofOfVerification
+  options.proofOfVerification
     ? `${[getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext), ...contextReadLines].join('\n')}
 - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
   - <requirement> — <PR URL, commit hash, or file evidence>
