@@ -9314,7 +9314,6 @@ Don't wait for the user to ask — proactively activate the skill that matches t
 ### History Retrieval
 
 **When to use which source:**
-- \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\` — Current-task grounding only (pinned goal, recent inline history). Not sufficient for cross-task summaries.
 - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --format=linear --limit=10\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
 - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="characterisation-chatroom" --role="verifier"\` — Locate the user's last message and print the \`--since-message-id\` to download history since that anchor (proof of verification before handing off to \`user\`).
 
@@ -9337,15 +9336,13 @@ rg "pattern" "<printed-path>/"
 ### Reference commands
 - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --format=linear --limit=10\`
 - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 ## Two-Level Model: Session vs Chatroom Task
 
@@ -9401,9 +9398,8 @@ When \`get-next-task\` delivers a chatroom task, the **full task content is incl
 
 NOTE: If you are an agent that has undergone compaction or summarization, run:
   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"
-to reload your full system and role prompt. Then run:
-  CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"
-to see your current chatroom task context.
+to reload your full system and role prompt. Then re-read your verification request and download the log from its user message id:
+  CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<user-message-id>" --limit=100
 
 Agents on the \`get-next-task\` loop do not support in-session compaction. After context is lost, run \`get-next-task\` again to rejoin the chatroom.
 
@@ -9624,15 +9620,13 @@ A foreground \`get-next-task\` blocks until the user or team message is ready, t
 ### Reference commands
 - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --format=linear --limit=10\`
 - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 ### Next
 
@@ -9687,15 +9681,13 @@ Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-i
 ### Reference commands
 - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --format=linear --limit=10\`
 - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 ## Verifier Operating Model
 
@@ -9943,7 +9935,6 @@ Don't wait for the user to ask — proactively activate the skill that matches t
 ### History Retrieval
 
 **When to use which source:**
-- \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\` — Current-task grounding only (pinned goal, recent inline history). Not sufficient for cross-task summaries.
 - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --format=linear --limit=10\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
 - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="characterisation-chatroom" --role="verifier"\` — Locate the user's last message and print the \`--since-message-id\` to download history since that anchor (proof of verification before handing off to \`user\`).
 
@@ -9966,15 +9957,13 @@ rg "pattern" "<printed-path>/"
 ### Reference commands
 - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --format=linear --limit=10\`
 - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 ## Verifier Operating Model
 
@@ -10172,13 +10161,11 @@ A foreground \`get-next-task\` blocks until the user or team message is ready, t
 ### Reference commands
 - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --format=linear --limit=10\`
 - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
-- Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="characterisation-chatroom" --role="verifier"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI."
+**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI."
 `;

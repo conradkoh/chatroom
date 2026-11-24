@@ -8,6 +8,7 @@ import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
 import { messagesDownloadSinceCommand } from '../utils/proof-of-verification';
+import { isVerifierRole } from '../utils/verifier-role';
 
 export interface GeneralKnowledgeParams {
   chatroomId: string;
@@ -20,6 +21,7 @@ export interface GeneralKnowledgeParams {
 export function getGeneralCommandsReferenceContent(params: GeneralKnowledgeParams): string {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
   const { chatroomId, role } = params;
+  const verifier = isVerifierRole(role);
   const contextReadCmd = contextReadCommand({ chatroomId, role, cliEnvPrefix });
   const messagesDownloadCmd = messagesDownloadSinceCommand({
     chatroomId,
@@ -28,18 +30,25 @@ export function getGeneralCommandsReferenceContent(params: GeneralKnowledgeParam
     sinceMessageId: '<from-anchor>',
     limit: 100,
   });
+  // The verifier reads logs by message id, so every context-read line is omitted.
+  // Each optional line carries its own leading newline, so omitting it leaves the
+  // surrounding lines byte-identical for every other role.
+  const contextReadLine = verifier
+    ? ''
+    : `- Read current chatroom task context: \`${contextReadCmd}\`\n`;
+  const contextReadGroundingClause = verifier
+    ? ''
+    : `Run \`${contextReadCmd}\` for current-task grounding; `;
   return `### Reference commands
 - Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10\`
 - Anchor on the user's last message: \`${cliEnvPrefix}chatroom messages anchor --chatroom-id="${chatroomId}" --role="${role}"\`
-- Read current chatroom task context: \`${contextReadCmd}\`
-- Git log: \`git log --oneline -10\`
+${contextReadLine}- Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\`
 - Reload role guidance: \`${roleGuidanceCommand({ chatroomId, role, cliEnvPrefix })}\`
-- Read current chatroom task context: \`${contextReadCmd}\`
-
-**History retrieval:** Run \`${contextReadCmd}\` for current-task grounding; run \`${messagesDownloadCmd}\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.`;
+${contextReadLine}
+**History retrieval:** ${contextReadGroundingClause}run \`${messagesDownloadCmd}\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.`;
 }
 export function getGeneralKnowledgeSections(
   params: GeneralKnowledgeParams,
