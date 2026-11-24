@@ -259,6 +259,28 @@ describe('WorkspaceFileMenuItems download section', () => {
     }
   });
 
+  it('links every disabled download row to the visible reason', () => {
+    renderMenu({
+      state: { relativePath: 'docs/README.md', workingDir: '/workspace/project', content: null },
+    });
+    const reason = screen.getByTestId('workspace-download-disabled-reason');
+    expect(reason).toHaveTextContent('File content is unavailable.');
+    expect(reason.id).not.toBe('');
+    for (const name of ['Download as Markdown', 'Download as DOCX', 'Download as PDF']) {
+      expect(screen.getByRole('menuitem', { name })).toHaveAttribute('aria-describedby', reason.id);
+    }
+  });
+
+  it('leaves ready download rows without a description reference', () => {
+    renderMenu({
+      state: { relativePath: 'docs/README.md', workingDir: '/workspace/project', content: 'body' },
+    });
+    expect(screen.queryByTestId('workspace-download-disabled-reason')).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).not.toHaveAttribute(
+      'aria-describedby'
+    );
+  });
+
   it('shows the DOCX busy label on the active row only and disables every row', async () => {
     const onRequestClose = vi.fn();
     const pending = deferred<'saved'>();

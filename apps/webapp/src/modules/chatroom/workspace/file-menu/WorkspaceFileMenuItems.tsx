@@ -11,7 +11,7 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
-import { memo, type ReactNode } from 'react';
+import { memo, useId, type ReactNode } from 'react';
 
 import { resolveFileDownloadAvailability } from './fileDownloadAvailability';
 import type { WorkspaceFileCopyInfo, WorkspaceFileMenuProps } from './types';
@@ -31,6 +31,7 @@ import { DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdo
 interface Section {
   label?: string;
   description?: string;
+  descriptionId?: string;
   items: ReactNode[];
 }
 
@@ -49,6 +50,8 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
     contentDisabled = false,
     fileContentLabel = 'Copy File Content',
   } = state;
+
+  const downloadReasonId = useId();
 
   // A success never shows text here. The host decides what, if anything, to show.
   const reportCopy = (
@@ -187,8 +190,10 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
     onRequestClose: handlers.onRequestClose,
   });
   if (availability.kind !== 'hidden') {
+    const reasonRef = availability.kind === 'disabled' ? downloadReasonId : undefined;
     sections.push({
       label: 'Download',
+      descriptionId: downloadReasonId,
       description: availability.kind === 'disabled' ? availability.reason : undefined,
       items: DOWNLOAD_FORMATS.map((definition) => (
         <WorkspaceDropdownMenuItem
@@ -196,6 +201,7 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
           icon={Download}
           closeOnClick={false}
           disabled={busyFormat !== null || availability.kind !== 'ready'}
+          aria-describedby={reasonRef}
           onSelect={() => run(definition.format)}
         >
           {busyFormat === definition.format && definition.busyLabel
@@ -252,6 +258,7 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
           {section.label && <DropdownMenuLabel>{section.label}</DropdownMenuLabel>}
           {section.description ? (
             <p
+              id={section.descriptionId}
               data-testid="workspace-download-disabled-reason"
               className="max-w-[15rem] whitespace-normal px-2.5 pb-1 text-[11px] leading-snug text-chatroom-text-muted select-none"
             >
