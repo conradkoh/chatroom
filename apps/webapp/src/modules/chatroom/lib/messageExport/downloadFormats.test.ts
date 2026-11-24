@@ -15,7 +15,6 @@ describe('DOWNLOAD_FORMATS', () => {
       failureMessage: 'Failed to save Markdown',
       extension: '.md',
       mimeType: 'text/markdown',
-      saveDescription: 'Markdown',
     });
   });
 

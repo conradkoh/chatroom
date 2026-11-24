@@ -17,8 +17,11 @@ export interface DownloadFormatDefinition {
   failureMessage: string;
   extension: '.md' | '.docx' | '.pdf';
   mimeType: string;
-  /** Native save-dialog description. */
-  saveDescription: string;
+  /**
+   * Native save-dialog description for DOCX and PDF. Omitted for Markdown: its saves go
+   * through `saveTextFile`, which supplies its own save options.
+   */
+  saveDescription?: string;
 }
 
 /** Order is the menu order in every host: Markdown, DOCX, PDF. */
@@ -30,7 +33,7 @@ export const DOWNLOAD_FORMATS: readonly DownloadFormatDefinition[] = [
     failureMessage: 'Failed to save Markdown',
     extension: '.md',
     mimeType: 'text/markdown',
-    saveDescription: 'Markdown',
+    // No saveDescription: Markdown saves go through saveTextFile.
   },
   {
     format: 'docx',
