@@ -125,7 +125,7 @@ pending a historical-data audit and purge:
 - `chatroom_agentRuntimeStates`
 
 The following six retired projection tables were purged by migration and
-removed from the schema:
+removed from the schema (the purge migrations for these tables were later removed from `services/backend/convex/migrations.ts`; see `AGENTS.md`, Database migrations):
 
 - `chatroom_agentOperationalSummary`
 - `chatroom_agentViewMetadata`
