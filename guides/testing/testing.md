@@ -83,7 +83,7 @@ Upstream template flows live in `apps/webapp/tests/e2e/specs/upstream/` and are 
 
 ### Pre-Push Hook
 
-The `.husky/pre-push` hook runs `pnpm run test` → `pnpm run typecheck` and runs the destination-filtered E2E suite only for direct pushes to `master`. Pull requests targeting `master` run the full suite through `.github/workflows/e2e.yml`. Because e2e includes admin specs, the configured non-production Convex deployment must have `E2E_SEEDING_ENABLED` set — see [apps/webapp/tests/e2e/README.md](../../apps/webapp/tests/e2e/README.md#e2e-admin-seeding) for the mandatory setup.
+The `.husky/pre-push` hook runs `bun run test:scripts`, then `scripts/pre-push-checks.sh`, which runs `pnpm turbo run typecheck test` for packages affected since the push base. It never runs Playwright, including for pushes to `master`. Pull requests targeting `master` run E2E through `.github/workflows/e2e.yml`. A local E2E run against a hosted Convex deployment needs `E2E_SEEDING_ENABLED` set on that disposable deployment — see [apps/webapp/tests/e2e/README.md](../../apps/webapp/tests/e2e/README.md#e2e-admin-seeding).
 
 ### Policy
 

@@ -12,16 +12,13 @@ pnpm e2e
 cd apps/webapp && pnpm e2e
 ```
 
-E2E is also wired into the git **pre-push** hook (alongside `test` and `typecheck`) for direct pushes to `master`. Pull requests targeting `master` select the repository-owned suite in GitHub Actions. CI starts an ephemeral open-source Convex backend, deploys the backend functions, and enables E2E seeding before running Playwright.
+## When E2E runs
 
-## Pre-Push Suite Selection
+Playwright does not run in the local pre-push hook. `.husky/pre-push` runs `bun run test:scripts`, then `scripts/pre-push-checks.sh`, which runs `pnpm turbo run typecheck test` for packages affected since the push base. Pushes to `master` run no E2E locally.
 
-When a pushed ref targets `master`, the pre-push hook invokes `scripts/run-pre-push-e2e.ts`, which runs a single Playwright invocation filtered by tag:
+GitHub Actions owns E2E. `.github/workflows/e2e.yml` runs for pull requests targeting `master`. It selects the suite from the repository: the template repository runs `@upstream`, and forks and other repositories run `@downstream`. The discovery step skips the job when the selected suite directory has no spec files.
 
-- **Template destination** (`conradkoh/next-convex-starter-app` on `github.com`) → `@upstream` specs
-- **Fork or non-template destination** → `@downstream` specs only
-
-Pushes to other branches skip the local pre-push E2E run. For pull requests targeting `master`, GitHub Actions uses `github.repository` to run `@upstream` in the template repository and `@downstream` in forks or downstream repositories. `pnpm e2e` remains available for explicit full-suite compatibility checks on every checkout.
+CI starts the open-source Convex backend in an ephemeral Docker container, deploys this repository's backend functions to it, and enables E2E seeding there. No hosted Convex URL or repository secret is required.
 
 Convenience scripts (values match `support/tags.ts`):
 
@@ -30,9 +27,7 @@ cd apps/webapp && pnpm e2e:upstream
 cd apps/webapp && pnpm e2e:downstream
 ```
 
-Forks with no `@downstream` specs will fail pre-push until they add at least one spec under `specs/downstream/`. Zero matching tests is a Playwright error, not a silent pass.
-
-Behavior is locked by `scripts/resolve-e2e-suite.spec.ts`, `scripts/run-pre-push-e2e.spec.ts`, and `scripts/template-repo.spec.ts`.
+Repository ownership detection is covered by `scripts/template-repo.spec.ts`.
 
 ## Prerequisites
 
