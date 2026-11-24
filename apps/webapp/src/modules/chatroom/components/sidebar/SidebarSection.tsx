@@ -170,13 +170,6 @@ function Empty({ children }: { children: ReactNode }) {
 function Loading({ children }: { children: ReactNode }) {
   return <div className="p-4 flex items-center justify-center">{children}</div>;
 }
-function Subheader({ children }: { children: ReactNode }) {
-  return (
-    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted border-t border-chatroom-border">
-      {children}
-    </div>
-  );
-}
 function ViewMore({
   count,
   label,
@@ -189,4 +182,4 @@ function ViewMore({
   return count > 0 ? <ViewMoreButton count={count} label={label} onClick={onClick} /> : null;
 }
 
-export const SidebarSection = { Root, Header, Toolbar, Body, Empty, Loading, Subheader, ViewMore };
+export const SidebarSection = { Root, Header, Toolbar, Body, Empty, Loading, ViewMore };

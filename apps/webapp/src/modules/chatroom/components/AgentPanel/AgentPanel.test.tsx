@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { AgentRoleLifecycleTag } from '@workspace/shared/domain/agent-role';
 import { getTeamStructure } from '@workspace/shared/domain/team-presets';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentRoleStatusReadModel } from '../../hooks/useAgentPanelData';
 import type { AgentConfig } from '../../types/machine';
@@ -65,6 +66,7 @@ const pinnedTeamFacts = [
 ] as const;
 
 const panelProps = {
+  chatroomId: 'room-1' as Id<'chatroom_rooms'>,
   machineId: null,
   lifecycle,
   statusReadModel: [],
@@ -85,7 +87,21 @@ const panelProps = {
   isStartingAllAgents: false,
 };
 
+type StatusValue = NonNullable<AgentRoleStatusReadModel['status']>;
+
+/** Builds one projected role-status row for the status read model. */
+function statusRow(role: string, status: StatusValue): AgentRoleStatusReadModel {
+  return { role, roleKind: 'ephemeral', status, projectedAt: Date.now() };
+}
+
+const ephemeralToggle = () => screen.getByRole('button', { name: /^Ephemeral agents:/ });
+const expandEphemeralGroup = () => fireEvent.click(ephemeralToggle());
+
 describe('AgentPanel', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('keeps the team selector available when no team is currently assigned', () => {
     render(
       <AgentPanel
@@ -160,8 +176,16 @@ describe('AgentPanel', () => {
         getTeamStructure({ teamId }).roles.map(({ role }) => role)
       );
       expect(screen.getByText(`Agents (${expectedOrder.length})`)).toBeInTheDocument();
-      expect(screen.getByText(`Ephemeral (${ephemeralRoles.length})`)).toBeInTheDocument();
+      const ephemeralHeading = screen.getByText(`Ephemeral (${ephemeralRoles.length})`);
+      expect(ephemeralHeading).toBeInTheDocument();
       expect(screen.queryByText(/View More/)).not.toBeInTheDocument();
+
+      // Collapsed by default: no ephemeral member row is in the DOM.
+      for (const role of ephemeralRoles) {
+        expect(screen.queryByLabelText(new RegExp(`^${role}:`, 'i'))).toBeNull();
+      }
+
+      expandEphemeralGroup();
 
       const displayedRows = Array.from(
         container.querySelectorAll<HTMLElement>('[role="button"][aria-label]')
@@ -175,7 +199,6 @@ describe('AgentPanel', () => {
         expect(row[0]).toHaveTextContent(/OFFLINE/i);
       }
 
-      const ephemeralHeading = screen.getByText(`Ephemeral (${ephemeralRoles.length})`);
       const lastPermanentRow = screen.getByLabelText(new RegExp(`^${permanentRoles.at(-1)}:`, 'i'));
       const firstEphemeralRow = screen.getByLabelText(new RegExp(`^${ephemeralRoles[0]}:`, 'i'));
       expect(
@@ -202,6 +225,7 @@ describe('AgentPanel', () => {
         onOpenAgents={onOpenAgents}
       />
     );
+    expandEphemeralGroup();
     const triage = screen.getByLabelText(/triage:/i);
     fireEvent.click(triage);
     fireEvent.keyDown(triage, { key: 'Enter' });
@@ -239,22 +263,27 @@ describe('AgentPanel', () => {
 
     expect(screen.getByText('Agents (10)')).toBeInTheDocument();
     expect(screen.getByText('Ephemeral (8)')).toBeInTheDocument();
+    expect(screen.getByText('Loading statuses…')).toBeInTheDocument();
+    expandEphemeralGroup();
     const triage = screen.getByLabelText(/triage: Loading/i);
     expect(triage).toBeInTheDocument();
     expect(within(triage).getByLabelText('Status: Loading...')).toBeInTheDocument();
   });
 
   it('keeps declared rows visible with an error status', () => {
-    const errorStatus: AgentRoleStatusReadModel[] = [
-      { role: 'triage', roleKind: 'ephemeral', status: 'error', projectedAt: Date.now() },
-    ];
+    const errorStatus: AgentRoleStatusReadModel[] = [statusRow('triage', 'error')];
     render(
       <AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={errorStatus} />
     );
 
     expect(screen.getByText('Agents (10)')).toBeInTheDocument();
+    // The errored agent renders above the collapsed group.
     expect(screen.getAllByLabelText(/triage:/i)).toHaveLength(1);
     expect(screen.getByLabelText(/triage:/i)).toHaveTextContent('OFFLINE (ERROR)');
+    expect(screen.queryByLabelText(/architect:/i)).toBeNull();
+    expect(screen.queryByLabelText(/uiux-engineer:/i)).toBeNull();
+
+    expandEphemeralGroup();
     expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/uiux-engineer:/i)).toBeInTheDocument();
   });
@@ -267,7 +296,7 @@ describe('AgentPanel', () => {
     expect(screen.queryByLabelText(/triage:/i)).not.toBeInTheDocument();
   });
 
-  it('keeps all ephemeral agents visible when permanent agents exceed the preview limit', () => {
+  it('keeps all ephemeral agents reachable when permanent agents exceed the preview limit', () => {
     render(<AgentPanel {...panelProps} teamStructure={previewOverflowStructure} />);
 
     expect(screen.getByText('Agents (7)')).toBeInTheDocument();
@@ -276,10 +305,15 @@ describe('AgentPanel', () => {
     expect(screen.getByLabelText(/builder:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/analyst:/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/tester:/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/architect:/i)).toBeNull();
+    expect(screen.queryByLabelText(/triage:/i)).toBeNull();
+    expect(screen.queryByLabelText(/uiux-engineer:/i)).toBeNull();
+    expect(screen.getByText('View More (1 more items)')).toBeInTheDocument();
+
+    expandEphemeralGroup();
     expect(screen.getByLabelText(/architect:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/triage:/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/uiux-engineer:/i)).toBeInTheDocument();
-    expect(screen.getByText('View More (1 more items)')).toBeInTheDocument();
   });
 
   it('omits the ephemeral section when no ephemeral roles exist', () => {
@@ -295,6 +329,163 @@ describe('AgentPanel', () => {
     );
 
     expect(screen.queryByText(/Ephemeral/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Ephemeral agents:/ })).toBeNull();
+  });
+
+  it('renders one collapsed group row with zero online, all offline, and no member rows', () => {
+    render(<AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={[]} />);
+
+    expect(screen.getByText('Ephemeral (8)')).toBeInTheDocument();
+    expect(screen.getByText('0 online')).toBeInTheDocument();
+    expect(screen.getByText('8 offline')).toBeInTheDocument();
+    expect(screen.getByText('0 errored')).toBeInTheDocument();
+
+    const toggle = ephemeralToggle();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).not.toHaveAttribute('aria-controls');
+    expect(screen.queryByLabelText(/^product-manager:/i)).toBeNull();
+  });
+
+  it('moves working and errored ephemeral agents above the group', () => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[statusRow('architect', 'working'), statusRow('triage', 'error')]}
+      />
+    );
+
+    const architectRow = screen.getByTestId('agent-sidebar-row-architect');
+    const triageRow = screen.getByTestId('agent-sidebar-row-triage');
+    const toggle = ephemeralToggle();
+
+    expect(
+      architectRow.compareDocumentPosition(triageRow) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      triageRow.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+
+    expect(screen.queryByLabelText(/^product-manager:/i)).toBeNull();
+    expect(triageRow).toHaveTextContent('OFFLINE (ERROR)');
+    expect(screen.getByText('1 online')).toBeInTheDocument();
+    expect(screen.getByText('6 offline')).toBeInTheDocument();
+    expect(screen.getByText('1 errored')).toBeInTheDocument();
+  });
+
+  it('returns an agent to the group when its status changes', () => {
+    const { rerender } = render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[statusRow('architect', 'working')]}
+      />
+    );
+
+    // Working renders above the group, so the row is visible while collapsed.
+    expect(screen.getByLabelText(/^architect:/i)).toBeInTheDocument();
+
+    rerender(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[statusRow('architect', 'waiting')]}
+      />
+    );
+
+    expect(screen.queryByLabelText(/^architect:/i)).toBeNull();
+    expect(screen.getByText('1 online')).toBeInTheDocument();
+    expect(screen.getByText('7 offline')).toBeInTheDocument();
+    expect(screen.getByText('0 errored')).toBeInTheDocument();
+
+    expandEphemeralGroup();
+    expect(screen.getByLabelText(/^architect:/i)).toBeInTheDocument();
+  });
+
+  it('counts agents outside the group and sums to the ephemeral total', () => {
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[
+          statusRow('product-manager', 'starting'),
+          statusRow('architect', 'working'),
+          statusRow('researcher', 'waiting'),
+          statusRow('triage', 'error'),
+          statusRow('reviewer', 'stopping'),
+          statusRow('verifier', 'offline'),
+        ]}
+      />
+    );
+
+    expect(screen.getByText('4 online')).toBeInTheDocument();
+    expect(screen.getByText('3 offline')).toBeInTheDocument();
+    expect(screen.getByText('1 errored')).toBeInTheDocument();
+  });
+
+  it('keeps the group row when every ephemeral agent is outside and shows the empty line when expanded', () => {
+    const roles = pinnedTeamFacts[0].ephemeralRoles;
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={roles.map((role) => statusRow(role, 'working'))}
+      />
+    );
+
+    expect(screen.getByText('Ephemeral (8)')).toBeInTheDocument();
+    expect(screen.getByText('8 online')).toBeInTheDocument();
+    expect(screen.getByText('0 offline')).toBeInTheDocument();
+    expect(screen.getByText('0 errored')).toBeInTheDocument();
+
+    expandEphemeralGroup();
+    expect(screen.getByText('No agents in group')).toBeInTheDocument();
+  });
+
+  it('shows the loading line in the counts slot while statuses load', () => {
+    render(<AgentPanel {...panelProps} teamStructure={duoStructure} statusReadModel={undefined} />);
+
+    expect(screen.getByText('Loading statuses…')).toBeInTheDocument();
+    expect(screen.queryByText('0 online')).toBeNull();
+  });
+
+  it('opens config for an outside agent without expanding the group', () => {
+    const onOpenAgent = vi.fn();
+    render(
+      <AgentPanel
+        {...panelProps}
+        teamStructure={duoStructure}
+        statusReadModel={[statusRow('architect', 'working')]}
+        onOpenAgent={onOpenAgent}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('agent-sidebar-row-architect'));
+
+    expect(onOpenAgent).toHaveBeenCalledTimes(1);
+    expect(onOpenAgent).toHaveBeenCalledWith('architect');
+    expect(ephemeralToggle()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('persists expansion per chatroom', () => {
+    const roomOneProps = {
+      ...panelProps,
+      chatroomId: 'room-1' as Id<'chatroom_rooms'>,
+      teamStructure: duoStructure,
+    };
+    const first = render(<AgentPanel {...roomOneProps} />);
+
+    fireEvent.click(ephemeralToggle());
+
+    expect(localStorage.getItem('chatroom:room-1:ephemeralAgentsExpanded')).toBe('true');
+    first.unmount();
+
+    const second = render(<AgentPanel {...roomOneProps} />);
+    expect(ephemeralToggle()).toHaveAttribute('aria-expanded', 'true');
+    second.unmount();
+
+    render(<AgentPanel {...roomOneProps} chatroomId={'room-2' as Id<'chatroom_rooms'>} />);
+    expect(ephemeralToggle()).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('renders normalized effort suffix from agent config model variant', () => {

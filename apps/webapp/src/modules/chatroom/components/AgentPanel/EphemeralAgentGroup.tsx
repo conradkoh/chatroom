@@ -73,32 +73,61 @@ export function EphemeralAgentGroup({
             <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-chatroom-text-primary">
               Ephemeral ({total})
             </span>
-            {counts ? (
-              <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wide tabular-nums">
-                <EphemeralCount kind="online" value={counts.online} />
-                <EphemeralCount kind="offline" value={counts.offline} />
-                <EphemeralCount kind="errored" value={counts.errored} />
-              </span>
-            ) : (
-              <span className="mt-1 block animate-pulse text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                {EPHEMERAL_GROUP_LOADING_LABEL}
-              </span>
-            )}
+            <EphemeralCountSummary counts={counts} />
           </span>
         </button>
       </div>
-      {expanded ? (
-        <div id={bodyId} data-testid="ephemeral-agent-group-body">
-          {memberCount > 0 ? (
-            children
-          ) : (
-            <div className="border-b border-chatroom-border px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted last:border-b-0">
-              {EPHEMERAL_GROUP_EMPTY_LABEL}
-            </div>
-          )}
-        </div>
-      ) : null}
+      <EphemeralGroupBody bodyId={bodyId} expanded={expanded} memberCount={memberCount}>
+        {children}
+      </EphemeralGroupBody>
     </>
+  );
+}
+
+/** Count row (or the loading line) below the group title. */
+function EphemeralCountSummary({ counts }: { counts: EphemeralGroupCounts | null }) {
+  if (!counts) {
+    return (
+      <span className="mt-1 block animate-pulse text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+        {EPHEMERAL_GROUP_LOADING_LABEL}
+      </span>
+    );
+  }
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wide tabular-nums">
+      <EphemeralCount kind="online" value={counts.online} />
+      <EphemeralCount kind="offline" value={counts.offline} />
+      <EphemeralCount kind="errored" value={counts.errored} />
+    </span>
+  );
+}
+
+/**
+ * Member rows while expanded. Collapsed renders nothing at all, so member rows
+ * are absent from the DOM rather than merely hidden.
+ */
+function EphemeralGroupBody({
+  bodyId,
+  expanded,
+  memberCount,
+  children,
+}: {
+  bodyId: string;
+  expanded: boolean;
+  memberCount: number;
+  children: ReactNode;
+}) {
+  if (!expanded) return null;
+  return (
+    <div id={bodyId} data-testid="ephemeral-agent-group-body">
+      {memberCount > 0 ? (
+        children
+      ) : (
+        <div className="border-b border-chatroom-border px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted last:border-b-0">
+          {EPHEMERAL_GROUP_EMPTY_LABEL}
+        </div>
+      )}
+    </div>
   );
 }
 

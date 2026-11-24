@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamStructure } from '@workspace/shared/domain/team-presets';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -91,6 +92,7 @@ const baseLifecycle = {
 function renderPanel() {
   return render(
     <AgentPanel
+      chatroomId={'room-1' as Id<'chatroom_rooms'>}
       machineId={null}
       lifecycle={baseLifecycle}
       teamStructure={getTeamStructure({ teamId: 'duo' })}
