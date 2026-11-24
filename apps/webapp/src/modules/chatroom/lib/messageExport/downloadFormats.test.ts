@@ -46,6 +46,11 @@ describe('DOWNLOAD_FORMATS', () => {
     expect(getDownloadFormat('docx').label).toBe('Download as DOCX');
     expect(getDownloadFormat('pdf').mimeType).toBe('application/pdf');
   });
+
+  it('keeps the picker save description on DOCX and PDF', () => {
+    expect(getDownloadFormat('docx').saveDescription).toBe('Word Document');
+    expect(getDownloadFormat('pdf').saveDescription).toBe('PDF Document');
+  });
 });
 
 describe('downloadFileName', () => {
