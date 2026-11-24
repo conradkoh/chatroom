@@ -30,7 +30,7 @@ describe('getBuilderHandbackTemplate', () => {
 
   test('timing report lists a row for every shared verification kind', () => {
     for (const kind of VERIFICATION_KINDS) {
-      expect(body).toContain(`- ${kind.timingLabel}:`);
+      expect(body).toContain(`| ${kind.timingLabel} |`);
     }
   });
 
@@ -44,7 +44,7 @@ describe('getBuilderHandbackTemplate', () => {
     }
 
     for (const label of ['Typecheck', 'Lint']) {
-      const timingRow = body.split('\n').find((line) => line.startsWith(`- ${label}:`));
+      const timingRow = body.split('\n').find((line) => line.startsWith(`| ${label} |`));
       expect(timingRow).toBeDefined();
       expect(timingRow).not.toContain('not run');
     }
@@ -67,12 +67,22 @@ describe('getBuilderHandbackTemplate', () => {
       'E2E',
       'Commits',
       'Push and PR',
-      'Other activities',
+      'Other activity:',
       'Total',
     ]) {
-      expect(body).toContain(`- ${row}:`);
+      expect(body).toContain(`| ${row}`);
     }
     expect(body).toContain('`not run`');
     expect(body).toContain('`not applicable`');
+  });
+
+  test('timing report is a Duration table ordered by duration descending', () => {
+    expect(body).toContain('| Activity | Duration |');
+    expect(body).toContain('|---|---|');
+    expect(body).toContain('sort the rows that have a duration by duration, descending');
+    expect(body).toContain('Slowest activity and why:');
+    expect(body.indexOf('| Activity | Duration |')).toBeGreaterThan(
+      body.indexOf('## Timing report')
+    );
   });
 });
