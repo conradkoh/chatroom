@@ -7,10 +7,15 @@
  * action guidance, and every handoff template — and asserts none carries a
  * removed command or the old context-read wording.
  *
+ * Entry-point surfaces (task-started prompts, native task delivery, and the
+ * task-delivery core block) are rendered for each preset's entry-point role in
+ * both conversation modes.
+ *
  * Uses the public render helpers from `role-prompt-characterisation.ts`, which
  * go through `generateRolePrompt` and `composeInitPrompt`.
  */
 
+import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import { TEAM_PRESETS } from '@workspace/shared/domain/team-presets';
 import { describe, expect, test } from 'vitest';
 
@@ -26,7 +31,11 @@ import {
   renderHandoffTemplate,
   type HandoffTemplatePair,
 } from '../cli/handoff-templates';
+import { getTaskStartedPrompt } from '../cli/index';
+import { generateNativeTaskDeliveryOutput } from '../native/task-delivery';
+import { getNativeTaskStartedPrompt } from '../native/task-started-content';
 import { appendCliTaskDeliveryFooter } from '../task-delivery/cli-task-section';
+import { appendTaskDeliveryHandoffSections } from '../task-delivery/core';
 
 const TEAMS: CharacterisationTeam[] = [
   { teamId: 'duo', teamName: TEAM_PRESETS.duo.name, teamRoles: [...TEAM_PRESETS.duo.roles] },
@@ -45,6 +54,70 @@ const REMOVED_CONTEXT_COMMAND =
   /chatroom context (new|read|view-template)\b|\bcontext read\b|Context goal|Context Rule|context-read/;
 
 const CHATROOM_ID = 'removed-context-room';
+
+/** The entry-point role of each preset: the role that receives user tasks directly. */
+const ENTRY_POINTS = (['duo', 'solo', 'trio'] as const).map((teamId) => ({
+  teamId,
+  teamRoles: [...TEAM_PRESETS[teamId].roles],
+  role: TEAM_PRESETS[teamId].entryPoint,
+}));
+
+/**
+ * Renders the entry-point surfaces a user task reaches: the CLI and native
+ * task-started prompts, the native task delivery, and the task-delivery core
+ * block (Chat-mode and verifier-gate area), in both conversation modes.
+ */
+function renderEntryPointSurfaces(entry: (typeof ENTRY_POINTS)[number]): Record<string, string> {
+  const { teamId, teamRoles, role } = entry;
+  const handoffTargets = teamRoles.filter((member) => member !== role);
+  const message = { _id: 'removed-context-message', senderRole: 'user' };
+  const task = { _id: 'removed-context-task', content: 'Task body' };
+  const delivery = (conversationMode: ConversationMode): string =>
+    generateNativeTaskDeliveryOutput({
+      chatroomId: CHATROOM_ID,
+      role,
+      cliEnvPrefix: '',
+      teamId,
+      task,
+      message,
+      availableHandoffTargets: handoffTargets,
+      isEntryPoint: true,
+      conversationMode,
+    });
+  const coreLines: string[] = [];
+  appendTaskDeliveryHandoffSections(coreLines, {
+    chatroomId: CHATROOM_ID,
+    role,
+    cliEnvPrefix: '',
+    teamId,
+    message,
+    availableHandoffTargets: handoffTargets,
+    isEntryPoint: true,
+    conversationMode: 'chat',
+  });
+  return {
+    'CLI task-started prompt': getTaskStartedPrompt(),
+    'native task-started prompt': getNativeTaskStartedPrompt(),
+    'native task delivery (chat mode)': delivery('chat'),
+    'native task delivery (code mode)': delivery('code'),
+    'task-delivery core (chat mode)': coreLines.join('\n'),
+  };
+}
+
+describe.each(ENTRY_POINTS)('entry-point surfaces for $teamId', (entry) => {
+  const surfaces = renderEntryPointSurfaces(entry);
+
+  test('every entry-point surface renders with content, so the assertion cannot pass vacuously', () => {
+    for (const [label, rendered] of Object.entries(surfaces)) {
+      expect(rendered.length, label).toBeGreaterThan(0);
+    }
+    expect(surfaces['native task delivery (chat mode)']).toContain('<chat-mode>');
+  });
+
+  test.each(Object.keys(surfaces))('%s names no removed command', (label) => {
+    expect(surfaces[label]).not.toMatch(REMOVED_CONTEXT_COMMAND);
+  });
+});
 
 /** The CLI task-delivery footer every `get-next-task` delivery ends with. */
 function renderTaskFooter(role: string): string {
