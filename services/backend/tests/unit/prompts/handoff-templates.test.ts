@@ -403,7 +403,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <evidence the goal was met — list every file you modified; for each behavior the brief's \`## Test seams\` section names a seam for: the test name, the seam it calls, the failure output observed before the implementation, and the passing output after>
 
       ## Code Change Verification
-      - [ ] I confirm that the lightweight checks (typecheck, and lint) ran on the code I changed
+      - [ ] I confirm that the lightweight checks (typecheck and lint) ran on the code I changed
       - [ ] I confirm that every verification kind the brief marked \`required\` ran, and I recorded its command and result below
       - [ ] I confirm that every verification kind the brief marked \`not applicable\` is recorded below with the brief's reason
       Record each kind below, in this order, with its command and result. Typecheck and lint always run: record their command and result only. If either cannot run, put the blocker under \`## Blockers / questions\` and do not write \`not run\` here. For every other kind, write \`not run: <reason>\` or \`not applicable: <the brief's reason>\`.

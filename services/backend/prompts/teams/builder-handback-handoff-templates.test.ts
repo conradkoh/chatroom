@@ -17,7 +17,7 @@ describe('getBuilderHandbackTemplate', () => {
 
   test('drops the blanket run-tests attestation', () => {
     expect(body).not.toContain('I confirm that I have run typecheck and tests for the project');
-    expect(body).toContain('the lightweight checks (typecheck, and lint) ran');
+    expect(body).toContain('the lightweight checks (typecheck and lint) ran');
     expect(body).toContain('marked `required` ran');
   });
 

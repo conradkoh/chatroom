@@ -21,7 +21,7 @@ describe('code-change-verification', () => {
       'I confirm that I have run typecheck and tests'
     );
     expect(BUILDER_CODE_CHANGE_VERIFICATION_CONFIRMATION).toContain(
-      'lightweight checks (typecheck, and lint) ran'
+      'lightweight checks (typecheck and lint) ran'
     );
     expect(BUILDER_CODE_CHANGE_VERIFICATION_CONFIRMATION).toContain('marked `required` ran');
     expect(BUILDER_CODE_CHANGE_VERIFICATION_CONFIRMATION).toContain('marked `not applicable`');
