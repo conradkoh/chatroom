@@ -105,7 +105,7 @@ export function useWorkspaceFileContextMenu(
                   nodeType: menuFrame.nodeType,
                   ...liveContentState,
                 }}
-                handlers={menuFrame.handlers}
+                handlers={{ ...menuFrame.handlers, onRequestClose: close }}
                 visibility={menuFrame.visibility}
               />
             </DropdownMenuContent>

@@ -12,13 +12,20 @@ vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
 }));
 
-vi.mock('../../lib/messageExport', () => ({
-  saveTextFile: vi.fn().mockResolvedValue('saved'),
-  messageExportFilename: (_message: Message, ext: string) => `test-${ext}`,
-  buildMessageMarkdownDownload: (message: Message) => `# ${message.content}`,
-  exportMessageAsDocx: vi.fn().mockResolvedValue('saved'),
-  exportMessageAsPdf: vi.fn().mockResolvedValue('saved'),
-}));
+vi.mock('../../lib/messageExport', async () => {
+  const formats = (await vi.importActual('../../lib/messageExport/downloadFormats')) as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...formats,
+    saveTextFile: vi.fn().mockResolvedValue('saved'),
+    messageExportFilename: (_message: Message, ext: string) => `test-${ext}`,
+    buildMessageMarkdownDownload: (message: Message) => `# ${message.content}`,
+    exportMessageAsDocx: vi.fn().mockResolvedValue('saved'),
+    exportMessageAsPdf: vi.fn().mockResolvedValue('saved'),
+  };
+});
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {

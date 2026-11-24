@@ -2,6 +2,7 @@
 
 import {
   Copy,
+  Download,
   ExternalLink,
   FilePlus,
   FolderOpen,
@@ -12,7 +13,11 @@ import {
 } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
 
+import { resolveFileDownloadAvailability } from './fileDownloadAvailability';
 import type { WorkspaceFileCopyInfo, WorkspaceFileMenuProps } from './types';
+import { useFileDownloadActions } from './useFileDownloadActions';
+import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
+import { DOWNLOAD_FORMATS } from '../../lib/messageExport';
 import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
 import {
   copyFileContentToClipboard,
@@ -26,6 +31,7 @@ import { DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdo
 
 interface Section {
   label?: string;
+  description?: string;
   items: ReactNode[];
 }
 
@@ -37,7 +43,9 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
   const {
     relativePath,
     workingDir,
+    nodeType,
     content,
+    contentStatus,
     contentTruncated,
     contentDisabled = false,
     fileContentLabel = 'Copy File Content',
@@ -162,6 +170,43 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
     sections.push({ label: 'Content', items: contentItems });
   }
 
+  // Download section — shared availability gate and dispatcher, hidden for non-markdown files.
+  const availability = resolveFileDownloadAvailability({
+    filePath: relativePath,
+    nodeType,
+    status: contentStatus,
+    content,
+    truncated: contentTruncated,
+    isBinary: isBinaryFile(relativePath),
+  });
+  const { busyFormat, run } = useFileDownloadActions({
+    filePath: relativePath,
+    content: content ?? null,
+    enabled: availability.kind === 'ready',
+    onStart: handlers.onDownloadStart,
+    onError: handlers.onDownloadError,
+    onRequestClose: handlers.onRequestClose,
+  });
+  if (availability.kind !== 'hidden') {
+    sections.push({
+      label: 'Download',
+      description: availability.kind === 'disabled' ? availability.reason : undefined,
+      items: DOWNLOAD_FORMATS.map((definition) => (
+        <WorkspaceDropdownMenuItem
+          key={definition.format}
+          icon={Download}
+          closeOnClick={false}
+          disabled={busyFormat !== null || availability.kind !== 'ready'}
+          onSelect={() => run(definition.format)}
+        >
+          {busyFormat === definition.format && definition.busyLabel
+            ? definition.busyLabel
+            : definition.label}
+        </WorkspaceDropdownMenuItem>
+      )),
+    });
+  }
+
   // File section
   const fileItems: ReactNode[] = [];
   if (visibility.rename && handlers.onRename) {
@@ -206,6 +251,14 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
         <div key={index}>
           {index > 0 && <DropdownMenuSeparator />}
           {section.label && <DropdownMenuLabel>{section.label}</DropdownMenuLabel>}
+          {section.description ? (
+            <p
+              data-testid="workspace-download-disabled-reason"
+              className="max-w-[15rem] whitespace-normal px-2.5 pb-1 text-[11px] leading-snug text-chatroom-text-muted select-none"
+            >
+              {section.description}
+            </p>
+          ) : null}
           {section.items}
         </div>
       ))}

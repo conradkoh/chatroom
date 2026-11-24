@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildMessageExportDom } from './buildMessageExportDom';
+import { buildMarkdownExportDom } from './buildMessageExportDom';
 import { replaceMermaidFencesWithSvg } from './replaceMermaidFencesWithSvg';
 
 vi.mock('./replaceMermaidFencesWithSvg', () => ({
@@ -14,20 +14,17 @@ vi.mock('./replaceMermaidFencesWithSvg', () => ({
 }));
 
 vi.mock('react-markdown', () => ({
-  default: ({ children }: { children: string }) => `<div>${children}</div>`,
+  default: ({ children }: { children: string }) => (children ? `<div>${children}</div>` : ''),
 }));
 
-const message = {
-  _id: 'msg-1',
-  type: 'message' as const,
-  senderRole: 'user',
-  content: 'Intro\n\n```mermaid\ngraph TD; A-->B\n```',
-  _creationTime: 1_700_000_000_000,
+const chatInput = {
+  markdown: 'Intro\n\n```mermaid\ngraph TD; A-->B\n```',
+  header: { label: 'user', timestamp: '1/1/2025' },
 };
 
-describe('buildMessageExportDom', () => {
+describe('buildMarkdownExportDom chat header', () => {
   it('replaces the Mermaid placeholder with the rendered SVG wrapped in an export-diagram div', async () => {
-    const { htmlFragment } = await buildMessageExportDom(message as never, '');
+    const { htmlFragment } = await buildMarkdownExportDom(chatInput, '');
 
     expect(htmlFragment).toContain('<div class="export-diagram"');
     expect(htmlFragment).toContain('<svg id="diagram"');
@@ -45,7 +42,7 @@ describe('buildMessageExportDom', () => {
       ]),
     });
 
-    const { root } = await buildMessageExportDom(message as never, '');
+    const { root } = await buildMarkdownExportDom(chatInput, '');
 
     const svg = root.querySelector('.export-diagram svg') as SVGElement;
     expect(svg).not.toBeNull();
@@ -54,17 +51,45 @@ describe('buildMessageExportDom', () => {
   });
 
   it('exposes the header paragraph and rule as the first page blocks', async () => {
-    const { pageBlocks } = await buildMessageExportDom(message as never, '');
+    const { pageBlocks, htmlFragment } = await buildMarkdownExportDom(
+      { markdown: 'Intro', header: { label: 'user', timestamp: '1/1/2025' } },
+      ''
+    );
 
     expect(pageBlocks.map((el) => el.tagName).slice(0, 2)).toEqual(['P', 'HR']);
+    expect(htmlFragment).toContain('<hr');
+    expect(htmlFragment).toContain('user');
+    expect(htmlFragment).toContain('1/1/2025');
   });
 
   it('applies the caller root style first, then the light export theme, and returns a detached root', async () => {
-    const { root } = await buildMessageExportDom(message as never, 'position:fixed;left:-9999px;');
+    const { root } = await buildMarkdownExportDom(chatInput, 'position:fixed;left:-9999px;');
 
     expect(root.isConnected).toBe(false);
     expect(root.style.position).toBe('fixed');
     expect(root.style.getPropertyValue('--chatroom-text-primary')).toBe('#171717');
     expect(root.textContent).toContain('Intro');
+  });
+});
+
+describe('buildMarkdownExportDom', () => {
+  it('renders the body without a chat header when no header is given', async () => {
+    const { htmlFragment, pageBlocks } = await buildMarkdownExportDom({ markdown: 'Body' }, '');
+
+    expect(htmlFragment).not.toContain('<hr');
+    expect(pageBlocks).toHaveLength(1);
+    expect(pageBlocks[0].tagName).toBe('DIV');
+  });
+
+  it('renders an empty document as no page blocks and no rule', async () => {
+    vi.mocked(replaceMermaidFencesWithSvg).mockResolvedValueOnce({
+      markdown: '',
+      diagrams: new Map(),
+    });
+
+    const { htmlFragment, pageBlocks } = await buildMarkdownExportDom({ markdown: '' }, '');
+
+    expect(pageBlocks).toEqual([]);
+    expect(htmlFragment).not.toContain('<hr');
   });
 });

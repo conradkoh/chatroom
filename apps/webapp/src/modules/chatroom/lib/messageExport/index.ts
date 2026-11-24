@@ -8,6 +8,9 @@ export {
   messageExportFilename,
 } from './downloadTextFile';
 export type { SaveFileResult, SaveFileOptions, SaveFileHandleResult } from './downloadTextFile';
+export { DOWNLOAD_FORMATS, getDownloadFormat, downloadFileName } from './downloadFormats';
+export type { DownloadFormat } from './downloadFormats';
+export { exportFileAsDocx, exportFileAsPdf } from './fileExport';
 export { buildMessageMarkdownDownload } from './buildMessageMarkdownDownload';
 export { replaceMermaidFencesWithSvg } from './replaceMermaidFencesWithSvg';
 export { exportMessageAsDocx } from './exportMessageAsDocx';

@@ -14,6 +14,8 @@ export interface FileContentActionBarProps {
   leading?: ReactNode;
   trailing?: ReactNode;
   className?: string;
+  /** Right-click passthrough for hosts that open a context menu from the bar. */
+  onContextMenu?: (event: React.MouseEvent) => void;
 }
 
 export function FileContentActionBar({
@@ -24,9 +26,12 @@ export function FileContentActionBar({
   leading,
   trailing,
   className,
+  onContextMenu,
 }: FileContentActionBarProps) {
   return (
     <div
+      data-testid="file-content-action-bar"
+      onContextMenu={onContextMenu}
       className={cn(
         'flex items-center gap-2 px-4 py-1.5 border-b border-chatroom-border shrink-0',
         className

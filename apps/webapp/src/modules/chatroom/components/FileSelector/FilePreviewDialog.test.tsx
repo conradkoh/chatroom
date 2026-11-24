@@ -4,9 +4,23 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FilePreviewDialog } from './FilePreviewDialog';
+import { exportFileAsDocx } from '../../lib/messageExport';
 
 const mockUseSessionQuery = vi.hoisted(() => vi.fn());
 const mockRequestContent = vi.hoisted(() => vi.fn());
+
+vi.mock('../../lib/messageExport', async () => {
+  const formats = (await vi.importActual('../../lib/messageExport/downloadFormats')) as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...formats,
+    saveTextFile: vi.fn().mockResolvedValue('saved'),
+    exportFileAsDocx: vi.fn().mockResolvedValue('saved'),
+    exportFileAsPdf: vi.fn().mockResolvedValue('saved'),
+  };
+});
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => mockRequestContent,
@@ -326,5 +340,129 @@ describe('FilePreviewDialog open-on-remote feedback', () => {
     fireEvent.click(item);
 
     expect(onOpenFileOnRemote).toHaveBeenCalledWith('src/foo.ts');
+  });
+});
+
+const markdownProps = {
+  ...defaultProps,
+  filePath: 'docs/README.md',
+  files: [{ path: 'docs/README.md', type: 'file' as const }],
+};
+
+function menuItemNames(): string[] {
+  return screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
+}
+
+async function openMoreMenu() {
+  fireEvent.click(await screen.findByRole('button', { name: 'More copy options' }));
+  await screen.findAllByRole('menuitem');
+}
+
+describe('FilePreviewDialog download section', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const compressed = gzipSync(Buffer.from('file body')).toString('base64');
+    mockRequestContent.mockResolvedValue(undefined);
+    mockUseSessionQuery.mockReturnValue({
+      data: { compression: 'gzip', content: compressed },
+      encoding: 'utf8',
+      truncated: false,
+      fetchedAt: 1,
+    });
+    writeText.mockResolvedValue(undefined);
+    stubClipboard(writeText);
+    vi.mocked(exportFileAsDocx).mockResolvedValue('saved');
+  });
+
+  it('lists the download rows in the ... menu for a markdown file', async () => {
+    render(<FilePreviewDialog {...markdownProps} />);
+    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await openMoreMenu();
+
+    const names = menuItemNames();
+    const downloadStart = names.indexOf('Download as Markdown');
+    expect(screen.getByText('Download')).toBeInTheDocument();
+    expect(downloadStart).toBeGreaterThanOrEqual(0);
+    expect(names.slice(downloadStart, downloadStart + 3)).toEqual([
+      'Download as Markdown',
+      'Download as DOCX',
+      'Download as PDF',
+    ]);
+  });
+
+  it('shows no download section for a non-markdown file', async () => {
+    renderDialog();
+    await findCopyContentButton();
+    await openMoreMenu();
+
+    expect(screen.queryByText('Download')).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Download as Markdown' })).toBeNull();
+  });
+
+  it('opens the same items from the action-bar right-click as from the ... menu', async () => {
+    render(<FilePreviewDialog {...markdownProps} />);
+    await screen.findByRole('button', { name: 'Copy as Markdown' });
+
+    await openMoreMenu();
+    const fromMoreMenu = menuItemNames();
+    fireEvent.click(screen.getByRole('button', { name: 'More copy options' }));
+    await waitFor(() => expect(screen.queryAllByRole('menuitem')).toHaveLength(0));
+
+    fireEvent.contextMenu(screen.getByTestId('file-content-action-bar'));
+    await screen.findAllByRole('menuitem');
+
+    expect(menuItemNames()).toEqual(fromMoreMenu);
+  });
+
+  it('keeps the native right-click on the rendered body', async () => {
+    render(<FilePreviewDialog {...markdownProps} />);
+
+    fireEvent.contextMenu(await screen.findByText('file body'));
+
+    expect(screen.queryByRole('menuitem')).toBeNull();
+  });
+
+  it('disables every download row with one reason for a truncated file', async () => {
+    mockContent(true);
+    render(<FilePreviewDialog {...markdownProps} />);
+    await screen.findByRole('button', { name: 'Copy as Markdown' });
+
+    await openMoreMenu();
+
+    const reasons = screen.getAllByTestId('workspace-download-disabled-reason');
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toHaveTextContent('File is larger than the 500 KB preview limit.');
+    for (const name of ['Download as Markdown', 'Download as DOCX', 'Download as PDF']) {
+      expect(screen.getByRole('menuitem', { name })).toHaveAttribute('aria-disabled', 'true');
+    }
+  });
+
+  it('shows a DOCX failure in the dialog feedback slot', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(exportFileAsDocx).mockRejectedValueOnce(new Error('boom'));
+    render(<FilePreviewDialog {...markdownProps} />);
+    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await openMoreMenu();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download as DOCX' }));
+
+    const slot = await screen.findByTestId('file-preview-feedback');
+    expect(slot).toHaveAttribute('role', 'alert');
+    expect(slot).toHaveTextContent('Failed to prepare DOCX');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('closes silently when the DOCX save is cancelled', async () => {
+    vi.mocked(exportFileAsDocx).mockResolvedValueOnce('cancelled');
+    render(<FilePreviewDialog {...markdownProps} />);
+    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await openMoreMenu();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download as DOCX' }));
+
+    await waitFor(() => expect(screen.queryAllByRole('menuitem')).toHaveLength(0));
+    expect(screen.queryByTestId('file-preview-feedback')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

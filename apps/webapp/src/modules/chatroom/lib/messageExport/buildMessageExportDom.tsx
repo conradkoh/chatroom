@@ -8,7 +8,6 @@ import {
 } from './replaceMermaidFencesWithSvg';
 import { chatroomRemarkPlugins } from '../../components/chatroomRemarkPlugins';
 import { messageFeedProseClassNames } from '../../components/markdown-utils';
-import type { Message } from '../../types/message';
 
 /** 816 CSS px = 8.5in at 96dpi: the export page width shared by the Word and PDF exporters. */
 export const MESSAGE_EXPORT_WIDTH_PX = 816;
@@ -95,16 +94,41 @@ export type MessageExportDom = {
   pageBlocks: HTMLElement[];
 };
 
+/** The sender/timestamp line a chat export prints above the body. Absent for file exports. */
+export interface MarkdownExportHeader {
+  label: string;
+  timestamp: string;
+}
+
+export interface MarkdownExportInput {
+  markdown: string;
+  header?: MarkdownExportHeader;
+}
+
+function MarkdownExportHeaderRow({ header }: { header: MarkdownExportHeader }) {
+  return (
+    <>
+      <p className="text-xs text-chatroom-text-muted" style={{ marginBottom: 8 }}>
+        <strong className="text-chatroom-text-primary">{header.label}</strong>
+        {' — '}
+        {header.timestamp}
+      </p>
+      <hr style={{ borderTop: '1px solid #d4d4d4', marginBottom: 20 }} />
+    </>
+  );
+}
+
 /**
- * Renders a message into a detached export root. `rootStyle` is the positioning/visibility
- * css the caller needs (it is applied first; the light export theme variables are added after).
+ * Renders markdown into a detached export root. With `header` the output is the chat export
+ * (sender/timestamp line, rule, body); without it the output is the body only.
+ * `rootStyle` is applied first; the light export theme variables are added after.
  * The caller attaches `root` to `document.body`, exports it, and removes it.
  */
-export async function buildMessageExportDom(
-  message: Message,
+export async function buildMarkdownExportDom(
+  input: MarkdownExportInput,
   rootStyle: string
 ): Promise<MessageExportDom> {
-  const { markdown, diagrams } = await replaceMermaidFencesWithSvg(message.content);
+  const { markdown, diagrams } = await replaceMermaidFencesWithSvg(input.markdown);
 
   const bodyHtml = injectMermaidDiagrams(
     renderToStaticMarkup(
@@ -115,20 +139,12 @@ export async function buildMessageExportDom(
     diagrams
   );
 
-  const role = message.senderRole ?? 'message';
-  const timestamp = new Date(message._creationTime).toLocaleString();
-
   const htmlFragment = renderToStaticMarkup(
     <div
       style={{ background: 'transparent' }}
       className="text-[13px] leading-relaxed text-chatroom-text-primary"
     >
-      <p className="text-xs text-chatroom-text-muted" style={{ marginBottom: 8 }}>
-        <strong className="text-chatroom-text-primary">{role}</strong>
-        {' — '}
-        {timestamp}
-      </p>
-      <hr style={{ borderTop: '1px solid #d4d4d4', marginBottom: 20 }} />
+      {input.header ? <MarkdownExportHeaderRow header={input.header} /> : null}
       <div
         className={messageExportProseClassNames}
         style={{ background: 'transparent' }}
@@ -145,7 +161,7 @@ export async function buildMessageExportDom(
   const outer = root.firstElementChild as HTMLElement; // the div from htmlFragment
   const proseBody = outer.lastElementChild as HTMLElement; // the markdown body div
   const pageBlocks = [
-    ...Array.from(outer.children).slice(0, -1), // header <p>, <hr>
+    ...Array.from(outer.children).slice(0, -1), // header <p>, <hr> when present
     ...Array.from(proseBody.children), // markdown blocks, diagram wrappers included
   ] as HTMLElement[];
   return { htmlFragment, root, pageBlocks };

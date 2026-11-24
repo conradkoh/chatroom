@@ -1,8 +1,12 @@
+export type WorkspaceFileContentStatus = 'loading' | 'ready' | 'not-found';
+
 export interface WorkspaceFileMenuState {
   relativePath: string;
   workingDir: string | null;
   nodeType?: 'file' | 'directory';
   content?: string | null;
+  /** Live status of `content`. Undefined means the host did not supply it. */
+  contentStatus?: WorkspaceFileContentStatus;
   /** True when `content` is a truncated copy of the file. Read only by the file-content copy item. */
   contentTruncated?: boolean;
   contentDisabled?: boolean;
@@ -11,7 +15,7 @@ export interface WorkspaceFileMenuState {
 
 export type WorkspaceFileMenuContentState = Pick<
   WorkspaceFileMenuState,
-  'content' | 'contentTruncated' | 'contentDisabled' | 'fileContentLabel'
+  'content' | 'contentStatus' | 'contentTruncated' | 'contentDisabled' | 'fileContentLabel'
 >;
 
 /** What a successful copy reports. `truncated` is true only when the copied file content was cut short. */
@@ -31,6 +35,12 @@ export interface WorkspaceFileMenuHandlers {
   onCopied?: (info: WorkspaceFileCopyInfo) => void;
   /** Called with the failure message when a copy item fails. Undefined means the failure is not shown. */
   onCopyError?: (message: string) => void;
+  /** Called before a download starts. Hosts clear their inline feedback slot. */
+  onDownloadStart?: () => void;
+  /** Called with the format-specific failure copy when a download fails. Undefined means the failure is not shown. */
+  onDownloadError?: (message: string) => void;
+  /** Injected by WorkspaceFileActionsMenu and useWorkspaceFileContextMenu so the menu can stay open while busy. */
+  onRequestClose?: () => void;
 }
 
 export interface WorkspaceFileMenuVisibility {
