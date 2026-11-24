@@ -85,27 +85,21 @@ function reloadPromptCommand(params: CompactionRecoveryParams): string {
  * Get the compaction/summarization recovery note.
  * Used in the system prompt's Getting Started section for durable agent recovery guidance.
  *
- * The verifier judges log message ids, so its note reloads the prompt, anchors
- * on the user message id, and re-downloads the log from it. Every other role
- * gets the same recovery text.
+ * Every role runs the same three steps: reload the system and role prompt,
+ * anchor on the user message id, and download the log from that id. Only the
+ * noun for that user message differs: the verifier's verification request, or
+ * the current task for every other role.
  *
  * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
  */
 export function getCompactionRecoveryNote(params: CompactionRecoveryParams): string {
   const reload = reloadPromptCommand(params);
-  if (isVerifierRole(params.role)) {
-    return `NOTE: If you are an agent that has undergone compaction or summarization, run:
-  ${reload}
-to reload your full system and role prompt. Then run:
-  ${anchorCommand(params)}
-to print the user message id of your verification request, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
-  ${logDownloadCommand(params)}`;
-  }
+  const subject = isVerifierRole(params.role) ? 'your verification request' : 'your current task';
   return `NOTE: If you are an agent that has undergone compaction or summarization, run:
   ${reload}
 to reload your full system and role prompt. Then run:
   ${anchorCommand(params)}
-to print the user message id of your current task, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
+to print the user message id of ${subject}, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
   ${logDownloadCommand(params)}`;
 }
 
