@@ -8,7 +8,6 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
 import type { ResolvedChatroom } from './lib/chatroomTeam';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
-import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import { insertChatroomMessage } from '../src/domain/usecase/message/message-read-model';
 
 function assertCanCreateContext(chatroom: ResolvedChatroom, role: string): void {
@@ -155,56 +154,5 @@ export const getContext = query({
       ...context,
       elapsedHours,
     };
-  },
-});
-
-/** Returns the currently pinned context with time-based staleness metadata, or null if none. */
-export const getCurrentContext = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    if (!chatroom.currentContextId) {
-      return null;
-    }
-
-    // Load the full context record plus time-based staleness via the shared
-    // loader, then surface the additional context fields callers expect.
-    const snapshot = await loadCurrentContext(ctx, args.chatroomId);
-    if (!snapshot) {
-      return null;
-    }
-    const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
-    if (!context) {
-      return null;
-    }
-
-    return {
-      ...context,
-      elapsedHours: snapshot.elapsedHours,
-    };
-  },
-});
-
-/** Clears the current context pin from a chatroom without deleting the context record. */
-export const clearCurrentContext = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Clear the current context reference
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-      currentContextId: undefined,
-    });
-
-    return { success: true };
   },
 });
