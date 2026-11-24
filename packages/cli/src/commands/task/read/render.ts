@@ -19,8 +19,7 @@ export interface RenderTaskPromptInput {
   role: string;
   attachedBacklogItems?: { _id: string; content: string; status: string }[] | undefined;
   // fallow-ignore-next-line code-duplication
-  attachedSnippets?:
-    { reference: string; fileSource: string; selectedContent: string }[] | undefined;
+  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[] | undefined;
   attachedTasks?: { _id: string; content: string; status: string }[] | undefined;
   attachedMessages?: { _id: string; content: string; senderRole: string }[] | undefined;
 }
