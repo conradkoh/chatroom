@@ -16,7 +16,6 @@ import { memo, type ReactNode } from 'react';
 import { resolveFileDownloadAvailability } from './fileDownloadAvailability';
 import type { WorkspaceFileCopyInfo, WorkspaceFileMenuProps } from './types';
 import { useFileDownloadActions } from './useFileDownloadActions';
-import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import { DOWNLOAD_FORMATS } from '../../lib/messageExport';
 import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
 import {
@@ -177,7 +176,6 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
     status: contentStatus,
     content,
     truncated: contentTruncated,
-    isBinary: isBinaryFile(relativePath),
   });
   const { busyFormat, run } = useFileDownloadActions({
     filePath: relativePath,
