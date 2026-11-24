@@ -46,6 +46,15 @@ describe('shouldIncludeVerifierGate', () => {
     ).toBe(true);
   });
 
+  test('matches a padded verifier target', () => {
+    expect(
+      shouldIncludeVerifierGate({
+        isEntryPoint: true,
+        availableHandoffTargets: [' Verifier '],
+      })
+    ).toBe(true);
+  });
+
   test('includes the gate for a solo entry point with verifier advertised', () => {
     expect(
       shouldIncludeVerifierGate({

@@ -12,9 +12,7 @@
  */
 
 import { VERIFIER_TEST_RULE, VERIFIER_VERDICTS } from '../teams/verifier-handoff-templates';
-
-/** Advertised handoff target that triggers the gate. */
-const VERIFIER_ROLE = 'verifier';
+import { isVerifierRole } from '../utils/verifier-role';
 
 /** Maximum verification rounds requested per user message. */
 const VERIFIER_MAX_ROUNDS = 2;
@@ -33,10 +31,7 @@ export function shouldIncludeVerifierGate(params: {
   isEntryPoint?: boolean | undefined;
   availableHandoffTargets: readonly string[];
 }): boolean {
-  return (
-    params.isEntryPoint === true &&
-    params.availableHandoffTargets.some((target) => target.trim().toLowerCase() === VERIFIER_ROLE)
-  );
+  return params.isEntryPoint === true && params.availableHandoffTargets.some(isVerifierRole);
 }
 
 /**
