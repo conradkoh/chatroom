@@ -31,6 +31,9 @@ export interface EphemeralAgentGroups {
 export const EPHEMERAL_GROUP_LOADING_LABEL = 'Loading statuses…';
 export const EPHEMERAL_GROUP_EMPTY_LABEL = 'No agents in group';
 
+/** Status variants that render above the group row instead of inside it. */
+const OUTSIDE_VARIANTS: ReadonlySet<AgentStatus['statusVariant']> = new Set(['working', 'error']);
+
 /**
  * Splits ephemeral roles into the rows shown above the disclosure group and the
  * rows shown inside it, and derives the row counts.
@@ -53,22 +56,18 @@ export function deriveEphemeralAgentGroups(
     return { outsideRoles: [], memberRoles: [...ephemeralRoles], counts: null };
   }
   const statusByRole = new Map(agentStatuses.map((status) => [status.role, status]));
-  const outsideRoles: string[] = [];
-  const memberRoles: string[] = [];
-  let online = 0;
-  let errored = 0;
-  for (const role of ephemeralRoles) {
-    const status = statusByRole.get(role);
-    if (status?.online) online += 1;
-    if (status?.statusVariant === 'error') errored += 1;
-    const isOutside = status?.statusVariant === 'working' || status?.statusVariant === 'error';
-    if (isOutside) outsideRoles.push(role);
-    else memberRoles.push(role);
-  }
+  const statusOf = (role: string): AgentStatus | undefined => statusByRole.get(role);
+  const isOutside = (role: string): boolean => {
+    const variant = statusOf(role)?.statusVariant;
+    return variant !== undefined && OUTSIDE_VARIANTS.has(variant);
+  };
+  const statuses = ephemeralRoles.map(statusOf);
+  const online = statuses.filter((status) => status?.online === true).length;
+  const errored = statuses.filter((status) => status?.statusVariant === 'error').length;
   const total = ephemeralRoles.length;
   return {
-    outsideRoles,
-    memberRoles,
+    outsideRoles: ephemeralRoles.filter(isOutside),
+    memberRoles: ephemeralRoles.filter((role) => !isOutside(role)),
     counts: { online, offline: total - online - errored, errored, total },
   };
 }
@@ -91,16 +90,14 @@ export function ephemeralGroupAriaLabel(args: {
  * Indicator dot colour for a count. Zero counts are muted so three inactive
  * dots never imply activity; semantic tokens keep light and dark mode correct.
  */
+const COUNT_INDICATOR_CLASS: Record<EphemeralCountKind, string> = {
+  online: 'bg-chatroom-status-success',
+  offline: 'bg-chatroom-text-muted',
+  errored: 'bg-chatroom-status-error',
+};
+
 export function getCountIndicatorClass(kind: EphemeralCountKind, value: number): string {
-  if (value === 0) return 'bg-chatroom-text-muted/40';
-  switch (kind) {
-    case 'online':
-      return 'bg-chatroom-status-success';
-    case 'offline':
-      return 'bg-chatroom-text-muted';
-    case 'errored':
-      return 'bg-chatroom-status-error';
-  }
+  return value === 0 ? 'bg-chatroom-text-muted/40' : COUNT_INDICATOR_CLASS[kind];
 }
 
 /** Count text colour: only a non-zero errored count draws attention. */
