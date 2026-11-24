@@ -20,7 +20,8 @@ describe('verifier guidance snapshots', () => {
     expect(guidance).toContain('advisory and read-only');
     expect(guidance).toContain('do not edit files, implement code');
     expect(guidance).toContain('Run no test the user did not ask for');
-    expect(guidance).toContain('`chatroom context new`');
+    expect(guidance).not.toMatch(/context id|chatroom context|context read|context goal/i);
+    expect(guidance).toContain('Log message ids');
     expect(guidance).toContain('--role="verifier" --next-role="planner"');
     expect(guidance).not.toContain('{ENTRY_POINT_ROLE}');
     expect(guidance).not.toContain('{SESSION_CONTINUITY}');
@@ -33,5 +34,6 @@ describe('verifier guidance snapshots', () => {
     expect(guidance).toContain('Code Change Verification');
     expect(guidance).toContain('Instructions (not part of the message): chat response');
     expect(guidance).toContain('4a. User expectations');
+    expect(guidance).not.toContain('I confirm that I read the current chatroom task context');
   });
 });

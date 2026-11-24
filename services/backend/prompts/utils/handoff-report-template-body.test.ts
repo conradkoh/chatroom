@@ -182,4 +182,23 @@ describe('getHandoffReportTemplateBody', () => {
     expect(completionIdx).toBeGreaterThan(-1);
     expect(backlogIdx).toBeGreaterThan(completionIdx);
   });
+
+  test('verifier option omits the context-read attestation from the proof of completion', () => {
+    const body = getHandoffReportTemplateBody(undefined, {
+      includeProofOfVerification: true,
+      includeContextReadDisclosure: false,
+    });
+
+    expect(body).not.toContain('chatroom context read');
+    expect(body).not.toContain('I confirm that I read the current chatroom task context');
+    expect(body).not.toContain('Context goal');
+    expect(body).toContain('- Requirements');
+  });
+
+  test('default still renders the context-read attestation for entry points', () => {
+    const body = getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true });
+
+    expect(body).toContain('I confirm that I read the current chatroom task context');
+    expect(body).toContain('- Context goal:');
+  });
 });

@@ -12,12 +12,26 @@ import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 export interface HandoffReportTemplateBodyOptions {
   /** Entry-point handoffs (planner/solo → user) must verify the user's full request before delivery. */
   includeProofOfVerification?: boolean | undefined;
+  /**
+   * Whether the verification Proof of Completion carries the context-read checkbox and the
+   * `Context goal` line. Default true. The verifier passes false: it judges requirements and
+   * log message ids, not a context read. Applies to the `includeProofOfVerification` branch only.
+   */
+  includeContextReadDisclosure?: boolean | undefined;
 }
 
 export function getHandoffReportTemplateBody(
   roleGuidanceContext?: RoleGuidanceCommandParams,
   options: HandoffReportTemplateBodyOptions = {}
 ): string {
+  const contextReadLines =
+    options.includeProofOfVerification && options.includeContextReadDisclosure !== false
+      ? [
+          getContextReadDisclosureBlock(roleGuidanceContext),
+          '- Context goal: <state the context goal and confirm it was achieved>',
+        ]
+      : [];
+
   return `<handoff-overview>
 <!-- When the task is informational (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed. Do not rely on earlier \`notify-user\` notices or session text. -->
 ## Summary
@@ -44,9 +58,7 @@ ${getHandoffQualityPrinciplesSectionBlock()}
 ## Proof of Completion
 ${
   options.includeProofOfVerification
-    ? `${getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext)}
-${getContextReadDisclosureBlock(roleGuidanceContext)}
-- Context goal: <state the context goal and confirm it was achieved>
+    ? `${[getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext), ...contextReadLines].join('\n')}
 - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
   - <requirement> — <PR URL, commit hash, or file evidence>
 - Files changed (code tasks — list every file modified):
