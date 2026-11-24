@@ -4,11 +4,7 @@
 
 import { getNativeTokenActivityInProgressNote } from '../base/shared/token-activity-note';
 
-export function getNativeTaskStartedPrompt(_ctx: {
-  chatroomId: string;
-  role: string;
-  cliEnvPrefix: string;
-}): string {
+export function getNativeTaskStartedPrompt(): string {
   return `### Start working
 
 Entry-point roles receive user messages directly. ${getNativeTokenActivityInProgressNote()}`;

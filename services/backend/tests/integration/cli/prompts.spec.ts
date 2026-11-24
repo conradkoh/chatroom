@@ -15,10 +15,6 @@ import {
   getTaskStartedPrompt,
   getTaskStartedPromptForHandoffRecipient,
 } from '../../../prompts/cli/task-started/main-prompt';
-import { getConfig } from '../../../prompts/config/index';
-
-// Test URLs for different environments
-const TEST_LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';
 
 describe('Context Gaining Prompt', () => {
   test('generates Getting Started format with basic commands', () => {
@@ -162,12 +158,7 @@ describe('Available Actions (Task Delivery)', () => {
 
 describe('Task intake prompt', () => {
   test('generates start-working format with token activity note', () => {
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
-      chatroomId: 'test-chatroom-456',
-      role: 'builder',
-      cliEnvPrefix,
-    });
+    const prompt = getTaskStartedPrompt();
 
     expect(prompt).toContain('### Start working');
     expect(prompt).toContain('harness output (stdout tokens)');
@@ -177,12 +168,7 @@ describe('Task intake prompt', () => {
   });
 
   test('handoff recipient prompt describes inline task body', () => {
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
-    const prompt = getTaskStartedPromptForHandoffRecipient({
-      chatroomId: 'my-chatroom',
-      role: 'builder',
-      cliEnvPrefix,
-    });
+    const prompt = getTaskStartedPromptForHandoffRecipient();
 
     expect(prompt).toContain('task body contains your work description');
     expect(prompt).toContain('harness output (stdout tokens)');

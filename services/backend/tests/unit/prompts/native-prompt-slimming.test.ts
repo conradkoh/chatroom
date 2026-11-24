@@ -12,11 +12,7 @@ import { TEAM_CONFIGS } from '../../helpers/native-workflow-fixtures';
 
 describe('native task-started content', () => {
   test('entry point prompt describes task intake without task read or injection', () => {
-    const prompt = getNativeTaskStartedPrompt({
-      chatroomId: 'room-id',
-      role: 'planner',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-    });
+    const prompt = getNativeTaskStartedPrompt();
 
     expect(prompt).not.toMatch(/task read/i);
     expect(prompt).not.toMatch(/inject/i);
