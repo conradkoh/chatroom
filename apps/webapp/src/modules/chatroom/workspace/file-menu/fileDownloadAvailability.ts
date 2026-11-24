@@ -1,4 +1,3 @@
-import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import { isMarkdownFile } from '../file-renderers';
 import type { WorkspaceFileContentStatus } from './types';
 import {
@@ -30,7 +29,6 @@ export interface FileDownloadAvailabilityInput {
   status?: WorkspaceFileContentStatus;
   content?: string | null;
   truncated?: boolean;
-  isBinary?: boolean;
 }
 
 function disabled(reason: string): FileDownloadAvailability {
@@ -38,9 +36,10 @@ function disabled(reason: string): FileDownloadAvailability {
 }
 
 /**
- * Order matters: directory/non-markdown hides, binary disables, loading and not-found disable,
- * truncation beats any placeholder, then exact daemon placeholders map to their reason, then
- * null/undefined content is unavailable. `''` is ready (empty files export).
+ * Order matters: directory/non-markdown hides, loading and not-found disable, truncation beats
+ * any placeholder, then exact daemon placeholders map to their reason (the `[Binary file]`
+ * placeholder is the only binary gate), then null/undefined content is unavailable. `''` is
+ * ready (empty files export).
  *
  * One intentional priority ladder, not decomposable without losing the ordering contract.
  */
@@ -48,9 +47,8 @@ function disabled(reason: string): FileDownloadAvailability {
 export function resolveFileDownloadAvailability(
   input: FileDownloadAvailabilityInput
 ): FileDownloadAvailability {
-  const { filePath, nodeType, status = 'ready', content, truncated, isBinary } = input;
+  const { filePath, nodeType, status = 'ready', content, truncated } = input;
   if (nodeType === 'directory' || !isMarkdownFile(filePath)) return { kind: 'hidden' };
-  if (isBinary ?? isBinaryFile(filePath)) return disabled(FILE_DOWNLOAD_REASON.binary);
   if (status === 'loading') return disabled(FILE_DOWNLOAD_REASON.loading);
   if (status === 'not-found') return disabled(FILE_DOWNLOAD_REASON.notFound);
   if (truncated) return disabled(FILE_DOWNLOAD_REASON.truncated);

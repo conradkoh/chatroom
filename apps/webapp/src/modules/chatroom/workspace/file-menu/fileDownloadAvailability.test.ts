@@ -68,16 +68,6 @@ describe('resolveFileDownloadAvailability', () => {
     ).toEqual({ kind: 'disabled', reason: 'File is larger than the 500 KB preview limit.' });
   });
 
-  it('disables when the extension is binary even for a markdown path', () => {
-    expect(
-      resolveFileDownloadAvailability({
-        filePath: 'docs/README.md',
-        content: 'body',
-        isBinary: true,
-      })
-    ).toEqual({ kind: 'disabled', reason: 'Binary files cannot be downloaded.' });
-  });
-
   it('maps the binary placeholder to the binary reason', () => {
     expect(
       resolveFileDownloadAvailability({ filePath: 'docs/README.md', content: '[Binary file]' })
