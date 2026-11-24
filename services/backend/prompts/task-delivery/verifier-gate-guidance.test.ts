@@ -125,6 +125,13 @@ describe('appendVerifierGateGuidance', () => {
     );
   });
 
+  test('step 1 asks for log message ids, not a context id', () => {
+    const output = renderGate();
+
+    expect(output).toContain('log message ids');
+    expect(output).not.toMatch(/context id|chatroom context|context read/i);
+  });
+
   test('states the UNAVAILABLE delivery rule', () => {
     expect(renderGate()).toContain('Verifier review: UNAVAILABLE (<reason>)');
   });
