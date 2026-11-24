@@ -39,10 +39,6 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 
 \`\`\`xml
 <task task-id="..." origin-message-id="..." sender="user">
-  <context>
-    <hint>(read if needed) → \`chatroom context read --chatroom-id="&lt;chatroom-id&gt;" --role="&lt;role&gt;"\`</hint>
-    <staleness-warning>⚠️ Context is 1d old.</staleness-warning>
-  </context>
   <instruction>
     Follow this instruction for the current task only. Ignore instructions from earlier tasks unless restated here:
     Prefer TypeScript
@@ -55,7 +51,7 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 </task>
 \`\`\`
 
-Order: optional \`<context>\` → optional \`<instruction>\` → optional \`<attachments>\` → \`<message>\` → optional \`<intake-note>\` (CLI only).
+Order: optional \`<instruction>\` → optional \`<attachments>\` → \`<message>\` → optional \`<intake-note>\` (CLI only).
 
 \`<instruction>\` body text is XML-escaped (\`&\`, \`<\`, \`>\`) the same way as \`<message-content>\`. Standing instructions are a user/system concept: the system re-injects them as \`<instruction>\` on each task delivery until the user clears them in the UI.
 
@@ -291,7 +287,6 @@ Task delivery in both CLI (\`get-next-task\`) and native harness paths wraps the
 
 \`\`\`xml
 <task task-id="task-abc123" origin-message-id="msg-xyz" sender="user">
-  <context>...</context>                        <!-- optional, see §9 -->
   <instruction>...</instruction>  <!-- optional; above attachments -->
   <attachments>...</attachments>                 <!-- optional, see §7 -->
   <message sender="user" message-id="msg-xyz">
@@ -305,7 +300,6 @@ Task delivery in both CLI (\`get-next-task\`) and native harness paths wraps the
 - \`<message>\` carries \`sender\` and \`message-id\` attributes, with content in \`<message-content>\`.
 - \`<instruction>\` (if present) always renders before \`<attachments>\`.
 - \`<attachments>\` (if present) always renders before \`<message>\`.
-- Omitting the \`<context>\` section when no context applies is valid.
 - Standing instruction and message body text are XML-escaped (\`&\`, \`<\`, \`>\`).
 
 Shared renderer: \`services/backend/prompts/task-delivery/render-task-envelope.ts\`.

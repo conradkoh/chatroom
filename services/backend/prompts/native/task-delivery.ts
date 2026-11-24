@@ -22,16 +22,13 @@ export type NativeTaskDeliveryParams = TaskDeliveryParams;
 
 // fallow-ignore-next-line complexity
 function resolveNativeTaskIntakeContent(
-  params: Pick<
-    NativeTaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'isEntryPoint' | 'message' | 'conversationMode'
-  >
+  params: Pick<NativeTaskDeliveryParams, 'isEntryPoint' | 'message' | 'conversationMode'>
 ): string {
-  const { chatroomId, role, cliEnvPrefix, isEntryPoint, message, conversationMode } = params;
+  const { isEntryPoint, message, conversationMode } = params;
   if (!isEntryPoint) {
     return getNativeTaskStartedPromptForHandoffRecipient();
   }
-  // Chat-mode entry-point user tasks: direct answer, no context commands.
+  // Chat-mode entry-point user tasks: direct answer.
   if (
     isChatModeEntryPointUserTask({
       conversationMode,
@@ -41,12 +38,7 @@ function resolveNativeTaskIntakeContent(
   ) {
     return getNativeChatTaskStartedPrompt();
   }
-  return getNativeTaskStartedPrompt({
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    triggerMessageId: message?._id,
-  });
+  return getNativeTaskStartedPrompt();
 }
 
 function appendNativeTaskIntake(

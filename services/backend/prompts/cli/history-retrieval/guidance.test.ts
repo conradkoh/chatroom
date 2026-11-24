@@ -9,7 +9,7 @@ describe('getHistoryRetrievalGuidance', () => {
       role: 'planner',
       cliEnvPrefix: '',
     });
-    expect(text).toContain('context read');
+    expect(text).not.toMatch(/chatroom context|context read/i);
     expect(text).toContain('messages download');
     expect(text).toContain('truncated=true');
     expect(text).toContain('absolute path printed by the CLI');
@@ -25,16 +25,15 @@ describe('getHistoryRetrievalGuidance', () => {
     expect(text).toContain('--since-message-id="<id-from-anchor>" --limit=100');
   });
 
-  test('keeps the context-read source bullet for a non-verifier role', () => {
-    const text = getHistoryRetrievalGuidance({
-      chatroomId: 'room-1',
-      role: 'builder',
-      cliEnvPrefix: '',
-    });
-    expect(text).toContain('chatroom context read');
+  test('renders the same source bullets for the verifier and other roles', () => {
+    const render = (role: string) =>
+      getHistoryRetrievalGuidance({ chatroomId: 'room-1', role, cliEnvPrefix: '' });
+    expect(render('builder').replaceAll('builder', '<role>')).toBe(
+      render('verifier').replaceAll('verifier', '<role>')
+    );
   });
 
-  test('drops the context-read source bullet for the verifier', () => {
+  test('names no removed context command', () => {
     const text = getHistoryRetrievalGuidance({
       chatroomId: 'room-1',
       role: 'verifier',

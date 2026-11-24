@@ -12,7 +12,6 @@ import { describe, expect, test, vi } from 'vitest';
 
 import {
   readContextEffect,
-  newContextEffect,
   listContextsEffect,
   inspectContextEffect,
   type ContextError,
@@ -158,106 +157,6 @@ describe('readContextEffect', () => {
       if (error?._tag === 'ReadContextFailed') {
         expect(error.cause.message).toBe('Network error');
       }
-    }
-  });
-});
-
-describe('newContextEffect', () => {
-  const validChatroomId = 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2';
-  const validOptions = {
-    role: 'planner',
-    content: 'Test context content',
-  };
-
-  test('succeeds with valid input', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({ mutationResponse: 'context-id-123' }),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const exit = await Effect.runPromiseExit(
-      newContextEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Success');
-  });
-
-  test('fails with NotAuthenticated when session ID is null', async () => {
-    const testLayer = Layer.mergeAll(makeTestBackend({}), makeTestSession({ sessionId: null }));
-
-    const exit = await Effect.runPromiseExit(
-      newContextEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as ContextError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('NotAuthenticated');
-    }
-  });
-
-  test('fails with InvalidChatroomId when ID is invalid', async () => {
-    const shortId = 'short';
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({}),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const exit = await Effect.runPromiseExit(
-      newContextEffect(shortId, validOptions).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as ContextError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('InvalidChatroomId');
-    }
-  });
-
-  test('fails with EmptyContent when content is empty', async () => {
-    const optionsWithEmptyContent = { ...validOptions, content: '' };
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({}),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const exit = await Effect.runPromiseExit(
-      newContextEffect(validChatroomId, optionsWithEmptyContent).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as ContextError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('EmptyContent');
-    }
-  });
-
-  test('fails with NewContextFailed for other mutation errors', async () => {
-    const testLayer = Layer.mergeAll(
-      makeTestBackend({ mutationResponse: new Error('Server error') }),
-      makeTestSession({ sessionId: 'test-session' })
-    );
-
-    const exit = await Effect.runPromiseExit(
-      newContextEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
-    );
-
-    expect(exit._tag).toBe('Failure');
-    if (exit._tag === 'Failure') {
-      const error = Cause.findErrorOption(exit.cause).pipe((option) =>
-        option._tag === 'Some' ? option.value : null
-      ) as ContextError | null;
-      expect(error).not.toBeNull();
-      expect(error?._tag).toBe('NewContextFailed');
     }
   });
 });

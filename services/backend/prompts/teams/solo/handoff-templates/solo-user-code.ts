@@ -18,6 +18,6 @@ export function getSoloUserCodeTemplate(roleGuidanceContext?: RoleGuidanceComman
   return `${getHandoffReportTemplateIntro()}
 
 \`\`\`markdown
-${getHandoffReportTemplateBody(roleGuidanceContext, { proofOfVerification: 'entry-point' })}
+${getHandoffReportTemplateBody(roleGuidanceContext)}
 \`\`\``;
 }

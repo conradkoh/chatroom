@@ -38,10 +38,10 @@ interface CliCommandContext {
 /**
  * Get CLI prompt by command name
  */
-export function getCliPrompt(command: string, ctx: CliCommandContext): string {
+export function getCliPrompt(command: string): string {
   switch (command) {
     case 'task-started':
-      return getTaskStartedPrompt(ctx);
+      return getTaskStartedPrompt();
     case 'handoff':
       // TODO: Implement handoff CLI prompts
       return '';

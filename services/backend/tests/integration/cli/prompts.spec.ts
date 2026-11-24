@@ -15,10 +15,6 @@ import {
   getTaskStartedPrompt,
   getTaskStartedPromptForHandoffRecipient,
 } from '../../../prompts/cli/task-started/main-prompt';
-import { getConfig } from '../../../prompts/config/index';
-
-// Test URLs for different environments
-const TEST_LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';
 
 describe('Context Gaining Prompt', () => {
   test('generates Getting Started format with basic commands', () => {
@@ -41,10 +37,11 @@ describe('Context Gaining Prompt', () => {
     // Should inject CHATROOM_CONVEX_URL properly
     expect(guidance).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
-    // Should include the context read command with correct parameters
+    // Should include the log-anchoring recovery commands with correct parameters
     expect(guidance).toContain(
-      'chatroom context read --chatroom-id="test-chatroom-123" --role="builder"'
+      'chatroom messages anchor --chatroom-id="test-chatroom-123" --role="builder"'
     );
+    expect(guidance).not.toContain('chatroom context read');
 
     // Should be concise (no verbose explanations)
     expect(guidance).not.toContain('Best Practices');
@@ -134,7 +131,6 @@ describe('Available Actions (Task Delivery)', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       convexUrl: 'http://127.0.0.1:3210',
-      isEntryPoint: true,
     });
 
     // Should use Available Actions header
@@ -154,7 +150,6 @@ describe('Available Actions (Task Delivery)', () => {
       chatroomId: 'abc123',
       role: 'planner',
       convexUrl: 'http://localhost:3000',
-      isEntryPoint: false,
     });
 
     expect(actions).toContain('git log --oneline -10');
@@ -163,26 +158,17 @@ describe('Available Actions (Task Delivery)', () => {
 
 describe('Task intake prompt', () => {
   test('generates start-working format with token activity note', () => {
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
-    const prompt = getTaskStartedPrompt({
-      chatroomId: 'test-chatroom-456',
-      role: 'builder',
-      cliEnvPrefix,
-    });
+    const prompt = getTaskStartedPrompt();
 
     expect(prompt).toContain('### Start working');
     expect(prompt).toContain('harness output (stdout tokens)');
     expect(prompt).not.toContain('chatroom classify');
+    expect(prompt).not.toContain('chatroom context new');
     expect(prompt).not.toMatch(/task read --chatroom-id/i);
   });
 
   test('handoff recipient prompt describes inline task body', () => {
-    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
-    const prompt = getTaskStartedPromptForHandoffRecipient({
-      chatroomId: 'my-chatroom',
-      role: 'builder',
-      cliEnvPrefix,
-    });
+    const prompt = getTaskStartedPromptForHandoffRecipient();
 
     expect(prompt).toContain('task body contains your work description');
     expect(prompt).toContain('harness output (stdout tokens)');

@@ -567,9 +567,6 @@ Then: \`chatroom messages anchor --chatroom-id="test-chatroom-id" --role="planne
 - Verifier request message id: <id of your verifier handoff> · Round: <1 | 2>
 - Verdict message id: <id of the verifier's verdict handoff> · Verdict user message id: <id> (must equal the current last user message)
 - Verdict gaps (only if not ACHIEVED): <each unmet item, or \`None.\`>
-- [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
-<!-- Read context before handoff if not already done this task: \`chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\`. State the context goal and confirm it was achieved. -->
-- Context goal: <state the context goal and confirm it was achieved>
 - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
   - <requirement> — <PR URL, commit hash, or file evidence>
 - Files changed (code tasks — list every file modified):

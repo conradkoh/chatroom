@@ -84,8 +84,8 @@ describe('Duo Team > Planner > System Prompt', () => {
     expect(prompt).toContain('Never delegate a bug fix straight to the builder');
     expect(prompt).toContain('### Commands');
 
-    // Should contain context view-template hint near context new commands
-    expect(prompt).toContain('chatroom context view-template');
+    // Context creation was removed; no context view-template hint remains
+    expect(prompt).not.toContain('chatroom context view-template');
 
     expect(prompt).toMatchInlineSnapshot(`
       "# Duo
@@ -150,7 +150,6 @@ describe('Duo Team > Planner > System Prompt', () => {
       ### History Retrieval
 
       **When to use which source:**
-      - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` — Current-task grounding only (pinned goal, recent inline history). Not sufficient for cross-task summaries.
       - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --format=linear --limit=10\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
       - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` — Locate the user's last message and print the \`--since-message-id\` to download history since that anchor (proof of verification before handing off to \`user\`).
 
@@ -173,15 +172,13 @@ describe('Duo Team > Planner > System Prompt', () => {
       ### Reference commands
       - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --format=linear --limit=10\`
       - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
       - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
 
-      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
       ## Two-Level Model: Session vs Chatroom Task
 
@@ -229,7 +226,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items not shown in the delivery.
 
       ⚠️ Completing a **chatroom task** does NOT end your **session**. After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -238,8 +235,9 @@ describe('Duo Team > Planner > System Prompt', () => {
       NOTE: If you are an agent that has undergone compaction or summarization, run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="planner"
       to reload your full system and role prompt. Then run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"
-      to see your current chatroom task context.
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"
+      to print the user message id of your current task, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --since-message-id="<user-message-id>" --limit=100
 
       Agents on the \`get-next-task\` loop do not support in-session compaction. After context is lost, run \`get-next-task\` again to rejoin the chatroom.
 
@@ -262,28 +260,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       ### Start working
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
-
-      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running context new, run:**
-      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
-      — check only whether the pinned context's \`--trigger-message-id\` matches this task's Origin Message ID (do NOT create another context if it matches). **If a staleness warning is present, do not act on the stale goal — create a new context for the current user message.** Only the entry point role can set contexts:
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --trigger-message-id="ORIGIN_MESSAGE_ID" << 'CHATROOM_CONTEXT_END'
-      ## Goal
-      - **User-centric:** _Describe what the user wants in plain language._
-      - **Development-centric:** _Describe what we are building or changing._
-
-      ## Requirements
-      - _One concrete outcome or requirement per bullet._
-
-      ## Structure
-      - _Key files, folders, or architecture decisions (e.g. module boundaries, SSOT locations)._
-
-      ## Avoid
-      - _Out-of-scope work or anti-patterns to skip._
-      CHATROOM_CONTEXT_END
-      \`\`\`
-      REQUIRED: All context content MUST conform to the template. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context view-template\` (no flags). \`--trigger-message-id\` must be the task's \`origin-message-id\` attribute (never \`task-id\`). Use the pre-filled value in the command above when provided.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items not shown in the delivery.
 
       ## Planner Operating Model
 
@@ -473,15 +450,13 @@ describe('Duo Team > Planner > System Prompt', () => {
       ### Reference commands
       - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --format=linear --limit=10\`
       - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
       - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
-      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
 
-      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` for current-task grounding; run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
       ### Next
 

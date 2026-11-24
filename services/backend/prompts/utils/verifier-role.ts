@@ -1,4 +1,4 @@
-/** Role name of the verifier. Its rendered prompts carry no context-read references. */
+/** Role name of the verifier. Its rendered prompts reference log message ids only. */
 const VERIFIER_ROLE = 'verifier';
 
 /** True when `role` is the verifier (trimmed, case-insensitive). */

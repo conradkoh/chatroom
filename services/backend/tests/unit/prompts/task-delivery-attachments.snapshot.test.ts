@@ -73,7 +73,7 @@ describe('task delivery attachment snapshots — CLI', () => {
       </message-content>
       </message>
       <intake-note>
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items not shown in the delivery.
       </intake-note>
       </task>"
     `);
@@ -109,7 +109,7 @@ describe('task delivery attachment snapshots — CLI', () => {
       </message-content>
       </message>
       <intake-note>
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items not shown in the delivery.
       </intake-note>
       </task>"
     `);
@@ -162,7 +162,7 @@ describe('task delivery attachment snapshots — CLI', () => {
       </message-content>
       </message>
       <intake-note>
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items not shown in the delivery.
       </intake-note>
       </task>"
     `);

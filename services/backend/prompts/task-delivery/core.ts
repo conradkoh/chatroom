@@ -235,9 +235,6 @@ export function appendTaskDeliveryHandoffSections(
       '**Answer the user directly and concisely by default. Chat mode changes the recommended ceremony, not your team capabilities or handoff authority. If the request requires team work, you may hand off to any advertised team target (for example, builder).**'
     );
     lines.push(
-      '**Do not run `chatroom context read` or `chatroom context new` for this Chat-mode task.**'
-    );
-    lines.push(
       'When your response is ready, run the final handoff command below to deliver it to the user.'
     );
     lines.push('</chat-mode>');

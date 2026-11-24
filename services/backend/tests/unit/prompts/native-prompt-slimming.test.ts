@@ -12,35 +12,16 @@ import { TEAM_CONFIGS } from '../../helpers/native-workflow-fixtures';
 
 describe('native task-started content', () => {
   test('entry point prompt describes task intake without task read or injection', () => {
-    const prompt = getNativeTaskStartedPrompt({
-      chatroomId: 'room-id',
-      role: 'planner',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-    });
+    const prompt = getNativeTaskStartedPrompt();
 
     expect(prompt).not.toMatch(/task read/i);
     expect(prompt).not.toMatch(/inject/i);
     expect(prompt).toContain('Start working');
-    expect(prompt).toContain('**Context Rule:**');
-    expect(prompt).toContain('context new --chatroom-id="room-id"');
-    expect(prompt).toContain('chatroom context view-template');
+    expect(prompt).not.toContain('chatroom context new');
     expect(prompt).not.toContain('chatroom classify');
   });
 
-  test('entry point prompt pre-fills trigger message ID when provided', () => {
-    const prompt = getNativeTaskStartedPrompt({
-      chatroomId: 'room-id',
-      role: 'planner',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      triggerMessageId: 'msg-id-123',
-    });
-
-    expect(prompt).toContain('--trigger-message-id="msg-id-123"');
-    expect(prompt).not.toContain('<userMessageId>');
-    expect(prompt).toContain('never `task-id`');
-  });
-
-  test('native task delivery shows origin message ID and pre-fills context command', () => {
+  test('native task delivery shows origin message ID without a context command', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
@@ -54,7 +35,7 @@ describe('native task-started content', () => {
 
     expect(output).toContain('task-id="task-id"');
     expect(output).toContain('origin-message-id="msg-id"');
-    expect(output).toContain('--trigger-message-id="msg-id"');
+    expect(output).not.toContain('chatroom context new');
     expect(output).not.toContain('<userMessageId>');
   });
 
@@ -76,7 +57,7 @@ describe('native task-started content', () => {
       isEntryPoint: true,
     });
 
-    expect(output).toContain('--trigger-message-id="enh-msg-id"');
+    expect(output).toContain('origin-message-id="enh-msg-id"');
     expect(output).not.toContain('### Handoff template `planner` → `enhancer`');
     expect(output).not.toContain('<enhancer-input>');
     expect(output).not.toContain('origin-user-message-id');
@@ -184,7 +165,7 @@ describe('native task delivery', () => {
     // Should not contain actual context command invocations (with --chatroom-id)
     expect(prompt).not.toContain('context read --chatroom-id');
     expect(prompt).not.toContain('context new --chatroom-id');
-    expect(prompt).toContain('Do not run `chatroom context read` or `chatroom context new`');
+    expect(prompt).not.toContain('Do not run `chatroom context read`');
     // No blanket delegation prohibition; advertised team handoffs remain available
     expect(prompt).not.toContain('delegate to another agent');
     expect(prompt).toContain('you may hand off to any advertised team target');
@@ -251,7 +232,7 @@ describe('native task delivery', () => {
     expect(output).toContain('--next-role="architect"');
   });
 
-  test('code mode native delivery retains context prompt and proof-rich report template', () => {
+  test('code mode native delivery retains proof-rich report template without a context prompt', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',
       role: 'planner',
@@ -264,9 +245,8 @@ describe('native task delivery', () => {
       conversationMode: 'code',
     });
 
-    // Context commands present (code mode has context rule)
-    expect(output).toContain('context read');
-    expect(output).toContain('context new');
+    // Context creation was removed from the code-mode intake too
+    expect(output).not.toContain('chatroom context new');
     // Proof-rich report template present
     expect(output).toContain('### Handoff template `planner` → `user`');
     expect(output).toContain('Delegation Brief');

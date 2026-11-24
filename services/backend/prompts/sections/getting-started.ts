@@ -10,7 +10,7 @@ import type { SelectorContext, PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 
 /**
- * Generate the Getting Started section with context read and get-next-task commands.
+ * Generate the Getting Started section with the compaction recovery note and get-next-task commands.
  */
 export function getGettingStartedSection(ctx: SelectorContext): PromptSection {
   const content = getContextGainingGuidance({

@@ -1,9 +1,9 @@
 /**
  * renderTaskPrompt — unit tests
  *
- * Tests-first approach: these tests describe the NEW desired shape.
- * They FAIL against the extracted-but-unchanged renderer and will
- * pass after the implementation step (step 4).
+ * The task-read renderer shows the task header, the user message body, and
+ * the attachments block. It no longer renders pinned context, staleness, or
+ * backlog-divergence sections.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -14,26 +14,20 @@ import { renderTaskPrompt, type RenderTaskPromptInput } from './render.js';
 // Fixtures
 // ---------------------------------------------------------------------------
 
-/** Full fixture: context + trigger message + 2 attachments (one diverging) */
-const FULL_INPUT: RenderTaskPromptInput = {
+/** Full fixture: 2 backlog attachments (one diverging from no context at all) */
+const ATTACHED_INPUT: RenderTaskPromptInput = {
   taskId: 'test-task-123',
   status: 'in_progress',
   content: 'Implement the login feature',
   chatroomId: 'test-chatroom-456',
   role: 'planner',
-  context: {
-    content: 'We are building a chat app. Backlog: item-111, item-222.',
-    triggerMessageContent: 'Please add login',
-    triggerMessageSenderRole: 'user',
-    elapsedHours: 2,
-  },
   attachedBacklogItems: [
     { _id: 'item-111', content: 'Add login page', status: 'pending' },
     { _id: 'item-333', content: 'Add logout', status: 'pending' },
   ],
 };
 
-/** Minimal fixture: no context, no attachments */
+/** Minimal fixture: no attachments */
 const MINIMAL_INPUT: RenderTaskPromptInput = {
   taskId: 'test-task-789',
   status: 'in_progress',
@@ -42,80 +36,49 @@ const MINIMAL_INPUT: RenderTaskPromptInput = {
   role: 'builder',
 };
 
-/** Stale context fixture */
-const STALE_INPUT: RenderTaskPromptInput = {
-  taskId: 'test-task-stale',
-  status: 'in_progress',
-  content: 'Fix performance',
-  chatroomId: 'test-chatroom-stale',
-  role: 'planner',
-  context: {
-    content: 'Old context here.',
-    elapsedHours: 50,
-  },
-};
-
-/**
- * Golden output length from the current renderer.
- * Captured manually — used for the size-constraint assertion.
- * Updated when backlog `<interactions>` were added to the shared attachment
- * renderer (intentional content increase); verified against the renderer output.
- */
-const OLD_GOLDEN_LENGTH = 1429;
-
 // =========================================================================
-// Layout
+// Header and body
 // =========================================================================
 
-describe('layout', () => {
-  it('renders user message body BEFORE pinned context when both are present', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    const bodyIdx = output.indexOf(FULL_INPUT.content);
-    const contextIdx = output.indexOf('Background context');
-    expect(bodyIdx).toBeLessThan(contextIdx);
+describe('header and body', () => {
+  it('renders the task header, status, and body', () => {
+    const output = renderTaskPrompt(MINIMAL_INPUT);
+    expect(output).toContain('Task content');
+    expect(output).toContain('test-task-789');
+    expect(output).toContain('in_progress');
+    expect(output).toContain('Fix the bug');
   });
 
-  it('renders attachments BEFORE pinned context when both are present', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    const attachmentsIdx = output.indexOf('<attachments>');
-    const contextIdx = output.indexOf('Background context');
-    expect(attachmentsIdx).toBeLessThan(contextIdx);
+  it('renders without crashing with a minimal input', () => {
+    const output = renderTaskPrompt(MINIMAL_INPUT);
+    expect(output).toContain('Fix the bug');
+    expect(output).toContain('test-task-789');
   });
 });
 
 // =========================================================================
-// Context label
+// Pinned context
 // =========================================================================
 
-describe('context label', () => {
-  it('uses demoted label "Background context (may be stale)"', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    expect(output).toContain('Background context');
-    expect(output).toContain('may be stale');
+describe('pinned context', () => {
+  it('does not render pinned context, even when one is available', () => {
+    const output = renderTaskPrompt({
+      taskId: 'task-1',
+      status: 'in_progress',
+      content: 'Do the thing',
+      chatroomId: 'room-1',
+      role: 'builder',
+    });
+    expect(output).not.toContain('Background context');
+    expect(output).not.toContain('<context>');
+    expect(output).not.toContain('chatroom context read');
   });
 
-  it('does NOT contain the old "PINNED CONTEXT" header', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    expect(output).not.toContain('PINNED CONTEXT');
-  });
-});
-
-// =========================================================================
-// Precedence line
-// =========================================================================
-
-describe('precedence line', () => {
-  it('includes a precedence line near the top stating user message wins', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    expect(output).toContain('message wins');
-    expect(output).toContain('conflict');
-  });
-
-  it('appears only once', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    const matches = output.match(/On conflict, message wins over background context\./g);
-    expect(matches?.length ?? 0).toBeGreaterThanOrEqual(1);
-    expect(matches?.length ?? 0).toBeLessThanOrEqual(1);
+  it('does not render precedence, divergence, or staleness notices', () => {
+    const output = renderTaskPrompt(ATTACHED_INPUT);
+    expect(output).not.toContain('message wins');
+    expect(output).not.toContain('diverg');
+    expect(output).not.toContain('system-notice');
   });
 });
 
@@ -125,7 +88,7 @@ describe('precedence line', () => {
 
 describe('attachment hint', () => {
   it('conveys that the task must be worked on', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
+    const output = renderTaskPrompt(ATTACHED_INPUT);
     const hintSection = output.slice(
       output.indexOf('<attachment'),
       output.indexOf('</attachment>')
@@ -134,88 +97,14 @@ describe('attachment hint', () => {
   });
 
   it('includes the mark-for-review command', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
+    const output = renderTaskPrompt(ATTACHED_INPUT);
     expect(output).toContain('mark-for-review');
   });
 });
 
 // =========================================================================
-// Divergence warning
+// Attachments
 // =========================================================================
-
-describe('divergence warning', () => {
-  it('emits a warning when attached backlog ID is not in context content', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    // item-333 is not in context content (which has item-111, item-222)
-    expect(output).toContain('item-333');
-    expect(output).toContain('diverg');
-  });
-
-  it('does NOT emit a warning when attached ID IS in context content', () => {
-    const input: RenderTaskPromptInput = {
-      ...FULL_INPUT,
-      attachedBacklogItems: [{ _id: 'item-111', content: 'Add login page', status: 'pending' }],
-    };
-    const output = renderTaskPrompt(input);
-    expect(output).not.toContain('diverg');
-  });
-
-  it('does NOT emit a warning when no context is present', () => {
-    const output = renderTaskPrompt(MINIMAL_INPUT);
-    expect(output).not.toContain('diverg');
-  });
-});
-
-// =========================================================================
-// Net size constraint
-// =========================================================================
-
-describe('net size', () => {
-  it('does NOT increase prompt length for the full fixture', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    expect(output.length).toBeLessThanOrEqual(OLD_GOLDEN_LENGTH);
-  });
-});
-
-// =========================================================================
-// Minimal input
-// =========================================================================
-
-describe('minimal input', () => {
-  it('renders without crashing', () => {
-    const output = renderTaskPrompt(MINIMAL_INPUT);
-    expect(output).toContain('Fix the bug');
-    expect(output).toContain('test-task-789');
-  });
-});
-
-// =========================================================================
-// Stale context
-// =========================================================================
-
-describe('stale context', () => {
-  it('still renders staleness notice', () => {
-    const output = renderTaskPrompt(STALE_INPUT);
-    expect(output).toContain('old');
-  });
-});
-
-// =========================================================================
-// Originating message disclosure
-// =========================================================================
-
-describe('originating message disclosure', () => {
-  it('does NOT inline the originating message or the "in response to" block', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    expect(output).not.toContain('in response to');
-    expect(output).not.toContain('Please add login');
-  });
-
-  it('discloses the context read command instead', () => {
-    const output = renderTaskPrompt(FULL_INPUT);
-    expect(output).toContain('chatroom context read');
-  });
-});
 
 describe('snippet attachments', () => {
   it('renders snippet XML in attachments block after plain content', () => {

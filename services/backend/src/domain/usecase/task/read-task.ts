@@ -27,7 +27,6 @@ import { transitionTask } from './transition-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeMarkdownContent } from '../../entities/markdown-content';
-import { loadCurrentContext } from '../context/load-current-context';
 
 // ============================================================================
 // TYPES
@@ -43,14 +42,6 @@ export interface ReadTaskResult {
   taskId: Id<'chatroom_tasks'>;
   content: string;
   status: 'in_progress';
-  context?:
-    | {
-        content: string;
-        triggerMessageContent?: string | undefined;
-        triggerMessageSenderRole?: string | undefined;
-        elapsedHours: number;
-      }
-    | undefined;
   attachedBacklogItems?:
     | {
         id: string;
@@ -123,7 +114,7 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
   // 4. IDEMPOTENCY: If task is already in_progress, accept it — the reader is
   //    the owner recovering or re-reading; no transition needed.
   if (task.status === 'in_progress') {
-    return buildReadTaskResult(ctx, chatroomId, task, taskId);
+    return buildReadTaskResult(ctx, task, taskId);
   }
 
   // 5. Pending and acknowledged tasks start on read (owner verified above);
@@ -131,8 +122,8 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
   //    intent instead of gating on status.
   await transitionTask(ctx, taskId, 'in_progress', 'readTask');
 
-  // 7–9. Fetch context/attachments and return
-  return buildReadTaskResult(ctx, chatroomId, task, taskId);
+  // 7–9. Fetch attachments and return
+  return buildReadTaskResult(ctx, task, taskId);
 }
 // ============================================================================
 // HELPERS
@@ -140,55 +131,14 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
 
 async function buildReadTaskResult(
   ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
   task: { content: string; sourceMessageId?: Id<'chatroom_messages'> | undefined },
   taskId: Id<'chatroom_tasks'>
 ): Promise<ReadTaskResult> {
-  const context = await fetchCurrentContext(ctx, chatroomId);
   const attachments = await fetchTaskSourceAttachments(ctx, task);
   return {
     taskId,
     content: normalizeMarkdownContent(task.content),
     status: 'in_progress',
-    ...(context && { context }),
     ...attachments,
-  };
-}
-
-/**
- * Fetches the current pinned context for a chatroom, including the trigger
- * message content and time-based staleness (elapsed hours since creation).
- *
- * Staleness is purely time-based — no message-doc reads — so this is O(1)
- * regardless of chatroom message volume.
- */
-async function fetchCurrentContext(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<ReadTaskResult['context'] | null> {
-  const snapshot = await loadCurrentContext(ctx, chatroomId);
-  if (!snapshot) {
-    return null;
-  }
-
-  // The shared loader covers chatroom + context + elapsedHours; we still
-  // need the trigger message details that this caller surfaces, so fetch
-  // the underlying context record once more to read `triggerMessageId`.
-  const context = await ctx.db.get('chatroom_contexts', snapshot._id as Id<'chatroom_contexts'>);
-  let triggerMessageContent: string | undefined;
-  let triggerMessageSenderRole: string | undefined;
-  if (context?.triggerMessageId) {
-    const triggerMessage = await ctx.db.get('chatroom_messages', context.triggerMessageId);
-    if (triggerMessage) {
-      triggerMessageContent = triggerMessage.content;
-      triggerMessageSenderRole = triggerMessage.senderRole;
-    }
-  }
-
-  return {
-    content: snapshot.content,
-    triggerMessageContent,
-    triggerMessageSenderRole,
-    elapsedHours: snapshot.elapsedHours,
   };
 }
