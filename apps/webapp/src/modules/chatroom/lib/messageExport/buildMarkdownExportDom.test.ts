@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildMarkdownExportDom } from './buildMessageExportDom';
+import { buildMarkdownExportDom } from './buildMarkdownExportDom';
 import { replaceMermaidFencesWithSvg } from './replaceMermaidFencesWithSvg';
 
 vi.mock('./replaceMermaidFencesWithSvg', () => ({

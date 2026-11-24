@@ -4,7 +4,7 @@ import {
   buildMarkdownExportDom,
   offscreenExportRootStyle,
   type MarkdownExportHeader,
-} from './buildMessageExportDom';
+} from './buildMarkdownExportDom';
 import { getDownloadFormat } from './downloadFormats';
 import {
   messageExportFilename,

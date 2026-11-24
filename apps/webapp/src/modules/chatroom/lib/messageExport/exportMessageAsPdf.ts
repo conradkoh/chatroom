@@ -5,7 +5,7 @@ import {
   MESSAGE_EXPORT_WIDTH_PX,
   offscreenExportRootStyle,
   type MarkdownExportHeader,
-} from './buildMessageExportDom';
+} from './buildMarkdownExportDom';
 import {
   computePdfPageSlices,
   type PdfBlockBounds,
