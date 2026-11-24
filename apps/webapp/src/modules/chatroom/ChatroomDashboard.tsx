@@ -2065,6 +2065,7 @@ function ChatroomDashboardContent({
               `}
                     >
                       <AgentPanel
+                        chatroomId={chatroomId as Id<'chatroom_rooms'>}
                         machineId={activeWorkspace?.machineId}
                         teamStructure={agentPanelData.teamStructure}
                         lifecycle={lifecycle}

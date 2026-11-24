@@ -85,6 +85,10 @@ function offlineRoleButtons(section: Locator) {
   });
 }
 
+function ephemeralGroupToggle(section: Locator) {
+  return section.getByTestId('ephemeral-agent-group-toggle');
+}
+
 async function dismissSetupWorkspace(page: Page): Promise<void> {
   const setupWorkspaceDialog = page.getByRole('dialog');
   await expect(
@@ -94,63 +98,75 @@ async function dismissSetupWorkspace(page: Page): Promise<void> {
   await expect(setupWorkspaceDialog).toHaveCount(0);
 }
 
-async function assertAllSidebarRows(section: Locator, team: CanonicalTeam): Promise<void> {
-  await expect(section.getByText(`Agents (${team.roles.length})`, { exact: true })).toBeVisible();
-  const roleButtons = offlineRoleButtons(section);
-  await expect(roleButtons).toHaveCount(team.roles.length);
-  const accessibleNames = await roleButtons.evaluateAll((buttons) =>
-    buttons.map((button) => button.getAttribute('aria-label'))
-  );
-  expect(accessibleNames).toEqual(
+/** Member rows only render while expanded; order is permanent rows then ephemeral members. */
+async function assertExpandedRoleOrder(section: Locator, team: CanonicalTeam): Promise<void> {
+  await expect(offlineRoleButtons(section)).toHaveCount(team.roles.length);
+  expect(
+    await offlineRoleButtons(section).evaluateAll((buttons) =>
+      buttons.map((button) => button.getAttribute('aria-label'))
+    )
+  ).toEqual(
     [...team.permanentRoles, ...team.ephemeralRoles].map(
       (role) => `${role}: OFFLINE. Click to configure.`
     )
   );
-
-  for (const role of team.roles) {
-    const row = section.getByRole('button', {
-      name: `${role}: OFFLINE. Click to configure.`,
-      exact: true,
-    });
-    await expect(row).toHaveCount(1);
-    await expect(row).toBeVisible();
+  // Every row must be visible, not merely present in the DOM.
+  for (const role of [...team.permanentRoles, ...team.ephemeralRoles]) {
+    await expect(
+      section.getByRole('button', { name: `${role}: OFFLINE. Click to configure.`, exact: true })
+    ).toBeVisible();
   }
 }
 
-async function assertEphemeralSidebarGroup(section: Locator, team: CanonicalTeam): Promise<void> {
-  const ephemeralHeading = section.getByText(`Ephemeral (${team.ephemeralRoles.length})`, {
-    exact: true,
-  });
-  await expect(ephemeralHeading).toBeVisible();
-  const ephemeralRows = ephemeralHeading.locator(
-    'xpath=following-sibling::div[.//*[@role="button"]]'
-  );
-  const ephemeralButtons = ephemeralRows.getByRole('button', {
-    name: /^[\w-]+: OFFLINE\. Click to configure\.$/,
-  });
-  await expect(ephemeralButtons).toHaveCount(team.ephemeralRoles.length);
+async function assertCollapsedSidebar(section: Locator, team: CanonicalTeam): Promise<void> {
+  await expect(section.getByText(`Agents (${team.roles.length})`, { exact: true })).toBeVisible();
+  // Collapsed: only permanent rows are role buttons.
+  const roleButtons = offlineRoleButtons(section);
+  await expect(roleButtons).toHaveCount(team.permanentRoles.length);
   expect(
-    await ephemeralButtons.evaluateAll((buttons) =>
-      buttons.map((button) => button.getAttribute('aria-label'))
-    )
-  ).toEqual(team.ephemeralRoles.map((role) => `${role}: OFFLINE. Click to configure.`));
+    await roleButtons.evaluateAll((buttons) => buttons.map((b) => b.getAttribute('aria-label')))
+  ).toEqual(team.permanentRoles.map((role) => `${role}: OFFLINE. Click to configure.`));
 
-  const permanentRowsBeforeHeading = await ephemeralHeading.evaluate((heading) => {
-    const section = heading.closest('section');
-    if (!section) return 0;
-    return Array.from(
-      section.querySelectorAll<HTMLElement>('[role="button"][aria-label$="Click to configure."]')
-    ).filter((row) =>
-      Boolean(row.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING)
-    ).length;
-  });
-  expect(permanentRowsBeforeHeading).toBe(team.permanentRoles.length);
+  const n = team.ephemeralRoles.length;
+  await expect(section.getByText(`Ephemeral (${n})`, { exact: true })).toBeVisible();
+  await expect(section.getByText('0 online', { exact: true })).toBeVisible();
+  await expect(section.getByText(`${n} offline`, { exact: true })).toBeVisible();
+  await expect(section.getByText('0 errored', { exact: true })).toBeVisible();
+
+  const toggle = ephemeralGroupToggle(section);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(await toggle.getAttribute('aria-controls')).toBeNull();
+  await expect(toggle).toHaveAccessibleName(
+    `Ephemeral (${n}): 0 online, ${n} offline, 0 errored. Show group.`
+  );
+  await expect(section.getByTestId('ephemeral-agent-group-body')).toHaveCount(0);
+}
+
+async function expandEphemeralGroup(section: Locator, team: CanonicalTeam): Promise<void> {
+  const toggle = ephemeralGroupToggle(section);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(toggle).toHaveAccessibleName(
+    `Ephemeral (${team.ephemeralRoles.length}): 0 online, ${team.ephemeralRoles.length} offline, 0 errored. Hide group.`
+  );
+  // aria-controls must point at the rendered body. Resolve it by id, not by a CSS selector (React ids are not CSS-safe).
+  const bodyTestId = await toggle.evaluate((el) =>
+    document.getElementById(el.getAttribute('aria-controls') ?? '')?.getAttribute('data-testid')
+  );
+  expect(bodyTestId).toBe('ephemeral-agent-group-body');
+  await assertExpandedRoleOrder(section, team);
+}
+
+async function collapseEphemeralGroup(section: Locator): Promise<void> {
+  const toggle = ephemeralGroupToggle(section);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(section.getByTestId('ephemeral-agent-group-body')).toHaveCount(0);
 }
 
 async function assertSidebarRoles(page: Page, team: CanonicalTeam): Promise<void> {
   const section = agentsSection(page);
-  await assertAllSidebarRows(section, team);
-  await assertEphemeralSidebarGroup(section, team);
+  await assertCollapsedSidebar(section, team);
   await expect(section.getByText(/View More/i)).toHaveCount(0);
   await expect(section.getByRole('button', { name: /^enhancer:/i })).toHaveCount(0);
 }
@@ -208,6 +224,14 @@ test.describe('Right sidebar scrolls as a single container', { tag: [TAG_DOWNSTR
 
     await page.goto(`/app/chatroom?id=${chatroomId}`);
     await dismissSetupWorkspace(page);
+
+    // The collapsed ephemeral group leaves the sidebar shorter than this viewport.
+    // Expand it so the sidebar carries its full row density and must scroll.
+    await ephemeralGroupToggle(agentsSection(page)).click();
+    await expect(ephemeralGroupToggle(agentsSection(page))).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
 
     const sidebar = page.getByTestId('agent-sidebar');
     await expect(sidebar).toBeVisible();
@@ -286,6 +310,9 @@ test.describe('Builtin agent sidebar', { tag: [TAG_DOWNSTREAM] }, () => {
       await dismissSetupWorkspace(page);
       await assertSidebarRoles(page, team);
 
+      // Ephemeral agents are collapsed by default; expanding reveals them in team order.
+      await expandEphemeralGroup(agentsSection(page), team);
+
       await page.getByTestId('agent-sidebar-row-triage').click();
       const configModal = page.getByTestId('agent-config-modal');
       await expect(configModal).toBeVisible();
@@ -297,9 +324,21 @@ test.describe('Builtin agent sidebar', { tag: [TAG_DOWNSTREAM] }, () => {
         await client.query(api.agents.listLastSentLaunchRequests, { sessionId, chatroomId })
       ).toEqual([]);
 
+      // Expansion persists per chatroom across a reload.
+      await page.reload();
+      await dismissSetupWorkspace(page);
+      await expect(ephemeralGroupToggle(agentsSection(page))).toHaveAttribute(
+        'aria-expanded',
+        'true'
+      );
+      await assertExpandedRoleOrder(agentsSection(page), team);
+
+      // Collapsing persists too: the group comes back collapsed after another reload.
+      await collapseEphemeralGroup(agentsSection(page));
       await page.reload();
       await dismissSetupWorkspace(page);
       await assertSidebarRoles(page, team);
+
       await verifyBackendStructure(client, sessionId, chatroomId, team);
       expect(
         await client.query(api.agents.listLastSentLaunchRequests, { sessionId, chatroomId })

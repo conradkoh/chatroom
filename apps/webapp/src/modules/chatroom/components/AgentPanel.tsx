@@ -1,17 +1,21 @@
 'use client';
 
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { ChevronRight, Users } from 'lucide-react';
 import { useMemo, useState, memo, type RefObject } from 'react';
 
 import { CommandQueuePanel } from './AgentPanel/CommandQueuePanel';
+import { EphemeralAgentGroup } from './AgentPanel/EphemeralAgentGroup';
+import { deriveEphemeralAgentGroups } from './AgentPanel/ephemeralAgentGroupDerivation';
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import {
   ApplyTopFavoriteModelsButton,
   ApplyTopFavoritesFeedbackLine,
 } from '../features/machine-config/components/ApplyTopFavoriteModelsButton';
 import type { ApplyTopFavoritesFeedback } from '../features/machine-config/lib/topFavoriteModels';
+import { useEphemeralAgentsExpanded } from '../hooks/persistence/useEphemeralAgentsExpanded';
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import type { AgentRoleStatusReadModel } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
@@ -30,6 +34,7 @@ import { SIDEBAR_PREVIEW_LIMIT, SidebarSection } from './sidebar/SidebarSection'
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 interface AgentPanelProps {
+  chatroomId: Id<'chatroom_rooms'>;
   machineId: string | null | undefined;
   teamStructure: TeamStructure | null | undefined;
   lifecycle: TeamLifecycle | null | undefined;
@@ -164,6 +169,7 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
 // ─── AgentPanel ──────────────────────────────────────────────────────────────
 
 export const AgentPanel = memo(function AgentPanel({
+  chatroomId,
   machineId,
   teamStructure,
   lifecycle,
@@ -217,6 +223,12 @@ export const AgentPanel = memo(function AgentPanel({
   const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
     rolesToShow,
     statusReadModel
+  );
+
+  const [ephemeralExpanded, setEphemeralExpanded] = useEphemeralAgentsExpanded(chatroomId);
+  const ephemeralGroups = useMemo(
+    () => deriveEphemeralAgentGroups(ephemeralRoles, agentStatuses, isLoadingStatuses),
+    [ephemeralRoles, agentStatuses, isLoadingStatuses]
   );
 
   const renderAgentRows = (roles: string[]) =>
@@ -303,10 +315,16 @@ export const AgentPanel = memo(function AgentPanel({
             {renderAgentRows(permanentRoles.slice(0, SIDEBAR_PREVIEW_LIMIT))}
             {ephemeralRoles.length > 0 && (
               <>
-                <SidebarSection.Subheader>
-                  Ephemeral ({ephemeralRoles.length})
-                </SidebarSection.Subheader>
-                {renderAgentRows(ephemeralRoles)}
+                {renderAgentRows(ephemeralGroups.outsideRoles)}
+                <EphemeralAgentGroup
+                  total={ephemeralRoles.length}
+                  counts={ephemeralGroups.counts}
+                  expanded={ephemeralExpanded}
+                  onToggle={() => setEphemeralExpanded(!ephemeralExpanded)}
+                  memberCount={ephemeralGroups.memberRoles.length}
+                >
+                  {renderAgentRows(ephemeralGroups.memberRoles)}
+                </EphemeralAgentGroup>
               </>
             )}
           </>
