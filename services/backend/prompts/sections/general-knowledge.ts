@@ -36,9 +36,10 @@ export function getGeneralCommandsReferenceContent(params: GeneralKnowledgeParam
   const contextReadLine = verifier
     ? ''
     : `- Read current chatroom task context: \`${contextReadCmd}\`\n`;
-  const contextReadGroundingClause = verifier
-    ? ''
-    : `Run \`${contextReadCmd}\` for current-task grounding; `;
+  // Every variant opens with "Run", so the sentence stays capitalised for the verifier.
+  const historyRetrievalSentence = verifier
+    ? `Run \`${messagesDownloadCmd}\``
+    : `Run \`${contextReadCmd}\` for current-task grounding; run \`${messagesDownloadCmd}\``;
   return `### Reference commands
 - Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10\`
 - Anchor on the user's last message: \`${cliEnvPrefix}chatroom messages anchor --chatroom-id="${chatroomId}" --role="${role}"\`
@@ -48,7 +49,7 @@ ${contextReadLine}- Git log: \`git log --oneline -10\`
 - Reload system prompt: \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\`
 - Reload role guidance: \`${roleGuidanceCommand({ chatroomId, role, cliEnvPrefix })}\`
 ${contextReadLine}
-**History retrieval:** ${contextReadGroundingClause}run \`${messagesDownloadCmd}\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.`;
+**History retrieval:** ${historyRetrievalSentence} for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.`;
 }
 export function getGeneralKnowledgeSections(
   params: GeneralKnowledgeParams,

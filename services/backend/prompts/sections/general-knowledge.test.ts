@@ -36,6 +36,17 @@ describe('general knowledge sections', () => {
     expect(text).toContain('messages anchor');
     expect(text).not.toMatch(/chatroom context|context read/i);
   });
+  it('opens the verifier history-retrieval sentence with Run', () => {
+    const text = getGeneralKnowledgeSections({
+      chatroomId: 'room',
+      role: 'verifier',
+      convexUrl: '',
+    })
+      .map((section) => section.content)
+      .join('\n');
+    expect(text).toContain('**History retrieval:** Run `');
+    expect(text).not.toMatch(/\*\*History retrieval:\*\* run /);
+  });
   it('can omit history for wrappers', () => {
     expect(
       getGeneralKnowledgeSections(

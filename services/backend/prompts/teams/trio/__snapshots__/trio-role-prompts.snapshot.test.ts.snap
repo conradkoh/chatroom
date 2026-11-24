@@ -9342,7 +9342,7 @@ rg "pattern" "<printed-path>/"
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 ## Two-Level Model: Session vs Chatroom Task
 
@@ -9628,7 +9628,7 @@ A foreground \`get-next-task\` blocks until the user or team message is ready, t
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 ### Next
 
@@ -9689,7 +9689,7 @@ Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-i
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 ## Verifier Operating Model
 
@@ -9965,7 +9965,7 @@ rg "pattern" "<printed-path>/"
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 ## Verifier Operating Model
 
@@ -10169,5 +10169,5 @@ A foreground \`get-next-task\` blocks until the user or team message is ready, t
 - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="characterisation-chatroom" --role="verifier"\`
 - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="characterisation-chatroom" --role="verifier"\`
 
-**History retrieval:** run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI."
+**History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="characterisation-chatroom" --role="verifier" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI."
 `;
