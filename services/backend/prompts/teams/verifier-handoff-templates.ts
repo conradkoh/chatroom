@@ -27,7 +27,7 @@ const [ACHIEVED, NOT_ACHIEVED, INCONCLUSIVE] = VERIFIER_VERDICTS;
 export function getEntryPointToVerifierHandoffTemplate(query: HandoffTemplateQuery): string {
   const entryPoint = query.fromRole;
 
-  return `Instructions (not part of the message): The verifier judges, from chatroom logs only, whether the user's last message was achieved. It ${VERIFIER_TEST_RULE}; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. Request this review only when the task involved code changes, in any conversation mode. The verdict returns to \`${entryPoint}\`.
+  return `Instructions (not part of the message): The verifier judges, from chatroom logs only, whether the user's last message was achieved. It ${VERIFIER_TEST_RULE}; list any user-requested tests under Requested test runs. Treat the claimed outcome as a claim, not as evidence: the verifier does not trust it and checks every requirement against the logs themselves. List every message id that carries the claimed work under Log message ids, so the verifier can read those messages from the logs. Request this review only when the task involved code changes, in any conversation mode. The verdict returns to \`${entryPoint}\`.
 
 ## Round
 <1 or 2; for 2, cite the round-1 verdict message id>
@@ -38,8 +38,8 @@ export function getEntryPointToVerifierHandoffTemplate(query: HandoffTemplateQue
 ## User message id
 <id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>
 
-## Context id
-<id from \`chatroom context read\`, or \`none\` if no context was read for this task>
+## Log message ids
+<one per line as \`<message id> — <sender role> — <what it shows>\`: every message that carries the claimed work, in order: builder and specialist handoff reports, the reviewer report, and commit or PR evidence messages; or exactly \`None beyond the user message.\`>
 
 ## Requested test runs
 <the test commands the user explicitly asked for, one per line, or exactly \`None requested.\`>
@@ -48,7 +48,7 @@ export function getEntryPointToVerifierHandoffTemplate(query: HandoffTemplateQue
 <requirement-by-requirement what you believe is complete>
 
 ## Evidence pointers
-<builder handoff message ids, commits, PRs, and test results as quoted in those handoffs>
+<commit hashes, PR URLs, and test results the claimed outcome relies on, as quoted in the messages listed under Log message ids>
 
 ## Known gaps
 <anything incomplete, or exactly \`None.\`>
@@ -90,7 +90,7 @@ export function getVerifierToEntryPointHandoffTemplate(query: HandoffTemplateQue
 <per unmet or unverified requirement or user expectation: what is missing and what evidence would resolve it; exactly \`None.\` if ${ACHIEVED}>
 
 ## Scope and limits
-<state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; log range read; whether the download was truncated; context id read and whether it matched the request>
+<state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; the log range read (first and last message id, and the message count); whether the download was truncated; which Log message ids were found in that range and which were not>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 
