@@ -42,6 +42,15 @@ ${VERIFICATION_KINDS.map(getVerificationKindTimingRow).join('\n')}
 Slowest activity and why: <activity name, then one phrase why it was slowest>`;
 }
 
+/** Anomalies section: required; the body reads `Not Applicable.` when the run had none. */
+function getAnomaliesSection(): string {
+  return `## Anomalies
+${getHandoffNotApplicableSectionComment(
+  'List each anomaly you hit during the run, such as a flaky or retried test, a nondeterministic failure, an unexpected test failure, or an environment or tooling problem; for each one, give the observed evidence (the command, the exact error or failing assertion, and how many runs failed or passed) and a proposed fix, or state why no fix is proposed'
+)}
+- <anomaly>: <observed evidence>; proposed fix: <fix, or "none proposed: <reason>">`;
+}
+
 /** Returns the markdown handback template body the builder uses when returning work. */
 export function getBuilderHandbackTemplate(query: HandoffTemplateQuery): string {
   const recipientRole = query.toRole;
@@ -84,6 +93,8 @@ Record each kind below, in this order, with its command and result. Typecheck an
 ${VERIFICATION_KINDS.map(getVerificationKindResultLine).join('\n')}
 
 ${getTimingReportSection()}
+
+${getAnomaliesSection()}
 
 ## Blockers / questions
 ${getHandoffNotApplicableSectionComment('List blockers')}

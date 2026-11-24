@@ -429,6 +429,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       Slowest activity and why: <activity name, then one phrase why it was slowest>
 
+      ## Anomalies
+      <!-- REQUIRED. List each anomaly you hit during the run, such as a flaky or retried test, a nondeterministic failure, an unexpected test failure, or an environment or tooling problem; for each one, give the observed evidence (the command, the exact error or failing assertion, and how many runs failed or passed) and a proposed fix, or state why no fix is proposed, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+      - <anomaly>: <observed evidence>; proposed fix: <fix, or "none proposed: <reason>">
+
       ## Blockers / questions
       <!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <anything needing planner decision>

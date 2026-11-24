@@ -85,4 +85,29 @@ describe('getBuilderHandbackTemplate', () => {
       body.indexOf('## Timing report')
     );
   });
+
+  test('anomalies section is required, sits after the timing report, and before blockers', () => {
+    expect(body).toContain('## Anomalies');
+    expect(body.indexOf('## Timing report')).toBeLessThan(body.indexOf('## Anomalies'));
+    expect(body.indexOf('## Anomalies')).toBeLessThan(body.indexOf('## Blockers / questions\n'));
+  });
+
+  test('anomalies section says Not Applicable. when there are none', () => {
+    const section = body.slice(
+      body.indexOf('## Anomalies'),
+      body.indexOf('## Blockers / questions\n')
+    );
+    expect(section).toContain('write exactly "Not Applicable." with no explanation');
+    expect(section).toContain('Do not omit this section');
+  });
+
+  test('anomalies section asks for evidence and a proposed fix', () => {
+    const section = body.slice(
+      body.indexOf('## Anomalies'),
+      body.indexOf('## Blockers / questions\n')
+    );
+    expect(section).toContain('observed evidence');
+    expect(section).toContain('flaky or retried test');
+    expect(section).toContain('proposed fix');
+  });
 });
