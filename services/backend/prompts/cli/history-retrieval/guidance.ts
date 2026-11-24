@@ -2,6 +2,7 @@ import {
   messagesAnchorCommand,
   messagesDownloadSinceCommand,
 } from '../../utils/proof-of-verification';
+import { isVerifierRole } from '../../utils/verifier-role';
 import { contextReadCommand } from '../context/read';
 
 export interface HistoryRetrievalGuidanceParams {
@@ -21,11 +22,15 @@ export function getHistoryRetrievalGuidance(params: HistoryRetrievalGuidancePara
     sinceMessageId: '<id-from-anchor>',
     limit: 100,
   });
+  // The verifier works from log message ids, so it gets no context-read source.
+  // The bullet owns its newline, keeping every other role's output byte-identical.
+  const contextReadBullet = isVerifierRole(role)
+    ? ''
+    : `- \`${contextReadCmd}\` — Current-task grounding only (pinned goal, recent inline history). Not sufficient for cross-task summaries.\n`;
   return `### History Retrieval
 
 **When to use which source:**
-- \`${contextReadCmd}\` — Current-task grounding only (pinned goal, recent inline history). Not sufficient for cross-task summaries.
-- \`${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
+${contextReadBullet}- \`${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
 - \`${anchorCmd}\` — Locate the user's last message and print the \`--since-message-id\` to download history since that anchor (proof of verification before handing off to \`user\`).
 
 **If sources disagree:** \`messages download\` is authoritative for message content.

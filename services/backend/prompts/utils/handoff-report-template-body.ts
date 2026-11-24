@@ -10,14 +10,27 @@ import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 
 export interface HandoffReportTemplateBodyOptions {
-  /** Entry-point handoffs (planner/solo → user) must verify the user's full request before delivery. */
-  includeProofOfVerification?: boolean | undefined;
+  /**
+   * Renders the verification Proof of Completion block instead of the default one.
+   * - `entry-point`: planner, solo and coordinator handoffs to `user`. Carries the context-read disclosure.
+   * - `verifier`: the verifier's copy of the user's template. It judges requirements and log message ids, so it carries no context-read disclosure.
+   * Omit for the default Proof of Completion.
+   */
+  proofOfVerification?: 'entry-point' | 'verifier' | undefined;
 }
 
 export function getHandoffReportTemplateBody(
   roleGuidanceContext?: RoleGuidanceCommandParams,
   options: HandoffReportTemplateBodyOptions = {}
 ): string {
+  const contextReadLines =
+    options.proofOfVerification === 'entry-point'
+      ? [
+          getContextReadDisclosureBlock(roleGuidanceContext),
+          '- Context goal: <state the context goal and confirm it was achieved>',
+        ]
+      : [];
+
   return `<handoff-overview>
 <!-- When the task is informational (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed. Do not rely on earlier \`notify-user\` notices or session text. -->
 ## Summary
@@ -43,10 +56,8 @@ ${getHandoffQualityPrinciplesSectionBlock()}
 
 ## Proof of Completion
 ${
-  options.includeProofOfVerification
-    ? `${getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext)}
-${getContextReadDisclosureBlock(roleGuidanceContext)}
-- Context goal: <state the context goal and confirm it was achieved>
+  options.proofOfVerification
+    ? `${[getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext), ...contextReadLines].join('\n')}
 - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
   - <requirement> — <PR URL, commit hash, or file evidence>
 - Files changed (code tasks — list every file modified):

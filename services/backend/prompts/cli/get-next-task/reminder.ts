@@ -5,6 +5,20 @@
  * Follows prompt engineering guidelines: outcome-driven with rationale.
  */
 
+import {
+  messagesAnchorCommand,
+  messagesDownloadSinceCommand,
+} from '../../utils/proof-of-verification';
+import { isVerifierRole } from '../../utils/verifier-role';
+import { contextReadCommand } from '../context/read';
+
+/** Identity values every compaction reminder names. */
+export interface CompactionRecoveryParams {
+  cliEnvPrefix: string;
+  chatroomId: string;
+  role: string;
+}
+
 /**
  * Get the primary get-next-task reminder.
  * Used in commands section and task delivery.
@@ -43,22 +57,54 @@ After interruption or restart: complete any in-progress work, then restore a sin
  */
 export const getWaitForTaskGuidance = getNextTaskGuidance;
 
+/** The verifier recovers context from its request's log, not from `context read`. */
+function verifierLogDownloadCommand(params: CompactionRecoveryParams): string {
+  return messagesDownloadSinceCommand({
+    chatroomId: params.chatroomId,
+    role: params.role,
+    cliEnvPrefix: params.cliEnvPrefix,
+    sinceMessageId: '<user-message-id>',
+    limit: 100,
+  });
+}
+
+/** The verifier prints its request's user message id here, then downloads the log from it. */
+function verifierAnchorCommand(params: CompactionRecoveryParams): string {
+  return messagesAnchorCommand({
+    chatroomId: params.chatroomId,
+    role: params.role,
+    cliEnvPrefix: params.cliEnvPrefix,
+  });
+}
+
+/** The `get-system-prompt` clause both reminders share. */
+function reloadPromptCommand(params: CompactionRecoveryParams): string {
+  return `${params.cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${params.chatroomId}" --role="${params.role}"`;
+}
+
 /**
  * Get the compaction/summarization recovery note.
  * Used in the system prompt's Getting Started section for durable agent recovery guidance.
  *
+ * The verifier judges log message ids, not a context read, so its note reloads
+ * the prompt, anchors on the user message id, and re-downloads the log from it.
+ *
  * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
  */
-export function getCompactionRecoveryNote(params: {
-  cliEnvPrefix: string;
-  chatroomId: string;
-  role: string;
-}): string {
-  const { cliEnvPrefix, chatroomId, role } = params;
-  return `NOTE: If you are an agent that has undergone compaction or summarization, run:
-  ${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"
+export function getCompactionRecoveryNote(params: CompactionRecoveryParams): string {
+  const reload = reloadPromptCommand(params);
+  if (isVerifierRole(params.role)) {
+    return `NOTE: If you are an agent that has undergone compaction or summarization, run:
+  ${reload}
 to reload your full system and role prompt. Then run:
-  ${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"
+  ${verifierAnchorCommand(params)}
+to print the user message id of your verification request, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
+  ${verifierLogDownloadCommand(params)}`;
+  }
+  return `NOTE: If you are an agent that has undergone compaction or summarization, run:
+  ${reload}
+to reload your full system and role prompt. Then run:
+  ${contextReadCommand(params)}
 to see your current chatroom task context.`;
 }
 
@@ -67,13 +113,15 @@ to see your current chatroom task context.`;
  * Shown in the reminder footer of every task delivery as a quick nudge.
  * The full version lives in the system prompt's Getting Started section.
  *
+ * The verifier variant anchors on its request's user message id and re-reads
+ * the log instead of the task context.
+ *
  * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
  */
-export function getCompactionRecoveryOneLiner(params: {
-  cliEnvPrefix: string;
-  chatroomId: string;
-  role: string;
-}): string {
-  const { cliEnvPrefix, chatroomId, role } = params;
-  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload prompt, and \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\` for current chatroom task.`;
+export function getCompactionRecoveryOneLiner(params: CompactionRecoveryParams): string {
+  const reload = reloadPromptCommand(params);
+  if (isVerifierRole(params.role)) {
+    return `Context compacted? Run \`${reload}\` to reload prompt, then \`${verifierAnchorCommand(params)}\` for the user message id, and \`${verifierLogDownloadCommand(params)}\` with that id in place of \`<user-message-id>\` to re-read the log.`;
+  }
+  return `Context compacted? Run \`${reload}\` to reload prompt, and \`${contextReadCommand(params)}\` for current chatroom task.`;
 }

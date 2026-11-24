@@ -26,7 +26,7 @@ const requestHeadings = [
   '## Round',
   '## Mode',
   '## User message id',
-  '## Context id',
+  '## Log message ids',
   '## Requested test runs',
   '## Claimed outcome',
   '## Evidence pointers',
@@ -95,5 +95,15 @@ describe('verifier handoff template snapshots', () => {
 
     expect(template).toContain('None applicable.');
     expect(template).toContain('U1');
+  });
+
+  test.each(verifierPairs)('$teamId $fromRole → $toRole never references a context', (pair) => {
+    expect(renderPair(pair)).not.toMatch(/context id|chatroom context|context read|context goal/i);
+  });
+
+  test('verdict scope reports the log range and listed message ids, not a context match', () => {
+    const template = renderPair({ teamId: 'duo', fromRole: 'verifier', toRole: 'planner' });
+
+    expect(template).toContain('which Log message ids were found in that range');
   });
 });

@@ -18,6 +18,35 @@ describe('general knowledge sections', () => {
     expect(text).toContain('get-system-prompt');
     expect(text).toContain('get-role-guidance');
   });
+  it('keeps the context-read reference for a non-verifier role', () => {
+    const text = getGeneralKnowledgeSections({ chatroomId: 'room', role: 'builder', convexUrl: '' })
+      .map((section) => section.content)
+      .join('\n');
+    expect(text).toContain('chatroom context read');
+  });
+  it('drops every context-read reference for the verifier', () => {
+    const text = getGeneralKnowledgeSections({
+      chatroomId: 'room',
+      role: 'verifier',
+      convexUrl: '',
+    })
+      .map((section) => section.content)
+      .join('\n');
+    expect(text).toContain('messages download');
+    expect(text).toContain('messages anchor');
+    expect(text).not.toMatch(/chatroom context|context read/i);
+  });
+  it('opens the verifier history-retrieval sentence with Run', () => {
+    const text = getGeneralKnowledgeSections({
+      chatroomId: 'room',
+      role: 'verifier',
+      convexUrl: '',
+    })
+      .map((section) => section.content)
+      .join('\n');
+    expect(text).toContain('**History retrieval:** Run `');
+    expect(text).not.toMatch(/\*\*History retrieval:\*\* run /);
+  });
   it('can omit history for wrappers', () => {
     expect(
       getGeneralKnowledgeSections(

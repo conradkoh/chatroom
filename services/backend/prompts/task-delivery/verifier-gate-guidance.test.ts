@@ -46,6 +46,15 @@ describe('shouldIncludeVerifierGate', () => {
     ).toBe(true);
   });
 
+  test('matches a padded verifier target', () => {
+    expect(
+      shouldIncludeVerifierGate({
+        isEntryPoint: true,
+        availableHandoffTargets: [' Verifier '],
+      })
+    ).toBe(true);
+  });
+
   test('includes the gate for a solo entry point with verifier advertised', () => {
     expect(
       shouldIncludeVerifierGate({
@@ -66,9 +75,9 @@ describe('shouldIncludeVerifierGate', () => {
 });
 
 describe('appendVerifierGateGuidance', () => {
-  function renderGate(reworkRole: string | null = 'builder'): string {
+  function renderGate(reworkRole: string | null | undefined = 'builder'): string {
     const lines: string[] = ['existing line'];
-    appendVerifierGateGuidance(lines, { reworkRole });
+    appendVerifierGateGuidance(lines, { reworkRole: reworkRole ?? null });
     return lines.join('\n');
   }
 
@@ -124,6 +133,16 @@ describe('appendVerifierGateGuidance', () => {
       "Ignore a verdict whose user message id is not the user's current last message"
     );
   });
+
+  test.each([undefined, 'builder', 'specifier', null])(
+    'step 1 asks for the log message ids of every message carrying the claimed work (rework role: %s)',
+    (reworkRole) => {
+      const output = renderGate(reworkRole);
+
+      expect(output).toContain('the log message ids (every message carrying the claimed work');
+      expect(output).not.toMatch(/context id|chatroom context|context read/i);
+    }
+  );
 
   test('states the UNAVAILABLE delivery rule', () => {
     expect(renderGate()).toContain('Verifier review: UNAVAILABLE (<reason>)');

@@ -127,7 +127,7 @@ describe('getHandoffReportTemplateBody', () => {
   test('entry-point Proof of Completion discloses the verifier review and request command', () => {
     const body = getHandoffReportTemplateBody(
       { chatroomId: 'chat-1', role: 'planner' },
-      { includeProofOfVerification: true }
+      { proofOfVerification: 'entry-point' }
     );
 
     expect(body).toContain('Proof of verification (verifier review)');
@@ -143,7 +143,7 @@ describe('getHandoffReportTemplateBody', () => {
   });
 
   test('entry-point Proof of Completion includes the verification workflow', () => {
-    const body = getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true });
+    const body = getHandoffReportTemplateBody(undefined, { proofOfVerification: 'entry-point' });
     const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
 
     // No separate Proof of Verification section — rolled into Proof of Completion.
@@ -176,10 +176,26 @@ describe('getHandoffReportTemplateBody', () => {
   });
 
   test('entry-point Proof of Completion renders verification before Backlog Tasks', () => {
-    const body = getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true });
+    const body = getHandoffReportTemplateBody(undefined, { proofOfVerification: 'entry-point' });
     const completionIdx = body.indexOf('## Proof of Completion');
     const backlogIdx = body.indexOf('## Backlog Tasks Implemented');
     expect(completionIdx).toBeGreaterThan(-1);
     expect(backlogIdx).toBeGreaterThan(completionIdx);
+  });
+
+  test('verifier option omits the context-read attestation from the proof of completion', () => {
+    const body = getHandoffReportTemplateBody(undefined, { proofOfVerification: 'verifier' });
+
+    expect(body).not.toContain('chatroom context read');
+    expect(body).not.toContain('I confirm that I read the current chatroom task context');
+    expect(body).not.toContain('Context goal');
+    expect(body).toContain('- Requirements');
+  });
+
+  test('default still renders the context-read attestation for entry points', () => {
+    const body = getHandoffReportTemplateBody(undefined, { proofOfVerification: 'entry-point' });
+
+    expect(body).toContain('I confirm that I read the current chatroom task context');
+    expect(body).toContain('- Context goal:');
   });
 });
