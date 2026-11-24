@@ -110,6 +110,12 @@ async function assertExpandedRoleOrder(section: Locator, team: CanonicalTeam): P
       (role) => `${role}: OFFLINE. Click to configure.`
     )
   );
+  // Every row must be visible, not merely present in the DOM.
+  for (const role of [...team.permanentRoles, ...team.ephemeralRoles]) {
+    await expect(
+      section.getByRole('button', { name: `${role}: OFFLINE. Click to configure.`, exact: true })
+    ).toBeVisible();
+  }
 }
 
 async function assertCollapsedSidebar(section: Locator, team: CanonicalTeam): Promise<void> {
