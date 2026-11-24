@@ -220,6 +220,12 @@ pnpm migrate
 - Exits non-zero when a migration fails.
 - Idempotent — safe to re-run.
 
+**Writing a migration:**
+
+- A purge migration (`migrations.define({ table })` that deletes rows) is valid only while its table is still in `services/backend/convex/schema.ts`. A table missing from the schema makes the backend reject the migration's paginated read (`Index <table>.by_creation_time not found`), which stops `runAll` and blocks every later migration.
+- When you drop a table from the schema, remove its purge migration and its `allMigrationReferences` entry in `services/backend/convex/migrations.ts` in the same change. Do not replace it with a no-op.
+- Do not cast a table name with `as never`. `services/backend/convex/migrations.schemaTables.spec.ts` fails when a migration names a table missing from the schema or uses that cast.
+
 ### Testing
 
 ```bash
