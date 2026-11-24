@@ -1,6 +1,7 @@
 import { gzipSync } from 'node:zlib';
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FilePreviewDialog } from './FilePreviewDialog';
@@ -353,6 +354,13 @@ function menuItemNames(): string[] {
   return screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
 }
 
+function collectMenuItems(): { name: string; disabled: boolean }[] {
+  return screen.getAllByRole('menuitem').map((item) => ({
+    name: item.textContent?.trim() ?? '',
+    disabled: item.getAttribute('aria-disabled') === 'true',
+  }));
+}
+
 async function openMoreMenu() {
   fireEvent.click(await screen.findByRole('button', { name: 'More copy options' }));
   await screen.findAllByRole('menuitem');
@@ -404,14 +412,14 @@ describe('FilePreviewDialog download section', () => {
     await screen.findByRole('button', { name: 'Copy as Markdown' });
 
     await openMoreMenu();
-    const fromMoreMenu = menuItemNames();
+    const fromMoreMenu = collectMenuItems();
     fireEvent.click(screen.getByRole('button', { name: 'More copy options' }));
     await waitFor(() => expect(screen.queryAllByRole('menuitem')).toHaveLength(0));
 
     fireEvent.contextMenu(screen.getByTestId('file-content-action-bar'));
     await screen.findAllByRole('menuitem');
 
-    expect(menuItemNames()).toEqual(fromMoreMenu);
+    expect(collectMenuItems()).toEqual(fromMoreMenu);
   });
 
   it('keeps the native right-click on the rendered body', async () => {
@@ -464,5 +472,51 @@ describe('FilePreviewDialog download section', () => {
     expect(screen.queryByTestId('file-preview-feedback')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('matches the disabled state of the ... menu and the action-bar right-click for a truncated file', async () => {
+    mockContent(true);
+    render(<FilePreviewDialog {...markdownProps} />);
+    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await openMoreMenu();
+    const fromMoreMenu = collectMenuItems();
+    fireEvent.click(screen.getByRole('button', { name: 'More copy options' }));
+    await waitFor(() => expect(screen.queryAllByRole('menuitem')).toHaveLength(0));
+
+    fireEvent.contextMenu(screen.getByTestId('file-content-action-bar'));
+    await screen.findAllByRole('menuitem');
+
+    expect(collectMenuItems()).toEqual(fromMoreMenu);
+    expect(
+      fromMoreMenu
+        .filter((item) => item.name.startsWith('Download as'))
+        .every((item) => item.disabled)
+    ).toBe(true);
+  });
+
+  it('closes the action-bar right-click menu on Escape and keeps the dialog open', async () => {
+    const onClose = vi.fn();
+    render(<FilePreviewDialog {...markdownProps} onClose={onClose} />);
+    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    fireEvent.contextMenu(screen.getByTestId('file-content-action-bar'));
+    await screen.findAllByRole('menuitem');
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryAllByRole('menuitem')).toHaveLength(0));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('closes the action-bar right-click menu on an outside click and keeps the dialog open', async () => {
+    const onClose = vi.fn();
+    render(<FilePreviewDialog {...markdownProps} onClose={onClose} />);
+    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    fireEvent.contextMenu(screen.getByTestId('file-content-action-bar'));
+    await screen.findAllByRole('menuitem');
+
+    await userEvent.click(await screen.findByText('file body'));
+
+    await waitFor(() => expect(screen.queryAllByRole('menuitem')).toHaveLength(0));
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
