@@ -38,6 +38,6 @@ export const FILE_BINARY_PLACEHOLDER = '[Binary file]';
  */
 const FILE_BLOCKED_PLACEHOLDER_PATTERN = /^\[File blocked: [^\n]*\]\s*$/;
 
-export function isFileBlockedError(content: string): boolean {
-  return FILE_BLOCKED_PLACEHOLDER_PATTERN.test(content);
+export function isFileBlockedError(content: string | undefined): boolean {
+  return content !== undefined && FILE_BLOCKED_PLACEHOLDER_PATTERN.test(content);
 }
