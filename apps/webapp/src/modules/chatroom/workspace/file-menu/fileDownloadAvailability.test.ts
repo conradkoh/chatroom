@@ -117,6 +117,36 @@ describe('resolveFileDownloadAvailability', () => {
     ).toEqual({ kind: 'disabled', reason: 'The workspace is not available.' });
   });
 
+  it('is ready for a markdown file whose text starts with "[File blocked" but is not a daemon placeholder', () => {
+    expect(
+      resolveFileDownloadAvailability({
+        filePath: 'docs/README.md',
+        content: '[File blocked by review]\n\nBody',
+      })
+    ).toEqual({ kind: 'ready' });
+  });
+
+  it('disables the daemon blocked placeholder', () => {
+    expect(
+      resolveFileDownloadAvailability({
+        filePath: 'docs/README.md',
+        content: '[File blocked: cannot open sensitive path in remote explorer]',
+      })
+    ).toEqual({ kind: 'disabled', reason: 'This file is blocked from reading.' });
+  });
+
+  it.each([
+    ['[Binary file]', 'Binary files cannot be downloaded.'],
+    ['[File not found]', 'File not found.'],
+    ['[Error reading file]', 'Could not read this file.'],
+    ['[Error: workspace not registered]', 'The workspace is not available.'],
+  ])('maps the daemon placeholder %s to its reason', (content, reason) => {
+    expect(resolveFileDownloadAvailability({ filePath: 'docs/README.md', content })).toEqual({
+      kind: 'disabled',
+      reason,
+    });
+  });
+
   it('disables when ready status has no content', () => {
     expect(resolveFileDownloadAvailability({ filePath: 'docs/README.md', content: null })).toEqual({
       kind: 'disabled',

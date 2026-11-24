@@ -1,6 +1,13 @@
 import { isBinaryFile } from '../../components/FileSelector/binaryDetection';
 import { isMarkdownFile } from '../file-renderers';
 import type { WorkspaceFileContentStatus } from './types';
+import {
+  FILE_BINARY_PLACEHOLDER,
+  FILE_BLOCKED_PLACEHOLDER_PREFIX,
+  FILE_READ_ERROR_PLACEHOLDER,
+  isFileNotFoundError,
+  isWorkspaceNotRegisteredError,
+} from '../utils/fileContentSentinels';
 
 /** Single source for every disabled-download reason. The resolver is the only reader. */
 const FILE_DOWNLOAD_REASON = {
@@ -13,12 +20,6 @@ const FILE_DOWNLOAD_REASON = {
   workspaceUnavailable: 'The workspace is not available.',
   unavailable: 'File content is unavailable.',
 } as const;
-
-const BINARY_PLACEHOLDER = '[Binary file]';
-const NOT_FOUND_PLACEHOLDER = '[File not found]';
-const BLOCKED_PLACEHOLDER_PREFIX = '[File blocked';
-const READ_ERROR_PLACEHOLDER = '[Error reading file]';
-const WORKSPACE_UNAVAILABLE_PLACEHOLDER = '[Error: workspace not registered]';
 
 export type FileDownloadAvailability =
   { kind: 'hidden' } | { kind: 'ready' } | { kind: 'disabled'; reason: string };
@@ -54,13 +55,13 @@ export function resolveFileDownloadAvailability(
   if (status === 'not-found') return disabled(FILE_DOWNLOAD_REASON.notFound);
   if (truncated) return disabled(FILE_DOWNLOAD_REASON.truncated);
   if (typeof content === 'string') {
-    if (content === BINARY_PLACEHOLDER) return disabled(FILE_DOWNLOAD_REASON.binary);
-    if (content === NOT_FOUND_PLACEHOLDER) return disabled(FILE_DOWNLOAD_REASON.notFound);
-    if (content.startsWith(BLOCKED_PLACEHOLDER_PREFIX)) {
+    if (content === FILE_BINARY_PLACEHOLDER) return disabled(FILE_DOWNLOAD_REASON.binary);
+    if (isFileNotFoundError(content)) return disabled(FILE_DOWNLOAD_REASON.notFound);
+    if (content.startsWith(FILE_BLOCKED_PLACEHOLDER_PREFIX)) {
       return disabled(FILE_DOWNLOAD_REASON.blocked);
     }
-    if (content === READ_ERROR_PLACEHOLDER) return disabled(FILE_DOWNLOAD_REASON.readError);
-    if (content === WORKSPACE_UNAVAILABLE_PLACEHOLDER) {
+    if (content === FILE_READ_ERROR_PLACEHOLDER) return disabled(FILE_DOWNLOAD_REASON.readError);
+    if (isWorkspaceNotRegisteredError(content)) {
       return disabled(FILE_DOWNLOAD_REASON.workspaceUnavailable);
     }
     return { kind: 'ready' };

@@ -28,3 +28,12 @@ export function isTransientNewFileReadError(
 export function isWorkspaceNotRegisteredError(content: string | undefined): boolean {
   return content === WORKSPACE_NOT_REGISTERED_PLACEHOLDER;
 }
+
+/** Daemon placeholder for a binary file. */
+export const FILE_BINARY_PLACEHOLDER = '[Binary file]';
+
+/**
+ * Prefix of the daemon placeholder for a path the remote explorer refuses to open.
+ * The daemon emits `[File blocked: <reason>]`; match the prefix including the colon.
+ */
+export const FILE_BLOCKED_PLACEHOLDER_PREFIX = '[File blocked:';
