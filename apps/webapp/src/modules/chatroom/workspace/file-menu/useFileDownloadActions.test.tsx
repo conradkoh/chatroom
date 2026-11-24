@@ -42,6 +42,7 @@ function renderActions(overrides: Partial<Parameters<typeof useFileDownloadActio
   return renderHook(() =>
     useFileDownloadActions({
       filePath: 'docs/README.md',
+      workingDir: null,
       content: 'body',
       enabled: true,
       ...overrides,
@@ -175,5 +176,50 @@ describe('useFileDownloadActions', () => {
 
     expect(spies.onError).not.toHaveBeenCalled();
     expect(spies.onRequestClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the busy row and the double-run guard across an unmount and remount for the same file', async () => {
+    const pending = deferred<SaveFileResult>();
+    vi.mocked(exportFileAsDocx).mockReturnValueOnce(pending.promise);
+    const first = renderActions();
+
+    await act(async () => {
+      first.result.current.run('docx');
+    });
+    first.unmount();
+
+    const second = renderActions();
+    expect(second.result.current.busyFormat).toBe('docx');
+
+    await act(async () => {
+      second.result.current.run('pdf');
+    });
+    expect(exportFileAsPdf).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pending.resolve('saved');
+      await pending.promise;
+    });
+    expect(second.result.current.busyFormat).toBeNull();
+  });
+
+  it('does not block the same relative path in a different workspace', async () => {
+    const pending = deferred<SaveFileResult>();
+    vi.mocked(exportFileAsDocx).mockReturnValueOnce(pending.promise);
+    const first = renderActions({ workingDir: '/workspace/a' });
+    const other = renderActions({ workingDir: '/workspace/b' });
+
+    await act(async () => {
+      first.result.current.run('docx');
+    });
+    await act(async () => {
+      other.result.current.run('pdf');
+    });
+    expect(exportFileAsPdf).toHaveBeenCalledWith('docs/README.md', 'body');
+
+    await act(async () => {
+      pending.resolve('saved');
+      await pending.promise;
+    });
   });
 });

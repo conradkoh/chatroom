@@ -181,6 +181,7 @@ export const WorkspaceFileMenuItems = memo(function WorkspaceFileMenuItems({
   });
   const { busyFormat, run } = useFileDownloadActions({
     filePath: relativePath,
+    workingDir,
     content: content ?? null,
     enabled: availability.kind === 'ready',
     onStart: handlers.onDownloadStart,

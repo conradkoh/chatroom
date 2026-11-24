@@ -1,9 +1,14 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkspaceFileMenuProps } from './types';
 import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
-import { exportFileAsDocx, saveTextFile } from '../../lib/messageExport';
+import {
+  exportFileAsDocx,
+  exportFileAsPdf,
+  saveTextFile,
+  type SaveFileResult,
+} from '../../lib/messageExport';
 
 import {
   DropdownMenu,
@@ -298,6 +303,58 @@ describe('WorkspaceFileMenuItems download section', () => {
         '.markdown',
         '.mdx',
       ])
+    );
+  });
+});
+
+describe('WorkspaceFileMenuItems download in-flight state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.mocked(saveTextFile).mockResolvedValue('saved');
+    vi.mocked(exportFileAsDocx).mockResolvedValue('saved');
+    vi.mocked(exportFileAsPdf).mockResolvedValue('saved');
+  });
+
+  it('keeps every download row disabled after the menu closes and reopens mid-run', async () => {
+    const pending = deferred<SaveFileResult>();
+    vi.mocked(exportFileAsDocx).mockReturnValueOnce(pending.promise);
+    const first = renderMenu({ state: markdownState });
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download as DOCX' }));
+    await screen.findByRole('menuitem', { name: 'Preparing DOCX...' });
+    first.unmount(); // Escape or outside click unmounts the menu content
+
+    renderMenu({ state: markdownState });
+    expect(await screen.findByRole('menuitem', { name: 'Preparing DOCX...' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as Markdown' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('menuitem', { name: 'Download as PDF' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download as PDF' }));
+    expect(exportFileAsPdf).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pending.resolve('saved');
+      await pending.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Download as DOCX' })).not.toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
     );
   });
 });

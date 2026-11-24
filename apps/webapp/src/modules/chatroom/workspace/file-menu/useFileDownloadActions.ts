@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 import {
   downloadFileName,
@@ -13,8 +13,38 @@ const MARKDOWN_SAVE_EXTENSIONS = ['.md', '.markdown', '.mdx'];
 const EXPORTERS = { docx: exportFileAsDocx, pdf: exportFileAsPdf } as const;
 const LOG_LABELS = { md: 'Markdown', docx: 'DOCX', pdf: 'PDF' } as const;
 
+/**
+ * In-flight runs keyed by workspace and file. Module scope on purpose: a menu that closes
+ * mid-run unmounts its hook, and the busy state and the double-run guard must survive that.
+ */
+const inFlightFormats = new Map<string, DownloadFormat>();
+const inFlightListeners = new Set<() => void>();
+
+function downloadKey(workingDir: string | null, filePath: string): string {
+  return `${workingDir ?? ''}\u0000${filePath}`;
+}
+
+function readInFlight(key: string): DownloadFormat | null {
+  return inFlightFormats.get(key) ?? null;
+}
+
+function writeInFlight(key: string, format: DownloadFormat | null): void {
+  if (format) inFlightFormats.set(key, format);
+  else inFlightFormats.delete(key);
+  for (const listener of inFlightListeners) listener();
+}
+
+function subscribeInFlight(listener: () => void): () => void {
+  inFlightListeners.add(listener);
+  return () => {
+    inFlightListeners.delete(listener);
+  };
+}
+
 export interface UseFileDownloadActionsArgs {
   filePath: string;
+  /** Workspace the file belongs to; part of the in-flight key. `null` when the host has none. */
+  workingDir: string | null;
   /** The loaded saved content. `''` is a valid, empty file; `null` means unavailable. */
   content: string | null;
   /** availability.kind === 'ready'. */
@@ -33,7 +63,7 @@ interface DownloadRun {
   content: string;
   onError?: (message: string) => void;
   onRequestClose?: () => void;
-  /** Releases the busy guard and clears the busy row. */
+  /** Releases the in-flight entry and clears the busy row. */
   onSettled: () => void;
 }
 
@@ -82,11 +112,13 @@ function isDownloadable(
 }
 
 /**
- * The only download dispatcher for file hosts. A synchronous ref guard keeps a second
- * click from starting a parallel run before `busyFormat` re-renders.
+ * The only download dispatcher for file hosts. The in-flight map is the guard: it is read
+ * before a run starts, so a second click cannot start a parallel run, and it outlives the
+ * hook so a menu that closes and reopens mid-run still shows the busy row.
  */
 export function useFileDownloadActions({
   filePath,
+  workingDir,
   content,
   enabled,
   onStart,
@@ -96,28 +128,30 @@ export function useFileDownloadActions({
   busyFormat: DownloadFormat | null;
   run: (format: DownloadFormat) => void;
 } {
-  const [busyFormat, setBusyFormat] = useState<DownloadFormat | null>(null);
-  const busyRef = useRef(false);
+  const key = downloadKey(workingDir, filePath);
+  const inFlight = useSyncExternalStore(
+    subscribeInFlight,
+    () => readInFlight(key),
+    () => null
+  );
+  const busyFormat = inFlight === null ? null : busyFormatFor(inFlight);
 
   const run = useCallback(
     (format: DownloadFormat) => {
-      if (!isDownloadable(enabled, busyRef.current, content)) return;
-      busyRef.current = true;
+      // Reads the map, not the rendered snapshot, so a second click before re-render is refused.
+      if (!isDownloadable(enabled, readInFlight(key) !== null, content)) return;
+      writeInFlight(key, format);
       onStart?.();
-      setBusyFormat(busyFormatFor(format));
       void executeRun({
         format,
         filePath,
         content,
         onError,
         onRequestClose,
-        onSettled: () => {
-          busyRef.current = false;
-          setBusyFormat(null);
-        },
+        onSettled: () => writeInFlight(key, null),
       });
     },
-    [enabled, content, filePath, onStart, onError, onRequestClose]
+    [enabled, content, filePath, key, onStart, onError, onRequestClose]
   );
 
   return { busyFormat, run };
