@@ -23,13 +23,13 @@ describe('TimelineMessageTypeBadge', () => {
     expect(badge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('renders the plan badge with neutral tokens and a decorative icon', () => {
+  it('renders the plan badge with success tokens and a decorative icon', () => {
     render(<TimelineMessageTypeBadge type="plan" />);
     const badge = screen.getByText('plan');
     expect(badge.tagName).toBe('SPAN');
-    expect(badge).toHaveClass('bg-chatroom-bg-tertiary', 'text-chatroom-text-primary');
+    expect(badge).toHaveClass('bg-chatroom-status-success/15', 'text-chatroom-status-success');
+    expect(badge.className).not.toMatch(/bg-chatroom-bg-tertiary|text-chatroom-text-primary|ring-/);
     expect(badge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
-    expect(badge.className).not.toMatch(/chatroom-status-(success|info|purple|warning|error)/);
   });
 
   it.each(['message', 'user', ''])('renders nothing for type %j', (type) => {

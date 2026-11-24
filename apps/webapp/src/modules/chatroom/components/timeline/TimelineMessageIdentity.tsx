@@ -38,9 +38,7 @@ export function TimelineMessageTypeBadge({ type }: { type: string }) {
   }
   if (type === 'plan') {
     return (
-      <span
-        className={`${BADGE_BASE} bg-chatroom-bg-tertiary text-chatroom-text-primary ring-1 ring-inset ring-chatroom-border-strong`}
-      >
+      <span className={`${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`}>
         <ListChecks size={ICON_SIZE} className="flex-shrink-0" aria-hidden="true" />
         plan
       </span>
