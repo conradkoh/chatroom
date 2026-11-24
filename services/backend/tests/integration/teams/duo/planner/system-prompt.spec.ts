@@ -84,8 +84,8 @@ describe('Duo Team > Planner > System Prompt', () => {
     expect(prompt).toContain('Never delegate a bug fix straight to the builder');
     expect(prompt).toContain('### Commands');
 
-    // Should contain context view-template hint near context new commands
-    expect(prompt).toContain('chatroom context view-template');
+    // Context creation was removed; no context view-template hint remains
+    expect(prompt).not.toContain('chatroom context view-template');
 
     expect(prompt).toMatchInlineSnapshot(`
       "# Duo
@@ -263,27 +263,6 @@ describe('Duo Team > Planner > System Prompt', () => {
       ### Start working
 
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
-
-      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running context new, run:**
-      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
-      — check only whether the pinned context's \`--trigger-message-id\` matches this task's Origin Message ID (do NOT create another context if it matches). **If a staleness warning is present, do not act on the stale goal — create a new context for the current user message.** Only the entry point role can set contexts:
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --trigger-message-id="ORIGIN_MESSAGE_ID" << 'CHATROOM_CONTEXT_END'
-      ## Goal
-      - **User-centric:** _Describe what the user wants in plain language._
-      - **Development-centric:** _Describe what we are building or changing._
-
-      ## Requirements
-      - _One concrete outcome or requirement per bullet._
-
-      ## Structure
-      - _Key files, folders, or architecture decisions (e.g. module boundaries, SSOT locations)._
-
-      ## Avoid
-      - _Out-of-scope work or anti-patterns to skip._
-      CHATROOM_CONTEXT_END
-      \`\`\`
-      REQUIRED: All context content MUST conform to the template. Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context view-template\` (no flags). \`--trigger-message-id\` must be the task's \`origin-message-id\` attribute (never \`task-id\`). Use the pre-filled value in the command above when provided.
 
       ## Planner Operating Model
 

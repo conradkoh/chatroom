@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ContextDeps } from './deps.js';
-import { readContext, listContexts, newContext, viewTemplate } from './index.js';
+import { readContext, listContexts } from './index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -275,101 +275,6 @@ describe('listContexts', () => {
       expect(exitSpy).toHaveBeenCalledWith(1);
       expect(getAllErrorOutput()).toContain('Failed to list contexts');
       expect(getAllErrorOutput()).toContain('Permission denied');
-    });
-  });
-});
-
-describe('viewTemplate', () => {
-  it('returns a string with Goal, Requirements, Structure, and Avoid headings in order', () => {
-    const template = viewTemplate();
-
-    expect(typeof template).toBe('string');
-
-    // Assert headings in order
-    const goalIndex = template.indexOf('## Goal');
-    const requirementsIndex = template.indexOf('## Requirements');
-    const structureIndex = template.indexOf('## Structure');
-    const avoidIndex = template.indexOf('## Avoid');
-
-    expect(goalIndex).toBeGreaterThanOrEqual(0);
-    expect(requirementsIndex).toBeGreaterThan(goalIndex);
-    expect(structureIndex).toBeGreaterThan(requirementsIndex);
-    expect(avoidIndex).toBeGreaterThan(structureIndex);
-  });
-
-  it('contains no angle-bracket placeholders', () => {
-    expect(viewTemplate()).not.toMatch(/<[^>]+>/);
-  });
-
-  it('contains italic guidance markers in each section', () => {
-    const template = viewTemplate();
-
-    const goalSection = template.slice(
-      template.indexOf('## Goal'),
-      template.indexOf('## Requirements')
-    );
-    expect(goalSection).toMatch(/_/);
-
-    const requirementsSection = template.slice(
-      template.indexOf('## Requirements'),
-      template.indexOf('## Structure')
-    );
-    expect(requirementsSection).toMatch(/_/);
-
-    const structureSection = template.slice(
-      template.indexOf('## Structure'),
-      template.indexOf('## Avoid')
-    );
-    expect(structureSection).toMatch(/_/);
-
-    const avoidSection = template.slice(template.indexOf('## Avoid'));
-    expect(avoidSection).toMatch(/_/);
-  });
-});
-
-describe('newContext', () => {
-  describe('triggerMessageId', () => {
-    it('passes triggerMessageId to the createContext mutation when provided', async () => {
-      const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('ctx_new_id');
-
-      await newContext(
-        TEST_CHATROOM_ID,
-        {
-          role: 'planner',
-          content: 'Working on feature X',
-          triggerMessageId: 'msg_abc123',
-        },
-        deps
-      );
-
-      expect(exitSpy).not.toHaveBeenCalled();
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
-
-      const mutationCall = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls[0];
-      const mutationArgs = mutationCall[1];
-      expect(mutationArgs.triggerMessageId).toBe('msg_abc123');
-    });
-
-    it('passes undefined triggerMessageId when not provided', async () => {
-      const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('ctx_new_id');
-
-      await newContext(
-        TEST_CHATROOM_ID,
-        {
-          role: 'planner',
-          content: 'Working on feature X',
-        },
-        deps
-      );
-
-      expect(exitSpy).not.toHaveBeenCalled();
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
-
-      const mutationCall = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls[0];
-      const mutationArgs = mutationCall[1];
-      expect(mutationArgs.triggerMessageId).toBeUndefined();
     });
   });
 });

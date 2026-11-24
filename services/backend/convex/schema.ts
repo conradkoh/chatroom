@@ -349,7 +349,7 @@ export default defineSchema({
     // Incremented atomically when creating tasks to prevent race conditions
     // Optional for backward compatibility - defaults to 0 for existing chatrooms
     nextQueuePosition: v.optional(v.number()),
-    // Current active context for this chatroom (explicit context management)
+    /** @deprecated Context creation was removed. The pinned context is read-only history for old records. Retained so existing documents still validate. */
     currentContextId: v.optional(v.id('chatroom_contexts')),
     /** @deprecated Message counts are derived at read time; no code reads or writes it. Retained so existing documents still validate. */
     messageCount: v.optional(v.number()),
@@ -377,7 +377,7 @@ export default defineSchema({
   /**
    * Explicit contexts for chatroom conversations.
    * Replaces the fragile pinned message system with explicit context management.
-   * Allows users/agents to create, list, and inspect conversation contexts.
+   * Creation was removed; rows are kept so context read, list, and inspect still show old records.
    */
   chatroom_contexts: defineTable({
     chatroomId: v.id('chatroom_rooms'),

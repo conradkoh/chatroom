@@ -241,7 +241,7 @@ describe('Native task delivery — Chat mode eager template matrix', () => {
     expect(output).toContain('**builder**');
     // Chat-mode guidance
     expect(output).toContain('<chat-mode>');
-    expect(output).toContain('Do not run `chatroom context read` or `chatroom context new`');
+    expect(output).not.toContain('Do not run `chatroom context read`');
   });
 
   test('solo chat entry-point user keeps base templates and advertises architect and UI/UX engineer roles', () => {

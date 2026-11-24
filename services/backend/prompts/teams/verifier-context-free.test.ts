@@ -52,7 +52,6 @@ function renderActions(role: string): string {
     chatroomId: CHATROOM_ID,
     role,
     convexUrl: '',
-    isEntryPoint: false,
   });
 }
 

@@ -5,8 +5,9 @@
  * context from `chatroom_contexts`, even when the message history is empty
  * (e.g., all messages are filtered out due to pending/acknowledged task status).
  *
- * This test was written TDD-style: first written to reproduce the bug where
- * `context read` returned "No context available" despite a context being pinned.
+ * Context creation was removed from the product, so these tests seed the
+ * old-style context row directly to keep the read path covered against the
+ * shape production data still has.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -30,7 +31,7 @@ async function createTestSession(sessionId: string): Promise<{ sessionId: Sessio
 }
 
 /**
- * Helper to create a duo planner chatroom (planner can create contexts)
+ * Helper to create a duo planner chatroom
  */
 async function createDuoPlannerChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
   const chatroomId = await t.mutation(api.chatrooms.create, {
@@ -41,6 +42,32 @@ async function createDuoPlannerChatroom(sessionId: SessionId): Promise<Id<'chatr
     teamEntryPoint: 'planner',
   });
   return chatroomId;
+}
+
+/**
+ * Seed the pinned context row directly, the way old records look, and pin it
+ * on the chatroom. Context creation was removed from the product.
+ */
+async function seedPinnedContext(
+  chatroomId: Id<'chatroom_rooms'>,
+  args: {
+    content: string;
+    role: string;
+    triggerMessageId?: Id<'chatroom_messages'> | undefined;
+  }
+): Promise<Id<'chatroom_contexts'>> {
+  return await t.run(async (ctx) => {
+    const contextId = await ctx.db.insert('chatroom_contexts', {
+      chatroomId,
+      content: args.content,
+      createdBy: args.role,
+      createdAt: Date.now(),
+      ...(args.triggerMessageId !== undefined ? { triggerMessageId: args.triggerMessageId } : {}),
+      messageCountAtCreation: 0,
+    });
+    await ctx.db.patch('chatroom_rooms', chatroomId, { currentContextId: contextId });
+    return contextId;
+  });
 }
 
 /**
@@ -67,10 +94,8 @@ describe('Context Read — Pinned Context', () => {
     const chatroomId = await createDuoPlannerChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
-    // Create a context (this pins it to the chatroom)
-    await t.mutation(api.contexts.createContext, {
-      sessionId,
-      chatroomId,
+    // Seed an old-style pinned context row
+    await seedPinnedContext(chatroomId, {
       content: 'Working on the login feature refactor',
       role: 'planner',
     });
@@ -84,7 +109,7 @@ describe('Context Read — Pinned Context', () => {
 
     // ===== ASSERTIONS =====
     // The response should include the pinned context, even though the
-    // message history only has a system "new-context" notification
+    // message history is empty
     expect(context.currentContext).toBeDefined();
     expect(context.currentContext?.content).toBe('Working on the login feature refactor');
     expect(context.currentContext?.createdBy).toBe('planner');
@@ -96,10 +121,8 @@ describe('Context Read — Pinned Context', () => {
     const chatroomId = await createDuoPlannerChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
-    // Create a context
-    await t.mutation(api.contexts.createContext, {
-      sessionId,
-      chatroomId,
+    // Seed an old-style pinned context row
+    await seedPinnedContext(chatroomId, {
       content: 'Fixing authentication flow',
       role: 'planner',
     });
@@ -114,8 +137,7 @@ describe('Context Read — Pinned Context', () => {
     });
 
     // At this point, the user message has a pending task, which gets
-    // filtered out by getContextForRole. The only remaining message is
-    // the system "new-context" notification.
+    // filtered out by getContextForRole.
 
     // ===== QUERY CONTEXT =====
     const context = await t.query(api.messages.getContextForRole, {
@@ -137,7 +159,7 @@ describe('Context Read — Pinned Context', () => {
     const chatroomId = await createDuoPlannerChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
 
-    // ===== QUERY CONTEXT (no context created) =====
+    // ===== QUERY CONTEXT (no context seeded) =====
     const context = await t.query(api.messages.getContextForRole, {
       sessionId,
       chatroomId,
@@ -178,10 +200,8 @@ describe('Context Read — Pinned Context', () => {
       taskId: claimed.taskId,
     });
 
-    // Planner creates a context WITH triggerMessageId pointing to message A
-    await t.mutation(api.contexts.createContext, {
-      sessionId,
-      chatroomId,
+    // Seed an old-style pinned context WITH triggerMessageId pointing to message A
+    await seedPinnedContext(chatroomId, {
       content: 'Working on message A task',
       role: 'planner',
       triggerMessageId: messageAId as Id<'chatroom_messages'>,

@@ -3,20 +3,17 @@
  *
  * Includes:
  * - readContext: Read conversation history and task status
- * - newContext: Create a new explicit context (replaces pinned message)
  * - listContexts: List recent contexts for a chatroom
  * - inspectContext: View a specific context with details
  * Phase 5: Migrated to Effect-TS services with typed error handling.
  */
 
-import { getContextViewTemplate } from '@workspace/backend/prompts/cli/context/context-template.js';
 import { serializeMessage } from '@workspace/backend/src/domain/usecase/message/serialize-message';
 import { toSerializableMessage } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
 
 import type { ContextDeps } from './deps.js';
-import { formatNewContextError } from './format-new-context-error.js';
 import { api, type Id } from '../../api.js';
 import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import type { SessionService } from '../../infrastructure/services/index.js';
@@ -37,9 +34,7 @@ export type { ContextDeps } from './deps.js';
 export type ContextError =
   | { readonly _tag: 'NotAuthenticated' }
   | { readonly _tag: 'InvalidChatroomId'; readonly id: string }
-  | { readonly _tag: 'EmptyContent' }
   | { readonly _tag: 'ReadContextFailed'; readonly cause: Error }
-  | { readonly _tag: 'NewContextFailed'; readonly cause: Error }
   | { readonly _tag: 'ListContextsFailed'; readonly cause: Error }
   | { readonly _tag: 'InspectContextFailed'; readonly cause: Error };
 
@@ -198,55 +193,6 @@ export const readContextEffect = (
   });
 
 /**
- * Pure Effect program for newContext
- */
-// fallow-ignore-next-line unused-export complexity
-export const newContextEffect = (
-  chatroomId: string,
-  options: {
-    role: string;
-    content: string;
-    triggerMessageId?: string | undefined;
-  }
-): Effect.Effect<void, ContextError, BackendService | SessionService> =>
-  Effect.gen(function* () {
-    const backend = yield* BackendService;
-
-    const sessionId = yield* requireAuthenticatedChatroom(chatroomId);
-
-    // Validate content is not empty
-    if (!options.content || options.content.trim().length === 0) {
-      return yield* Effect.fail<ContextError>({ _tag: 'EmptyContent' });
-    }
-
-    // Create context mutation
-    const contextId = yield* backend
-      .mutation<string>(api.contexts.createContext, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        content: options.content,
-        role: options.role,
-        triggerMessageId: options.triggerMessageId as Id<'chatroom_messages'> | undefined,
-      })
-      .pipe(
-        Effect.catch((cause) =>
-          Effect.fail<ContextError>({
-            _tag: 'NewContextFailed',
-            cause: cause as Error,
-          })
-        )
-      );
-
-    // Print success
-    yield* Effect.sync(() => {
-      console.log(`✅ Context created successfully`);
-      console.log(`   Context ID: ${contextId}`);
-      console.log(`   Created by: ${options.role}`);
-      console.log(`\n📌 This context is now pinned for all agents in this chatroom.`);
-    });
-  });
-
-/**
  * Pure Effect program for listContexts
  */
 // fallow-ignore-next-line unused-export complexity
@@ -294,10 +240,6 @@ export const listContextsEffect = (
     yield* Effect.sync(() => {
       if (contexts.length === 0) {
         console.log(`\n📭 No contexts found for this chatroom`);
-        console.log(`\n💡 Create a context with:`);
-        console.log(
-          `   chatroom context new --chatroom-id=${chatroomId} --role=${options.role} --content="Your context summary"`
-        );
         return;
       }
 
@@ -377,24 +319,10 @@ export const inspectContextEffect = (
       console.log(`\n📊 Staleness:`);
       console.log(`   Time elapsed: ${context.elapsedHours.toFixed(1)} hours`);
 
-      // Staleness warnings: soft >= 4h, hard >= 24h
-      if (context.elapsedHours >= 24) {
-        console.log(`\n⚠️  This context is over 24 hours old.`);
-        console.log(`   Consider creating a new context with an updated summary.`);
-      } else if (context.elapsedHours >= 4) {
-        console.log(`\n⚠️  This context is over 4 hours old.`);
-        console.log(`   Consider refreshing if the focus has shifted.`);
-      }
-
       console.log(`\n📝 Content:`);
       console.log('─'.repeat(60));
       console.log(sanitizeForTerminal(context.content));
       console.log('─'.repeat(60));
-
-      console.log(`\n💡 To create a new context:`);
-      console.log(
-        `   chatroom context new --chatroom-id=${chatroomId} --role=${options.role} --content="Your updated summary"`
-      );
 
       console.log('\n' + '═'.repeat(60));
     });
@@ -417,14 +345,8 @@ function handleContextError(err: ContextError): Effect.Effect<void> {
         `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${err.id?.length || 0})`
       );
       process.exit(1);
-    } else if (err._tag === 'EmptyContent') {
-      console.error(`❌ Context content cannot be empty`);
-      process.exit(1);
     } else if (err._tag === 'ReadContextFailed') {
       console.error(`❌ Failed to read context: ${sanitizeUnknownForTerminal(err.cause.message)}`);
-      process.exit(1);
-    } else if (err._tag === 'NewContextFailed') {
-      console.error(`❌ Failed to create context: ${formatNewContextError(err.cause)}`);
       process.exit(1);
     } else if (err._tag === 'ListContextsFailed') {
       console.error(`❌ Failed to list contexts: ${sanitizeUnknownForTerminal(err.cause.message)}`);
@@ -461,30 +383,6 @@ export async function readContext(
 }
 
 /**
- * Create a new explicit context for a chatroom.
- * This replaces the pinned message system with explicit context management.
- */
-export async function newContext(
-  chatroomId: string,
-  options: {
-    role: string;
-    content: string;
-    triggerMessageId?: string | undefined;
-  },
-  deps?: ContextDeps
-): Promise<void> {
-  const d = deps ?? (await createDefaultDeps());
-  const layer = commandServicesLayerFromDeps(d);
-
-  await Effect.runPromise(
-    newContextEffect(chatroomId, options).pipe(
-      Effect.catch((err) => handleContextError(err)),
-      Effect.provide(layer)
-    )
-  );
-}
-
-/**
  * List recent contexts for a chatroom.
  */
 export async function listContexts(
@@ -504,13 +402,6 @@ export async function listContexts(
       Effect.provide(layer)
     )
   );
-}
-
-/**
- * Print the context template to stdout.
- */
-export function viewTemplate(): string {
-  return getContextViewTemplate();
 }
 
 /**

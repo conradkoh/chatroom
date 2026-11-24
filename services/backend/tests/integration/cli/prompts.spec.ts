@@ -134,7 +134,6 @@ describe('Available Actions (Task Delivery)', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       convexUrl: 'http://127.0.0.1:3210',
-      isEntryPoint: true,
     });
 
     // Should use Available Actions header
@@ -154,7 +153,6 @@ describe('Available Actions (Task Delivery)', () => {
       chatroomId: 'abc123',
       role: 'planner',
       convexUrl: 'http://localhost:3000',
-      isEntryPoint: false,
     });
 
     expect(actions).toContain('git log --oneline -10');
@@ -173,6 +171,7 @@ describe('Task intake prompt', () => {
     expect(prompt).toContain('### Start working');
     expect(prompt).toContain('harness output (stdout tokens)');
     expect(prompt).not.toContain('chatroom classify');
+    expect(prompt).not.toContain('chatroom context new');
     expect(prompt).not.toMatch(/task read --chatroom-id/i);
   });
 

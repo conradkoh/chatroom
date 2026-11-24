@@ -1129,7 +1129,7 @@ messagesCommand
 
 const contextCommand = program
   .command('context')
-  .description('Manage chatroom context and state (explicit context management)');
+  .description('Read and inspect chatroom context (read-only)');
 
 contextCommand
   .command('read')
@@ -1141,60 +1141,6 @@ contextCommand
     const { readContext } = await import('./commands/context/index.js');
     await readContext(options.chatroomId, options);
   });
-
-contextCommand
-  .command('new')
-  .description('Create a new context and pin it for all agents')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role (creator of the context)')
-  .option(
-    '--content <content>',
-    'Context summary/description (alternative: provide via stdin/heredoc)'
-  )
-  .option(
-    '--trigger-message-id <messageId>',
-    'Message ID that triggered this context (anchors the context window)'
-  )
-  .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      content?: string | undefined;
-      triggerMessageId?: string | undefined;
-    }) => {
-      await maybeRequireAuth();
-
-      // Resolve content: flag takes priority, fall back to stdin/heredoc
-      let content: string;
-      if (options.content && options.content.trim().length > 0) {
-        content = options.content.trim();
-      } else {
-        const stdinContent = await readStdin();
-        const { CONTEXT_STDIN_DELIMITER, validateStdinHeredocBody } =
-          await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
-        if (!stdinContent.trim()) {
-          console.error('❌ Context content cannot be empty.');
-          console.error('   Provide content via --content="..." or stdin (heredoc):');
-          console.error(
-            "   chatroom context new --chatroom-id=<id> --role=<role> << 'CHATROOM_CONTEXT_END'"
-          );
-          console.error('   Your context summary here');
-          console.error('   CHATROOM_CONTEXT_END');
-          process.exit(1);
-        }
-        try {
-          validateStdinHeredocBody(stdinContent, CONTEXT_STDIN_DELIMITER, 'Context');
-        } catch (err) {
-          console.error(`❌ ${(err as Error).message}`);
-          process.exit(1);
-        }
-        content = stdinContent.trim();
-      }
-
-      const { newContext } = await import('./commands/context/index.js');
-      await newContext(options.chatroomId, { ...options, content });
-    }
-  );
 
 contextCommand
   .command('list')
@@ -1221,16 +1167,6 @@ contextCommand
     await maybeRequireAuth();
     const { inspectContext } = await import('./commands/context/index.js');
     await inspectContext(options.chatroomId, options);
-  });
-
-contextCommand
-  .command('view-template')
-  .description('Print a template for `chatroom context new` content.')
-  .option('--chatroom-id <id>', 'Ignored (accepted for copy-paste compatibility)')
-  .option('--role <role>', 'Ignored (accepted for copy-paste compatibility)')
-  .action(async () => {
-    const { viewTemplate } = await import('./commands/context/index.js');
-    console.log(viewTemplate());
   });
 
 // ============================================================================

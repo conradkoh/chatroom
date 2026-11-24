@@ -8,9 +8,6 @@
 /** Bash heredoc terminator for `chatroom handoff` message stdin. */
 export const HANDOFF_STDIN_DELIMITER = 'CHATROOM_HANDOFF_END';
 
-/** Bash heredoc terminator for `chatroom context new` stdin. */
-export const CONTEXT_STDIN_DELIMITER = 'CHATROOM_CONTEXT_END';
-
 /** Bash heredoc terminator for `chatroom backlog add` / `update` stdin. */
 export const BACKLOG_STDIN_DELIMITER = 'CHATROOM_BACKLOG_END';
 
@@ -34,7 +31,6 @@ export const HANDOFF_MESSAGE_MARKER = '---MESSAGE---';
 
 const RESERVED_STDIN_HEREDOC_DELIMITERS = [
   HANDOFF_STDIN_DELIMITER,
-  CONTEXT_STDIN_DELIMITER,
   BACKLOG_STDIN_DELIMITER,
   AGENTIC_QUERY_STDIN_DELIMITER,
   NOTIFY_USER_STDIN_DELIMITER,

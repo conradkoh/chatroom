@@ -6,15 +6,12 @@
  */
 
 import { getCliEnvPrefix } from '../../utils/index';
-import { contextNewCommand, contextNewHint } from '../context/new';
 import { getHistoryRetrievalGuidance } from '../history-retrieval/guidance';
 
 export interface AvailableActionsParams {
   chatroomId: string;
   role: string;
   convexUrl: string;
-  /** Whether this role is the team entry point (planner/coordinator). Only entry points can manage contexts. */
-  isEntryPoint: boolean;
 }
 
 /**
@@ -22,12 +19,10 @@ export interface AvailableActionsParams {
  * These are the core actions available to agents at any stage.
  */
 export function getAvailableActions(params: AvailableActionsParams): string {
-  const { chatroomId, role, convexUrl, isEntryPoint } = params;
+  const { chatroomId, role, convexUrl } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  const sections: string[] = [];
-
-  sections.push(`## Available Actions
+  return `## Available Actions
 
 ${getHistoryRetrievalGuidance({ chatroomId, role, cliEnvPrefix })}
 
@@ -43,30 +38,5 @@ For backlog commands, activate the backlog skill:
 
 \`\`\`bash
 ${cliEnvPrefix}chatroom skill activate backlog --chatroom-id="${chatroomId}" --role="${role}"
-\`\`\``);
-
-  // Context management is restricted to the entry point (planner) role only
-  if (isEntryPoint) {
-    sections.push(`
-### Context Management
-Only the entry point role can create new contexts. By default, set a new context for every user message — skip ONLY when the message is clearly a follow-up of the current chatroom task.
-
-**Create new context:**
-\`\`\`bash
-${contextNewCommand({ chatroomId, role, cliEnvPrefix })}
-\`\`\`
-${contextNewHint({ cliEnvPrefix })}
-
-**List previous contexts:**
-\`\`\`bash
-${cliEnvPrefix}chatroom context list --chatroom-id="${chatroomId}" --role="${role}" --limit=10
-\`\`\`
-
-When to create a new context:
-- For every new user message (default) — summarize the planned focus in the new context; skip only when the message is clearly a follow-up of the current task
-- When the pinned context shows staleness warnings — summarize recent progress in the new context
-- **When a staleness warning is present, do not act on its goal** — create a new context for the current user message first`);
-  }
-
-  return sections.join('\n');
+\`\`\``;
 }

@@ -31,7 +31,7 @@ function resolveNativeTaskIntakeContent(
   if (!isEntryPoint) {
     return getNativeTaskStartedPromptForHandoffRecipient();
   }
-  // Chat-mode entry-point user tasks: direct answer, no context commands.
+  // Chat-mode entry-point user tasks: direct answer.
   if (
     isChatModeEntryPointUserTask({
       conversationMode,
@@ -45,7 +45,6 @@ function resolveNativeTaskIntakeContent(
     chatroomId,
     role,
     cliEnvPrefix,
-    triggerMessageId: message?._id,
   });
 }
 
