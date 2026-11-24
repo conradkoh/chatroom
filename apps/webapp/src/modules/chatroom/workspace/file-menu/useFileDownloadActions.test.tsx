@@ -165,6 +165,41 @@ describe('useFileDownloadActions', () => {
     expect(result.current.busyFormat).toBeNull();
   });
 
+  it('releases the in-flight key when a host onStart throws, so the next run proceeds', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failing = callbacks();
+    failing.onStart.mockImplementationOnce(() => {
+      throw new Error('host feedback failed');
+    });
+    const first = renderActions(failing);
+
+    await act(async () => {
+      first.result.current.run('docx');
+      await Promise.resolve();
+    });
+
+    expect(exportFileAsDocx).not.toHaveBeenCalled();
+    expect(failing.onError).toHaveBeenCalledWith('Failed to prepare DOCX');
+    expect(failing.onRequestClose).toHaveBeenCalledTimes(1);
+    expect(first.result.current.busyFormat).toBeNull();
+    expect(consoleError).toHaveBeenCalledWith(
+      '[WorkspaceFileMenu] DOCX export failed',
+      expect.any(Error)
+    );
+    first.unmount();
+
+    const retry = callbacks();
+    const second = renderActions(retry);
+    await act(async () => {
+      second.result.current.run('docx');
+    });
+
+    expect(retry.onStart).toHaveBeenCalledTimes(1);
+    expect(exportFileAsDocx).toHaveBeenCalledWith('docs/README.md', 'body');
+    expect(second.result.current.busyFormat).toBeNull();
+    expect(retry.onRequestClose).toHaveBeenCalledTimes(1);
+  });
+
   it('treats a cancelled save as silent success', async () => {
     const spies = callbacks();
     vi.mocked(exportFileAsPdf).mockResolvedValueOnce('cancelled');

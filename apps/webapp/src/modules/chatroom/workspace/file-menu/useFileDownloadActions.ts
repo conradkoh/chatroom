@@ -61,6 +61,8 @@ interface DownloadRun {
   format: DownloadFormat;
   filePath: string;
   content: string;
+  /** Host clears its feedback slot. A throw is reported through `onError` and still releases the key. */
+  onStart?: () => void;
   onError?: (message: string) => void;
   onRequestClose?: () => void;
   /** Releases the in-flight entry and clears the busy row. */
@@ -84,13 +86,19 @@ async function saveFormat(
   await EXPORTERS[run.format](run.filePath, run.content);
 }
 
-/** One run: report a failure through the host's slot, then always clear busy and close. */
+/** Reports a failed run through the host's inline slot. */
+function reportFailure(run: DownloadRun, error: unknown): void {
+  console.error(`[WorkspaceFileMenu] ${LOG_LABELS[run.format]} export failed`, error);
+  run.onError?.(getDownloadFormat(run.format).failureMessage);
+}
+
+/** One run: clear the host slot, report a failure through it, then always clear busy and close. */
 async function executeRun(run: DownloadRun): Promise<void> {
   try {
+    run.onStart?.();
     await saveFormat(run);
   } catch (error) {
-    console.error(`[WorkspaceFileMenu] ${LOG_LABELS[run.format]} export failed`, error);
-    run.onError?.(getDownloadFormat(run.format).failureMessage);
+    reportFailure(run, error);
   } finally {
     run.onSettled();
     run.onRequestClose?.();
@@ -137,11 +145,11 @@ export function useFileDownloadActions({
       // Reads the map, not the rendered snapshot, so a second click before re-render is refused.
       if (!isDownloadable(enabled, readInFlight(key) !== null, content)) return;
       writeInFlight(key, format);
-      onStart?.();
       void executeRun({
         format,
         filePath,
         content,
+        onStart,
         onError,
         onRequestClose,
         onSettled: () => writeInFlight(key, null),
