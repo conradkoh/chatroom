@@ -33,10 +33,14 @@ Options:
 
 - `--chatroom-id` is required.
 - `--path` is a directory. It defaults to `.chatroom/exports/` under the current working
-  directory.
+  directory. The default directory receives a `.gitignore` containing `*` when it has none, so
+  exports stay out of version control; an existing `.gitignore` is never replaced. `--path` writes
+  no ignore file, so a custom directory is not modified.
 - The file name is `chatroom-<chatroomId>-YYYYMMDDTHHMMSSZ.json` (UTC, no colons).
 - An existing file is never overwritten: the publish hard-links the temp file into place and a
   name clash fails with `EXPORT_FILE_EXISTS`.
+- A filesystem without hard links cannot publish an export without overwriting it. The export then
+  fails with `EXPORT_PUBLISH_UNSUPPORTED` and leaves no temp or final file.
 - `export` takes no `--role` and no `--machine-id`.
 
 ### `chatroom import`
@@ -54,7 +58,9 @@ Options:
   -h, --help         display help for command
 ```
 
-- `--path` is the export file and is required.
+- `--path` is the export file and is required. A directory, a missing path or an unreadable file is
+  refused with `IMPORT_FILE_UNREADABLE`. A file over `EXPORT_MAX_FILE_BYTES` (256 MiB) is refused
+  with `IMPORT_FILE_TOO_LARGE` before it is read.
 - `--machine-id` is optional. It names the machine workspaces are rebound to; it defaults to the
   current machine's identity.
 - `--dry-run` validates the file, preflights the target machine, builds the plan, prints it and
@@ -237,9 +243,12 @@ mark. No product mutation edits message content, so this cannot be triggered thr
   nothing until the user asks it to.
 - Agent configs (the last launch sent per role) are restored only when the target machine reports
   the harness and the workspace survives. A config is skipped with one of these reasons:
-  `no_workspace`, `non_remote_agent_type`, `empty_model`, `harness_unavailable`, or
+  `no_workspace`, `working_dir_mismatch` when its `workingDir` differs from its workspace's
+  normalized directory, `non_remote_agent_type`, `empty_model`, `harness_unavailable`, or
   `superseded_by_merge` when an older row for the same surviving workspace and role is superseded
-  by the last one.
+  by the last one. A skipped config is reported and the import still completes. A plain error from
+  the shared agent-config save is reported as `IMPORT_CHUNK_FAILED` with its message, which rolls
+  the import back.
 - Scheduled prompts are imported paused: `isRunnable` is written `false` and `disabledReason` is
   kept only when the source prompt was `completed` or `failed` (otherwise set to `user`). Nothing
   fires before the user reviews it.
@@ -253,7 +262,10 @@ mark. No product mutation edits message content, so this cannot be triggered thr
 - Chunks are never retried. A failed chunk is `IMPORT_CHUNK_FAILED`, and the driver rolls the
   import back instead of replaying a partial write.
 - Rollback deletes the new chatroom's rows by chatroom id, in child-first order, so no scan is
-  needed. The new chatroom id is printed at `import started`, before any chunk lands.
+  needed. It repeats in budgeted calls until one call deletes nothing; there is no call-count
+  limit, and a room of any size drains. A call that deletes nothing reports
+  `rollback made no progress`, the only stop. The room row is deleted last, after every other table
+  drains. The new chatroom id is printed at `import started`, before any chunk lands.
 - A rolled-back import exits `1` with `IMPORT_ROLLED_BACK` and says the import did not complete and
   no rows were kept.
 - A failed rollback exits `1` with `IMPORT_ROLLBACK_FAILED`, names the orphan chatroom id, and says
@@ -262,10 +274,15 @@ mark. No product mutation edits message content, so this cannot be triggered thr
   delete.
 - The importing room may be visible as `completed` between `begin` and `finalize`. It becomes the
   exported status only when finalize runs.
-- Rollback is owner-only. It refuses rooms older than 24 hours (`IMPORT_WINDOW_MS`), so the
-  mutation cannot be used to delete unrelated chatroom history. A killed process that leaves an
-  archived, partial chatroom leaves it past that window eventually; its id was printed at
-  `import started` and the user can archive or delete it.
+- Rollback uses the same guard as every import write: it accepts the room only while it is
+  `completed`, owned by the caller, and younger than 24 hours (`IMPORT_WINDOW_MS`). `finalizeImport`
+  sets the status from the plan, so a room finalized as `completed` (source status `completed`)
+  remains rollback-able until the window closes; finalize does not protect it. A room finalized as
+  `active` is refused by rollback. If finalize commits and the response is then lost, that complete
+  room stays, and the user must archive or delete it in the webapp. The window also stops the
+  mutation from deleting unrelated chatroom history; a killed process that leaves an archived,
+  partial chatroom leaves it past that window eventually, and the user can archive or delete it
+  with the id printed at `import started`.
 - `SIGINT` and `SIGTERM` during the write phase abort the import and trigger the same rollback.
 - Residual: registering an imported workspace enqueues a `daemon.gitRefresh` command into
   `chatroom_machineCommandInbox`. That table is machine-keyed, so rollback does not remove the

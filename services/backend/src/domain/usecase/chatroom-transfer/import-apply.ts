@@ -17,16 +17,23 @@
  * ## Import guard
  *
  * A room is importable only while it is `completed`, owned by the caller and
- * younger than `IMPORT_WINDOW_MS`. `beginImport` creates the room through the
- * normal chatroom path and immediately archives it, so no active list shows a
- * half-imported room. `finalizeImport` flips the status; a second finalize is
- * refused because the room is no longer `completed`.
+ * younger than `IMPORT_WINDOW_MS`; the same guard protects every write and
+ * rollback. `beginImport` creates the room through the normal chatroom path and
+ * immediately archives it, so no active list shows a half-imported room.
+ * `finalizeImport` sets the status from the plan. A room finalized as `completed`
+ * (its source status was `completed`) stays rollback-able until the window
+ * closes: finalize does not protect it. A room finalized as `active` is refused
+ * by rollback, so a finalize whose response is lost leaves a complete room the
+ * user must archive or delete. A second finalize is refused because the room is
+ * no longer `completed`.
  *
  * ## Rollback
  *
- * Rollback deletes in `ROLLBACK_ORDER` within `IMPORT_ROLLBACK_BUDGET`, using
- * the registry descriptors rather than scanning. The room row goes last, and
- * only after every other table returned fewer rows than the batch asked for.
+ * Rollback deletes in `ROLLBACK_ORDER` using the registry descriptors rather
+ * than scanning. It repeats in budgeted calls until one call deletes nothing;
+ * there is no call-count limit. A call that deletes nothing reports
+ * `rollback made no progress`, the only stop. The room row is deleted last,
+ * after every other table drains.
  */
 
 import { ConvexError } from 'convex/values';
