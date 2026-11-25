@@ -172,6 +172,42 @@ describe('exported field rules', () => {
     }
   });
 
+  test('every ref rule names the table its schema id field points at', () => {
+    for (const [name, entry] of Object.entries(CHATROOM_SCOPED_TABLES)) {
+      if (entry.classification !== 'exported') continue;
+      const ids = idFields(validatorOf(schemaTables, name));
+      for (const [field, rule] of Object.entries(entry.fields)) {
+        if (rule.rule !== 'ref') continue;
+        const targets = ids.filter((id) => id.path.split('.')[0] === field).map((id) => id.table);
+        expect(
+          targets,
+          `${name}.${field} is a ref but the schema has no id for it`
+        ).not.toHaveLength(0);
+        for (const target of targets) {
+          expect(
+            target,
+            `${name}.${field} refs ${rule.table} but the schema points at ${target}`
+          ).toBe(rule.table);
+        }
+      }
+    }
+  });
+
+  test('a ref rule names a top-level id field', () => {
+    for (const [name, entry] of Object.entries(CHATROOM_SCOPED_TABLES)) {
+      if (entry.classification !== 'exported') continue;
+      const topLevelIds = idFields(validatorOf(schemaTables, name))
+        .filter((id) => !id.path.includes('.'))
+        .map((id) => id.path);
+      for (const [field, rule] of Object.entries(entry.fields)) {
+        if (rule.rule !== 'ref') continue;
+        expect(topLevelIds, `${name}.${field} is a ref but not a top-level id field`).toContain(
+          field
+        );
+      }
+    }
+  });
+
   test('every ref points at an exported table', () => {
     const exportedTables = new Set(
       Object.entries(CHATROOM_SCOPED_TABLES)
