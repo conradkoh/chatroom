@@ -35,7 +35,6 @@ function linearAttachments(message: SerializableMessage, options: SerializeMessa
     attachmentContext(options)
   ).join('\n');
   return block ? `${block}\n` : '';
-
 }
 
 function serializeLinearMessage(
@@ -44,10 +43,10 @@ function serializeLinearMessage(
 ): string {
   const target = message.targetRole ? ` → ${message.targetRole}` : '';
   // Header order: type tag first (intrinsic to the message), then the sender-agent snapshot.
-  const typeTag = message.type === 'plan' ? ' | type=plan' : '';
+  const typeTag =
+    message.type === 'plan' || message.type === 'grounding' ? ` | type=${message.type}` : '';
   const header = `${new Date(message._creationTime).toISOString()} | ${message.senderRole}${target}${typeTag}${linearSenderAgentSuffix(message.senderAgent)}`;
   return `${header}\n${linearAttachments(message, options)}\n${message.content}`;
-
 }
 
 function serializeTaskOriginMessage(message: SerializableMessage): string {

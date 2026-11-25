@@ -483,7 +483,9 @@ export default defineSchema({
       // Agent → user interim message; no task transition (chatroom notify-user)
       v.literal('notice'),
       // Agent-published phased plan (chatroom plan publish); immutable
-      v.literal('plan')
+      v.literal('plan'),
+      // Agent-published neutral observation record (chatroom grounding publish); immutable
+      v.literal('grounding')
     ),
     // Revision link for type: 'plan' messages; points at the plan this one supersedes
     supersedesPlanId: v.optional(v.id('chatroom_messages')),
@@ -592,7 +594,8 @@ export default defineSchema({
       v.literal('progress'),
       v.literal('new-context'),
       v.literal('notice'),
-      v.literal('plan')
+      v.literal('plan'),
+      v.literal('grounding')
     ),
     isTimeline: v.boolean(),
     taskId: v.optional(v.id('chatroom_tasks')),

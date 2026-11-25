@@ -180,6 +180,14 @@ export type BackendErrorCode =
   | 'INVALID_PLAN'
   | 'INVALID_SUPERSEDES'
   | 'PLAN_NOT_FOUND'
+  | 'INVALID_GROUNDING'
+  | 'GROUNDING_NOT_FOUND'
+  | 'GROUNDING_TOO_LONG'
+  | 'GROUNDING_TITLE_MISSING'
+  | 'GROUNDING_SECTION_MISSING'
+  | 'GROUNDING_SECTION_ORDER'
+  | 'GROUNDING_SECTION_EMPTY'
+  | 'GROUNDING_FENCE_UNCLOSED'
 
   // ── Scheduled prompts & standing instructions ─────────────────────
   | 'CONTENT_TOO_LONG'
@@ -509,6 +517,22 @@ export const BACKEND_ERROR_CODES = {
   INVALID_SUPERSEDES: 'INVALID_SUPERSEDES',
   /** No plan message matches the given id in this chatroom */
   PLAN_NOT_FOUND: 'PLAN_NOT_FOUND',
+  /** The grounding markdown does not match the grounding template */
+  INVALID_GROUNDING: 'INVALID_GROUNDING',
+  /** No grounding message matches the given id in this chatroom */
+  GROUNDING_NOT_FOUND: 'GROUNDING_NOT_FOUND',
+  /** The grounding exceeds the maximum number of characters */
+  GROUNDING_TOO_LONG: 'GROUNDING_TOO_LONG',
+  /** The grounding has no `# ` title line */
+  GROUNDING_TITLE_MISSING: 'GROUNDING_TITLE_MISSING',
+  /** The grounding is missing a required section */
+  GROUNDING_SECTION_MISSING: 'GROUNDING_SECTION_MISSING',
+  /** The grounding has an unknown, duplicate or out-of-order section */
+  GROUNDING_SECTION_ORDER: 'GROUNDING_SECTION_ORDER',
+  /** A grounding section has no usable content */
+  GROUNDING_SECTION_EMPTY: 'GROUNDING_SECTION_EMPTY',
+  /** A code fence in the grounding is never closed */
+  GROUNDING_FENCE_UNCLOSED: 'GROUNDING_FENCE_UNCLOSED',
 
   // ── Scheduled prompts & standing instructions ─────────────────────
   /** Content exceeds the maximum length */
@@ -770,6 +794,15 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.INVALID_PLAN,
   BACKEND_ERROR_CODES.INVALID_SUPERSEDES,
   BACKEND_ERROR_CODES.PLAN_NOT_FOUND,
+
+  BACKEND_ERROR_CODES.INVALID_GROUNDING,
+  BACKEND_ERROR_CODES.GROUNDING_NOT_FOUND,
+  BACKEND_ERROR_CODES.GROUNDING_TOO_LONG,
+  BACKEND_ERROR_CODES.GROUNDING_TITLE_MISSING,
+  BACKEND_ERROR_CODES.GROUNDING_SECTION_MISSING,
+  BACKEND_ERROR_CODES.GROUNDING_SECTION_ORDER,
+  BACKEND_ERROR_CODES.GROUNDING_SECTION_EMPTY,
+  BACKEND_ERROR_CODES.GROUNDING_FENCE_UNCLOSED,
 
   // Scheduled prompts & standing instructions
   BACKEND_ERROR_CODES.CONTENT_TOO_LONG,

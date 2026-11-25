@@ -603,13 +603,22 @@ async function insertFixtureRows(
       })
     );
 
-    // Messages m0..m5, in export order.
+    // Messages m0..m6, in export order.
     const m0 = remember(
       await ctx.db.insert('chatroom_messages', {
         chatroomId,
         senderRole: 'user',
         content: 'Plan the release',
         type: 'plan',
+        contextCreatedBy: 'planner',
+      })
+    );
+    remember(
+      await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'Grounding the release',
+        type: 'grounding',
         contextCreatedBy: 'planner',
       })
     );
@@ -799,7 +808,7 @@ function expectFixtureKeyOrder(file: ChatroomExportFileV1): void {
   // w3 is the trailing duplicate; w2 (removed) was filtered, so w3 becomes w2.
   expect(file.workspaces.map((row) => row._key)).toEqual(['w0', 'w1', 'w2']);
   expect(file.agentConfigs.map((row) => row._key)).toEqual(['g0', 'g1', 'g2']);
-  expect(file.messages.map((row) => row._key)).toEqual(['m0', 'm1', 'm2', 'm3', 'm4', 'm5']);
+  expect(file.messages.map((row) => row._key)).toEqual(['m0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6']);
   expect(file.messageQueue.map((row) => row._key)).toEqual(['q0']);
   expect(file.tasks.map((row) => row._key)).toEqual(['t0', 't1', 't2', 't3', 't4']);
   expect(file.backlog.map((row) => row._key)).toEqual(['b0', 'b1', 'b2']);
@@ -936,6 +945,7 @@ describe('full chatroom round trip', () => {
       a.file.messages.map(stripKeyAndCreationTime)
     );
     expect(b.file.messages.map((row) => row.terminalHandoffRole)).toEqual([
+      undefined,
       undefined,
       undefined,
       undefined,
