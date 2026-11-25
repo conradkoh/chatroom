@@ -327,3 +327,104 @@ describe('skills.activate — cliEnvPrefix injection', () => {
     );
   });
 });
+
+describe('skills.activate — backlog skill role-neutral contract', () => {
+  const BACKLOG_SUBCOMMANDS = [
+    'list',
+    'history',
+    'add',
+    'update',
+    'score',
+    'complete',
+    'reopen',
+    'mark-for-review',
+    'close',
+    'delete',
+    'export',
+    'import',
+  ];
+
+  test('two different roles get an identical, role-neutral backlog prompt', async () => {
+    const { sessionId } = await createTestSession('skills-backlog-neutral-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const asBuilder = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+    const asPlanner = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'planner',
+    });
+
+    expect(asBuilder.skill.prompt).toBe(asPlanner.skill.prompt);
+    expect(asBuilder.skill.prompt).not.toMatch(/coordinator/i);
+    expect(asBuilder.skill.prompt).not.toMatch(/builder/i);
+    expect(asBuilder.skill.prompt).not.toMatch(/planner/i);
+  });
+
+  test('does not advertise the complete force flag', async () => {
+    const { sessionId } = await createTestSession('skills-backlog-noforce-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+
+    expect(result.skill.prompt).not.toContain('--force');
+    expect(result.skill.prompt).not.toMatch(/(^|[\s\[`|])-f([\s\]`|]|$)/m);
+  });
+
+  test('documents every backlog CLI subcommand with its --chatroom-id form', async () => {
+    const { sessionId } = await createTestSession('skills-backlog-commands-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+
+    for (const cmd of BACKLOG_SUBCOMMANDS) {
+      expect(result.skill.prompt).toContain(`chatroom backlog ${cmd} --chatroom-id=`);
+    }
+  });
+
+  test('states the lifecycle guard rails', async () => {
+    const { sessionId } = await createTestSession('skills-backlog-lifecycle-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+    const prompt = result.skill.prompt;
+
+    expect(prompt).toContain('mark-for-review');
+    expect(prompt).toContain('--reason');
+    expect(prompt).toContain('Only use when the user explicitly asks you to close an item');
+    expect(prompt).toContain('Only use when the user explicitly asks you to delete an item');
+    expect(prompt).toContain('Allowed only while the item is in `backlog` status');
+    expect(prompt).toContain('Mistakenly completed early');
+    expect(prompt).not.toContain('docs/plans/');
+  });
+
+  test('display name is Backlog Management', async () => {
+    const { sessionId } = await createTestSession('skills-backlog-name-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const skill = await t.query(api.skills.get, { sessionId, chatroomId, skillId: 'backlog' });
+
+    expect(skill?.name).toBe('Backlog Management');
+  });
+});
