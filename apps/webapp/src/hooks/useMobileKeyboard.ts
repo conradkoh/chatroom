@@ -161,9 +161,10 @@ function useVisualViewportValue(
       refresh();
     };
 
-    // Scroll refreshes only inside the window. It never re-arms it, so a long pan stops following.
+    // Scroll recomputes once, inside the window only. It never re-arms the window and never
+    // schedules trailing rechecks, so a read cannot land after the window has closed.
     const handleScroll = () => {
-      if (Date.now() < scrollFollowUntil) refresh();
+      if (Date.now() < scrollFollowUntil) update();
     };
 
     scheduleUpdate();
