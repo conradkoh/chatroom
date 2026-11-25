@@ -16,16 +16,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # pnpm must be on PATH before setup-node runs so its `cache: pnpm` lookup
+      # can resolve the pnpm store directory.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: pnpm
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

@@ -42,13 +42,16 @@ jobs:
           echo "suite=${suite}" >> "$GITHUB_OUTPUT"
           echo "has_tests=${has_tests}" >> "$GITHUB_OUTPUT"
 
+      # pnpm must be on PATH before setup-node runs so its `cache: pnpm` lookup
+      # can resolve the pnpm store directory.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -96,6 +99,21 @@ jobs:
         run: |
           pnpm --filter @workspace/backend exec convex deploy --typecheck enable --yes
           pnpm --filter @workspace/backend exec convex env set E2E_SEEDING_ENABLED true
+
+      # Keyed by the resolved Playwright version: a browser build bump produces a
+      # new key and a fresh download. `--with-deps` still installs OS packages on
+      # every run; the cache only avoids re-downloading the browser binaries.
+      - name: Resolve Playwright version
+        if: steps.discover.outputs.has_tests == 'true'
+        id: playwright-version
+        run: echo "version=$(pnpm --filter @workspace/webapp exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: steps.discover.outputs.has_tests == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browsers
         if: steps.discover.outputs.has_tests == 'true'
