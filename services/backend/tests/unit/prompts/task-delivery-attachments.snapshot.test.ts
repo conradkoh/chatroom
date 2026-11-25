@@ -64,6 +64,7 @@ describe('task delivery attachment snapshots — CLI', () => {
           <hint>Work on this item.</hint>
           <interactions>
             <interaction type="command">Once this task is complete (implemented, verified end-to-end, PR raised for user review), run: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-001 — this moves the task to pending review. Do not use complete.</interaction>
+            <interaction type="command">For any other backlog action, activate the backlog skill for the full command reference and lifecycle rules: chatroom skill activate backlog --chatroom-id="snapshot-chatroom-id" --role="builder"</interaction>
           </interactions>
         </attachment>
       </attachments>
@@ -146,6 +147,7 @@ describe('task delivery attachment snapshots — CLI', () => {
           <hint>Work on this item.</hint>
           <interactions>
             <interaction type="command">Once this task is complete (implemented, verified end-to-end, PR raised for user review), run: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-002 — this moves the task to pending review. Do not use complete.</interaction>
+            <interaction type="command">For any other backlog action, activate the backlog skill for the full command reference and lifecycle rules: chatroom skill activate backlog --chatroom-id="snapshot-chatroom-id" --role="builder"</interaction>
           </interactions>
         </attachment>
         <attachment type="snippet" reference="attachment-reference-001">
@@ -195,6 +197,7 @@ describe('task delivery attachment snapshots — native', () => {
           <hint>Work on this item.</hint>
           <interactions>
             <interaction type="command">Once this task is complete (implemented, verified end-to-end, PR raised for user review), run: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-003 — this moves the task to pending review. Do not use complete.</interaction>
+            <interaction type="command">For any other backlog action, activate the backlog skill for the full command reference and lifecycle rules: chatroom skill activate backlog --chatroom-id="snapshot-chatroom-id" --role="builder"</interaction>
           </interactions>
         </attachment>
       </attachments>

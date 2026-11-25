@@ -230,6 +230,7 @@ Add a kind to \`PRIMARY_DELIVERY_ATTACHMENT_KINDS\` and \`PRIMARY_DELIVERY_INPUT
     <hint>Work on this item.</hint>
     <interactions>
       <interaction type="command">Once this task is complete (implemented, verified end-to-end, PR raised for user review), run: chatroom backlog mark-for-review --chatroom-id="..." --role="..." --backlog-item-id=item-111 — this moves the task to pending review. Do not use complete.</interaction>
+      <interaction type="command">For any other backlog action, activate the backlog skill for the full command reference and lifecycle rules: chatroom skill activate backlog --chatroom-id="..." --role="..."</interaction>
     </interactions>
   </attachment>
 \`\`\`

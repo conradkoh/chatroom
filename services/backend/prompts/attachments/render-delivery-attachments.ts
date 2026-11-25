@@ -75,6 +75,10 @@ function renderBacklogAttachments(
             type: 'command',
             text: `Once this task is complete (implemented, verified end-to-end, PR raised for user review), run: chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=${id} — this moves the task to pending review. Do not use complete.`,
           },
+          {
+            type: 'command',
+            text: `For any other backlog action, activate the backlog skill for the full command reference and lifecycle rules: chatroom skill activate backlog --chatroom-id="${chatroomId}" --role="${role}"`,
+          },
         ],
         '    '
       )
