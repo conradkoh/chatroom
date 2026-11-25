@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ScheduledPromptsTab } from './ScheduledPromptsTab';
 import { buildScheduleFields } from '../features/scheduled-prompts/utils/scheduledPromptFields';
 import { utcMsToLocalDateTimeInput } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
 
@@ -203,7 +204,6 @@ describe('ScheduledPromptsTab', () => {
 
   it('shows empty state with add CTA when no prompts', async () => {
     mocks.list.mockReturnValue([]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     await waitFor(() => {
@@ -214,7 +214,6 @@ describe('ScheduledPromptsTab', () => {
 
   it('renders list when prompts returned', async () => {
     mocks.list.mockReturnValue([PROMPT_ACTIVE, PROMPT_ARCHIVE, PROMPT_USER_DISABLED]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     await waitFor(() => {
@@ -226,7 +225,6 @@ describe('ScheduledPromptsTab', () => {
 
   it('toggle calls setEnabled with enabled: false when Switch unchecked', async () => {
     mocks.list.mockReturnValue([PROMPT_ACTIVE]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     await waitFor(() => {
@@ -244,7 +242,6 @@ describe('ScheduledPromptsTab', () => {
 
   it('archive-disabled row has disabled Switch and shows Disabled by archive badge', async () => {
     mocks.list.mockReturnValue([PROMPT_ARCHIVE]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     await waitFor(() => {
@@ -263,7 +260,6 @@ describe('ScheduledPromptsTab', () => {
       intervalMinutes: 1,
     };
     mocks.list.mockReturnValue([intervalPrompt]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     await waitFor(() => {
@@ -275,7 +271,6 @@ describe('ScheduledPromptsTab', () => {
     desktopMock.value = true;
 
     mocks.list.mockReturnValue([PROMPT_ACTIVE]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     await waitFor(() => {
@@ -292,7 +287,6 @@ describe('ScheduledPromptsTab', () => {
   it('creates a one-time prompt with the datetime-local value converted to epoch ms', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -323,7 +317,6 @@ describe('ScheduledPromptsTab', () => {
   it('rejects a missing one-time value and does not call create', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -344,7 +337,6 @@ describe('ScheduledPromptsTab', () => {
   it('rejects a past one-time value and does not call create', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -383,7 +375,6 @@ describe('ScheduledPromptsTab', () => {
       },
     ]);
     mocks.update.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByTestId('scheduled-prompt-card'));
@@ -425,7 +416,6 @@ describe('ScheduledPromptsTab', () => {
       },
     ]);
     mocks.update.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByTestId('scheduled-prompt-card'));
@@ -461,7 +451,6 @@ describe('ScheduledPromptsTab', () => {
         nextRunAt: runAt,
       },
     ]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByTestId('scheduled-prompt-card'));
@@ -474,7 +463,6 @@ describe('ScheduledPromptsTab', () => {
 
   it('opens a prefilled one-time form from a composer request', async () => {
     mocks.list.mockReturnValue([]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
@@ -496,7 +484,6 @@ describe('ScheduledPromptsTab', () => {
 
   it('omits the attachment helper line when there are no attachments', async () => {
     mocks.list.mockReturnValue([]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
@@ -517,7 +504,6 @@ describe('ScheduledPromptsTab', () => {
     mocks.create.mockResolvedValue(undefined);
     const onScheduled = vi.fn();
     const onPendingPrefillCleared = vi.fn();
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
@@ -551,7 +537,6 @@ describe('ScheduledPromptsTab', () => {
     mocks.list.mockReturnValue([]);
     const onScheduled = vi.fn();
     const onPendingPrefillCleared = vi.fn();
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
@@ -575,7 +560,6 @@ describe('ScheduledPromptsTab', () => {
   it('Cmd+Enter in the prompt field submits the form', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -605,7 +589,6 @@ describe('ScheduledPromptsTab', () => {
   it('Ctrl+Enter also submits', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -635,7 +618,6 @@ describe('ScheduledPromptsTab', () => {
   it('plain Enter does not submit', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -651,7 +633,6 @@ describe('ScheduledPromptsTab', () => {
   it('Cmd+Enter with an empty prompt shows the existing validation message', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -675,7 +656,6 @@ describe('ScheduledPromptsTab', () => {
           resolveCreate = resolve;
         })
     );
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -695,7 +675,6 @@ describe('ScheduledPromptsTab', () => {
 
   it('the submit button advertises the shortcut', async () => {
     mocks.list.mockReturnValue([]);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -708,7 +687,6 @@ describe('ScheduledPromptsTab', () => {
   it('a fresh create form defaults to code + new session and sends the toggled policy', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByText('Add Scheduled Prompt'));
@@ -741,7 +719,6 @@ describe('ScheduledPromptsTab', () => {
   it('a composer request seeds the toggles from the composer policy', async () => {
     mocks.list.mockReturnValue([]);
     mocks.create.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(
       <ScheduledPromptsTab
         chatroomId="room-1"
@@ -772,7 +749,6 @@ describe('ScheduledPromptsTab', () => {
     desktopMock.value = true;
     mocks.list.mockReturnValue([PROMPT_ACTIVE]);
     mocks.update.mockResolvedValue(undefined);
-    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
     render(<ScheduledPromptsTab chatroomId="room-1" />);
 
     fireEvent.click(await screen.findByTestId('scheduled-prompt-card'));
