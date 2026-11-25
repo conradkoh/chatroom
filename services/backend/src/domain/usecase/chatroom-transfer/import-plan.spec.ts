@@ -381,6 +381,58 @@ describe('ref deferral', () => {
     });
   });
 
+  test('moves the handoff role into the links patch when its origin is deferred', () => {
+    // Both messages share chunk 0, so m0's origin moves to the links phase.
+    const sameChunk = planContent();
+    sameChunk.messages = [
+      row('m0', {
+        senderRole: 'builder',
+        content: 'done',
+        type: 'handoff',
+        taskOriginMessageId: 'm1',
+        terminalHandoffRole: 'planner',
+      }),
+      row('m1', { senderRole: 'user', content: 'go', type: 'message' }),
+    ];
+    sameChunk.tasks = [];
+
+    const plan = planOf(sameChunk);
+
+    expect(rowsOf(plan, 'messages')[0]).toEqual({
+      key: 'm0',
+      fields: { senderRole: 'builder', content: 'done', type: 'handoff' },
+    });
+    expect(patchesOf(plan)).toContainEqual({
+      table: 'messages',
+      key: 'm0',
+      fields: { taskOriginMessageId: 'm1', terminalHandoffRole: 'planner' },
+    });
+
+    // 201 messages: m200's origin m0 is in an earlier chunk, so the role stays put.
+    const earlierChunk = planContent();
+    earlierChunk.messages = Array.from({ length: 201 }, (_, index) =>
+      row(`m${index}`, { senderRole: 'user', content: `message ${index}`, type: 'message' })
+    );
+    earlierChunk.messages[200] = row('m200', {
+      senderRole: 'builder',
+      content: 'done',
+      type: 'handoff',
+      taskOriginMessageId: 'm0',
+      terminalHandoffRole: 'planner',
+    });
+    earlierChunk.tasks = [];
+
+    const second = planOf(earlierChunk);
+    const handoff = rowsOf(second, 'messages').find((entry) => entry.key === 'm200');
+    expect(handoff?.fields).toMatchObject({
+      taskOriginMessageId: 'm0',
+      terminalHandoffRole: 'planner',
+    });
+    expect(patchesOf(second).flatMap((patch) => Object.keys(patch.fields))).not.toContain(
+      'terminalHandoffRole'
+    );
+  });
+
   test('defers a whole array field instead of splitting it', () => {
     const content = planContent();
     // 201 messages makes two chunks: m0 and m1 share chunk 0, m200 is in chunk 1.

@@ -550,7 +550,11 @@ describe('leaf phases', () => {
     const chatroomId = await begin(sessionId, machineId);
 
     const error = await failure(
-      apply(sessionId, chatroomId, { phase: 'messages', rows: [], refs: {} } as ImportChunk)
+      apply(sessionId, chatroomId, {
+        phase: 'nonexistent',
+        rows: [],
+        refs: {},
+      } as unknown as ImportChunk)
     );
 
     expect(errorCode(error)).toBe('IMPORT_CHUNK_FAILED');

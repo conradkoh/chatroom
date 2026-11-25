@@ -31,7 +31,12 @@
 
 import { ConvexError } from 'convex/values';
 
-import { CHATROOM_SCOPED_TABLES, ROLLBACK_ORDER, type RollbackDescriptor } from './registry';
+import {
+  CHATROOM_SCOPED_TABLES,
+  ROLLBACK_ORDER,
+  type FieldRule,
+  type RollbackDescriptor,
+} from './registry';
 import { exportedEntryFor, rulesOf } from './registry-lookup';
 import { BACKEND_ERROR_CODES } from '../../../../config/errorCodes';
 import type { Id, Doc, TableNames } from '../../../../convex/_generated/dataModel';
@@ -41,6 +46,10 @@ import { getTeamPreset } from '../../entities/team-presets';
 import { insertChatroomWithTeam } from '../chatroom/create-chatroom';
 import { upsertReadCursor } from '../chatroom/read-cursor';
 import { clearChatroomUnread } from '../chatroom/unread-status';
+import { insertChatroomMessage, syncMessageReadModel } from '../message/message-read-model';
+import { syncActiveTaskHeader } from '../task/active-task-header';
+import { adjustTaskCount, statusToCountField, type TaskCountField } from '../task/task-counts';
+import { writeTaskStatusSignals } from '../task/write-task-status-signals';
 import { insertInitialPrimaryWorkspace } from '../workspace/insert-initial-primary-workspace';
 import { registerWorkspace } from '../workspace/register-workspace';
 
@@ -108,6 +117,14 @@ export type ImportChunk =
 // Public apply functions
 // ---------------------------------------------------------------------------
 
+/** Messages carry the source key's role instead of the derived key. */
+const HANDOFF_ROLE_FIELD = 'terminalHandoffRole';
+
+/** Mirrors `services/backend/convex/messages.ts`: `<chatroomId>:<originMessageId>:<role>:user`. */
+export function terminalHandoffKeyOf(chatroomId: string, originId: string, role: string): string {
+  return `${chatroomId}:${originId}:${role}:user`;
+}
+
 export async function beginImport(
   ctx: MutationCtx,
   a: { ownerId: Id<'users'>; header: ImportHeader; machineId: string }
@@ -148,14 +165,36 @@ export async function applyImportChunk(
   if (!isSupportedPhase(phase)) throw chunkFailure('phase not yet supported');
   assertChunkEnvelope(chunk);
 
+  return { created: await applySupportedChunk(ctx, a, phase, chunk) };
+}
+
+/** Dispatches a validated chunk. `agentConfigs` is refused above until P8b. */
+async function applySupportedChunk(
+  ctx: MutationCtx,
+  a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> },
+  phase: SupportedPhase,
+  chunk: LeafChunk | WorkspacesChunk | LinksChunk
+): Promise<Record<string, string>> {
   if (phase === 'workspaces') {
-    return {
-      created: await applyWorkspaces(ctx, a.chatroomId, chunk as WorkspacesChunk),
-    };
+    return await applyWorkspaces(ctx, a.chatroomId, chunk as WorkspacesChunk);
   }
-  return {
-    created: await applyLeafRows(ctx, a.chatroomId, a.ownerId, chunk as LeafChunk),
-  };
+  if (phase === 'links') {
+    await applyLinks(ctx, a.chatroomId, chunk as LinksChunk);
+    return {};
+  }
+  return await applyRowChunk(ctx, a, phase, chunk as LeafChunk);
+}
+
+async function applyRowChunk(
+  ctx: MutationCtx,
+  a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> },
+  phase: Exclude<SupportedPhase, 'workspaces' | 'links'>,
+  chunk: LeafChunk
+): Promise<Record<string, string>> {
+  if (phase === 'messages') return await applyMessages(ctx, a.chatroomId, a.ownerId, chunk);
+  if (phase === 'tasks') return await applyTasks(ctx, a.chatroomId, a.ownerId, chunk);
+  if (phase === 'messageQueue') return await applyMessageQueue(ctx, a.chatroomId, a.ownerId, chunk);
+  return await applyLeafRows(ctx, a.chatroomId, a.ownerId, chunk);
 }
 
 export async function finalizeImport(
@@ -271,6 +310,12 @@ interface LeafChunk {
   refs: Record<string, string>;
 }
 
+interface LinksChunk {
+  phase: 'links';
+  patches: LinkPatch[];
+  refs: Record<string, string>;
+}
+
 const LEAF_PHASES: ReadonlySet<string> = new Set<LeafPhase>([
   'artifacts',
   'backlog',
@@ -280,12 +325,24 @@ const LEAF_PHASES: ReadonlySet<string> = new Set<LeafPhase>([
   'skillCustomizations',
 ]);
 
+/** Every phase this round can apply; `agentConfigs` lands with the driver in P8b. */
+type SupportedPhase = 'workspaces' | 'links' | 'messages' | 'tasks' | 'messageQueue' | LeafPhase;
+
+const SUPPORTED_PHASES: ReadonlySet<string> = new Set<string>([
+  'workspaces',
+  'links',
+  'messages',
+  'tasks',
+  'messageQueue',
+  ...LEAF_PHASES,
+]);
+
 function phaseOf(chunk: unknown): unknown {
   return isRecord(chunk) ? chunk.phase : undefined;
 }
 
-function isSupportedPhase(phase: unknown): phase is 'workspaces' | LeafPhase {
-  return phase === 'workspaces' || (typeof phase === 'string' && LEAF_PHASES.has(phase));
+function isSupportedPhase(phase: unknown): phase is SupportedPhase {
+  return typeof phase === 'string' && SUPPORTED_PHASES.has(phase);
 }
 
 /**
@@ -294,25 +351,72 @@ function isSupportedPhase(phase: unknown): phase is 'workspaces' | LeafPhase {
  * partial write.
  */
 // fallow-ignore-next-line complexity
-function assertChunkEnvelope(chunk: unknown): asserts chunk is LeafChunk | WorkspacesChunk {
+function assertChunkEnvelope(
+  chunk: unknown
+): asserts chunk is LeafChunk | WorkspacesChunk | LinksChunk {
   if (!isRecord(chunk)) throw chunkFailure('chunk must be an object');
+  if (chunk.phase === 'links') assertLinksEnvelope(chunk);
+  else assertRowsEnvelope(chunk);
+  assertRefsEnvelope(chunk);
+}
+
+function assertRowsEnvelope(chunk: Record<string, unknown>): void {
   if (!Array.isArray(chunk.rows)) throw chunkFailure('chunk.rows must be an array');
-  for (const row of chunk.rows) {
-    if (!isRecord(row)) throw chunkFailure('each chunk row must be an object');
-    if (typeof row.key !== 'string') throw chunkFailure('each chunk row needs a string key');
-    if (!isRecord(row.fields)) throw chunkFailure(`row ${row.key} needs a fields object`);
+  for (const row of chunk.rows) assertRowPayload(row);
+  if (chunk.phase === 'workspaces') assertWorkspacesEnvelope(chunk);
+}
+
+function assertRowPayload(row: unknown): void {
+  if (!isRecord(row)) throw chunkFailure('each chunk row must be an object');
+  if (typeof row.key !== 'string') throw chunkFailure('each chunk row needs a string key');
+  if (!isRecord(row.fields)) throw chunkFailure(`row ${row.key} needs a fields object`);
+}
+
+function assertWorkspacesEnvelope(chunk: Record<string, unknown>): void {
+  if (typeof chunk.machineId !== 'string') {
+    throw chunkFailure('a workspaces chunk needs a machineId');
   }
+  if (typeof chunk.primaryKey !== 'string' && chunk.primaryKey !== null) {
+    throw chunkFailure('a workspaces chunk needs a primaryKey or null');
+  }
+}
+
+function assertLinksEnvelope(chunk: Record<string, unknown>): void {
+  if (!Array.isArray(chunk.patches)) throw chunkFailure('a links chunk needs a patches array');
+  for (const patch of chunk.patches) assertLinkPatch(patch);
+}
+
+function assertLinkPatch(patch: unknown): void {
+  if (!isRecord(patch)) throw chunkFailure('each link patch must be an object');
+  assertLinkTable(patch.table);
+  if (typeof patch.key !== 'string') throw chunkFailure('each link patch needs a string key');
+  assertLinkFields(patch.fields);
+}
+
+function assertLinkTable(table: unknown): void {
+  if (table !== 'messages' && table !== 'tasks' && table !== 'artifacts') {
+    throw chunkFailure('a link patch targets messages, tasks or artifacts');
+  }
+}
+
+function assertLinkFields(fields: unknown): void {
+  if (!isRecord(fields)) throw chunkFailure('each link patch needs a fields object');
+  for (const value of Object.values(fields)) {
+    if (!isLinkFieldValue(value)) {
+      throw chunkFailure('link field values must be string keys or arrays of them');
+    }
+  }
+}
+
+function isLinkFieldValue(value: unknown): boolean {
+  if (typeof value === 'string') return true;
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+function assertRefsEnvelope(chunk: Record<string, unknown>): void {
   if (!isRecord(chunk.refs)) throw chunkFailure('chunk.refs must be an object');
   for (const value of Object.values(chunk.refs)) {
     if (typeof value !== 'string') throw chunkFailure('chunk.refs values must be strings');
-  }
-  if (chunk.phase === 'workspaces') {
-    if (typeof chunk.machineId !== 'string') {
-      throw chunkFailure('a workspaces chunk needs a machineId');
-    }
-    if (typeof chunk.primaryKey !== 'string' && chunk.primaryKey !== null) {
-      throw chunkFailure('a workspaces chunk needs a primaryKey or null');
-    }
   }
 }
 
@@ -382,30 +486,315 @@ async function applyLeafRows(
   chunk: LeafChunk
 ): Promise<Record<string, string>> {
   const { table } = exportedEntryFor(chunk.phase);
-  const rules = rulesOf(table);
   const created: Record<string, string> = {};
 
   for (const row of chunk.rows) {
-    const doc: Record<string, unknown> = {
-      chatroomId,
-      ...serverFieldsFor(table, ownerId),
-    };
-    for (const [field, value] of Object.entries(row.fields)) {
-      const rule = rules[field];
-      if (!rule || !WRITABLE_RULES.has(rule.rule)) {
-        throw chunkFailure(`field ${field} is not importable`);
-      }
-      doc[field] =
-        rule.rule === 'ref'
-          ? await resolveRef(ctx, rule.table, chatroomId, chunk.refs, value)
-          : value;
-    }
-
+    const doc = await buildRowDoc(ctx, table, chatroomId, ownerId, row.fields, chunk.refs);
     const id = await insertRow(ctx, table, doc);
     created[row.key] = String(id);
   }
 
   return created;
+}
+
+/**
+ * Builds the target row for one file row: the chatroom, the server-set fields,
+ * then every writable registry field, resolving refs through `refs`.
+ */
+async function buildRowDoc(
+  ctx: MutationCtx,
+  table: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  ownerId: Id<'users'>,
+  fields: Record<string, unknown>,
+  refs: Record<string, string>
+): Promise<Record<string, unknown>> {
+  const rules = rulesOf(table);
+  const doc: Record<string, unknown> = {
+    chatroomId,
+    ...serverFieldsFor(table, ownerId),
+  };
+  for (const [field, value] of Object.entries(fields)) {
+    doc[field] = await writableValue(ctx, chatroomId, refs, rules[field], field, value);
+  }
+  return doc;
+}
+
+/** One field through its registry rule; a field without a writable rule is refused. */
+async function writableValue(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  refs: Record<string, string>,
+  rule: FieldRule | undefined,
+  field: string,
+  value: unknown
+): Promise<unknown> {
+  if (!rule || !WRITABLE_RULES.has(rule.rule)) {
+    throw chunkFailure(`field ${field} is not importable`);
+  }
+  return rule.rule === 'ref' ? await resolveRef(ctx, rule.table, chatroomId, refs, value) : value;
+}
+
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+
+/**
+ * A message row may carry `terminalHandoffRole` — the source key's third segment
+ * — outside the registry. The key is derived from the new chatroom and the new
+ * origin id, never copied from the file.
+ */
+async function applyMessages(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  ownerId: Id<'users'>,
+  chunk: LeafChunk
+): Promise<Record<string, string>> {
+  const created: Record<string, string> = {};
+
+  for (const row of chunk.rows) {
+    const { [HANDOFF_ROLE_FIELD]: role, ...fields } = row.fields;
+    const doc = await buildRowDoc(
+      ctx,
+      'chatroom_messages',
+      chatroomId,
+      ownerId,
+      fields,
+      chunk.refs
+    );
+    addHandoffKey(chatroomId, doc, role);
+    const id = await insertChatroomMessage(ctx, doc as never);
+    created[row.key] = String(id);
+  }
+
+  return created;
+}
+
+/**
+ * Derives the key from the new chatroom and the row's resolved origin. The
+ * planner keeps the role on the row only when the origin is immediate.
+ */
+function addHandoffKey(
+  chatroomId: Id<'chatroom_rooms'>,
+  doc: Record<string, unknown>,
+  role: unknown
+): void {
+  if (role === undefined) return;
+  if (typeof role !== 'string' || typeof doc.taskOriginMessageId !== 'string') {
+    throw chunkFailure('terminalHandoffRole needs a resolved taskOriginMessageId');
+  }
+  doc.terminalHandoffKey = terminalHandoffKeyOf(chatroomId, doc.taskOriginMessageId, role);
+}
+
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+/**
+ * Tasks write three derived states: the active header projection, the status
+ * signal, and the materialized counters. They are written once per row so the
+ * counts after a chunk equal the rows the chunk added.
+ */
+async function applyTasks(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  ownerId: Id<'users'>,
+  chunk: LeafChunk
+): Promise<Record<string, string>> {
+  const created: Record<string, string> = {};
+  const counts: Partial<Record<TaskCountField, number>> = {};
+
+  for (const row of chunk.rows) {
+    const doc = await buildRowDoc(
+      ctx,
+      'chatroom_tasks',
+      chatroomId,
+      ownerId,
+      row.fields,
+      chunk.refs
+    );
+    const id = await insertRow(ctx, 'chatroom_tasks', doc);
+    await projectImportedTask(ctx, id as Id<'chatroom_tasks'>, counts);
+    created[row.key] = String(id);
+  }
+
+  await applyTaskCounts(ctx, chatroomId, counts);
+  return created;
+}
+
+/** Writes the two projections and records the task's status counter. */
+async function projectImportedTask(
+  ctx: MutationCtx,
+  taskId: Id<'chatroom_tasks'>,
+  counts: Partial<Record<TaskCountField, number>>
+): Promise<void> {
+  const task = await ctx.db.get('chatroom_tasks', taskId);
+  if (!task) throw chunkFailure(`task ${taskId} was not written`);
+
+  await syncActiveTaskHeader(ctx, task);
+  await writeTaskStatusSignals(ctx, task);
+  const field = statusToCountField(task.status);
+  if (field) counts[field] = (counts[field] ?? 0) + 1;
+}
+
+/** One increment per field, after the chunk, so counts equal the rows added. */
+async function applyTaskCounts(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  counts: Partial<Record<TaskCountField, number>>
+): Promise<void> {
+  for (const [field, count] of Object.entries(counts)) {
+    await adjustTaskCount(ctx, chatroomId, field as TaskCountField, count);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Message queue
+// ---------------------------------------------------------------------------
+
+async function applyMessageQueue(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  ownerId: Id<'users'>,
+  chunk: LeafChunk
+): Promise<Record<string, string>> {
+  const created: Record<string, string> = {};
+
+  for (const row of chunk.rows) {
+    const doc = await buildRowDoc(
+      ctx,
+      'chatroom_messageQueue',
+      chatroomId,
+      ownerId,
+      row.fields,
+      chunk.refs
+    );
+    const id = await insertRow(ctx, 'chatroom_messageQueue', doc);
+    created[row.key] = String(id);
+  }
+
+  if (chunk.rows.length > 0) {
+    await adjustTaskCount(ctx, chatroomId, 'queueSize', chunk.rows.length);
+  }
+
+  return created;
+}
+
+// ---------------------------------------------------------------------------
+// Links
+// ---------------------------------------------------------------------------
+
+async function applyLinks(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  chunk: LinksChunk
+): Promise<void> {
+  for (const patch of chunk.patches) {
+    await applyLinkPatch(ctx, chatroomId, chunk.refs, patch);
+  }
+}
+
+/**
+ * Patches one row's deferred ref fields. The patch's own key goes through
+ * `resolveRefKey` so a row in another chatroom is refused, and a field without
+ * a `ref` rule is refused because only links are deferred.
+ */
+async function applyLinkPatch(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  refs: Record<string, string>,
+  patch: LinkPatch
+): Promise<void> {
+  const { table } = exportedEntryFor(patch.table);
+  const id = await resolveLinkRow(ctx, table, chatroomId, refs, patch.key);
+  const fields = await linkFieldsOf(ctx, table, chatroomId, refs, patch.fields);
+
+  if (Object.keys(fields).length > 0) {
+    await ctx.db.patch(table as TableNames, id as never, fields as never);
+  }
+  if (table === 'chatroom_messages') await applyMessageLink(ctx, chatroomId, id, patch.fields);
+  if (table === 'chatroom_tasks') await refreshTaskHeader(ctx, id);
+}
+
+/** The patch's own row; a missing or cross-chatroom row is a chunk failure. */
+async function resolveLinkRow(
+  ctx: MutationCtx,
+  table: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  refs: Record<string, string>,
+  key: string
+): Promise<string> {
+  const resolved = await resolveRefKey(ctx, table, chatroomId, refs, key);
+  if (typeof resolved !== 'string') throw chunkFailure(`unresolved reference ${key}`);
+  return resolved;
+}
+
+/** Resolves every ref field of a patch, leaving the handoff role to its own step. */
+async function linkFieldsOf(
+  ctx: MutationCtx,
+  table: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  refs: Record<string, string>,
+  values: Record<string, string | string[]>
+): Promise<Record<string, unknown>> {
+  const rules = rulesOf(table);
+  const fields: Record<string, unknown> = {};
+
+  for (const [field, value] of Object.entries(values)) {
+    if (isHandoffRoleField(table, field)) continue; // handled by applyMessageLink
+    fields[field] = await linkFieldValue(ctx, rules[field], field, chatroomId, refs, value);
+  }
+
+  return fields;
+}
+
+async function linkFieldValue(
+  ctx: MutationCtx,
+  rule: FieldRule | undefined,
+  field: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  refs: Record<string, string>,
+  value: string | string[]
+): Promise<unknown> {
+  if (rule?.rule !== 'ref') throw chunkFailure(`field ${field} is not a link field`);
+  return await resolveRef(ctx, rule.table, chatroomId, refs, value);
+}
+
+/** The handoff role rides in a message's link patch but is not a ref field. */
+function isHandoffRoleField(table: string, field: string): boolean {
+  return table === 'chatroom_messages' && field === HANDOFF_ROLE_FIELD;
+}
+
+/** Derives the handoff key after the origin link landed, then syncs the read model. */
+async function applyMessageLink(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  messageId: string,
+  values: Record<string, string | string[]>
+): Promise<void> {
+  const role = values[HANDOFF_ROLE_FIELD];
+  if (role !== undefined) await deriveMessageHandoffKey(ctx, chatroomId, messageId, role);
+  await syncMessageReadModel(ctx, messageId as Id<'chatroom_messages'>);
+}
+
+async function deriveMessageHandoffKey(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  messageId: string,
+  role: unknown
+): Promise<void> {
+  const message = await ctx.db.get('chatroom_messages', messageId as Id<'chatroom_messages'>);
+  if (typeof role !== 'string' || !message?.taskOriginMessageId) {
+    throw chunkFailure('terminalHandoffRole needs a linked taskOriginMessageId');
+  }
+  await ctx.db.patch('chatroom_messages', message._id, {
+    terminalHandoffKey: terminalHandoffKeyOf(chatroomId, message.taskOriginMessageId, role),
+  });
+}
+
+async function refreshTaskHeader(ctx: MutationCtx, taskId: string): Promise<void> {
+  const task = await ctx.db.get('chatroom_tasks', taskId as Id<'chatroom_tasks'>);
+  if (task) await syncActiveTaskHeader(ctx, task);
 }
 
 /** Only copy/reset/ref rules are written by an import. */

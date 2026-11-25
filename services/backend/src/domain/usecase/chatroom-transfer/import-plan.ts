@@ -152,7 +152,7 @@ const MESSAGES_TABLE = exportedEntryFor('messages').table;
 /** The room row's primary pointer mirrors this table's `workspaceId` ref. */
 const PRIMARY_WORKSPACES_TABLE = 'chatroom_primaryWorkspaces';
 
-/** Messages pass this derived field through unchanged; P8 recomputes the key. */
+/** Messages pass this derived field through unchanged; P8 derives the key from this role (import-apply.ts). */
 const HANDOFF_ROLE_FIELD = 'terminalHandoffRole';
 
 const NON_TERMINAL_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
@@ -955,7 +955,19 @@ function deferredFields(
     deferred[field] = row.fields[field] as string | string[];
     delete row.fields[field];
   }
+  // The handoff role derives the message's key from the origin's new id, so it
+  // travels with the origin link. A role whose origin is immediate stays on the row.
+  moveHandoffRole(row, deferred);
   return deferred;
+}
+
+/** The role can only be resolved once the origin's new id exists. */
+function moveHandoffRole(row: ImportRowPayload, deferred: Record<string, string | string[]>): void {
+  const role = row.fields[HANDOFF_ROLE_FIELD];
+  if (deferred.taskOriginMessageId !== undefined && typeof role === 'string') {
+    deferred[HANDOFF_ROLE_FIELD] = role;
+    delete row.fields[HANDOFF_ROLE_FIELD];
+  }
 }
 
 function shouldDefer(
