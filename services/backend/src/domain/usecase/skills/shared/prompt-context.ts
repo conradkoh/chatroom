@@ -1,7 +1,8 @@
 import type { SkillPromptContext } from '../registry';
 
-/** Ids and roles are inlined into shell commands, so only plain tokens are accepted. */
-const SAFE_REF = /^[A-Za-z0-9_-]+$/;
+/** Ids and roles are inlined into shell commands, so only plain tokens of at most 128 characters are accepted. */
+const SAFE_REF = /^[A-Za-z0-9_-]{1,128}$/;
+const HAS_ALPHANUMERIC = /[A-Za-z0-9]/;
 
 export interface ResolvedSkillPromptRefs {
   cliEnvPrefix: string;
@@ -11,7 +12,7 @@ export interface ResolvedSkillPromptRefs {
 
 /** Return the value only when it is a plain token; anything else is unusable. */
 function safeRef(value: string | undefined): string | undefined {
-  return value && SAFE_REF.test(value) ? value : undefined;
+  return value && SAFE_REF.test(value) && HAS_ALPHANUMERIC.test(value) ? value : undefined;
 }
 
 /**

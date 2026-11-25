@@ -10,6 +10,13 @@
 const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 
 /**
+ * A Convex URL may be inlined into a shell command only when it is a plain
+ * http(s) URL: scheme, host, optional port, optional simple path.
+ * Quotes, spaces, shell metacharacters and newlines never match.
+ */
+const PLAIN_HTTP_URL = /^https?:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?(?:\/[A-Za-z0-9._~-]+)*\/?$/;
+
+/**
  * Prompt configuration interface
  */
 export interface PromptConfig {
@@ -31,7 +38,8 @@ export interface PromptConfig {
   isProductionConvexURL(convexUrl: string | undefined): boolean;
 
   /**
-   * Get CLI environment variable prefix for non-production environments
+   * Get CLI environment variable prefix. Returns an empty string for production,
+   * for a missing URL, and for any value that is not a plain http(s) URL.
    * @param convexUrl - Optional Convex URL, returns empty string for production
    */
   getCliEnvPrefix(convexUrl: string | undefined): string;
@@ -55,7 +63,10 @@ class PromptConfigImpl implements PromptConfig {
   }
 
   getCliEnvPrefix(convexUrl: string | undefined): string {
-    if (this.isProductionConvexURL(convexUrl)) {
+    if (!convexUrl || this.isProductionConvexURL(convexUrl)) {
+      return '';
+    }
+    if (!PLAIN_HTTP_URL.test(convexUrl)) {
       return '';
     }
     return `CHATROOM_CONVEX_URL=${convexUrl} `;
