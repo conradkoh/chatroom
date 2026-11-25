@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { AttachmentsProvider } from '@/modules/chatroom/attachments';
 import {
