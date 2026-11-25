@@ -6,7 +6,7 @@ export const dataDesignSkill: SkillModule = {
   name: 'Data & Query Design',
   description:
     'Use when persistence or query patterns change: make schema, index, scan, timeout, and invalidation decisions explicit.',
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "data-design" skill.
+  getPrompt: () => `You have been activated with the "data-design" skill.
 
 # Data & Query Design
 

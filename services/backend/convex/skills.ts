@@ -50,7 +50,7 @@ export const getDefaultSkillContent = query({
   handler: async (_ctx, args) => {
     const skill = SKILLS_REGISTRY.find((s) => s.skillId === args.skillId);
     if (!skill) return null;
-    const fullPrompt = skill.getPrompt('');
+    const fullPrompt = skill.getPrompt({ cliEnvPrefix: '' });
     // Strip the leading activation header so the editor shows only the customizable body.
     const lines = fullPrompt.split('\n');
     const firstSubstantiveLine = lines.findIndex((l) => l.startsWith('## '));
@@ -67,12 +67,17 @@ export const get = query({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     skillId: v.string(),
+    role: v.optional(v.string()),
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
-    return getSkill(args.skillId, cliEnvPrefix);
+    return getSkill(args.skillId, {
+      cliEnvPrefix,
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
   },
 });
 

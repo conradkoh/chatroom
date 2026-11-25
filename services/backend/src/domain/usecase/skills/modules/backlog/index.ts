@@ -3,19 +3,22 @@ import {
   backlogUpdateCommand,
 } from '../../../../../../prompts/cli/backlog/command';
 import type { SkillModule } from '../../registry';
+import { resolveSkillPromptRefs } from '../../shared/prompt-context';
 
 export const backlogSkill: SkillModule = {
   skillId: 'backlog',
   name: 'Backlog Management',
   description:
     'Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.',
-  getPrompt: (cliEnvPrefix: string) => `You have been activated with the "backlog" skill.
+  getPrompt: (ctx) => {
+    const { cliEnvPrefix, chatroomId, role } = resolveSkillPromptRefs(ctx);
+    return `You have been activated with the "backlog" skill.
 
 ## Command Reference
 
 ### List
 \`\`\`
-${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role>
+${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role}
 \`\`\`
 Options: \`--limit=<n>\`, \`--sort=date:desc|priority:desc\`, \`--filter=unscored\` (only items without a priority score)
 
@@ -23,7 +26,7 @@ The list output shows scoring info (complexity, value, priority) for each item i
 
 ### History
 \`\`\`
-${cliEnvPrefix}chatroom backlog history --chatroom-id=<id> --role=<role>
+${cliEnvPrefix}chatroom backlog history --chatroom-id=${chatroomId} --role=${role}
 \`\`\`
 Options: \`--from=YYYY-MM-DD\`, \`--to=YYYY-MM-DD\`, \`--limit=<n>\`
 
@@ -35,22 +38,22 @@ Use \`history\` for finished work; use \`list\` for active backlog items.
 Content via **stdin / heredoc** or \`--content-file\`:
 
 \`\`\`
-${backlogAddCommand({ cliEnvPrefix })}
+${backlogAddCommand({ cliEnvPrefix, chatroomId, role })}
 \`\`\`
 
 \`\`\`
-${cliEnvPrefix}chatroom backlog add --chatroom-id=<id> --role=<role> --content-file=./task.md
+${cliEnvPrefix}chatroom backlog add --chatroom-id=${chatroomId} --role=${role} --content-file=./task.md
 \`\`\`
 
 ### Update
 Replace the **text content** of an existing item. Allowed only while the item is in \`backlog\` status. Same input pattern as **add** (stdin/heredoc or \`--content-file\`).
 
 \`\`\`
-${backlogUpdateCommand({ cliEnvPrefix })}
+${backlogUpdateCommand({ cliEnvPrefix, chatroomId, role, backlogItemId: '<item-id>' })}
 \`\`\`
 
 \`\`\`
-${cliEnvPrefix}chatroom backlog update --chatroom-id=<id> --role=<role> --backlog-item-id=<id> --content-file=./revised.md
+${cliEnvPrefix}chatroom backlog update --chatroom-id=${chatroomId} --role=${role} --backlog-item-id=<item-id> --content-file=./revised.md
 \`\`\`
 
 Use **update** to revise a description in place instead of adding a superseding item.
@@ -59,7 +62,7 @@ Use **update** to revise a description in place instead of adding a superseding 
 **Requires at least one** of \`--complexity\`, \`--value\`, or \`--priority\` (you can combine multiple).
 
 \`\`\`
-${cliEnvPrefix}chatroom backlog score --chatroom-id=<id> --role=<role> --backlog-item-id=<id> \\
+${cliEnvPrefix}chatroom backlog score --chatroom-id=${chatroomId} --role=${role} --backlog-item-id=<item-id> \\
   [--complexity=<low|medium|high>] \\
   [--value=<low|medium|high>] \\
   [--priority=<n>]
@@ -72,24 +75,24 @@ Check the list output — items showing "Score: ..." are already scored. Skip th
 
 ### Complete
 \`\`\`
-${cliEnvPrefix}chatroom backlog complete --chatroom-id=<id> --role=<role> --backlog-item-id=<id>
+${cliEnvPrefix}chatroom backlog complete --chatroom-id=${chatroomId} --role=${role} --backlog-item-id=<item-id>
 \`\`\`
 
 \`complete\` takes only \`--chatroom-id\`, \`--role\`, and \`--backlog-item-id\`. Do not pass any force or override option: the server does not apply one, so \`complete\` behaves the same either way. Use it only under the rules in Lifecycle below.
 
 ### Reopen
 \`\`\`
-${cliEnvPrefix}chatroom backlog reopen --chatroom-id=<id> --role=<role> --backlog-item-id=<id>
+${cliEnvPrefix}chatroom backlog reopen --chatroom-id=${chatroomId} --role=${role} --backlog-item-id=<item-id>
 \`\`\`
 
 ### Mark for Review
 \`\`\`
-${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --backlog-item-id=<id>
+${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=${chatroomId} --role=${role} --backlog-item-id=<item-id>
 \`\`\`
 
 ### Export
 \`\`\`
-${cliEnvPrefix}chatroom backlog export --chatroom-id=<id> --role=<role> [--path=<directory>]
+${cliEnvPrefix}chatroom backlog export --chatroom-id=${chatroomId} --role=${role} [--path=<directory>]
 \`\`\`
 Exports all backlog items (status=\`backlog\`) to a \`backlog-export.json\` file in the specified directory.
 Creates the directory if it doesn't exist.
@@ -97,7 +100,7 @@ Default path (if \`--path\` is omitted): \`<cwd>/.chatroom/exports/\`
 
 ### Import
 \`\`\`
-${cliEnvPrefix}chatroom backlog import --chatroom-id=<id> --role=<role> [--path=<directory>]
+${cliEnvPrefix}chatroom backlog import --chatroom-id=${chatroomId} --role=${role} [--path=<directory>]
 \`\`\`
 Imports backlog items from a \`backlog-export.json\` file in the specified directory.
 - **Idempotent**: skips items whose content already exists (matched by SHA-256 content hash)
@@ -108,7 +111,7 @@ Default path (if \`--path\` is omitted): \`<cwd>/.chatroom/exports/\`
 Retires an item as stale, superseded, or duplicate. **\`--reason\` is required** (audit trail).
 
 \`\`\`
-${cliEnvPrefix}chatroom backlog close --chatroom-id=<id> --role=<role> --backlog-item-id=<id> --reason="duplicate of XYZ"
+${cliEnvPrefix}chatroom backlog close --chatroom-id=${chatroomId} --role=${role} --backlog-item-id=<item-id> --reason="duplicate of XYZ"
 \`\`\`
 
 ⚠️ **RESTRICTED: Only use when the user explicitly asks you to close an item.**
@@ -121,7 +124,7 @@ Soft-deletes an item from any status (backlog / pending_user_review / closed). T
 referential integrity, excluded from normal backlog lists, and cannot be reopened.
 
 \`\`\`
-${cliEnvPrefix}chatroom backlog delete --chatroom-id=<id> --role=<role> --backlog-item-id=<id>
+${cliEnvPrefix}chatroom backlog delete --chatroom-id=${chatroomId} --role=${role} --backlog-item-id=<item-id>
 \`\`\`
 
 ⚠️ **RESTRICTED: Only use when the user explicitly asks you to delete an item.**
@@ -224,7 +227,7 @@ Follow these steps to clean up the backlog by identifying and closing stale item
 
 1. List all backlog items:
    \`\`\`
-   ${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role>
+   ${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role}
    \`\`\`
 
 2. For each item, assess staleness:
@@ -235,7 +238,7 @@ Follow these steps to clean up the backlog by identifying and closing stale item
 
 3. For stale items, mark for review:
    \`\`\`
-   ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --backlog-item-id=<item-id>
+   ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=${chatroomId} --role=${role} --backlog-item-id=<item-id>
    \`\`\`
    **Important:** Always mark for review — do NOT close directly. Let the user confirm.
 
@@ -272,5 +275,6 @@ flowchart TD
 - Default path is \`<cwd>/.chatroom/exports/\` — no \`--path\` needed for standard usage
 - Use \`--path=<dir>\` to override with a custom directory
 - Imports are idempotent — running import twice with the same file won't create duplicates
-- Each item is identified by a SHA-256 hash of its content`,
+- Each item is identified by a SHA-256 hash of its content`;
+  },
 };

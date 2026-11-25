@@ -52,25 +52,25 @@ describe('game-asset skills registration', () => {
 
 describe('game-asset skill prompts', () => {
   it.each(NEW_SKILLS)('$id returns a prompt with the activation header', ({ id, module }) => {
-    const prompt = module.getPrompt('');
+    const prompt = module.getPrompt({ cliEnvPrefix: '' });
     expect(prompt.length).toBeGreaterThan(0);
     expect(prompt.startsWith(`You have been activated with the "${id}" skill.`)).toBe(true);
   });
 
   it.each(NEW_SKILLS)('$id defers to the shared rules in the role prompt', ({ module }) => {
-    const prompt = module.getPrompt('');
+    const prompt = module.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('shared rules in your role prompt apply');
     expect(prompt).not.toContain('- R1 ');
     expect(prompt).not.toContain('a tool or script you ran on the actual file');
   });
 
   it.each(NEW_SKILLS)('$id lets an unverified item be marked not checked', ({ module }) => {
-    const prompt = module.getPrompt('');
+    const prompt = module.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('`not checked` with its evidence label');
   });
 
   it('3D AI prompt anchors the generate-3d command and its dry run', () => {
-    const prompt = gameAsset3dAiSkill.getPrompt('');
+    const prompt = gameAsset3dAiSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('chatroom generate-3d --platform=fal');
     expect(prompt).toContain('--model <Model>');
     expect(prompt).toContain('--dry-run');
@@ -81,7 +81,7 @@ describe('game-asset skill prompts', () => {
   });
 
   it('3D AI prompt keeps the lighting contract and its evidence rules', () => {
-    const prompt = gameAsset3dAiSkill.getPrompt('');
+    const prompt = gameAsset3dAiSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('visible, coloured');
     expect(prompt).toContain("preview's Directional and Unlit modes are the game case");
     expect(prompt).toContain('mark that preview inspection `not checked` with the reason');
@@ -91,7 +91,7 @@ describe('game-asset skill prompts', () => {
   });
 
   it('3D AI prompt keeps the glTF measurement hint', () => {
-    const prompt = gameAsset3dAiSkill.getPrompt('');
+    const prompt = gameAsset3dAiSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain(
       'Measure the exported master GLB before recording it: for glTF, `gltf-transform inspect <file>` lists meshes'
     );
@@ -100,7 +100,7 @@ describe('game-asset skill prompts', () => {
   it.each(NEW_SKILLS.map(({ id, module }) => [id, module] as const))(
     'ai and procedural prompts: %s references the shared All assets checklist instead of restating it',
     (_id, module) => {
-      const prompt = module.getPrompt('');
+      const prompt = module.getPrompt({ cliEnvPrefix: '' });
       expect(prompt).toContain("Also apply the role prompt's All assets checklist.");
       expect(prompt).not.toContain('Naming follows the project convention');
       expect(prompt).not.toContain('Style matches the named style reference');
@@ -112,7 +112,7 @@ describe('game-asset skill prompts', () => {
     ['3D AI', gameAsset3dAiSkill],
     ['procedural', gameAsset3dProceduralSkill],
   ] as const)('%s prompt defers the lighting definitions to the role prompt', (_label, module) => {
-    const prompt = module.getPrompt('');
+    const prompt = module.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).not.toContain('the existing render of the target rig');
     expect(prompt).not.toContain(
       "a render of the generated asset loaded in the project's real scene"
@@ -121,7 +121,7 @@ describe('game-asset skill prompts', () => {
   });
 
   it('procedural prompt shares the AI 3D PBR checklist', () => {
-    const prompt = gameAsset3dProceduralSkill.getPrompt('');
+    const prompt = gameAsset3dProceduralSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('Verify the slot for each map');
     expect(prompt).toContain('for example Unreal; confirm for the target engine version');
     expect(prompt).toContain('no baked-in lighting or text in base color');
@@ -129,7 +129,7 @@ describe('game-asset skill prompts', () => {
 
   it('3D prompts backtick the shared lighting headings', () => {
     for (const module of [gameAsset3dAiSkill, gameAsset3dProceduralSkill]) {
-      const prompt = module.getPrompt('');
+      const prompt = module.getPrompt({ cliEnvPrefix: '' });
       expect(prompt).toContain("the brief's `## Lighting contract`");
       expect(prompt).toContain('under `## Lighting verification`');
     }
@@ -139,13 +139,13 @@ describe('game-asset skill prompts', () => {
     ['3D AI', gameAsset3dAiSkill],
     ['procedural', gameAsset3dProceduralSkill],
   ] as const)('%s prompt marks the shared lighting item once', (_label, module) => {
-    const prompt = module.getPrompt('');
+    const prompt = module.getPrompt({ cliEnvPrefix: '' });
     expect(prompt.match(/\*\*Lighting\*\*/g)).toHaveLength(1);
     expect(prompt).toContain('This is the same item as in All assets; mark it once.');
   });
 
   it('2D AI prompt anchors the generate-image and slice-image commands', () => {
-    const prompt = gameAsset2dAiSkill.getPrompt('');
+    const prompt = gameAsset2dAiSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('chatroom generate-image --platform=fal');
     expect(prompt).toContain('--model <Model>');
     expect(prompt).toContain("--input '<JSON>'");
@@ -156,7 +156,7 @@ describe('game-asset skill prompts', () => {
   });
 
   it('2D AI prompt keeps the trim, naming, and sheet rules', () => {
-    const prompt = gameAsset2dAiSkill.getPrompt('');
+    const prompt = gameAsset2dAiSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('Always pass `--trim` to `chatroom remove-image-background`');
     expect(prompt).toContain('use `--trim-padding` only when the brief names a padding');
     expect(prompt).toContain('Never pass `--names` to `slice-image`');
@@ -173,13 +173,13 @@ describe('game-asset skill prompts', () => {
   });
 
   it('2D AI prompt keeps the perspective and seed wording', () => {
-    const prompt = gameAsset2dAiSkill.getPrompt('');
+    const prompt = gameAsset2dAiSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('A shared seed does not keep perspective across different prompts');
     expect(prompt).toContain("(the brief's `Perspective`, or the one recorded under assumptions)");
   });
 
   it('procedural prompt anchors the measured inspection and forbids remote generators', () => {
-    const prompt = gameAsset3dProceduralSkill.getPrompt('');
+    const prompt = gameAsset3dProceduralSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('gltf-transform inspect');
     expect(prompt).not.toContain('measurement command the brief names');
     expect(prompt).not.toContain("the brief's measurement command");
@@ -189,7 +189,7 @@ describe('game-asset skill prompts', () => {
   });
 
   it('procedural prompt keeps one committed-config policy and its lighting item', () => {
-    const prompt = gameAsset3dProceduralSkill.getPrompt('');
+    const prompt = gameAsset3dProceduralSkill.getPrompt({ cliEnvPrefix: '' });
     expect(prompt).toContain('visible, coloured');
     expect(prompt).toContain('committed only when `## Commit` names it');
     expect(prompt).not.toContain('versioned, committed config');

@@ -351,7 +351,7 @@ describe('skills.activate — backlog skill role-neutral contract', () => {
     'import',
   ];
 
-  test('two different roles get an identical, role-neutral backlog prompt', async () => {
+  test('two roles get the same role-neutral backlog prompt once ids are normalized', async () => {
     const { sessionId } = await createTestSession('skills-backlog-neutral-1');
     const chatroomId = await createChatroom(sessionId);
 
@@ -368,8 +368,23 @@ describe('skills.activate — backlog skill role-neutral contract', () => {
       role: 'planner',
     });
 
-    expect(asBuilder.skill.prompt).toBe(asPlanner.skill.prompt);
-    expect(asBuilder.skill.prompt.match(ROLE_NAME_PATTERN) ?? []).toEqual([]);
+    // Each raw prompt carries its own activating role and the real chatroom id.
+    expect(asBuilder.skill.prompt).toContain(`--chatroom-id=${chatroomId} --role=builder`);
+    expect(asBuilder.skill.prompt).not.toContain('--role=planner');
+    expect(asPlanner.skill.prompt).toContain(`--chatroom-id=${chatroomId} --role=planner`);
+    expect(asPlanner.skill.prompt).not.toContain('--role=builder');
+
+    const normalize = (prompt: string, role: string) =>
+      prompt
+        .split(`--chatroom-id=${chatroomId}`)
+        .join('--chatroom-id=<id>')
+        .split(`--role=${role}`)
+        .join('--role=<role>');
+
+    const normalizedBuilder = normalize(asBuilder.skill.prompt, 'builder');
+    const normalizedPlanner = normalize(asPlanner.skill.prompt, 'planner');
+    expect(normalizedBuilder).toBe(normalizedPlanner);
+    expect(normalizedBuilder.match(ROLE_NAME_PATTERN) ?? []).toEqual([]);
   });
 
   test('does not advertise the complete force flag', async () => {
@@ -473,5 +488,171 @@ describe('skills.activate — backlog skill role-neutral contract', () => {
     const skill = await t.query(api.skills.get, { sessionId, chatroomId, skillId: 'backlog' });
 
     expect(skill?.name).toBe('Backlog Management');
+  });
+});
+
+describe('skills — concrete ids in rendered prompts', () => {
+  test('activate as builder renders the real chatroom id and role, and the item placeholder', async () => {
+    const { sessionId } = await createTestSession('skills-concrete-ids-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+
+    expect(result.skill.prompt).toContain(`--chatroom-id=${chatroomId} --role=builder`);
+    expect(result.skill.prompt).toContain('--backlog-item-id=<item-id>');
+    expect(result.skill.prompt).not.toContain('--chatroom-id=<id>');
+    expect(result.skill.prompt).not.toContain('--role=<role>');
+  });
+
+  test('skills.get with a role renders that role', async () => {
+    const { sessionId } = await createTestSession('skills-concrete-ids-2');
+    const chatroomId = await createChatroom(sessionId);
+
+    const skill = await t.query(api.skills.get, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+
+    expect(skill?.prompt).toContain(`--chatroom-id=${chatroomId} --role=builder`);
+  });
+
+  test('skills.get without a role keeps the role placeholder but renders the real chatroom id', async () => {
+    const { sessionId } = await createTestSession('skills-concrete-ids-3');
+    const chatroomId = await createChatroom(sessionId);
+
+    const skill = await t.query(api.skills.get, { sessionId, chatroomId, skillId: 'backlog' });
+
+    expect(skill?.prompt).toContain(`--chatroom-id=${chatroomId} --role=<role>`);
+    expect(skill?.prompt).not.toContain('--chatroom-id=<id>');
+  });
+
+  test('getDefaultSkillContent keeps both placeholders', async () => {
+    const content = await t.query(api.skills.getDefaultSkillContent, { skillId: 'backlog' });
+
+    expect(content).toContain('--chatroom-id=<id> --role=<role>');
+    expect(content).not.toContain('--role=builder');
+  });
+
+  test('the stored activation snapshot carries concrete ids', async () => {
+    const { sessionId } = await createTestSession('skills-concrete-ids-5');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+
+    const activated = await t.query(api.skills.listActivated, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    const backlog = activated.find((row) => row.skillId === 'backlog');
+
+    expect(backlog?.prompt).toContain(`--chatroom-id=${chatroomId} --role=builder`);
+  });
+
+  test("re-activating as another role does not change the first role's snapshot", async () => {
+    const { sessionId } = await createTestSession('skills-concrete-ids-6');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+    const before = await t.query(api.skills.listActivated, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    const builderPrompt = before.find((row) => row.skillId === 'backlog')?.prompt;
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'planner',
+    });
+
+    const after = await t.query(api.skills.listActivated, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    const plannerRows = await t.query(api.skills.listActivated, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    expect(after.find((row) => row.skillId === 'backlog')?.prompt).toBe(builderPrompt);
+    expect(plannerRows.find((row) => row.skillId === 'backlog')?.prompt).toContain(
+      '--role=planner'
+    );
+  });
+
+  test('re-activating as the same role refreshes one row, not two', async () => {
+    const { sessionId } = await createTestSession('skills-concrete-ids-7');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+
+    const rows = await t.query(api.skills.listActivated, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    expect(rows.filter((row) => row.skillId === 'backlog')).toHaveLength(1);
+  });
+
+  test('init prompt for the activating role carries the concrete ids, and another role gets none', async () => {
+    const { sessionId } = await createTestSession('skills-concrete-ids-8');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+
+    const builderInit = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(builderInit.prompt).toContain('# Activated Skills');
+    expect(builderInit.prompt).toContain(`--chatroom-id=${chatroomId} --role=builder`);
+
+    const plannerInit = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+    expect(plannerInit.prompt).not.toContain('# Activated Skills');
+    expect(plannerInit.prompt).not.toContain('--role=builder');
   });
 });

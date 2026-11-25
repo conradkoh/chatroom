@@ -6,7 +6,7 @@ export const gameAsset3dAiSkill: SkillModule = {
   name: '3D Game Asset Design (AI Generation)',
   description:
     'Use when a task needs a 3D model asset generated with `chatroom generate-3d --platform=fal`, including its PBR materials, rigging options, and package outputs. (game-asset-designer only)',
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "game-asset-3d-ai" skill.
+  getPrompt: () => `You have been activated with the "game-asset-3d-ai" skill.
 
 # 3D Game Asset Design — AI Generation
 

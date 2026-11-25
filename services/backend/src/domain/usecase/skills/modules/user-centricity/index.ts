@@ -10,7 +10,7 @@ export const userCentricitySkill: SkillModule = {
   name: 'User-Centric Design',
   description:
     'Use when a request involves UI changes: turn user intent into complete, accessible flows with explicit states and project-consistent interaction details.',
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "user-centricity" skill.
+  getPrompt: () => `You have been activated with the "user-centricity" skill.
 
 # User-Centric Design
 
