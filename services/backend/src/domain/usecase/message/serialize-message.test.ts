@@ -166,3 +166,19 @@ describe('linear plan tagging', () => {
     expect(xml).not.toContain('| type=plan');
   });
 });
+
+describe('linear grounding tagging', () => {
+  const base: SerializableMessage = {
+    _id: 'g1',
+    _creationTime: 0,
+    senderRole: 'specifier',
+    type: 'grounding',
+    content: '# Grounding: Add grounding messages\n\n## Request\n- Add it.',
+  };
+
+  it('tags grounding messages with type=grounding in the linear header', () => {
+    expect(serializeMessage(base, { profile: 'linear' })).toBe(
+      `1970-01-01T00:00:00.000Z | specifier | type=grounding\n\n${base.content}`
+    );
+  });
+});

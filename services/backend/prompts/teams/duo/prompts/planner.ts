@@ -11,6 +11,7 @@
  * Team composition and workflow sections use teamRoles configuration.
  */
 
+import { getGroundingPublishGuidance } from '../../../cli/grounding/guidance';
 import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
 import {
   getCoreResponsibilitiesSection,
@@ -60,6 +61,8 @@ ${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, {
   chatroomId,
   role,
 })}
+
+${getGroundingPublishGuidance({ cliEnvPrefix, chatroomId, role })}
 
 ${getHandoffRulesSection(DUO_TEAM_CONFIG, nativeIntegration)}
 

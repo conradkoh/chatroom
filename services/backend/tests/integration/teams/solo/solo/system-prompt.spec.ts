@@ -331,6 +331,17 @@ describe('Solo Team > Solo > System Prompt', () => {
       \`\`\`
       All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
+      **Grounding document.** Before you delegate work that involves discovery — any handoff to a specialist, or a change for the \`specifier\`/\`builder\` that spans more than one file or surface — publish a grounding document so receiving agents do not repeat the same exploration. Run \`chatroom grounding view-template\`, fill it, then publish it with the command below. It holds only neutral, observed facts: relevant files, entry points and the observed flow as a sequence diagram. No conclusions, recommendations or design choices. Skip it for conversation-only requests and for single-file edits you have already read, and write \`Grounding ID: None.\` in the handoff. It is immutable: if your observations change, publish a new one and cite the newest id in the next handoff. Recipients are told to treat it as a starting point and verify it.
+
+      \`\`\`bash
+
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom grounding publish --chatroom-id="000000000000010002chatroom_rooms" --role="solo" << 'CHATROOM_GROUNDING_END'
+      ---MESSAGE---
+      [Your grounding markdown here — paste the filled template from \`chatroom grounding view-template\`]
+      CHATROOM_GROUNDING_END
+
+      \`\`\`
+
       **Implementation Guidelines:**
       - For UI/UX work, request the design from the UI/UX engineer, who owns the UI/UX decisions and provides the target markup, classes, and styles.
       - For UI implementation, first write a snapshot test that renders the component with the UI/UX engineer's target markup, classes, and styles as the expected output. Run it and confirm it fails, then implement the components until it passes. Do not update the expected snapshot to accept different markup.

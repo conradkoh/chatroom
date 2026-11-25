@@ -24,6 +24,7 @@ import { getPlannerBuilderCodeTemplate } from '../../teams/duo/handoff-templates
 import { getPlannerUserCodeTemplate } from '../../teams/duo/handoff-templates/planner-user-code';
 import { getSoloUserCodeTemplate } from '../../teams/solo/handoff-templates/solo-user-code';
 import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
+import { pairCarriesGroundingReference, getGroundingReferenceBlock } from '../grounding/reference';
 
 const duoQuery = (fromRole: string, toRole: string): HandoffTemplateQuery => ({
   teamId: 'duo',
@@ -33,17 +34,22 @@ const duoQuery = (fromRole: string, toRole: string): HandoffTemplateQuery => ({
 
 /**
  * Compose the rendered template the way the pair resolver does: recipient
- * callout, pair title line, then the getter body. Keeps "exact prose"
- * assertions meaningful now that getters return body text only.
+ * callout, pair title line, then the getter body, then the grounding reference
+ * when the pair carries one. Keeps "exact prose" assertions meaningful now that
+ * getters return body text only.
  */
 function composePairTemplate(
   pair: { teamId: string; fromRole: string; toRole: string },
   body: string
 ): string {
+  const grounding = pairCarriesGroundingReference(pair)
+    ? getGroundingReferenceBlock({ toRole: pair.toRole })
+    : null;
   return [
     getHandoffRecipientVisibilityCallout(pair.toRole),
     getHandoffTemplateTitleLine(pair),
     body,
+    ...(grounding ? [grounding] : []),
   ].join('\n\n');
 }
 
@@ -263,6 +269,37 @@ describe('renderHandoffTemplate — callout and pair-title invariants', () => {
     expect(report).toContain('Template Disclosure Confirmation');
     expect(report).not.toContain('Delegation Brief');
   });
+});
+
+describe('renderHandoffTemplate — grounding reference coverage', () => {
+  const ALL_TEAM_PAIRS = [
+    ...listHandoffTemplatePairs('trio'),
+    ...listHandoffTemplatePairs('duo'),
+    ...listHandoffTemplatePairs('solo'),
+  ] as const;
+
+  for (const pair of ALL_TEAM_PAIRS) {
+    const label = `${pair.teamId}:${pair.fromRole}->${pair.toRole}`;
+
+    for (const conversationMode of ['chat', 'code'] as const) {
+      test(`${label}@${conversationMode} carries the reference only on carrier pairs`, () => {
+        const rendered = renderHandoffTemplate(pair, {
+          chatroomId: 'chat-1',
+          conversationMode,
+        });
+        if (rendered === null) return;
+
+        const carries = pairCarriesGroundingReference(pair);
+        expect(rendered.includes('## Grounding'), label).toBe(carries);
+        if (carries) {
+          expect(rendered).toContain('chatroom grounding read');
+          expect(rendered).toContain(`--role="${pair.toRole}"`);
+          expect(rendered).toContain('starting point');
+          expect(rendered).toContain('prefer the code where they differ');
+        }
+      });
+    }
+  }
 });
 
 describe('resolveHandoffTemplateSelection — pair normalization and precedence', () => {

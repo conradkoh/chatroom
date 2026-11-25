@@ -10,6 +10,7 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 import { getTrioSharedThreadLine } from './shared-thread';
+import { getGroundingPublishGuidance } from '../../../cli/grounding/guidance';
 import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
 import {
   AGENT_PRESENCE_NOTE,
@@ -115,6 +116,8 @@ ${getCoordinatorOperatingModel(nativeIntegration)}
 ${getCoreResponsibilitiesSection(TRIO_TEAM_CONFIG, { role, teamId: 'trio', nativeIntegration })}
 
 ${getCoordinatorDelegationGuidelines({ role, chatroomId, cliEnvPrefix })}
+
+${getGroundingPublishGuidance({ cliEnvPrefix, chatroomId, role })}
 
 ${getHandoffRulesSection({ hasBuilder: true, implementationRole: 'specifier' }, nativeIntegration)}
 

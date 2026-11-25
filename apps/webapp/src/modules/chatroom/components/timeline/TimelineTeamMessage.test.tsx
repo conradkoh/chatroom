@@ -1008,6 +1008,69 @@ Edge case X
     });
   });
 
+  describe('collapsible grounding rows', () => {
+    const GROUNDING_BODY = [
+      '# Grounding: ship the badge',
+      '',
+      '## Request',
+      '- Ship the grounding badge.',
+      '',
+      '## Flow',
+      '```mermaid',
+      'sequenceDiagram',
+      '  user->>builder: request',
+      '```',
+    ].join('\n');
+
+    const GROUNDING_MESSAGE: Message = {
+      ...BASE_MESSAGE,
+      _id: 'grounding-1',
+      type: 'grounding',
+      senderRole: 'builder',
+      targetRole: undefined,
+      content: GROUNDING_BODY,
+    };
+
+    const collapsibleGrounding = (overrides: Partial<Message> = {}) => (
+      <TimelineTeamMessage
+        message={{ ...GROUNDING_MESSAGE, ...overrides }}
+        chatroomId="room-1"
+        collapsible
+      />
+    );
+
+    const openDialog = () => fireEvent.click(screen.getByTestId('timeline-grounding-trigger'));
+
+    it('collapses a grounding behind a grounding trigger with no body mounted', () => {
+      render(collapsibleGrounding());
+
+      const root = screen.getByTestId('timeline-team-message');
+      expect(root).toHaveAttribute('data-message-type', 'grounding');
+      expect(within(root).getByText('grounding')).toBeInTheDocument();
+
+      const trigger = screen.getByTestId('timeline-grounding-trigger');
+      expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+      expect(trigger).toHaveAccessibleName('Show full grounding');
+      expect(trigger).toHaveAttribute('title', 'Show full grounding');
+      expect(screen.queryByTestId('timeline-handoff-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('timeline-plan-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(screen.queryByTestId('timeline-markdown-body')).not.toBeInTheDocument();
+    });
+
+    it('opens the markdown body, including the fenced mermaid block, in a Grounding content region', () => {
+      render(collapsibleGrounding());
+
+      openDialog();
+
+      const dialog = screen.getByRole('dialog', { name: 'Full grounding from builder' });
+      const region = within(dialog).getByRole('region', { name: 'Grounding content' });
+      expect(region).toHaveTextContent('sequenceDiagram');
+      expect(region).toHaveTextContent('user->>builder: request');
+      expect(within(dialog).getByTestId('timeline-markdown-body')).toHaveTextContent('```mermaid');
+    });
+  });
+
   describe('sender agent line placement', () => {
     const SNAPSHOT_HANDOFF: Message = {
       ...BASE_MESSAGE,

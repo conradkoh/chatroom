@@ -137,6 +137,16 @@ Read the plan when useful: \`chatroom plan read --chatroom-id="test-chatroom-id"
 
 ## History pointers
 <message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior round report when this package continues a plan; or \`None.\`>
+\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="test-chatroom-id" --role="specifier" --grounding-id="<groundingId>"\`
+It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
 \`\`\`"
 `;
 
@@ -251,7 +261,17 @@ Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this bri
 ## Out of scope
 - <files or areas the builder must NOT touch in this slice>
 
-\`\`\`\`"
+\`\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="test-chatroom-id" --role="builder" --grounding-id="<groundingId>"\`
+It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+\`\`\`"
 `;
 
 exports[`trio handoff template snapshots > trio non-specialist pairs (chat) > specifier->coordinator 1`] = `
@@ -408,6 +428,16 @@ Read the plan when useful: \`chatroom plan read --chatroom-id="test-chatroom-id"
 
 ## History pointers
 <message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior round report when this package continues a plan; or \`None.\`>
+\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="test-chatroom-id" --role="specifier" --grounding-id="<groundingId>"\`
+It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
 \`\`\`"
 `;
 
@@ -648,7 +678,17 @@ Scope: <\`focused\` | \`round-final\`> — replace the placeholder with this bri
 ## Out of scope
 - <files or areas the builder must NOT touch in this slice>
 
-\`\`\`\`"
+\`\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="test-chatroom-id" --role="builder" --grounding-id="<groundingId>"\`
+It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+\`\`\`"
 `;
 
 exports[`trio handoff template snapshots > trio non-specialist pairs (code) > specifier->coordinator 1`] = `

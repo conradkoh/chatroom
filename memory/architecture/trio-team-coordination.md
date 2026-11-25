@@ -8,6 +8,8 @@ status: active
 
 # Trio team coordination
 
+Related: [Grounding messages](/architecture/grounding-messages.md).
+
 ## Context
 
 The Trio preset separates coordination, specification, and implementation. The

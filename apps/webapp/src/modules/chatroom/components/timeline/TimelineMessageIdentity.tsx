@@ -1,6 +1,13 @@
 'use client';
 
-import { ArrowRight, ArrowRightLeft, Info, ListChecks } from 'lucide-react';
+import {
+  Anchor,
+  ArrowRight,
+  ArrowRightLeft,
+  Info,
+  ListChecks,
+  type LucideIcon,
+} from 'lucide-react';
 
 import {
   BADGE_BASE,
@@ -18,33 +25,57 @@ import type { SenderAgentSnapshot } from '../../types/message';
 
 import { cn } from '@/lib/utils';
 
-/** Type badge for handoff, notice and plan messages. Every other message type renders nothing. */
+interface BadgeStyle {
+  className: string;
+  Icon: LucideIcon;
+  label: string;
+  /** Decorative icons are hidden from assistive tech; the handoff icon is the legacy exception. */
+  decorative: boolean;
+}
+
+/** One entry per badge-rendering message type. Unknown types fall through to no badge. */
+const TYPE_BADGES: Record<string, BadgeStyle> = {
+  handoff: {
+    className: 'bg-chatroom-status-purple/15 text-chatroom-status-purple',
+    Icon: ArrowRightLeft,
+    label: 'handoff',
+    decorative: false,
+  },
+  notice: {
+    className: 'bg-chatroom-status-info/15 text-chatroom-status-info',
+    Icon: Info,
+    label: 'notice',
+    decorative: true,
+  },
+  plan: {
+    className: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+    Icon: ListChecks,
+    label: 'plan',
+    decorative: true,
+  },
+  grounding: {
+    className: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
+    Icon: Anchor,
+    label: 'grounding',
+    decorative: true,
+  },
+};
+
+/** Type badge for handoff, notice, plan and grounding messages. Every other message type renders nothing. */
 export function TimelineMessageTypeBadge({ type }: { type: string }) {
-  if (type === 'handoff') {
-    return (
-      <span className={`${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`}>
-        <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />
-        handoff
-      </span>
-    );
-  }
-  if (type === 'notice') {
-    return (
-      <span className={`${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`}>
-        <Info size={ICON_SIZE} className="flex-shrink-0" aria-hidden="true" />
-        notice
-      </span>
-    );
-  }
-  if (type === 'plan') {
-    return (
-      <span className={`${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`}>
-        <ListChecks size={ICON_SIZE} className="flex-shrink-0" aria-hidden="true" />
-        plan
-      </span>
-    );
-  }
-  return null;
+  const badge = TYPE_BADGES[type];
+  if (!badge) return null;
+  const { Icon } = badge;
+  return (
+    <span className={`${BADGE_BASE} ${badge.className}`}>
+      <Icon
+        size={ICON_SIZE}
+        className="flex-shrink-0"
+        aria-hidden={badge.decorative ? 'true' : undefined}
+      />
+      {badge.label}
+    </span>
+  );
 }
 
 /**

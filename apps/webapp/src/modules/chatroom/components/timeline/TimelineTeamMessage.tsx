@@ -98,19 +98,23 @@ function HandoffTriggerSummary({
   );
 }
 
-/** Trigger attributes: plan rows get a plan label/testid, handoffs keep the preview-driven attributes. */
-function getTriggerAttributes(
-  planSummary: PlanSummary | null | undefined,
-  preview: string
-): { label: string; ariaLabel: string; testId: string; hasPreview: boolean } {
-  if (!planSummary) {
-    return {
-      label: 'Show full handoff',
-      ariaLabel: 'Show full handoff',
-      testId: 'timeline-handoff-trigger',
-      hasPreview: preview !== '',
-    };
-  }
+type TriggerAttributes = {
+  label: string;
+  ariaLabel: string;
+  testId: string;
+  hasPreview: boolean;
+};
+
+function handoffTriggerAttributes(preview: string): TriggerAttributes {
+  return {
+    label: 'Show full handoff',
+    ariaLabel: 'Show full handoff',
+    testId: 'timeline-handoff-trigger',
+    hasPreview: preview !== '',
+  };
+}
+
+function planTriggerAttributes(planSummary: PlanSummary): TriggerAttributes {
   return {
     label: 'Show full plan',
     ariaLabel:
@@ -118,6 +122,26 @@ function getTriggerAttributes(
     testId: 'timeline-plan-trigger',
     hasPreview: planSummary.kind === 'structured' || planSummary.text !== '',
   };
+}
+
+function groundingTriggerAttributes(preview: string): TriggerAttributes {
+  return {
+    label: 'Show full grounding',
+    ariaLabel: 'Show full grounding',
+    testId: 'timeline-grounding-trigger',
+    hasPreview: preview !== '',
+  };
+}
+
+/** Trigger attributes: plan/grounding rows get their own label/testid, handoffs keep the preview-driven attributes. */
+function getTriggerAttributes(
+  type: string,
+  planSummary: PlanSummary | null | undefined,
+  preview: string
+): TriggerAttributes {
+  if (type === 'grounding') return groundingTriggerAttributes(preview);
+  if (!planSummary) return handoffTriggerAttributes(preview);
+  return planTriggerAttributes(planSummary);
 }
 
 /**
@@ -149,7 +173,7 @@ function TimelineHandoffTrigger({
   handoffDurationSlow?: boolean;
   onOpen: () => void;
 }) {
-  const { label, ariaLabel, testId, hasPreview } = getTriggerAttributes(planSummary, preview);
+  const { label, ariaLabel, testId, hasPreview } = getTriggerAttributes(type, planSummary, preview);
   return (
     <button
       ref={buttonRef}

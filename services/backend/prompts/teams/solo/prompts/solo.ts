@@ -7,6 +7,7 @@
  * entry point for all interactions.
  */
 
+import { getGroundingPublishGuidance } from '../../../cli/grounding/guidance';
 import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
 import {
   getCoreResponsibilitiesSection,
@@ -50,6 +51,8 @@ ${getTeamCompositionSection(teamRoles)}
 ${getPlannerSoloOperatingModel(nativeIntegration)}
 
 ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG, { role: 'solo', teamId: 'solo', nativeIntegration })}
+
+${getGroundingPublishGuidance({ cliEnvPrefix, chatroomId, role: 'solo' })}
 
 **Implementation Guidelines:**
 - For UI/UX work, request the design from the UI/UX engineer, who owns the UI/UX decisions and provides the target markup, classes, and styles.

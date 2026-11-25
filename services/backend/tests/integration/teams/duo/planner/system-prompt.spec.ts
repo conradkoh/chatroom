@@ -388,6 +388,17 @@ describe('Duo Team > Planner > System Prompt', () => {
       - Send back with specific feedback if requirements aren't met.
 
 
+      **Grounding document.** Before you delegate work that involves discovery — any handoff to a specialist, or a change for the \`specifier\`/\`builder\` that spans more than one file or surface — publish a grounding document so receiving agents do not repeat the same exploration. Run \`chatroom grounding view-template\`, fill it, then publish it with the command below. It holds only neutral, observed facts: relevant files, entry points and the observed flow as a sequence diagram. No conclusions, recommendations or design choices. Skip it for conversation-only requests and for single-file edits you have already read, and write \`Grounding ID: None.\` in the handoff. It is immutable: if your observations change, publish a new one and cite the newest id in the next handoff. Recipients are told to treat it as a starting point and verify it.
+
+      \`\`\`bash
+
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom grounding publish --chatroom-id="000000000000010002chatroom_rooms" --role="planner" << 'CHATROOM_GROUNDING_END'
+      ---MESSAGE---
+      [Your grounding markdown here — paste the filled template from \`chatroom grounding view-template\`]
+      CHATROOM_GROUNDING_END
+
+      \`\`\`
+
       **Handoff Rules:**
 
       ⚠️ When the harness does not support native integration: after any handoff (including to \`user\`), run \`get-next-task\` to stay in the session.

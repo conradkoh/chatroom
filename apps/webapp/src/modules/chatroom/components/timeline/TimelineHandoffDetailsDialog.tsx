@@ -39,6 +39,13 @@ function getDialogName(message: Message): string {
   return `Full ${message.type} from ${message.senderRole}${target}`;
 }
 
+/** Accessible name of the scrolling body region, per message type. */
+function getBodyAriaLabel(message: Message): string {
+  if (message.type === 'plan') return 'Plan content';
+  if (message.type === 'grounding') return 'Grounding content';
+  return 'Handoff content';
+}
+
 /**
  * Accessible description: timestamp, optional elapsed time, optional sender agent.
  * With no snapshot and no duration this is exactly `Sent <timestamp>`.
@@ -125,7 +132,7 @@ export const TimelineHandoffDetailsDialog = memo(function TimelineHandoffDetails
           ref={bodyRef}
           tabIndex={0}
           role="region"
-          aria-label={isPlan ? 'Plan content' : 'Handoff content'}
+          aria-label={getBodyAriaLabel(message)}
           data-testid="timeline-handoff-dialog-body"
           className="px-4 py-3 overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chatroom-accent"
         >

@@ -75,6 +75,7 @@ import type * as fileAttachments from "../fileAttachments.js";
 import type * as fileStorageSettings from "../fileStorageSettings.js";
 import type * as folderPickerRequests from "../folderPickerRequests.js";
 import type * as gitCloneRequests from "../gitCloneRequests.js";
+import type * as groundings from "../groundings.js";
 import type * as guidelines from "../guidelines.js";
 import type * as harnesses_claudeSdk from "../harnesses/claudeSdk.js";
 import type * as harnesses_codexSdk from "../harnesses/codexSdk.js";
@@ -235,6 +236,7 @@ declare const fullApi: ApiFromModules<{
   fileStorageSettings: typeof fileStorageSettings;
   folderPickerRequests: typeof folderPickerRequests;
   gitCloneRequests: typeof gitCloneRequests;
+  groundings: typeof groundings;
   guidelines: typeof guidelines;
   "harnesses/claudeSdk": typeof harnesses_claudeSdk;
   "harnesses/codexSdk": typeof harnesses_codexSdk;
