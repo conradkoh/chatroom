@@ -20,6 +20,13 @@ import type {
 } from '../infrastructure/services/index.js';
 import { formatAuthError, formatChatroomIdError } from '../utils/error-formatting.js';
 
+export {
+  BackendService,
+  requireSessionForChatroomEffect,
+} from '../infrastructure/services/index.js';
+export type { CommandSessionFailure, SessionService } from '../infrastructure/services/index.js';
+export { getConvexErrorData, getErrorMessage } from '../utils/convex-error.js';
+
 /** Structured data carried by a Convex failure, when there is any. */
 export interface ConvexErrorData {
   code?: string | undefined;

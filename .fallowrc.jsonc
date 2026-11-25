@@ -166,11 +166,6 @@
       "file": "**/src/domain/usecase/chatroom-transfer/export-read.ts",
       "exports": ["EXPORT_BUILD_INPUT_FIELDS", "assertNotStalled"],
     },
-    // Exported for the CLI grounding template generator and its contract tests.
-    {
-      "file": "**/src/domain/grounding/grounding-template-spec.ts",
-      "exports": ["GROUNDING_TITLE_PREFIX", "groundingSectionHeading"],
-    },
     // Exported for the machine purge/usage specs. Spec files are not analysis entries.
     {
       "file": "**/src/domain/usecase/machine/machine-scoped-tables.ts",

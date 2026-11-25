@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   findReservedDelimiterLines,
   formatStdinHeredocCommand,
+  GROUNDING_STDIN_DELIMITER,
   HANDOFF_MESSAGE_MARKER,
   HANDOFF_STDIN_DELIMITER,
   PLAN_STDIN_DELIMITER,
@@ -58,5 +59,14 @@ describe('PLAN_STDIN_DELIMITER', () => {
   test('is the namespaced plan terminator and is reserved', () => {
     expect(PLAN_STDIN_DELIMITER).toBe('CHATROOM_PLAN_END');
     expect(findReservedDelimiterLines('CHATROOM_PLAN_END')).toEqual(['CHATROOM_PLAN_END']);
+  });
+});
+
+describe('GROUNDING_STDIN_DELIMITER', () => {
+  test('is the namespaced grounding terminator and is reserved', () => {
+    expect(GROUNDING_STDIN_DELIMITER).toBe('CHATROOM_GROUNDING_END');
+    expect(findReservedDelimiterLines('CHATROOM_GROUNDING_END')).toEqual([
+      'CHATROOM_GROUNDING_END',
+    ]);
   });
 });

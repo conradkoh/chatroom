@@ -584,6 +584,84 @@ planCommand
     }
   );
 
+// ============================================================================
+// GROUNDING COMMANDS (agent-published neutral observation records)
+// ============================================================================
+
+/**
+ * Read the grounding heredoc body from stdin, validating the delimiter. A decode
+ * failure prints and exits 1, so the command action stays a straight line.
+ */
+async function readGroundingStdinBody(): Promise<string> {
+  const { decode } = await import('./utils/serialization/decode/index.js');
+  const stdinContent = await readStdin();
+  try {
+    const { GROUNDING_STDIN_DELIMITER, validateStdinHeredocBody } =
+      await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+    const { message } = decode(stdinContent, { singleParam: 'message' });
+    validateStdinHeredocBody(message, GROUNDING_STDIN_DELIMITER);
+    return message;
+  } catch (err) {
+    console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+    process.exit(1);
+    return '';
+  }
+}
+
+const groundingCommand = program
+  .command('grounding')
+  .description('Publish and read agent-authored neutral observation records');
+
+groundingCommand
+  .command('view-template')
+  .description('Print the grounding template (static; no chatroom required)')
+  .option('--chatroom-id <id>', 'Ignored (accepted for copy-paste compatibility)')
+  .option('--role <role>', 'Ignored (accepted for copy-paste compatibility)')
+  .action(async () => {
+    const { printGroundingViewTemplate } = await import('./commands/grounding/view-template.js');
+    printGroundingViewTemplate();
+  });
+
+groundingCommand
+  .command('publish')
+  .description('Publish a grounding message (reads markdown from stdin)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const message = await readGroundingStdinBody();
+
+    if (!message || message.trim().length === 0) {
+      console.error('❌ Grounding is empty');
+      console.error(
+        `   Usage: chatroom grounding publish --chatroom-id=<id> --role=<role> << 'CHATROOM_GROUNDING_END'`
+      );
+      process.exit(1);
+      return;
+    }
+
+    const { publishGrounding } = await import('./commands/grounding/publish.js');
+    await publishGrounding(options.chatroomId, {
+      role: options.role,
+      content: message,
+    });
+  });
+
+groundingCommand
+  .command('read')
+  .description('Read a published grounding')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .option('--role <role>', 'Accepted for compatibility; reading a grounding does not need it')
+  .requiredOption('--grounding-id <id>', 'Grounding message id (from grounding publish)')
+  .action(async (options: { chatroomId: string; role?: string; groundingId: string }) => {
+    await maybeRequireAuth();
+    const { readGrounding } = await import('./commands/grounding/read.js');
+    await readGrounding(options.chatroomId, {
+      role: options.role,
+      groundingId: options.groundingId,
+    });
+  });
+
 const agenticQueryCommand = program
   .command('agentic-query')
   .description('Agentic search/ask query commands');

@@ -66,6 +66,21 @@ export interface PlanReadParams extends CommandContext {
 }
 
 // ============================================================================
+// grounding command types
+// ============================================================================
+
+export interface GroundingPublishParams extends CommandContext {
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+}
+
+export interface GroundingReadParams extends CommandContext {
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+  groundingId?: string | undefined;
+}
+
+// ============================================================================
 // get-next-task command types
 // ============================================================================
 
