@@ -3,6 +3,7 @@
  * Built-in skills are read from BUILTIN_SKILLS constants — no DB seeding.
  */
 
+import { AGENT_ROLE_DEFINITIONS } from '@workspace/shared/domain/agent-role';
 import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
@@ -10,6 +11,12 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+
+/** Whole-word match for every builtin role name, case-insensitive. */
+const ROLE_NAME_PATTERN = new RegExp(
+  `\\b(?:${Object.keys(AGENT_ROLE_DEFINITIONS).join('|')})\\b`,
+  'gi'
+);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -362,9 +369,7 @@ describe('skills.activate — backlog skill role-neutral contract', () => {
     });
 
     expect(asBuilder.skill.prompt).toBe(asPlanner.skill.prompt);
-    expect(asBuilder.skill.prompt).not.toMatch(/coordinator/i);
-    expect(asBuilder.skill.prompt).not.toMatch(/builder/i);
-    expect(asBuilder.skill.prompt).not.toMatch(/planner/i);
+    expect(asBuilder.skill.prompt.match(ROLE_NAME_PATTERN) ?? []).toEqual([]);
   });
 
   test('does not advertise the complete force flag', async () => {
@@ -417,6 +422,28 @@ describe('skills.activate — backlog skill role-neutral contract', () => {
     expect(prompt).toContain('Allowed only while the item is in `backlog` status');
     expect(prompt).toContain('Mistakenly completed early');
     expect(prompt).not.toContain('docs/plans/');
+  });
+
+  test('lifecycle diagram shows every backlog transition and describes delete as a soft-delete', async () => {
+    const { sessionId } = await createTestSession('skills-backlog-diagram-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+    const prompt = result.skill.prompt;
+
+    expect(prompt).toContain('backlog --> closed: complete directly (complete)');
+    expect(prompt).toContain(
+      'pending_user_review --> backlog: user sends back for rework (UI only - no CLI command)'
+    );
+    expect(prompt).toContain('pending_user_review --> closed: close without completing (close)');
+    expect(prompt).toContain('closed --> backlog: reopen');
+    expect(prompt).toContain('`delete` is a soft-delete to the terminal `deleted` status');
+    expect(prompt).not.toContain('hard removal');
   });
 
   test('display name is Backlog Management', async () => {

@@ -138,11 +138,14 @@ stateDiagram-v2
     [*] --> backlog: user creates
     backlog --> pending_user_review: agent raises PR (mark-for-review)
     pending_user_review --> closed: user confirms / PR merged (complete)
+    backlog --> closed: complete directly (complete)
+    pending_user_review --> backlog: user sends back for rework (UI only - no CLI command)
+    pending_user_review --> closed: close without completing (close)
     backlog --> closed: stale/superseded (close)
     closed --> backlog: reopen
 \`\`\`
 
-\`delete\` is a hard removal outside this FSM — not a status transition.
+\`delete\` is a soft-delete to the terminal \`deleted\` status: the row is retained and cannot be reopened.
 
 ### Command decision table
 
