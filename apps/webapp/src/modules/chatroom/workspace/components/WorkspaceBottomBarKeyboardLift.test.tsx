@@ -82,6 +82,23 @@ describe('WorkspaceBottomBarShell lift with a browser visualViewport', () => {
     expect(transform()).toBe('translateY(-260px)');
   });
 
+  it('does not follow a pan that lands after the follow window, even one trailing an in-window scroll', () => {
+    const { composer } = renderShellWithComposer();
+    act(() => composer.focus()); // window armed at t=0, closes at 600 ms
+    act(() => vi.advanceTimersByTime(590));
+    act(() => {
+      viewport.offsetTop = 120; // still inside the window: lift follows once to 180
+      viewport.dispatchEvent(new Event('scroll'));
+    });
+    act(() => vi.advanceTimersByTime(60)); // t=650 ms, window closed
+    act(() => {
+      viewport.offsetTop = 200; // a pan after the window: must not re-lift
+      viewport.dispatchEvent(new Event('scroll'));
+    });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(transform()).toBe('translateY(-180px)');
+  });
+
   it('re-lifts when the keyboard height changes', () => {
     const { composer } = renderShellWithComposer();
     act(() => composer.focus());
