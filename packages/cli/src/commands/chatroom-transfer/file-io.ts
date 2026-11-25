@@ -31,11 +31,28 @@ import type { ChatroomTransferFs } from './deps.js';
 const DIRECTORY_MODE = 0o700;
 /** The exported file itself is private to the owner. */
 const FILE_MODE = 0o600;
+/** The `.gitignore` written into a default exports directory. */
+const EXPORTS_GITIGNORE = '*\n';
+/** Readable by everyone, so git and tools can read it; it holds no secret. */
+const IGNORE_FILE_MODE = 0o644;
 
 /** `chatroom-<id>-YYYYMMDDTHHMMSSZ.json`, UTC with no colons (Windows-safe). */
 export function exportFileName(chatroomId: string, at: Date): string {
   const stamp = at.toISOString().slice(0, 19).replace(/[-:]/g, '');
   return `chatroom-${chatroomId}-${stamp}Z.json`;
+}
+
+/**
+ * Prepares the default exports directory: creates it, then writes a `.gitignore`
+ * containing `*` when none exists. An existing `.gitignore` is never replaced.
+ */
+export async function prepareDefaultExportsDir(fs: ChatroomTransferFs, dir: string): Promise<void> {
+  await fs.mkdirp(dir, DIRECTORY_MODE);
+  try {
+    await fs.writeExclusive(join(dir, '.gitignore'), EXPORTS_GITIGNORE, IGNORE_FILE_MODE);
+  } catch (error) {
+    if (!isAlreadyExists(error)) throw error;
+  }
 }
 
 /**

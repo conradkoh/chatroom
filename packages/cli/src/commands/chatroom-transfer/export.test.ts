@@ -28,6 +28,8 @@ const NOW = '2026-11-25T13:04:05Z';
 const NAME = 'chatroom-abc-20261125T130405Z.json';
 const WARNING =
   'warning: this file is plaintext and contains conversation content. Keep it private.';
+/** The ignore file the default exports directory gets. */
+const GITIGNORE = join('/work', '.chatroom', 'exports', '.gitignore');
 
 const ALL_CATEGORIES: readonly ExportCategory[] = [
   'room',
@@ -116,13 +118,18 @@ function pageFor(args: { category: ExportCategory }, room: ExportRawRow): Export
 class RecordingFs implements ChatroomTransferFs {
   readonly files = new Map<string, string>();
   readonly calls: string[] = [];
+  readonly dirs: { path: string; mode: number }[] = [];
+  readonly writes: { path: string; data: string; mode: number }[] = [];
 
-  async mkdirp(path: string): Promise<void> {
+  async mkdirp(path: string, mode: number): Promise<void> {
     this.calls.push(`mkdirp:${path}`);
+    this.dirs.push({ path, mode });
   }
 
-  async writeExclusive(path: string, data: string): Promise<void> {
+  async writeExclusive(path: string, data: string, mode: number): Promise<void> {
     this.calls.push(`write:${path}`);
+    if (this.files.has(path)) throw errnoError('EEXIST');
+    this.writes.push({ path, data, mode });
     this.files.set(path, data);
   }
 
@@ -254,6 +261,39 @@ describe('exportChatroom (success)', () => {
   });
 });
 
+describe('exportChatroom (default exports directory)', () => {
+  it('writes a ".gitignore" containing "*" into the default directory', async () => {
+    const h = createHarness({ cwd: '/work' });
+
+    await runExport({ chatroomId: 'abc' }, h.deps);
+
+    expect(h.fs.files.get(GITIGNORE)).toBe('*\n');
+    expect(h.fs.writes).toContainEqual({ path: GITIGNORE, data: '*\n', mode: 0o644 });
+    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', NAME))).toBe(true);
+  });
+
+  it('writes no ignore file for a custom --path', async () => {
+    const h = createHarness({ cwd: '/work' });
+
+    await runExport({ chatroomId: 'abc', path: 'custom/dir' }, h.deps);
+
+    const customIgnore = join('/work', 'custom', 'dir', '.gitignore');
+    expect(h.fs.files.has(customIgnore)).toBe(false);
+    expect(h.fs.writes.map((write) => write.path)).not.toContain(customIgnore);
+  });
+
+  it('preserves an existing .gitignore in the default directory', async () => {
+    const h = createHarness({ cwd: '/work' });
+    h.fs.files.set(GITIGNORE, 'custom\n');
+
+    await runExport({ chatroomId: 'abc' }, h.deps);
+
+    expect(h.fs.files.get(GITIGNORE)).toBe('custom\n');
+    expect(h.fs.calls).toContain(`write:${GITIGNORE}`);
+    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', NAME))).toBe(true);
+  });
+});
+
 describe('exportChatroom (refusals)', () => {
   it('refuses attachment rows before reading a page and writes nothing', async () => {
     const backend = createFakeBackend({
@@ -282,6 +322,20 @@ describe('exportChatroom (refusals)', () => {
     expect(h.err).toHaveLength(1);
     expect(h.err[0]).toContain('❌ [EXPORT_CHATROOM_CHANGED]');
     expect(h.exits).toEqual([1]);
+    expect(h.fs.files.size).toBe(0);
+  });
+
+  it('a refused export creates no default directory and no ignore file', async () => {
+    const backend = createFakeBackend({
+      stamps: [defaultStamp({ attachmentRows: { count: 1, capped: false } })],
+    });
+    const h = createHarness({ cwd: '/work', backend });
+
+    await runExport({ chatroomId: 'abc' }, h.deps);
+
+    expect(h.err[0]).toContain('❌ [EXPORT_ATTACHMENTS_PRESENT]');
+    expect(h.exits).toEqual([1]);
+    expect(h.fs.dirs).toEqual([]);
     expect(h.fs.files.size).toBe(0);
   });
 

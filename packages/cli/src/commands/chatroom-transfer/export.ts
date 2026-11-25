@@ -23,7 +23,7 @@ import {
 } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-driver';
 
 import type { ChatroomTransferDeps } from './deps.js';
-import { exportFileName, writeExportFileAtomically } from './file-io.js';
+import { exportFileName, prepareDefaultExportsDir, writeExportFileAtomically } from './file-io.js';
 import { requireTransferSession } from './session-guard.js';
 import { api } from '../../api.js';
 import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
@@ -69,6 +69,7 @@ export async function exportChatroom(
   });
 
   const dir = opts.path ? resolve(deps.cwd(), opts.path) : join(deps.cwd(), '.chatroom', 'exports');
+  if (!opts.path) await prepareDefaultExportsDir(deps.fs, dir);
   const filePath = await writeExportFileAtomically(
     deps.fs,
     dir,
