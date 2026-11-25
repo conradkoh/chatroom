@@ -1,0 +1,135 @@
+/**
+ * Chatroom transfer file I/O — the export file name and the atomic publish.
+ *
+ * `writeExportFileAtomically` publishes with `link`, not `rename`: a rename
+ * silently replaces an existing file, while `link` fails with `EEXIST`. That
+ * gives "never overwrite an export" at the filesystem level instead of a
+ * check-then-write race.
+ *
+ * Sequence: create the directory (`0o700`), write a hidden temp file with flag
+ * `wx` and mode `0o600`, hard-link the temp to the final name, then unlink the
+ * temp. Every failure before the link removes the temp (except when the
+ * exclusive create itself reported `EEXIST`: that path belongs to another
+ * writer and must be left alone). A cleanup failure after a successful link is
+ * ignored — the export exists, so reporting failure would be a lie.
+ *
+ * POSIX mode bits are the owner-only guarantee; Windows ignores them, and the
+ * file is then protected only by the containing directory's ACLs.
+ */
+
+import * as fsp from 'node:fs/promises';
+import { join } from 'node:path';
+
+import {
+  ChatroomTransferError,
+  TRANSFER_ERROR_CODES,
+} from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
+
+import type { ChatroomTransferFs } from './deps.js';
+
+/** Directories the export creates are private to the owner. */
+const DIRECTORY_MODE = 0o700;
+/** The exported file itself is private to the owner. */
+const FILE_MODE = 0o600;
+
+/** `chatroom-<id>-YYYYMMDDTHHMMSSZ.json`, UTC with no colons (Windows-safe). */
+export function exportFileName(chatroomId: string, at: Date): string {
+  const stamp = at.toISOString().slice(0, 19).replace(/[-:]/g, '');
+  return `chatroom-${chatroomId}-${stamp}Z.json`;
+}
+
+/**
+ * Writes `json` to `<dir>/<name>` without ever replacing an existing file.
+ *
+ * @returns the absolute final path.
+ * @throws ChatroomTransferError `EXPORT_FILE_EXISTS` when the final name is taken.
+ */
+export async function writeExportFileAtomically(
+  fs: ChatroomTransferFs,
+  dir: string,
+  name: string,
+  json: string
+): Promise<string> {
+  await fs.mkdirp(dir, DIRECTORY_MODE);
+
+  const final = join(dir, name);
+  const tmp = join(dir, `.${name}.${process.pid}.tmp`);
+
+  await writeTempFile(fs, tmp, json);
+  try {
+    await publish(fs, tmp, final);
+  } catch (error) {
+    await discard(fs, tmp);
+    throw error;
+  }
+
+  // The hard link is the export. A leftover temp name is cosmetic, so a failed
+  // cleanup never turns a published export into a reported failure.
+  await discard(fs, tmp);
+  return final;
+}
+
+/** Creates the temp file. A failed exclusive create never owned the path when another writer did. */
+async function writeTempFile(fs: ChatroomTransferFs, tmp: string, json: string): Promise<void> {
+  try {
+    await fs.writeExclusive(tmp, json, FILE_MODE);
+  } catch (error) {
+    if (!isAlreadyExists(error)) await discard(fs, tmp);
+    throw error;
+  }
+}
+
+/** Hard-links the temp name to the final name, mapping a name clash to a transfer error. */
+async function publish(fs: ChatroomTransferFs, tmp: string, final: string): Promise<void> {
+  try {
+    await fs.link(tmp, final);
+  } catch (error) {
+    if (!isAlreadyExists(error)) throw error;
+    throw new ChatroomTransferError(
+      TRANSFER_ERROR_CODES.EXPORT_FILE_EXISTS,
+      `file already exists: ${final}; choose another --path or wait a second`
+    );
+  }
+}
+
+/** Best-effort removal: a temp name that is already gone is not an anomaly. */
+async function discard(fs: ChatroomTransferFs, path: string): Promise<void> {
+  try {
+    await fs.unlink(path);
+  } catch {
+    // Ignore: the only caller is a cleanup path, and the export already exists
+    // (or never did) either way.
+  }
+}
+
+/** True for the `EEXIST` errno that a `link` or an exclusive create reports. */
+function isAlreadyExists(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'EEXIST'
+  );
+}
+
+/** The production adapter over `node:fs/promises`. */
+export function createNodeChatroomTransferFs(): ChatroomTransferFs {
+  return {
+    mkdirp: async (path, mode) => {
+      await fsp.mkdir(path, { recursive: true, mode });
+    },
+    writeExclusive: async (path, data, mode) => {
+      const handle = await fsp.open(path, 'wx', mode);
+      try {
+        await handle.writeFile(data, 'utf8');
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+    },
+    link: (existing, newPath) => fsp.link(existing, newPath),
+    unlink: (path) => fsp.unlink(path),
+    readFile: (path) => fsp.readFile(path, 'utf8'),
+    stat: async (path) => {
+      const stats = await fsp.stat(path);
+      return { isFile: stats.isFile(), isDirectory: stats.isDirectory(), size: stats.size };
+    },
+  };
+}
