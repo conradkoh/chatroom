@@ -158,12 +158,8 @@
     },
     // Exported for the chatroom transfer specs. Spec files are not analysis entries.
     {
-      "file": "**/src/domain/entities/chatroom-transfer-file.ts",
-      "exports": ["*"],
-    },
-    {
       "file": "**/src/domain/usecase/chatroom-transfer/registry.ts",
-      "exports": ["*"],
+      "exports": ["CHATROOM_SCOPED_FAMILIES"],
     },
     // Exported for the chatroom transfer specs. Spec files are not analysis entries.
     {
