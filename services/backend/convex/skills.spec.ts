@@ -3,6 +3,7 @@
  * Built-in skills are read from BUILTIN_SKILLS constants — no DB seeding.
  */
 
+import { AGENT_ROLE_DEFINITIONS } from '@workspace/shared/domain/agent-role';
 import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
@@ -10,6 +11,12 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+
+/** Whole-word match for every builtin role name, case-insensitive. */
+const ROLE_NAME_PATTERN = new RegExp(
+  `\\b(?:${Object.keys(AGENT_ROLE_DEFINITIONS).join('|')})\\b`,
+  'gi'
+);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -362,9 +369,7 @@ describe('skills.activate — backlog skill role-neutral contract', () => {
     });
 
     expect(asBuilder.skill.prompt).toBe(asPlanner.skill.prompt);
-    expect(asBuilder.skill.prompt).not.toMatch(/coordinator/i);
-    expect(asBuilder.skill.prompt).not.toMatch(/builder/i);
-    expect(asBuilder.skill.prompt).not.toMatch(/planner/i);
+    expect(asBuilder.skill.prompt.match(ROLE_NAME_PATTERN) ?? []).toEqual([]);
   });
 
   test('does not advertise the complete force flag', async () => {
