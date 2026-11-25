@@ -1,4 +1,8 @@
-import type { ChatroomAgentActivityStatus } from './chatroom-agent-activity-status';
+import { isEphemeralAgentRole, normalizeAgentRole } from './agent-role';
+import {
+  isChatroomAgentActivityOnline,
+  type ChatroomAgentActivityStatus,
+} from './chatroom-agent-activity-status';
 import type { ChatroomStatus } from './chatroom-status';
 
 /** User-facing aggregate status derived from agent activity in a chatroom. */
@@ -6,6 +10,7 @@ export const CHATROOM_ACTIVITY_STATUSES = [
   'working',
   'active',
   'transitioning',
+  'stuck',
   'idle',
   'completed',
 ] as const;
@@ -17,6 +22,7 @@ export const ChatroomActivityStatusEnum = {
   working: 'working',
   active: 'active',
   transitioning: 'transitioning',
+  stuck: 'stuck',
   idle: 'idle',
   completed: 'completed',
 } as const satisfies { readonly [K in ChatroomActivityStatus]: K };
@@ -41,6 +47,7 @@ export function deriveChatroomState(status: ChatroomActivityStatus): ChatroomSta
     case ChatroomActivityStatusEnum.active:
       return ChatroomStateEnum.active;
     case ChatroomActivityStatusEnum.transitioning:
+    case ChatroomActivityStatusEnum.stuck:
       return ChatroomStateEnum.attention;
     case ChatroomActivityStatusEnum.idle:
       return ChatroomStateEnum.offline;
@@ -49,19 +56,50 @@ export function deriveChatroomState(status: ChatroomActivityStatus): ChatroomSta
   }
 }
 
-/** A projected high-level state that can be stopped/reset. */
+/** A projected high-level state that can be stopped/reset; `stuck` is available through attention. */
 export function isChatroomStopAvailable(status: ChatroomActivityStatus): boolean {
   const state = deriveChatroomState(status);
   return state === ChatroomStateEnum.active || state === ChatroomStateEnum.attention;
+}
+
+/** Role-scoped agent status (one projected read-model row). */
+export type ChatroomRoleActivityStatus = ChatroomAgentActivityStatus & { role: string };
+
+/** Active task facts from chatroom_activeTaskHeaders needed by the stuck rule. */
+export type ChatroomAssignedActiveTask = {
+  assignedTo: string;
+  status: 'pending' | 'acknowledged' | 'in_progress';
+};
+
+/**
+ * True when any active assigned task has an assignee that cannot act. An assignee cannot act when
+ * no row for its role is online (every row offline or error, or no row). Ephemeral assignees are
+ * exempt only while the task is pending (on-demand start). Assignees `user` and empty are ignored.
+ */
+export function hasStuckAssignedWork(
+  roleStatuses: readonly ChatroomRoleActivityStatus[],
+  assignedTasks: readonly ChatroomAssignedActiveTask[]
+): boolean {
+  // fallow-ignore-next-line complexity
+  return assignedTasks.some((task) => {
+    const assignee = normalizeAgentRole(task.assignedTo);
+    if (assignee === '' || assignee === 'user') return false;
+    const rows = roleStatuses.filter((row) => normalizeAgentRole(row.role) === assignee);
+    if (rows.some((row) => isChatroomAgentActivityOnline(row.status))) return false;
+    if (rows.some((row) => row.status === 'error')) return true;
+    return !(task.status === 'pending' && isEphemeralAgentRole(assignee));
+  });
 }
 
 /** Derive the chatroom activity status from resolved per-role status projections. */
 // fallow-ignore-next-line complexity
 export function deriveChatroomActivityStatus(
   chatroomStatus: ChatroomStatus | undefined,
-  agentStatuses: readonly ChatroomAgentActivityStatus[]
+  agentStatuses: readonly ChatroomAgentActivityStatus[],
+  isStuck = false
 ): ChatroomActivityStatus {
   if (chatroomStatus === ChatroomActivityStatusEnum.completed) return 'completed';
+  if (isStuck) return 'stuck';
   if (agentStatuses.some((agent) => agent.status === 'working')) return 'working';
   if (
     agentStatuses.some(
