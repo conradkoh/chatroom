@@ -41,8 +41,10 @@ import { exportedEntryFor, rulesOf } from './registry-lookup';
 import { BACKEND_ERROR_CODES } from '../../../../config/errorCodes';
 import type { Id, Doc, TableNames } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import type { AgentHarness } from '../../entities/agent';
 import { IMPORT_ROLLBACK_BUDGET, IMPORT_WINDOW_MS } from '../../entities/chatroom-transfer-file';
 import { getTeamPreset } from '../../entities/team-presets';
+import { saveAgentConfig } from '../agent/save-agent-config';
 import { insertChatroomWithTeam } from '../chatroom/create-chatroom';
 import { upsertReadCursor } from '../chatroom/read-cursor';
 import { clearChatroomUnread } from '../chatroom/unread-status';
@@ -121,7 +123,7 @@ export type ImportChunk =
 const HANDOFF_ROLE_FIELD = 'terminalHandoffRole';
 
 /** Mirrors `services/backend/convex/messages.ts`: `<chatroomId>:<originMessageId>:<role>:user`. */
-export function terminalHandoffKeyOf(chatroomId: string, originId: string, role: string): string {
+function terminalHandoffKeyOf(chatroomId: string, originId: string, role: string): string {
   return `${chatroomId}:${originId}:${role}:user`;
 }
 
@@ -168,12 +170,12 @@ export async function applyImportChunk(
   return { created: await applySupportedChunk(ctx, a, phase, chunk) };
 }
 
-/** Dispatches a validated chunk. `agentConfigs` is refused above until P8b. */
+/** Dispatches a validated chunk. */
 async function applySupportedChunk(
   ctx: MutationCtx,
   a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> },
   phase: SupportedPhase,
-  chunk: LeafChunk | WorkspacesChunk | LinksChunk
+  chunk: AgentConfigsChunk | LeafChunk | WorkspacesChunk | LinksChunk
 ): Promise<Record<string, string>> {
   if (phase === 'workspaces') {
     return await applyWorkspaces(ctx, a.chatroomId, chunk as WorkspacesChunk);
@@ -182,13 +184,16 @@ async function applySupportedChunk(
     await applyLinks(ctx, a.chatroomId, chunk as LinksChunk);
     return {};
   }
+  if (phase === 'agentConfigs') {
+    return await applyAgentConfigs(ctx, a, chunk as AgentConfigsChunk);
+  }
   return await applyRowChunk(ctx, a, phase, chunk as LeafChunk);
 }
 
 async function applyRowChunk(
   ctx: MutationCtx,
   a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> },
-  phase: Exclude<SupportedPhase, 'workspaces' | 'links'>,
+  phase: Exclude<SupportedPhase, 'workspaces' | 'links' | 'agentConfigs'>,
   chunk: LeafChunk
 ): Promise<Record<string, string>> {
   if (phase === 'messages') return await applyMessages(ctx, a.chatroomId, a.ownerId, chunk);
@@ -316,6 +321,13 @@ interface LinksChunk {
   refs: Record<string, string>;
 }
 
+interface AgentConfigsChunk {
+  phase: 'agentConfigs';
+  machineId: string;
+  rows: ImportRowPayload[];
+  refs: Record<string, string>;
+}
+
 const LEAF_PHASES: ReadonlySet<string> = new Set<LeafPhase>([
   'artifacts',
   'backlog',
@@ -325,11 +337,13 @@ const LEAF_PHASES: ReadonlySet<string> = new Set<LeafPhase>([
   'skillCustomizations',
 ]);
 
-/** Every phase this round can apply; `agentConfigs` lands with the driver in P8b. */
-type SupportedPhase = 'workspaces' | 'links' | 'messages' | 'tasks' | 'messageQueue' | LeafPhase;
+/** Every phase this round can apply. */
+type SupportedPhase =
+  'workspaces' | 'agentConfigs' | 'links' | 'messages' | 'tasks' | 'messageQueue' | LeafPhase;
 
 const SUPPORTED_PHASES: ReadonlySet<string> = new Set<string>([
   'workspaces',
+  'agentConfigs',
   'links',
   'messages',
   'tasks',
@@ -353,7 +367,7 @@ function isSupportedPhase(phase: unknown): phase is SupportedPhase {
 // fallow-ignore-next-line complexity
 function assertChunkEnvelope(
   chunk: unknown
-): asserts chunk is LeafChunk | WorkspacesChunk | LinksChunk {
+): asserts chunk is AgentConfigsChunk | LeafChunk | WorkspacesChunk | LinksChunk {
   if (!isRecord(chunk)) throw chunkFailure('chunk must be an object');
   if (chunk.phase === 'links') assertLinksEnvelope(chunk);
   else assertRowsEnvelope(chunk);
@@ -363,7 +377,13 @@ function assertChunkEnvelope(
 function assertRowsEnvelope(chunk: Record<string, unknown>): void {
   if (!Array.isArray(chunk.rows)) throw chunkFailure('chunk.rows must be an array');
   for (const row of chunk.rows) assertRowPayload(row);
+  assertPhaseRowEnvelope(chunk);
+}
+
+/** Phases that require a field beyond `rows` and `refs`. */
+function assertPhaseRowEnvelope(chunk: Record<string, unknown>): void {
   if (chunk.phase === 'workspaces') assertWorkspacesEnvelope(chunk);
+  else if (chunk.phase === 'agentConfigs') assertAgentConfigsEnvelope(chunk);
 }
 
 function assertRowPayload(row: unknown): void {
@@ -378,6 +398,12 @@ function assertWorkspacesEnvelope(chunk: Record<string, unknown>): void {
   }
   if (typeof chunk.primaryKey !== 'string' && chunk.primaryKey !== null) {
     throw chunkFailure('a workspaces chunk needs a primaryKey or null');
+  }
+}
+
+function assertAgentConfigsEnvelope(chunk: Record<string, unknown>): void {
+  if (typeof chunk.machineId !== 'string') {
+    throw chunkFailure('an agentConfigs chunk needs a machineId');
   }
 }
 
@@ -470,6 +496,63 @@ function assertWorkspaceFields(row: ImportRowPayload): void {
   for (const field of Object.keys(row.fields)) {
     if (!WORKSPACE_FIELDS.has(field)) {
       throw chunkFailure(`field ${field} is not importable in a workspaces chunk`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent configs
+// ---------------------------------------------------------------------------
+
+/** The only file fields an agent-config row may carry; the rest is source-machine data. */
+const AGENT_CONFIG_FIELDS: ReadonlySet<string> = new Set([
+  'role',
+  'agentType',
+  'agentHarness',
+  'model',
+  'workingDir',
+  'workspaceId',
+]);
+
+/**
+ * Restores each row through the shared `saveAgentConfig` use case, which owns the
+ * harness, workspace and team checks. Starts no agent. The inbox event it writes is
+ * a config publish, not a start command.
+ */
+async function applyAgentConfigs(
+  ctx: MutationCtx,
+  a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> },
+  chunk: AgentConfigsChunk
+): Promise<Record<string, string>> {
+  const created: Record<string, string> = {};
+  for (const row of chunk.rows) {
+    assertAgentConfigFields(row);
+    const workspaceId = await resolveRefKey(
+      ctx,
+      'chatroom_workspaces',
+      a.chatroomId,
+      chunk.refs,
+      row.fields.workspaceId
+    );
+    const saved = await saveAgentConfig(ctx, {
+      chatroomId: a.chatroomId,
+      workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+      role: String(row.fields.role),
+      machineId: chunk.machineId,
+      agentHarness: row.fields.agentHarness as AgentHarness,
+      model: String(row.fields.model),
+      workingDir: String(row.fields.workingDir),
+      requestedBy: a.ownerId,
+    });
+    created[row.key] = String(saved._id);
+  }
+  return created;
+}
+
+function assertAgentConfigFields(row: ImportRowPayload): void {
+  for (const field of Object.keys(row.fields)) {
+    if (!AGENT_CONFIG_FIELDS.has(field)) {
+      throw chunkFailure(`field ${field} is not importable in an agentConfigs chunk`);
     }
   }
 }
