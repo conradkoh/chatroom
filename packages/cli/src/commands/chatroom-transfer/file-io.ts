@@ -15,6 +15,10 @@
  *
  * POSIX mode bits are the owner-only guarantee; Windows ignores them, and the
  * file is then protected only by the containing directory's ACLs.
+ *
+ * Some filesystems (FAT, some network mounts, some sandboxes) have no hard
+ * links and report `EPERM`/`ENOTSUP` from `link`; that surfaces as
+ * `EXPORT_PUBLISH_UNSUPPORTED`, never as a raw errno.
  */
 
 import * as fsp from 'node:fs/promises';
@@ -60,6 +64,8 @@ export async function prepareDefaultExportsDir(fs: ChatroomTransferFs, dir: stri
  *
  * @returns the absolute final path.
  * @throws ChatroomTransferError `EXPORT_FILE_EXISTS` when the final name is taken.
+ * @throws ChatroomTransferError `EXPORT_PUBLISH_UNSUPPORTED` when the filesystem
+ * cannot hard-link, so the export cannot be published without overwriting.
  */
 export async function writeExportFileAtomically(
   fs: ChatroomTransferFs,
@@ -96,16 +102,30 @@ async function writeTempFile(fs: ChatroomTransferFs, tmp: string, json: string):
   }
 }
 
-/** Hard-links the temp name to the final name, mapping a name clash to a transfer error. */
+/**
+ * Hard-links the temp name to the final name, mapping a name clash or an
+ * unsupported link to a transfer error.
+ *
+ * @throws ChatroomTransferError `EXPORT_FILE_EXISTS` when the final name is
+ * taken, `EXPORT_PUBLISH_UNSUPPORTED` when the filesystem has no hard links.
+ */
 async function publish(fs: ChatroomTransferFs, tmp: string, final: string): Promise<void> {
   try {
     await fs.link(tmp, final);
   } catch (error) {
-    if (!isAlreadyExists(error)) throw error;
-    throw new ChatroomTransferError(
-      TRANSFER_ERROR_CODES.EXPORT_FILE_EXISTS,
-      `file already exists: ${final}; choose another --path or wait a second`
-    );
+    if (isAlreadyExists(error)) {
+      throw new ChatroomTransferError(
+        TRANSFER_ERROR_CODES.EXPORT_FILE_EXISTS,
+        `file already exists: ${final}; choose another --path or wait a second`
+      );
+    }
+    if (isLinkUnsupported(error)) {
+      throw new ChatroomTransferError(
+        TRANSFER_ERROR_CODES.EXPORT_PUBLISH_UNSUPPORTED,
+        `this filesystem cannot publish an export without overwriting it (${String(codeOf(error))}); choose another --path`
+      );
+    }
+    throw error;
   }
 }
 
@@ -121,9 +141,20 @@ async function discard(fs: ChatroomTransferFs, path: string): Promise<void> {
 
 /** True for the `EEXIST` errno that a `link` or an exclusive create reports. */
 function isAlreadyExists(error: unknown): boolean {
-  return (
-    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'EEXIST'
-  );
+  return codeOf(error) === 'EEXIST';
+}
+
+/** True for the errnos a filesystem without hard links reports from `link`. */
+function isLinkUnsupported(error: unknown): boolean {
+  const code = codeOf(error);
+  return code === 'EPERM' || code === 'ENOTSUP';
+}
+
+/** The errno `code` of a thrown value, or `undefined`. */
+function codeOf(error: unknown): unknown {
+  return typeof error === 'object' && error !== null
+    ? (error as { code?: unknown }).code
+    : undefined;
 }
 
 /** The production adapter over `node:fs/promises`. */

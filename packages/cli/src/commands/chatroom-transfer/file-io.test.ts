@@ -35,8 +35,8 @@ function errnoError(code: string): NodeJS.ErrnoException {
 interface FakeFsOptions {
   /** Make `writeExclusive` fail, either as a foreign file (`exists`) or mid-write (`partial`). */
   failWrite?: 'exists' | 'partial' | undefined;
-  /** Make `link` fail with `EEXIST` or another errno. */
-  failLink?: 'exists' | 'other' | undefined;
+  /** Make `link` fail with `EEXIST` (`exists`), `EACCES` (`other`), or a no-hard-links errno. */
+  failLink?: 'exists' | 'other' | 'unsupported' | 'perm' | undefined;
 }
 
 /** In-memory `ChatroomTransferFs`: records every call and models the failure modes. */
@@ -67,6 +67,8 @@ class FakeChatroomTransferFs implements ChatroomTransferFs {
     this.links.push({ existing, newPath });
     if (this.options.failLink === 'exists') throw errnoError('EEXIST');
     if (this.options.failLink === 'other') throw errnoError('EACCES');
+    if (this.options.failLink === 'unsupported') throw errnoError('ENOTSUP');
+    if (this.options.failLink === 'perm') throw errnoError('EPERM');
     if (this.files.has(newPath)) throw errnoError('EEXIST');
     const data = this.files.get(existing);
     if (data === undefined) throw errnoError('ENOENT');
@@ -151,6 +153,30 @@ describe('writeExportFileAtomically (in-memory fs)', () => {
       code: 'EACCES',
     });
     expect(tempNames(fs)).toEqual([]);
+  });
+
+  it('names an unlinkable filesystem for ENOTSUP and leaves nothing behind', async () => {
+    const fs = new FakeChatroomTransferFs({ failLink: 'unsupported' });
+
+    const error = await writeExportFileAtomically(fs, DIR, NAME, CONTENT).catch((thrown) => thrown);
+
+    expect(error).toBeInstanceOf(ChatroomTransferError);
+    expect(error).toMatchObject({ code: 'EXPORT_PUBLISH_UNSUPPORTED' });
+    expect((error as Error).message).toContain('ENOTSUP');
+    expect(tempNames(fs)).toEqual([]);
+    expect(fs.files.has(join(DIR, NAME))).toBe(false);
+  });
+
+  it('names an unlinkable filesystem for EPERM and leaves nothing behind', async () => {
+    const fs = new FakeChatroomTransferFs({ failLink: 'perm' });
+
+    const error = await writeExportFileAtomically(fs, DIR, NAME, CONTENT).catch((thrown) => thrown);
+
+    expect(error).toBeInstanceOf(ChatroomTransferError);
+    expect(error).toMatchObject({ code: 'EXPORT_PUBLISH_UNSUPPORTED' });
+    expect((error as Error).message).toContain('EPERM');
+    expect(tempNames(fs)).toEqual([]);
+    expect(fs.files.has(join(DIR, NAME))).toBe(false);
   });
 
   it('does not unlink a temp path that the exclusive create refused to own', async () => {
