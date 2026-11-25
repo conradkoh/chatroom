@@ -20,7 +20,10 @@
       "outputs": ["convex/_generated/**"],
       "cache": true
     },
-    // package.json is excluded from test and typecheck inputs so version-only edits keep the cache warm; lockfile changes still invalidate via globalDependencies.
+    // Every package.json is excluded from typecheck and test inputs, so a manifest-only edit to
+    // version, scripts, bin, main, exports or types keeps cached results. Dependency changes still
+    // invalidate through pnpm-lock.yaml (globalDependencies). After a manifest-only edit to exports,
+    // types, scripts, bin or main, run `pnpm turbo run typecheck test --force` before trusting a cached pass.
     "test": {
       "dependsOn": ["^typecheck", "typecheck"],
       "inputs": ["$TURBO_DEFAULT$", ".env*", "!package.json"],
