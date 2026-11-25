@@ -23,6 +23,7 @@ import {
   sortByLastActivity,
 } from '../src/domain/usecase/chatroom/list-owned-chatrooms';
 import { planObservationWrite } from '../src/domain/usecase/chatroom/plan-observation-write';
+import { upsertReadCursor } from '../src/domain/usecase/chatroom/read-cursor';
 import {
   clearChatroomUnread,
   markChatroomUnread,
@@ -450,32 +451,14 @@ export const markAsRead = mutation({
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const now = Date.now();
 
-    // Check if cursor already exists
-    const existing = await ctx.db
-      .query('chatroom_read_cursors')
-      .withIndex('by_userId_chatroomId', (q) =>
-        q.eq('userId', session.userId).eq('chatroomId', args.chatroomId)
-      )
-      .first();
-
-    if (existing) {
-      if (now - existing.lastSeenAt < MARK_AS_READ_MIN_INTERVAL_MS) {
-        return;
-      }
-      await ctx.db.patch('chatroom_read_cursors', existing._id, {
-        lastSeenAt: now,
-        updatedAt: now,
-      });
-    } else {
-      await ctx.db.insert('chatroom_read_cursors', {
-        chatroomId: args.chatroomId,
-        userId: session.userId,
-        lastSeenAt: now,
-        updatedAt: now,
-      });
-    }
+    const wrote = await upsertReadCursor(ctx, {
+      chatroomId: args.chatroomId,
+      userId: session.userId,
+      now: Date.now(),
+      minIntervalMs: MARK_AS_READ_MIN_INTERVAL_MS,
+    });
+    if (!wrote) return;
 
     // Clear materialized unread status
     await clearChatroomUnread(ctx, args.chatroomId, session.userId);

@@ -14,6 +14,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
 import { getTeamPreset } from '../../entities/team-presets';
+import { insertInitialPrimaryWorkspace } from '../workspace/insert-initial-primary-workspace';
 import { registerWorkspace } from '../workspace/register-workspace';
 
 /** Chatroom names come from the working dir's last segment and are capped at this length. */
@@ -74,13 +75,7 @@ export async function createChatroomWithWorkspace(
     hostname: machine.hostname,
     registeredBy: 'user',
   });
-  // A brand-new chatroom has no primary workspace yet, so write the row directly rather than
-  // calling the session-authenticated setPrimaryWorkspaceForChatroom mutation.
-  await ctx.db.insert('chatroom_primaryWorkspaces', {
-    chatroomId,
-    workspaceId,
-    updatedAt: Date.now(),
-  });
+  await insertInitialPrimaryWorkspace(ctx, { chatroomId, workspaceId });
 
   return { chatroomId, workspaceId };
 }

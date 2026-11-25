@@ -26,13 +26,13 @@ import {
   getLastSentLaunchRequestForRole,
   listLastSentLaunchRequestsForChatroom,
 } from '../src/domain/usecase/agent/get-last-sent-launch-request';
-import { recordLastSentLaunchRequest } from '../src/domain/usecase/agent/record-last-sent-launch-request';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { requestChatroomAgentOperation as requestChatroomAgentOperationUseCase } from '../src/domain/usecase/agent/request-chatroom-agent-operation';
 import {
   requestChatroomWorkspaceAgentStop,
   requestWorkspaceAgentStop,
 } from '../src/domain/usecase/agent/request-chatroom-workspace-agent-stop';
+import { saveAgentConfig } from '../src/domain/usecase/agent/save-agent-config';
 import { selectWakeableAgentRoles } from '../src/domain/usecase/agent/select-wakeable-agent-roles';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import {
@@ -303,53 +303,16 @@ export const saveConfig = mutation({
   handler: async (ctx, args) => {
     const access = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    validateWorkingDir(args.workingDir);
-    if (!args.model.trim()) throw new Error('Agent model is required');
 
-    const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
-    if (
-      !workspace ||
-      workspace.chatroomId !== args.chatroomId ||
-      workspace.removedAt !== undefined ||
-      workspace.machineId !== args.machineId ||
-      normalizeWorkingDir(workspace.workingDir) !== normalizeWorkingDir(args.workingDir)
-    ) {
-      throw new Error('Workspace does not belong to this agent configuration');
-    }
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine) throw new Error('Machine not found');
-    const capabilities = await ctx.db
-      .query('chatroom_machineCapabilities')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (!capabilities?.availableHarnesses?.includes(args.agentHarness)) {
-      throw new Error(`Agent harness '${args.agentHarness}' is not available on this machine`);
-    }
-
-    const activeStructure = await getActiveTeamStructure(ctx, args.chatroomId);
-    if (!activeStructure) throw new Error(`Chatroom ${args.chatroomId} has no team structure`);
-
-    const requestId = crypto.randomUUID();
-    const saved = await recordLastSentLaunchRequest(ctx, {
-      requestId,
-      commandId: `configuration:${requestId}`,
+    const saved = await saveAgentConfig(ctx, {
       chatroomId: args.chatroomId,
-      teamStructureId: activeStructure.teamStructureId,
-      role: args.role,
-      agentType: 'remote',
-      machineId: args.machineId,
       workspaceId: args.workspaceId,
+      role: args.role,
+      machineId: args.machineId,
       agentHarness: args.agentHarness,
       model: args.model,
       workingDir: args.workingDir,
-      reason: 'user.config',
-      wantResume: false,
       requestedBy: access.session.userId,
-      requestedAt: Date.now(),
     });
     return {
       role: saved.role,
