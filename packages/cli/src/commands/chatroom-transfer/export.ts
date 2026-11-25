@@ -26,6 +26,7 @@ import type { ChatroomTransferDeps } from './deps.js';
 import { exportFileName, writeExportFileAtomically } from './file-io.js';
 import { api } from '../../api.js';
 import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
+import { formatAuthError } from '../../utils/error-formatting.js';
 
 /** One manifest entry: `count: null` means the exclusion is a policy, not a filtered row count. */
 interface Omission {
@@ -49,7 +50,7 @@ export async function exportChatroom(
 ): Promise<void> {
   const sessionId = await deps.session.getSessionId();
   if (sessionId === null) {
-    deps.err('❌ Not authenticated. Please run: chatroom auth login');
+    formatAuthError(deps.session.getConvexUrl(), await deps.session.getOtherSessionUrls());
     deps.exit(1);
     return;
   }

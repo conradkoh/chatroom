@@ -17,7 +17,7 @@ import type {
   ExportStamp,
 } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-read';
 import type { SessionId } from 'convex-helpers/server/sessions';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatroomTransferDeps, ChatroomTransferFs } from './deps.js';
 import { exportChatroom, formatTransferError } from './export.js';
@@ -298,11 +298,17 @@ describe('exportChatroom (refusals)', () => {
 
   it('exits 1 without calling the backend when there is no session', async () => {
     const h = createHarness({ sessionId: null });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      await runExport({ chatroomId: 'abc' }, h.deps);
 
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    expect(h.err).toEqual(['❌ Not authenticated. Please run: chatroom auth login']);
-    expect(h.exits).toEqual([1]);
+      const written = errorSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(written).toContain('https://example.test');
+      expect(written).toContain('chatroom auth login');
+      expect(h.exits).toEqual([1]);
+    } finally {
+      errorSpy.mockRestore();
+    }
     expect(h.queries).toEqual([]);
     expect(h.fs.calls).toEqual([]);
   });
