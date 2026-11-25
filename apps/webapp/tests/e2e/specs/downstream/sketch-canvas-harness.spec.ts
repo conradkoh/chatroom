@@ -47,6 +47,20 @@ async function waitForCanvasReady(canvas: Locator) {
       return box ? box.width * box.height : 0;
     })
     .toBeGreaterThan(0);
+  // Visibility and a laid-out box only prove the element mounted. The sketch document paints its
+  // first composite (an opaque white fill) in a layout effect that runs after that commit, so an
+  // unpainted canvas is still fully transparent. Wait for the painted state before any pointer
+  // input, or a click can land before the document is initialized.
+  await expect
+    .poll(() =>
+      canvas.evaluate((el) => {
+        const ctx = (el as HTMLCanvasElement).getContext('2d');
+        if (!ctx) return false;
+        // Any pixel's alpha is 255 once the document's white background is painted.
+        return ctx.getImageData(0, 0, 1, 1).data[3] === 255;
+      })
+    )
+    .toBe(true);
 }
 const countColorPixels = (canvas: Locator, color: 'red' | 'blue') =>
   canvas.evaluate((el, wanted) => {
