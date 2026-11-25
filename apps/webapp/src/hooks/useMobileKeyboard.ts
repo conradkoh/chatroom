@@ -161,10 +161,15 @@ function useVisualViewportValue(
       refresh();
     };
 
-    // Scroll recomputes once, inside the window only. It never re-arms the window and never
-    // schedules trailing rechecks, so a read cannot land after the window has closed.
+    // Default (unbounded) window: scroll runs the same refresh schedule as resize and focus.
+    // Bounded window (bottom-bar lift): scroll takes one read while the window is open, and
+    // never re-arms the window or schedules trailing rechecks.
     const handleScroll = () => {
-      if (Date.now() < scrollFollowUntil) update();
+      if (scrollFollowMs === Number.POSITIVE_INFINITY) {
+        refresh();
+      } else if (Date.now() < scrollFollowUntil) {
+        update();
+      }
     };
 
     scheduleUpdate();
