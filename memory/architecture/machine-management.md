@@ -25,6 +25,7 @@ status: stable
 - The spec is `services/backend/src/domain/usecase/machine/machine-scoped-tables.spec.ts`; it also proves every `(table, index)` descriptor pair exists at runtime.
 - Registry cost is `1` for small rows and `15` for rows that can be hundreds of KB (blobs, shards, diffs, file content, command runs). The batch stops before the budget is exhausted and reschedules.
 - Workspaces are soft-detached (`removedAt`), never hard-deleted, and are the one deliberate exemption that keeps rows carrying a deleted `machineId`. Chatrooms, messages and participants are preserved.
+- See [chatroom transfer registry](./chatroom-transfer-registry.md).
 - The 90-day path is the same path: there is no second machine-cascade implementation.
 
 ## Project roots and the repository ledger are lazy

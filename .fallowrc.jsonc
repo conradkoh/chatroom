@@ -57,6 +57,8 @@
     "**/tests/**",
     "**/test.setup.{ts,mts}",
     "**/test-utils.{ts,tsx}",
+    // Test-only Convex adapters for the chatroom-transfer ports (never imported by production code).
+    "**/chatroom-transfer/convex-test-ports.ts",
     // Test-only characterisation renderer imported by the per-team *.snapshot.test.ts files.
     "**/role-prompt-characterisation.ts",
     "**/vitest.config.{ts,mts}",
@@ -153,6 +155,16 @@
         "readRootVersion",
         "syncAllPackageVersions",
       ],
+    },
+    // Exported for the chatroom transfer specs. Spec files are not analysis entries.
+    {
+      "file": "**/src/domain/usecase/chatroom-transfer/registry.ts",
+      "exports": ["CHATROOM_SCOPED_FAMILIES"],
+    },
+    // Exported for the chatroom transfer specs. Spec files are not analysis entries.
+    {
+      "file": "**/src/domain/usecase/chatroom-transfer/export-read.ts",
+      "exports": ["EXPORT_BUILD_INPUT_FIELDS", "assertNotStalled"],
     },
     // Exported for the machine purge/usage specs. Spec files are not analysis entries.
     {

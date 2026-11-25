@@ -19,6 +19,7 @@ test-results/
 .env*.local
 package-lock.json
 .chatroom/pi-sessions/
+.chatroom/exports/
 
 # pnpm
 .pnpm-store/

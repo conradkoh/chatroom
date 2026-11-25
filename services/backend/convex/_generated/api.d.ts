@@ -30,6 +30,8 @@ import type * as auth_webSession from "../auth/webSession.js";
 import type * as backlog from "../backlog.js";
 import type * as capabilitiesRefreshCron from "../capabilitiesRefreshCron.js";
 import type * as chatroomCleanup from "../chatroomCleanup.js";
+import type * as chatroomExport from "../chatroomExport.js";
+import type * as chatroomImport from "../chatroomImport.js";
 import type * as chatroomSkillCustomizations from "../chatroomSkillCustomizations.js";
 import type * as chatroomWorkspaceTaskInbox from "../chatroomWorkspaceTaskInbox.js";
 import type * as chatrooms from "../chatrooms.js";
@@ -188,6 +190,8 @@ declare const fullApi: ApiFromModules<{
   backlog: typeof backlog;
   capabilitiesRefreshCron: typeof capabilitiesRefreshCron;
   chatroomCleanup: typeof chatroomCleanup;
+  chatroomExport: typeof chatroomExport;
+  chatroomImport: typeof chatroomImport;
   chatroomSkillCustomizations: typeof chatroomSkillCustomizations;
   chatroomWorkspaceTaskInbox: typeof chatroomWorkspaceTaskInbox;
   chatrooms: typeof chatrooms;

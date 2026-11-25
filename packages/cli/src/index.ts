@@ -9,6 +9,7 @@
 
 import { Command } from 'commander';
 
+import { registerChatroomTransferCommands } from './commands/chatroom-transfer/register.js';
 import { registerGenerate3dCommand } from './commands/generate-3d/index.js';
 import { registerGenerateImageCommand } from './commands/generate-image/index.js';
 import { registerChatroomRoleCommand } from './commands/register-chatroom-role-command.js';
@@ -197,6 +198,7 @@ registerGenerate3dCommand(program);
 registerSliceImageCommand(program);
 registerRemoveImageBackgroundCommand(program);
 registerRemoveImageBackgroundFalCommand(program);
+registerChatroomTransferCommands(program, maybeRequireAuth);
 
 // ============================================================================
 // CHATROOM COMMANDS (auth required unless --skip-auth)
