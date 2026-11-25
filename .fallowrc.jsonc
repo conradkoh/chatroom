@@ -3,15 +3,7 @@
   // Migrated from knip.jsonc
   // Entry points fallow cannot resolve: package.json scripts reach these through `../../scripts/`.
   // Local ESLint plugin sources are loaded by eslint.config.mjs, not imported by app entry points.
-  // The transfer command registrations stay unreachable until `src/index.ts` registers them (P9);
-  // listing the registration module here keeps the real export/import chain analysed meanwhile.
-  "entry": [
-    "scripts/convex-codegen.ts",
-    "eslint-rules/*.spec.mjs",
-    "packages/cli/src/commands/chatroom-transfer/register.ts",
-    // transfer P8.1: consumed by the CLI in P9; remove in the P9 commit
-    "services/backend/src/domain/usecase/chatroom-transfer/import-driver.ts",
-  ],
+  "entry": ["scripts/convex-codegen.ts", "eslint-rules/*.spec.mjs"],
   "ignoreDependencies": [
     // Run through `pnpm exec vercel` in the deployment docs and the optional Vercel Actions path.
     "vercel",

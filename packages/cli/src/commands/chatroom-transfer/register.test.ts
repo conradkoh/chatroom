@@ -30,6 +30,8 @@ const NOW = '2026-11-25T13:04:05Z';
 const NAME = 'chatroom-abc-20261125T130405Z.json';
 const DESCRIPTION =
   'Export one chatroom (content and configuration) to a JSON file. The file is plaintext and contains conversation content; keep it private.';
+const IMPORT_DESCRIPTION =
+  'Import an export file as a NEW chatroom owned by you. Never merges; importing twice creates two chatrooms. Starts no agents.';
 
 /** Temp directories created by the end-to-end case. */
 const tempDirs: string[] = [];
@@ -102,6 +104,7 @@ function createDeps(options: { fs?: ChatroomTransferFs } = {}): DepsHarness {
     out: (line) => out.push(line),
     err: (line) => err.push(line),
     exit: (code) => exits.push(code),
+    signals: { on: () => {}, off: () => {} },
   };
   return { deps, out, err, exits };
 }
@@ -197,5 +200,55 @@ describe('chatroom export wiring', () => {
     expect(out).toContain('Exported chatroom abc');
     expect(err).toEqual([]);
     expect(exits).not.toContain(1);
+  });
+});
+
+describe('chatroom import wiring', () => {
+  it('fails through commander when --path is missing', async () => {
+    const { program } = createProgram(async () => createDeps().deps);
+
+    const error: unknown = await program
+      .parseAsync(['node', 'chatroom', 'import'])
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(CommanderError);
+    expect(error).toMatchObject({ exitCode: 1, code: 'commander.missingMandatoryOptionValue' });
+  });
+
+  it('rejects --machine-id when --path is missing too', async () => {
+    const { program } = createProgram(async () => createDeps().deps);
+
+    await expect(
+      program.parseAsync(['node', 'chatroom', 'import', '--machine-id', 'x'])
+    ).rejects.toMatchObject({ code: 'commander.missingMandatoryOptionValue' });
+  });
+
+  it('rejects --role as an unknown option', async () => {
+    const { program } = createProgram(async () => createDeps().deps);
+
+    await expect(
+      program.parseAsync(['node', 'chatroom', 'import', '--path', 'f', '--role', 'builder'])
+    ).rejects.toMatchObject({ code: 'commander.unknownOption' });
+  });
+
+  it('--help shows the description and options, and no role', async () => {
+    let depsBuilt = 0;
+    const { program, output } = createProgram(async () => {
+      depsBuilt += 1;
+      return createDeps().deps;
+    });
+
+    await expect(
+      program.parseAsync(['node', 'chatroom', 'import', '--help'])
+    ).rejects.toMatchObject({ code: 'commander.helpDisplayed' });
+
+    const help = output();
+    expect(help).toContain(IMPORT_DESCRIPTION);
+    expect(help).toContain('Starts no agents.');
+    expect(help).toContain('--machine-id <id>');
+    expect(help).toContain('--dry-run');
+    expect(help).toContain('--path <file>');
+    expect(help).not.toContain('--role');
+    expect(depsBuilt).toBe(0);
   });
 });

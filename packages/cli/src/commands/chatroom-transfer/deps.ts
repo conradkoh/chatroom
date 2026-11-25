@@ -32,7 +32,18 @@ export interface ChatroomTransferFs {
   stat: (path: string) => Promise<{ isFile: boolean; isDirectory: boolean; size: number }>;
 }
 
-/** Every dependency an export command needs, including its output channels. */
+/**
+ * OS signal registration for the import write phase.
+ *
+ * Injected so a test can fire a signal and assert the listeners are removed
+ * afterwards; production binds `process.on`/`process.off`.
+ */
+export interface TransferSignals {
+  on: (signal: 'SIGINT' | 'SIGTERM', handler: () => void) => void;
+  off: (signal: 'SIGINT' | 'SIGTERM', handler: () => void) => void;
+}
+
+/** Every dependency an export or import command needs, including its output channels. */
 export interface ChatroomTransferDeps {
   backend: BackendOps;
   session: SessionOps;
@@ -45,4 +56,6 @@ export interface ChatroomTransferDeps {
   err: (line: string) => void;
   /** Exit with a status code; injected so a failure path is assertable under test. */
   exit: (code: number) => void;
+  /** SIGINT/SIGTERM registration for the import write phase. */
+  signals: TransferSignals;
 }

@@ -1,14 +1,10 @@
 /**
- * Commander registration for `chatroom export` (and, in a later phase, `import`).
+ * Commander registration for `chatroom export` and `chatroom import`.
  *
  * `src/index.ts` parses argv at import time, so this module exports the
  * registration function instead of registering as a side effect. Tests build a
- * program, register this command with an injected `makeDeps`, and exercise the
- * parsed argv, the port, the driver and the real publisher end to end.
- *
- * Only `export` is registered here. The wiring into `src/index.ts` lands with
- * the import command, which is why this file is currently the dead-code
- * baseline's P9 removal point.
+ * program, register these commands with an injected `makeDeps`, and exercise the
+ * parsed argv, the port, the driver and the real publisher/import end to end.
  */
 
 import type { Command } from 'commander';
@@ -16,12 +12,16 @@ import type { Command } from 'commander';
 import type { ChatroomTransferDeps } from './deps.js';
 import { exportChatroom, formatTransferError } from './export.js';
 import { createNodeChatroomTransferFs } from './file-io.js';
+import { importChatroom } from './import.js';
 import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
-import { getMachineId } from '../../infrastructure/machine/storage.js';
 import { getVersion } from '../../version.js';
 
 /** The production dependency graph: Convex client, machine identity and real file system. */
 export async function createChatroomTransferDeps(): Promise<ChatroomTransferDeps> {
+  // Machine identity detection loads the harness registry, which pulls in the
+  // daemon and `node:sqlite`. Import it lazily so registering the commands does
+  // not make every CLI invocation load that graph.
+  const { getMachineId } = await import('../../infrastructure/machine/storage.js');
   const { backend, session } = await createConvexCommandDeps();
   return {
     backend,
@@ -34,6 +34,14 @@ export async function createChatroomTransferDeps(): Promise<ChatroomTransferDeps
     out: (line) => console.log(line),
     err: (line) => console.error(line),
     exit: (code) => process.exit(code),
+    signals: {
+      on: (signal, handler) => {
+        process.on(signal, handler);
+      },
+      off: (signal, handler) => {
+        process.off(signal, handler);
+      },
+    },
   };
 }
 
@@ -66,4 +74,30 @@ export function registerChatroomTransferCommands(
         deps.exit(1);
       }
     });
+
+  program
+    .command('import')
+    .description(
+      'Import an export file as a NEW chatroom owned by you. Never merges; importing twice creates two chatrooms. Starts no agents.'
+    )
+    .option('--machine-id <id>', 'Machine to bind workspaces to (default: this machine)')
+    .option('--dry-run', 'Validate and print the plan; write nothing')
+    .requiredOption('--path <file>', 'Export file to import')
+    .action(
+      async (opts: {
+        path: string;
+        machineId?: string | undefined;
+        dryRun?: boolean | undefined;
+      }) => {
+        await requireAuth();
+        const deps = await makeDeps();
+        try {
+          await importChatroom(opts, deps);
+        } catch (error) {
+          const formatted = formatTransferError(error);
+          deps.err(`❌ [${formatted.code}] ${formatted.message}`);
+          deps.exit(1);
+        }
+      }
+    );
 }
