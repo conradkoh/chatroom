@@ -122,6 +122,16 @@ describe('partitionChatroomListing', () => {
     expect(partitioned.recentByRecency.lastDay.map((c) => c._id)).toEqual(['idle-day']);
   });
 
+  it('places a stuck chatroom in the active section', () => {
+    const chatrooms = [
+      makeStatusAwareChatroom({ _id: 'stuck-1', activityStatus: 'stuck', _creationTime: 100 }),
+    ];
+
+    const partitioned = partitionChatroomListing(chatrooms, statuses);
+
+    expect(partitioned.active.map((c) => c._id)).toEqual(['stuck-1']);
+  });
+
   it('excludes active and completed chatrooms from recency buckets', () => {
     const chatrooms = [
       makeStatusAwareChatroom({

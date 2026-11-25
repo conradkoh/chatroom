@@ -14,6 +14,7 @@ describe('activityStatusDisplay', () => {
       'bg-chatroom-status-warning',
       'Agents are online but not yet waiting for tasks',
     ],
+    ['stuck', 'bg-chatroom-status-error', 'An agent with assigned work is offline or errored'],
     ['idle', 'bg-chatroom-text-muted', 'No agents online'],
     ['completed', 'bg-chatroom-text-muted', 'Archived'],
   ] as const)(

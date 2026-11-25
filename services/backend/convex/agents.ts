@@ -3,6 +3,7 @@
 import {
   deriveChatroomActivityStatus,
   deriveChatroomState,
+  hasStuckAssignedWork,
   isChatroomStopAvailable,
 } from '@workspace/shared/domain/chatroom-activity-status';
 import { hasActiveChatroomAgent } from '@workspace/shared/domain/chatroom-agent-activity-status';
@@ -533,9 +534,19 @@ export const getChatroomStatus = query({
       .query('chatroom_agentRoleStatusReadModel')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
+    // Slim projection of active, assigned tasks (no content). The active queue is small; the bound is deliberate.
+    const activeTaskHeaders = await ctx.db
+      .query('chatroom_activeTaskHeaders')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .take(200);
+    const stuck = hasStuckAssignedWork(
+      rows.map((row) => ({ role: row.role, status: row.status })),
+      activeTaskHeaders.map((header) => ({ assignedTo: header.assignedTo, status: header.status }))
+    );
     const activityStatus = deriveChatroomActivityStatus(
       chatroom.status,
-      rows.map((row) => ({ status: row.status }))
+      rows.map((row) => ({ status: row.status })),
+      stuck
     );
     const state = deriveChatroomState(activityStatus);
     const remoteAgentStatus = hasActiveChatroomAgent(rows) ? 'running' : 'none';
