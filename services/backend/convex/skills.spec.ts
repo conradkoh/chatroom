@@ -419,6 +419,28 @@ describe('skills.activate — backlog skill role-neutral contract', () => {
     expect(prompt).not.toContain('docs/plans/');
   });
 
+  test('lifecycle diagram shows every backlog transition and describes delete as a soft-delete', async () => {
+    const { sessionId } = await createTestSession('skills-backlog-diagram-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+    const prompt = result.skill.prompt;
+
+    expect(prompt).toContain('backlog --> closed: complete directly (complete)');
+    expect(prompt).toContain(
+      'pending_user_review --> backlog: user sends back for rework (UI only - no CLI command)'
+    );
+    expect(prompt).toContain('pending_user_review --> closed: close without completing (close)');
+    expect(prompt).toContain('closed --> backlog: reopen');
+    expect(prompt).toContain('`delete` is a soft-delete to the terminal `deleted` status');
+    expect(prompt).not.toContain('hard removal');
+  });
+
   test('display name is Backlog Management', async () => {
     const { sessionId } = await createTestSession('skills-backlog-name-1');
     const chatroomId = await createChatroom(sessionId);
