@@ -56,6 +56,9 @@ jobs:
           - name: backend
             dir: services/backend
             shard: 1/1
+          - name: local
+            dir: apps/local
+            shard: 1/1
           - name: webapp 1/3
             dir: apps/webapp
             shard: 1/3
