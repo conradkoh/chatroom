@@ -10,12 +10,6 @@ import { parsePlan } from '@workspace/backend/src/domain/plan/parse-plan.js';
 import { renderPlanPhase } from '@workspace/backend/src/domain/plan/render-plan-phase.js';
 import { Effect } from 'effect';
 
-import {
-  isSessionFailure,
-  printSessionFailure,
-  runPlanCommand,
-  type PlanErrorData,
-} from './shared.js';
 import { api, type Id } from '../../api.js';
 import type { ConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import {
@@ -24,6 +18,12 @@ import {
 } from '../../infrastructure/services/index.js';
 import type { CommandSessionFailure, SessionService } from '../../infrastructure/services/index.js';
 import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
+import {
+  isSessionFailure,
+  printSessionFailure,
+  runConvexCommand,
+  type ConvexErrorData,
+} from '../convex-command.js';
 
 export interface ReadPlanOptions {
   /** Accepted so the prompt text keeps working. The backend identifies the reader from the session, so this is not read. */
@@ -52,16 +52,16 @@ export type ReadPlanError =
   | {
       readonly _tag: 'PlanReadFailed';
       readonly cause: Error;
-      readonly errorData?: PlanErrorData | undefined;
+      readonly errorData?: ConvexErrorData | undefined;
     };
 
 interface ReadFailure {
   cause: Error;
-  errorData?: PlanErrorData | undefined;
+  errorData?: ConvexErrorData | undefined;
 }
 
 function toReadFailure(cause: Error): ReadPlanError {
-  return { _tag: 'PlanReadFailed', cause, errorData: getConvexErrorData<PlanErrorData>(cause) };
+  return { _tag: 'PlanReadFailed', cause, errorData: getConvexErrorData<ConvexErrorData>(cause) };
 }
 
 function normalizePhaseId(phase: string): string {
@@ -171,5 +171,5 @@ export async function readPlan(
   options: ReadPlanOptions,
   deps?: ConvexCommandDeps
 ): Promise<void> {
-  await runPlanCommand(deps, readPlanEffect(chatroomId, options), handleReadError);
+  await runConvexCommand(deps, readPlanEffect(chatroomId, options), handleReadError);
 }

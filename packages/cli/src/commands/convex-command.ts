@@ -1,27 +1,27 @@
 /**
- * Shared plumbing for the daemon-free plan commands.
+ * Shared plumbing for the daemon-free Convex commands (plan, grounding).
  *
- * `plan publish` and `plan read` both talk to Convex directly through the
- * `BackendService`/`SessionService` ports, so they share the dependency
- * wiring, the session failure printing and the Convex error extraction. Keeping
- * it here means the two commands cannot drift in how they report the same
- * failure.
+ * `plan publish`, `plan read`, `grounding publish` and `grounding read` all talk
+ * to Convex directly through the `BackendService`/`SessionService` ports, so they
+ * share the dependency wiring, the session failure printing and the Convex error
+ * extraction. Keeping it here means the commands cannot drift in how they report
+ * the same failure.
  */
 
 import { Effect } from 'effect';
 
-import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
-import type { ConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
-import { commandServicesLayerFromDeps } from '../../infrastructure/services/index.js';
+import { createConvexCommandDeps } from '../infrastructure/deps/create-convex-command-deps.js';
+import type { ConvexCommandDeps } from '../infrastructure/deps/create-convex-command-deps.js';
+import { commandServicesLayerFromDeps } from '../infrastructure/services/index.js';
 import type {
   BackendService,
   CommandSessionFailure,
   SessionService,
-} from '../../infrastructure/services/index.js';
-import { formatAuthError, formatChatroomIdError } from '../../utils/error-formatting.js';
+} from '../infrastructure/services/index.js';
+import { formatAuthError, formatChatroomIdError } from '../utils/error-formatting.js';
 
 /** Structured data carried by a Convex failure, when there is any. */
-export interface PlanErrorData {
+export interface ConvexErrorData {
   code?: string | undefined;
   message?: string | undefined;
 }
@@ -38,10 +38,10 @@ export function printSessionFailure(err: CommandSessionFailure): void {
 }
 
 /**
- * Run a plan-command effect with resolved deps, converting typed errors to
- * exit 1 through the command's own handler.
+ * Run a daemon-free Convex command effect with resolved deps, converting typed
+ * errors to exit 1 through the command's own handler.
  */
-export async function runPlanCommand<E>(
+export async function runConvexCommand<E>(
   deps: ConvexCommandDeps | undefined,
   program: Effect.Effect<void, E, BackendService | SessionService>,
   handleError: (err: E) => Effect.Effect<void>

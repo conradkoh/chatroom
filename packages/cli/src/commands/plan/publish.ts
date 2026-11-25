@@ -10,12 +10,6 @@
 import { parsePlan, type PlanParseError } from '@workspace/backend/src/domain/plan/parse-plan.js';
 import { Effect } from 'effect';
 
-import {
-  isSessionFailure,
-  printSessionFailure,
-  runPlanCommand,
-  type PlanErrorData,
-} from './shared.js';
 import { api, type Id } from '../../api.js';
 import type { ConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import {
@@ -24,6 +18,12 @@ import {
 } from '../../infrastructure/services/index.js';
 import type { CommandSessionFailure, SessionService } from '../../infrastructure/services/index.js';
 import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
+import {
+  isSessionFailure,
+  printSessionFailure,
+  runConvexCommand,
+  type ConvexErrorData,
+} from '../convex-command.js';
 
 export interface PublishPlanOptions {
   role: string;
@@ -31,7 +31,7 @@ export interface PublishPlanOptions {
   supersedesPlanId?: string | undefined;
 }
 
-interface PublishErrorData extends PlanErrorData {
+interface PublishErrorData extends ConvexErrorData {
   errors?: PlanParseError[] | undefined;
 }
 
@@ -157,5 +157,5 @@ export async function publishPlan(
   options: PublishPlanOptions,
   deps?: ConvexCommandDeps
 ): Promise<void> {
-  await runPlanCommand(deps, publishPlanEffect(chatroomId, options), handlePublishError);
+  await runConvexCommand(deps, publishPlanEffect(chatroomId, options), handlePublishError);
 }
