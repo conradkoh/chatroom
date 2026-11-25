@@ -437,8 +437,13 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
 
       // Stacked: the meta row starts at or below the preview's bottom edge.
       expect(timeBox.y).toBeGreaterThanOrEqual(previewBox.y + previewBox.height - 1);
-      // Left-aligned with the content: the timestamp starts where the preview starts (±1).
-      expect(Math.abs(timeBox.x - previewBox.x)).toBeLessThanOrEqual(1);
+      // Right-anchored: the duration's right edge sits on the content's right edge (bar padding-right, ±1).
+      const barPadding = parseFloat(
+        await trigger.evaluate((el) => getComputedStyle(el).paddingRight)
+      );
+      expect(
+        Math.abs(rightEdge(durationBox) - (rightEdge(triggerBox) - barPadding))
+      ).toBeLessThanOrEqual(1);
       // Timestamp and duration share one row (vertical centres within 1px), duration after the timestamp.
       const centreY = (box: Box) => box.y + box.height / 2;
       expect(Math.abs(centreY(durationBox) - centreY(timeBox))).toBeLessThanOrEqual(1);
@@ -474,8 +479,8 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     const planTrigger = plan.getByTestId('timeline-plan-trigger');
     const planTitle = plan.getByTestId('timeline-plan-summary-title');
     const planPhases = plan.getByTestId('timeline-plan-summary-phases');
-    // The plain meta has no test id: it is the trigger's last child. Its timestamp span carries the text,
-    // which starts at the 22px stacked indent, so compare that span rather than the meta box.
+    // The plain meta has no test id: it is the trigger's last child. Its timestamp span carries the text and,
+    // once stacked, ends at the bar's content right edge, so compare that span rather than the meta box.
     const planMeta = planTrigger.locator(':scope > :last-child');
     const planTime = planMeta.locator(':scope > span').first();
 
@@ -491,13 +496,17 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     const stackedPlan = await readBox(planTrigger, (box) =>
       expect(box.height).toBeLessThanOrEqual(84)
     );
-    const stackedTitle = await readBox(planTitle);
     const stackedPhases = await readBox(planPhases);
     const stackedPlanMeta = await readBox(planMeta);
     const stackedPlanTime = await readBox(planTime);
     expect(stackedPlanMeta.y).toBeGreaterThanOrEqual(stackedPhases.y + stackedPhases.height - 1);
-    expect(Math.abs(stackedPlanTime.x - stackedTitle.x)).toBeLessThanOrEqual(1);
-    expect(Math.abs(stackedPlanTime.x - stackedPhases.x)).toBeLessThanOrEqual(1);
+    // Right-anchored under the content: the timestamp ends at the bar's content right edge.
+    const planPadding = parseFloat(
+      await planTrigger.evaluate((el) => getComputedStyle(el).paddingRight)
+    );
+    expect(
+      Math.abs(rightEdge(stackedPlanTime) - (rightEdge(stackedPlan) - planPadding))
+    ).toBeLessThanOrEqual(1);
     expect(stackedPlan.height).toBeLessThanOrEqual(84);
 
     await page.setViewportSize({ width: 640, height: 800 });
@@ -519,9 +528,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
   });
 
   for (const width of [375, 320]) {
-    test(`lines the attachment chips up with the stacked meta indent at ${width}px`, async ({
-      page,
-    }) => {
+    test(`lines the attachment chips up with the preview text at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       const fixture = page.getByTestId('collapse-chips');
       const chipButton = fixture.getByRole('button', { name: 'View attached task' });
@@ -530,10 +537,10 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       // Confirm which element that is in the DOM before measuring. Its left edge is the chips row's left
       // edge. Record the choice in the commit message if it is not the button's direct parent.
       const chipShell = chipButton.locator('xpath=..');
-      const timestamp = fixture.getByTestId('timeline-handoff-timestamp');
-      const timeBox = await readBox(timestamp);
+      const preview = fixture.getByTestId('timeline-handoff-preview');
+      const previewBox = await readBox(preview);
       const chipBox = await readBox(chipShell);
-      expect(Math.abs(chipBox.x - timeBox.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(chipBox.x - previewBox.x)).toBeLessThanOrEqual(1);
     });
   }
 
@@ -612,7 +619,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     expect(Math.abs(slotA.width - slotB.width)).toBeLessThanOrEqual(0.5);
   });
 
-  test('aligns the timestamp left edges across bars and puts the duration after the timestamp at 320px', async ({
+  test('right-anchors the stacked duration and the no-duration timestamp at 320px', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 320, height: 800 });
@@ -625,11 +632,23 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
     await expect(withDuration.getByTestId('timeline-handoff-duration')).toHaveText('4m 12s');
     await expect(withoutDuration.getByTestId('timeline-handoff-duration')).toHaveCount(0);
 
+    const padding = (trigger: Locator) =>
+      trigger.evaluate((el) => parseFloat(getComputedStyle(el).paddingRight));
+    const barA = await readBox(withDuration);
+    const barB = await readBox(withoutDuration);
     const timeA = await readBox(withDuration.getByTestId('timeline-handoff-timestamp'));
-    const timeB = await readBox(withoutDuration.getByTestId('timeline-handoff-timestamp'));
     const durationA = await readBox(withDuration.getByTestId('timeline-handoff-duration'));
-    expect(Math.abs(timeA.x - timeB.x)).toBeLessThanOrEqual(0.5);
+    const timeB = await readBox(withoutDuration.getByTestId('timeline-handoff-timestamp'));
+
+    // The duration ends flush with the content right edge, and the timestamp sits before it.
+    expect(
+      Math.abs(rightEdge(durationA) - (rightEdge(barA) - (await padding(withDuration))))
+    ).toBeLessThanOrEqual(1);
     expect(durationA.x).toBeGreaterThanOrEqual(rightEdge(timeA) - 0.5);
+    // No duration: the empty slot is display:none below sm, so the timestamp itself is flush right.
+    expect(
+      Math.abs(rightEdge(timeB) - (rightEdge(barB) - (await padding(withoutDuration))))
+    ).toBeLessThanOrEqual(1);
   });
 
   for (const width of [320, 1280]) {
@@ -709,7 +728,10 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       const slotBox = await readBox(slot);
       const triggerBox = await readBox(huge);
       expect(slotBox.width).toBeGreaterThanOrEqual(durationBox.width - 0.5);
-      expect(rightEdge(durationBox)).toBeLessThanOrEqual(rightEdge(triggerBox) + 0.5);
+      const barPadding = parseFloat(await huge.evaluate((el) => getComputedStyle(el).paddingRight));
+      expect(
+        Math.abs(rightEdge(durationBox) - (rightEdge(triggerBox) - barPadding))
+      ).toBeLessThanOrEqual(1);
       expect(await huge.evaluate((el) => el.scrollWidth <= el.clientWidth + 0.5)).toBe(true);
       expect(
         await page.evaluate(
@@ -782,6 +804,13 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
       if (stacked) {
         // Stacked: the plain meta sits below the phases overview.
         expect(metaBox.y).toBeGreaterThanOrEqual(phasesBox.y + phasesBox.height - 1);
+        // Right-anchored: the plain meta spans the content width, so its right edge is the content's right edge.
+        const planPadding = parseFloat(
+          await trigger.evaluate((el) => getComputedStyle(el).paddingRight)
+        );
+        expect(
+          Math.abs(rightEdge(metaBox) - (rightEdge(triggerBox) - planPadding))
+        ).toBeLessThanOrEqual(1);
       } else {
         // Side by side: the plain meta starts right of the title.
         expect(metaBox.x).toBeGreaterThanOrEqual(rightEdge(titleBox) - 1);

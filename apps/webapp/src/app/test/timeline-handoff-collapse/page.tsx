@@ -33,7 +33,7 @@ const NORMAL: Message = {
   _creationTime: CREATION_TIME,
 };
 
-/** Same handoff with one attached task: the attachment chips indent must line up with the stacked meta. */
+/** Same handoff with one attached task: the attachment chips indent must line up with the preview text. */
 const CHIPS: Message = {
   ...NORMAL,
   _id: 'e2e-collapse-chips',
