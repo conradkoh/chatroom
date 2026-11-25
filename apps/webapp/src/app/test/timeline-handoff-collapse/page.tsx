@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useSyncExternalStore, useState } from 'react';
 
 import { AttachmentsProvider } from '@/modules/chatroom/attachments';
 import {
@@ -202,9 +202,25 @@ const PLAN: Message = {
   _creationTime: CREATION_TIME,
 };
 
+/** No external store to subscribe to; the store is only a hydration marker. */
+const subscribeToNothing = () => () => {};
+
+/**
+ * False during SSR and the hydration render, true once React has taken over the page. Used as the
+ * e2e readiness marker so specs can wait for attached click handlers, not just rendered markup.
+ */
+function useIsHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false
+  );
+}
+
 /** Development-only fixture for browser verification of the collapsed handoff bar. */
 export default function TimelineHandoffCollapseTestPage() {
   const [isDark, setIsDark] = useState(false);
+  const isHydrated = useIsHydrated();
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -214,7 +230,11 @@ export default function TimelineHandoffCollapseTestPage() {
 
   return (
     <AttachmentsProvider>
-      <main className="p-4 space-y-4 max-w-3xl">
+      <main
+        className="p-4 space-y-4 max-w-3xl"
+        data-testid="timeline-handoff-collapse-harness"
+        data-ready={isHydrated ? 'true' : undefined}
+      >
         <h1>Timeline handoff collapse</h1>
         <button type="button" data-testid="theme-dark-toggle" onClick={toggleTheme}>
           Toggle dark theme

@@ -25,6 +25,18 @@ async function readBox(locator: Locator, assert: (box: Box) => void = () => {}):
   return read.box;
 }
 
+/**
+ * The page server-renders its triggers and hydrates after `load`; a click before hydration hits a
+ * button with no onClick and the dialog never opens (CI failure in the tall-handoff test at 298).
+ * The page sets `data-ready` once its hydration render has committed.
+ */
+async function waitForHandoffPageReady(page: Page): Promise<void> {
+  await expect(page.getByTestId('timeline-handoff-collapse-harness')).toHaveAttribute(
+    'data-ready',
+    'true'
+  );
+}
+
 type FocusZone = { zone: 'inside' | 'guard' | 'escaped'; stop: string };
 
 /**
@@ -65,6 +77,7 @@ test.describe('Timeline handoff collapse', { tag: [TAG_DOWNSTREAM] }, () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/test/timeline-handoff-collapse');
+    await waitForHandoffPageReady(page);
   });
 
   const triggerFor = (page: Page, fixtureId: string) =>
