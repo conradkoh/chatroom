@@ -9,6 +9,21 @@ import { describe, expect, test } from 'vitest';
 
 import { resolveSkillPromptRefs } from './prompt-context';
 
+const UNSAFE_TOKENS = [
+  'a b',
+  'x"y',
+  '$(rm)',
+  'line\nbreak',
+  'a;b',
+  'jn7abc\n',
+  '`rm`',
+  'jn7é',
+  'jn7；',
+  '-',
+  '--',
+  'a'.repeat(129),
+];
+
 describe('resolveSkillPromptRefs', () => {
   test('keeps real ids and the cli env prefix', () => {
     expect(
@@ -32,23 +47,26 @@ describe('resolveSkillPromptRefs', () => {
     });
   });
 
-  test.each(['a b', 'x"y', '$(rm)', 'line\nbreak', 'a;b'])(
-    'falls back for unsafe chatroom id %j',
-    (unsafe) => {
-      expect(
-        resolveSkillPromptRefs({ cliEnvPrefix: '', chatroomId: unsafe, role: 'builder' })
-      ).toEqual({ cliEnvPrefix: '', chatroomId: '<id>', role: 'builder' });
-    }
-  );
+  test.each(UNSAFE_TOKENS)('falls back for unsafe chatroom id %j', (unsafe) => {
+    expect(
+      resolveSkillPromptRefs({ cliEnvPrefix: '', chatroomId: unsafe, role: 'builder' })
+    ).toEqual({ cliEnvPrefix: '', chatroomId: '<id>', role: 'builder' });
+  });
 
-  test.each(['a b', 'x"y', '$(rm)', 'line\nbreak', 'a;b'])(
-    'falls back for unsafe role %j',
-    (unsafe) => {
-      expect(
-        resolveSkillPromptRefs({ cliEnvPrefix: '', chatroomId: 'jn7abc', role: unsafe })
-      ).toEqual({ cliEnvPrefix: '', chatroomId: 'jn7abc', role: '<role>' });
-    }
-  );
+  test.each(UNSAFE_TOKENS)('falls back for unsafe role %j', (unsafe) => {
+    expect(
+      resolveSkillPromptRefs({ cliEnvPrefix: '', chatroomId: 'jn7abc', role: unsafe })
+    ).toEqual({ cliEnvPrefix: '', chatroomId: 'jn7abc', role: '<role>' });
+  });
+
+  test('accepts a token of exactly 128 characters', () => {
+    const max = 'a'.repeat(128);
+    expect(resolveSkillPromptRefs({ cliEnvPrefix: '', chatroomId: max, role: max })).toEqual({
+      cliEnvPrefix: '',
+      chatroomId: max,
+      role: max,
+    });
+  });
 
   test('accepts plain tokens with dashes and underscores', () => {
     expect(
