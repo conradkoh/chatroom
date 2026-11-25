@@ -82,6 +82,7 @@
     "services/backend/src/domain/usecase/agent/is-agent-alive.ts",
     "services/backend/src/domain/usecase/auth/extensions/index.ts",
     "services/backend/src/domain/usecase/auth/index.ts",
+    "services/backend/src/domain/usecase/chatroom-transfer/registry.ts",
     "services/backend/src/domain/usecase/participant/register-ephemeral-participant.ts"
   ],
   "unused_exports": [

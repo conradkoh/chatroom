@@ -154,6 +154,15 @@
         "syncAllPackageVersions",
       ],
     },
+    // Exported for the chatroom transfer specs. Spec files are not analysis entries.
+    {
+      "file": "**/src/domain/entities/chatroom-transfer-file.ts",
+      "exports": ["*"],
+    },
+    {
+      "file": "**/src/domain/usecase/chatroom-transfer/registry.ts",
+      "exports": ["*"],
+    },
     // Exported for the machine purge/usage specs. Spec files are not analysis entries.
     {
       "file": "**/src/domain/usecase/machine/machine-scoped-tables.ts",
