@@ -234,6 +234,20 @@ describe('skills.list', () => {
     expect(skills.some((s) => s.skillId === 'development-workflow')).toBe(false);
   });
 
+  test('lists backlog with an activation-trigger description', async () => {
+    const { sessionId } = await createTestSession('skills-list-trigger-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const skills = await t.query(api.skills.list, {
+      sessionId,
+      chatroomId,
+    });
+
+    const backlog = skills.find((s) => s.skillId === 'backlog');
+    expect(backlog).toBeDefined();
+    expect(backlog?.description).toMatch(/^Use when /);
+  });
+
   test('returns correct shape { skillId, name, description, type } without prompt or _id', async () => {
     const { sessionId } = await createTestSession('skills-list-shape-1');
     const chatroomId = await createChatroom(sessionId);

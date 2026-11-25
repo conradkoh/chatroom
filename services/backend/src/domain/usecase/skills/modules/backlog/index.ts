@@ -9,7 +9,7 @@ export const backlogSkill: SkillModule = {
   skillId: 'backlog',
   name: 'Backlog Management',
   description:
-    'Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.',
+    'Use when asked to list, add, update, score, mark for review, complete, close, export or import backlog items, or when a task includes an attached backlog item.',
   getPrompt: (ctx) => {
     const { cliEnvPrefix, chatroomId, role } = resolveSkillPromptRefs(ctx);
     return `You have been activated with the "backlog" skill.
