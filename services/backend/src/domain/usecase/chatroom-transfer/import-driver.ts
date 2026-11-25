@@ -8,7 +8,8 @@
  * 3. Dry run returns the plan and makes zero write calls.
  * 4. Otherwise begin, then apply each chunk once, in order, then finalize.
  *    Success is returned only after finalize resolves. A chunk is never retried.
- * 5. Any error, or an aborted signal, runs rollback until it drains.
+ * 5. Any error, or an aborted signal, repeats rollback until it drains. It stops
+ *    early only when a call deletes nothing, which means no further progress.
  *
  * No file I/O and no Convex imports. The CLI and convex-test adapt the port.
  */
@@ -20,9 +21,6 @@ import {
   type ImportTarget,
 } from './import-plan';
 import { ChatroomTransferError, TRANSFER_ERROR_CODES } from '../../entities/chatroom-transfer-file';
-
-/** A rollback that has not drained after this many batches is reported as failed. */
-const ROLLBACK_MAX_ITERATIONS = 200;
 
 export interface ChatroomImportPort {
   preflight(a: {
@@ -41,7 +39,8 @@ export interface ChatroomImportPort {
     lastActivityAt: number | null;
     nextQueuePosition: number;
   }): Promise<void>;
-  rollback(a: { chatroomId: string }): Promise<{ drained: boolean }>;
+  /** Deletes one budgeted batch. `deleted` is the rows this call removed; zero with `drained: false` means no progress. */
+  rollback(a: { chatroomId: string }): Promise<{ drained: boolean; deleted: number }>;
 }
 
 export type ImportOutcome =
@@ -180,23 +179,22 @@ function assertCreatedCount(chunk: ImportChunk, created: Record<string, string>)
   }
 }
 
-/** Drains rollback in budgeted batches; a failure is reported, never swallowed. */
+/**
+ * Calls rollback until it drains. Each call that does not drain must delete at
+ * least one row, so a call that deletes nothing is the only stop: there is no
+ * call-count cap, and a room of any size drains.
+ */
 async function rollbackAfter(
   port: ChatroomImportPort,
   chatroomId: string,
   cause: Error
 ): Promise<ImportOutcome> {
   try {
-    for (let attempt = 0; attempt < ROLLBACK_MAX_ITERATIONS; attempt += 1) {
-      const { drained } = await port.rollback({ chatroomId });
+    for (;;) {
+      const { drained, deleted } = await port.rollback({ chatroomId });
       if (drained) return { status: 'rolled-back', cause };
+      assertRollbackProgress(deleted);
     }
-    return {
-      status: 'rollback-failed',
-      orphanChatroomId: chatroomId,
-      cause,
-      rollbackError: new Error('rollback did not drain'),
-    };
   } catch (rollbackError) {
     return {
       status: 'rollback-failed',
@@ -205,6 +203,11 @@ async function rollbackAfter(
       rollbackError: toError(rollbackError),
     };
   }
+}
+
+/** A call that drains nothing can never make progress, so it stops the loop. */
+function assertRollbackProgress(deleted: number): void {
+  if (deleted === 0) throw new Error('rollback made no progress');
 }
 
 function toError(value: unknown): Error {

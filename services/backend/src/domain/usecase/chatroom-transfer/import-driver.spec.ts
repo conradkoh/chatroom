@@ -29,6 +29,7 @@ import type { Id, TableNames } from '../../../../convex/_generated/dataModel';
 import schema from '../../../../convex/schema';
 import { t } from '../../../../test.setup';
 import { ChatroomTransferError } from '../../entities/chatroom-transfer-file';
+import { syncMessageReadModel } from '../message/message-read-model';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -185,6 +186,24 @@ function rolledBackCause(outcome: ImportOutcome): Error {
 
 function applyCalls(calls: readonly string[]): number {
   return calls.filter((call) => call === 'applyChunk').length;
+}
+
+/**
+ * Inserts `count` messages, each with its read model, straight into the room.
+ * Rollback must drain both tables; the rows are the only thing that matters here.
+ */
+async function insertBulkMessages(chatroomId: Id<'chatroom_rooms'>, count: number): Promise<void> {
+  await t.run(async (ctx) => {
+    for (let i = 0; i < count; i += 1) {
+      const messageId = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: `bulk ${i}`,
+        type: 'message',
+      });
+      await syncMessageReadModel(ctx, messageId);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -399,5 +418,85 @@ describe('rollback', () => {
     expect(outcome.status).toBe('rolled-back');
     expect(applied).toBe(1);
     expect(await chatroomRowCounts(started as Id<'chatroom_rooms'>)).toEqual({});
+  });
+
+  test('a rollback above the old 200-call cap removes every row', async () => {
+    const fixture = await buildFixture();
+    const base = importPortFor(t, fixture.sessionId);
+    const deletedPerCall: number[] = [];
+    let started: string | undefined;
+    const port: ChatroomImportPort = {
+      ...base,
+      applyChunk: async (a) => {
+        await insertBulkMessages(a.chatroomId as Id<'chatroom_rooms'>, 1200);
+        throw new Error('injected: bulk rows landed');
+      },
+      rollback: async (a) => {
+        const result = await base.rollback(a);
+        deletedPerCall.push(result.deleted);
+        return result;
+      },
+    };
+
+    const outcome = await runImport(port, {
+      json: fixture.json,
+      machineId: fixture.machineId,
+      dryRun: false,
+      onStarted: (chatroomId) => {
+        started = chatroomId;
+      },
+    });
+
+    expect(rolledBackCause(outcome).message).toContain('bulk rows landed');
+    // The old cap was 200 calls; this room needs more than that to drain.
+    expect(deletedPerCall.length).toBeGreaterThan(200);
+    expect(await chatroomRowCounts(started as Id<'chatroom_rooms'>)).toEqual({});
+  });
+
+  test('a rollback that deletes nothing stops and is reported', async () => {
+    const fixture = await buildFixture();
+    const base = importPortFor(t, fixture.sessionId);
+    let rollbackCalls = 0;
+    const port: ChatroomImportPort = {
+      ...failOnNthApplyChunk(base, 2, 'after'),
+      rollback: async () => {
+        rollbackCalls += 1;
+        return { drained: false, deleted: 0 };
+      },
+    };
+
+    const outcome = await runImport(port, {
+      json: fixture.json,
+      machineId: fixture.machineId,
+      dryRun: false,
+    });
+
+    if (outcome.status !== 'rollback-failed') throw new Error(`got ${outcome.status}`);
+    expect(outcome.rollbackError.message).toContain('no progress');
+    expect(rollbackCalls).toBe(1);
+  });
+
+  test('a rollback that keeps deleting is not cut off by a call count', async () => {
+    const fixture = await buildFixture();
+    const base = importPortFor(t, fixture.sessionId);
+    let rollbackCalls = 0;
+    const port: ChatroomImportPort = {
+      ...failOnNthApplyChunk(base, 2, 'after'),
+      rollback: async () => {
+        rollbackCalls += 1;
+        return rollbackCalls <= 500
+          ? { drained: false, deleted: 1 }
+          : { drained: true, deleted: 0 };
+      },
+    };
+
+    const outcome = await runImport(port, {
+      json: fixture.json,
+      machineId: fixture.machineId,
+      dryRun: false,
+    });
+
+    expect(outcome.status).toBe('rolled-back');
+    expect(rollbackCalls).toBe(501);
   });
 });

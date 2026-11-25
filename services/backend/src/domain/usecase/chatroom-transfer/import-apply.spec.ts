@@ -691,7 +691,8 @@ describe('rollback', () => {
     const otherBefore = await chatroomRowCounts(otherChatroomId);
 
     const result = await t.mutation(api.chatroomImport.rollback, { sessionId, chatroomId });
-    expect(result).toEqual({ drained: true });
+    expect(result).toMatchObject({ drained: true });
+    expect(result.deleted).toBeGreaterThan(0);
 
     expect(await chatroomRowCounts(chatroomId)).toEqual({});
     const room = await t.run((ctx) => ctx.db.get('chatroom_rooms', chatroomId));
@@ -727,10 +728,12 @@ describe('rollback', () => {
     });
 
     const first = await t.mutation(api.chatroomImport.rollback, { sessionId, chatroomId });
-    expect(first).toEqual({ drained: false });
+    expect(first).toMatchObject({ drained: false });
+    expect(first.deleted).toBeGreaterThan(0);
 
     const second = await t.mutation(api.chatroomImport.rollback, { sessionId, chatroomId });
-    expect(second).toEqual({ drained: true });
+    expect(second).toMatchObject({ drained: true });
+    expect(second.deleted).toBeGreaterThan(0);
 
     expect(await chatroomRowCounts(chatroomId)).toEqual({});
   });
@@ -741,10 +744,13 @@ describe('rollback', () => {
     const chatroomId = await begin(sessionId, machineId);
 
     const first = await t.mutation(api.chatroomImport.rollback, { sessionId, chatroomId });
-    expect(first).toEqual({ drained: true });
+    expect(first).toMatchObject({ drained: true });
+    expect(first.deleted).toBeGreaterThan(0);
 
     const second = await t.mutation(api.chatroomImport.rollback, { sessionId, chatroomId });
-    expect(second).toEqual({ drained: true });
+    expect(second).toMatchObject({ drained: true });
+    // The room is already gone, so there is nothing left to delete.
+    expect(second.deleted).toBe(0);
   });
 });
 
@@ -818,7 +824,8 @@ describe('end-to-end', () => {
       sessionId,
       chatroomId: partialId,
     });
-    expect(rollback).toEqual({ drained: true });
+    expect(rollback).toMatchObject({ drained: true });
+    expect(rollback.deleted).toBeGreaterThan(0);
     expect(await chatroomRowCounts(partialId)).toEqual({});
   });
 });

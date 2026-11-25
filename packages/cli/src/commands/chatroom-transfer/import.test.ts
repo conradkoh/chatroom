@@ -267,7 +267,7 @@ function createScriptedPort(options: PortOptions = {}): ScriptedPort {
       calls.push('rollback');
       rollbackCalls += 1;
       if (options.failRollback) throw new Error('injected rollback failure');
-      return { drained: true };
+      return { drained: true, deleted: 0 };
     },
   };
 

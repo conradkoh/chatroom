@@ -228,59 +228,66 @@ export async function finalizeImport(
   await clearChatroomUnread(ctx, a.chatroomId, a.ownerId);
 }
 
+/**
+ * Deletes one budgeted batch of the importing room and reports whether the room
+ * is gone.
+ *
+ * @returns `{ drained, deleted }` — `drained: false` when the caller must call
+ * rollback again; `deleted` is the rows this call removed, the room included.
+ */
 export async function rollbackImportBatch(
   ctx: MutationCtx,
   a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> }
-): Promise<{ drained: boolean }> {
+): Promise<{ drained: boolean; deleted: number }> {
   const room = await ctx.db.get('chatroom_rooms', a.chatroomId);
-  if (!room) return { drained: true };
+  if (!room) return { drained: true, deleted: 0 };
   await loadImportingRoom(ctx, a.ownerId, a.chatroomId);
 
-  if (!(await drainRollbackTables(ctx, a))) return { drained: false };
+  const batch = await drainRollbackTables(ctx, a);
+  if (!batch.drained) return batch;
 
   await ctx.db.delete('chatroom_rooms', a.chatroomId);
-  return { drained: true };
+  return { drained: true, deleted: batch.deleted + 1 };
 }
 
 /**
- * Deletes budgeted batches in `ROLLBACK_ORDER` until one table hits its limit.
- *
- * @returns `true` when every table drained inside the budget, `false` when the
- * caller must call rollback again.
+ * Deletes budgeted batches in `ROLLBACK_ORDER` until one table fills its batch.
+ * `drained: false` means the caller must call rollback again; `deleted` is the
+ * rows this call removed.
  */
 async function drainRollbackTables(
   ctx: MutationCtx,
   a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> }
-): Promise<boolean> {
+): Promise<{ drained: boolean; deleted: number }> {
   let budget = IMPORT_ROLLBACK_BUDGET;
+  let deleted = 0;
   for (const table of ROLLBACK_ORDER) {
     if (table === 'chatroom_rooms') continue;
 
     const step = await rollbackStep(ctx, table, a, budget);
-    if (step === null) return false;
-    budget -= step;
+    budget -= step.spent;
+    deleted += step.rows;
+    if (step.filled) return { drained: false, deleted };
   }
-  return true;
+  return { drained: true, deleted };
 }
 
 /**
  * One table's batch within the remaining budget.
- *
- * @returns the budget cost of the rows deleted, or `null` when the table filled
- * the batch and the next rollback call must resume.
+ * `filled` is true when the batch hit its limit, so the next call must resume.
  */
 async function rollbackStep(
   ctx: MutationCtx,
   table: string,
   a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> },
   budget: number
-): Promise<number | null> {
+): Promise<{ rows: number; spent: number; filled: boolean }> {
   const entry = rollbackEntryOf(table);
   const limit = Math.floor(budget / entry.cost);
-  if (limit === 0) return null;
+  if (limit === 0) return { rows: 0, spent: 0, filled: true };
 
-  const deleted = await deleteTableBatch(ctx, table, entry, a, limit);
-  return deleted === limit ? null : deleted * entry.cost;
+  const rows = await deleteTableBatch(ctx, table, entry, a, limit);
+  return { rows, spent: rows * entry.cost, filled: rows === limit };
 }
 
 /**
