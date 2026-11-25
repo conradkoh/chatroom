@@ -32,12 +32,7 @@ import {
 } from './timelineRowStyles';
 
 /** Below-sm stacking classes as literals: the private stacked constant is not importable. */
-const BELOW_SM_STACKING_CLASSES = [
-  'max-sm:basis-full',
-  'max-sm:max-w-full',
-  'max-sm:pl-[1.375rem]',
-  'max-sm:leading-4',
-];
+const BELOW_SM_STACKING_CLASSES = ['max-sm:basis-full', 'max-sm:max-w-full', 'max-sm:leading-4'];
 
 /** Any Tailwind palette colour utility that is not a chatroom token, or a raw colour literal. */
 const HARD_CODED_COLOUR =
@@ -135,12 +130,13 @@ describe('TIMELINE_HANDOFF_META', () => {
     expect(TIMELINE_HANDOFF_META).not.toContain('hidden');
   });
 
-  it('stacks below sm and never takes a desktop-only sm override', () => {
+  it('stacks below sm, stays right-anchored at every width, and never takes a desktop-only sm override', () => {
     expect(TIMELINE_HANDOFF_META).not.toMatch(/(^|\s)sm:/);
-    expect(TIMELINE_HANDOFF_META).toContain('max-sm:items-start');
+    expect(TIMELINE_HANDOFF_META).not.toContain('max-sm:items-start');
+    expect(TIMELINE_HANDOFF_META).toContain('items-end');
     expect(TIMELINE_HANDOFF_META).toContain('max-sm:basis-full');
     expect(TIMELINE_HANDOFF_META).toContain('max-sm:max-w-full');
-    expect(TIMELINE_HANDOFF_META).toContain('max-sm:pl-[1.375rem]');
+    expect(TIMELINE_HANDOFF_META).not.toContain('max-sm:pl-[1.375rem]');
     expect(TIMELINE_HANDOFF_META).toContain('max-sm:leading-4');
   });
 
@@ -158,7 +154,7 @@ describe('TIMELINE_HANDOFF_META_TIME_ROW', () => {
     expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('justify-end');
     expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('whitespace-nowrap');
     expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('max-sm:h-4');
-    expect(TIMELINE_HANDOFF_META_TIME_ROW).toContain('max-sm:justify-start');
+    expect(TIMELINE_HANDOFF_META_TIME_ROW).not.toContain('max-sm:justify-start');
     expect(TIMELINE_HANDOFF_META_TIME_ROW).not.toMatch(/(^|\s)sm:/);
   });
 });
@@ -177,6 +173,7 @@ describe('TIMELINE_HANDOFF_META_DURATION_SLOT', () => {
     expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('truncate');
     expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('max-sm:w-auto');
     expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('max-sm:overflow-visible');
+    expect(TIMELINE_HANDOFF_META_DURATION_SLOT).toContain('max-sm:empty:hidden');
   });
 });
 
@@ -185,6 +182,10 @@ describe('TIMELINE_BAR_META_PLAIN', () => {
     for (const cls of BELOW_SM_STACKING_CLASSES) {
       expect(TIMELINE_BAR_META_PLAIN.split(' ')).toContain(cls);
     }
+  });
+
+  it('right-aligns its timestamp below sm', () => {
+    expect(TIMELINE_BAR_META_PLAIN.split(' ')).toContain('max-sm:justify-end');
   });
 });
 

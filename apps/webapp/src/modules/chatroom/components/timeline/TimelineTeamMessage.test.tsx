@@ -17,12 +17,7 @@ import type * as ReportModule from '../../utils/parseHandoffReport';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
 
 /** Below-sm stacking classes as literals: the private stacked constant is not importable. */
-const BELOW_SM_STACKING_CLASSES = [
-  'max-sm:basis-full',
-  'max-sm:max-w-full',
-  'max-sm:pl-[1.375rem]',
-  'max-sm:leading-4',
-];
+const BELOW_SM_STACKING_CLASSES = ['max-sm:basis-full', 'max-sm:max-w-full', 'max-sm:leading-4'];
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -991,6 +986,7 @@ Edge case X
       const trigger = screen.getByTestId('timeline-plan-trigger');
       const meta = trigger.lastElementChild as HTMLElement;
       expect(meta).toHaveClass(...BELOW_SM_STACKING_CLASSES);
+      expect(meta).toHaveClass('max-sm:justify-end');
       expect(trigger).toHaveClass('max-sm:flex-wrap');
     });
 
@@ -1126,6 +1122,7 @@ Edge case X
       expect(meta.children).toHaveLength(2);
       const [timeRow, agentLine] = Array.from(meta.children) as HTMLElement[];
       expect(timeRow).toHaveClass('h-5', 'justify-end');
+      expect(timeRow).not.toHaveClass('max-sm:justify-start');
       expect(timeRow.lastElementChild).toBe(
         within(timeRow).getByTestId('timeline-handoff-duration-slot')
       );
@@ -1140,6 +1137,7 @@ Edge case X
         'timeline-handoff-duration-slot'
       );
       expect(slot).toHaveClass('w-[7ch]', 'shrink-0', 'font-mono', 'text-[10px]');
+      expect(slot).toHaveClass('max-sm:empty:hidden');
       expect(slot).toBeEmptyDOMElement();
     });
 
@@ -1182,7 +1180,7 @@ Edge case X
       expect(children.at(-1)).toBe(meta);
     });
 
-    it('wraps the meta to its own row below sm', () => {
+    it('wraps the meta to its own row below sm and keeps it right-anchored', () => {
       render(<TimelineTeamMessage message={SNAPSHOT_HANDOFF} chatroomId="room-1" collapsible />);
 
       const trigger = screen.getByTestId('timeline-handoff-trigger');
@@ -1190,6 +1188,8 @@ Edge case X
       const meta = screen.getByTestId('timeline-handoff-meta');
       expect(meta).toHaveClass(...BELOW_SM_STACKING_CLASSES);
       expect(meta).toHaveClass('max-w-[55%]');
+      expect(meta).toHaveClass('items-end');
+      expect(meta).not.toHaveClass('max-sm:items-start');
     });
 
     it('puts the timestamp before the duration slot and the agent line after the time row', () => {
