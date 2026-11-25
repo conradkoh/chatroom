@@ -13,7 +13,10 @@
 
 import { resolve } from 'node:path';
 
-import type { ExportCategory } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
+import {
+  EXPORT_MAX_FILE_BYTES,
+  type ExportCategory,
+} from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
 import {
   runExport,
   type ChatroomExportPort,
@@ -138,6 +141,10 @@ function tamperChecksum(json: string): string {
 /** In-memory fs with the same no-overwrite contract as the node adapter. */
 class MemoryFs implements ChatroomTransferFs {
   readonly files = new Map<string, string>();
+  /** Paths `readFile` was called with, so a test can assert a file was never read. */
+  readonly readCalls: string[] = [];
+  /** Size overrides, so a test can model a file larger than its stored bytes. */
+  readonly sizes = new Map<string, number>();
 
   async mkdirp(): Promise<void> {}
 
@@ -156,6 +163,7 @@ class MemoryFs implements ChatroomTransferFs {
   }
 
   async readFile(path: string): Promise<string> {
+    this.readCalls.push(path);
     const data = this.files.get(path);
     if (data === undefined) throw errnoError('ENOENT');
     return data;
@@ -163,7 +171,11 @@ class MemoryFs implements ChatroomTransferFs {
 
   async stat(path: string): Promise<{ isFile: boolean; isDirectory: boolean; size: number }> {
     const data = this.files.get(path);
-    return { isFile: data !== undefined, isDirectory: false, size: data?.length ?? 0 };
+    return {
+      isFile: data !== undefined,
+      isDirectory: false,
+      size: this.sizes.get(path) ?? data?.length ?? 0,
+    };
   }
 }
 
@@ -298,6 +310,8 @@ interface HarnessOptions {
   fileExists?: boolean;
   /** `null` means this machine has no identity. */
   machineId?: string | null;
+  /** Report this size from `stat` instead of the stored byte length. */
+  statSize?: number;
 }
 
 async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -307,6 +321,7 @@ async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const fs = new MemoryFs();
   if (options.fileExists !== false) {
     fs.files.set(EXPORT_PATH, options.storeJson ?? (await buildExport()));
+    if (options.statSize !== undefined) fs.sizes.set(EXPORT_PATH, options.statSize);
   }
   const signals = createSignals();
   const machineId = options.machineId === undefined ? 'machine-1' : options.machineId;
@@ -412,6 +427,28 @@ describe('importChatroom (read-only)', () => {
     expect(h.err.some((line) => line.includes('[IMPORT_FILE_UNREADABLE]'))).toBe(true);
     expect(h.exits).toEqual([1]);
     expect(scripted.calls).toEqual([]);
+  });
+
+  it('refuses a file over the export maximum before reading it', async () => {
+    const h = await createHarness({ statSize: EXPORT_MAX_FILE_BYTES + 1 });
+    const scripted = createScriptedPort();
+
+    await runImport({ path: EXPORT_PATH }, h.deps, () => scripted.port);
+
+    expect(h.err.some((line) => line.includes('[IMPORT_FILE_TOO_LARGE]'))).toBe(true);
+    expect(h.exits).toEqual([1]);
+    expect(h.fs.readCalls).toEqual([]);
+    expect(scripted.calls).toEqual([]);
+  });
+
+  it('a file exactly at the limit is not refused for size', async () => {
+    const h = await createHarness({ statSize: EXPORT_MAX_FILE_BYTES });
+    const scripted = createScriptedPort();
+
+    await runImport({ path: EXPORT_PATH }, h.deps, () => scripted.port);
+
+    expect(h.fs.readCalls).toEqual([EXPORT_PATH]);
+    expect(h.err.some((line) => line.includes('IMPORT_FILE_TOO_LARGE'))).toBe(false);
   });
 
   it('an invalid file is refused before any port call', async () => {

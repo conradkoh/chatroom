@@ -16,6 +16,7 @@ import { resolve } from 'node:path';
 
 import {
   ChatroomTransferError,
+  EXPORT_MAX_FILE_BYTES,
   TRANSFER_ERROR_CODES,
 } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
 import {
@@ -126,7 +127,9 @@ export async function importChatroom(
 
 /**
  * Reads the export text. A directory, a missing path or an unreadable file is
- * `IMPORT_FILE_UNREADABLE`; the driver then validates the contents.
+ * `IMPORT_FILE_UNREADABLE`; a file over `EXPORT_MAX_FILE_BYTES` is
+ * `IMPORT_FILE_TOO_LARGE` and is never read. The driver then validates the
+ * contents.
  */
 async function readExportText(deps: ChatroomTransferDeps, path: string): Promise<string> {
   const full = resolve(deps.cwd(), path);
@@ -134,6 +137,12 @@ async function readExportText(deps: ChatroomTransferDeps, path: string): Promise
     throw unreadable(full, reasonOf(error));
   });
   if (!stats.isFile) throw unreadable(full);
+  if (stats.size > EXPORT_MAX_FILE_BYTES) {
+    throw new ChatroomTransferError(
+      TRANSFER_ERROR_CODES.IMPORT_FILE_TOO_LARGE,
+      `file is larger than ${EXPORT_MAX_FILE_BYTES} bytes: ${full}`
+    );
+  }
   return await deps.fs.readFile(full).catch((error: unknown) => {
     throw unreadable(full, reasonOf(error));
   });
