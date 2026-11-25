@@ -35,7 +35,8 @@ describe('useTwoFingerTap — master gaps vs robust branch (triage evidence)', (
     expect(cb).toHaveBeenCalledTimes(1);
   });
 
-  it('resting finger for 3s then second finger taps must NOT toggle (join window)', () => {
+  // it.fails: documents a gap on master; flip to it() once the robust gesture state machine lands.
+  it.fails('resting finger for 3s then second finger taps must NOT toggle (join window)', () => {
     const cb = vi.fn();
     renderHook(() => useTwoFingerTap(cb));
     const a = touch(0, 100, 100);
@@ -48,7 +49,7 @@ describe('useTwoFingerTap — master gaps vs robust branch (triage evidence)', (
     expect(cb).not.toHaveBeenCalled();
   });
 
-  it('two-finger swipe where first-lifted finger moved 120px must NOT toggle', () => {
+  it.fails('two-finger swipe where first-lifted finger moved 120px must NOT toggle', () => {
     const cb = vi.fn();
     renderHook(() => useTwoFingerTap(cb));
     const a = touch(0, 100, 100);
