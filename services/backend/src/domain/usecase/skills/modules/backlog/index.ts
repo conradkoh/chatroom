@@ -6,7 +6,7 @@ import type { SkillModule } from '../../registry';
 
 export const backlogSkill: SkillModule = {
   skillId: 'backlog',
-  name: 'Backlog Reference',
+  name: 'Backlog Management',
   description:
     'Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.',
   getPrompt: (cliEnvPrefix: string) => `You have been activated with the "backlog" skill.
@@ -72,10 +72,10 @@ Check the list output — items showing "Score: ..." are already scored. Skip th
 
 ### Complete
 \`\`\`
-${cliEnvPrefix}chatroom backlog complete --chatroom-id=<id> --role=<role> --backlog-item-id=<id> [-f|--force]
+${cliEnvPrefix}chatroom backlog complete --chatroom-id=<id> --role=<role> --backlog-item-id=<id>
 \`\`\`
 
-Optional \`-f\` / \`--force\` is a registered flag (see \`chatroom backlog complete --help\`). It is **not** forwarded to the Convex mutation yet, so it does not change server behavior today; omit it unless your runbook says otherwise.
+\`complete\` takes only \`--chatroom-id\`, \`--role\`, and \`--backlog-item-id\`. Do not pass any force or override option: the server does not apply one, so \`complete\` behaves the same either way. Use it only under the rules in Lifecycle below.
 
 ### Reopen
 \`\`\`
@@ -154,8 +154,6 @@ stateDiagram-v2
 | Mistakenly completed early | \`reopen\` then \`mark-for-review\` |
 | Permanently remove a mistaken item (cannot be undone) | \`delete\` (user-only) |
 
-Reference: \`docs/plans/backlog-item-lifecycle-and-attachments.md\`
-
 ---
 
 ## Workflows
@@ -182,11 +180,11 @@ An item is "already scored" if the list output shows "Score: complexity=... | va
 flowchart TD
   A([Implementation complete]) --> B[Open PR for user review]
   B --> C["mark-for-review (NOT complete)"]
-  C --> D[Hand off to user with PR link + summary]
+  C --> D[Report PR link + summary to user]
   D --> E([User reviews in Pending Review section])
 \`\`\`
 
-Moves item to \`pending_user_review\`. User confirms completion (\`complete\`) or sends back for rework (\`reopen\`).
+Moves item to \`pending_user_review\`. The user confirms completion (\`complete\`) or sends the item back for rework.
 
 ### 3. Continuous Backlog Execution
 
@@ -201,7 +199,7 @@ flowchart TD
   C -->|No| E
   E --> F["Select items: complexity=low AND value=high"]
   F --> G{Qualifying items?}
-  G -->|No| H([Hand off — no high-ROI items found])
+  G -->|No| H([Report to user — no high-ROI items found])
   G -->|Yes| I[Take next item]
   I --> J{Already implemented?\\nCheck codebase / recent commits}
   J -->|Yes — stale| K["Mark for review\\n(note: already implemented)"]
@@ -210,7 +208,7 @@ flowchart TD
   K --> M[Mark item for review]
   M --> N{More items?}
   N -->|Yes| I
-  N -->|No| O[Hand off to user with full summary]
+  N -->|No| O[Report full summary to user]
   O --> P([Done])
 \`\`\`
 
@@ -238,11 +236,7 @@ Follow these steps to clean up the backlog by identifying and closing stale item
    \`\`\`
    **Important:** Always mark for review — do NOT close directly. Let the user confirm.
 
-4. If you are the coordinator, delegate assessment to workers:
-   - Builder checks codebase to determine if items are stale
-   - Builder marks stale items for review and reports back
-
-5. Report summary: items reviewed, marked for review, kept, needs clarification
+4. Report summary: items reviewed, marked for review, kept, needs clarification
 
 ### 5. Export / Import Backlog
 
