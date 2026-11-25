@@ -153,23 +153,40 @@ export const rollback = mutation({
  * `machineId` is a chunk failure, not an auth failure, so it is rejected before
  * the owner check.
  */
-// fallow-ignore-next-line complexity
 async function requireChunkMachine(
   ctx: MutationCtx,
   sessionId: string,
   chunk: ImportChunk
 ): Promise<void> {
-  const record = chunk as unknown;
-  if (typeof record !== 'object' || record === null) return;
-  const { phase, machineId } = record as { phase?: unknown; machineId?: unknown };
-  if (phase !== 'workspaces' && phase !== 'agentConfigs') return;
-  if (typeof machineId !== 'string') {
+  const machineId = machineIdOfChunk(chunk);
+  if (machineId === undefined) return;
+  if (machineId === null) {
     throw new ConvexError({
       code: BACKEND_ERROR_CODES.IMPORT_CHUNK_FAILED,
       message: 'a machine-scoped chunk needs a machineId',
     });
   }
   await requireOwnedMachine(ctx, sessionId, machineId);
+}
+
+/**
+ * The chunk's target machine, if it has one.
+ *
+ * @returns `undefined` when the phase is not machine-scoped, `null` when it is
+ * but the chunk carries no string `machineId`, the id otherwise.
+ */
+function machineIdOfChunk(chunk: unknown): string | null | undefined {
+  if (!isRecord(chunk)) return undefined;
+  if (!isMachineScopedPhase(chunk.phase)) return undefined;
+  return typeof chunk.machineId === 'string' ? chunk.machineId : null;
+}
+
+function isMachineScopedPhase(phase: unknown): boolean {
+  return phase === 'workspaces' || phase === 'agentConfigs';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 async function requireMachine(ctx: QueryCtx | MutationCtx, machineId: string) {
