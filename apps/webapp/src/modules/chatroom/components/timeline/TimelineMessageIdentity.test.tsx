@@ -32,6 +32,15 @@ describe('TimelineMessageTypeBadge', () => {
     expect(badge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
   });
 
+  it('renders the grounding badge with warning tokens and a decorative icon', () => {
+    render(<TimelineMessageTypeBadge type="grounding" />);
+    const badge = screen.getByText('grounding');
+    expect(badge.tagName).toBe('SPAN');
+    expect(badge).toHaveClass('bg-chatroom-status-warning/15', 'text-chatroom-status-warning');
+    expect(badge.className).not.toMatch(/bg-chatroom-bg-tertiary|text-chatroom-text-primary|ring-/);
+    expect(badge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
   it.each(['message', 'user', ''])('renders nothing for type %j', (type) => {
     const { container } = render(<TimelineMessageTypeBadge type={type} />);
     expect(container).toBeEmptyDOMElement();

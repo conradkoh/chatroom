@@ -67,6 +67,22 @@ describe('isEagerTimelineEvent', () => {
     ).toBe(false);
   });
 
+  it('collapses grounding messages without a target', () => {
+    expect(
+      isEagerTimelineEvent(
+        event('team_message', { senderRole: 'builder', targetRole: undefined, type: 'grounding' })
+      )
+    ).toBe(false);
+  });
+
+  it('collapses grounding messages targeting the user', () => {
+    expect(
+      isEagerTimelineEvent(
+        event('team_message', { senderRole: 'builder', targetRole: 'user', type: 'grounding' })
+      )
+    ).toBe(false);
+  });
+
   it('collapses agent-to-agent handoffs', () => {
     expect(isEagerTimelineEvent(event('team_message', { type: 'handoff' }))).toBe(false);
   });
