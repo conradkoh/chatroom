@@ -106,11 +106,24 @@ export function computeVisualViewportScale(): number {
 }
 
 /**
- * Shared subscription for visualViewport-derived metrics (keyboard inset,
- * offset top). Recomputes on resize/scroll/focus changes with rAF + delayed
- * rechecks to catch late browser layout/scroll settles.
+ * After a resize or focus change, visualViewport scroll events keep refreshing a
+ * keyboard-derived value for this long. That covers the browser's scroll-into-view as the
+ * keyboard opens. Later scrolls are user pans and must not move the value.
  */
-function useVisualViewportValue(enabled: boolean, compute: () => number): number {
+const KEYBOARD_SCROLL_FOLLOW_MS = 600;
+
+/**
+ * Shared subscription for visualViewport-derived metrics (keyboard inset,
+ * offset top). Recomputes on resize/focus changes with rAF + delayed
+ * rechecks to catch late browser layout settles. Scroll events refresh the value only
+ * while `scrollFollowMs` after the last resize/focus trigger has not elapsed; the default
+ * is unbounded, so scroll always refreshes.
+ */
+function useVisualViewportValue(
+  enabled: boolean,
+  compute: () => number,
+  scrollFollowMs = Number.POSITIVE_INFINITY
+): number {
   const [valuePx, setValuePx] = useState(0);
 
   useEffect(() => {
@@ -121,6 +134,7 @@ function useVisualViewportValue(enabled: boolean, compute: () => number): number
     const update = () => setValuePx(compute());
     let rafId: number | null = null;
     const timeoutIds: number[] = [];
+    let scrollFollowUntil = 0;
 
     const clearPending = () => {
       if (rafId !== null) {
@@ -133,7 +147,7 @@ function useVisualViewportValue(enabled: boolean, compute: () => number): number
       timeoutIds.length = 0;
     };
 
-    const scheduleUpdate = () => {
+    const refresh = () => {
       clearPending();
       update();
       rafId = requestAnimationFrame(update);
@@ -141,27 +155,42 @@ function useVisualViewportValue(enabled: boolean, compute: () => number): number
       timeoutIds.push(window.setTimeout(update, 300));
     };
 
+    // Resize and focus changes re-arm the follow window, then refresh.
+    const scheduleUpdate = () => {
+      scrollFollowUntil = Date.now() + scrollFollowMs;
+      refresh();
+    };
+
+    // Scroll recomputes once, inside the window only. It never re-arms the window and never
+    // schedules trailing rechecks, so a read cannot land after the window has closed.
+    const handleScroll = () => {
+      if (Date.now() < scrollFollowUntil) update();
+    };
+
     scheduleUpdate();
     window.addEventListener('resize', scheduleUpdate);
     window.visualViewport?.addEventListener('resize', scheduleUpdate);
-    window.visualViewport?.addEventListener('scroll', scheduleUpdate);
+    window.visualViewport?.addEventListener('scroll', handleScroll);
     document.addEventListener('focusin', scheduleUpdate, true);
     document.addEventListener('focusout', scheduleUpdate, true);
     return () => {
       window.removeEventListener('resize', scheduleUpdate);
       window.visualViewport?.removeEventListener('resize', scheduleUpdate);
-      window.visualViewport?.removeEventListener('scroll', scheduleUpdate);
+      window.visualViewport?.removeEventListener('scroll', handleScroll);
       document.removeEventListener('focusin', scheduleUpdate, true);
       document.removeEventListener('focusout', scheduleUpdate, true);
       clearPending();
     };
-  }, [enabled, compute]);
+  }, [enabled, compute, scrollFollowMs]);
 
   return enabled ? valuePx : 0;
 }
 
-export function useVisualViewportKeyboardInset(enabled = true): number {
-  const insetPx = useVisualViewportValue(enabled, computeKeyboardInsetPx);
+export function useVisualViewportKeyboardInset(
+  enabled = true,
+  scrollFollowMs = Number.POSITIVE_INFINITY
+): number {
+  const insetPx = useVisualViewportValue(enabled, computeKeyboardInsetPx, scrollFollowMs);
 
   if (typeof window !== 'undefined' && typeof window.__MOBILE_KEYBOARD_TEST_INSET__ === 'number') {
     return Math.max(0, window.__MOBILE_KEYBOARD_TEST_INSET__);
@@ -201,9 +230,12 @@ export function useMainChatComposerFocused(enabled = true): boolean {
   return useFocusWithin(isMainChatComposerFocused, enabled);
 }
 
-/** Keyboard inset for sticky footers — only non-zero when main chat composer has focus. */
+/**
+ * Keyboard inset for the bottom bar lift — only non-zero when the main chat composer has focus.
+ * Latches once the keyboard settles: a user pan after that does not re-lift the footer.
+ */
 export function useMainChatComposerKeyboardInset(enabled = true): number {
-  const inset = useVisualViewportKeyboardInset(enabled);
+  const inset = useVisualViewportKeyboardInset(enabled, KEYBOARD_SCROLL_FOLLOW_MS);
   const composerFocused = useMainChatComposerFocused(enabled);
   return composerFocused ? inset : 0;
 }
