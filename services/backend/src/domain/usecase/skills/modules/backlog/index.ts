@@ -155,7 +155,7 @@ stateDiagram-v2
 | PR merged and verified | \`complete\` |
 | Stale/duplicate/won't fix | \`close --reason=...\` |
 | Mistakenly completed early | \`reopen\` then \`mark-for-review\` |
-| Permanently remove a mistaken item (cannot be undone) | \`delete\` (user-only) |
+| Retire a mistaken item so it leaves the backlog lists (soft-delete, cannot be undone) | \`delete\` (user-only) |
 
 ---
 

@@ -446,6 +446,26 @@ describe('skills.activate — backlog skill role-neutral contract', () => {
     expect(prompt).not.toContain('hard removal');
   });
 
+  test('command decision table describes delete as a soft-delete, not permanent removal', async () => {
+    const { sessionId } = await createTestSession('skills-backlog-decision-table-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+    });
+    const prompt = result.skill.prompt;
+
+    expect(prompt).toContain(
+      '| Retire a mistaken item so it leaves the backlog lists (soft-delete, cannot be undone) | `delete` (user-only) |'
+    );
+    // Case-insensitive so the retired phrasing cannot return in any capitalisation,
+    // while keeping the literal string out of the tree the repo-wide grep checks.
+    expect(prompt).not.toMatch(/permanently remove/i);
+  });
+
   test('display name is Backlog Management', async () => {
     const { sessionId } = await createTestSession('skills-backlog-name-1');
     const chatroomId = await createChatroom(sessionId);
