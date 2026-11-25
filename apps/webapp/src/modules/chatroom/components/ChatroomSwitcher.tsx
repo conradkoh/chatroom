@@ -4,6 +4,7 @@ import type { Observable } from '@legendapp/state';
 import { useSelector } from '@legendapp/state/react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useCallback, useState, useRef, useMemo, useSyncExternalStore } from 'react';
+import { flushSync } from 'react-dom';
 
 import {
   acquireChatroomSwitcherPartition,
@@ -56,11 +57,17 @@ export function ChatroomSwitcher() {
     [openDialog, closeDialog]
   );
 
-  // Two-finger tap on mobile opens/closes the chatroom switcher
-  const toggleOpen = useCallback(
-    () => (open ? closeDialog() : openDialog('switcher')),
-    [open, openDialog, closeDialog]
-  );
+  // Two-finger tap on mobile opens/closes the chatroom switcher.
+  // The open is committed synchronously so CommandDialogContent's layout effect
+  // focuses the command input inside this touchend listener. iOS Safari and
+  // installed PWAs only raise the soft keyboard for focus() inside the user gesture.
+  const toggleOpen = useCallback(() => {
+    if (open) {
+      closeDialog();
+      return;
+    }
+    flushSync(() => openDialog('switcher'));
+  }, [open, openDialog, closeDialog]);
   useTwoFingerTap(toggleOpen);
 
   const router = useRouter();
