@@ -9,7 +9,6 @@ import { describe, expect, test } from 'vitest';
 
 import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-started-content';
 import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
-import { getAvailableActions } from '../../../prompts/cli/get-next-task/available-actions';
 import { handoffCommand } from '../../../prompts/cli/handoff/command';
 import {
   getTaskStartedPrompt,
@@ -122,37 +121,6 @@ describe('Webapp Agent Prompt', () => {
     expect(prompt).toContain(
       'chatroom register-agent --chatroom-id="my-chatroom-id" --role="builder" --type=custom'
     );
-  });
-});
-
-describe('Available Actions (Task Delivery)', () => {
-  test('generates Available Actions format with all actions', () => {
-    const actions = getAvailableActions({
-      chatroomId: 'test-chatroom-123',
-      role: 'builder',
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-
-    // Should use Available Actions header
-    expect(actions).toContain('## Available Actions');
-
-    // Should have all action sections
-    expect(actions).toContain('### History Retrieval');
-    expect(actions).toContain('### View Code Changes');
-    expect(actions).toContain('### Backlog');
-
-    // Should inject CHATROOM_CONVEX_URL properly
-    expect(actions).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
-  });
-
-  test('includes git log command', () => {
-    const actions = getAvailableActions({
-      chatroomId: 'abc123',
-      role: 'planner',
-      convexUrl: 'http://localhost:3000',
-    });
-
-    expect(actions).toContain('git log --oneline -10');
   });
 });
 

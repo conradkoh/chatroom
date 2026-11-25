@@ -3,9 +3,9 @@
  *
  * The context write path is gone, so every prompt surface must be free of it for
  * every team preset and every role. This renders the public surfaces — role
- * prompt, both init prompts, the CLI task-delivery footer, the get-next-task
- * action guidance, and every handoff template — and asserts none carries a
- * removed command or the old context-read wording.
+ * prompt, both init prompts, the CLI task-delivery footer, and every handoff
+ * template — and asserts none carries a removed command or the old context-read
+ * wording.
  *
  * Entry-point surfaces (task-started prompts, native task delivery, and the
  * task-delivery core block) are rendered for each preset's entry-point role in
@@ -25,7 +25,6 @@ import {
   rolesUnderCharacterisation,
   type CharacterisationTeam,
 } from './role-prompt-characterisation';
-import { getAvailableActions } from '../cli/get-next-task/available-actions';
 import {
   listHandoffTemplatePairs,
   renderHandoffTemplate,
@@ -126,15 +125,6 @@ function renderTaskFooter(role: string): string {
   return lines.join('\n');
 }
 
-/** The Available Actions section `get-next-task` renders. */
-function renderActions(role: string): string {
-  return getAvailableActions({
-    chatroomId: CHATROOM_ID,
-    role,
-    convexUrl: '',
-  });
-}
-
 /** Render a handoff template pair, failing loudly when the catalog has no body. */
 function renderPair(pair: HandoffTemplatePair): string {
   const template = renderHandoffTemplate(pair);
@@ -157,7 +147,6 @@ describe.each(TEAMS)('rendered prompts for $teamId', (team) => {
         `native init for ${role}`
       ).toBeGreaterThan(0);
       expect(renderTaskFooter(role).length, `task footer for ${role}`).toBeGreaterThan(0);
-      expect(renderActions(role).length, `actions for ${role}`).toBeGreaterThan(0);
     }
   });
 
@@ -167,13 +156,9 @@ describe.each(TEAMS)('rendered prompts for $teamId', (team) => {
     expect(renderInitSystemPrompt(team, role, 'claude-sdk')).not.toMatch(REMOVED_CONTEXT_COMMAND);
   });
 
-  test.each(roles)(
-    'role %s: task-delivery footer and available actions name no removed command',
-    (role) => {
-      expect(renderTaskFooter(role)).not.toMatch(REMOVED_CONTEXT_COMMAND);
-      expect(renderActions(role)).not.toMatch(REMOVED_CONTEXT_COMMAND);
-    }
-  );
+  test.each(roles)('role %s: task-delivery footer names no removed command', (role) => {
+    expect(renderTaskFooter(role)).not.toMatch(REMOVED_CONTEXT_COMMAND);
+  });
 });
 
 describe('handoff templates for every preset team and role', () => {
