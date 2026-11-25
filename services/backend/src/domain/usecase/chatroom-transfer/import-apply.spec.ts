@@ -10,11 +10,10 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { errorCode } from './convex-test-ports';
+import { chatroomRowCounts, errorCode } from './convex-test-ports';
 import type { ImportChunk, ImportHeader, ImportRowPayload } from './import-apply';
 import { api } from '../../../../convex/_generated/api';
-import type { Id, TableNames } from '../../../../convex/_generated/dataModel';
-import schema from '../../../../convex/schema';
+import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
 import { IMPORT_WINDOW_MS } from '../../entities/chatroom-transfer-file';
 
@@ -103,21 +102,6 @@ async function failure(promise: Promise<unknown>): Promise<unknown> {
     return error;
   }
   throw new Error('expected the mutation to fail');
-}
-
-/** Counts rows carrying `chatroomId` in every schema table. */
-async function rowsByTable(chatroomId: Id<'chatroom_rooms'>): Promise<Record<string, number>> {
-  return await t.run(async (ctx) => {
-    const counts: Record<string, number> = {};
-    for (const table of Object.keys(schema.tables) as TableNames[]) {
-      const rows = await ctx.db.query(table).collect();
-      const count = rows.filter(
-        (row) => (row as { chatroomId?: unknown }).chatroomId === chatroomId
-      ).length;
-      if (count > 0) counts[table] = count;
-    }
-    return counts;
-  });
 }
 
 afterEach(() => {
@@ -704,12 +688,12 @@ describe('rollback', () => {
       sessionId,
       teamStructureId: 'trio@1',
     });
-    const otherBefore = await rowsByTable(otherChatroomId);
+    const otherBefore = await chatroomRowCounts(otherChatroomId);
 
     const result = await t.mutation(api.chatroomImport.rollback, { sessionId, chatroomId });
     expect(result).toEqual({ drained: true });
 
-    expect(await rowsByTable(chatroomId)).toEqual({});
+    expect(await chatroomRowCounts(chatroomId)).toEqual({});
     const room = await t.run((ctx) => ctx.db.get('chatroom_rooms', chatroomId));
     expect(room).toBeNull();
 
@@ -723,7 +707,7 @@ describe('rollback', () => {
     );
     expect(cursor).toBeNull();
 
-    expect(await rowsByTable(otherChatroomId)).toEqual(otherBefore);
+    expect(await chatroomRowCounts(otherChatroomId)).toEqual(otherBefore);
   });
 
   test('drains across calls within the rollback budget', async () => {
@@ -748,7 +732,7 @@ describe('rollback', () => {
     const second = await t.mutation(api.chatroomImport.rollback, { sessionId, chatroomId });
     expect(second).toEqual({ drained: true });
 
-    expect(await rowsByTable(chatroomId)).toEqual({});
+    expect(await chatroomRowCounts(chatroomId)).toEqual({});
   });
 
   test('rolling back an already deleted room is idempotent', async () => {
@@ -828,13 +812,13 @@ describe('end-to-end', () => {
     // A second, partial import must roll back to zero rows.
     const partialId = await begin(sessionId, machineId, { name: 'Partial' });
     await apply(sessionId, partialId, artifactsChunk([artifactRow('a0')]));
-    expect(await rowsByTable(partialId)).not.toEqual({});
+    expect(await chatroomRowCounts(partialId)).not.toEqual({});
 
     const rollback = await t.mutation(api.chatroomImport.rollback, {
       sessionId,
       chatroomId: partialId,
     });
     expect(rollback).toEqual({ drained: true });
-    expect(await rowsByTable(partialId)).toEqual({});
+    expect(await chatroomRowCounts(partialId)).toEqual({});
   });
 });
