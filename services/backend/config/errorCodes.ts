@@ -232,7 +232,16 @@ export type BackendErrorCode =
   | 'TELEGRAM_SEND_FAILED'
 
   // ── Conflict ──────────────────────────────────────────────────────
-  | 'CONFLICT';
+  | 'CONFLICT'
+
+  // ── Chatroom transfer (export / import) ───────────────────────────────
+  | 'EXPORT_PAGE_STALLED'
+  | 'IMPORT_UNKNOWN_TEAM_STRUCTURE'
+  | 'IMPORT_INVALID_WORKING_DIR'
+  | 'IMPORT_MACHINE_NOT_FOUND'
+  | 'IMPORT_MACHINE_NOT_OWNED'
+  | 'IMPORT_TARGET_NOT_IMPORTING'
+  | 'IMPORT_CHUNK_FAILED';
 
 /**
  * Mapping of error names to their string code values.
@@ -592,6 +601,22 @@ export const BACKEND_ERROR_CODES = {
   // ── Conflict ────────────────────────────────────────────────────────
   /** Conflict (e.g. duplicate) */
   CONFLICT: 'CONFLICT',
+
+  // ── Chatroom transfer (export / import) ─────────────────────────────
+  /** An export page returned no rows but reported more work */
+  EXPORT_PAGE_STALLED: 'EXPORT_PAGE_STALLED',
+  /** The export names a team structure this deployment does not know */
+  IMPORT_UNKNOWN_TEAM_STRUCTURE: 'IMPORT_UNKNOWN_TEAM_STRUCTURE',
+  /** A workspace working directory cannot be resolved on the target machine */
+  IMPORT_INVALID_WORKING_DIR: 'IMPORT_INVALID_WORKING_DIR',
+  /** The target machine id does not exist */
+  IMPORT_MACHINE_NOT_FOUND: 'IMPORT_MACHINE_NOT_FOUND',
+  /** The target machine belongs to another user */
+  IMPORT_MACHINE_NOT_OWNED: 'IMPORT_MACHINE_NOT_OWNED',
+  /** The import target chatroom is not in the importing state */
+  IMPORT_TARGET_NOT_IMPORTING: 'IMPORT_TARGET_NOT_IMPORTING',
+  /** An import chunk failed after it started writing */
+  IMPORT_CHUNK_FAILED: 'IMPORT_CHUNK_FAILED',
 } as const satisfies Record<BackendErrorCode, BackendErrorCode>;
 
 /**
@@ -817,6 +842,15 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.FILE_ATTACHMENTS_REQUIRE_USER_TARGET,
   BACKEND_ERROR_CODES.FILE_UPLOADS_UNAVAILABLE,
   BACKEND_ERROR_CODES.WEB_SESSION_REQUIRED,
+
+  // Chatroom transfer
+  BACKEND_ERROR_CODES.EXPORT_PAGE_STALLED,
+  BACKEND_ERROR_CODES.IMPORT_UNKNOWN_TEAM_STRUCTURE,
+  BACKEND_ERROR_CODES.IMPORT_INVALID_WORKING_DIR,
+  BACKEND_ERROR_CODES.IMPORT_MACHINE_NOT_FOUND,
+  BACKEND_ERROR_CODES.IMPORT_MACHINE_NOT_OWNED,
+  BACKEND_ERROR_CODES.IMPORT_TARGET_NOT_IMPORTING,
+  BACKEND_ERROR_CODES.IMPORT_CHUNK_FAILED,
 ] as const;
 
 /**

@@ -77,6 +77,7 @@
     "services/backend/prompts/config.ts",
     "services/backend/prompts/sections/index.ts",
     "services/backend/prompts/sections/team-context.ts",
+    "services/backend/src/domain/entities/chatroom-transfer-file.ts",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts",
     "services/backend/src/domain/usecase/agent/is-agent-alive.ts",
     "services/backend/src/domain/usecase/auth/extensions/index.ts",
