@@ -16,3 +16,4 @@
 - [Plan messages](plan-messages.md) — phased plans as immutable `plan` chat messages, one parser, `planId#Pn` references, `--supersedes` revisions, and the distinction from `docs/plans/`
 - [Per-team prompt isolation](/architecture/team-prompt-isolation.md) — duo, solo, and trio role identity, guidance, and team context live under each team's folder and resolve through one registry
 - [Machine management invariants](machine-management.md) — tombstone-first deletion, MACHINE_SCOPED_TABLES registry rule, lazy roots/ledger, command nudges, per-row action area
+- [Chatroom transfer registry invariants](chatroom-transfer-registry.md) — every chatroom-keyed table is classified in CHATROOM_SCOPED_TABLES, the schema predicate, shared families and the enforcing spec
