@@ -3,7 +3,13 @@
   // Migrated from knip.jsonc
   // Entry points fallow cannot resolve: package.json scripts reach these through `../../scripts/`.
   // Local ESLint plugin sources are loaded by eslint.config.mjs, not imported by app entry points.
-  "entry": ["scripts/convex-codegen.ts", "eslint-rules/*.spec.mjs"],
+  // The transfer command registrations stay unreachable until `src/index.ts` registers them (P9);
+  // listing the registration module here keeps the real export/import chain analysed meanwhile.
+  "entry": [
+    "scripts/convex-codegen.ts",
+    "eslint-rules/*.spec.mjs",
+    "packages/cli/src/commands/chatroom-transfer/register.ts",
+  ],
   "ignoreDependencies": [
     // Run through `pnpm exec vercel` in the deployment docs and the optional Vercel Actions path.
     "vercel",
@@ -57,6 +63,8 @@
     "**/tests/**",
     "**/test.setup.{ts,mts}",
     "**/test-utils.{ts,tsx}",
+    // Test-only Convex adapters for the chatroom-transfer ports (never imported by production code).
+    "**/chatroom-transfer/convex-test-ports.ts",
     // Test-only characterisation renderer imported by the per-team *.snapshot.test.ts files.
     "**/role-prompt-characterisation.ts",
     "**/vitest.config.{ts,mts}",
@@ -167,19 +175,6 @@
     {
       "file": "**/src/domain/usecase/chatroom-transfer/export-read.ts",
       "exports": ["EXPORT_BUILD_INPUT_FIELDS", "assertNotStalled"],
-    },
-    // Consumed by the CLI export phase (P5) and the transfer specs only.
-    {
-      "file": "**/src/domain/usecase/chatroom-transfer/export-build.ts",
-      "exports": ["*"],
-    },
-    {
-      "file": "**/src/domain/usecase/chatroom-transfer/export-driver.ts",
-      "exports": ["*"],
-    },
-    {
-      "file": "**/src/domain/usecase/chatroom-transfer/convex-test-ports.ts",
-      "exports": ["*"],
     },
     // Exported for the machine purge/usage specs. Spec files are not analysis entries.
     {

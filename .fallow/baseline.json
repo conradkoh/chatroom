@@ -77,15 +77,10 @@
     "services/backend/prompts/config.ts",
     "services/backend/prompts/sections/index.ts",
     "services/backend/prompts/sections/team-context.ts",
-    "services/backend/src/domain/entities/chatroom-transfer-file.ts",
     "services/backend/src/domain/entities/harness/lifecycle-events.ts",
     "services/backend/src/domain/usecase/agent/is-agent-alive.ts",
     "services/backend/src/domain/usecase/auth/extensions/index.ts",
     "services/backend/src/domain/usecase/auth/index.ts",
-    "services/backend/src/domain/usecase/chatroom-transfer/convex-test-ports.ts",
-    "services/backend/src/domain/usecase/chatroom-transfer/export-build.ts",
-    "services/backend/src/domain/usecase/chatroom-transfer/export-driver.ts",
-    "services/backend/src/domain/usecase/chatroom-transfer/registry.ts",
     "services/backend/src/domain/usecase/participant/register-ephemeral-participant.ts"
   ],
   "unused_exports": [
