@@ -132,7 +132,7 @@ describe('useTwoFingerTap', () => {
     const callback = vi.fn();
     renderHook(() => useTwoFingerTap(callback));
 
-    // 300ms > MAX_JOIN_MS (200) — the pending join resets before finger 2 lands
+    // 300ms > MAX_JOIN_MS (200): the two touches are too far apart to form a gesture
     staggeredTouchStartTap(300);
 
     expect(callback).not.toHaveBeenCalled();
@@ -267,6 +267,106 @@ describe('useTwoFingerTap', () => {
     dispatchTouchEvent('touchstart', [a, b], [a, b]);
     dispatchTouchEvent('touchcancel', [], [a, b]);
     dispatchTouchEvent('touchend', [], [a, b]);
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('fires once on a clean tap after both fingers lift in one touchend with the first drifted', () => {
+    const callback = vi.fn();
+    renderHook(() => useTwoFingerTap(callback));
+
+    const a = makeTouch(0, 100, 100);
+    const b = makeTouch(1, 160, 100);
+    dispatchTouchEvent('touchstart', [a, b], [a, b]);
+    // One touchend lifts both: id 0 drifted 120px, then id 1 lifts in place.
+    dispatchTouchEvent('touchend', [], [makeTouch(0, 100, 220), makeTouch(1, 160, 100)]);
+    expect(callback).not.toHaveBeenCalled();
+
+    // Fresh identifiers (iOS never reuses them) and a gap longer than MAX_JOIN_MS.
+    advance(1000);
+    const c = makeTouch(2, 300, 300);
+    const d = makeTouch(3, 310, 310);
+    dispatchTouchEvent('touchstart', [c, d], [c, d]);
+    dispatchTouchEvent('touchend', [], [c, d]);
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires on a clean tap after touchcancel', () => {
+    const callback = vi.fn();
+    renderHook(() => useTwoFingerTap(callback));
+
+    const a = makeTouch(0, 100, 100);
+    const b = makeTouch(1, 110, 110);
+    dispatchTouchEvent('touchstart', [a, b], [a, b]);
+    dispatchTouchEvent('touchcancel', [], [a, b]);
+
+    twoFingerTap();
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires once per tap for two consecutive taps', () => {
+    const callback = vi.fn();
+    renderHook(() => useTwoFingerTap(callback));
+
+    twoFingerTap();
+    twoFingerTap();
+
+    expect(callback).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not fire when three fingers touch down in one touchstart', () => {
+    const callback = vi.fn();
+    renderHook(() => useTwoFingerTap(callback));
+
+    const a = makeTouch(0, 100, 100);
+    const b = makeTouch(1, 110, 110);
+    const c = makeTouch(2, 120, 120);
+    dispatchTouchEvent('touchstart', [a, b, c], [a, b, c]);
+    dispatchTouchEvent('touchend', [], [a, b, c]);
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('does not fire when a new finger lands after one finger lifted, even when the last original finger lifts', () => {
+    const callback = vi.fn();
+    renderHook(() => useTwoFingerTap(callback));
+
+    const a = makeTouch(0, 100, 100);
+    const b = makeTouch(1, 160, 100);
+    const c = makeTouch(2, 220, 100);
+    dispatchTouchEvent('touchstart', [a, b], [a, b]);
+    dispatchTouchEvent('touchend', [b], [a]); // a lifts
+    dispatchTouchEvent('touchstart', [b, c], [c]); // c lands while b is still down
+    dispatchTouchEvent('touchend', [c], [b]); // b lifts, c still down
+    expect(callback).not.toHaveBeenCalled();
+
+    dispatchTouchEvent('touchend', [], [c]); // c lifts
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('does not fire for a single-finger drag', () => {
+    const callback = vi.fn();
+    renderHook(() => useTwoFingerTap(callback));
+
+    const a = makeTouch(0, 100, 100);
+    dispatchTouchEvent('touchstart', [a], [a]);
+    dispatchTouchEvent('touchmove', [makeTouch(0, 100, 220)], [makeTouch(0, 100, 220)]);
+    dispatchTouchEvent('touchend', [], [makeTouch(0, 100, 220)]);
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('does not fire when the second-lifted finger moved 120px (per-lift check)', () => {
+    const callback = vi.fn();
+    renderHook(() => useTwoFingerTap(callback));
+
+    const a = makeTouch(0, 100, 100);
+    const b = makeTouch(1, 160, 100);
+    dispatchTouchEvent('touchstart', [a, b], [a, b]);
+    dispatchTouchEvent('touchend', [b], [a]); // a lifts in place
+    dispatchTouchEvent('touchend', [], [makeTouch(1, 160, 220)]); // b lifts 120px down
 
     expect(callback).not.toHaveBeenCalled();
   });

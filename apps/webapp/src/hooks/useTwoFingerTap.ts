@@ -15,7 +15,7 @@ type TouchPoint = { x: number; y: number; startTime: number };
 
 type GestureState = {
   startTime: number;
-  positions: Map<number, { x: number; y: number }>;
+  positions: Map<number, TouchPoint>;
   fingersStillDown: Set<number>;
 };
 
@@ -32,16 +32,10 @@ function hasExcessiveMovement(touch: Touch, start: { x: number; y: number } | un
 }
 
 function createGesture(activeTouches: Map<number, TouchPoint>): GestureState {
-  const ids = Array.from(activeTouches.keys());
-  const positions = new Map<number, { x: number; y: number }>();
-  for (const id of ids) {
-    const point = activeTouches.get(id);
-    if (point) positions.set(id, { x: point.x, y: point.y });
-  }
   return {
     startTime: Date.now(),
-    positions,
-    fingersStillDown: new Set(ids),
+    positions: new Map(activeTouches),
+    fingersStillDown: new Set(activeTouches.keys()),
   };
 }
 
@@ -65,38 +59,52 @@ function removeTouchesFromEvent(activeTouches: Map<number, TouchPoint>, e: Touch
 function createTwoFingerTapController(onTap: () => void) {
   const activeTouches = new Map<number, TouchPoint>();
   let gesture: GestureState | null = null;
+  // Set when a gesture is aborted while fingers are still down. Those leftover
+  // touches cannot start a new gesture until every finger has lifted.
+  let blockedUntilIdle = false;
 
-  const clearGesture = () => {
+  const abortGesture = () => {
     gesture = null;
+    blockedUntilIdle = activeTouches.size > 0;
   };
 
   const resetAll = () => {
     activeTouches.clear();
-    clearGesture();
+    gesture = null;
+    blockedUntilIdle = false;
   };
 
   const tryStartGesture = () => {
-    if (gesture || activeTouches.size !== 2) return;
-    const points = Array.from(activeTouches.values());
-    if (getJoinSpanMs(points) <= MAX_JOIN_MS) {
+    if (gesture || blockedUntilIdle || activeTouches.size !== 2) return;
+    if (getJoinSpanMs(Array.from(activeTouches.values())) <= MAX_JOIN_MS) {
       gesture = createGesture(activeTouches);
     }
   };
 
   // fallow-ignore-next-line complexity
   const handleTouchStart = (e: TouchEvent) => {
+    const active = gesture;
     addTouchesFromEvent(activeTouches, e);
-    if (gesture && activeTouches.size > 2) clearGesture();
-    if (!gesture && activeTouches.size <= 2) tryStartGesture();
+    // A finger that is not part of the active gesture (a replacement for a
+    // lifted finger, or a third finger) invalidates the gesture.
+    const joinedActiveGesture =
+      active !== null &&
+      Array.from(e.changedTouches).some((touch) => !active.positions.has(touch.identifier));
+    if (joinedActiveGesture || activeTouches.size > 2) {
+      abortGesture();
+      return;
+    }
+    tryStartGesture();
   };
 
   // fallow-ignore-next-line complexity
   const handleTouchMove = (e: TouchEvent) => {
-    if (!gesture) return;
+    const active = gesture;
+    if (!active) return;
     for (const touch of Array.from(e.changedTouches)) {
-      if (!gesture.fingersStillDown.has(touch.identifier)) continue;
-      if (hasExcessiveMovement(touch, gesture.positions.get(touch.identifier))) {
-        clearGesture();
+      if (!active.fingersStillDown.has(touch.identifier)) continue;
+      if (hasExcessiveMovement(touch, active.positions.get(touch.identifier))) {
+        abortGesture();
         return;
       }
     }
@@ -105,18 +113,17 @@ function createTwoFingerTapController(onTap: () => void) {
   // fallow-ignore-next-line complexity
   const handleTouchEnd = (e: TouchEvent) => {
     const active = gesture;
-    if (!active) {
-      removeTouchesFromEvent(activeTouches, e);
-      return;
-    }
+    // Drop every lifted touch before any early exit, so no entry outlives its touchend.
+    removeTouchesFromEvent(activeTouches, e);
+    if (activeTouches.size === 0) blockedUntilIdle = false;
+    if (!active) return;
 
     for (const touch of Array.from(e.changedTouches)) {
-      activeTouches.delete(touch.identifier);
       if (!active.fingersStillDown.has(touch.identifier)) continue;
-      // Each finger is checked at its own lift, so a finger that drifted
-      // aborts the gesture even when the other finger lifts last.
+      // Each finger is checked at its own lift, so a drifted finger aborts the
+      // gesture even when the other finger lifts last.
       if (hasExcessiveMovement(touch, active.positions.get(touch.identifier))) {
-        clearGesture();
+        abortGesture();
         return;
       }
       active.fingersStillDown.delete(touch.identifier);
@@ -124,24 +131,27 @@ function createTwoFingerTapController(onTap: () => void) {
 
     if (active.fingersStillDown.size > 0) return;
 
-    clearGesture();
+    gesture = null;
     if (Date.now() - active.startTime > MAX_TAP_DURATION_MS) return;
     onTap();
   };
 
-  const handleTouchCancel = () => {
-    resetAll();
+  return {
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    handleTouchCancel: resetAll,
   };
-
-  return { handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel };
 }
 
 /**
  * Fires a callback when the user performs a two-finger tap.
  *
  * Detects staggered touchstart (finger 2 joins within MAX_JOIN_MS) and staggered
- * touchend (last finger lift completes the tap). Aborts on 3+ fingers, excessive
- * movement (checked at touchmove and at each finger's own lift), or touchcancel.
+ * touchend (last finger lift completes the tap). Aborts on 3+ fingers, a finger
+ * joining after another has lifted, excessive movement (checked at touchmove and
+ * at each finger's own lift), or touchcancel. After an abort, leftover fingers
+ * cannot start a new gesture until all fingers have lifted.
  */
 export function useTwoFingerTap(onTwoFingerTap: () => void): void {
   const callbackRef = useRef(onTwoFingerTap);
