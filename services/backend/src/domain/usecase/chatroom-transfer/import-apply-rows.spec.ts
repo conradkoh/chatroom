@@ -6,8 +6,8 @@
  * written by the apply core, so a missing projection (read model, active header,
  * signal, count) fails here rather than in a UI that never sees it.
  *
- * `refs` is supplied by hand in this round: the driver that fills it lands in
- * P8b. A chunk's `refs` maps the file key to the target id, including the
+ * `refs` is supplied by hand here; `import-driver.spec.ts` covers the driver that
+ * fills it. A chunk's `refs` maps the file key to the target id, including the
  * patch's own key for a `links` chunk.
  */
 
