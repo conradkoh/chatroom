@@ -22,7 +22,7 @@ import {
 import { ChatroomTransferError, TRANSFER_ERROR_CODES } from '../../entities/chatroom-transfer-file';
 
 /** A rollback that has not drained after this many batches is reported as failed. */
-export const ROLLBACK_MAX_ITERATIONS = 200;
+const ROLLBACK_MAX_ITERATIONS = 200;
 
 export interface ChatroomImportPort {
   preflight(a: {

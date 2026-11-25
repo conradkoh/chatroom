@@ -24,9 +24,9 @@ import {
 
 import type { ChatroomTransferDeps } from './deps.js';
 import { exportFileName, writeExportFileAtomically } from './file-io.js';
+import { requireTransferSession } from './session-guard.js';
 import { api } from '../../api.js';
 import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
-import { formatAuthError } from '../../utils/error-formatting.js';
 
 /** One manifest entry: `count: null` means the exclusion is a policy, not a filtered row count. */
 interface Omission {
@@ -48,12 +48,8 @@ export async function exportChatroom(
   opts: { chatroomId: string; path?: string | undefined },
   deps: ChatroomTransferDeps
 ): Promise<void> {
-  const sessionId = await deps.session.getSessionId();
-  if (sessionId === null) {
-    formatAuthError(deps.session.getConvexUrl(), await deps.session.getOtherSessionUrls());
-    deps.exit(1);
-    return;
-  }
+  const sessionId = await requireTransferSession(deps);
+  if (sessionId === null) return;
 
   const port: ChatroomExportPort = {
     getStamp: (chatroomId) =>

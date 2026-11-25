@@ -17,7 +17,7 @@ import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex
 import { getVersion } from '../../version.js';
 
 /** The production dependency graph: Convex client, machine identity and real file system. */
-export async function createChatroomTransferDeps(): Promise<ChatroomTransferDeps> {
+async function createChatroomTransferDeps(): Promise<ChatroomTransferDeps> {
   // Machine identity detection loads the harness registry, which pulls in the
   // daemon and `node:sqlite`. Import it lazily so registering the commands does
   // not make every CLI invocation load that graph.

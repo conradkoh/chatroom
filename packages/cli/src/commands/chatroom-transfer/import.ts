@@ -27,10 +27,10 @@ import type { ImportPlan } from '@workspace/backend/src/domain/usecase/chatroom-
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { ChatroomTransferDeps } from './deps.js';
+import { requireTransferSession } from './session-guard.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import type { BackendOps } from '../../infrastructure/deps/index.js';
-import { formatAuthError } from '../../utils/error-formatting.js';
 
 export interface ImportOptions {
   path: string;
@@ -42,7 +42,7 @@ export interface ImportOptions {
 export type MakeImportPort = (backend: BackendOps, sessionId: SessionId) => ChatroomImportPort;
 
 /** The production adapter: each port method is exactly one Convex call. */
-export function convexImportPort(backend: BackendOps, sessionId: SessionId): ChatroomImportPort {
+function convexImportPort(backend: BackendOps, sessionId: SessionId): ChatroomImportPort {
   return {
     preflight: (a) => backend.query(api.chatroomImport.preflight, { sessionId, ...a }),
     begin: (a) =>
@@ -86,12 +86,8 @@ export async function importChatroom(
   deps: ChatroomTransferDeps,
   makePort: MakeImportPort = convexImportPort
 ): Promise<void> {
-  const sessionId = await deps.session.getSessionId();
-  if (sessionId === null) {
-    formatAuthError(deps.session.getConvexUrl(), await deps.session.getOtherSessionUrls());
-    deps.exit(1);
-    return;
-  }
+  const sessionId = await requireTransferSession(deps);
+  if (sessionId === null) return;
 
   const json = await readExportText(deps, opts.path);
   const machineId = opts.machineId ?? (await deps.machine.getMachineId());
