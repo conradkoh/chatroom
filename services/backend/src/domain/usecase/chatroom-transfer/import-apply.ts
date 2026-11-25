@@ -228,7 +228,6 @@ export async function finalizeImport(
   await clearChatroomUnread(ctx, a.chatroomId, a.ownerId);
 }
 
-// fallow-ignore-next-line complexity
 export async function rollbackImportBatch(
   ctx: MutationCtx,
   a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> }
@@ -237,26 +236,73 @@ export async function rollbackImportBatch(
   if (!room) return { drained: true };
   await loadImportingRoom(ctx, a.ownerId, a.chatroomId);
 
+  if (!(await drainRollbackTables(ctx, a))) return { drained: false };
+
+  await ctx.db.delete('chatroom_rooms', a.chatroomId);
+  return { drained: true };
+}
+
+/**
+ * Deletes budgeted batches in `ROLLBACK_ORDER` until one table hits its limit.
+ *
+ * @returns `true` when every table drained inside the budget, `false` when the
+ * caller must call rollback again.
+ */
+async function drainRollbackTables(
+  ctx: MutationCtx,
+  a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> }
+): Promise<boolean> {
   let budget = IMPORT_ROLLBACK_BUDGET;
   for (const table of ROLLBACK_ORDER) {
     if (table === 'chatroom_rooms') continue;
 
-    const entry = rollbackEntryOf(table);
-    const limit = Math.floor(budget / entry.cost);
-    if (limit === 0) return { drained: false };
-
-    const rows = await entry.take(ctx, { chatroomId: a.chatroomId, ownerId: a.ownerId }, limit);
-    for (const row of rows) {
-      // The registry names tables at runtime; the generated delete overload cannot
-      // be expressed for a dynamic table name (see the note in registry.ts).
-      await ctx.db.delete(table as TableNames, row._id as never);
-    }
-    budget -= rows.length * entry.cost;
-    if (rows.length === limit) return { drained: false };
+    const step = await rollbackStep(ctx, table, a, budget);
+    if (step === null) return false;
+    budget -= step;
   }
+  return true;
+}
 
-  await ctx.db.delete('chatroom_rooms', a.chatroomId);
-  return { drained: true };
+/**
+ * One table's batch within the remaining budget.
+ *
+ * @returns the budget cost of the rows deleted, or `null` when the table filled
+ * the batch and the next rollback call must resume.
+ */
+async function rollbackStep(
+  ctx: MutationCtx,
+  table: string,
+  a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> },
+  budget: number
+): Promise<number | null> {
+  const entry = rollbackEntryOf(table);
+  const limit = Math.floor(budget / entry.cost);
+  if (limit === 0) return null;
+
+  const deleted = await deleteTableBatch(ctx, table, entry, a, limit);
+  return deleted === limit ? null : deleted * entry.cost;
+}
+
+/**
+ * Deletes one budgeted batch of a table's rows for the importing room.
+ *
+ * The registry names tables at runtime; the generated delete overload cannot be
+ * expressed for a dynamic table name (see the note in registry.ts).
+ *
+ * @returns the number of rows deleted.
+ */
+async function deleteTableBatch(
+  ctx: MutationCtx,
+  table: string,
+  entry: RollbackDescriptor,
+  a: { ownerId: Id<'users'>; chatroomId: Id<'chatroom_rooms'> },
+  limit: number
+): Promise<number> {
+  const rows = await entry.take(ctx, { chatroomId: a.chatroomId, ownerId: a.ownerId }, limit);
+  for (const row of rows) {
+    await ctx.db.delete(table as TableNames, row._id as never);
+  }
+  return rows.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,25 +314,28 @@ export async function rollbackImportBatch(
  * only while the caller owns it, it is still `completed`, and it is younger
  * than the import window.
  */
-// fallow-ignore-next-line complexity
 async function loadImportingRoom(
   ctx: MutationCtx,
   ownerId: Id<'users'>,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<Doc<'chatroom_rooms'>> {
   const room = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (
-    !room ||
-    room.ownerId !== ownerId ||
-    room.status !== 'completed' ||
-    Date.now() - room._creationTime > IMPORT_WINDOW_MS
-  ) {
+  if (!room || !isImportingRoom(room, ownerId)) {
     throw new ConvexError({
       code: BACKEND_ERROR_CODES.IMPORT_TARGET_NOT_IMPORTING,
       message: 'Chatroom is not an import in progress',
     });
   }
   return room;
+}
+
+/** The three guard conditions, in one predicate so the guard reads as one rule. */
+function isImportingRoom(room: Doc<'chatroom_rooms'>, ownerId: Id<'users'>): boolean {
+  return (
+    room.ownerId === ownerId &&
+    room.status === 'completed' &&
+    Date.now() - room._creationTime <= IMPORT_WINDOW_MS
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -364,7 +413,6 @@ function isSupportedPhase(phase: unknown): phase is SupportedPhase {
  * trusted from `v.any()`. A malformed envelope is a chunk failure, never a
  * partial write.
  */
-// fallow-ignore-next-line complexity
 function assertChunkEnvelope(
   chunk: unknown
 ): asserts chunk is AgentConfigsChunk | LeafChunk | WorkspacesChunk | LinksChunk {
@@ -453,7 +501,6 @@ function assertRefsEnvelope(chunk: Record<string, unknown>): void {
 /** Fields a workspaces row may carry; everything else is source-machine data. */
 const WORKSPACE_FIELDS: ReadonlySet<string> = new Set(['workingDir', 'fileTreeSyncEnabled']);
 
-// fallow-ignore-next-line complexity
 async function applyWorkspaces(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
@@ -464,32 +511,59 @@ async function applyWorkspaces(
 
   const created: Record<string, string> = {};
   for (const row of chunk.rows) {
-    assertWorkspaceFields(row);
-    const id = await registerWorkspace(ctx, {
+    created[row.key] = await createImportedWorkspace(
+      ctx,
       chatroomId,
-      machineId: chunk.machineId,
-      workingDir: String(row.fields.workingDir),
-      hostname: machine.hostname,
-      registeredBy: 'user',
-    });
-    if (row.fields.fileTreeSyncEnabled === true) {
-      await ctx.db.patch('chatroom_workspaces', id, { fileTreeSyncEnabled: true });
-    }
-    created[row.key] = String(id);
+      chunk.machineId,
+      machine,
+      row
+    );
   }
 
   if (chunk.primaryKey !== null) {
-    const workspaceId = created[chunk.primaryKey];
-    if (workspaceId === undefined) {
-      throw chunkFailure(`primary workspace key ${chunk.primaryKey} was not imported`);
-    }
-    await insertInitialPrimaryWorkspace(ctx, {
-      chatroomId,
-      workspaceId: workspaceId as Id<'chatroom_workspaces'>,
-    });
+    await applyPrimaryWorkspace(ctx, chatroomId, created, chunk.primaryKey);
   }
 
   return created;
+}
+
+/** Registers one workspace row and returns its id as a string key. */
+async function createImportedWorkspace(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  machine: { hostname: string },
+  row: ImportRowPayload
+): Promise<string> {
+  assertWorkspaceFields(row);
+  const id = await registerWorkspace(ctx, {
+    chatroomId,
+    machineId,
+    workingDir: String(row.fields.workingDir),
+    hostname: machine.hostname,
+    registeredBy: 'user',
+  });
+  if (row.fields.fileTreeSyncEnabled === true) {
+    await ctx.db.patch('chatroom_workspaces', id, { fileTreeSyncEnabled: true });
+  }
+  return String(id);
+}
+
+/** Points the room at the imported primary workspace once its chunk exists. */
+async function applyPrimaryWorkspace(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  created: Record<string, string>,
+  primaryKey: string
+): Promise<void> {
+  const workspaceId = created[primaryKey];
+  if (workspaceId === undefined) {
+    throw chunkFailure(`primary workspace key ${primaryKey} was not imported`);
+  }
+  await insertInitialPrimaryWorkspace(ctx, {
+    chatroomId,
+    workspaceId: workspaceId as Id<'chatroom_workspaces'>,
+  });
 }
 
 function assertWorkspaceFields(row: ImportRowPayload): void {
@@ -561,7 +635,6 @@ function assertAgentConfigFields(row: ImportRowPayload): void {
 // Leaf rows
 // ---------------------------------------------------------------------------
 
-// fallow-ignore-next-line complexity
 async function applyLeafRows(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
@@ -921,7 +994,6 @@ async function resolveRef(
   return await resolveRefKey(ctx, table, chatroomId, refs, value);
 }
 
-// fallow-ignore-next-line complexity
 async function resolveRefKey(
   ctx: MutationCtx,
   table: string,
@@ -933,17 +1005,36 @@ async function resolveRefKey(
   const id = refs[key];
   if (id === undefined) throw chunkFailure(`unresolved reference ${key}`);
 
-  let target: Record<string, unknown> | null;
-  try {
-    target = (await ctx.db.get(table as TableNames, id as never)) as Record<string, unknown> | null;
-  } catch {
-    throw chunkFailure(`unresolved reference ${key}`);
-  }
-  if (!target) throw chunkFailure(`unresolved reference ${key}`);
+  const target = await requireRefTarget(ctx, table, id, key);
   if (target.chatroomId !== chatroomId) {
     throw chunkFailure(`reference ${key} points at another chatroom`);
   }
   return target._id;
+}
+
+/** The target row, or a chunk failure naming the key. */
+async function requireRefTarget(
+  ctx: MutationCtx,
+  table: string,
+  id: string,
+  key: string
+): Promise<Record<string, unknown>> {
+  const target = await getRowOrNull(ctx, table, id);
+  if (!target) throw chunkFailure(`unresolved reference ${key}`);
+  return target;
+}
+
+/** Reads a row through a runtime table name; a bad table or id reads as absent. */
+async function getRowOrNull(
+  ctx: MutationCtx,
+  table: string,
+  id: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    return (await ctx.db.get(table as TableNames, id as never)) as Record<string, unknown> | null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
