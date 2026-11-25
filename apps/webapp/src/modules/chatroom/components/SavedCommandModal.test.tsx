@@ -45,6 +45,21 @@ const makeCmd = (overrides?: Partial<SavedCommand>): SavedCommand => ({
 
 const emptyNamesByScope: Record<SavedCommandScope, string[]> = { user: [], chatroom: [] };
 
+/**
+ * Renders the modal and waits for the name input to receive the auto-focus that
+ * `SavedCommandModal` schedules 50 ms after mount. Waiting here, rather than only in
+ * the tests that happen to type first, means no test can interact with the modal while
+ * that timer is still pending and have focus stolen mid-typing (commits 1a68ce91c and
+ * 95d38b03f each fixed one instance of that race).
+ */
+async function renderModal(
+  props: Omit<React.ComponentProps<typeof SavedCommandModal>, 'isOpen' | 'chatroomId'>
+) {
+  const result = render(<SavedCommandModal isOpen={true} chatroomId="room-1" {...props} />);
+  await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
+  return result;
+}
+
 // ── Unit Tests: checkDuplicateName (re-exported from utils) ─────────────────
 
 describe('checkDuplicateName', () => {
@@ -120,17 +135,12 @@ describe('SavedCommandModal component', () => {
   it('calls createSavedCommand with trimmed name + prompt in create mode', async () => {
     const onClose = vi.fn();
     const onCreated = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        onCreated={onCreated}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+    await renderModal({
+      onClose: onClose,
+      onCreated: onCreated,
+      existingNamesByScope: emptyNamesByScope,
+    });
 
-    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
@@ -155,16 +165,12 @@ describe('SavedCommandModal component', () => {
   it('calls updateSavedCommand when initial is provided (edit mode)', async () => {
     const onClose = vi.fn();
     const onCreated = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        onCreated={onCreated}
-        initial={makeCmd()}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+    await renderModal({
+      onClose: onClose,
+      onCreated: onCreated,
+      initial: makeCmd(),
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     const nameInput = screen.getByLabelText(/^name$/i);
     await user.clear(nameInput);
@@ -185,30 +191,22 @@ describe('SavedCommandModal component', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('Escape key closes the modal', () => {
+  it('Escape key closes the modal', async () => {
     const onClose = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+    await renderModal({
+      onClose: onClose,
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('renders at Z_FLOATING so it stacks above the command dialog', () => {
-    const { container } = render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={vi.fn()}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+  it('renders at Z_FLOATING so it stacks above the command dialog', async () => {
+    const { container } = await renderModal({
+      onClose: vi.fn(),
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     const overlay = container.querySelector('div[class*="z-[100]"]');
     expect(overlay).not.toBeNull();
@@ -217,14 +215,10 @@ describe('SavedCommandModal component', () => {
 
   it('duplicate name shows inline error and does not call mutation', async () => {
     const onClose = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        existingNamesByScope={{ user: [], chatroom: ['Foo'] }}
-      />
-    );
+    await renderModal({
+      onClose: onClose,
+      existingNamesByScope: { user: [], chatroom: ['Foo'] },
+    });
 
     const nameInput = screen.getByLabelText(/^name$/i);
     const promptInput = screen.getByLabelText(/^prompt$/i);
@@ -244,15 +238,11 @@ describe('SavedCommandModal component', () => {
     expect(mockCreateSavedCommand).not.toHaveBeenCalled();
   });
 
-  it('type selector renders "Message Prompt" as the only option', () => {
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={vi.fn()}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+  it('type selector renders "Message Prompt" as the only option', async () => {
+    await renderModal({
+      onClose: vi.fn(),
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     const select = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
     expect(select).toBeInTheDocument();
@@ -261,16 +251,12 @@ describe('SavedCommandModal component', () => {
     expect(select.options[0].value).toBe('prompt');
   });
 
-  it('type selector is disabled in edit mode', () => {
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={vi.fn()}
-        initial={makeCmd()}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+  it('type selector is disabled in edit mode', async () => {
+    await renderModal({
+      onClose: vi.fn(),
+      initial: makeCmd(),
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     const select = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
     expect(select).toBeDisabled();
@@ -278,15 +264,11 @@ describe('SavedCommandModal component', () => {
 
   // ── Scope Tests ──────────────────────────────────────────────────────────
 
-  it('scope selector shows both options in create mode', () => {
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={vi.fn()}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+  it('scope selector shows both options in create mode', async () => {
+    await renderModal({
+      onClose: vi.fn(),
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     const select = screen.getByLabelText(/^scope$/i) as HTMLSelectElement;
     expect(select).toBeInTheDocument();
@@ -297,16 +279,12 @@ describe('SavedCommandModal component', () => {
     expect(select.options[1].value).toBe('chatroom');
   });
 
-  it('scope selector is enabled in edit mode', () => {
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={vi.fn()}
-        initial={makeCmd()}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+  it('scope selector is enabled in edit mode', async () => {
+    await renderModal({
+      onClose: vi.fn(),
+      initial: makeCmd(),
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     const select = screen.getByLabelText(/^scope$/i) as HTMLSelectElement;
     expect(select).not.toBeDisabled();
@@ -315,16 +293,12 @@ describe('SavedCommandModal component', () => {
   it('updateSavedCommand includes scope when changed in edit mode', async () => {
     const onClose = vi.fn();
     const onCreated = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        onCreated={onCreated}
-        initial={makeCmd({ scope: 'chatroom' })}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+    await renderModal({
+      onClose: onClose,
+      onCreated: onCreated,
+      initial: makeCmd({ scope: 'chatroom' }),
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     const scopeSelect = screen.getByLabelText(/^scope$/i);
     await user.selectOptions(scopeSelect, 'user');
@@ -347,15 +321,11 @@ describe('SavedCommandModal component', () => {
   it('create payload includes scope when chatroom scope is selected', async () => {
     const onClose = vi.fn();
     const onCreated = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        onCreated={onCreated}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+    await renderModal({
+      onClose: onClose,
+      onCreated: onCreated,
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     // Use change events so the modal's delayed auto-focus cannot steal focus
     // between typing the name and prompt fields.
@@ -375,16 +345,11 @@ describe('SavedCommandModal component', () => {
 
   it('create payload includes scope when user scope is selected', async () => {
     const onClose = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+    await renderModal({
+      onClose: onClose,
+      existingNamesByScope: emptyNamesByScope,
+    });
 
-    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
     const scopeSelect = screen.getByLabelText(/^scope$/i);
     await user.selectOptions(scopeSelect, 'user');
 
@@ -402,30 +367,22 @@ describe('SavedCommandModal component', () => {
     });
   });
 
-  it('renders scope hint text when scope is selected', () => {
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={vi.fn()}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
+  it('renders scope hint text when scope is selected', async () => {
+    await renderModal({
+      onClose: vi.fn(),
+      existingNamesByScope: emptyNamesByScope,
+    });
 
     expect(screen.getByText('Available only in this chatroom.')).toBeInTheDocument();
   });
 
-  it('opens with defaultScope="user" pre-selects user scope', () => {
+  it('opens with defaultScope="user" pre-selects user scope', async () => {
     const onClose = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        existingNamesByScope={emptyNamesByScope}
-        defaultScope="user"
-      />
-    );
+    await renderModal({
+      onClose: onClose,
+      existingNamesByScope: emptyNamesByScope,
+      defaultScope: 'user',
+    });
 
     const scopeSelect = screen.getByLabelText(/^scope$/i) as HTMLSelectElement;
     expect(scopeSelect.value).toBe('user');
@@ -434,15 +391,10 @@ describe('SavedCommandModal component', () => {
   it('shows a failed save inline and keeps the modal open', async () => {
     mockCreateSavedCommand.mockRejectedValue(new Error('network down'));
     const onClose = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
-    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
+    await renderModal({
+      onClose: onClose,
+      existingNamesByScope: emptyNamesByScope,
+    });
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
@@ -456,15 +408,10 @@ describe('SavedCommandModal component', () => {
 
   it('shows the server duplicate-name copy inline', async () => {
     mockCreateSavedCommand.mockRejectedValue(new Error('COMMAND_NAME_DUPLICATE'));
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={vi.fn()}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
-    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
+    await renderModal({
+      onClose: vi.fn(),
+      existingNamesByScope: emptyNamesByScope,
+    });
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
@@ -480,15 +427,10 @@ describe('SavedCommandModal component', () => {
       .mockRejectedValueOnce(new Error('network down'))
       .mockResolvedValueOnce(undefined);
     const onClose = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
-    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
+    await renderModal({
+      onClose: onClose,
+      existingNamesByScope: emptyNamesByScope,
+    });
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
     await user.click(screen.getByRole('button', { name: /save command/i }));
@@ -502,15 +444,10 @@ describe('SavedCommandModal component', () => {
 
   it('closes after a successful create without showing any message', async () => {
     const onClose = vi.fn();
-    render(
-      <SavedCommandModal
-        isOpen={true}
-        chatroomId="room-1"
-        onClose={onClose}
-        existingNamesByScope={emptyNamesByScope}
-      />
-    );
-    await waitFor(() => expect(screen.getByLabelText(/^name$/i)).toHaveFocus());
+    await renderModal({
+      onClose: onClose,
+      existingNamesByScope: emptyNamesByScope,
+    });
     await user.type(screen.getByLabelText(/^name$/i), 'My Command');
     await user.type(screen.getByLabelText(/^prompt$/i), 'Do something useful');
 
