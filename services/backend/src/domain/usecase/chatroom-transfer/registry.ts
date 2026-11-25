@@ -775,6 +775,8 @@ const COUNTED_OMISSIONS: Record<string, string> = {
   workspaceRemovals: 'Workspaces removed before export are not carried.',
   backlogDeleted: 'Backlog rows with status deleted are filtered out and counted.',
   launchRequestsOtherTeam: 'Launch requests for other teams are filtered out and counted.',
+  launchRequestsSuperseded:
+    'Older launch requests for the same workspace and role are superseded by the latest.',
   attachedWorkflows: 'Deprecated workflow attachments are not carried.',
 };
 

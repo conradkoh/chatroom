@@ -170,3 +170,24 @@ export const TRANSFER_ERROR_CODES = {
   IMPORT_TARGET_NOT_IMPORTING: 'IMPORT_TARGET_NOT_IMPORTING',
 } as const;
 export type TransferErrorCode = (typeof TRANSFER_ERROR_CODES)[keyof typeof TRANSFER_ERROR_CODES];
+
+/**
+ * A transfer failure raised outside a Convex function (the CLI, the export
+ * build, the drivers). `code` is the machine-readable transfer code and
+ * `details` carries one line per offending item (a dangling reference, for
+ * example). The CLI renders it as `[CODE] message` followed by the details.
+ *
+ * Server-thrown failures use `ConvexError({ code, message })` instead, because
+ * only Convex serialises that shape.
+ */
+export class ChatroomTransferError extends Error {
+  readonly code: TransferErrorCode;
+  readonly details: string[];
+
+  constructor(code: TransferErrorCode, message: string, details: string[] = []) {
+    super(message);
+    this.name = 'ChatroomTransferError';
+    this.code = code;
+    this.details = details;
+  }
+}
