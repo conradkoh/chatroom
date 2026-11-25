@@ -67,6 +67,7 @@ export type AgentConfigSkipReason =
   | 'harness_unavailable'
   | 'non_remote_agent_type'
   | 'no_workspace'
+  | 'working_dir_mismatch'
   | 'empty_model'
   | 'superseded_by_merge';
 
@@ -791,9 +792,9 @@ function applyScheduledPromptTransform(fields: Record<string, unknown>, row: Exp
 
 /**
  * One restored launch configuration per (surviving workspace, role). Rows are
- * checked in a fixed order — no workspace, wrong type, empty model, unavailable
- * harness — then the last row per group wins and earlier ones are reported as
- * superseded by the workspace merge.
+ * checked in a fixed order — no workspace, working dir mismatch, wrong type,
+ * empty model, unavailable harness — then the last row per group wins and
+ * earlier ones are reported as superseded by the workspace merge.
  */
 function planAgentConfigs(
   file: ChatroomExportFileV1,
@@ -801,10 +802,13 @@ function planAgentConfigs(
   target: ImportTarget
 ): ImportRowPayload[] {
   const workspaceKeys = new Set(file.workspaces.map((row) => row._key));
+  const workspaceDirs = new Map(
+    file.workspaces.map((row) => [row._key, normalizeWorkingDir(workingDirOf(row))] as const)
+  );
   const decisions = file.agentConfigs.map((row) => {
     const survivor =
       typeof row.workspaceId === 'string' ? ctx.survivorOf.get(row.workspaceId) : undefined;
-    const facts: AgentConfigFacts = { row, survivor, workspaceKeys, target };
+    const facts: AgentConfigFacts = { row, survivor, workspaceKeys, workspaceDirs, target };
     return { row, survivor, reason: agentConfigSkipReason(facts) };
   });
 
@@ -836,6 +840,7 @@ interface AgentConfigFacts {
   row: ExportRow;
   survivor: string | undefined;
   workspaceKeys: Set<string>;
+  workspaceDirs: ReadonlyMap<string, string>;
   target: ImportTarget;
 }
 
@@ -849,6 +854,13 @@ const AGENT_CONFIG_CHECKS: readonly AgentConfigCheck[] = [
   {
     reason: 'no_workspace',
     passes: ({ survivor, workspaceKeys }) => survivor !== undefined && workspaceKeys.has(survivor),
+  },
+  {
+    reason: 'working_dir_mismatch',
+    passes: ({ row, survivor, workspaceDirs }) =>
+      survivor !== undefined &&
+      typeof row.workingDir === 'string' &&
+      normalizeWorkingDir(row.workingDir) === workspaceDirs.get(survivor),
   },
   { reason: 'non_remote_agent_type', passes: ({ row }) => row.agentType === 'remote' },
   {

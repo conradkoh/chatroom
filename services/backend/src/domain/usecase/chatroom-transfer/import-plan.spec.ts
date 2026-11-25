@@ -603,6 +603,14 @@ describe('agent configs', () => {
         workingDir: '/work/app',
         workspaceId: 'w0',
       }),
+      row('g6', {
+        role: 'builder',
+        agentType: 'remote',
+        agentHarness: 'opencode-sdk',
+        model: 'last',
+        workingDir: '/work/elsewhere',
+        workspaceId: 'w0',
+      }),
     ];
 
     const plan = planOf(content);
@@ -626,9 +634,42 @@ describe('agent configs', () => {
       { key: 'g2', reason: 'empty_model' },
       { key: 'g3', reason: 'no_workspace' },
       { key: 'g4', reason: 'superseded_by_merge' },
+      { key: 'g6', reason: 'working_dir_mismatch' },
     ]);
     expect(plan.report.agentConfigsRestored).toBe(1);
     expect(plan.report.counts.agentConfigs).toBe(1);
+  });
+
+  test('keeps a config whose working dir differs only by a trailing slash', () => {
+    const content = planContent();
+    content.agentConfigs = [
+      row('g0', {
+        role: 'builder',
+        agentType: 'remote',
+        agentHarness: 'opencode-sdk',
+        model: 'model-a',
+        workingDir: '/work/app/',
+        workspaceId: 'w0',
+      }),
+    ];
+
+    const plan = planOf(content);
+
+    expect(rowsOf(plan, 'agentConfigs')).toEqual([
+      {
+        key: 'g0',
+        fields: {
+          role: 'builder',
+          agentType: 'remote',
+          agentHarness: 'opencode-sdk',
+          model: 'model-a',
+          workingDir: '/work/app/',
+          workspaceId: 'w0',
+        },
+      },
+    ]);
+    expect(plan.report.agentConfigsSkipped).toEqual([]);
+    expect(plan.report.agentConfigsRestored).toBe(1);
   });
 });
 

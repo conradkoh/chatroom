@@ -28,7 +28,10 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id, TableNames } from '../../../../convex/_generated/dataModel';
 import schema from '../../../../convex/schema';
 import { t } from '../../../../test.setup';
-import { ChatroomTransferError } from '../../entities/chatroom-transfer-file';
+import {
+  ChatroomTransferError,
+  type ChatroomExportFileV1,
+} from '../../entities/chatroom-transfer-file';
 import { syncMessageReadModel } from '../message/message-read-model';
 
 // ---------------------------------------------------------------------------
@@ -45,7 +48,9 @@ interface ImportFixture {
   json: string;
 }
 
-async function buildFixture(): Promise<ImportFixture> {
+async function buildFixture(
+  extraSourceRows?: (chatroomId: Id<'chatroom_rooms'>) => Promise<void>
+): Promise<ImportFixture> {
   sessionCounter += 1;
   const sessionId = `import-driver-${sessionCounter}` as SessionId;
   await t.mutation(api.auth.loginAnon, { sessionId });
@@ -66,6 +71,7 @@ async function buildFixture(): Promise<ImportFixture> {
     teamStructureId: 'trio@1',
   });
   await insertSourceRows(sourceChatroomId);
+  if (extraSourceRows) await extraSourceRows(sourceChatroomId);
 
   const { json } = await runExport(exportPortFor(t, sessionId), {
     chatroomId: sourceChatroomId,
@@ -100,6 +106,44 @@ async function insertSourceRows(chatroomId: Id<'chatroom_rooms'>): Promise<void>
       status: 'backlog',
       createdAt: 1,
       updatedAt: 2,
+    });
+  });
+}
+
+/**
+ * Adds a source workspace and one agent config whose working dir does not match
+ * that workspace. The export carries both; the plan must report the config as a
+ * skip instead of the apply failing.
+ */
+async function insertMismatchedAgentConfig(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+  await t.run(async (ctx) => {
+    const user = await ctx.db.query('users').first();
+    if (!user) throw new Error('fixture has no user');
+    const workspaceId = await ctx.db.insert('chatroom_workspaces', {
+      chatroomId,
+      machineId: 'import-driver-source-machine',
+      workingDir: '/work/source',
+      hostname: 'test-host',
+      registeredAt: 1,
+      registeredBy: 'user',
+    });
+    await ctx.db.insert('chatroom_agentLastSentLaunchRequests', {
+      requestKey: `${chatroomId}:trio@1:${workspaceId}:builder`,
+      requestId: 'source-request',
+      commandId: 'configuration:source-request',
+      chatroomId,
+      teamStructureId: 'trio@1',
+      role: 'builder',
+      agentType: 'remote',
+      machineId: 'import-driver-source-machine',
+      workspaceId,
+      agentHarness: 'opencode-sdk',
+      model: 'model-x',
+      workingDir: '/work/elsewhere',
+      reason: 'user.config',
+      wantResume: false,
+      requestedBy: user._id,
+      requestedAt: 1,
     });
   });
 }
@@ -307,6 +351,27 @@ describe('write path', () => {
     });
     // The task row references the message, so the last chunk carries its ref.
     expect(applied[2].refs).toEqual({ m0: applied[1].created.m0 });
+  });
+
+  test('imports a file whose agent config working dir differs from its workspace', async () => {
+    const fixture = await buildFixture((chatroomId) => insertMismatchedAgentConfig(chatroomId));
+    const file = JSON.parse(fixture.json) as ChatroomExportFileV1;
+    expect(file.agentConfigs).toHaveLength(1);
+    const configKey = String(file.agentConfigs[0]?._key);
+
+    const outcome = await runImport(importPortFor(t, fixture.sessionId), {
+      json: fixture.json,
+      machineId: fixture.machineId,
+      dryRun: false,
+    });
+
+    expect(outcome.status).toBe('imported');
+    expect(outcome.plan.report.agentConfigsSkipped).toEqual([
+      { key: configKey, reason: 'working_dir_mismatch' },
+    ]);
+
+    const counts = await chatroomRowCounts(importedChatroomId(outcome));
+    expect(counts.chatroom_agentLastSentLaunchRequests).toBeUndefined();
   });
 });
 
