@@ -109,15 +109,25 @@ export function computeVisualViewportScale(): number {
  * After a resize or focus change, visualViewport scroll events keep refreshing a
  * keyboard-derived value for this long. That covers the browser's scroll-into-view as the
  * keyboard opens. Later scrolls are user pans and must not move the value.
+ *
+ * 600 ms is an assumption, not measured on a device. Inside the window a scroll takes a
+ * single read, not the recheck schedule, so a value that settles after that read is picked
+ * up by the next event or trigger.
+ *
+ * Known limitation: a resize or focus change during a pan (for example a Chrome Android
+ * toolbar collapse, or focus moving inside the composer) re-arms this window and re-derives
+ * the value from the current pan. It is not filtered. A height-change threshold cannot tell a
+ * toolbar collapse from a keyboard change without a device to verify on.
  */
 const KEYBOARD_SCROLL_FOLLOW_MS = 600;
 
 /**
- * Shared subscription for visualViewport-derived metrics (keyboard inset,
- * offset top). Recomputes on resize/focus changes with rAF + delayed
- * rechecks to catch late browser layout settles. Scroll events refresh the value only
- * while `scrollFollowMs` after the last resize/focus trigger has not elapsed; the default
- * is unbounded, so scroll always refreshes.
+ * Shared subscription for visualViewport-derived metrics (keyboard inset, offset top, scale).
+ * Resize and focus changes refresh with an immediate read, a rAF read, and 100 ms and 300 ms
+ * rechecks, to catch late browser layout settles. Scroll depends on `scrollFollowMs`:
+ * - Unbounded (default): scroll runs the same refresh schedule as resize and focus.
+ * - Bounded: scroll takes one read, and only while the window armed by the last resize or focus
+ *   trigger is open. Scroll never re-arms the window.
  */
 function useVisualViewportValue(
   enabled: boolean,
@@ -155,16 +165,22 @@ function useVisualViewportValue(
       timeoutIds.push(window.setTimeout(update, 300));
     };
 
-    // Resize and focus changes re-arm the follow window, then refresh.
+    // Resize and focus changes re-arm the follow window, then refresh. A pan that overlaps one
+    // of these triggers re-derives the bounded value (known limitation, see KEYBOARD_SCROLL_FOLLOW_MS).
     const scheduleUpdate = () => {
       scrollFollowUntil = Date.now() + scrollFollowMs;
       refresh();
     };
 
-    // Scroll recomputes once, inside the window only. It never re-arms the window and never
-    // schedules trailing rechecks, so a read cannot land after the window has closed.
+    // Default (unbounded) window: scroll runs the same refresh schedule as resize and focus.
+    // Bounded window (bottom-bar lift): scroll takes one read while the window is open, and
+    // never re-arms the window or schedules trailing rechecks.
     const handleScroll = () => {
-      if (Date.now() < scrollFollowUntil) update();
+      if (scrollFollowMs === Number.POSITIVE_INFINITY) {
+        refresh();
+      } else if (Date.now() < scrollFollowUntil) {
+        update();
+      }
     };
 
     scheduleUpdate();
