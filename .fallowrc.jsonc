@@ -9,6 +9,9 @@
     "scripts/convex-codegen.ts",
     "eslint-rules/*.spec.mjs",
     "packages/cli/src/commands/chatroom-transfer/register.ts",
+    // transfer P6: consumed by runImport in P8; remove in the P8 commit
+    "services/backend/src/domain/usecase/chatroom-transfer/import-apply.ts",
+    "services/backend/src/domain/usecase/chatroom-transfer/import-plan.ts",
   ],
   "ignoreDependencies": [
     // Run through `pnpm exec vercel` in the deployment docs and the optional Vercel Actions path.
