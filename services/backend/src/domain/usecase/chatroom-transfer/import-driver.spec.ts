@@ -499,4 +499,38 @@ describe('rollback', () => {
     expect(outcome.status).toBe('rolled-back');
     expect(rollbackCalls).toBe(501);
   });
+
+  test('a finalize that commits before the client sees an error leaves a refused rollback', async () => {
+    const fixture = await buildFixture();
+    const plan = await planFor(fixture);
+    expect(plan.finalize.status).toBe('active'); // the fixture's source room is active; fail loudly if that changes
+
+    const base = importPortFor(t, fixture.sessionId);
+    let started: string | undefined;
+    const port: ChatroomImportPort = {
+      ...base,
+      finalize: async (a) => {
+        await base.finalize(a);
+        throw new Error('injected: response lost');
+      },
+    };
+
+    const outcome = await runImport(port, {
+      json: fixture.json,
+      machineId: fixture.machineId,
+      dryRun: false,
+      onStarted: (chatroomId) => {
+        started = chatroomId;
+      },
+    });
+
+    if (outcome.status !== 'rollback-failed') throw new Error(`got ${outcome.status}`);
+    expect(outcome.orphanChatroomId).toBe(started);
+    // Rollback refuses an active room (documented). The complete room stays and is reported.
+    expect(await chatroomRowCounts(started as Id<'chatroom_rooms'>)).toMatchObject({
+      chatroom_rooms: 1,
+      chatroom_messages: 1,
+      chatroom_backlog: 1,
+    });
+  });
 });
