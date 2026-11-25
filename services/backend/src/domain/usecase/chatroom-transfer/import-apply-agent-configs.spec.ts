@@ -91,6 +91,15 @@ async function failure(promise: Promise<unknown>): Promise<unknown> {
   throw new Error('expected the mutation to fail');
 }
 
+/** The message a thrown `ConvexError` carries in its `data` payload. */
+function errorMessage(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const data = (error as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) return undefined;
+  const message = (data as { message?: unknown }).message;
+  return typeof message === 'string' ? message : undefined;
+}
+
 const WORKING_DIR = '/work/app';
 
 function workspaceRow(key: string, workingDir = WORKING_DIR): ImportRowPayload {
@@ -237,6 +246,24 @@ describe('agent configs', () => {
     );
 
     expect(errorCode(error)).toBe('IMPORT_CHUNK_FAILED');
+    expect(await launchRequestsOf(chatroomId)).toEqual([]);
+  });
+
+  test('reports a workspace and machine mismatch as a chunk failure with its message', async () => {
+    const { sessionId, chatroomId, workspaceId } = await importRoomWithWorkspace();
+    const otherMachineId = await registerMachine(sessionId);
+
+    const error = await failure(
+      apply(sessionId, chatroomId, {
+        phase: 'agentConfigs',
+        machineId: otherMachineId,
+        rows: [agentConfigRow('a0')],
+        refs: { w0: workspaceId },
+      })
+    );
+
+    expect(errorCode(error)).toBe('IMPORT_CHUNK_FAILED');
+    expect(errorMessage(error)).toContain('Workspace does not belong to this agent configuration');
     expect(await launchRequestsOf(chatroomId)).toEqual([]);
   });
 

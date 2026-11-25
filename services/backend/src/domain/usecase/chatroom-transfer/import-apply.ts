@@ -44,7 +44,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness } from '../../entities/agent';
 import { IMPORT_ROLLBACK_BUDGET, IMPORT_WINDOW_MS } from '../../entities/chatroom-transfer-file';
 import { getTeamPreset } from '../../entities/team-presets';
-import { saveAgentConfig } from '../agent/save-agent-config';
+import { saveAgentConfig, type SaveAgentConfigInput } from '../agent/save-agent-config';
 import { insertChatroomWithTeam } from '../chatroom/create-chatroom';
 import { upsertReadCursor } from '../chatroom/read-cursor';
 import { clearChatroomUnread } from '../chatroom/unread-status';
@@ -615,7 +615,7 @@ async function applyAgentConfigs(
       chunk.refs,
       row.fields.workspaceId
     );
-    const saved = await saveAgentConfig(ctx, {
+    const saved = await saveImportedAgentConfig(ctx, {
       chatroomId: a.chatroomId,
       workspaceId: workspaceId as Id<'chatroom_workspaces'>,
       role: String(row.fields.role),
@@ -628,6 +628,23 @@ async function applyAgentConfigs(
     created[row.key] = String(saved._id);
   }
   return created;
+}
+
+/**
+ * The shared save throws plain `Error`s for its own checks. Convex redacts a plain
+ * error's message at the client, so the import reports it as a chunk failure; a
+ * `ConvexError` from an earlier check is passed through unchanged.
+ */
+async function saveImportedAgentConfig(
+  ctx: MutationCtx,
+  input: SaveAgentConfigInput
+): Promise<Awaited<ReturnType<typeof saveAgentConfig>>> {
+  try {
+    return await saveAgentConfig(ctx, input);
+  } catch (error) {
+    if (error instanceof ConvexError) throw error;
+    throw chunkFailure(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function assertAgentConfigFields(row: ImportRowPayload): void {
