@@ -22,11 +22,15 @@ import { describe, expect, test } from 'vitest';
 import { exportPortFor, importPortFor } from './convex-test-ports';
 import { runExport } from './export-driver';
 import { runImport } from './import-driver';
-import { omittedManifest } from './registry';
+import { CHATROOM_SCOPED_TABLES, omittedManifest } from './registry';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
-import { contentOf, type ChatroomExportFileV1 } from '../../entities/chatroom-transfer-file';
+import {
+  contentOf,
+  type ChatroomExportFileV1,
+  type ExportCategory,
+} from '../../entities/chatroom-transfer-file';
 
 // ---------------------------------------------------------------------------
 // Diff
@@ -385,6 +389,20 @@ async function insertFixtureRows(
         createdAt: 200,
         updatedAt: 201,
         sessionPolicyConsumedAt: 202,
+        origin: 'chat',
+        complexity: 'medium',
+        value: 'high',
+        priority: 2,
+        plannerEnhancerEnabled: true,
+        conversationMode: 'code',
+        enhancerEnabledAtEnqueue: false,
+        startInNewSession: true,
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'code',
+          sessionPolicy: 'new',
+          handoffWorkflow: { preset: 'team', phase: 'implementation' },
+        },
       })
     );
     remember(
@@ -398,6 +416,8 @@ async function insertFixtureRows(
         createdAt: 210,
         updatedAt: 211,
         acknowledgedAt: 210,
+        attachedTaskIds: [t0],
+        parentTaskIds: [t0],
       })
     );
     remember(
@@ -481,6 +501,10 @@ async function insertFixtureRows(
         legacyTaskId: t0,
         createdAt: 300,
         updatedAt: 301,
+        completedAt: 302,
+        complexity: 'low',
+        value: 'medium',
+        priority: 1,
       })
     );
     const b1 = remember(
@@ -527,6 +551,12 @@ async function insertFixtureRows(
         createdBy: userId,
         createdAt: 600,
         updatedAt: 601,
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'chat',
+          sessionPolicy: 'continue',
+          handoffWorkflow: { preset: 'direct', phase: 'entry' },
+        },
       })
     );
     remember(
@@ -580,6 +610,7 @@ async function insertFixtureRows(
         senderRole: 'user',
         content: 'Plan the release',
         type: 'plan',
+        contextCreatedBy: 'planner',
       })
     );
     remember(
@@ -589,6 +620,13 @@ async function insertFixtureRows(
         content: 'Plan the release, revised',
         type: 'plan',
         supersedesPlanId: m0,
+        classification: 'new_feature',
+        featureTitle: 'Release notes',
+        featureDescription: 'Publish release notes for the build',
+        featureTechSpecs: 'A markdown page generated from the changelog',
+        enhancerOriginalContent: 'Plan the release',
+        enhancerJobId: 'job-enhancer-1',
+        visibleInAllTabOnly: false,
       })
     );
     const m2 = remember(
@@ -601,10 +639,11 @@ async function insertFixtureRows(
         attachedArtifactIds: [a0],
         attachedMessageIds: [m0],
         attachedBacklogItemIds: [b0, b1],
+        attachedTaskIds: [t0],
         scheduledPromptId: s0,
       })
     );
-    remember(
+    const m3 = remember(
       await ctx.db.insert('chatroom_messages', {
         chatroomId,
         senderRole: 'user',
@@ -612,6 +651,10 @@ async function insertFixtureRows(
         type: 'message',
         taskId: t0,
         senderAgent: { harness: 'opencode-sdk', model: 'model-sender' },
+        claimedByRole: 'builder',
+        sourcePlatform: 'telegram',
+        acknowledgedAt: 215,
+        completedAt: 216,
       })
     );
     remember(
@@ -637,6 +680,12 @@ async function insertFixtureRows(
       })
     );
 
+    // The task links back to the messages above, which are inserted before this patch.
+    await ctx.db.patch('chatroom_tasks', t0, {
+      sourceMessageId: m3,
+      originUserMessageId: m0,
+    });
+
     // One queued message that references the handoff above.
     remember(
       await ctx.db.insert('chatroom_messageQueue', {
@@ -647,6 +696,23 @@ async function insertFixtureRows(
         type: 'message',
         queuePosition: 5,
         attachedMessageIds: [m2],
+        attachedTaskIds: [t0],
+        attachedBacklogItemIds: [b1],
+        attachedArtifactIds: [a0],
+        scheduledPromptId: s0,
+        sourcePlatform: 'scheduled',
+        attachedSnippets: [
+          { reference: 'src/release.ts:1', fileSource: 'explorer', selectedContent: 'ship();' },
+        ],
+        plannerEnhancerEnabled: false,
+        conversationMode: 'code',
+        startInNewSession: false,
+        taskEnvelope: {
+          version: 1,
+          conversationMode: 'code',
+          sessionPolicy: 'continue',
+          handoffWorkflow: { preset: 'direct', phase: 'entry' },
+        },
       })
     );
 
@@ -908,6 +974,63 @@ describe('full chatroom round trip', () => {
     expect(firstMessageCount).toBe(a.file.messages.length);
   });
 });
+
+/**
+ * Exported fields the source fixture cannot populate, each with its reason.
+ * Keys are `<table>.<field>`. An entry that no longer applies fails the spec
+ * (stale). Add an entry only when the fixture cannot populate the field, and
+ * state why in the reason.
+ */
+const UNPOPULATED_FIELD_ALLOW_LIST: Record<string, string> = {
+  // Rule-mapped to another file key, so the registry name never appears on the row.
+  'chatroom_workspaces.machineId': 'rebind rule; the file row carries sourceMachineId.',
+  'chatroom_primaryWorkspaces.workspaceId':
+    'the merged room row carries it as primaryWorkspaceKey.',
+  'chatroom_agentLastSentLaunchRequests.machineId':
+    'rebind rule; the file row carries sourceMachineId.',
+  'chatroom_messages.terminalHandoffKey': 'derive rule; the file row carries terminalHandoffRole.',
+};
+
+describe('fixture coverage', () => {
+  test('every exported field is populated in at least one fixture row, or allow-listed', async () => {
+    const fixture = await source();
+    const { file } = await exportRoom(fixture.sessionId, fixture.chatroomId);
+    const unpopulated: string[] = [];
+    const stale: string[] = [];
+    const checked = new Set<string>();
+
+    for (const [table, entry] of Object.entries(CHATROOM_SCOPED_TABLES)) {
+      if (entry.classification !== 'exported') continue;
+      const rows = rowsOf(file, entry.category);
+      for (const [field, rule] of Object.entries(entry.fields)) {
+        if (rule.rule === 'drop' || rule.rule === 'system') continue;
+        const key = `${table}.${field}`;
+        const allowListed = UNPOPULATED_FIELD_ALLOW_LIST[key] !== undefined;
+        const populated = rows.some((row) => isPopulated(row[field]));
+        checked.add(key);
+        if (!populated && !allowListed) unpopulated.push(key);
+        if (populated && allowListed) stale.push(key);
+      }
+    }
+
+    for (const key of Object.keys(UNPOPULATED_FIELD_ALLOW_LIST)) {
+      if (!checked.has(key)) stale.push(key);
+    }
+
+    expect({ unpopulated, stale }).toEqual({ unpopulated: [], stale: [] });
+  });
+});
+
+/** The file rows of one category; the merged room row is a single row. */
+function rowsOf(file: ChatroomExportFileV1, category: ExportCategory): Record<string, unknown>[] {
+  return category === 'room' ? [file.room] : file[category];
+}
+
+/** Present, non-null, non-empty. `false` and `0` are populated. */
+function isPopulated(value: unknown): boolean {
+  if (value === undefined || value === null || value === '') return false;
+  return !(Array.isArray(value) && value.length === 0);
+}
 
 /** Drops `_key` and `_creationTime`, the two fields the file never restores. */
 function stripKeyAndCreationTime(row: Record<string, unknown>): Record<string, unknown> {
