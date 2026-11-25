@@ -237,7 +237,7 @@ pnpm test
 pnpm test:watch
 ```
 
-For Playwright commands, upstream/downstream spec ownership, and pre-push suite selection by push destination, see [E2E testing conventions](docs/developer/e2e-testing.md).
+For Playwright commands, upstream/downstream spec ownership, and which suite CI runs for pull requests, see [E2E testing conventions](docs/developer/e2e-testing.md).
 
 ### Type Checking & Linting
 

@@ -1,4 +1,4 @@
-import { expect, test, devices, type Page } from '@playwright/test';
+import { expect, test, devices, type Locator, type Page } from '@playwright/test';
 
 import { TAG_DOWNSTREAM } from '../../support/tags';
 
@@ -48,6 +48,33 @@ async function waitForHarnessMobilePickersHydrated(page: Page): Promise<void> {
   ).toBeAttached();
 }
 
+/**
+ * Drawer and popover surfaces animate in (the drawer popup transitions its transform for 450ms,
+ * the popover zooms/fades in). Interacting while the surface is still moving is the race that
+ * blocked the Model Visibility drawer, so settle every animation in its subtree first.
+ * Only `finished` counts as settled: filtering on `running` alone let the wait pass for any other
+ * unfinished state.
+ */
+async function waitForOverlaySettled(surface: Locator): Promise<void> {
+  await expect(surface).toBeVisible();
+  await expect
+    .poll(() =>
+      surface.evaluate(
+        (el) =>
+          el
+            .getAnimations({ subtree: true })
+            .filter((animation) => animation.playState !== 'finished').length
+      )
+    )
+    .toBe(0);
+}
+
+/** Opens a harness picker trigger and waits for its drawer to finish animating in. */
+async function openHarnessDrawer(page: Page, triggerTestId: string): Promise<void> {
+  await page.getByTestId(triggerTestId).click();
+  await waitForOverlaySettled(page.locator('[data-slot="drawer-popup"]'));
+}
+
 test.use({ ...devices['iPhone 14'] });
 test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test.describe.configure({ mode: 'serial' });
@@ -59,13 +86,13 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   });
 
   test('flat picker opens drawer on mobile viewport', async ({ page }) => {
-    await page.getByTestId('open-flat-picker').click();
+    await openHarnessDrawer(page, 'open-flat-picker');
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
     await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0);
   });
 
   test('search input is focusable by click in drawer on mobile', async ({ page }) => {
-    await page.getByTestId('open-flat-picker').click();
+    await openHarnessDrawer(page, 'open-flat-picker');
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
     const searchInput = page.getByPlaceholder('Search models…');
     await searchInput.click();
@@ -75,7 +102,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   });
 
   test('drawer applies safe-area inline padding when keyboard closed', async ({ page }) => {
-    await page.getByTestId('open-flat-picker').click();
+    await openHarnessDrawer(page, 'open-flat-picker');
     const drawer = page.locator('[data-slot="drawer-content"]');
     await expect(drawer).toBeVisible();
 
@@ -95,7 +122,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test('last option is horizontally inside drawer bounds when keyboard closed', async ({
     page,
   }) => {
-    await page.getByTestId('open-flat-picker').click();
+    await openHarnessDrawer(page, 'open-flat-picker');
     await expect(page.getByTestId('picker-last-option')).toBeVisible();
 
     const visible = await page.evaluate(() => {
@@ -114,7 +141,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
 
   test('simulated keyboard inset sets maxHeight and keeps scroll body usable', async ({ page }) => {
     await setHarnessKeyboardInset(page, 300);
-    await page.getByTestId('open-flat-picker').click();
+    await openHarnessDrawer(page, 'open-flat-picker');
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
 
     const drawer = page.locator('[data-slot="drawer-content"]');
@@ -155,7 +182,8 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
 
   test('nested FixedModal picker search focuses after tap', async ({ page }) => {
     await page.getByTestId('open-nested-modal').click();
-    await page.getByTestId('open-nested-picker').click();
+    await waitForOverlaySettled(page.locator('[data-slot="fixed-modal-content"]'));
+    await openHarnessDrawer(page, 'open-nested-picker');
     const search = page.getByPlaceholder('Search harnesses…');
     await search.click();
     await expect(search).toBeFocused();
@@ -164,14 +192,14 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   });
 
   test('standing instructions bar opens drawer on mobile', async ({ page }) => {
-    await page.getByTestId('open-standing-instructions-bar').click();
+    await openHarnessDrawer(page, 'open-standing-instructions-bar');
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
     await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0);
     await expect(page.getByRole('option', { name: 'Edit' })).toBeVisible();
   });
 
   test('filter panel picker uses scroll body inside drawer', async ({ page }) => {
-    await page.getByTestId('open-filter-picker').click();
+    await openHarnessDrawer(page, 'open-filter-picker');
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
     await expect(page.locator('[data-picker-scroll-body]')).toBeVisible();
     await expect(page.getByText('Reset All')).toBeVisible();
@@ -181,7 +209,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
     page,
   }) => {
     await setHarnessKeyboardInset(page, 300);
-    await page.getByTestId('open-filter-picker').click();
+    await openHarnessDrawer(page, 'open-filter-picker');
     const drawer = page.locator('[data-slot="drawer-content"]');
     await expect(drawer).toBeVisible();
     // Wait for harness keyboard inset + picker keyboard-open state (chrome hides asynchronously).

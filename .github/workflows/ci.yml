@@ -10,22 +10,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typecheck-and-test:
+  static:
+    name: Lint and typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # pnpm must be on PATH before setup-node runs so its `cache: pnpm` lookup
+      # can resolve the pnpm store directory.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: pnpm
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -36,62 +40,54 @@ jobs:
       - name: Typecheck changed workspaces
         run: pnpm turbo run typecheck --filter=@workspace/shared --filter=chatroom-cli --filter=@workspace/backend --filter=@workspace/webapp
 
-      - name: Test shared role domain contracts
-        run: >
-          pnpm --dir packages/shared exec vitest run
-          src/domain/agent-role.test.ts
-          src/domain/team-presets.test.ts
+  test:
+    name: Test ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: shared
+            dir: packages/shared
+            shard: 1/1
+          - name: cli
+            dir: packages/cli
+            shard: 1/1
+          - name: backend
+            dir: services/backend
+            shard: 1/1
+          - name: local
+            dir: apps/local
+            shard: 1/1
+          - name: webapp 1/3
+            dir: apps/webapp
+            shard: 1/3
+          - name: webapp 2/3
+            dir: apps/webapp
+            shard: 2/3
+          - name: webapp 3/3
+            dir: apps/webapp
+            shard: 3/3
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Test backend team-kind and preset adapters
-        run: >
-          pnpm --dir services/backend exec vitest run
-          src/domain/entities/team-kind.spec.ts
-          src/domain/entities/team-presets.spec.ts
+      # pnpm must be on PATH before setup-node runs so its `cache: pnpm` lookup
+      # can resolve the pnpm store directory.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
-      - name: Test builtin prompt and handoff contracts
-        run: >
-          pnpm --dir services/backend exec vitest run
-          prompts/teams/role-identity-resolution.test.ts
-          prompts/teams/team-prompt-modules.test.ts
-          prompts/teams/team-isolation.test.ts
-          prompts/teams/duo/duo-role-prompts.snapshot.test.ts
-          prompts/teams/solo/solo-role-prompts.snapshot.test.ts
-          prompts/teams/trio/trio-role-prompts.snapshot.test.ts
-          prompts/teams/custom/custom-role-prompts.snapshot.test.ts
-          prompts/builtin-role-contracts.test.ts
-          prompts/cli/handoff-templates/index.test.ts
-          prompts/cli/handoff-templates/list-templates.test.ts
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
 
-      - name: Test backend canonical agent structure and status APIs
-        run: >
-          pnpm --dir services/backend exec vitest run
-          convex/agents.spec.ts
-          convex/chatroomTeamStructure.spec.ts
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
 
-      - name: Test frontend team picker projection
-        run: pnpm --dir apps/webapp exec vitest run src/modules/chatroom/config/teams.spec.ts
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Test frontend canonical agent surfaces
-        run: >
-          pnpm --dir apps/webapp exec vitest run
-          src/modules/chatroom/components/AgentPanel/AgentPanel.test.tsx
-          src/modules/chatroom/components/AgentPanel/WorkspaceInlineAgentListPanel.test.tsx
-          src/modules/chatroom/components/AgentPanel/InlineAgentCard.test.tsx
-          src/modules/chatroom/hooks/useWorkspaceAgentQueries.test.ts
-
-      - name: Test CLI (full)
-        run: pnpm turbo run test --filter=chatroom-cli
-
-      - name: Test backend agent lifecycle suites
-        run: >
-          pnpm --dir services/backend exec vitest run
-          src/domain/usecase/agent/authorize-agent-start.spec.ts
-          src/domain/usecase/agent/request-ephemeral-agent-release.spec.ts
-          src/domain/usecase/agent/start-agent.spec.ts
-
-      - name: Test webapp stop suites
-        run: >
-          pnpm --dir apps/webapp exec vitest run
-          src/modules/chatroom/hooks/useAgentStop.test.ts
-          src/modules/chatroom/components/AgentPanel/RemoteAgentQuickActions.test.tsx
-          src/modules/chatroom/components/ChatroomSidebar.test.tsx
+      - name: Run full Vitest suite
+        run: pnpm --dir ${{ matrix.dir }} exec vitest run --shard=${{ matrix.shard }}

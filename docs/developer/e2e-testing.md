@@ -31,16 +31,13 @@ Filter by tag: `--grep @upstream`, `--grep @markdown`, etc.
 
 ## When E2E runs
 
-E2E is owned by CI, not the local pre-push hook. `.husky/pre-push` runs only `pnpm run typecheck`; no test or E2E command executes locally on push. Direct pushes to `master` no longer run a local E2E gate.
+Playwright does not run in the local pre-push hook. `.husky/pre-push` runs `bun run test:scripts`, then `scripts/pre-push-checks.sh`, which runs `pnpm turbo run typecheck test` for packages affected since the push base. Pushes to `master` run no E2E locally.
 
-Repository-aware suite selection keeps CI focused on the owning repository's tests:
+GitHub Actions owns E2E. `.github/workflows/e2e.yml` runs for pull requests targeting `master`. It selects the suite from the repository: the template repository runs `@upstream`, and forks and other repositories run `@downstream`. The discovery step skips the job when the selected suite directory has no spec files.
 
-- Template repository pull requests → `@upstream` suite
-- Fork or non-template destination → `@downstream` suite
+CI starts the open-source Convex backend in an ephemeral Docker container, deploys this repository's backend functions to it, and enables E2E seeding there. No hosted Convex URL or repository secret is required.
 
-Pull requests targeting `master` use `github.repository` in `.github/workflows/e2e.yml` to select the same ownership boundary: the template repository runs `@upstream`, while forks and downstream repositories run `@downstream`. Tag constants are imported from `apps/webapp/tests/e2e/support/tags.ts`, and `scripts/resolve-e2e-suite.ts` (using `isTemplateRemote` from `scripts/template-repo.ts`) resolves the suite for the CI workflow. CI starts the open-source Convex backend in an ephemeral Docker container, deploys this repository's backend functions to it, and enables E2E seeding there. No hosted Convex URL or repository secret is required.
-
-Pull requests targeting `master` use `github.repository` in `.github/workflows/e2e.yml` to select the same ownership boundary: the template repository runs `@upstream`, while forks and downstream repositories run `@downstream`. CI starts the open-source Convex backend in an ephemeral Docker container, deploys this repository's backend functions to it, and enables E2E seeding there. No hosted Convex URL or repository secret is required.
+To run the downstream suite locally: `cd apps/webapp && pnpm e2e:downstream`.
 
 ## Builtin agent sidebar regression
 

@@ -1,8 +1,35 @@
-import { expect, test, devices, type Page } from '@playwright/test';
+import { expect, test, devices, type Locator, type Page } from '@playwright/test';
 
 import { TAG_DOWNSTREAM } from '../../support/tags';
 
 const HARNESS_PATH = '/dev/mobile-picker-harness';
+
+/**
+ * Popover and modal surfaces animate in (zoom/fade). Interacting while the surface is still
+ * moving is the race the mobile harness covers for drawers, so settle every animation in its
+ * subtree before the test interacts with it.
+ * Only `finished` counts as settled: filtering on `running` alone let the wait pass for any other
+ * unfinished state.
+ */
+async function waitForOverlaySettled(surface: Locator): Promise<void> {
+  await expect(surface).toBeVisible();
+  await expect
+    .poll(() =>
+      surface.evaluate(
+        (el) =>
+          el
+            .getAnimations({ subtree: true })
+            .filter((animation) => animation.playState !== 'finished').length
+      )
+    )
+    .toBe(0);
+}
+
+/** Opens a harness picker trigger and waits for its popover to finish animating in. */
+async function openHarnessPopover(page: Page, triggerTestId: string): Promise<void> {
+  await page.getByTestId(triggerTestId).click();
+  await waitForOverlaySettled(page.locator('[data-slot="popover-content"]'));
+}
 
 /** ResponsivePickerShell renders trigger-only until client hydration. */
 async function waitForHarnessDesktopPickersHydrated(page: Page): Promise<void> {
@@ -23,13 +50,13 @@ test.describe('Mobile picker harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () =
     await waitForHarnessDesktopPickersHydrated(page);
   });
   test('flat picker uses popover on desktop viewport', async ({ page }) => {
-    await page.getByTestId('open-flat-picker').click();
+    await openHarnessPopover(page, 'open-flat-picker');
     await expect(page.locator('[data-slot="popover-content"]')).toBeVisible();
     await expect(page.locator('[data-slot="drawer-content"]')).toHaveCount(0);
   });
 
   test('standing instructions bar opens popover on desktop', async ({ page }) => {
-    await page.getByTestId('open-standing-instructions-bar').click();
+    await openHarnessPopover(page, 'open-standing-instructions-bar');
     await expect(page.locator('[data-slot="popover-content"]')).toBeVisible();
     await expect(page.locator('[data-slot="drawer-content"]')).toHaveCount(0);
     await expect(page.getByRole('option', { name: 'Edit' })).toBeVisible();
@@ -39,14 +66,15 @@ test.describe('Mobile picker harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () =
 
   test('nested fixed modal opens picker popover inside modal', async ({ page }) => {
     await page.getByTestId('open-nested-modal').click();
-    await expect(page.locator('[data-slot="fixed-modal-content"]')).toBeVisible();
-    await page.getByTestId('open-nested-picker').click();
+    await waitForOverlaySettled(page.locator('[data-slot="fixed-modal-content"]'));
+    await openHarnessPopover(page, 'open-nested-picker');
     await expect(page.locator('[data-slot="popover-content"]')).toBeVisible();
   });
 
   test('escape closes nested picker before modal', async ({ page }) => {
     await page.getByTestId('open-nested-modal').click();
-    await page.getByTestId('open-nested-picker').click();
+    await waitForOverlaySettled(page.locator('[data-slot="fixed-modal-content"]'));
+    await openHarnessPopover(page, 'open-nested-picker');
     await expect(page.locator('[data-slot="popover-content"]')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0);

@@ -12,7 +12,7 @@
     },
     "typecheck": {
       "dependsOn": ["^typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!package.json"],
       "cache": true
     },
     "codegen": {
@@ -20,9 +20,13 @@
       "outputs": ["convex/_generated/**"],
       "cache": true
     },
+    // Every package.json is excluded from typecheck and test inputs, so a manifest-only edit to
+    // version, scripts, bin, main, exports or types keeps cached results. Dependency changes still
+    // invalidate through pnpm-lock.yaml (globalDependencies). After a manifest-only edit to exports,
+    // types, scripts, bin or main, run `pnpm turbo run typecheck test --force` before trusting a cached pass.
     "test": {
       "dependsOn": ["^typecheck", "typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!package.json"],
       "outputs": [],
       "cache": true
     },
@@ -58,13 +62,18 @@
     // Always re-declare dependsOn and outputs from the global task when overriding.
     "@workspace/backend#typecheck": {
       "dependsOn": ["^typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!package.json"],
       "outputs": ["dist/**"],
       "cache": true
     },
     "@workspace/webapp#typecheck": {
       "dependsOn": ["^typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*", "$TURBO_ROOT$/services/backend/src/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "!package.json",
+        "$TURBO_ROOT$/services/backend/src/**"
+      ],
       "cache": true
     },
     "@workspace/webapp#build": {
