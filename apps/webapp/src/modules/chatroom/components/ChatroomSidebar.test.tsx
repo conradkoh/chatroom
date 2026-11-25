@@ -281,6 +281,16 @@ describe('ChatroomSidebar', () => {
     expect(item?.querySelector('.bg-chatroom-status-success')).not.toBeInTheDocument();
   });
 
+  it('renders stuck status with the shared red indicator and keeps the Start button', () => {
+    const chatroom = makeChatroom({ activityStatus: 'stuck', remoteAgentStatus: 'none' });
+    renderSidebar([chatroom]);
+
+    const item = screen.getByText('Test Chat').closest('[role="button"]');
+    expect(item?.querySelector('.bg-chatroom-status-error')).toBeInTheDocument();
+    expect(item?.querySelector('.bg-chatroom-status-info')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Start with last configuration')).toBeInTheDocument();
+  });
+
   it('renders a muted loading indicator before chatroom status resolves', () => {
     const chatroom = makeChatroom();
     mockStatuses.delete(chatroom._id);

@@ -21,6 +21,10 @@ const CHATROOM_ACTIVITY_DISPLAY: Record<
     indicatorClass: 'bg-chatroom-status-warning',
     description: 'Agents are online but not yet waiting for tasks',
   },
+  stuck: {
+    indicatorClass: 'bg-chatroom-status-error',
+    description: 'An agent with assigned work is offline or errored',
+  },
   idle: {
     indicatorClass: 'bg-chatroom-text-muted opacity-40',
     description: 'No agents online',
