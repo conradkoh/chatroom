@@ -49,7 +49,7 @@ describe('skills.activate', () => {
 
     expect(result.success).toBe(true);
     expect(result.skill.skillId).toBe('backlog');
-    expect(result.skill.name).toBe('Backlog Reference');
+    expect(result.skill.name).toBe('Backlog Management');
 
     expect(result.skill.prompt).toContain('Continuous Backlog Execution');
   });
