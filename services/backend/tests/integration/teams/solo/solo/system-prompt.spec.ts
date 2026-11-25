@@ -156,7 +156,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       ## When to Activate Skills
 
       **Proactively activate skills** when your task matches their purpose:
-      - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
+      - **backlog**: Use when asked to list, add, update, score, mark for review, complete, close, export or import backlog items, or when a task includes an attached backlog item.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers eleven pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, hallucinated content, and readability and comments.
       - **defragmentation**: Use for large or multi-surface system revisions: study surfaces, establish a golden path, migrate callers, and delete legacy implementations.
       - **user-centricity**: Use when a request involves UI changes: turn user intent into complete, accessible flows with explicit states and project-consistent interaction details.

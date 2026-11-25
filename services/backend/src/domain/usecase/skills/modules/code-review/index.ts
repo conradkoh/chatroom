@@ -6,7 +6,7 @@ export const codeReviewSkill: SkillModule = {
   description:
     'Use this skill when reviewing, auditing, or giving feedback on code. Covers eleven pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, hallucinated content, and readability and comments.',
 
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "code-review" skill.
+  getPrompt: () => `You have been activated with the "code-review" skill.
 
 # AI Code Review — Tech Debt Prevention
 

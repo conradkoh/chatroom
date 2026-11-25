@@ -6,7 +6,7 @@ export const defragmentationSkill: SkillModule = {
   description:
     'Use for large or multi-surface system revisions: study surfaces, establish a golden path, migrate callers, and delete legacy implementations.',
 
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "defragmentation" skill.
+  getPrompt: () => `You have been activated with the "defragmentation" skill.
 
 # Defragmentation Workflow
 

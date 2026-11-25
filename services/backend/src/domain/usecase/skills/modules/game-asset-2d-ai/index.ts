@@ -5,7 +5,7 @@ export const gameAsset2dAiSkill: SkillModule = {
   name: '2D Game Asset Design (AI Generation)',
   description:
     'Use when a task needs 2D sprite or UI art generated with `chatroom generate-image --platform=fal`, including sheets, slicing, background removal, and per-asset fallbacks. (game-asset-designer only)',
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "game-asset-2d-ai" skill.
+  getPrompt: () => `You have been activated with the "game-asset-2d-ai" skill.
 
 # 2D Game Asset Design — AI Generation
 

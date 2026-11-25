@@ -13,7 +13,7 @@
 **Location**: `services/backend/src/domain/usecase/skills/registry.ts`
 
 - Contains `SKILLS_REGISTRY` with all built-in skills
-- Each skill module has: `skillId`, `name`, `description`, `getPrompt(cliEnvPrefix)`
+- Each skill module has: `skillId`, `name`, `description`, `getPrompt(ctx: SkillPromptContext)`; activation snapshots carry the concrete chatroom id and role
 - Skills: backlog, software-engineering, code-review, workflow, development-workflow
 
 **Related Functions**:

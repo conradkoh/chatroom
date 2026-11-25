@@ -95,6 +95,34 @@ describe('backlog attachment hint', () => {
     expect(block).not.toContain('When done:');
   });
 
+  test('renders the skill-activation interaction after mark-for-review', () => {
+    const lines = renderDeliveryAttachmentsBlock(
+      {
+        attachedBacklogItems: [{ _id: 'item-111', content: 'Add login page', status: 'pending' }],
+      },
+      { chatroomId: 'test-chatroom-456', role: 'planner' }
+    );
+    const block = lines.join('\n');
+    const markForReviewIndex = block.indexOf('chatroom backlog mark-for-review');
+    const activationIndex = block.indexOf(
+      'For any other backlog action, activate the backlog skill for the full command reference and lifecycle rules: chatroom skill activate backlog --chatroom-id="test-chatroom-456" --role="planner"'
+    );
+    expect(activationIndex).toBeGreaterThan(-1);
+    expect(markForReviewIndex).toBeGreaterThan(-1);
+    expect(markForReviewIndex).toBeLessThan(activationIndex);
+  });
+
+  test('renders exactly two command interactions per backlog item', () => {
+    const lines = renderDeliveryAttachmentsBlock(
+      {
+        attachedBacklogItems: [{ _id: 'item-111', content: 'Add login page', status: 'pending' }],
+      },
+      { chatroomId: 'test-chatroom-456', role: 'planner' }
+    );
+    const block = lines.join('\n');
+    expect(block.match(/<interaction type="command">/g)).toHaveLength(2);
+  });
+
   test('escapes content next to interactions and nests interaction inside the attachment', () => {
     const lines = renderDeliveryAttachmentsBlock(
       {

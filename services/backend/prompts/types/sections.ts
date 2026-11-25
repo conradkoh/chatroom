@@ -90,8 +90,6 @@ export type SectionId =
   | 'commands-reference-native'
   | 'history-retrieval'
   | 'general-commands-reference'
-  // Actions (task delivery)
-  | 'available-actions'
   // Policies
   | 'review-policies'
   // Next Step

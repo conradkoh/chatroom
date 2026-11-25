@@ -4,7 +4,7 @@ import { codeReviewSkill } from './index';
 
 describe('code-review skill readability pillar', () => {
   test('lists eleven pillars and includes Pillar 11 for readability and comments', () => {
-    const prompt = codeReviewSkill.getPrompt('');
+    const prompt = codeReviewSkill.getPrompt({ cliEnvPrefix: '' });
 
     expect(codeReviewSkill.description).toContain('eleven pillars');
     expect(codeReviewSkill.description).toContain('readability and comments');

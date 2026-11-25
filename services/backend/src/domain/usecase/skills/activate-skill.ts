@@ -1,8 +1,9 @@
 /**
  * activate-skill use case
  *
- * Looks up skill from registry, injects cliEnvPrefix into prompt,
- * checks for skill customizations, and returns the activation prompt to the caller.
+ * Looks up skill from registry, renders the chatroom id, role and cliEnvPrefix
+ * into the prompt, checks for skill customizations, and returns the activation
+ * prompt to the caller.
  */
 
 import { ConvexError } from 'convex/values';
@@ -35,7 +36,11 @@ export async function activateSkill(
   _chatroom: Doc<'chatroom_rooms'>,
   args: ActivateSkillArgs
 ): Promise<ActivateSkillResult> {
-  const skill = getSkill(args.skillId, args.cliEnvPrefix);
+  const skill = getSkill(args.skillId, {
+    cliEnvPrefix: args.cliEnvPrefix,
+    chatroomId: args.chatroomId,
+    role: args.role,
+  });
 
   if (!skill) {
     throw new ConvexError(`Skill "${args.skillId}" not found or is disabled.`);

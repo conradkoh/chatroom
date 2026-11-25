@@ -9,7 +9,6 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getAvailableActions } from '../../prompts/cli/get-next-task/available-actions';
 import {
   getRoleDescriptionSection,
   getRoleTitleSection,
@@ -68,21 +67,6 @@ describe('getTeamContextSection', () => {
       expect(section.id).toBe('team-context');
       expect(section.content).toBe('');
     });
-  });
-});
-
-describe('getAvailableActions', () => {
-  test('lists the shared actions without a Context Management section', () => {
-    const output = getAvailableActions({
-      chatroomId: 'test-chatroom-id',
-      role: 'planner',
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-    expect(output).toContain('## Available Actions');
-    expect(output).toContain('### History Retrieval');
-    expect(output).not.toContain('### Context Management');
-    expect(output).not.toContain('context new');
-    expect(output).not.toContain('Only the entry point role can create new contexts');
   });
 });
 

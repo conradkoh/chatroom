@@ -16,11 +16,17 @@ import { gameAsset3dProceduralSkill } from './modules/game-asset-3d-procedural/i
 import { userCentricitySkill } from './modules/user-centricity/index';
 import type { SkillId } from '../../types/skills';
 
+export interface SkillPromptContext {
+  cliEnvPrefix: string;
+  chatroomId?: string | undefined;
+  role?: string | undefined;
+}
+
 export interface SkillModule {
   skillId: SkillId;
   name: string;
   description: string;
-  getPrompt(cliEnvPrefix: string): string;
+  getPrompt(ctx: SkillPromptContext): string;
 }
 
 export const SKILLS_REGISTRY: readonly SkillModule[] = [

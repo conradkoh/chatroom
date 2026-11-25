@@ -6,9 +6,7 @@ export const gameAsset3dProceduralSkill: SkillModule = {
   name: '3D Game Asset Design (Procedural Generation)',
   description:
     'Use when a task needs a 3D asset produced by a parametric generator script committed to the repository, with versioned parameters, a fixed seed, and a measured glTF 2.0/GLB export. (game-asset-designer only)',
-  getPrompt: (
-    _cliEnvPrefix: string
-  ) => `You have been activated with the "game-asset-3d-procedural" skill.
+  getPrompt: () => `You have been activated with the "game-asset-3d-procedural" skill.
 
 # 3D Game Asset Design — Procedural Generation
 
