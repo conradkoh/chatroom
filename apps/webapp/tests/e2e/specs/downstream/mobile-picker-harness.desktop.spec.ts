@@ -6,8 +6,10 @@ const HARNESS_PATH = '/dev/mobile-picker-harness';
 
 /**
  * Popover and modal surfaces animate in (zoom/fade). Interacting while the surface is still
- * moving is the race the mobile harness covers for drawers, so settle every running animation in
- * its subtree before the test interacts with it.
+ * moving is the race the mobile harness covers for drawers, so settle every animation in its
+ * subtree before the test interacts with it.
+ * Only `finished` counts as settled: filtering on `running` alone let the wait pass for any other
+ * unfinished state.
  */
 async function waitForOverlaySettled(surface: Locator): Promise<void> {
   await expect(surface).toBeVisible();
@@ -17,7 +19,7 @@ async function waitForOverlaySettled(surface: Locator): Promise<void> {
         (el) =>
           el
             .getAnimations({ subtree: true })
-            .filter((animation) => animation.playState === 'running').length
+            .filter((animation) => animation.playState !== 'finished').length
       )
     )
     .toBe(0);

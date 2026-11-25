@@ -51,7 +51,9 @@ async function waitForHarnessMobilePickersHydrated(page: Page): Promise<void> {
 /**
  * Drawer and popover surfaces animate in (the drawer popup transitions its transform for 450ms,
  * the popover zooms/fades in). Interacting while the surface is still moving is the race that
- * blocked the Model Visibility drawer, so settle every running animation in its subtree first.
+ * blocked the Model Visibility drawer, so settle every animation in its subtree first.
+ * Only `finished` counts as settled: filtering on `running` alone let the wait pass for any other
+ * unfinished state.
  */
 async function waitForOverlaySettled(surface: Locator): Promise<void> {
   await expect(surface).toBeVisible();
@@ -61,7 +63,7 @@ async function waitForOverlaySettled(surface: Locator): Promise<void> {
         (el) =>
           el
             .getAnimations({ subtree: true })
-            .filter((animation) => animation.playState === 'running').length
+            .filter((animation) => animation.playState !== 'finished').length
       )
     )
     .toBe(0);
