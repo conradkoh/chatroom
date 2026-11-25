@@ -19,8 +19,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Two workers on CI: the downstream suite is 114 independent specs, so a second
+   * worker raises throughput while staying inside the GitHub-hosted 4 vCPU runner
+   * and the single local Convex backend's request capacity. P6 measured three runs
+   * per side; the decision and its numbers are recorded in PR #1821. */
+  workers: process.env.CI ? 2 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
