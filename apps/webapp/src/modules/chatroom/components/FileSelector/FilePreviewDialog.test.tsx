@@ -54,8 +54,32 @@ function renderDialog() {
   return render(<FilePreviewDialog {...defaultProps} />);
 }
 
+/**
+ * The copy button only renders once the mocked gzip content has decompressed and the
+ * dialog has committed, because FilePreviewDialog shows a spinner while
+ * `useFileContent` is still decompressing. `decompressGzip` dispatches to Node's
+ * `DecompressionStream`, which shares the libuv threadpool with every other worker:
+ * for the 29-byte payload used here it measured 402–1895 ms under parallel load
+ * (three concurrent webapp suites), and the first toolbar lookup took
+ * 1381–1659 ms in that run. The default 1000 ms Testing Library bound is smaller
+ * than that, which is why CI run 45417248853 and local load runs timed out on it.
+ */
+const CONTENT_LOAD_LOOKUP_TIMEOUT_MS = 5_000;
+
 async function findCopyContentButton() {
-  return screen.findByRole('button', { name: 'Copy File Content' });
+  return screen.findByRole(
+    'button',
+    { name: 'Copy File Content' },
+    { timeout: CONTENT_LOAD_LOOKUP_TIMEOUT_MS }
+  );
+}
+
+async function findMarkdownCopyButton() {
+  return screen.findByRole(
+    'button',
+    { name: 'Copy as Markdown' },
+    { timeout: CONTENT_LOAD_LOOKUP_TIMEOUT_MS }
+  );
 }
 
 beforeEach(() => {
@@ -384,7 +408,7 @@ describe('FilePreviewDialog download section', () => {
 
   it('lists the download rows in the ... menu for a markdown file', async () => {
     render(<FilePreviewDialog {...markdownProps} />);
-    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await findMarkdownCopyButton();
     await openMoreMenu();
 
     const names = menuItemNames();
@@ -409,7 +433,7 @@ describe('FilePreviewDialog download section', () => {
 
   it('opens the same items from the action-bar right-click as from the ... menu', async () => {
     render(<FilePreviewDialog {...markdownProps} />);
-    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await findMarkdownCopyButton();
 
     await openMoreMenu();
     const fromMoreMenu = collectMenuItems();
@@ -433,7 +457,7 @@ describe('FilePreviewDialog download section', () => {
   it('disables every download row with one reason for a truncated file', async () => {
     mockContent(true);
     render(<FilePreviewDialog {...markdownProps} />);
-    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await findMarkdownCopyButton();
 
     await openMoreMenu();
 
@@ -449,7 +473,7 @@ describe('FilePreviewDialog download section', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(exportFileAsDocx).mockRejectedValueOnce(new Error('boom'));
     render(<FilePreviewDialog {...markdownProps} />);
-    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await findMarkdownCopyButton();
     await openMoreMenu();
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Download as DOCX' }));
@@ -463,7 +487,7 @@ describe('FilePreviewDialog download section', () => {
   it('closes silently when the DOCX save is cancelled', async () => {
     vi.mocked(exportFileAsDocx).mockResolvedValueOnce('cancelled');
     render(<FilePreviewDialog {...markdownProps} />);
-    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await findMarkdownCopyButton();
     await openMoreMenu();
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Download as DOCX' }));
@@ -477,7 +501,7 @@ describe('FilePreviewDialog download section', () => {
   it('matches the disabled state of the ... menu and the action-bar right-click for a truncated file', async () => {
     mockContent(true);
     render(<FilePreviewDialog {...markdownProps} />);
-    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await findMarkdownCopyButton();
     await openMoreMenu();
     const fromMoreMenu = collectMenuItems();
     fireEvent.click(screen.getByRole('button', { name: 'More copy options' }));
@@ -497,7 +521,7 @@ describe('FilePreviewDialog download section', () => {
   it('closes the action-bar right-click menu on Escape and keeps the dialog open', async () => {
     const onClose = vi.fn();
     render(<FilePreviewDialog {...markdownProps} onClose={onClose} />);
-    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await findMarkdownCopyButton();
     fireEvent.contextMenu(screen.getByTestId('file-content-action-bar'));
     await screen.findAllByRole('menuitem');
 
@@ -510,7 +534,7 @@ describe('FilePreviewDialog download section', () => {
   it('closes the action-bar right-click menu on an outside click and keeps the dialog open', async () => {
     const onClose = vi.fn();
     render(<FilePreviewDialog {...markdownProps} onClose={onClose} />);
-    await screen.findByRole('button', { name: 'Copy as Markdown' });
+    await findMarkdownCopyButton();
     fireEvent.contextMenu(screen.getByTestId('file-content-action-bar'));
     await screen.findAllByRole('menuitem');
 
