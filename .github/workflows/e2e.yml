@@ -127,6 +127,27 @@ jobs:
         if: steps.discover.outputs.has_tests == 'true' && github.repository != 'conradkoh/next-convex-starter-app'
         run: pnpm --filter @workspace/webapp e2e:downstream
 
+      # Playwright writes both directories relative to the `pnpm --dir apps/webapp`
+      # working directory, not the config file. `if-no-files-found: ignore` keeps a
+      # missing report from masking the test failure that triggered the upload.
+      - name: Upload Playwright report on failure
+        if: failure() && steps.discover.outputs.has_tests == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/webapp/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload Playwright test results on failure
+        if: failure() && steps.discover.outputs.has_tests == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: apps/webapp/test-results
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Show Convex logs on failure
         if: failure() && steps.discover.outputs.has_tests == 'true'
         run: docker logs convex-backend || true
