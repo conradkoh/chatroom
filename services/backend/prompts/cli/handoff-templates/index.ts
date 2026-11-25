@@ -40,6 +40,7 @@ import { listDuoRoleHandoffContracts } from '../../teams/duo/handoff-templates';
 import { listSoloRoleHandoffContracts } from '../../teams/solo/handoff-templates';
 import { listTrioRoleHandoffContracts } from '../../teams/trio/handoff-templates';
 import { getHandoffTemplateTitleLine } from '../../utils/handoff-section-guidance';
+import { getGroundingReferenceBlock, pairCarriesGroundingReference } from '../grounding/reference';
 
 export type { HandoffTemplateQuery } from './contracts';
 export type { HandoffTemplatePair, HandoffTemplatePairInput } from './pair';
@@ -205,6 +206,7 @@ export function resolveHandoffTemplateSelection(
  * a `null` getter result stays `null` so callers can fall back to the generic
  * free-form handoff message. The `null` contract never throws.
  */
+// fallow-ignore-next-line complexity
 export function renderHandoffTemplate(
   pair: HandoffTemplatePair,
   options?: HandoffTemplateRenderOptions
@@ -222,10 +224,18 @@ export function renderHandoffTemplate(
     role: pair.fromRole,
   });
   if (!body) return null;
+  const grounding = pairCarriesGroundingReference(pair)
+    ? getGroundingReferenceBlock({
+        chatroomId: options?.chatroomId,
+        cliEnvPrefix: options?.cliEnvPrefix,
+        toRole: pair.toRole,
+      })
+    : null;
   return [
     getHandoffRecipientVisibilityCallout(pair.toRole),
     getHandoffTemplateTitleLine(pair),
     body,
+    ...(grounding ? [grounding] : []),
   ].join('\n\n');
 }
 

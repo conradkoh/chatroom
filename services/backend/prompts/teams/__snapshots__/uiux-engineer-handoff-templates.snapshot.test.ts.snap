@@ -17,6 +17,16 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-rol
 ---MESSAGE---
 [Your message here]
 CHATROOM_HANDOFF_END
+\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="<chatroom-id>" --role="uiux-engineer" --grounding-id="<groundingId>"\`
+It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
 \`\`\`"
 `;
 
@@ -142,6 +152,16 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-rol
 ---MESSAGE---
 [Your message here]
 CHATROOM_HANDOFF_END
+\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="<chatroom-id>" --role="uiux-engineer" --grounding-id="<groundingId>"\`
+It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
 \`\`\`"
 `;
 
@@ -267,6 +287,16 @@ chatroom handoff --chatroom-id="<chatroom-id>" --role="uiux-engineer" --next-rol
 ---MESSAGE---
 [Your message here]
 CHATROOM_HANDOFF_END
+\`\`\`
+
+### Grounding reference
+Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+\`\`\`markdown
+## Grounding
+Grounding ID: <groundingId>, or \`None.\`
+Read it: \`chatroom grounding read --chatroom-id="<chatroom-id>" --role="uiux-engineer" --grounding-id="<groundingId>"\`
+It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
 \`\`\`"
 `;
 

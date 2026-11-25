@@ -10,6 +10,10 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  getGroundingReferenceBlock,
+  pairCarriesGroundingReference,
+} from '../../../prompts/cli/grounding/reference';
+import {
   getHandoffTemplate,
   listHandoffTemplatePairs,
 } from '../../../prompts/cli/handoff-templates';
@@ -33,10 +37,14 @@ function composePairTemplate(
   pair: { teamId: string; fromRole: string; toRole: string },
   body: string
 ): string {
+  const grounding = pairCarriesGroundingReference(pair)
+    ? getGroundingReferenceBlock({ toRole: pair.toRole })
+    : null;
   return [
     getHandoffRecipientVisibilityCallout(pair.toRole),
     getHandoffTemplateTitleLine(pair),
     body,
+    ...(grounding ? [grounding] : []),
   ].join('\n\n');
 }
 
@@ -553,7 +561,17 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice>
 
-      \`\`\`\`"
+      \`\`\`\`
+
+      ### Grounding reference
+      Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+      \`\`\`markdown
+      ## Grounding
+      Grounding ID: <groundingId>, or \`None.\`
+      Read it: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom grounding read --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --grounding-id="<groundingId>"\`
+      It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+      \`\`\`"
     `);
   });
 
@@ -666,7 +684,17 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Out of scope
       - <files or areas the builder must NOT touch in this slice>
 
-      \`\`\`\`"
+      \`\`\`\`
+
+      ### Grounding reference
+      Add this section to your message. Replace the placeholder with the id of the newest grounding message you published for this request, or write \`None.\`.
+
+      \`\`\`markdown
+      ## Grounding
+      Grounding ID: <groundingId>, or \`None.\`
+      Read it: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom grounding read --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --grounding-id="<groundingId>"\`
+      It records preliminary, factual observations from an earlier pass. Treat it as a starting point, not as verified truth: re-check every file, symbol and flow you rely on against the repository, and prefer the code where they differ.
+      \`\`\`"
     `);
   });
 

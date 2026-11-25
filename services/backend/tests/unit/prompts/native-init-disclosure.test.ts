@@ -52,9 +52,11 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
  * product-manager clause (~1230 characters),
  * then from 23500 to admit the conversation carve-out in the routing rules,
  * the softened decision-routing opening, and the request-to-build framing of
- * the product-manager gate (~440 characters).
+ * the product-manager gate (~440 characters),
+ * then from 24000 to admit the grounding publish guidance paragraph and its
+ * heredoc command block (~1000 characters).
  */
-const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 24000;
+const NATIVE_DUO_PLANNER_INIT_MAX_LENGTH = 25000;
 
 function nativeInitPrompt(team: keyof typeof TEAM_CONFIGS, role: string): string {
   const config = TEAM_CONFIGS[team];

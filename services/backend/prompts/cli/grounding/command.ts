@@ -4,11 +4,8 @@
  * Single source of truth for every `chatroom grounding …` example and actual
  * command, mirroring `cli/plan/command.ts`.
  *
- * Consumed by the grounding prompt modules and by `command.test.ts`; until the
- * prompts land, nothing outside the (ignored) test file imports it, so fallow
- * cannot see it as reachable.
+ * Consumed by the grounding prompt modules.
  */
-// fallow-ignore-file unused-file
 
 import type { GroundingPublishParams, GroundingReadParams } from '../../types/cli';
 import {
