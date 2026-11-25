@@ -1,5 +1,5 @@
-import { renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   computeKeyboardInsetPx,
@@ -9,6 +9,7 @@ import {
   useEditableElementFocused,
   useMainChatComposerFocused,
   useMainChatComposerKeyboardInset,
+  useVisualViewportOffsetTop,
 } from './useMobileKeyboard';
 
 describe('useEditableElementFocused', () => {
@@ -378,5 +379,36 @@ describe('useMainChatComposerKeyboardInset', () => {
     ta.focus();
     const { result } = renderHook(() => useMainChatComposerKeyboardInset(false));
     expect(result.current).toBe(0);
+  });
+});
+
+describe('useVisualViewportOffsetTop on the default path', () => {
+  let viewport: EventTarget & { height: number; offsetTop: number; scale: number };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    viewport = Object.assign(new EventTarget(), { height: 500, offsetTop: 0, scale: 1 });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: undefined });
+  });
+
+  it('runs the recheck schedule on a scroll long after any follow window', () => {
+    const { result } = renderHook(() => useVisualViewportOffsetTop(true));
+    act(() => vi.advanceTimersByTime(10_000));
+    act(() => {
+      viewport.offsetTop = 40;
+      viewport.dispatchEvent(new Event('scroll'));
+    });
+    expect(result.current).toBe(40);
+    // The browser finishes its layout after the scroll event, with no further event.
+    act(() => {
+      viewport.offsetTop = 120;
+    });
+    act(() => vi.advanceTimersByTime(100));
+    expect(result.current).toBe(120);
   });
 });

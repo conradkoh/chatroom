@@ -50,6 +50,8 @@ function renderShellWithComposer() {
 }
 
 const transform = () => screen.getByTestId('workspace-bottom-bar').style.transform;
+const bottomInset = () =>
+  screen.getByTestId('workspace-bottom-bar').getAttribute('data-bottom-inset');
 
 describe('WorkspaceBottomBarShell lift with a browser visualViewport', () => {
   it('lifts by the keyboard height once the composer is focused and the keyboard settles', () => {
@@ -63,12 +65,14 @@ describe('WorkspaceBottomBarShell lift with a browser visualViewport', () => {
     const { composer } = renderShellWithComposer();
     act(() => composer.focus());
     act(() => vi.advanceTimersByTime(1000)); // well past the follow window
+    expect(bottomInset()).toBe('suppressed');
     act(() => {
       viewport.offsetTop = 120; // user pans the page up to reveal the header
       viewport.dispatchEvent(new Event('scroll'));
     });
     act(() => vi.advanceTimersByTime(SETTLE_MS));
     expect(transform()).toBe('translateY(-300px)');
+    expect(bottomInset()).toBe('suppressed');
   });
 
   it('still follows a scroll that lands while the keyboard is settling (iOS scroll-into-view)', () => {
