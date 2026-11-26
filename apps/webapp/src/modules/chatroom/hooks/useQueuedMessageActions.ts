@@ -32,7 +32,6 @@ export function useQueuedMessageActions() {
  * The backend resolves `'stale'` when the moved row or the anchor is no longer
  * queued; that result is passed through as-is.
  */
-// fallow-ignore-next-line unused-export
 export function useReorderQueuedMessage(chatroomId: Id<'chatroom_rooms'>) {
   const reorder = useSessionMutation(api.messages.reorderQueuedMessage);
   return useCallback(

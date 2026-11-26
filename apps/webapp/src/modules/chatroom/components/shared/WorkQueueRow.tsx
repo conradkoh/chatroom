@@ -1,6 +1,8 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
+
+import { cn } from '@/lib/utils';
 
 export interface WorkQueueRowProps {
   /** Primary text (for queued: `<WorkQueuePreviewText/>`). */
@@ -11,8 +13,21 @@ export interface WorkQueueRowProps {
   attachments?: ReactNode;
   /** Trailing controls (envelope buttons + delete). Rendered inside a click-isolating wrapper. */
   actions: ReactNode;
-  /** Called on row click, Enter, or Space (not from the actions or attachments). */
+  /** Called on row click, Enter, or Space (not from the actions, attachments or leading). */
   onOpen: () => void;
+  /** Leading control (reorder handle). Click-isolated like `actions`. */
+  leading?: ReactNode;
+  /** Extra root classes for row state (dragging, lifted, drop line). */
+  className?: string;
+  /**
+   * Extra root attributes: `data-*` plus drag handlers. The row's own `role`,
+   * `tabIndex`, `onClick`, `onKeyDown` and `className` stay in force, so they
+   * are excluded from the type.
+   */
+  rootProps?: Omit<
+    HTMLAttributes<HTMLDivElement>,
+    'role' | 'tabIndex' | 'onClick' | 'onKeyDown' | 'className' | 'children'
+  > & { [k: `data-${string}`]: string | undefined };
 }
 
 function stopPropagation(e: { stopPropagation: () => void }) {
@@ -22,9 +37,19 @@ function stopPropagation(e: { stopPropagation: () => void }) {
 /**
  * Shared two-column sidebar row for work-queue lists. Purely structural: it
  * takes nodes plus `onOpen` and knows nothing about queued or scheduled data.
- * Clicks inside the actions and attachment strips are isolated from the row.
+ * Clicks inside the leading control, actions and attachment strips are isolated
+ * from the row.
  */
-export function WorkQueueRow({ preview, meta, attachments, actions, onOpen }: WorkQueueRowProps) {
+export function WorkQueueRow({
+  preview,
+  meta,
+  attachments,
+  actions,
+  onOpen,
+  leading,
+  className,
+  rootProps,
+}: WorkQueueRowProps) {
   return (
     <div
       role="button"
@@ -39,8 +64,18 @@ export function WorkQueueRow({ preview, meta, attachments, actions, onOpen }: Wo
           onOpen();
         }
       }}
-      className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors cursor-pointer text-left w-full"
+      {...rootProps}
+      className={cn(
+        'flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors cursor-pointer text-left w-full relative',
+        className
+      )}
     >
+      {leading !== undefined && (
+        <div className="flex shrink-0 items-center -ml-2" onClick={stopPropagation}>
+          {leading}
+        </div>
+      )}
+
       <div className="flex-1 min-w-0">
         {preview}
         {meta !== undefined && <p className="text-[10px] text-muted-foreground mt-0.5">{meta}</p>}

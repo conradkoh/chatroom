@@ -7,6 +7,7 @@ function renderRow(
   overrides: {
     meta?: React.ReactNode;
     attachments?: React.ReactNode;
+    leading?: React.ReactNode;
     onOpen?: () => void;
   } = {}
 ) {
@@ -16,6 +17,7 @@ function renderRow(
       preview={<span>Queued preview</span>}
       meta={overrides.meta}
       attachments={overrides.attachments}
+      leading={overrides.leading}
       actions={
         <button type="button" data-testid="row-action">
           Action
@@ -105,5 +107,92 @@ describe('WorkQueueRow', () => {
     expect(screen.queryByText('12s')).toBeNull();
     expect(screen.queryByText('chip')).toBeNull();
     expect(rowElement().querySelectorAll('p')).toHaveLength(0);
+  });
+
+  it('renders a leading control before the preview and isolates its clicks', () => {
+    const onOpen = vi.fn();
+    const onLeadingClick = vi.fn();
+    render(
+      <WorkQueueRow
+        preview={<span>Queued preview</span>}
+        actions={<span>Action</span>}
+        onOpen={onOpen}
+        leading={
+          <button type="button" data-testid="row-leading" onClick={onLeadingClick}>
+            Handle
+          </button>
+        }
+      />
+    );
+
+    const leading = screen.getByTestId('row-leading');
+    const preview = screen.getByText('Queued preview');
+
+    expect(
+      leading.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+
+    fireEvent.click(leading);
+
+    expect(onLeadingClick).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('does not open the row from Space on the leading control', () => {
+    const { onOpen } = renderRow({
+      leading: (
+        <span role="button" tabIndex={0} data-testid="row-leading">
+          Handle
+        </span>
+      ),
+    });
+
+    fireEvent.keyDown(screen.getByTestId('row-leading'), { key: ' ' });
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('spreads rootProps data attributes and drag handlers onto the root', () => {
+    const onDragOver = vi.fn();
+    const onDragLeave = vi.fn();
+    const onDrop = vi.fn();
+    render(
+      <WorkQueueRow
+        preview={<span>Queued preview</span>}
+        actions={<span>Action</span>}
+        onOpen={vi.fn()}
+        rootProps={{
+          'data-queued-id': 'queue-1',
+          'data-testid': 'row-root',
+          onDragOver,
+          onDragLeave,
+          onDrop,
+        }}
+      />
+    );
+
+    const root = screen.getByTestId('row-root');
+    expect(root).toHaveAttribute('data-queued-id', 'queue-1');
+    expect(root).toHaveAttribute('role', 'button');
+
+    fireEvent.dragOver(root);
+    fireEvent.dragLeave(root);
+    fireEvent.drop(root);
+
+    expect(onDragOver).toHaveBeenCalledTimes(1);
+    expect(onDragLeave).toHaveBeenCalledTimes(1);
+    expect(onDrop).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the existing structure when no new props are passed', () => {
+    renderRow();
+
+    const root = rowElement();
+    expect(root.className).toBe(
+      'flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors cursor-pointer text-left w-full relative'
+    );
+    expect(root.children).toHaveLength(2);
+    expect(root.children[0]?.className).toBe('flex-1 min-w-0');
+    expect(root.children[1]?.className).toBe('flex items-center gap-1');
   });
 });

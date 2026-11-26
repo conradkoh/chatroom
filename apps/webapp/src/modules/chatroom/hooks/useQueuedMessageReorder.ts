@@ -1,7 +1,7 @@
 'use client';
-// Concurrency gate for the P1/P2 commit: the list container that consumes this
-// hook and the reorder export lands in the next commit of the same change.
-// fallow-ignore-file unused-file complexity
+// Interaction state machine: each handler is small, but the union of phases and
+// input paths (mouse, keyboard, drag) keeps the file's branch count high.
+// fallow-ignore-file complexity
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
@@ -17,6 +17,7 @@ import {
   type QueuedReorderIntent,
   type QueuedReorderOutcome,
 } from './queuedReorderModel';
+import { popOverlayDismiss, pushOverlayDismiss } from '../components/shared/overlayDismissStack';
 import type { Message } from '../types/message';
 
 /**
@@ -160,6 +161,8 @@ export function useQueuedMessageReorder({
   const phaseRef = useRef<Phase>(IDLE);
   const inFlightRef = useRef(false);
   const handleRefs = useRef(new Map<string, HTMLElement>());
+  /** Row whose handle should hold keyboard focus once it is interactive again. */
+  const focusRef = useRef<string | null>(null);
 
   const applyPhase = useCallback((next: Phase) => {
     if (phaseRef.current === next) return;
@@ -227,6 +230,7 @@ export function useQueuedMessageReorder({
       if (phaseRef.current.kind !== 'idle') return;
       const slot = originalSlot(serverIds, movedId);
       if (slot === -1) return;
+      focusRef.current = movedId;
       applyPhase({ kind: 'lifted', movedId, slot });
       const content = byId.get(movedId)?.content ?? '';
       setAnnouncement(pickUpAnnouncement(content, slot + 1, serverIds.length));
@@ -431,15 +435,39 @@ export function useQueuedMessageReorder({
     [messages.length, phase, reorderable, rowHandlers, serverIds]
   );
 
-  // Keep keyboard focus on the moved handle when React moves its DOM node.
+  // Keep keyboard focus on the moved handle while React moves its DOM node, and
+  // restore it after the handle is swapped for the saving spinner (or after a
+  // cancel) once the phase is interactive again.
   const displayedIds = displayed.map((message) => message._id).join(',');
   useEffect(() => {
-    if (phase.kind !== 'lifted') return;
-    const el = handleRefs.current.get(phase.movedId);
-    if (!el) return;
+    const target = focusRef.current;
+    if (!target) return;
+    if (phase.kind === 'dragging' || phase.kind === 'saving') return;
+    const el = handleRefs.current.get(target);
+    if (!el) {
+      if (phase.kind === 'idle') focusRef.current = null;
+      return;
+    }
     el.focus({ preventScroll: true });
     el.scrollIntoView?.({ block: 'nearest' });
+    if (phase.kind === 'idle') focusRef.current = null;
   }, [displayedIds, phase]);
+
+  /**
+   * Escape must cancel the lift without closing an enclosing `FixedModal`.
+   *
+   * Overlays dismiss through `overlayDismissStack`, whose window-capture
+   * listener stops the event before any React handler runs. While a row is
+   * lifted this hook pushes the top entry, so Escape reaches `cancel` here
+   * instead of the modal's dismiss handler; the React handler in
+   * `onHandleKeyDown` keeps the same behaviour for synthetic events.
+   */
+  useEffect(() => {
+    if (phase.kind !== 'lifted') return;
+    const handler = () => cancel();
+    pushOverlayDismiss(handler);
+    return () => popOverlayDismiss(handler);
+  }, [cancel, phase.kind]);
 
   // Reconcile an in-progress interaction with changes made by someone else.
   useEffect(() => {
@@ -447,6 +475,7 @@ export function useQueuedMessageReorder({
     if (current.kind === 'idle') return;
     if (!messages.some((message) => message._id === current.movedId)) {
       applyPhase(IDLE);
+      focusRef.current = null;
       onFeedback('warning', STALE_FEEDBACK);
       return;
     }
