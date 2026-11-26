@@ -1638,11 +1638,6 @@
         "count": 2
       }
     },
-    "packages/cli/src/commands/messages/index.ts": {
-      "crap_high": {
-        "count": 1
-      }
-    },
     "packages/cli/src/commands/opencode-install/index.ts": {
       "crap_moderate": {
         "count": 1
