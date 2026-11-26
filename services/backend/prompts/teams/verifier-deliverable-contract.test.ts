@@ -6,6 +6,7 @@ import {
   renderHandoffTemplate,
   type HandoffTemplatePair,
 } from '../cli/handoff-templates';
+import { appendVerifierGateGuidance } from '../task-delivery/verifier-gate-guidance';
 
 /** Every entry-point → verifier request across duo, solo and trio. */
 const requestPairs = (['duo', 'solo', 'trio'] as const).flatMap((teamId) =>
@@ -105,4 +106,40 @@ describe('verifier request deliverable contract', () => {
       expect(verdict).toContain('each `pending after verdict` step the request listed');
     }
   );
+});
+
+describe('coordinator gate deliverable contract', () => {
+  const gate = (() => {
+    const lines: string[] = [];
+    appendVerifierGateGuidance(lines, { reworkRole: 'builder' });
+    return lines.join('\n');
+  })();
+
+  test('lists the evidence for every deliverable type before round 1 is sent', () => {
+    const stepOne = gate.indexOf('1. Finish the user-required steps');
+    for (const type of VERIFIER_DELIVERABLE_TYPES) {
+      const bullet = gate.indexOf(`- \`${type}\`: `);
+      expect(bullet).toBeGreaterThan(stepOne);
+    }
+  });
+
+  test('states the record-before-request and pending-after-verdict rules', () => {
+    expect(gate).toContain(
+      'record its command and result in a message listed under Log message ids'
+    );
+    expect(gate).toContain('`pending after verdict: <step>`');
+    expect(gate).toContain(
+      "record each named deliverable's evidence in a message before the request"
+    );
+  });
+
+  test('triggers on any deliverable and discloses the conversation-only skip', () => {
+    expect(gate).toContain('If this task produced a deliverable');
+    expect(gate).toContain('not required (conversation only)');
+    expect(gate).not.toContain('If this task involved code changes');
+  });
+
+  test('ACHIEVED runs each pending-after-verdict step before delivering', () => {
+    expect(gate).toContain('first run any `pending after verdict:` step your request listed');
+  });
 });

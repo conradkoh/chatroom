@@ -212,7 +212,7 @@ describe('appendTaskDeliveryHandoffSections — verifier gate', () => {
 
     expect(output).toContain('<chat-mode>');
     expect(output).toContain('<verifier-gate>');
-    expect(output).toContain('If this task involved code changes');
+    expect(output).toContain('If this task produced a deliverable');
   });
 
   test('builder role omits the verifier gate', () => {
@@ -281,7 +281,7 @@ describe('appendTaskDeliveryHandoffSections — solo verifier gate', () => {
     });
 
     expect(output).toContain('<verifier-gate>');
-    expect(output).toContain('If this task involved code changes');
+    expect(output).toContain('If this task produced a deliverable');
   });
 });
 

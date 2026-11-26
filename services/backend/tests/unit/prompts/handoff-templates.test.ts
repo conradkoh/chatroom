@@ -278,7 +278,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff
       **Proof of verification (verifier review):**
       - [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is \`ACHIEVED\` — or every unmet item is listed under Unresolved / action required
-      - Verifier review: <ACHIEVED | NOT_ACHIEVED | INCONCLUSIVE | UNAVAILABLE (<reason>) | not required (no code changes)>
+      - Verifier review: <ACHIEVED | NOT_ACHIEVED | INCONCLUSIVE | UNAVAILABLE (<reason>) | not required (conversation only)>
       - Verifier request command (disclose the command you sent): \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --next-role="verifier"\`
       - Verifier request message id: <id of your verifier handoff> · Round: <1 | 2>
       - Verdict message id: <id of the verifier's verdict handoff> · Verdict user message id: <id> (must equal the current last user message)
@@ -771,7 +771,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff
       **Proof of verification (verifier review):**
       - [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is \`ACHIEVED\` — or every unmet item is listed under Unresolved / action required
-      - Verifier review: <ACHIEVED | NOT_ACHIEVED | INCONCLUSIVE | UNAVAILABLE (<reason>) | not required (no code changes)>
+      - Verifier review: <ACHIEVED | NOT_ACHIEVED | INCONCLUSIVE | UNAVAILABLE (<reason>) | not required (conversation only)>
       - Verifier request command (disclose the command you sent): \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --next-role="verifier"\`
       - Verifier request message id: <id of your verifier handoff> · Round: <1 | 2>
       - Verdict message id: <id of the verifier's verdict handoff> · Verdict user message id: <id> (must equal the current last user message)
