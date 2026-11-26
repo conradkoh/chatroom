@@ -137,7 +137,7 @@ export function getVerifierToEntryPointHandoffTemplate(query: HandoffTemplateQue
 <per unmet or unverified requirement or user expectation: what is missing and what evidence would resolve it; exactly \`None.\` if ${ACHIEVED}>
 
 ## Scope and limits
-<state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; the log range read (first and last message id, and the message count); whether the download was truncated; which Log message ids were found in that range and which were not; each \`pending after verdict\` step the request listed, named as not checked>
+<state the test runs the verifier executed (command and exit result), or "No tests were run; none were requested."; the log range read (first and last message id, and the message count); whether the download was truncated; which Log message ids were found in that range and which were not; each \`pending after verdict\` step the request listed that you accepted under step 4a, named as not checked>
 
 Instructions after the body (not part of the message): run the normal handoff command to \`${entryPoint}\` with the complete body above, then stop.
 

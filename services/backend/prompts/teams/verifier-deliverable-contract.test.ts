@@ -104,7 +104,9 @@ describe('verifier request deliverable contract', () => {
 
       expect(verdict).toContain('the deliverable type(s) named in the request');
       expect(verdict).toContain('None applicable.');
-      expect(verdict).toContain('each `pending after verdict` step the request listed');
+      expect(verdict).toContain(
+        'each `pending after verdict` step the request listed that you accepted under step 4a'
+      );
     }
   );
 });
@@ -169,5 +171,16 @@ describe('verifier guidance deliverable contract', () => {
     expect(guidance).toContain(
       '`review`: the review report message, naming its reviewed target; no files-changed or Code Change Verification expectation.'
     );
+  });
+
+  test('step 4a rejects a pending-after-verdict deferral that could have run before the request', () => {
+    expect(guidance).toContain('genuinely post-verdict');
+    expect(guidance).toContain('could have run before the request');
+    expect(guidance).toContain('do not accept the deferral');
+    expect(guidance).toContain('mark it `unmet` or `unverified` for lack of evidence');
+  });
+
+  test('chat mode keeps the deliverable type as the evidence guide for step 5', () => {
+    expect(guidance).toContain('still tells you which evidence to look for in step 5');
   });
 });
