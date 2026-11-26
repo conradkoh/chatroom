@@ -139,8 +139,10 @@ function buildPageWindow(
 /**
  * Resolves a contiguous window of pages around the selected page, ascending.
  *
- * Reads only page boundaries: one `latest` read, the optional page-id read, and
- * two index takes (`before + 1` older, `after + 1` newer) for the edges.
+ * Reads only page boundaries: one latest read only when no existing page is
+ * requested; the optional page-id read, and two index takes (`before + 1`
+ * older, `after + 1` newer) for the edges. A deleted `pageId` still reads
+ * latest, because `requested` is null.
  */
 export async function resolvePageWindow(
   ctx: QueryCtx,
@@ -153,9 +155,8 @@ export async function resolvePageWindow(
 ): Promise<PageWindow> {
   const { chatroomId, before, after } = args;
 
-  const latest = await findLatestStart(ctx, chatroomId);
   const requested = args.pageId ? await getPageStartOrNull(ctx, chatroomId, args.pageId) : null;
-  const selected = requested ?? latest;
+  const selected = requested ?? (await findLatestStart(ctx, chatroomId));
   if (!selected) return EMPTY_PAGE_WINDOW;
 
   const [older, newer] = await Promise.all([
