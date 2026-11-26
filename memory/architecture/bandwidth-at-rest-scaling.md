@@ -113,11 +113,11 @@ One definite duplicate observer exists in `apps/webapp/src/modules/chatroom/comp
 
 ### 5. Task and command subscriptions are comparatively idle-friendly
 
-`messageList.subscribeTaskStatusSignalsSince` is cursor-pinned and returns no result when there are no new signals. The daemon hydrates task snapshots imperatively after receiving a signal rather than polling the full task set continuously.
+`conversation.subscribePageTail` is cursor-pinned and returns no result when there are no new messages in the page tail. The daemon hydrates task snapshots imperatively after receiving a signal rather than polling the full task set continuously.
 
 `daemon/machineCommandInbox.watchNext` returns only a pending command identifier and is empty when there is no command. These are good patterns for idle operation.
 
-The screenshot's `messageList.subscribeTaskStatusSignalsSince` and `daemon/machineCommandInbox.watchNext` totals are therefore more likely to represent active task transitions, reconnect/catch-up traffic, or aggregate traffic over time than a large steady-state payload.
+The screenshot's `conversation.subscribePageTail` and `daemon/machineCommandInbox.watchNext` totals are therefore more likely to represent active task transitions, reconnect/catch-up traffic, or aggregate traffic over time than a large steady-state payload.
 
 ### 6. Heartbeats are a fixed machine/activity cost, not a project-count multiplier
 
@@ -157,7 +157,7 @@ The screenshot is consistent with the following priority order:
 3. `getAgentOverviewForChatroom`: current-chatroom data; large totals may indicate repeated observers, reconnects, or a busy chatroom rather than all-machine scaling.
 4. `getDaemonStatus` and `listMachineConnectivity`: compact payloads; high totals likely indicate observer/invocation frequency rather than payload size.
 5. `daemonHeartbeat`: periodic machine cost, largely independent of project count.
-6. `subscribeTaskStatusSignalsSince` and `machineCommandInbox.watchNext`: event-driven paths that should be quiet when idle.
+6. `conversation.subscribePageTail` and `machineCommandInbox.watchNext`: event-driven paths that should be quiet when idle.
 7. Cleanup functions: backend maintenance traffic, not a primary client idle-bandwidth concern.
 
 ## Recommended remediation order

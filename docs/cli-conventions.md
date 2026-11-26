@@ -47,6 +47,47 @@ Order options in this sequence for consistency:
 .option('--description <text>', 'Optional description')                   // Metadata
 ```
 
+## Page selector flags
+
+Commands that read conversation history share one selector vocabulary:
+`--page-id`, `--before` and `--after`. A **page** is a user message plus every
+timeline message up to the next user message; its id is the user message's id.
+
+The parsing and resolution live in
+`packages/cli/src/commands/messages/page-selection.ts`. Do not re-implement the
+flags in a command: reuse `parsePageSelection`, `resolvePageRange` and the
+`PageSelectionError` union, then format errors with
+`formatPageSelectionError`.
+
+`--before` and `--after` take integers in `0..50`; other values fail with
+`InvalidPageSelection`. A `--page-id` that no longer resolves fails with
+`PageNotFound`; an id that is not a user message fails with `InvalidPage`.
+
+Register the flags with the shared helper in `packages/cli/src/index.ts`:
+
+```typescript
+const withPageSelector = (cmd: Command, defaultBefore: number): Command =>
+  cmd
+    .option(
+      '--page-id <messageId>',
+      'Page to start from, identified by its start (user) message id (default: latest page)'
+    )
+    .option(
+      '--before <n>',
+      `Also include n pages before the selected page (default: ${defaultBefore}, max 50)`
+    )
+    .option('--after <n>', 'Also include n pages after the selected page (default: 0, max 50)');
+
+withPageSelector(
+  messagesCommand.command('pages').description('...').requiredOption('--chatroom-id <id>', '...'),
+  9
+);
+```
+
+Defaults are per command: `messages pages` defaults `--before` to 9 (an index of
+recent pages), while `messages download` defaults it to 0 (the latest page
+only). Keep the default visible in the option help text.
+
 ## Multi-Value Patterns
 
 ### Use Repeated Flags
