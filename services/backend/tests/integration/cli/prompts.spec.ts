@@ -36,10 +36,12 @@ describe('Context Gaining Prompt', () => {
     // Should inject CHATROOM_CONVEX_URL properly
     expect(guidance).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
-    // Should include the log-anchoring recovery commands with correct parameters
+    // Should include the latest-page recovery command with correct parameters
     expect(guidance).toContain(
-      'chatroom messages anchor --chatroom-id="test-chatroom-123" --role="builder"'
+      'chatroom messages download --chatroom-id="test-chatroom-123" --role="builder"'
     );
+    expect(guidance).toContain('latest page');
+    expect(guidance).not.toContain('messages anchor');
     expect(guidance).not.toContain('chatroom context read');
 
     // Should be concise (no verbose explanations)

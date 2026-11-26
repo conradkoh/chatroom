@@ -1,8 +1,8 @@
 /**
  * Identity helpers for derived timeline data.
  *
- * Convex subscriptions hand back a fresh document tree on every update, so
- * `toMessage()` allocates a new `Message` even when nothing about that row
+ * Convex subscriptions hand back a fresh document tree on every update, so a
+ * canonical `Message` row is re-allocated even when nothing about that row
  * changed. Derived `TimelineEvent`s then allocate on top of that, which defeats
  * `memo` on every timeline row and makes each update O(N).
  *

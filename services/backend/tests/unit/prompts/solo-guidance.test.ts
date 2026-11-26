@@ -97,8 +97,9 @@ describe('solo > getSoloGuidance', () => {
   test('contains proof of verification workflow before handoff to user', () => {
     const guidance = getSoloGuidance({ ...baseParams, nativeIntegration: false });
     expect(guidance).toContain('Before handoff to `user` (proof of verification)');
-    expect(guidance).toContain('messages anchor');
-    expect(guidance).toContain('--since-message-id="<from-anchor>"');
+    expect(guidance).toContain('download the latest page');
+    expect(guidance).toContain('--before=1');
+    expect(guidance).not.toContain('messages anchor');
     expect(guidance).toContain('**do not** hand off to user');
   });
 

@@ -1,233 +1,89 @@
 import { paginationOptsValidator } from 'convex/server';
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Doc, Id } from './_generated/dataModel';
-import type { QueryCtx } from './_generated/server';
 import { query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
-import { isTimelineMessage } from './messageList';
-import { enrichMessages } from './messages';
+import { clampPageSpan } from '../src/domain/entities/conversation-page';
+import { NON_TIMELINE_MESSAGE_TYPES } from '../src/domain/entities/message';
+import {
+  getPageStartOrNull,
+  resolvePageWindow,
+} from '../src/domain/usecase/conversation/resolve-page-window';
+import { enrichMessages } from '../src/domain/usecase/message/enrich-messages';
 
-function isUserMessageAnchor(msg: Doc<'chatroom_messages'>): boolean {
-  return msg.senderRole.toLowerCase() === 'user' && msg.type === 'message';
-}
+/** Max rows returned by the reactive tail. */
+const MAX_PAGE_TAIL_LIMIT = 100;
 
-async function getAnchorOrNull(
-  ctx: QueryCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  anchorMessageId: Id<'chatroom_messages'>
-): Promise<Doc<'chatroom_messages'> | null> {
-  const anchor = await ctx.db.get('chatroom_messages', anchorMessageId);
-  if (!anchor) return null;
-  if (anchor.chatroomId !== chatroomId) {
-    throw new ConvexError({
-      code: 'INVALID_MESSAGE',
-      message: 'Message does not belong to this chatroom',
+/** Pages (start messages) before and after the selected one, with ids and previews. */
+export const listPages = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    pageId: v.optional(v.id('chatroom_messages')),
+    before: v.optional(v.number()),
+    after: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return resolvePageWindow(ctx, {
+      chatroomId: args.chatroomId,
+      pageId: args.pageId,
+      before: clampPageSpan(args.before),
+      after: clampPageSpan(args.after),
     });
-  }
-  if (!isUserMessageAnchor(anchor)) {
-    throw new ConvexError({ code: 'INVALID_ANCHOR', message: 'Anchor must be a user message' });
-  }
-  return anchor;
-}
-
-// Missing anchors are recoverable by callers; present anchors remain strictly validated.
-
-async function findLatestUserAnchor(
-  ctx: QueryCtx,
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<Doc<'chatroom_messages'> | null> {
-  return (
-    (await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', chatroomId).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .order('desc')
-      .first()) ?? null
-  );
-}
-
-async function findPrevUserAnchorId(
-  ctx: QueryCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  anchorCreationTime: number
-): Promise<Id<'chatroom_messages'> | null> {
-  const older = await ctx.db
-    .query('chatroom_messages')
-    .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-      q
-        .eq('chatroomId', chatroomId)
-        .eq('senderRole', 'user')
-        .eq('type', 'message')
-        .lt('_creationTime', anchorCreationTime)
-    )
-    .order('desc')
-    .first();
-  return older?._id ?? null;
-}
-
-async function findNextUserMessageAfter(
-  ctx: QueryCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  anchorCreationTime: number
-): Promise<Doc<'chatroom_messages'> | null> {
-  return (
-    (await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q
-          .eq('chatroomId', chatroomId)
-          .eq('senderRole', 'user')
-          .eq('type', 'message')
-          .gt('_creationTime', anchorCreationTime)
-      )
-      .order('asc')
-      .first()) ?? null
-  );
-}
-
-/** Resolve current anchor + prev/next navigation ids. */
-export const getConversationAnchorNavigation = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    anchorMessageId: v.optional(v.id('chatroom_messages')),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const anchor = args.anchorMessageId
-      ? ((await getAnchorOrNull(ctx, args.chatroomId, args.anchorMessageId)) ??
-        (await findLatestUserAnchor(ctx, args.chatroomId)))
-      : await findLatestUserAnchor(ctx, args.chatroomId);
-
-    if (!anchor) {
-      return {
-        anchor: null,
-        prevAnchorId: null,
-        nextAnchorId: null,
-        sliceUpperBoundExclusive: null,
-      };
-    }
-
-    const [nextUserMessage, prevAnchorId] = await Promise.all([
-      findNextUserMessageAfter(ctx, args.chatroomId, anchor._creationTime),
-      findPrevUserAnchorId(ctx, args.chatroomId, anchor._creationTime),
-    ]);
-
-    return {
-      anchor: {
-        _id: anchor._id,
-        _creationTime: anchor._creationTime,
-        contentPreview: anchor.content.slice(0, 120),
-      },
-      prevAnchorId,
-      nextAnchorId: nextUserMessage?._id ?? null,
-      sliceUpperBoundExclusive: nextUserMessage?._creationTime ?? null,
-    };
   },
 });
 
-/** Paginated slice: anchor inclusive → before next user message. Ascending. */
-export const listConversationSlicePaginated = query({
+/** Timeline messages of one page, paginated ascending. `endExclusive: null` means the open latest page. */
+export const listPageMessages = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    anchorMessageId: v.id('chatroom_messages'),
+    pageId: v.id('chatroom_messages'),
+    endExclusive: v.optional(v.union(v.number(), v.null())),
     paginationOpts: paginationOptsValidator,
-    sliceUpperBoundExclusive: v.optional(v.union(v.number(), v.null())),
   },
-  // The handler preserves pagination state while handling stale anchors without replacement cursors.
-  // fallow-ignore-next-line complexity
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const anchor = await getAnchorOrNull(ctx, args.chatroomId, args.anchorMessageId);
-    if (!anchor) {
-      return {
-        page: [],
-        isDone: true,
-        continueCursor: null,
-        sliceMetadata: {
-          anchorMessageId: args.anchorMessageId,
-          nextUserMessageId: null,
-          upperBoundExclusive: args.sliceUpperBoundExclusive ?? null,
-        },
-      };
-    }
-
-    const upperBoundExclusive = args.sliceUpperBoundExclusive ?? null;
-
-    let cursor = args.paginationOpts.cursor;
-    let isDone = false;
-    const collected: Doc<'chatroom_messages'>[] = [];
-    const numItems = args.paginationOpts.numItems;
-
-    while (collected.length < numItems && !isDone) {
-      const batch = await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) =>
-          q
-            .eq('chatroomId', args.chatroomId)
-            .gte('_creationTime', anchor._creationTime)
-            .lt('_creationTime', upperBoundExclusive ?? 999999999999999)
-        )
-        .order('asc')
-        .paginate({ ...args.paginationOpts, cursor, numItems: numItems * 2 });
-
-      for (const msg of batch.page) {
-        if (!isTimelineMessage(msg)) continue;
-        collected.push(msg);
-        if (collected.length >= numItems) break;
-      }
-
-      cursor = batch.continueCursor;
-      isDone = isDone || batch.isDone;
-      if (batch.page.length === 0) break;
-    }
-
-    const page = await enrichMessages(ctx, collected.slice(0, numItems));
-    return {
-      page,
-      isDone,
-      continueCursor: cursor,
-      sliceMetadata: {
-        anchorMessageId: anchor._id,
-        nextUserMessageId: null,
-        upperBoundExclusive,
-      },
-    };
+    const start = await getPageStartOrNull(ctx, args.chatroomId, args.pageId);
+    if (!start) return { page: [], isDone: true, continueCursor: '' };
+    const end = args.endExclusive ?? null;
+    const result = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => {
+        const range = q.eq('chatroomId', args.chatroomId).gte('_creationTime', start._creationTime);
+        return end === null ? range : range.lt('_creationTime', end);
+      })
+      .filter((q) => q.and(...NON_TIMELINE_MESSAGE_TYPES.map((t) => q.neq(q.field('type'), t))))
+      .order('asc')
+      .paginate(args.paginationOpts);
+    return { ...result, page: await enrichMessages(ctx, result.page) };
   },
 });
 
-const MAX_SLICE_TAIL_LIMIT = 100;
-
-/** Reactive tail for the active slice (strictly after cursor, before upper bound). */
-export const subscribeConversationSliceTail = query({
+/** Reactive tail after the last loaded row, bounded by the page's endExclusive. Null when empty. */
+export const subscribePageTail = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     afterCreationTime: v.number(),
-    upperBoundExclusive: v.union(v.number(), v.null()),
+    endExclusive: v.union(v.number(), v.null()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
     const rows = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) =>
-        q
+      .withIndex('by_chatroom', (q) => {
+        const range = q
           .eq('chatroomId', args.chatroomId)
-          .gt('_creationTime', args.afterCreationTime)
-          .lt('_creationTime', args.upperBoundExclusive ?? 999999999999999)
-      )
+          .gt('_creationTime', args.afterCreationTime);
+        return args.endExclusive === null ? range : range.lt('_creationTime', args.endExclusive);
+      })
+      .filter((q) => q.and(...NON_TIMELINE_MESSAGE_TYPES.map((t) => q.neq(q.field('type'), t))))
       .order('asc')
-      .take(MAX_SLICE_TAIL_LIMIT);
-
-    const filtered = rows.filter(isTimelineMessage);
-
-    if (filtered.length === 0) return null;
-    return await enrichMessages(ctx, filtered);
+      .take(MAX_PAGE_TAIL_LIMIT);
+    if (rows.length === 0) return null;
+    return enrichMessages(ctx, rows);
   },
 });

@@ -11,5 +11,5 @@ import type { HistoryRetrievalGuidanceParams } from '../../../cli/history-retrie
 /** One bullet telling a trio role to build common knowledge from the thread. */
 export function getTrioSharedThreadLine(p: HistoryRetrievalGuidanceParams): string {
   const id = p.chatroomId ? `"${p.chatroomId}"` : '"<chatroom-id>"';
-  return `- **Shared thread knowledge:** every role can read the whole thread. When a brief references earlier messages, or you need decisions made before this task, run \`${p.cliEnvPrefix}chatroom messages download --chatroom-id=${id} --role="${p.role}" --format=linear --limit=10\` (add \`--since-message-id=<id>\` to start from a referenced message) and read the files at the printed path, instead of asking for a restatement.`;
+  return `- **Shared thread knowledge:** every role can read the whole thread. When a brief references earlier messages, or you need decisions made before this task, run \`${p.cliEnvPrefix}chatroom messages download --chatroom-id=${id} --role="${p.role}"\` (the latest page; add \`--before=<n>\` for earlier pages, or \`--page-id=<id>\` to start from a page named in a message) and read the files at the printed path, instead of asking for a restatement.`;
 }

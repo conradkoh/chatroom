@@ -12,6 +12,7 @@ import {
   gitCloneStatusValidator,
 } from '../src/domain/entities/git-clone-request';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
+import { messageTypeValidator } from '../src/domain/entities/message';
 import {
   ledgerEntryValidator,
   ledgerRootValidator,
@@ -474,24 +475,17 @@ export default defineSchema({
     // Source platform for messages from external integrations (e.g. "telegram")
     // Used for loop prevention - messages with a sourcePlatform are not re-forwarded.
     sourcePlatform: v.optional(v.string()),
-    type: v.union(
-      v.literal('message'),
-      v.literal('handoff'),
-      v.literal('join'), // Deprecated: no longer created, kept for backwards compat with existing data
-      v.literal('progress'),
-      v.literal('new-context'), // Displayed when a new context is created
-      // Agent → user interim message; no task transition (chatroom notify-user)
-      v.literal('notice'),
-      // Agent-published phased plan (chatroom plan publish); immutable
-      v.literal('plan'),
-      // Agent-published neutral observation record (chatroom grounding publish); immutable
-      v.literal('grounding')
-    ),
+    // Canonical literals live in src/domain/entities/message.ts (MESSAGE_TYPES):
+    // message, handoff, join (deprecated), progress, new-context, notice, plan, grounding.
+    type: messageTypeValidator,
     // Revision link for type: 'plan' messages; points at the plan this one supersedes
     supersedesPlanId: v.optional(v.id('chatroom_messages')),
     // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
     contextCreatedBy: v.optional(v.string()),
-    /** @deprecated Task classification removed from product. Field retained for existing documents. */
+    /**
+     * @deprecated Task classification removed from product. Field retained for existing documents.
+     * See docs/features/message-domain-and-pages.md.
+     */
     classification: v.optional(
       v.union(
         v.literal('question'), // Quick question - can hand directly back to user
@@ -499,11 +493,20 @@ export default defineSchema({
         v.literal('follow_up') // Follow-up to previous message - part of same context
       )
     ),
-    /** @deprecated Feature metadata removed from product. Field retained for existing documents. */
+    /**
+     * @deprecated Feature metadata removed from product. Field retained for existing documents.
+     * See docs/features/message-domain-and-pages.md.
+     */
     featureTitle: v.optional(v.string()),
-    /** @deprecated Feature metadata removed from product. Field retained for existing documents. */
+    /**
+     * @deprecated Feature metadata removed from product. Field retained for existing documents.
+     * See docs/features/message-domain-and-pages.md.
+     */
     featureDescription: v.optional(v.string()),
-    /** @deprecated Feature metadata removed from product. Field retained for existing documents. */
+    /**
+     * @deprecated Feature metadata removed from product. Field retained for existing documents.
+     * See docs/features/message-domain-and-pages.md.
+     */
     featureTechSpecs: v.optional(v.string()),
     // Reference to the original user message that started this task chain
     // Set when an agent runs task read / classify, links all related messages
@@ -522,10 +525,14 @@ export default defineSchema({
     /**
      * @deprecated Legacy enhancer job linkage; the enhancer job table was deleted and no code
      * reads or writes it. Kept optional so historical messages still validate.
+     * See docs/features/message-domain-and-pages.md.
      */
     enhancerJobId: v.optional(v.string()),
 
-    /** @deprecated Formerly set by the retired enhancer path; nothing reads or writes it now. Retained so existing documents still validate. */
+    /**
+     * @deprecated Formerly set by the retired enhancer path; nothing reads or writes it now. Retained so existing documents still validate.
+     * See docs/features/message-domain-and-pages.md.
+     */
     visibleInAllTabOnly: v.optional(v.boolean()),
 
     // Attached backlog tasks for context
@@ -558,6 +565,7 @@ export default defineSchema({
     /**
      * @deprecated Legacy DAG workflow attachments. Feature removed; not written by current app
      * code. Retained so existing documents continue to validate.
+     * See docs/features/message-domain-and-pages.md.
      */
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
 
@@ -577,7 +585,6 @@ export default defineSchema({
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type'])
-    .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole'])
     .index('by_scheduledPromptId', ['scheduledPromptId'])
     .index('by_chatroom_terminalHandoffKey', ['chatroomId', 'terminalHandoffKey']),
 
@@ -587,21 +594,13 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     messageCreatedAt: v.number(),
     senderRole: v.string(),
-    type: v.union(
-      v.literal('message'),
-      v.literal('handoff'),
-      v.literal('join'),
-      v.literal('progress'),
-      v.literal('new-context'),
-      v.literal('notice'),
-      v.literal('plan'),
-      v.literal('grounding')
-    ),
+    type: messageTypeValidator,
     isTimeline: v.boolean(),
     taskId: v.optional(v.id('chatroom_tasks')),
     /**
      * @deprecated Denormalized copy of chatroom_tasks.status; no code reads or writes it any more.
      * Source of truth is chatroom_tasks.status. Kept so historical rows still validate.
+     * See docs/features/message-domain-and-pages.md.
      */
     taskStatus: v.optional(
       v.union(
@@ -626,12 +625,6 @@ export default defineSchema({
   }).index('by_chatroom', ['chatroomId']),
 
   /**
-   * Staging table for queued user messages.
-   * Messages are stored here when received while a task is active.
-   * On promotion, the message is copied to chatroom_messages and a task is created.
-   * This ensures messages appear in chat history in task processing order.
-   */
-  /**
    * Materialized task counts per chatroom.
    * Updated atomically by task/backlog/queue mutations to avoid expensive full-table scans.
    * Falls back to computed counts if no record exists (migration safety).
@@ -647,6 +640,12 @@ export default defineSchema({
     pendingReviewCount: v.number(),
   }).index('by_chatroom', ['chatroomId']),
 
+  /**
+   * Staging table for queued user messages.
+   * Messages are stored here when received while a task is active.
+   * On promotion, the message is copied to chatroom_messages and a task is created.
+   * This ensures messages appear in chat history in task processing order.
+   */
   chatroom_messageQueue: defineTable({
     // Which chatroom this queued message belongs to
     chatroomId: v.id('chatroom_rooms'),

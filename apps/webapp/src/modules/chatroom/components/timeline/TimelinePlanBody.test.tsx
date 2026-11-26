@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimelineEventRow } from './TimelineEventRow';
 import { AttachmentsProvider } from '../../attachments';
-import { toMessage } from '../../hooks/chatroomMessageStore';
 import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
 import type { Message } from '../../types/message';
 
@@ -183,14 +182,14 @@ describe('TimelinePlanBody through the feed row', () => {
   });
 
   it('shows the Supersedes chip for a raw feed row published with --supersedes', () => {
-    const feedMessage = toMessage({
+    const feedMessage: Message = {
       _id: 'plan-new-1',
       type: 'plan',
       senderRole: 'specifier',
       content: PLAN_FIXTURE,
       _creationTime: 1_000,
       supersedesPlanId: 'plan-old-id-1234',
-    });
+    };
 
     openPlan(feedMessage);
 

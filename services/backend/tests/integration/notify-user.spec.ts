@@ -17,6 +17,7 @@ import {
   createTestSession,
   joinParticipant,
 } from '../helpers/integration';
+import { readTimelineMessagesForTest } from '../helpers/timeline';
 
 /** Seed a user-origin message plus its task, and return both IDs. */
 async function seedUserOriginTask(
@@ -291,12 +292,8 @@ describe('messages.notifyUser', () => {
     );
     expect(handoffMessage!.taskOriginMessageId).toBe(userMessageId);
 
-    const latest = await t.query(api.messageList.getLatestMessages, {
-      sessionId,
-      chatroomId,
-      limit: 20,
-    });
-    const contents = latest.messages.map((m) => m.content);
+    const timeline = await readTimelineMessagesForTest(t, chatroomId);
+    const contents = timeline.map((m) => m.content);
     const userIndex = contents.indexOf('Please build X');
     const noticeIndex = contents.indexOf('Interim notice.');
     const handoffIndex = contents.indexOf('All done.');
@@ -318,56 +315,55 @@ describe('messages.notifyUser', () => {
     ).toHaveLength(1);
   });
 
-  test('getLatestForRole never returns a notice to any agent role', async () => {
-    const { sessionId } = await createTestSession('notify-user-get-latest');
+  test("notifyUser never creates a task and its notice never reaches a role's delivery prompt", async () => {
+    const { sessionId } = await createTestSession('notify-user-delivery-isolation');
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     // Active builder task so the notice is allowed.
-    await seedUserOriginTask(chatroomId, 'Builder work in flight', 'builder', 'in_progress');
+    const { taskId } = await seedUserOriginTask(
+      chatroomId,
+      'Builder work in flight',
+      'builder',
+      'in_progress'
+    );
 
+    const tasksBefore = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const noticeContent = 'Interim notice that must never be delivered as work.';
     const { messageId: noticeId } = await t.mutation(api.messages.notifyUser, {
       sessionId,
       chatroomId,
       senderRole: 'builder',
-      content: 'Interim notice that must never be delivered as work.',
+      content: noticeContent,
     });
 
-    // Queued user follow-ups created after the notice, one for each role.
-    const { userMessageId: builderUserMessageId } = await seedUserOriginTask(
-      chatroomId,
-      'Follow up for builder',
-      'builder',
-      'pending'
+    // notifyUser never creates a task.
+    const tasksAfter = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
     );
-    const { userMessageId: plannerUserMessageId } = await seedUserOriginTask(
-      chatroomId,
-      'Follow up for planner',
-      'planner',
-      'pending'
-    );
+    expect(tasksAfter.map((task) => task._id)).toEqual(tasksBefore.map((task) => task._id));
 
-    const builderLatest = await t.query(api.messages.getLatestForRole, {
+    // The notice never appears in the builder's delivery prompt.
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
       sessionId,
       chatroomId,
       role: 'builder',
-      afterMessageId: noticeId,
+      taskId,
+      convexUrl: 'http://127.0.0.1:3210',
     });
-    const plannerLatest = await t.query(api.messages.getLatestForRole, {
-      sessionId,
-      chatroomId,
-      role: 'planner',
-      afterMessageId: noticeId,
-    });
-
-    expect(builderLatest?._id).toBe(builderUserMessageId);
-    expect(builderLatest?.senderRole).toBe('user');
-    expect(builderLatest?._id).not.toBe(noticeId);
-
-    expect(plannerLatest?._id).toBe(plannerUserMessageId);
-    expect(plannerLatest?.senderRole).toBe('user');
-    expect(plannerLatest?._id).not.toBe(noticeId);
+    expect(fullCliOutput).toContain('Builder work in flight');
+    expect(fullCliOutput).not.toContain(noticeContent);
+    expect(fullCliOutput).not.toContain(noticeId);
   });
 
   test('a notice marks unread without the handoff flag, then a handoff-to-user sets it', async () => {

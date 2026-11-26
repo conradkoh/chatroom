@@ -27,7 +27,7 @@ The verdict returns to \`planner\`.
 <code | docs | review | research | asset; comma-separated when the work produced more than one>
 
 ## User message id
-<id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>
+<id of the user's last message: the origin message id of the user task, or from the \`[latest]\` row of \`chatroom messages pages\`>
 
 ## Log message ids
 <one per line as \`<message id> — <sender role> — <what it shows>\`: every message that carries the claimed work, in order: builder and specialist handoff reports, the reviewer report, and the evidence messages for each deliverable type; or exactly \`None beyond the user message.\`>
@@ -130,7 +130,7 @@ The verdict returns to \`solo\`.
 <code | docs | review | research | asset; comma-separated when the work produced more than one>
 
 ## User message id
-<id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>
+<id of the user's last message: the origin message id of the user task, or from the \`[latest]\` row of \`chatroom messages pages\`>
 
 ## Log message ids
 <one per line as \`<message id> — <sender role> — <what it shows>\`: every message that carries the claimed work, in order: builder and specialist handoff reports, the reviewer report, and the evidence messages for each deliverable type; or exactly \`None beyond the user message.\`>
@@ -233,7 +233,7 @@ The verdict returns to \`coordinator\`.
 <code | docs | review | research | asset; comma-separated when the work produced more than one>
 
 ## User message id
-<id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>
+<id of the user's last message: the origin message id of the user task, or from the \`[latest]\` row of \`chatroom messages pages\`>
 
 ## Log message ids
 <one per line as \`<message id> — <sender role> — <what it shows>\`: every message that carries the claimed work, in order: builder and specialist handoff reports, the reviewer report, and the evidence messages for each deliverable type; or exactly \`None beyond the user message.\`>

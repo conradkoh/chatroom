@@ -11,17 +11,15 @@ import { getHandoffSessionPolicy } from '@workspace/shared/domain/team-presets';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { generateRolePrompt, composeInitPrompt } from '../prompts';
+import { composeInitPrompt } from '../prompts';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { retireEnhancedTaskEnvelope } from './lib/enhancedModeRetirement';
-import { buildAvailableHandoffRoles } from './lib/handoffRoles';
-import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
 import {
   normalizePersistedTaskEnvelope,
@@ -31,8 +29,8 @@ import {
 import type { BackendErrorCode } from '../config/errorCodes';
 import { getEnforcedHandoffTargets } from '../prompts/cli/handoff-templates';
 import { getConfig } from '../prompts/config/index';
-import type { AttachedFileView } from '../src/domain/entities/file-attachment';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
+import type { Message } from '../src/domain/entities/message';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import {
   normalizeSenderAgent,
@@ -52,6 +50,10 @@ import {
   deleteFileAttachments,
   validateHandoffAttachments,
 } from '../src/domain/usecase/file-attachment/lifecycle';
+import {
+  enrichMessageAttachments,
+  enrichMessages,
+} from '../src/domain/usecase/message/enrich-messages';
 import {
   insertChatroomMessage,
   isMessageReadModelComplete,
@@ -76,144 +78,6 @@ const config = getConfig();
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
   fullCliOutput: string; // Complete CLI output for task delivery (backend-generated)
-}
-
-// =============================================================================
-// SHARED HELPERS
-// =============================================================================
-
-/**
- * Resolves attachment IDs on a message into full attachment details.
- * Shared by listQueued to avoid duplication.
- */
-async function enrichMessageAttachments(
-  ctx: QueryCtx,
-  msg: {
-    attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
-    attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
-    attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
-    attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
-    attachedFileIds?: Id<'chatroom_fileAttachments'>[] | undefined;
-    attachedSnippets?:
-      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
-    startInNewSession?: boolean | undefined;
-  }
-) {
-  // Resolve attached tasks
-  let attachedTasks: { _id: string; content: string; backlogStatus: string }[] | undefined;
-  if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
-    const tasks = await Promise.all(
-      msg.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
-    );
-    attachedTasks = tasks
-      .filter((t): t is NonNullable<typeof t> => t !== null)
-      .map((t) => ({ _id: t._id, content: t.content, backlogStatus: t.status }));
-  }
-
-  // Resolve attached backlog items
-  let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
-  if (msg.attachedBacklogItemIds && msg.attachedBacklogItemIds.length > 0) {
-    const items = await Promise.all(
-      msg.attachedBacklogItemIds.map((itemId) => ctx.db.get('chatroom_backlog', itemId))
-    );
-    attachedBacklogItems = items
-      .filter((i): i is NonNullable<typeof i> => i !== null && i.status !== 'deleted')
-      .map((i) => ({ id: i._id, content: i.content, status: i.status }));
-  }
-
-  // Resolve attached messages
-  let attachedMessages:
-    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
-  if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
-    const msgs = await Promise.all(
-      msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
-    );
-    attachedMessages = msgs
-      .filter((m): m is NonNullable<typeof m> => m !== null)
-      .map((m) => ({
-        _id: m._id,
-        content: m.content,
-        senderRole: m.senderRole,
-        _creationTime: m._creationTime,
-      }));
-  }
-
-  // Resolve attached artifacts
-  let attachedArtifacts:
-    | {
-        _id: string;
-        filename: string;
-        description?: string | undefined;
-        mimeType?: string | undefined;
-      }[]
-    | undefined;
-  if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
-    const artifacts = await Promise.all(
-      msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
-    );
-    attachedArtifacts = artifacts
-      .filter((a): a is NonNullable<typeof a> => a !== null)
-      .map((a) => ({
-        _id: a._id,
-        filename: a.filename,
-        description: a.description,
-        mimeType: a.mimeType,
-      }));
-  }
-
-  // Resolve attached files (uploaded files bound to a user handoff). Reads are
-  // metadata-only: never expose storage ids or URLs on the message.
-  let attachedFiles: AttachedFileView[] | undefined;
-  const attachedFileIds = msg.attachedFileIds;
-  if (attachedFileIds && attachedFileIds.length > 0) {
-    attachedFiles = [];
-    for (const fileId of attachedFileIds) {
-      const file = await ctx.db.get('chatroom_fileAttachments', fileId);
-      attachedFiles.push(
-        file && file.status === 'attached'
-          ? {
-              _id: file._id,
-              status: 'available',
-              filename: file.filename,
-              mimeType: file.mimeType,
-              sizeBytes: file.sizeBytes,
-            }
-          : { _id: fileId, status: 'removed' }
-      );
-    }
-  }
-
-  return {
-    ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
-    ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
-    ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
-    ...(attachedFiles && attachedFiles.length > 0 && { attachedFiles }),
-    ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
-    ...(msg.attachedSnippets?.length && { attachedSnippets: msg.attachedSnippets }),
-  };
-}
-
-/**
- * Enriches an array of chatroom messages with attachments.
- * Used by the messageList module.
- */
-export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
-  const enrichedMessages = await Promise.all(
-    messages.map(async (message) => {
-      // Resolve attachments (shared helper)
-      const attachments = await enrichMessageAttachments(ctx, message);
-
-      const enhancerOriginalContent = message.enhancerOriginalContent;
-
-      return {
-        ...message,
-        ...attachments,
-        ...(enhancerOriginalContent && { enhancerOriginalContent }),
-      };
-    })
-  );
-
-  return enrichedMessages;
 }
 
 // =============================================================================
@@ -484,17 +348,6 @@ const sendMessageMutationArgs = {
   conversationMode: v.optional(conversationModeValidator),
   taskEnvelope: v.optional(taskEnvelopeV1Validator),
 };
-
-/** @deprecated Use sendMessage instead. */
-export const send = mutation({
-  args: sendMessageMutationArgs,
-  handler: async (ctx, args) => {
-    return _sendMessageHandler(ctx, {
-      ...args,
-      taskEnvelope: toWritableTaskEnvelope(args.taskEnvelope),
-    });
-  },
-});
 
 export const enqueueMessageAtFront = mutation({
   args: {
@@ -1076,32 +929,6 @@ export const getAllowedHandoffRoles = query({
   },
 });
 
-/** Returns recent messages in a chatroom up to an optional limit. */
-export const list = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Enforce maximum limit to prevent unbounded queries
-    const MAX_LIMIT = 50;
-    const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
-
-    // Fetch the most recent N messages (desc order) then reverse for chronological
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(limit);
-
-    return recentMessages.reverse();
-  },
-});
-
 const userMessageOrTaskIdArgs = {
   type: v.union(v.literal('task'), v.literal('message')),
   taskId: v.optional(v.id('chatroom_tasks')),
@@ -1355,72 +1182,6 @@ export const updateQueuedMessageConversationMode = mutation({
   },
 });
 
-/** Legacy adapter: rewrites the envelope's session policy from the boolean. */
-export const updateQueuedMessageStartInNewSession = mutation({
-  args: {
-    ...SessionIdArg,
-    queuedMessageId: v.id('chatroom_messageQueue'),
-    startInNewSession: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
-    if (!record)
-      throw new ConvexError({
-        code: 'QUEUED_MESSAGE_NOT_FOUND',
-        message: 'Queued message not found',
-      });
-    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    const current = normalizePersistedTaskEnvelope(record);
-    const next = withTaskEnvelopeSessionPolicy(
-      current,
-      args.startInNewSession ? 'new' : 'continue'
-    );
-    await ctx.db.patch(
-      'chatroom_messageQueue',
-      args.queuedMessageId,
-      taskEnvelopeLegacyProjection(next)
-    );
-  },
-});
-
-/**
- * Returns all progress messages for a given task, ordered chronologically.
- * Used by TaskProgressHistory in MessageFeed to display progress updates
- * when the user expands the progress history view.
- */
-export const getProgressForTask = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    taskId: v.id('chatroom_tasks'),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Verify task belongs to this chatroom
-    const task = await ctx.db.get('chatroom_tasks', args.taskId);
-    if (!task || task.chatroomId !== args.chatroomId) {
-      return [];
-    }
-
-    // Fetch all progress messages for this task, ordered chronologically
-    const progressMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_taskId', (q) => q.eq('taskId', args.taskId))
-      .filter((q) => q.eq(q.field('type'), 'progress'))
-      .order('asc')
-      .collect();
-
-    return progressMessages.map((msg) => ({
-      _id: msg._id,
-      content: msg.content,
-      senderRole: msg.senderRole,
-      _creationTime: msg._creationTime,
-    }));
-  },
-});
-
 /** Claims a broadcast message for a specific role to prevent duplicate processing. */
 export const claimMessage = mutation({
   args: {
@@ -1452,151 +1213,6 @@ export const claimMessage = mutation({
     }
     await ctx.db.patch('chatroom_messages', args.messageId, updates);
     return true;
-  },
-});
-
-/** Returns the next unprocessed message for a role based on routing rules. */
-export const getLatestForRole = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    afterMessageId: v.optional(v.id('chatroom_messages')),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access - returns chatroom directly
-    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
-      ctx,
-      args.sessionId,
-      args.chatroomId
-    );
-    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
-
-    // Fetch recent messages (optimized with limit)
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(50); // Reduced from 200 to 50 for performance
-
-    // Reverse to get chronological order
-    const messages = recentMessages.reverse();
-
-    // Get participants for priority routing
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
-    );
-
-    // Sort by priority to find highest priority waiting
-    waitingParticipants.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
-    const highestPriorityWaiting = waitingParticipants[0]?.role;
-
-    // Determine entry point for user messages
-    const entryPoint = getTeamEntryPoint(chatroom);
-
-    // Filter messages after the specified ID
-    let relevantMessages = messages;
-    if (args.afterMessageId) {
-      const afterIndex = messages.findIndex((m) => m._id === args.afterMessageId);
-      if (afterIndex !== -1) {
-        relevantMessages = messages.slice(afterIndex + 1);
-      }
-    }
-
-    // Find the first unclaimed message for this role
-    for (const message of relevantMessages) {
-      // Skip if already claimed by someone else
-      if (message.claimedByRole && message.claimedByRole !== args.role) {
-        continue;
-      }
-
-      // Targeted messages only go to target
-      if (message.targetRole) {
-        if (message.targetRole.toLowerCase() === args.role.toLowerCase()) {
-          return message;
-        }
-        continue;
-      }
-
-      // User messages go to entry point
-      if (message.senderRole.toLowerCase() === 'user') {
-        if (entryPoint && entryPoint.toLowerCase() === args.role.toLowerCase()) {
-          return message;
-        }
-        continue;
-      }
-
-      // Broadcast messages from agents go to highest priority waiting
-      if (highestPriorityWaiting?.toLowerCase() === args.role.toLowerCase()) {
-        return message;
-      }
-    }
-
-    return null;
-  },
-});
-
-/** Returns a role-specific prompt with team context and allowed handoff targets. */
-export const getRolePrompt = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    convexUrl: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
-      ctx,
-      args.sessionId,
-      args.chatroomId
-    );
-    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
-
-    // Get participants
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
-    );
-
-    const availableRoles = waitingParticipants.map((p) => p.role);
-    // Configured team roles are authoritative structural capability; active
-    // participants remain a legacy fallback for empty-membership rooms.
-    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
-    const availableHandoffRoles = buildAvailableHandoffRoles({
-      teamId: chatroom.teamId,
-      teamRoles,
-      currentRole: args.role,
-      fallbackParticipantRoles: availableRoles,
-    });
-
-    // Generate the role-specific prompt
-    const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
-    const prompt = generateRolePrompt({
-      chatroomId: args.chatroomId,
-      role: args.role,
-      teamId: chatroom.teamId,
-      teamName: chatroom.teamName || 'Team',
-      teamRoles: chatroom.teamRoles || [],
-      teamEntryPoint: chatroom.teamEntryPoint,
-      availableHandoffRoles,
-      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-      activatedSkills,
-    });
-
-    return {
-      prompt,
-      availableHandoffRoles,
-    };
   },
 });
 
@@ -1681,118 +1297,6 @@ export const getTaskDeliveryPrompt = query({
       messageId: args.messageId,
       convexUrl: args.convexUrl,
     });
-  },
-});
-
-// =============================================================================
-// SENDER ROLE BASED QUERIES - For user-centric pagination
-// =============================================================================
-
-/** Returns messages filtered by sender role in descending order. */
-export const listBySenderRole = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const limit = args.limit || 10;
-    const maxLimit = 50;
-
-    // Use composite index for efficient sender role filtering
-    // Index: by_chatroom_senderRole_type_createdAt
-    const messages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('senderRole', args.senderRole).eq('type', 'message')
-      )
-      .order('desc')
-      .take(Math.min(limit, maxLimit));
-
-    return enrichMessages(ctx, messages);
-  },
-});
-
-/** Returns the most recent user message plus prior user messages for anchoring on the user's last request. */
-export const getLastUserMessage = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    /** How many prior user messages to include for terse follow-ups (default 3, max 5) */
-    priorLimit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const priorLimit = Math.min(Math.max(args.priorLimit ?? 3, 0), 5);
-    const takeCount = priorLimit + 1;
-
-    // Use composite index for user messages, newest first (mirrors listBySenderRole)
-    // fallow-ignore-next-line code-duplication
-    const userMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .order('desc')
-      .take(takeCount);
-
-    if (userMessages.length === 0) {
-      return { last: null, prior: [] };
-    }
-
-    return { last: userMessages[0], prior: userMessages.slice(1) };
-  },
-});
-
-/** Returns all messages from a given message ID onward (inclusive), in ascending order. */
-export const listSinceMessage = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    sinceMessageId: v.id('chatroom_messages'),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get the reference message to find its timestamp
-    const referenceMessage = await ctx.db.get('chatroom_messages', args.sinceMessageId);
-    if (!referenceMessage) {
-      throw new ConvexError({
-        code: 'MESSAGE_NOT_FOUND',
-        message: 'Message not found',
-      });
-    }
-
-    // Verify message belongs to this chatroom
-    if (referenceMessage.chatroomId !== args.chatroomId) {
-      throw new ConvexError({
-        code: 'INVALID_MESSAGE',
-        message: 'Message does not belong to this chatroom',
-      });
-    }
-
-    const limit = args.limit || 100;
-    const maxLimit = 500;
-
-    // Fetch messages from reference creation time onward using compound index
-    // for an indexed range scan (avoids scanning all older messages)
-    const messages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) =>
-        q.eq('chatroomId', args.chatroomId).gte('_creationTime', referenceMessage._creationTime)
-      )
-      .order('asc')
-      .take(Math.min(limit, maxLimit));
-
-    return enrichMessages(ctx, messages);
   },
 });
 
@@ -1904,26 +1408,18 @@ export const getContextForRole = query({
 
     // Enrich messages with task information
     const enrichedMessages = await Promise.all(
-      contextMessages.map(async (message) => {
+      contextMessages.map(async (message): Promise<Message | null> => {
         const task = message.taskId ? await ctx.db.get('chatroom_tasks', message.taskId) : null;
         // Agents discover pending/acknowledged tasks only through get-next-task.
         if (task && (task.status === 'pending' || task.status === 'acknowledged')) return null;
 
-        const attachments = await enrichMessageAttachments(ctx, message);
-
-        return {
-          _id: message._id.toString(),
-          _creationTime: message._creationTime,
-          senderRole: message.senderRole,
-          targetRole: message.targetRole,
-          content: message.content,
-          type: message.type,
-          taskId: message.taskId?.toString(),
-          task: task
-            ? { _id: task._id.toString(), status: task.status, content: task.content }
-            : undefined,
-          ...attachments,
-        };
+        const [wireMessage] = await enrichMessages(ctx, [message]);
+        return task
+          ? {
+              ...wireMessage,
+              task: { _id: task._id.toString(), status: task.status, content: task.content },
+            }
+          : wireMessage;
       })
     );
 

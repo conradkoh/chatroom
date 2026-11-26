@@ -16,7 +16,7 @@ export type { Id, Doc } from '@workspace/backend/convex/_generated/dataModel.js'
 
 // Re-export types for convenience (these match the actual backend schema)
 export type Chatroom = Doc<'chatroom_rooms'>;
-export type Message = Doc<'chatroom_messages'>;
+type Message = Doc<'chatroom_messages'>;
 export type Task = Doc<'chatroom_tasks'>;
 export type Artifact = Doc<'chatroom_artifacts'>;
 export type Participant = Doc<'chatroom_participants'>;

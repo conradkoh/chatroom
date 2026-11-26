@@ -48,52 +48,52 @@ describe('ConversationPanel', () => {
     mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
-      nav: null,
+      pageNav: null,
       isLoading: false,
       isLoadingMore: false,
       canLoadMore: false,
       loadMore: vi.fn(),
-      goToPrev: vi.fn(),
-      goToNext: vi.fn(),
-      hasPrev: false,
-      hasNext: false,
-      isOnLatestAnchor: true,
-      anchorId: null,
-      goToLatestAnchor: vi.fn(),
+      goToPrevPage: vi.fn(),
+      goToNextPage: vi.fn(),
+      hasPrevPage: false,
+      hasNextPage: false,
+      isOnLatestPage: true,
+      pageId: null,
+      goToLatestPage: vi.fn(),
     });
   });
 
-  it('renders anchor navigator during loading state', () => {
+  it('renders page navigator during loading state', () => {
     mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
-      nav: null,
+      pageNav: null,
       isLoading: true,
-      hasPrev: true,
-      hasNext: false,
-      isOnLatestAnchor: false,
-      goToPrev: vi.fn(),
-      goToNext: vi.fn(),
-      goToLatestAnchor: vi.fn(),
+      hasPrevPage: true,
+      hasNextPage: false,
+      isOnLatestPage: false,
+      goToPrevPage: vi.fn(),
+      goToNextPage: vi.fn(),
+      goToLatestPage: vi.fn(),
     });
 
     render(<ConversationPanel chatroomId="room-1" />);
-    expect(screen.getByTestId('conversation-anchor-navigator')).toBeDefined();
+    expect(screen.getByTestId('conversation-page-navigator')).toBeDefined();
     expect(screen.getByRole('status')).toBeDefined();
     expect(screen.getByLabelText('Previous user message')).toBeDefined();
     expect(screen.getByLabelText('Jump to latest')).toBeDefined();
     expect(screen.getByLabelText('Next user message')).toBeDefined();
   });
 
-  it('renders anchor navigator with jump to latest when on latest anchor', () => {
+  it('renders page navigator with jump to latest when on latest page', () => {
     render(<ConversationPanel chatroomId="room-1" />);
 
-    expect(screen.getByTestId('conversation-anchor-navigator')).toBeDefined();
+    expect(screen.getByTestId('conversation-page-navigator')).toBeDefined();
     const jumpButton = screen.getByRole('button', { name: 'Jump to latest' });
     expect((jumpButton as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('renders message list and navigator with anchor preview', () => {
+  it('renders message list and navigator with page preview', () => {
     mockUseConversation.mockReturnValue({
       events: [
         {
@@ -104,21 +104,21 @@ describe('ConversationPanel', () => {
         },
       ],
       messages: [{ _id: 'msg-1', content: 'hello' }],
-      nav: {
-        anchor: { _id: 'anchor-1', _creationTime: 100, contentPreview: 'hello' },
-        prevAnchorId: null,
-        nextAnchorId: null,
-        sliceUpperBoundExclusive: null,
+      pageNav: {
+        pages: [{ pageId: 'page-1', startedAt: 100, endExclusive: null, contentPreview: 'hello' }],
+        selectedPageId: 'page-1',
+        prevPageId: null,
+        nextPageId: null,
       },
       isLoading: false,
-      hasPrev: false,
-      hasNext: false,
-      isOnLatestAnchor: true,
+      hasPrevPage: false,
+      hasNextPage: false,
+      isOnLatestPage: true,
     });
 
     render(<ConversationPanel chatroomId="room-1" />);
 
-    expect(screen.getByTestId('conversation-anchor-navigator')).toBeDefined();
+    expect(screen.getByTestId('conversation-page-navigator')).toBeDefined();
     expect(screen.getByTestId('event-row-msg-1')).toBeDefined();
   });
 
@@ -131,20 +131,20 @@ describe('ConversationPanel', () => {
     expect((nextButton as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('enables arrow buttons when anchors exist', () => {
+  it('enables arrow buttons when pages exist', () => {
     mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
-      nav: {
-        anchor: { _id: 'anchor-1', _creationTime: 100, contentPreview: 'middle' },
-        prevAnchorId: 'anchor-prev',
-        nextAnchorId: 'anchor-next',
-        sliceUpperBoundExclusive: 200,
+      pageNav: {
+        pages: [{ pageId: 'page-1', startedAt: 100, endExclusive: 200, contentPreview: 'middle' }],
+        selectedPageId: 'page-1',
+        prevPageId: 'page-prev',
+        nextPageId: 'page-next',
       },
       isLoading: false,
-      hasPrev: true,
-      hasNext: true,
-      isOnLatestAnchor: false,
+      hasPrevPage: true,
+      hasNextPage: true,
+      isOnLatestPage: false,
     });
 
     render(<ConversationPanel chatroomId="room-1" />);
@@ -156,19 +156,19 @@ describe('ConversationPanel', () => {
   });
 
   it('registers conversation navigation actions on mount', () => {
-    const goToLatestAnchor = vi.fn();
+    const goToLatestPage = vi.fn();
     const onRegisterConversationNavigation = vi.fn();
     mockUseConversation.mockReturnValue({
       events: [],
       messages: [],
-      nav: null,
+      pageNav: null,
       isLoading: false,
-      hasPrev: false,
-      hasNext: false,
-      goToPrev: vi.fn(),
-      goToNext: vi.fn(),
-      anchorId: null,
-      goToLatestAnchor,
+      hasPrevPage: false,
+      hasNextPage: false,
+      goToPrevPage: vi.fn(),
+      goToNextPage: vi.fn(),
+      pageId: null,
+      goToLatestPage,
     });
 
     render(
@@ -178,7 +178,7 @@ describe('ConversationPanel', () => {
       />
     );
 
-    expect(onRegisterConversationNavigation).toHaveBeenCalledWith({ goToLatestAnchor });
+    expect(onRegisterConversationNavigation).toHaveBeenCalledWith({ goToLatestPage });
   });
 
   it('passes the matching chatroom to useHandoffNotification', () => {

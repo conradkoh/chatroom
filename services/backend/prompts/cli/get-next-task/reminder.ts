@@ -5,10 +5,7 @@
  * Follows prompt engineering guidelines: outcome-driven with rationale.
  */
 
-import {
-  messagesAnchorCommand,
-  messagesDownloadSinceCommand,
-} from '../../utils/proof-of-verification';
+import { messagesDownloadCommand } from '../../utils/proof-of-verification';
 import { isVerifierRole } from '../../utils/verifier-role';
 
 /** Identity values every compaction reminder names. */
@@ -56,20 +53,9 @@ After interruption or restart: complete any in-progress work, then restore a sin
  */
 export const getWaitForTaskGuidance = getNextTaskGuidance;
 
-/** Every role recovers by downloading its task's log from the anchored message id. */
-function logDownloadCommand(params: CompactionRecoveryParams): string {
-  return messagesDownloadSinceCommand({
-    chatroomId: params.chatroomId,
-    role: params.role,
-    cliEnvPrefix: params.cliEnvPrefix,
-    sinceMessageId: '<user-message-id>',
-    limit: 100,
-  });
-}
-
-/** Prints the current task's user message id, which seeds the log download. */
-function anchorCommand(params: CompactionRecoveryParams): string {
-  return messagesAnchorCommand({
+/** Every role recovers by downloading the latest page: its user message and all work since. */
+function latestPageDownloadCommand(params: CompactionRecoveryParams): string {
+  return messagesDownloadCommand({
     chatroomId: params.chatroomId,
     role: params.role,
     cliEnvPrefix: params.cliEnvPrefix,
@@ -85,10 +71,11 @@ function reloadPromptCommand(params: CompactionRecoveryParams): string {
  * Get the compaction/summarization recovery note.
  * Used in the system prompt's Getting Started section for durable agent recovery guidance.
  *
- * Every role runs the same three steps: reload the system and role prompt,
- * anchor on the user message id, and download the log from that id. Only the
- * noun for that user message differs: the verifier's verification request, or
- * the current task for every other role.
+ * Every role runs the same two steps: reload the system and role prompt, then
+ * download the latest page — the user's last message and all work since. Only
+ * the noun for that user message differs: the verifier's verification request,
+ * or the current task for every other role. The verifier's request is a
+ * handoff, not a user message, so it sits inside the latest page too.
  *
  * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
  */
@@ -97,10 +84,8 @@ export function getCompactionRecoveryNote(params: CompactionRecoveryParams): str
   const subject = isVerifierRole(params.role) ? 'your verification request' : 'your current task';
   return `NOTE: If you are an agent that has undergone compaction or summarization, run:
   ${reload}
-to reload your full system and role prompt. Then run:
-  ${anchorCommand(params)}
-to print the user message id of ${subject}, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
-  ${logDownloadCommand(params)}`;
+to reload your full system and role prompt. Then download the latest page, which holds ${subject} and all work since:
+  ${latestPageDownloadCommand(params)}`;
 }
 
 /**
@@ -108,12 +93,12 @@ to print the user message id of ${subject}, then download the log from that id, 
  * Shown in the reminder footer of every task delivery as a quick nudge.
  * The full version lives in the system prompt's Getting Started section.
  *
- * Every role, the verifier included, anchors on its user message id and
- * re-reads the log.
+ * Every role, the verifier included, reloads its prompt and re-reads the
+ * latest page.
  *
  * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
  */
 export function getCompactionRecoveryOneLiner(params: CompactionRecoveryParams): string {
   const reload = reloadPromptCommand(params);
-  return `Context compacted? Run \`${reload}\` to reload prompt, then \`${anchorCommand(params)}\` for the user message id, and \`${logDownloadCommand(params)}\` with that id in place of \`<user-message-id>\` to re-read the log.`;
+  return `Context compacted? Run \`${reload}\` to reload prompt, then \`${latestPageDownloadCommand(params)}\` to re-read the latest page.`;
 }

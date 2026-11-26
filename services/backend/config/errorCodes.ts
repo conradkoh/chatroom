@@ -141,6 +141,7 @@ export type BackendErrorCode =
   | 'INVALID_ITEM'
   | 'INVALID_ITEM_STATUS'
   | 'INVALID_MESSAGE'
+  | 'INVALID_PAGE'
   | 'MESSAGE_NOT_FOUND'
 
   // ── Git clone & workspace ─────────────────────────────────────────
@@ -178,7 +179,6 @@ export type BackendErrorCode =
   | 'QUEUE_ITEM_NOT_IN_CHATROOM'
   | 'QUEUE_TOO_LARGE_TO_REORDER'
   | 'TOO_MANY_ATTACHMENTS'
-  | 'INVALID_ANCHOR'
   | 'NO_ACTIVE_TASK'
   | 'INVALID_PLAN'
   | 'INVALID_SUPERSEDES'
@@ -453,6 +453,8 @@ export const BACKEND_ERROR_CODES = {
   INVALID_ITEM_STATUS: 'INVALID_ITEM_STATUS',
   /** Invalid message reference */
   INVALID_MESSAGE: 'INVALID_MESSAGE',
+  /** The page id is not a user message */
+  INVALID_PAGE: 'INVALID_PAGE',
   /** Message not found */
   MESSAGE_NOT_FOUND: 'MESSAGE_NOT_FOUND',
 
@@ -517,8 +519,6 @@ export const BACKEND_ERROR_CODES = {
   QUEUE_TOO_LARGE_TO_REORDER: 'QUEUE_TOO_LARGE_TO_REORDER',
   /** The message has more attachments than allowed */
   TOO_MANY_ATTACHMENTS: 'TOO_MANY_ATTACHMENTS',
-  /** The anchor message is not a user message */
-  INVALID_ANCHOR: 'INVALID_ANCHOR',
   /** The sender role has no active task, so it cannot post an interim notice */
   NO_ACTIVE_TASK: 'NO_ACTIVE_TASK',
   /** The plan markdown does not match the plan template */
@@ -741,6 +741,7 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.INVALID_ITEM,
   BACKEND_ERROR_CODES.INVALID_ITEM_STATUS,
   BACKEND_ERROR_CODES.INVALID_MESSAGE,
+  BACKEND_ERROR_CODES.INVALID_PAGE,
   BACKEND_ERROR_CODES.INVALID_STATE,
   BACKEND_ERROR_CODES.INVALID_CONVERSION,
   BACKEND_ERROR_CODES.INVALID_STDIN_FORMAT,
@@ -803,7 +804,6 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.QUEUE_ITEM_NOT_IN_CHATROOM,
   BACKEND_ERROR_CODES.QUEUE_TOO_LARGE_TO_REORDER,
   BACKEND_ERROR_CODES.TOO_MANY_ATTACHMENTS,
-  BACKEND_ERROR_CODES.INVALID_ANCHOR,
   BACKEND_ERROR_CODES.NO_ACTIVE_TASK,
 
   BACKEND_ERROR_CODES.INVALID_PLAN,

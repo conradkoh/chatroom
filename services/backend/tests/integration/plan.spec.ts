@@ -20,6 +20,7 @@ import {
   createTestSession,
   joinParticipant,
 } from '../helpers/integration';
+import { readTimelineMessagesForTest } from '../helpers/timeline';
 
 /** Build a valid plan document with `phaseCount` sequential phases. */
 function makePlanMarkdown(phaseCount = 2): string {
@@ -118,14 +119,19 @@ async function setupActiveBuilder(sessionId: SessionId) {
   const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
   await joinParticipant(sessionId, chatroomId, 'planner');
   await joinParticipant(sessionId, chatroomId, 'builder');
-  const { taskId } = await seedUserOriginTask(chatroomId, 'Plan work', 'builder', 'in_progress');
-  return { chatroomId, taskId };
+  const { userMessageId, taskId } = await seedUserOriginTask(
+    chatroomId,
+    'Plan work',
+    'builder',
+    'in_progress'
+  );
+  return { chatroomId, taskId, userMessageId };
 }
 
 describe('plans', () => {
   test('publish stores a validated plan with no room or unread side effects', async () => {
     const { sessionId } = await createTestSession('plan-publish');
-    const { chatroomId } = await setupActiveBuilder(sessionId);
+    const { chatroomId, userMessageId } = await setupActiveBuilder(sessionId);
     const content = makePlanMarkdown(2);
 
     const before = await t.run(async (ctx) => {
@@ -171,31 +177,21 @@ describe('plans', () => {
     expect(after.lastActivityAt).toBe(before.lastActivityAt);
     expect(await readUnreadStatus(chatroomId)).toEqual(unreadBefore);
 
-    const latest = await t.query(api.messageList.getLatestMessages, {
-      sessionId,
-      chatroomId,
-      limit: 20,
-    });
-    const latestPlan = latest.messages.find((message) => message._id === result.messageId);
+    const timeline = await readTimelineMessagesForTest(t, chatroomId);
+    const latestPlan = timeline.find((message) => message._id === result.messageId);
     expect(latestPlan).toBeDefined();
     expect(latestPlan!.type).toBe('plan');
 
-    const older = await t.query(api.messageList.listMessagesBefore, {
+    const page = await t.query(api.conversation.listPageMessages, {
       sessionId,
       chatroomId,
-      before: stored!._creationTime + 1,
-      limit: 20,
+      pageId: userMessageId,
+      paginationOpts: { numItems: 50, cursor: null },
+      endExclusive: null,
     });
-    expect(older.some((message) => message._id === result.messageId)).toBe(true);
-
-    const since = await t.query(api.messages.listSinceMessage, {
-      sessionId,
-      chatroomId,
-      sinceMessageId: result.planId,
-    });
-    const sincePlan = since.find((message) => message._id === result.messageId);
-    expect(sincePlan).toBeDefined();
-    expect(sincePlan!.type).toBe('plan');
+    const pagePlan = page.page.find((message) => message._id === result.messageId);
+    expect(pagePlan).toBeDefined();
+    expect(pagePlan!.type).toBe('plan');
   });
 
   test('rejects an invalid plan and stores nothing', async () => {
@@ -444,16 +440,14 @@ describe('plans', () => {
       senderRole: 'builder',
       content: makePlanMarkdown(2),
     });
+    const published = (await readTimelineMessagesForTest(t, chatroomId)).find(
+      (message) => message.type === 'plan'
+    );
+    expect(published).toBeDefined();
     const got = await t.query(api.plans.get, {
       sessionId,
       chatroomId,
-      planId: (
-        await t.query(api.messageList.getLatestMessages, {
-          sessionId,
-          chatroomId,
-          limit: 20,
-        })
-      ).messages.find((message) => message.type === 'plan')!._id,
+      planId: published!._id,
     });
 
     const parsed = parsePlan(got.content);

@@ -6,7 +6,7 @@ import type { ActivatedSkillSnapshot } from '../types/init-prompt';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
-import { messagesDownloadSinceCommand } from '../utils/proof-of-verification';
+import { messagesDownloadCommand, messagesPagesCommand } from '../utils/proof-of-verification';
 
 export interface GeneralKnowledgeParams {
   chatroomId: string;
@@ -19,23 +19,16 @@ export interface GeneralKnowledgeParams {
 export function getGeneralCommandsReferenceContent(params: GeneralKnowledgeParams): string {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
   const { chatroomId, role } = params;
-  const messagesDownloadCmd = messagesDownloadSinceCommand({
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    sinceMessageId: '<from-anchor>',
-    limit: 100,
-  });
   return `### Reference commands
-- Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10\`
-- Anchor on the user's last message: \`${cliEnvPrefix}chatroom messages anchor --chatroom-id="${chatroomId}" --role="${role}"\`
+- Download the latest page of message history: \`${messagesDownloadCommand({ chatroomId, role, cliEnvPrefix })}\`
+- List pages: \`${messagesPagesCommand({ chatroomId, role, cliEnvPrefix })}\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
 - Reload system prompt: \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\`
 - Reload role guidance: \`${roleGuidanceCommand({ chatroomId, role, cliEnvPrefix })}\`
 
-**History retrieval:** Run \`${messagesDownloadCmd}\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.`;
+**History retrieval:** Run \`${messagesDownloadCommand({ chatroomId, role, cliEnvPrefix })}\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.`;
 }
 export function getGeneralKnowledgeSections(
   params: GeneralKnowledgeParams,
