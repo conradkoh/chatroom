@@ -64,6 +64,10 @@ interface UseCommandPaletteCommandsProps {
   /** @deprecated Use onSwitchToPullRequests instead. */
   onOpenPRReview?: (() => void) | null;
   onViewGitHubPullRequests?: (() => void) | null;
+  /** Opens every open pull request for the repository */
+  onViewAllGitHubPullRequests?: (() => void) | null;
+  /** Opens pull requests awaiting the current user's review */
+  onViewReviewRequestedGitHubPullRequests?: (() => void) | null;
   onViewGitHubRepository?: (() => void) | null;
   /** @deprecated Use onSwitchToSourceControl instead. */
   onOpenWorkspaceDetails?: (() => void) | null;
@@ -141,6 +145,8 @@ export function useCommandPaletteCommands({
   onOpenPROnGitHub,
   onOpenPRReview,
   onViewGitHubPullRequests,
+  onViewAllGitHubPullRequests,
+  onViewReviewRequestedGitHubPullRequests,
   onViewGitHubRepository,
   onOpenWorkspaceDetails,
   runnableCommands,
@@ -357,6 +363,38 @@ export function useCommandPaletteCommands({
           category: 'Actions',
           keywords: ['PR', 'PRs'],
           action: onViewGitHubPullRequests,
+        });
+      }
+
+      if (onViewAllGitHubPullRequests) {
+        commands.push({
+          id: 'action-view-all-github-prs',
+          label: 'Github: View All Pull Requests',
+          icon: <SiGithub size={14} />,
+          category: 'Actions',
+          keywords: ['PR', 'PRs', 'pull request', 'pull requests', 'all', 'all open'],
+          action: onViewAllGitHubPullRequests,
+        });
+      }
+
+      if (onViewReviewRequestedGitHubPullRequests) {
+        commands.push({
+          id: 'action-view-review-requested-github-prs',
+          label: 'Github: View Pull Requests Pending My Review',
+          icon: <SiGithub size={14} />,
+          category: 'Actions',
+          keywords: [
+            'PR',
+            'PRs',
+            'pull request',
+            'pull requests',
+            'review',
+            'review requested',
+            'pending',
+            'pending review',
+            'awaiting review',
+          ],
+          action: onViewReviewRequestedGitHubPullRequests,
         });
       }
 
@@ -596,6 +634,8 @@ export function useCommandPaletteCommands({
     onOpenPROnGitHub,
     onOpenPRReview,
     onViewGitHubPullRequests,
+    onViewAllGitHubPullRequests,
+    onViewReviewRequestedGitHubPullRequests,
     onViewGitHubRepository,
     onOpenWorkspaceDetails,
     runnableCommands,

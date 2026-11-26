@@ -1416,6 +1416,14 @@ function ChatroomDashboardContent({
     if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls/@me`);
   }, [gitHubRepoUrl]);
 
+  const handleViewAllGitHubPullRequests = useCallback(() => {
+    if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls`);
+  }, [gitHubRepoUrl]);
+
+  const handleViewReviewRequestedGitHubPullRequests = useCallback(() => {
+    if (gitHubRepoUrl) openExternalUrl(`${gitHubRepoUrl}/pulls/review-requested/@me`);
+  }, [gitHubRepoUrl]);
+
   const handleViewGitHubRepository = useCallback(() => {
     if (gitHubRepoUrl) openExternalUrl(gitHubRepoUrl);
   }, [gitHubRepoUrl]);
@@ -1619,6 +1627,10 @@ function ChatroomDashboardContent({
     onOpenDaemonLogs: handleOpenDaemonLogs,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
+    onViewAllGitHubPullRequests: gitHubRepoUrl ? handleViewAllGitHubPullRequests : null,
+    onViewReviewRequestedGitHubPullRequests: gitHubRepoUrl
+      ? handleViewReviewRequestedGitHubPullRequests
+      : null,
     onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,
     onSwitchToSourceControl: activeWorkspace ? handleSwitchToSourceControl : null,
     onSwitchToPullRequests: activeWorkspace ? handleSwitchToPullRequests : null,
