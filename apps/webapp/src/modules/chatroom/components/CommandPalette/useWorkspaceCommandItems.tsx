@@ -184,6 +184,49 @@ export function useWorkspaceCommandItems(
         });
 
         items.push({
+          id: `ws-${wsKey}-view-all-prs`,
+          blacklistKey: workspaceCommandBlacklistKey('view-all-prs'),
+          label: 'Github: View All Pull Requests',
+          detail,
+          icon: <SiGithub size={14} />,
+          category: 'Actions',
+          keywords: [
+            'PR',
+            'PRs',
+            'pull request',
+            'pull requests',
+            'all',
+            'all open',
+            hostname,
+            workingDirBasename,
+          ],
+          action: () => openExternalUrl(`${repoUrl}/pulls`),
+        });
+
+        items.push({
+          id: `ws-${wsKey}-view-review-requested-prs`,
+          blacklistKey: workspaceCommandBlacklistKey('view-review-requested-prs'),
+          label: 'Github: View Pull Requests Pending My Review',
+          detail,
+          icon: <SiGithub size={14} />,
+          category: 'Actions',
+          keywords: [
+            'PR',
+            'PRs',
+            'pull request',
+            'pull requests',
+            'review',
+            'review requested',
+            'pending',
+            'pending review',
+            'awaiting review',
+            hostname,
+            workingDirBasename,
+          ],
+          action: () => openExternalUrl(`${repoUrl}/pulls/review-requested/@me`),
+        });
+
+        items.push({
           id: `ws-${wsKey}-view-repo`,
           blacklistKey: workspaceCommandBlacklistKey('view-repo'),
           label: 'Github: View Repository',
