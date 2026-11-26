@@ -11,7 +11,7 @@ import { getHandoffSessionPolicy } from '@workspace/shared/domain/team-presets';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { generateRolePrompt, composeInitPrompt } from '../prompts';
+import { composeInitPrompt } from '../prompts';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
@@ -20,8 +20,6 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { retireEnhancedTaskEnvelope } from './lib/enhancedModeRetirement';
-import { buildAvailableHandoffRoles } from './lib/handoffRoles';
-import { getRolePriority } from './lib/hierarchy';
 import { buildTaskDeliveryPrompt } from './lib/taskDeliveryPrompt';
 import {
   normalizePersistedTaskEnvelope,
@@ -349,17 +347,6 @@ const sendMessageMutationArgs = {
   conversationMode: v.optional(conversationModeValidator),
   taskEnvelope: v.optional(taskEnvelopeV1Validator),
 };
-
-/** @deprecated Use sendMessage instead. */
-export const send = mutation({
-  args: sendMessageMutationArgs,
-  handler: async (ctx, args) => {
-    return _sendMessageHandler(ctx, {
-      ...args,
-      taskEnvelope: toWritableTaskEnvelope(args.taskEnvelope),
-    });
-  },
-});
 
 export const enqueueMessageAtFront = mutation({
   args: {
@@ -923,32 +910,6 @@ export const getAllowedHandoffRoles = query({
   },
 });
 
-/** Returns recent messages in a chatroom up to an optional limit. */
-export const list = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Enforce maximum limit to prevent unbounded queries
-    const MAX_LIMIT = 50;
-    const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
-
-    // Fetch the most recent N messages (desc order) then reverse for chronological
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(limit);
-
-    return recentMessages.reverse();
-  },
-});
-
 const userMessageOrTaskIdArgs = {
   type: v.union(v.literal('task'), v.literal('message')),
   taskId: v.optional(v.id('chatroom_tasks')),
@@ -1202,72 +1163,6 @@ export const updateQueuedMessageConversationMode = mutation({
   },
 });
 
-/** Legacy adapter: rewrites the envelope's session policy from the boolean. */
-export const updateQueuedMessageStartInNewSession = mutation({
-  args: {
-    ...SessionIdArg,
-    queuedMessageId: v.id('chatroom_messageQueue'),
-    startInNewSession: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
-    if (!record)
-      throw new ConvexError({
-        code: 'QUEUED_MESSAGE_NOT_FOUND',
-        message: 'Queued message not found',
-      });
-    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    const current = normalizePersistedTaskEnvelope(record);
-    const next = withTaskEnvelopeSessionPolicy(
-      current,
-      args.startInNewSession ? 'new' : 'continue'
-    );
-    await ctx.db.patch(
-      'chatroom_messageQueue',
-      args.queuedMessageId,
-      taskEnvelopeLegacyProjection(next)
-    );
-  },
-});
-
-/**
- * Returns all progress messages for a given task, ordered chronologically.
- * Used by TaskProgressHistory in MessageFeed to display progress updates
- * when the user expands the progress history view.
- */
-export const getProgressForTask = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    taskId: v.id('chatroom_tasks'),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Verify task belongs to this chatroom
-    const task = await ctx.db.get('chatroom_tasks', args.taskId);
-    if (!task || task.chatroomId !== args.chatroomId) {
-      return [];
-    }
-
-    // Fetch all progress messages for this task, ordered chronologically
-    const progressMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_taskId', (q) => q.eq('taskId', args.taskId))
-      .filter((q) => q.eq(q.field('type'), 'progress'))
-      .order('asc')
-      .collect();
-
-    return progressMessages.map((msg) => ({
-      _id: msg._id,
-      content: msg.content,
-      senderRole: msg.senderRole,
-      _creationTime: msg._creationTime,
-    }));
-  },
-});
-
 /** Claims a broadcast message for a specific role to prevent duplicate processing. */
 export const claimMessage = mutation({
   args: {
@@ -1299,151 +1194,6 @@ export const claimMessage = mutation({
     }
     await ctx.db.patch('chatroom_messages', args.messageId, updates);
     return true;
-  },
-});
-
-/** Returns the next unprocessed message for a role based on routing rules. */
-export const getLatestForRole = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    afterMessageId: v.optional(v.id('chatroom_messages')),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access - returns chatroom directly
-    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
-      ctx,
-      args.sessionId,
-      args.chatroomId
-    );
-    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
-
-    // Fetch recent messages (optimized with limit)
-    const recentMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(50); // Reduced from 200 to 50 for performance
-
-    // Reverse to get chronological order
-    const messages = recentMessages.reverse();
-
-    // Get participants for priority routing
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
-    );
-
-    // Sort by priority to find highest priority waiting
-    waitingParticipants.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
-    const highestPriorityWaiting = waitingParticipants[0]?.role;
-
-    // Determine entry point for user messages
-    const entryPoint = getTeamEntryPoint(chatroom);
-
-    // Filter messages after the specified ID
-    let relevantMessages = messages;
-    if (args.afterMessageId) {
-      const afterIndex = messages.findIndex((m) => m._id === args.afterMessageId);
-      if (afterIndex !== -1) {
-        relevantMessages = messages.slice(afterIndex + 1);
-      }
-    }
-
-    // Find the first unclaimed message for this role
-    for (const message of relevantMessages) {
-      // Skip if already claimed by someone else
-      if (message.claimedByRole && message.claimedByRole !== args.role) {
-        continue;
-      }
-
-      // Targeted messages only go to target
-      if (message.targetRole) {
-        if (message.targetRole.toLowerCase() === args.role.toLowerCase()) {
-          return message;
-        }
-        continue;
-      }
-
-      // User messages go to entry point
-      if (message.senderRole.toLowerCase() === 'user') {
-        if (entryPoint && entryPoint.toLowerCase() === args.role.toLowerCase()) {
-          return message;
-        }
-        continue;
-      }
-
-      // Broadcast messages from agents go to highest priority waiting
-      if (highestPriorityWaiting?.toLowerCase() === args.role.toLowerCase()) {
-        return message;
-      }
-    }
-
-    return null;
-  },
-});
-
-/** Returns a role-specific prompt with team context and allowed handoff targets. */
-export const getRolePrompt = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    convexUrl: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-    const { chatroom: authorizedChatroom } = await requireChatroomAccess(
-      ctx,
-      args.sessionId,
-      args.chatroomId
-    );
-    const chatroom = await withActiveTeamStructure(ctx, authorizedChatroom);
-
-    // Get participants
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
-    );
-
-    const availableRoles = waitingParticipants.map((p) => p.role);
-    // Configured team roles are authoritative structural capability; active
-    // participants remain a legacy fallback for empty-membership rooms.
-    const { teamRoles } = getTeamRolesFromChatroom(chatroom);
-    const availableHandoffRoles = buildAvailableHandoffRoles({
-      teamId: chatroom.teamId,
-      teamRoles,
-      currentRole: args.role,
-      fallbackParticipantRoles: availableRoles,
-    });
-
-    // Generate the role-specific prompt
-    const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
-    const prompt = generateRolePrompt({
-      chatroomId: args.chatroomId,
-      role: args.role,
-      teamId: chatroom.teamId,
-      teamName: chatroom.teamName || 'Team',
-      teamRoles: chatroom.teamRoles || [],
-      teamEntryPoint: chatroom.teamEntryPoint,
-      availableHandoffRoles,
-      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-      activatedSkills,
-    });
-
-    return {
-      prompt,
-      availableHandoffRoles,
-    };
   },
 });
 
@@ -1528,118 +1278,6 @@ export const getTaskDeliveryPrompt = query({
       messageId: args.messageId,
       convexUrl: args.convexUrl,
     });
-  },
-});
-
-// =============================================================================
-// SENDER ROLE BASED QUERIES - For user-centric pagination
-// =============================================================================
-
-/** Returns messages filtered by sender role in descending order. */
-export const listBySenderRole = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const limit = args.limit || 10;
-    const maxLimit = 50;
-
-    // Use composite index for efficient sender role filtering
-    // Index: by_chatroom_senderRole_type_createdAt
-    const messages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('senderRole', args.senderRole).eq('type', 'message')
-      )
-      .order('desc')
-      .take(Math.min(limit, maxLimit));
-
-    return enrichMessages(ctx, messages);
-  },
-});
-
-/** Returns the most recent user message plus prior user messages for anchoring on the user's last request. */
-export const getLastUserMessage = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    /** How many prior user messages to include for terse follow-ups (default 3, max 5) */
-    priorLimit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const priorLimit = Math.min(Math.max(args.priorLimit ?? 3, 0), 5);
-    const takeCount = priorLimit + 1;
-
-    // Use composite index for user messages, newest first (mirrors listBySenderRole)
-    // fallow-ignore-next-line code-duplication
-    const userMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .order('desc')
-      .take(takeCount);
-
-    if (userMessages.length === 0) {
-      return { last: null, prior: [] };
-    }
-
-    return { last: userMessages[0], prior: userMessages.slice(1) };
-  },
-});
-
-/** Returns all messages from a given message ID onward (inclusive), in ascending order. */
-export const listSinceMessage = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    sinceMessageId: v.id('chatroom_messages'),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get the reference message to find its timestamp
-    const referenceMessage = await ctx.db.get('chatroom_messages', args.sinceMessageId);
-    if (!referenceMessage) {
-      throw new ConvexError({
-        code: 'MESSAGE_NOT_FOUND',
-        message: 'Message not found',
-      });
-    }
-
-    // Verify message belongs to this chatroom
-    if (referenceMessage.chatroomId !== args.chatroomId) {
-      throw new ConvexError({
-        code: 'INVALID_MESSAGE',
-        message: 'Message does not belong to this chatroom',
-      });
-    }
-
-    const limit = args.limit || 100;
-    const maxLimit = 500;
-
-    // Fetch messages from reference creation time onward using compound index
-    // for an indexed range scan (avoids scanning all older messages)
-    const messages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) =>
-        q.eq('chatroomId', args.chatroomId).gte('_creationTime', referenceMessage._creationTime)
-      )
-      .order('asc')
-      .take(Math.min(limit, maxLimit));
-
-    return enrichMessages(ctx, messages);
   },
 });
 

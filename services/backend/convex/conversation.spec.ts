@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { readTimelineMessagesForTest } from '../tests/helpers/timeline';
 
 async function createTestSession(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as SessionId });
@@ -788,5 +789,51 @@ describe('subscribePageTail', () => {
 
     expect(result).not.toBeNull();
     expect(result!.length).toBe(100);
+  });
+
+  test('excludes join and progress rows from the tail', async () => {
+    const { sessionId } = await createTestSession('conversation-tail-filter');
+    const chatroomId = await createChatroom(sessionId);
+    const pageId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
+    await insertTimelineMessage(chatroomId, 'builder', 'reply one');
+    await insertTimelineMessage(chatroomId, 'builder', 'reply two');
+    await insertTimelineMessage(chatroomId, 'builder', 'join event', { type: 'join' });
+    await insertTimelineMessage(chatroomId, 'builder', 'progress update', { type: 'progress' });
+
+    const after = await getMessageCreationTime(pageId);
+
+    const result = await t.query(api.conversation.subscribePageTail, {
+      sessionId,
+      chatroomId,
+      afterCreationTime: after,
+      endExclusive: null,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.length).toBe(2);
+    for (const message of result!) {
+      expect(message.type).not.toBe('join');
+      expect(message.type).not.toBe('progress');
+    }
+  });
+});
+
+describe('readTimelineMessagesForTest', () => {
+  test('returns timeline rows in ascending order and excludes join and progress', async () => {
+    const { sessionId } = await createTestSession('conversation-timeline-order');
+    const chatroomId = await createChatroom(sessionId);
+
+    await insertTimelineMessage(chatroomId, 'user', 'first');
+    await insertTimelineMessage(chatroomId, 'builder', 'handoff one', { type: 'handoff' });
+    await insertTimelineMessage(chatroomId, 'builder', 'join event', { type: 'join' });
+    await insertTimelineMessage(chatroomId, 'builder', 'progress update', { type: 'progress' });
+    await insertTimelineMessage(chatroomId, 'user', 'second');
+
+    const timeline = await readTimelineMessagesForTest(t, chatroomId);
+
+    expect(timeline.map((message) => message.content)).toEqual(['first', 'handoff one', 'second']);
+    expect(timeline.map((message) => message._creationTime)).toEqual(
+      timeline.map((message) => message._creationTime).sort((a, b) => a - b)
+    );
   });
 });

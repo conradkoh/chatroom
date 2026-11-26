@@ -568,7 +568,6 @@ export default defineSchema({
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type'])
-    .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole'])
     .index('by_scheduledPromptId', ['scheduledPromptId'])
     .index('by_chatroom_terminalHandoffKey', ['chatroomId', 'terminalHandoffKey']),
 

@@ -106,7 +106,6 @@ import type * as machineCommandCleanup from '../machineCommandCleanup.js';
 import type * as machineConfigFavorites from '../machineConfigFavorites.js';
 import type * as machineStatusCron from '../machineStatusCron.js';
 import type * as machines from '../machines.js';
-import type * as messageList from '../messageList.js';
 import type * as messages from '../messages.js';
 import type * as migrations from '../migrations.js';
 import type * as participants from '../participants.js';
@@ -256,7 +255,6 @@ declare const fullApi: ApiFromModules<{
   machineConfigFavorites: typeof machineConfigFavorites;
   machineStatusCron: typeof machineStatusCron;
   machines: typeof machines;
-  messageList: typeof messageList;
   messages: typeof messages;
   migrations: typeof migrations;
   participants: typeof participants;
