@@ -313,10 +313,16 @@ function printDownloadSummary(args: {
     console.log(`   cat "${args.absoluteOutputDir}/manifest.json"`);
     console.log(`   rg "pattern" "${args.absoluteOutputDir}/"`);
     if (args.truncated) {
-      const nextMax = Math.min(args.count * 2, ABSOLUTE_MAX_MESSAGES);
-      console.log(
-        `\n💡 Truncated at --max-messages=${args.maxMessages}. Fetch more with: chatroom messages download --chatroom-id=${args.chatroomId} --role=${args.role} --max-messages=${nextMax}${pageSelectorFlags(args.selection)}`
-      );
+      if (args.maxMessages >= ABSOLUTE_MAX_MESSAGES) {
+        console.log(
+          `\n💡 Truncated: the ${ABSOLUTE_MAX_MESSAGES}-message limit was reached. Select a narrower page with --page-id, --before or --after to read the rest.`
+        );
+      } else {
+        const nextMax = Math.min(args.count * 2, ABSOLUTE_MAX_MESSAGES);
+        console.log(
+          `\n💡 Truncated at --max-messages=${args.maxMessages}. Fetch more with: chatroom messages download --chatroom-id=${args.chatroomId} --role=${args.role} --max-messages=${nextMax}${pageSelectorFlags(args.selection)}`
+        );
+      }
     }
     if (args.prevPageId) {
       console.log(`💡 Earlier page: --page-id=${args.prevPageId}`);

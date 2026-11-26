@@ -336,6 +336,36 @@ describe('downloadMessagesEffect', () => {
     expect(output).toContain('--max-messages=4');
   });
 
+  test('at the absolute cap prints the limit line instead of a repeated command', async () => {
+    const total = 5_001;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { exit, fs } = await runDownload(
+      {
+        window: windowFor([page(P1, 1_000, null)], P1),
+        listPageMessages: (args) => {
+          const start = args.paginationOpts.cursor ? Number(args.paginationOpts.cursor) : 0;
+          const page_: Message[] = [];
+          for (let index = start; index < Math.min(start + 50, total); index += 1) {
+            page_.push(
+              index === 0 ? pageStart(P1, 1_000) : message(`msg_cap_${index}`, 1_000 + index)
+            );
+          }
+          const next = start + page_.length;
+          return { page: page_, isDone: next >= total, continueCursor: String(next) };
+        },
+      },
+      { role: 'builder', maxMessages: '5000' }
+    );
+
+    expect(exit._tag).toBe('Success');
+    const manifest = readManifest(fs);
+    expect(manifest.count).toBe(5_000);
+    expect(manifest.truncated).toBe(true);
+    const output = log.mock.calls.map((call) => call.join(' ')).join('\n');
+    expect(output).toContain('the 5000-message limit was reached');
+    expect(output).not.toContain('--max-messages=5000');
+  });
+
   test('does not report truncation when the cap lands exactly at the end', async () => {
     const all = [pageStart(P1, 1_000), message('msg_t1', 1_001)];
     const { exit, fs } = await runDownload(
