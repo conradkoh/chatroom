@@ -17,20 +17,18 @@ function attachmentContext(options: SerializeMessageOptions) {
 
 /**
  * Normalizes the message's flat wire attachments to the renderer input.
- *
- * The wire names are `attachedTasks` (`{ backlogStatus }`) and
- * `attachedBacklogItems` (`{ id }`). Older producers may still send the
- * delivery names (`{ status }` / `{ _id }`), so both are accepted.
+ * The wire shape is canonical: `attachedTasks` carries `backlogStatus` and
+ * `attachedBacklogItems` carries `id`.
  */
 function normalizeDeliveryAttachments(message: Message): DeliveryAttachmentsInput | undefined {
   const attachments: DeliveryAttachmentsInput = {
     attachedTasks: message.attachedTasks?.map((item) => ({
       _id: item._id,
       content: item.content,
-      status: (item as { status?: string | undefined }).status ?? item.backlogStatus,
+      status: item.backlogStatus ?? '',
     })),
     attachedBacklogItems: message.attachedBacklogItems?.map((item) => ({
-      _id: (item as { _id?: string | undefined })._id ?? item.id,
+      _id: item.id,
       content: item.content,
       status: item.status,
     })),

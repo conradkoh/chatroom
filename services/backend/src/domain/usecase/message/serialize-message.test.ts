@@ -87,21 +87,39 @@ describe('serializeMessage', () => {
 
 describe('wire attachment normalization', () => {
   it('renders task attachments carrying the wire backlogStatus name', () => {
-    const xml = serializeMessage(
-      { ...notice, attachedTasks: [{ _id: 't', content: 'task', backlogStatus: 'todo' }] },
-      { profile: 'context-xml', chatroomId: 'c', role: 'builder' }
-    );
+    const withTask = {
+      ...notice,
+      attachedTasks: [{ _id: 't', content: 'task', backlogStatus: 'todo' }],
+    };
+    const xml = serializeMessage(withTask, {
+      profile: 'context-xml',
+      chatroomId: 'c',
+      role: 'builder',
+    });
     expect(xml).toContain('type="task" task-id="t"');
     expect(xml).toContain('task');
+    expect(
+      serializeMessage(withTask, { profile: 'linear', chatroomId: 'c', role: 'builder' })
+    ).toBe(
+      '1970-01-01T00:00:00.000Z | builder → user\n\n<attachments>\n  <attachment type="task" task-id="t">\n    <content>task</content>\n    <hint>Referenced task attached by user.</hint>\n  </attachment>\n</attachments>\n\nHeads up'
+    );
   });
 
   it('renders backlog attachments carrying the wire id name', () => {
-    const xml = serializeMessage(
-      { ...notice, attachedBacklogItems: [{ id: 'b', content: 'work', status: 'open' }] },
-      { profile: 'context-xml', chatroomId: 'c', role: 'builder' }
-    );
+    const withBacklog = {
+      ...notice,
+      attachedBacklogItems: [{ id: 'b', content: 'work', status: 'open' }],
+    };
+    const xml = serializeMessage(withBacklog, {
+      profile: 'context-xml',
+      chatroomId: 'c',
+      role: 'builder',
+    });
     expect(xml).toContain('type="backlog" backlog-item-id="b"');
     expect(xml).toContain('work');
+    expect(
+      serializeMessage(withBacklog, { profile: 'linear', chatroomId: 'c', role: 'builder' })
+    ).toContain('<attachment type="backlog" backlog-item-id="b">\n    <content>work</content>');
   });
 
   it('preserves message and snippet attachments', () => {
