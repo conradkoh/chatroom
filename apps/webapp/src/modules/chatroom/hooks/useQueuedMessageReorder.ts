@@ -49,6 +49,8 @@ export interface QueuedItemReorderProps {
   dropEdge: 'before' | 'after' | null;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  /** Overrides the disabled Move down title (sidebar: more rows exist below). */
+  downDisabledTitle?: string;
   registerHandle: (el: HTMLElement | null) => void;
   onHandleDragStart: (e: ReactDragEvent<HTMLElement>) => void;
   onHandleDragEnd: () => void;

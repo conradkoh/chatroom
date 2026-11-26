@@ -177,7 +177,7 @@ function ReorderActions({ reorder }: { reorder: QueuedItemReorderProps }) {
         disabled={!reorder.canMoveDown}
         onClick={reorder.onMoveDown}
         aria-label="Move down"
-        title={reorder.canMoveDown ? 'Move down' : 'Already last'}
+        title={reorder.canMoveDown ? 'Move down' : (reorder.downDisabledTitle ?? 'Already last')}
         data-testid="queued-move-down"
       >
         <ChevronDown />

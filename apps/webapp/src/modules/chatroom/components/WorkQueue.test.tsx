@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
     { pending: number; acknowledged: number; in_progress: number; queued: number } | undefined,
   tasks: undefined as { _id: string; status: string; content: string }[] | undefined,
   pendingReview: [] as { _id: string }[],
+  queued: undefined as
+    | { _id: string; content: string; _creationTime: number; senderRole: string; type: string }[]
+    | undefined,
   queueFrontSubmit: undefined as ((content: string) => Promise<void>) | undefined,
   promote: vi.fn(),
   otherMutation: vi.fn(),
@@ -23,7 +26,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
     const functionName = getFunctionName(query as FunctionReference<'query'>);
     if (functionName === getFunctionName(api.tasks.listTasks)) return mocks.tasks;
     if (functionName === getFunctionName(api.tasks.getTaskCounts)) return mocks.counts;
-    if (functionName === getFunctionName(api.messages.listQueued)) return [];
+    if (functionName === getFunctionName(api.messages.listQueued)) return mocks.queued;
     if (functionName === getFunctionName(api.backlog.listBacklogItems)) {
       return args?.statusFilter === 'pending_user_review' ? mocks.pendingReview : [];
     }
@@ -37,26 +40,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
       : mocks.otherMutation,
 }));
 
-vi.mock('./sidebar/SidebarSection', () => ({
-  SIDEBAR_PREVIEW_LIMIT: 4,
-  SidebarSection: {
-    Root: ({
-      title,
-      action,
-      children,
-    }: {
-      title: string;
-      action?: ReactNode;
-      children: ReactNode;
-    }) => (
-      <section aria-label={title}>
-        {action}
-        {children}
-      </section>
-    ),
-  },
-}));
-
 vi.mock('./WorkQueue/TaskItem', () => ({
   TaskItem: ({ task, onClick }: { task: { content: string }; onClick: () => void }) => (
     <button type="button" onClick={onClick}>
@@ -65,7 +48,6 @@ vi.mock('./WorkQueue/TaskItem', () => ({
   ),
 }));
 
-vi.mock('./WorkQueue/QueuedMessageItem', () => ({ QueuedMessageItem: () => null }));
 vi.mock('./WorkQueue/PendingReviewModal/PendingReviewBacklogItem', () => ({
   PendingReviewBacklogItem: () => null,
 }));
@@ -99,6 +81,7 @@ describe('WorkQueue manual queue recovery', () => {
     mocks.counts = eligibleCounts;
     mocks.tasks = [];
     mocks.pendingReview = [];
+    mocks.queued = [];
     mocks.promote = vi.fn().mockResolvedValue({ reason: 'success' });
     mocks.otherMutation = vi.fn().mockResolvedValue(undefined);
   });
@@ -255,5 +238,70 @@ describe('WorkQueue manual queue recovery', () => {
     });
     expect(mocks.otherMutation).toHaveBeenCalledWith({ chatroomId, content: 'hello' });
     expect(screen.queryByTestId('work-queue-feedback')).not.toBeInTheDocument();
+  });
+});
+
+function queuedMessage(id: string, content: string) {
+  return {
+    _id: id,
+    content,
+    _creationTime: Date.now(),
+    senderRole: 'user',
+    type: 'message',
+  };
+}
+
+describe('WorkQueue queued section', () => {
+  beforeEach(() => {
+    mocks.counts = eligibleCounts;
+    mocks.tasks = [];
+    mocks.pendingReview = [];
+    mocks.queued = [];
+    mocks.promote = vi.fn().mockResolvedValue({ reason: 'success' });
+    mocks.otherMutation = vi.fn().mockResolvedValue(undefined);
+  });
+
+  it('shows a loading label and skeletons instead of the empty text while listQueued is loading', () => {
+    mocks.queued = undefined;
+    render(<WorkQueue chatroomId={chatroomId} />);
+
+    expect(screen.getByText('Queued (…)')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2);
+    expect(screen.queryByText('No queued messages')).not.toBeInTheDocument();
+  });
+
+  it('renders at most three rows with handles and hints that more rows exist below', () => {
+    mocks.queued = [
+      queuedMessage('q1', 'Message A'),
+      queuedMessage('q2', 'Message B'),
+      queuedMessage('q3', 'Message C'),
+      queuedMessage('q4', 'Message D'),
+      queuedMessage('q5', 'Message E'),
+    ];
+    render(<WorkQueue chatroomId={chatroomId} />);
+
+    const queuedSection = screen.getByText('Queued (5)').closest('section');
+    if (!queuedSection) throw new Error('Queued section not found');
+    expect(queuedSection.querySelectorAll('[data-queued-id]')).toHaveLength(3);
+    expect(queuedSection.querySelectorAll('[data-testid^="queued-reorder-handle-"]')).toHaveLength(
+      3
+    );
+    expect(screen.getByRole('button', { name: 'View More (2 more items)' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('queued-reorder-handle-q3'));
+
+    const moveDown = screen.getByTestId('queued-move-down');
+    expect(moveDown).toBeDisabled();
+    expect(moveDown).toHaveAttribute('title', 'Open the full list to move further');
+  });
+
+  it('renders no reorder handle for a single queued message', () => {
+    mocks.queued = [queuedMessage('q1', 'Only message')];
+    render(<WorkQueue chatroomId={chatroomId} />);
+
+    expect(screen.getByText('Only message')).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-testid^="queued-reorder-handle-"]')
+    ).not.toBeInTheDocument();
   });
 });

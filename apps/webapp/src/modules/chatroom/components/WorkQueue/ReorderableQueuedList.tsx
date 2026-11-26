@@ -1,7 +1,4 @@
 'use client';
-// The list container is wired into the sidebar and modal by the follow-up
-// wiring change; until then no production module imports it.
-// fallow-ignore-file unused-file
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
@@ -22,6 +19,8 @@ export interface ReorderableQueuedListProps {
   enabled: boolean;
   onDelete: (queuedMessageId: string) => Promise<void>;
   feedbackStickyTop?: boolean;
+  /** Shown as the Move down title of the last visible row (sidebar: rows exist below). */
+  overflowHint?: string;
 }
 
 /**
@@ -38,6 +37,7 @@ export function ReorderableQueuedList({
   enabled,
   onDelete,
   feedbackStickyTop = false,
+  overflowHint,
 }: ReorderableQueuedListProps) {
   const { feedback, show, clear } = useFeedback();
   const reorder = useReorderQueuedMessage(chatroomId);
@@ -49,15 +49,22 @@ export function ReorderableQueuedList({
     clearFeedback: clear,
   });
 
-  const items = displayed.map((message, index) => (
-    <QueuedMessageItem
-      key={message._id}
-      chatroomId={chatroomId}
-      message={message}
-      onDelete={onDelete}
-      reorder={itemProps(message._id, index)}
-    />
-  ));
+  const items = displayed.map((message, index) => {
+    const reorder = itemProps(message._id, index);
+    return (
+      <QueuedMessageItem
+        key={message._id}
+        chatroomId={chatroomId}
+        message={message}
+        onDelete={onDelete}
+        reorder={
+          reorder && overflowHint !== undefined && index === displayed.length - 1
+            ? { ...reorder, downDisabledTitle: overflowHint }
+            : reorder
+        }
+      />
+    );
+  });
 
   // With one row the DOM matches the single-row list exactly: no live region and
   // no list wrapper.
