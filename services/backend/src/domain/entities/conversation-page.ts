@@ -27,8 +27,6 @@ export const PAGE_START_SENDER_ROLE = 'user' as const;
 export const PAGE_START_TYPE = 'message' as const;
 export const PAGE_PREVIEW_MAX_CHARS = 120;
 /** Max before/after page span for listPages. */
-// The cap is consumed through clampPageSpan; no module imports the constant directly.
-// fallow-ignore-next-line unused-export
 export const MAX_PAGE_SPAN = 50;
 
 /**

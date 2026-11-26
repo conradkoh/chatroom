@@ -1050,96 +1050,75 @@ workspaceFileTreeCommand
 
 const messagesCommand = program
   .command('messages')
-  .description('List and filter chatroom messages');
+  .description('Read chatroom history by page, and send user messages');
 
-const messageCommand = program.command('message').description('Send chatroom messages');
+const withPageSelector = (cmd: Command, defaultBefore: number): Command =>
+  cmd
+    .option(
+      '--page-id <messageId>',
+      'Page to start from, identified by its start (user) message id (default: latest page)'
+    )
+    .option(
+      '--before <n>',
+      `Also include n pages before the selected page (default: ${defaultBefore}, max 50)`
+    )
+    .option('--after <n>', 'Also include n pages after the selected page (default: 0, max 50)');
 
-messageCommand
-  .command('send')
-  .description('Send a user message to a chatroom')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--content <text>', 'Message content')
-  .option('--target-role <role>', 'Target role (defaults to team entry point)')
-  .action(
-    async (options: { chatroomId: string; content: string; targetRole?: string | undefined }) => {
-      await maybeRequireAuth();
-      const { sendUserMessage } = await import('./commands/messages/send.js');
-      await sendUserMessage(options.chatroomId, options);
-    }
-  );
-
-messagesCommand
-  .command('list')
-  .description('List messages by sender role or since a specific message')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .option('--sender-role <senderRole>', 'Filter by sender role (e.g., user, builder, planner)')
-  .option('--since-message-id <messageId>', 'Get all messages since this message ID (inclusive)')
-  .option('--limit <n>', 'Maximum number of messages to show')
-  .option('--full', 'Show full message content without truncation')
-  // fallow-ignore-next-line complexity
-  .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      senderRole?: string | undefined;
-      sinceMessageId?: string | undefined;
-      limit?: string | undefined;
-      full?: boolean | undefined;
-    }) => {
-      // Validate: must specify either --sender-role or --since-message-id
-      if (!options.senderRole && !options.sinceMessageId) {
-        console.error('❌ Must specify either --sender-role or --since-message-id');
-        console.error('   Examples:');
-        console.error(
-          '     chatroom messages list --chatroom-id=<id> --role=builder --sender-role=user --limit=3'
-        );
-        console.error(
-          '     chatroom messages list --chatroom-id=<id> --role=builder --since-message-id=<msgId>'
-        );
-        process.exit(1);
-      }
-
-      await maybeRequireAuth();
-
-      // Branch based on which option was provided
-      if (options.senderRole) {
-        const { listBySenderRole } = await import('./commands/messages/index.js');
-        await listBySenderRole(options.chatroomId, {
-          role: options.role,
-          senderRole: options.senderRole,
-          limit: options.limit ? parseInt(options.limit, 10) : 10,
-          full: options.full,
-        });
-      } else if (options.sinceMessageId) {
-        const { listSinceMessage } = await import('./commands/messages/index.js');
-        await listSinceMessage(options.chatroomId, {
-          role: options.role,
-          sinceMessageId: options.sinceMessageId,
-          limit: options.limit ? parseInt(options.limit, 10) : 100,
-          full: options.full,
-        });
-      }
-    }
-  );
-
-messagesCommand
-  .command('anchor')
-  .description('Locate the last user message and print proof-of-verification workflow commands')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .option('--prior-limit <n>', 'Prior user messages to show (default: 3, max: 5)', '3')
-  .action(async (options: { chatroomId: string; role: string; priorLimit: string }) => {
+withPageSelector(
+  messagesCommand
+    .command('pages')
+    .description('List pages: each starts at a user message and runs until the next user message')
+    .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+    .requiredOption('--role <role>', 'Your role'),
+  9
+).action(
+  async (options: {
+    chatroomId: string;
+    role: string;
+    pageId?: string | undefined;
+    before?: string | undefined;
+    after?: string | undefined;
+  }) => {
     await maybeRequireAuth();
-    let parsedPriorLimit = parseInt(options.priorLimit, 10);
-    if (isNaN(parsedPriorLimit) || parsedPriorLimit < 0) parsedPriorLimit = 3;
-    if (parsedPriorLimit > 5) parsedPriorLimit = 5;
-    const { anchorMessages } = await import('./commands/messages/anchor.js');
-    await anchorMessages(options.chatroomId, {
-      role: options.role,
-      priorLimit: parsedPriorLimit,
-    });
-  });
+    const { listPages } = await import('./commands/messages/pages.js');
+    await listPages(options.chatroomId, options);
+  }
+);
+
+withPageSelector(
+  messagesCommand
+    .command('download')
+    .description('Download the selected page(s) as files for reading and grep')
+    .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+    .requiredOption('--role <role>', 'Your role')
+    .option('--max-messages <n>', 'Stop after n messages (default: 500, max: 5000)')
+    .option(
+      '--output-dir <path>',
+      'Output directory (default: .chatroom/downloads/messages/<download-id>)'
+    ),
+  0
+).action(
+  async (options: {
+    chatroomId: string;
+    role: string;
+    pageId?: string | undefined;
+    before?: string | undefined;
+    after?: string | undefined;
+    maxMessages?: string | undefined;
+    outputDir?: string | undefined;
+  }) => {
+    await maybeRequireAuth();
+    if (options.maxMessages !== undefined) {
+      const parsed = Number(options.maxMessages);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        console.error('❌ --max-messages must be a positive integer');
+        process.exit(1);
+      }
+    }
+    const { downloadMessages } = await import('./commands/messages/download.js');
+    await downloadMessages(options.chatroomId, options);
+  }
+);
 
 messagesCommand
   .command('send')
@@ -1152,54 +1131,6 @@ messagesCommand
       await maybeRequireAuth();
       const { sendUserMessage } = await import('./commands/messages/send.js');
       await sendUserMessage(options.chatroomId, options);
-    }
-  );
-
-messagesCommand
-  .command('download')
-  .description('Download chatroom message history to local files for reading/grep')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .option('--format <format>', 'Download format (default: linear)', 'linear')
-  .option(
-    '--output-dir <path>',
-    'Output directory (default: .chatroom/downloads/messages/linear/<download-id>)'
-  )
-  .option('--limit <n>', 'Max messages to download (default: 10, max: 5000)')
-  .option(
-    '--since-message-id <messageId>',
-    'Download history since this message ID (inclusive, ascending)'
-  )
-  .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      format?: string | undefined;
-      outputDir?: string | undefined;
-      limit?: string | undefined;
-      sinceMessageId?: string | undefined;
-    }) => {
-      await maybeRequireAuth();
-      if (options.format && options.format !== 'linear') {
-        console.error('❌ Unsupported format. Only --format=linear is supported.');
-        process.exit(1);
-      }
-      let parsedLimit: number | undefined;
-      if (options.limit) {
-        parsedLimit = parseInt(options.limit, 10);
-        if (isNaN(parsedLimit) || parsedLimit < 1) {
-          console.error('❌ --limit must be a positive integer (1-5000)');
-          process.exit(1);
-        }
-      }
-      const { downloadMessages } = await import('./commands/messages/download.js');
-      await downloadMessages(options.chatroomId, {
-        role: options.role,
-        format: 'linear',
-        outputDir: options.outputDir,
-        limit: parsedLimit,
-        sinceMessageId: options.sinceMessageId,
-      });
     }
   );
 
@@ -1471,7 +1402,7 @@ harnessCommand
 
 // Centralized lifecycle heartbeat — fires before every chatroom-aware command.
 // This replaces the per-handler sendLifecycleHeartbeat calls and also covers
-// commands like `messages list` and `backlog` that previously had no coverage.
+// commands like `messages pages`, `messages download` and `backlog` that previously had no coverage.
 program.hook('preAction', async (_thisCommand, actionCommand) => {
   const opts = actionCommand.opts();
   const chatroomId = opts['chatroomId'] as string | undefined;

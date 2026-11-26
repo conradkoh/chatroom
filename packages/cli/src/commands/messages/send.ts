@@ -55,5 +55,7 @@ export async function sendUserMessage(
   });
   console.log(`✅ Message sent to ${targetRole}`);
   console.log(`  Message ID: ${messageId}`);
-  console.log('  Check task status with: chatroom messages list');
+  console.log(
+    `  Check task status with: chatroom messages pages --chatroom-id=${chatroomId} --role=${targetRole}`
+  );
 }
