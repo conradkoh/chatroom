@@ -47,7 +47,11 @@ export interface DownloadMessagesOptions {
   before?: string | undefined;
   /** Raw commander value. */
   after?: string | undefined;
-  /** Raw commander value; validated in index.ts and clamped here. */
+  /**
+   * Raw commander value. `packages/cli/src/index.ts` rejects non-positive-integer
+   * input first (exit 1); `clampMaxMessages` keeps the same rule for programmatic
+   * callers.
+   */
   maxMessages?: string | undefined;
   outputDir?: string | undefined;
 }
@@ -63,6 +67,11 @@ export function resolveDownloadOutputDir(cwd: string = process.cwd()): string {
   return nodePath.resolve(cwd, '.chatroom', 'downloads', 'messages', downloadId);
 }
 
+/**
+ * Default and ceiling for `--max-messages`. `packages/cli/src/index.ts` rejects
+ * non-positive-integer input first (exit 1, "must be a positive integer"); this
+ * keeps the same rule for programmatic callers so an invalid value never disables the cap.
+ */
 function clampMaxMessages(raw: string | undefined): number {
   if (raw === undefined) return DEFAULT_MAX_MESSAGES;
   const parsed = Number(raw);
