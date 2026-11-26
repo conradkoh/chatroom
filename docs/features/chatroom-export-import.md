@@ -7,7 +7,8 @@
 
 ## What it does
 
-`chatroom export` writes one chatroom (its content and configuration) to a single JSON file.
+`chatroom export` writes one chatroom (its content and configuration) to a single JSON file, or one
+file per chatroom you own on this machine with `--all`.
 `chatroom import` reads that file and creates a **new** chatroom owned by the importing user.
 
 An export is a portable copy, not a backup: it carries conversation content and configuration,
@@ -22,16 +23,19 @@ Both commands live in `packages/cli/src/commands/chatroom-transfer/register.ts`.
 ```
 Usage: chatroom export [options]
 
-Export one chatroom (content and configuration) to a JSON file. The file is
-plaintext and contains conversation content; keep it private.
+Export one chatroom (--chatroom-id) or every chatroom you own on this machine
+(--all) to JSON files. The files are plaintext and contain conversation content;
+keep them private.
 
 Options:
-  --chatroom-id <id>  Chatroom identifier
+  --chatroom-id <id>  Chatroom identifier (exclusive with --all)
+  --all               Export every chatroom you own that has an active workspace
+                      on this machine
   --path <dir>        Directory to write to (default: .chatroom/exports/)
   -h, --help          display help for command
 ```
 
-- `--chatroom-id` is required.
+- Exactly one of `--chatroom-id <id>` or `--all` is required.
 - `--path` is a directory. It defaults to `.chatroom/exports/` under the current working
   directory. The default directory receives a `.gitignore` containing `*` when it has none, so
   exports stay out of version control; an existing `.gitignore` is never replaced. `--path` writes
@@ -41,7 +45,34 @@ Options:
   name clash fails with `EXPORT_FILE_EXISTS`.
 - A filesystem without hard links cannot publish an export without overwriting it. The export then
   fails with `EXPORT_PUBLISH_UNSUPPORTED` and leaves no temp or final file.
+- `--all` exports every chatroom the caller owns that has an active workspace on the current
+  machine. Ownership is the filter, so another user's chatroom on the same machine is never
+  exported, even though its workspace row is visible to the machine.
+- `--all` covers the current machine only. It reads the machine's identity, so a machine without
+  one fails with `EXPORT_NO_MACHINE_IDENTITY`.
+- `--all` writes one file per chatroom into one directory, using the same file name and the same
+  never-overwrite publish as a single export. `--path` applies to every file in the run, and a
+  custom `--path` writes no ignore file.
+- `--all` exports strictly one chatroom after another, never concurrently. The chatrooms are
+  exported in the machine list's order (most recent activity first).
+- A chatroom that fails does not stop the run: the failure is printed as
+  `❌ [CODE] <chatroomId>: message`, the chatroom is counted as failed, and the next chatroom is
+  exported.
+- The run ends with `Exported N of M chatrooms from machine <id>`, then `Failed: K` when any
+  chatroom failed. Any failure makes the command exit `1` with `EXPORT_ALL_INCOMPLETE`.
+- An empty list writes nothing and exits `0` with
+  `No chatrooms found for machine <id> that you own.`
 - `export` takes no `--role` and no `--machine-id`.
+
+#### Export errors
+
+- `EXPORT_TARGET_REQUIRED` — neither `--chatroom-id` nor `--all` was given.
+- `EXPORT_TARGET_CONFLICT` — both `--chatroom-id` and `--all` were given.
+- `EXPORT_NO_MACHINE_IDENTITY` — `--all` ran on a machine with no identity.
+- `EXPORT_MACHINE_TOO_LARGE` — the machine has more than 1000 active workspace rows, counting
+  other users' chatrooms. The list is refused rather than truncated; export individual chatrooms
+  with `--chatroom-id`.
+- `EXPORT_ALL_INCOMPLETE` — at least one chatroom failed during `--all`.
 
 ### `chatroom import`
 
@@ -123,9 +154,10 @@ and shared by the CLI and the backend.
   from the transfer registry; see the next section.
 
 **The file is plaintext and contains conversation content.** Write it to a private directory, keep
-it out of version control, and delete it when it is no longer needed. Every successful export ends
-with the warning line `warning: this file is plaintext and contains conversation content. Keep it
-private.`
+it out of version control, and delete it when it is no longer needed. Every run that writes at
+least one file prints the warning line `warning: this file is plaintext and contains conversation
+content. Keep it private.` In single-chatroom mode it follows the report; in `--all` mode it is
+printed once, as the last line of the run.
 
 ## What is exported and what is not
 

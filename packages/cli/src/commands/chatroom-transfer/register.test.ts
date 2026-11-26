@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ExportCategory } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
+import type { ExportableChatroom } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-list';
 import type {
   ExportRawRow,
   ExportStamp,
@@ -29,7 +30,7 @@ import type { BackendOps, SessionOps } from '../../infrastructure/deps/index.js'
 const NOW = '2026-11-25T13:04:05Z';
 const NAME = 'chatroom-abc-20261125T130405Z.json';
 const DESCRIPTION =
-  'Export one chatroom (content and configuration) to a JSON file. The file is plaintext and contains conversation content; keep it private.';
+  'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. The files are plaintext and contain conversation content; keep them private.';
 const IMPORT_DESCRIPTION =
   'Import an export file as a NEW chatroom owned by you. Never merges; importing twice creates two chatrooms. Starts no agents.';
 
@@ -59,14 +60,29 @@ function room(): ExportRawRow {
   };
 }
 
-/** Transport fake: the stamp and an empty page for every category but room. `anyApi` proxies are not identity comparable, so the argument shape selects the query. */
-function fakeBackend(): BackendOps {
+/** The one room the default fake answers, so `export --all` has something to do. */
+const DEFAULT_ROOMS: ExportableChatroom[] = [
+  {
+    chatroomId: 'room1' as ExportableChatroom['chatroomId'],
+    name: 'Test chatroom',
+    status: 'active',
+  },
+];
+
+/** Transport fake: the machine list, the stamp and an empty page for every category but room. `anyApi` proxies are not identity comparable, so the argument shape selects the query. */
+function fakeBackend(
+  options: { rooms?: ExportableChatroom[] | undefined; queries?: unknown[] | undefined } = {}
+): BackendOps {
+  const rooms = options.rooms ?? DEFAULT_ROOMS;
+  const queries = options.queries ?? [];
   return {
     mutation: async () => {
       throw new Error('chatroom export must not call a mutation');
     },
     query: async (_endpoint: unknown, args: unknown) => {
-      const read = args as { category?: ExportCategory };
+      queries.push(args);
+      const read = args as { category?: ExportCategory; machineId?: string };
+      if (read.machineId !== undefined && read.category === undefined) return rooms;
       if (read.category !== undefined) {
         return read.category === 'room'
           ? { rows: [room()], continueCursor: null, isDone: true }
@@ -82,31 +98,39 @@ interface DepsHarness {
   out: string[];
   err: string[];
   exits: number[];
+  queries: unknown[];
 }
 
-function createDeps(options: { fs?: ChatroomTransferFs } = {}): DepsHarness {
+function createDeps(
+  options: {
+    fs?: ChatroomTransferFs;
+    rooms?: ExportableChatroom[];
+    cwd?: string;
+  } = {}
+): DepsHarness {
   const out: string[] = [];
   const err: string[] = [];
   const exits: number[] = [];
+  const queries: unknown[] = [];
   const session: SessionOps = {
     getSessionId: async () => 'session-abc' as SessionId,
     getConvexUrl: () => 'https://example.test',
     getOtherSessionUrls: async () => [],
   };
   const deps: ChatroomTransferDeps = {
-    backend: fakeBackend(),
+    backend: fakeBackend({ rooms: options.rooms, queries }),
     session,
     machine: { getMachineId: async () => 'machine-1' },
     fs: options.fs ?? createNodeChatroomTransferFs(),
     clock: () => new Date(NOW),
     version: '1.0.0-test',
-    cwd: () => '/work',
+    cwd: () => options.cwd ?? '/work',
     out: (line) => out.push(line),
     err: (line) => err.push(line),
     exit: (code) => exits.push(code),
     signals: { on: () => {}, off: () => {} },
   };
-  return { deps, out, err, exits };
+  return { deps, out, err, exits, queries };
 }
 
 interface ProgramHarness {
@@ -131,15 +155,27 @@ function createProgram(makeDeps: () => Promise<ChatroomTransferDeps>): ProgramHa
 }
 
 describe('chatroom export wiring', () => {
-  it('fails through commander when --chatroom-id is missing', async () => {
-    const { program } = createProgram(async () => createDeps().deps);
+  it('export with neither flag reaches the wrapper as EXPORT_TARGET_REQUIRED', async () => {
+    const { deps, err, exits, queries } = createDeps();
+    const { program } = createProgram(async () => deps);
 
-    const error: unknown = await program
-      .parseAsync(['node', 'chatroom', 'export'])
-      .catch((caught: unknown) => caught);
+    await program.parseAsync(['node', 'chatroom', 'export']);
 
-    expect(error).toBeInstanceOf(CommanderError);
-    expect(error).toMatchObject({ exitCode: 1, code: 'commander.missingMandatoryOptionValue' });
+    expect(err).toContain('❌ [EXPORT_TARGET_REQUIRED] pass --chatroom-id <id> or --all');
+    expect(exits).toEqual([1]);
+    expect(queries).toEqual([]);
+  });
+
+  it('--all with --chatroom-id reaches the wrapper as EXPORT_TARGET_CONFLICT', async () => {
+    const { deps, err, exits } = createDeps();
+    const { program } = createProgram(async () => deps);
+
+    await program.parseAsync(['node', 'chatroom', 'export', '--all', '--chatroom-id', 'c']);
+
+    expect(err).toContain(
+      '❌ [EXPORT_TARGET_CONFLICT] --all and --chatroom-id cannot be used together'
+    );
+    expect(exits).toEqual([1]);
   });
 
   it('rejects --machine-id as an unknown option', async () => {
@@ -158,7 +194,7 @@ describe('chatroom export wiring', () => {
     ).rejects.toMatchObject({ code: 'commander.unknownOption' });
   });
 
-  it('--help shows the description and both options, and no role or machine identity', async () => {
+  it('--help shows --all and --chatroom-id <id>, and no role or machine identity', async () => {
     let depsBuilt = 0;
     const { program, output } = createProgram(async () => {
       depsBuilt += 1;
@@ -171,6 +207,7 @@ describe('chatroom export wiring', () => {
 
     const help = output();
     expect(help).toContain(DESCRIPTION);
+    expect(help).toContain('--all');
     expect(help).toContain('--chatroom-id <id>');
     expect(help).toContain('--path <dir>');
     expect(help).not.toContain('--role');
@@ -200,6 +237,35 @@ describe('chatroom export wiring', () => {
     expect(out).toContain('Exported chatroom abc');
     expect(err).toEqual([]);
     expect(exits).not.toContain(1);
+  });
+
+  it('export --all publishes real files through the node filesystem adapter', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'chatroom-export-all-e2e-'));
+    tempDirs.push(tmpDir);
+    const { deps, out, err, exits } = createDeps({
+      fs: createNodeChatroomTransferFs(),
+      cwd: tmpDir,
+      rooms: [
+        { chatroomId: 'room1' as ExportableChatroom['chatroomId'], name: 'One', status: 'active' },
+        { chatroomId: 'room2' as ExportableChatroom['chatroomId'], name: 'Two', status: 'active' },
+      ],
+    });
+    const { program } = createProgram(async () => deps);
+
+    await program.parseAsync(['node', 'chatroom', 'export', '--all']);
+
+    const exportsDir = join(tmpDir, '.chatroom', 'exports');
+    const files = (await readdir(exportsDir)).filter((name) => name.endsWith('.json')).sort();
+    expect(files).toEqual([
+      `chatroom-room1-20261125T130405Z.json`,
+      `chatroom-room2-20261125T130405Z.json`,
+    ]);
+    for (const file of files) {
+      expect((await stat(join(exportsDir, file))).mode & 0o777).toBe(0o600);
+    }
+    expect(out).toContain('Exported 2 of 2 chatrooms from machine machine-1');
+    expect(err).toEqual([]);
+    expect(exits).toEqual([]);
   });
 });
 
