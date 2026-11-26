@@ -941,9 +941,56 @@ async function seedPlannerWork(
   });
 }
 
+/** Latest user page start in the chatroom (the anchor for page wire reads). */
+async function latestUserPageId(
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<Id<'chatroom_messages'>> {
+  return await t.run(async (ctx) => {
+    const rows = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+    const page = rows.filter((row) => row.senderRole === 'user' && row.type === 'message').at(-1);
+    if (!page) throw new Error('missing user page start');
+    return page._id;
+  });
+}
+
+/** Reads one message through the real page wire path and returns its enriched shape. */
+async function readPageMessage(
+  user: TestUser,
+  pageId: Id<'chatroom_messages'>,
+  messageId: Id<'chatroom_messages'>
+) {
+  const pageNav = await t.query(api.conversation.listPages, {
+    sessionId: user.sessionId,
+    chatroomId: user.chatroomId,
+    pageId,
+  });
+  const result = await t.query(api.conversation.listPageMessages, {
+    sessionId: user.sessionId,
+    chatroomId: user.chatroomId,
+    pageId,
+    paginationOpts: { numItems: 50, cursor: null },
+    endExclusive: pageNav.pages[0]!.endExclusive,
+  });
+  const row = result.page.find((message) => message._id === messageId);
+  if (!row) throw new Error(`message ${messageId} not found in page ${pageId}`);
+  return row;
+}
+
 describe('handoff binding to user', () => {
   test('binds two uploaded files in the requested order and exposes attachedFiles', async () => {
     const user = await setupUser('handoff-bind');
+    // Page anchor: the handoff belongs to the page the user request starts.
+    const pageId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_messages', {
+        chatroomId: user.chatroomId,
+        senderRole: 'user',
+        content: 'Please send the files.',
+        type: 'message',
+      })
+    );
     const first = await uploadFile(user, { filename: 'notes.txt' });
     const second = await uploadFile(user, { filename: 'report.pdf' });
     const usageBefore = await getUsage(user.userId, undefined);
@@ -988,13 +1035,8 @@ describe('handoff binding to user', () => {
       })
     );
 
-    const feed = await t.query(api.messageList.getLatestMessages, {
-      sessionId: user.sessionId,
-      chatroomId: user.chatroomId,
-      limit: 20,
-    });
-    const enriched = feed.messages.find((entry) => entry._id === result.messageId);
-    expect(enriched?.attachedFiles).toEqual([
+    const enriched = await readPageMessage(user, pageId, result.messageId!);
+    expect(enriched.attachedFiles).toEqual([
       {
         _id: second,
         status: 'available',
@@ -1010,17 +1052,16 @@ describe('handoff binding to user', () => {
         sizeBytes: 5,
       },
     ]);
-    expect(Object.keys(enriched!.attachedFiles![0]!).sort()).toEqual([
+    expect(Object.keys(enriched.attachedFiles![0]!).sort()).toEqual([
       '_id',
       'filename',
       'mimeType',
       'sizeBytes',
       'status',
     ]);
-    expect(enriched!.attachedFiles![0]).not.toHaveProperty('url');
+    expect(enriched.attachedFiles![0]).not.toHaveProperty('url');
 
-    const plain = feed.messages.find((entry) => entry._id === plainMessageId);
-    expect(plain).toBeDefined();
+    const plain = await readPageMessage(user, plainMessageId, plainMessageId);
     expect(plain).not.toHaveProperty('attachedFiles');
 
     await assertUsageInvariant(user.userId);
@@ -1560,13 +1601,9 @@ describe('deleteFile (scenario 9)', () => {
     expect(await countStorage()).toBe(storageBefore - 1);
     expect((await getUsage(user.userId, user.chatroomId))?.bytes).toBe(0);
 
-    const feed = await t.query(api.messageList.getLatestMessages, {
-      sessionId: user.sessionId,
-      chatroomId: user.chatroomId,
-      limit: 20,
-    });
-    const enriched = feed.messages.find((message) => message._id === messageId);
-    expect(enriched?.attachedFiles).toEqual([{ _id: attachmentId, status: 'removed' }]);
+    const pageId = await latestUserPageId(user.chatroomId);
+    const enriched = await readPageMessage(user, pageId, messageId);
+    expect(enriched.attachedFiles).toEqual([{ _id: attachmentId, status: 'removed' }]);
 
     await assertUsageInvariant(user.userId);
   });

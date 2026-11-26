@@ -28,6 +28,8 @@ describe('sendUserMessage', () => {
       })
     );
     expect(log.mock.calls.join('\n')).toContain('message_1');
+    expect(log.mock.calls.join('\n')).toContain('--role=<your-role>');
+    expect(log.mock.calls.join('\n')).not.toContain('--role=planner');
     log.mockRestore();
   });
 

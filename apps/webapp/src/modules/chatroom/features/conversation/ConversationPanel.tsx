@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo } from 'react';
 
-import { ConversationAnchorNavigator } from './ConversationAnchorNavigator';
 import { ConversationMessageList } from './ConversationMessageList';
 import { useConversation } from './hooks/useConversation';
+import { PageNavigator } from './PageNavigator';
 import { QueuedMessagesIndicator } from '../../components/QueuedMessagesIndicator';
 import { ComposerPreflightBar } from '../../components/timeline/ComposerPreflightBar';
 import { useChatroomListing } from '../../context/ChatroomListingContext';
@@ -13,7 +13,7 @@ import { useHandoffNotification } from '../../hooks/useHandoffNotification';
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 export type ConversationNavigationActions = {
-  goToLatestAnchor: () => void;
+  goToLatestPage: () => void;
 };
 
 export function ConversationPanel({
@@ -32,18 +32,18 @@ export function ConversationPanel({
     isLoadingMore,
     canLoadMore,
     loadMore,
-    hasPrev,
-    hasNext,
-    goToPrev,
-    goToNext,
-    anchorId,
-    goToLatestAnchor,
-    isOnLatestAnchor,
+    hasPrevPage,
+    hasNextPage,
+    goToPrevPage,
+    goToNextPage,
+    pageId,
+    goToLatestPage,
+    isOnLatestPage,
   } = useConversation(chatroomId);
 
   useEffect(() => {
-    onRegisterConversationNavigation?.({ goToLatestAnchor });
-  }, [onRegisterConversationNavigation, goToLatestAnchor]);
+    onRegisterConversationNavigation?.({ goToLatestPage });
+  }, [onRegisterConversationNavigation, goToLatestPage]);
 
   const { chatrooms } = useChatroomListing();
   const notifyChatroom = useMemo(
@@ -55,14 +55,14 @@ export function ConversationPanel({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
-      <ConversationAnchorNavigator
-        hasPrev={hasPrev}
-        hasNext={hasNext}
-        isOnLatestAnchor={isOnLatestAnchor}
+      <PageNavigator
+        hasPrevPage={hasPrevPage}
+        hasNextPage={hasNextPage}
+        isOnLatestPage={isOnLatestPage}
         isLoading={isLoading}
-        onPrev={goToPrev}
-        onNext={goToNext}
-        onJumpToLatest={goToLatestAnchor}
+        onPrev={goToPrevPage}
+        onNext={goToNextPage}
+        onJumpToLatest={goToLatestPage}
       />
 
       {isLoading ? (
@@ -72,7 +72,7 @@ export function ConversationPanel({
       ) : (
         <ConversationMessageList
           events={events}
-          anchorId={anchorId}
+          pageId={pageId}
           canLoadMore={canLoadMore}
           isLoadingMore={isLoadingMore}
           onLoadMore={loadMore}

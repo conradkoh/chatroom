@@ -613,4 +613,79 @@ describe('useCommandPaletteCommands', () => {
       expect(clearUsage).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('GitHub pull request view commands', () => {
+    it('adds both PR view commands with labels and invokes their callbacks once', () => {
+      const onViewAllGitHubPullRequests = vi.fn();
+      const onViewReviewRequestedGitHubPullRequests = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onViewAllGitHubPullRequests,
+          onViewReviewRequestedGitHubPullRequests,
+        })
+      );
+
+      const allPrs = result.current.find((c) => c.id === 'action-view-all-github-prs');
+      expect(allPrs?.label).toBe('Github: View All Pull Requests');
+      expect(allPrs?.blacklistKey).toBeUndefined();
+
+      const reviewRequested = result.current.find(
+        (c) => c.id === 'action-view-review-requested-github-prs'
+      );
+      expect(reviewRequested?.label).toBe('Github: View Pull Requests Pending My Review');
+      expect(reviewRequested?.blacklistKey).toBeUndefined();
+
+      allPrs?.action();
+      expect(onViewAllGitHubPullRequests).toHaveBeenCalledTimes(1);
+
+      reviewRequested?.action();
+      expect(onViewReviewRequestedGitHubPullRequests).toHaveBeenCalledTimes(1);
+    });
+
+    it('omits both PR view commands when callbacks are null', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onViewAllGitHubPullRequests: null,
+          onViewReviewRequestedGitHubPullRequests: null,
+        })
+      );
+
+      const ids = result.current.map((c) => c.id);
+      expect(ids).not.toContain('action-view-all-github-prs');
+      expect(ids).not.toContain('action-view-review-requested-github-prs');
+    });
+
+    it.each([
+      { query: 'pr', allPrs: true, reviewRequested: true },
+      { query: 'pull request', allPrs: true, reviewRequested: true },
+      { query: 'all', allPrs: true, reviewRequested: false },
+      { query: 'review', allPrs: false, reviewRequested: true },
+      { query: 'pending', allPrs: false, reviewRequested: true },
+      { query: 'review requested', allPrs: false, reviewRequested: true },
+    ])('routes "$query" to the intended PR command only', ({ query, allPrs, reviewRequested }) => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onViewAllGitHubPullRequests: vi.fn(),
+          onViewReviewRequestedGitHubPullRequests: vi.fn(),
+        })
+      );
+
+      const allItem = result.current.find((c) => c.id === 'action-view-all-github-prs');
+      const reviewItem = result.current.find(
+        (c) => c.id === 'action-view-review-requested-github-prs'
+      );
+      expect(allItem).toBeDefined();
+      expect(reviewItem).toBeDefined();
+
+      const allScore = fuzzyFilter(allItem!.label, query, allItem!.keywords);
+      const reviewScore = fuzzyFilter(reviewItem!.label, query, reviewItem!.keywords);
+
+      expect(allScore > 0).toBe(allPrs);
+      expect(reviewScore > 0).toBe(reviewRequested);
+    });
+  });
 });

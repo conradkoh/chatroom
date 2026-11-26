@@ -141,6 +141,7 @@ export type BackendErrorCode =
   | 'INVALID_ITEM'
   | 'INVALID_ITEM_STATUS'
   | 'INVALID_MESSAGE'
+  | 'INVALID_PAGE'
   | 'MESSAGE_NOT_FOUND'
 
   // ── Git clone & workspace ─────────────────────────────────────────
@@ -171,11 +172,13 @@ export type BackendErrorCode =
   | 'CHATROOM_NOT_ACTIVE'
   | 'DUPLICATE_SNIPPET_REFERENCE'
   | 'EMPTY_CONTENT'
+  | 'INVALID_REORDER_TARGET'
   | 'INVALID_SNIPPET_REFERENCE'
   | 'INVALID_TARGET_ROLE'
   | 'INVALID_TASK_ENVELOPE'
+  | 'QUEUE_ITEM_NOT_IN_CHATROOM'
+  | 'QUEUE_TOO_LARGE_TO_REORDER'
   | 'TOO_MANY_ATTACHMENTS'
-  | 'INVALID_ANCHOR'
   | 'NO_ACTIVE_TASK'
   | 'INVALID_PLAN'
   | 'INVALID_SUPERSEDES'
@@ -244,6 +247,7 @@ export type BackendErrorCode =
 
   // ── Chatroom transfer (export / import) ───────────────────────────────
   | 'EXPORT_PAGE_STALLED'
+  | 'EXPORT_MACHINE_TOO_LARGE'
   | 'IMPORT_UNKNOWN_TEAM_STRUCTURE'
   | 'IMPORT_INVALID_WORKING_DIR'
   | 'IMPORT_MACHINE_NOT_FOUND'
@@ -449,6 +453,8 @@ export const BACKEND_ERROR_CODES = {
   INVALID_ITEM_STATUS: 'INVALID_ITEM_STATUS',
   /** Invalid message reference */
   INVALID_MESSAGE: 'INVALID_MESSAGE',
+  /** The page id is not a user message */
+  INVALID_PAGE: 'INVALID_PAGE',
   /** Message not found */
   MESSAGE_NOT_FOUND: 'MESSAGE_NOT_FOUND',
 
@@ -499,16 +505,20 @@ export const BACKEND_ERROR_CODES = {
   DUPLICATE_SNIPPET_REFERENCE: 'DUPLICATE_SNIPPET_REFERENCE',
   /** Message content is empty */
   EMPTY_CONTENT: 'EMPTY_CONTENT',
+  /** A queued message was asked to move after itself */
+  INVALID_REORDER_TARGET: 'INVALID_REORDER_TARGET',
   /** A snippet reference does not resolve to a valid snippet */
   INVALID_SNIPPET_REFERENCE: 'INVALID_SNIPPET_REFERENCE',
   /** The target role is not a valid role for this message */
   INVALID_TARGET_ROLE: 'INVALID_TARGET_ROLE',
   /** The task envelope is malformed */
   INVALID_TASK_ENVELOPE: 'INVALID_TASK_ENVELOPE',
+  /** The queued message belongs to another chatroom */
+  QUEUE_ITEM_NOT_IN_CHATROOM: 'QUEUE_ITEM_NOT_IN_CHATROOM',
+  /** The queue has more than 1000 messages and cannot be reordered */
+  QUEUE_TOO_LARGE_TO_REORDER: 'QUEUE_TOO_LARGE_TO_REORDER',
   /** The message has more attachments than allowed */
   TOO_MANY_ATTACHMENTS: 'TOO_MANY_ATTACHMENTS',
-  /** The anchor message is not a user message */
-  INVALID_ANCHOR: 'INVALID_ANCHOR',
   /** The sender role has no active task, so it cannot post an interim notice */
   NO_ACTIVE_TASK: 'NO_ACTIVE_TASK',
   /** The plan markdown does not match the plan template */
@@ -629,6 +639,8 @@ export const BACKEND_ERROR_CODES = {
   // ── Chatroom transfer (export / import) ─────────────────────────────
   /** An export page returned no rows but reported more work */
   EXPORT_PAGE_STALLED: 'EXPORT_PAGE_STALLED',
+  /** `chatroom export --all`: the machine has more active workspaces than the scan cap */
+  EXPORT_MACHINE_TOO_LARGE: 'EXPORT_MACHINE_TOO_LARGE',
   /** The export names a team structure this deployment does not know */
   IMPORT_UNKNOWN_TEAM_STRUCTURE: 'IMPORT_UNKNOWN_TEAM_STRUCTURE',
   /** A workspace working directory cannot be resolved on the target machine */
@@ -729,6 +741,7 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.INVALID_ITEM,
   BACKEND_ERROR_CODES.INVALID_ITEM_STATUS,
   BACKEND_ERROR_CODES.INVALID_MESSAGE,
+  BACKEND_ERROR_CODES.INVALID_PAGE,
   BACKEND_ERROR_CODES.INVALID_STATE,
   BACKEND_ERROR_CODES.INVALID_CONVERSION,
   BACKEND_ERROR_CODES.INVALID_STDIN_FORMAT,
@@ -784,11 +797,13 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.CHATROOM_NOT_ACTIVE,
   BACKEND_ERROR_CODES.DUPLICATE_SNIPPET_REFERENCE,
   BACKEND_ERROR_CODES.EMPTY_CONTENT,
+  BACKEND_ERROR_CODES.INVALID_REORDER_TARGET,
   BACKEND_ERROR_CODES.INVALID_SNIPPET_REFERENCE,
   BACKEND_ERROR_CODES.INVALID_TARGET_ROLE,
   BACKEND_ERROR_CODES.INVALID_TASK_ENVELOPE,
+  BACKEND_ERROR_CODES.QUEUE_ITEM_NOT_IN_CHATROOM,
+  BACKEND_ERROR_CODES.QUEUE_TOO_LARGE_TO_REORDER,
   BACKEND_ERROR_CODES.TOO_MANY_ATTACHMENTS,
-  BACKEND_ERROR_CODES.INVALID_ANCHOR,
   BACKEND_ERROR_CODES.NO_ACTIVE_TASK,
 
   BACKEND_ERROR_CODES.INVALID_PLAN,
@@ -878,6 +893,7 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
 
   // Chatroom transfer
   BACKEND_ERROR_CODES.EXPORT_PAGE_STALLED,
+  BACKEND_ERROR_CODES.EXPORT_MACHINE_TOO_LARGE,
   BACKEND_ERROR_CODES.IMPORT_UNKNOWN_TEAM_STRUCTURE,
   BACKEND_ERROR_CODES.IMPORT_INVALID_WORKING_DIR,
   BACKEND_ERROR_CODES.IMPORT_MACHINE_NOT_FOUND,

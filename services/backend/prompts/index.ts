@@ -11,7 +11,6 @@ export { composeRoleGuidance } from './role-guidance';
 export {
   // Low-level generators
   generateGeneralInstructions,
-  generateRolePrompt,
   // Final output composers
   composeSystemPrompt,
   composeInitMessage,

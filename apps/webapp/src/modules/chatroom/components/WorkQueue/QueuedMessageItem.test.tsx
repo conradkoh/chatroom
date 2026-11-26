@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 import { QueuedMessageItem } from './QueuedMessageItem';
+import type { QueuedItemReorderProps } from '../../hooks/useQueuedMessageReorder';
 import type { Message } from '../../types/message';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
@@ -99,6 +100,42 @@ function renderItem(message: Message) {
       chatroomId={'test-room' as Id<'chatroom_rooms'>}
       message={message}
       onDelete={noop}
+    />
+  );
+}
+
+function makeReorder(overrides: Partial<QueuedItemReorderProps> = {}): QueuedItemReorderProps {
+  return {
+    index: 0,
+    total: 2,
+    isNext: true,
+    state: 'idle',
+    dropEdge: null,
+    canMoveUp: false,
+    canMoveDown: true,
+    registerHandle: vi.fn(),
+    onHandleDragStart: vi.fn(),
+    onHandleDragEnd: vi.fn(),
+    onHandleActivate: vi.fn(),
+    onHandleKeyDown: vi.fn(),
+    onRowDragOver: vi.fn(),
+    onRowDragLeave: vi.fn(),
+    onRowDrop: vi.fn(),
+    onMoveUp: vi.fn(),
+    onMoveDown: vi.fn(),
+    onDone: vi.fn(),
+    onCancel: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderItemWithReorder(message: Message, reorder: QueuedItemReorderProps) {
+  return render(
+    <QueuedMessageItem
+      chatroomId={'test-room' as Id<'chatroom_rooms'>}
+      message={message}
+      onDelete={noop}
+      reorder={reorder}
     />
   );
 }
@@ -231,5 +268,150 @@ describe('QueuedMessageItem', () => {
     });
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  // ── Reorder prop ──────────────────────────────────────────────────────────
+
+  it('renders no handle or NEXT badge without the reorder prop', () => {
+    renderItem(makeMessage({ content: 'plain row' }));
+
+    expect(screen.queryByTestId('queued-reorder-handle-msg-1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+  });
+
+  it('renders the handle and the NEXT badge for the first row when reorder is present', () => {
+    const reorder = makeReorder();
+    renderItemWithReorder(makeMessage({ content: 'first row' }), reorder);
+
+    const handle = screen.getByTestId('queued-reorder-handle-msg-1');
+    expect(handle).toHaveAttribute('aria-label', 'Reorder: position 1 of 2');
+    expect(handle).toHaveAttribute('title', 'Drag to reorder, or press Space to pick up');
+    expect(handle).toHaveAttribute('draggable', 'true');
+    expect(screen.getByText('Next')).toBeInTheDocument();
+  });
+
+  it('clicking the handle never opens the detail modal', () => {
+    const reorder = makeReorder();
+    renderItemWithReorder(makeMessage({ content: 'handle click test' }), reorder);
+
+    act(() => {
+      fireEvent.click(screen.getByTestId('queued-reorder-handle-msg-1'));
+    });
+
+    expect(reorder.onHandleActivate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(capturedIsOpen).toBe(false);
+  });
+
+  it('swaps the actions for move controls while lifted', () => {
+    const reorder = makeReorder({ state: 'lifted', isNext: false });
+    renderItemWithReorder(makeMessage({ content: 'lifted row' }), reorder);
+
+    expect(screen.getByTestId('queued-move-up')).toBeInTheDocument();
+    expect(screen.getByTestId('queued-move-down')).toBeInTheDocument();
+    expect(screen.getByTestId('queued-move-done')).toBeInTheDocument();
+    expect(screen.getByTestId('queued-move-cancel')).toBeInTheDocument();
+
+    expect(screen.queryByTestId('queued-message-mode-toggle')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('queued-message-session-toggle')).not.toBeInTheDocument();
+
+    const handle = screen.getByTestId('queued-reorder-handle-msg-1');
+    expect(handle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('Next')).not.toBeInTheDocument();
+  });
+
+  it('move and done controls never open the detail modal', () => {
+    const reorder = makeReorder({ state: 'lifted', canMoveUp: true, canMoveDown: true });
+    renderItemWithReorder(makeMessage({ content: 'controls test' }), reorder);
+
+    act(() => {
+      fireEvent.click(screen.getByTestId('queued-move-up'));
+      fireEvent.click(screen.getByTestId('queued-move-down'));
+      fireEvent.click(screen.getByTestId('queued-move-done'));
+      fireEvent.click(screen.getByTestId('queued-move-cancel'));
+    });
+
+    expect(reorder.onMoveUp).toHaveBeenCalledTimes(1);
+    expect(reorder.onMoveDown).toHaveBeenCalledTimes(1);
+    expect(reorder.onDone).toHaveBeenCalledTimes(1);
+    expect(reorder.onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(capturedIsOpen).toBe(false);
+  });
+
+  it('disables move controls at the ends', () => {
+    const reorder = makeReorder({
+      state: 'lifted',
+      canMoveUp: false,
+      canMoveDown: false,
+    });
+    renderItemWithReorder(makeMessage({ content: 'end row' }), reorder);
+
+    expect(screen.getByTestId('queued-move-up')).toBeDisabled();
+    expect(screen.getByTestId('queued-move-down')).toBeDisabled();
+    expect(screen.getByTestId('queued-move-down')).toHaveAttribute('title', 'Already last');
+  });
+
+  it('shows a spinner instead of the handle while saving and locks other rows', () => {
+    const { rerender } = renderItemWithReorder(
+      makeMessage({ content: 'saving row' }),
+      makeReorder({ state: 'saving', isNext: false })
+    );
+
+    expect(screen.getByTestId('queued-reorder-saving')).toBeInTheDocument();
+    expect(screen.queryByTestId('queued-reorder-handle-msg-1')).not.toBeInTheDocument();
+    // The other row's actions stay available; only handles are locked.
+    expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
+
+    rerender(
+      <QueuedMessageItem
+        chatroomId={'test-room' as Id<'chatroom_rooms'>}
+        message={makeMessage({ content: 'saving row' })}
+        onDelete={noop}
+        reorder={makeReorder({ state: 'locked', isNext: false })}
+      />
+    );
+
+    const lockedHandle = screen.getByTestId('queued-reorder-handle-msg-1');
+    expect(lockedHandle).toHaveAttribute('tabindex', '-1');
+    expect(lockedHandle).toHaveAttribute('aria-disabled', 'true');
+    expect(lockedHandle).toHaveAttribute('draggable', 'false');
+  });
+
+  it('marks the dragged and highlighted states on the row', () => {
+    const { rerender } = renderItemWithReorder(
+      makeMessage({ content: 'dragged row' }),
+      makeReorder({ state: 'dragging', isNext: false })
+    );
+    expect(screen.getByTestId('queued-row-msg-1').className).toContain('opacity-50');
+
+    rerender(
+      <QueuedMessageItem
+        chatroomId={'test-room' as Id<'chatroom_rooms'>}
+        message={makeMessage({ content: 'dragged row' })}
+        onDelete={noop}
+        reorder={makeReorder({ dropEdge: 'before', isNext: false, index: 1 })}
+      />
+    );
+    expect(screen.getByTestId('queued-row-msg-1').className).toContain('before:top-0');
+
+    rerender(
+      <QueuedMessageItem
+        chatroomId={'test-room' as Id<'chatroom_rooms'>}
+        message={makeMessage({ content: 'dragged row' })}
+        onDelete={noop}
+        reorder={makeReorder({ dropEdge: 'after', isNext: false })}
+      />
+    );
+    expect(screen.getByTestId('queued-row-msg-1').className).toContain('before:bottom-0');
+  });
+
+  it('keeps the envelope and delete controls active with reorder present', () => {
+    const reorder = makeReorder();
+    renderItemWithReorder(makeMessage({ content: 'intact row' }), reorder);
+
+    expect(screen.getByTestId('queued-message-mode-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('queued-message-session-toggle')).toBeInTheDocument();
+    expect(screen.getByTitle('Delete')).toBeInTheDocument();
   });
 });

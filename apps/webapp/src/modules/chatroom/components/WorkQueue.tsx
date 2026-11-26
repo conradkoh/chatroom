@@ -33,8 +33,8 @@ import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
 import { ScheduledPromptsSidebarSection } from '../features/scheduled-prompts/components/ScheduledPromptsSidebarSection';
 import type { Message } from '../types/message';
 import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
-import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
 import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
+import { ReorderableQueuedList } from './WorkQueue/ReorderableQueuedList';
 import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
@@ -46,6 +46,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useFeedback } from '@/hooks/useFeedback';
 
 export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
@@ -188,6 +189,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   const queuedMessagesRaw = useSessionQuery(api.messages.listQueued, {
     chatroomId,
   });
+  const isQueuedLoading = queuedMessagesRaw === undefined;
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
   // Categorize tasks by status
@@ -413,9 +415,10 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
         <SidebarSection.Root
           title="Queued"
           count={queuedMessages.length}
+          countLabel={isQueuedLoading ? '…' : undefined}
           icon={Clock}
           iconClassName="text-orange-600 dark:text-orange-400"
-          emptyMessage="No queued messages"
+          emptyMessage={isQueuedLoading ? undefined : 'No queued messages'}
           viewMoreCount={Math.max(0, queuedMessages.length - SIDEBAR_PREVIEW_LIMIT)}
           onViewMore={() => setIsQueuedMessagesModalOpen(true)}
           action={
@@ -431,14 +434,26 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
             </button>
           }
         >
-          {queuedMessages.slice(0, SIDEBAR_PREVIEW_LIMIT).map((message) => (
-            <QueuedMessageItem
-              key={message._id}
+          {isQueuedLoading ? (
+            <SidebarSection.Loading>
+              <div className="flex w-full flex-col gap-2">
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            </SidebarSection.Loading>
+          ) : (
+            <ReorderableQueuedList
               chatroomId={chatroomId}
-              message={message}
+              messages={queuedMessages.slice(0, SIDEBAR_PREVIEW_LIMIT)}
+              enabled
               onDelete={handleQueuedDelete}
+              overflowHint={
+                queuedMessages.length > SIDEBAR_PREVIEW_LIMIT
+                  ? 'Open the full list to move further'
+                  : undefined
+              }
             />
-          ))}
+          )}
         </SidebarSection.Root>
 
         <ScheduledPromptsSidebarSection chatroomId={chatroomId} />
@@ -566,6 +581,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
         <QueuedMessagesModal
           chatroomId={chatroomId}
           messages={queuedMessages}
+          enabled={!isQueuedLoading}
           onClose={() => setIsQueuedMessagesModalOpen(false)}
           onDelete={handleQueuedDelete}
         />

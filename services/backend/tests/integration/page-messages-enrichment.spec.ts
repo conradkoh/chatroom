@@ -4,9 +4,9 @@ import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import { createDuoTeamChatroom, createTestSession, joinParticipant } from '../helpers/integration';
 
-describe('messages.listSinceMessage attachment enrichment', () => {
+describe('conversation.listPageMessages attachment enrichment', () => {
   test('returns snippets and attached messages', async () => {
-    const { sessionId } = await createTestSession('list-since-enrichment');
+    const { sessionId } = await createTestSession('page-messages-enrichment');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     const attachedMessageId = await t.mutation(api.messages.sendMessage, {
@@ -32,13 +32,15 @@ describe('messages.listSinceMessage attachment enrichment', () => {
         ],
       })
     );
-    const result = await t.query(api.messages.listSinceMessage, {
+    const result = await t.query(api.conversation.listPageMessages, {
       sessionId: sessionId as any,
       chatroomId,
-      sinceMessageId: messageId,
-      limit: 10,
+      pageId: messageId,
+      paginationOpts: { numItems: 10, cursor: null },
+      endExclusive: null,
     });
-    expect(result[0]?.attachedSnippets).toHaveLength(1);
-    expect(result[0]?.attachedMessages).toHaveLength(1);
+    const enriched = result.page.find((message) => message._id === messageId);
+    expect(enriched?.attachedSnippets).toHaveLength(1);
+    expect(enriched?.attachedMessages).toHaveLength(1);
   });
 });

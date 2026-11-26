@@ -110,10 +110,12 @@ export interface RolePromptContext {
 
 /**
  * Generate a role-specific prompt for the given context.
- * This is called on every message to provide fresh context.
  *
- * Uses PromptSection[] assembly for traceability and composability.
+ * Kept as the public composer that the role-prompt characterisation snapshots
+ * render. The former per-message role-prompt endpoint was removed, so no
+ * production caller remains.
  */
+// fallow-ignore-next-line unused-export
 export function generateRolePrompt(ctx: RolePromptContext): string {
   // Build SelectorContext for unified dispatching
   const selectorCtx = buildSelectorContext({

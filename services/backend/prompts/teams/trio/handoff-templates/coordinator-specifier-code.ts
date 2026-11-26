@@ -61,6 +61,6 @@ Read the plan when useful: \`${readPlanCommand}\`
 <commit, branch, push, and PR expectations from the user; or \`None stated.\`>
 
 ## History pointers
-<message ids or a \`--since-message-id\` anchor the specifier should download for context, including the prior round report when this package continues a plan; or \`None.\`>
+<message ids or a \`--page-id\` the specifier should download (page ids come from \`chatroom messages pages\`), including the prior round report when this package continues a plan; or \`None.\`>
 \`\`\``;
 }

@@ -277,7 +277,7 @@ describe('AgentPanel', () => {
     );
 
     expect(screen.getByText('Agents (10)')).toBeInTheDocument();
-    // The errored agent renders above the collapsed group.
+    // The errored agent renders below the collapsed group.
     expect(screen.getAllByLabelText(/triage:/i)).toHaveLength(1);
     expect(screen.getByLabelText(/triage:/i)).toHaveTextContent('OFFLINE (ERROR)');
     expect(screen.queryByLabelText(/architect:/i)).toBeNull();
@@ -346,7 +346,7 @@ describe('AgentPanel', () => {
     expect(screen.queryByLabelText(/^product-manager:/i)).toBeNull();
   });
 
-  it('moves working and errored ephemeral agents above the group', () => {
+  it('moves working and errored ephemeral agents below the group', () => {
     render(
       <AgentPanel
         {...panelProps}
@@ -360,10 +360,10 @@ describe('AgentPanel', () => {
     const toggle = ephemeralToggle();
 
     expect(
-      architectRow.compareDocumentPosition(triageRow) & Node.DOCUMENT_POSITION_FOLLOWING
+      toggle.compareDocumentPosition(architectRow) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(
-      triageRow.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING
+      architectRow.compareDocumentPosition(triageRow) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
 
     expect(screen.queryByLabelText(/^product-manager:/i)).toBeNull();
@@ -382,7 +382,7 @@ describe('AgentPanel', () => {
       />
     );
 
-    // Working renders above the group, so the row is visible while collapsed.
+    // Working renders below the group, so the row is visible while collapsed.
     expect(screen.getByLabelText(/^architect:/i)).toBeInTheDocument();
 
     rerender(

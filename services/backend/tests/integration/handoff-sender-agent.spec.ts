@@ -6,7 +6,6 @@
  * it unchanged. Non-handoff rows never carry the field.
  */
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
@@ -17,6 +16,7 @@ import {
   createTestSession,
   joinParticipant,
 } from '../helpers/integration';
+import { readTimelineMessagesForTest } from '../helpers/timeline';
 
 async function createUserOriginPlannerTask(
   chatroomId: Id<'chatroom_rooms'>,
@@ -47,17 +47,12 @@ async function createUserOriginPlannerTask(
 }
 
 async function readMessageRow(
-  sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   messageId: Id<'chatroom_messages'>
 ) {
-  const latest = await t.query(api.messageList.getLatestMessages, {
-    sessionId,
-    chatroomId,
-    limit: 50,
-  });
-  const row = latest.messages.find((message) => message._id === messageId);
-  if (!row) throw new Error(`message ${messageId} not found in getLatestMessages`);
+  const timeline = await readTimelineMessagesForTest(t, chatroomId);
+  const row = timeline.find((message) => message._id === messageId);
+  if (!row) throw new Error(`message ${messageId} not found in the timeline`);
   return row;
 }
 
@@ -87,43 +82,38 @@ describe('handoff sender-agent snapshot', () => {
     expect(result.success).toBe(true);
     expect(result.messageId).toBeTruthy();
 
-    const row = await readMessageRow(sessionId, chatroomId, result.messageId!);
+    const row = await readMessageRow(chatroomId, result.messageId!);
     expect(row.senderAgent).toStrictEqual({
       harness: 'claude-sdk',
       model: 'anthropic/claude-sonnet-4',
     });
 
-    const tail = await t.query(api.messageList.subscribeNewMessages, {
+    const pageNav = await t.query(api.conversation.listPages, {
+      sessionId,
+      chatroomId,
+      pageId: earlierMessageId,
+    });
+    const pageMessages = await t.query(api.conversation.listPageMessages, {
+      sessionId,
+      chatroomId,
+      pageId: earlierMessageId,
+      paginationOpts: { numItems: 50, cursor: null },
+      endExclusive: pageNav.pages[0]!.endExclusive,
+    });
+    const pageRow = pageMessages.page.find((message) => message._id === result.messageId);
+    expect(pageRow?.senderAgent).toStrictEqual({
+      harness: 'claude-sdk',
+      model: 'anthropic/claude-sonnet-4',
+    });
+
+    const tail = await t.query(api.conversation.subscribePageTail, {
       sessionId,
       chatroomId,
       afterCreationTime: 0,
+      endExclusive: pageNav.pages[0]!.endExclusive,
     });
-    const tailRow = tail.find((message) => message._id === result.messageId);
+    const tailRow = tail!.find((message) => message._id === result.messageId);
     expect(tailRow?.senderAgent).toStrictEqual({
-      harness: 'claude-sdk',
-      model: 'anthropic/claude-sonnet-4',
-    });
-
-    const before = await t.query(api.messageList.listMessagesBefore, {
-      sessionId,
-      chatroomId,
-      before: Date.now() + 60_000,
-      limit: 50,
-    });
-    const beforeRow = before.find((message) => message._id === result.messageId);
-    expect(beforeRow?.senderAgent).toStrictEqual({
-      harness: 'claude-sdk',
-      model: 'anthropic/claude-sonnet-4',
-    });
-
-    const since = await t.query(api.messages.listSinceMessage, {
-      sessionId: sessionId as any,
-      chatroomId,
-      sinceMessageId: earlierMessageId,
-      limit: 10,
-    });
-    const sinceRow = since.find((message) => message._id === result.messageId);
-    expect(sinceRow?.senderAgent).toStrictEqual({
       harness: 'claude-sdk',
       model: 'anthropic/claude-sonnet-4',
     });
@@ -145,7 +135,7 @@ describe('handoff sender-agent snapshot', () => {
     });
     expect(result.success).toBe(true);
 
-    const row = await readMessageRow(sessionId, chatroomId, result.messageId!);
+    const row = await readMessageRow(chatroomId, result.messageId!);
     expect(row.senderAgent).toStrictEqual({ harness: 'codex-sdk' });
   });
 
@@ -164,7 +154,7 @@ describe('handoff sender-agent snapshot', () => {
     });
     expect(result.success).toBe(true);
 
-    const row = await readMessageRow(sessionId, chatroomId, result.messageId!);
+    const row = await readMessageRow(chatroomId, result.messageId!);
     expect(row).not.toHaveProperty('senderAgent');
   });
 
@@ -184,7 +174,7 @@ describe('handoff sender-agent snapshot', () => {
     });
     expect(result.success).toBe(true);
 
-    const row = await readMessageRow(sessionId, chatroomId, result.messageId!);
+    const row = await readMessageRow(chatroomId, result.messageId!);
     expect(row).not.toHaveProperty('senderAgent');
   });
 
@@ -203,7 +193,7 @@ describe('handoff sender-agent snapshot', () => {
       senderAgent: { harness: 'claude-sdk', model: '  anthropic/claude-sonnet-4  ' },
     });
     expect(trimmed.success).toBe(true);
-    const trimmedRow = await readMessageRow(sessionId, chatroomId, trimmed.messageId!);
+    const trimmedRow = await readMessageRow(chatroomId, trimmed.messageId!);
     expect(trimmedRow.senderAgent).toStrictEqual({
       harness: 'claude-sdk',
       model: 'anthropic/claude-sonnet-4',
@@ -218,7 +208,7 @@ describe('handoff sender-agent snapshot', () => {
       senderAgent: { harness: 'claude-sdk', model: 'a'.repeat(201) },
     });
     expect(overLong.success).toBe(true);
-    const overLongRow = await readMessageRow(sessionId, chatroomId, overLong.messageId!);
+    const overLongRow = await readMessageRow(chatroomId, overLong.messageId!);
     expect(overLongRow.senderAgent).toStrictEqual({ harness: 'claude-sdk' });
   });
 
@@ -238,7 +228,7 @@ describe('handoff sender-agent snapshot', () => {
     });
     expect(result.success).toBe(true);
 
-    const row = await readMessageRow(sessionId, chatroomId, result.messageId!);
+    const row = await readMessageRow(chatroomId, result.messageId!);
     expect(row.senderAgent).toStrictEqual({ harness: 'codex-sdk', model: 'gpt-5-codex' });
   });
 
@@ -287,10 +277,10 @@ describe('handoff sender-agent snapshot', () => {
       content: 'Interim notice',
     });
 
-    const messageRow = await readMessageRow(sessionId, chatroomId, messageId);
+    const messageRow = await readMessageRow(chatroomId, messageId);
     expect(messageRow).not.toHaveProperty('senderAgent');
 
-    const noticeRow = await readMessageRow(sessionId, chatroomId, notice.messageId);
+    const noticeRow = await readMessageRow(chatroomId, notice.messageId);
     expect(noticeRow).not.toHaveProperty('senderAgent');
   });
 
@@ -333,7 +323,7 @@ describe('handoff sender-agent snapshot', () => {
     expect(retry.success).toBe(true);
     expect(retry.messageId).toBe(first.messageId);
 
-    const row = await readMessageRow(sessionId, chatroomId, first.messageId!);
+    const row = await readMessageRow(chatroomId, first.messageId!);
     expect(row.senderAgent).toStrictEqual({ harness: 'claude-sdk', model: 'first-model' });
   });
 });

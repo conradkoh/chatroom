@@ -10,7 +10,7 @@
 import type { Command } from 'commander';
 
 import type { ChatroomTransferDeps } from './deps.js';
-import { exportChatroom, formatTransferError } from './export.js';
+import { exportChatroom, formatTransferError, type ExportOptions } from './export.js';
 import { createNodeChatroomTransferFs } from './file-io.js';
 import { importChatroom } from './import.js';
 import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
@@ -59,11 +59,12 @@ export function registerChatroomTransferCommands(
   program
     .command('export')
     .description(
-      'Export one chatroom (content and configuration) to a JSON file. The file is plaintext and contains conversation content; keep it private.'
+      'Export one chatroom (--chatroom-id) or every chatroom you own on this machine (--all) to JSON files. The files are plaintext and contain conversation content; keep them private.'
     )
-    .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+    .option('--chatroom-id <id>', 'Chatroom identifier (exclusive with --all)')
+    .option('--all', 'Export every chatroom you own that has an active workspace on this machine')
     .option('--path <dir>', 'Directory to write to (default: .chatroom/exports/)')
-    .action(async (opts: { chatroomId: string; path?: string | undefined }) => {
+    .action(async (opts: ExportOptions) => {
       await requireAuth();
       const deps = await makeDeps();
       try {

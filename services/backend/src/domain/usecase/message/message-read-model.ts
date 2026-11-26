@@ -1,9 +1,7 @@
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
+import { isTimelineMessageType } from '../../entities/message';
 
-export function isTimelineMessageType(type: Doc<'chatroom_messages'>['type']): boolean {
-  return type !== 'join' && type !== 'progress';
-}
 export async function upsertMessageReadModel(
   ctx: MutationCtx,
   message: Doc<'chatroom_messages'>

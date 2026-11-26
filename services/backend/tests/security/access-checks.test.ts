@@ -153,7 +153,7 @@ const ALLOWED_WITHOUT_ACCESS_CHECK: Record<string, string[]> = {
   // guidelines.ts: PRE-EXISTING — chatroom-scoped, no access checks
   'guidelines.ts': ['getGuidelines', 'listGuidelineTypes'],
   // messages.ts: PRE-EXISTING — chatroom-scoped, agent-facing, no access checks on some endpoints
-  'messages.ts': ['send', 'sendMessage', 'handoff'],
+  'messages.ts': ['sendMessage', 'handoff'],
   // presentations.ts: PRE-EXISTING — chatroom-scoped, no access checks
   'presentations.ts': [
     'getPresentationState',

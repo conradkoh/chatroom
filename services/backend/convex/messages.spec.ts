@@ -13,7 +13,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { t } from '../test.setup';
 import { api } from './_generated/api';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { getInboxCommandsForMachine } from '../tests/helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
@@ -81,9 +81,132 @@ async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
   });
 }
 
+type QueuedRowSeed = {
+  content: string;
+  queuePosition: number;
+  extra?: Partial<Omit<Doc<'chatroom_messageQueue'>, '_id' | '_creationTime'>>;
+};
+
+async function seedQueuedMessages(
+  chatroomId: Id<'chatroom_rooms'>,
+  rows: QueuedRowSeed[]
+): Promise<Id<'chatroom_messageQueue'>[]> {
+  return await t.run(async (ctx) => {
+    const ids: Id<'chatroom_messageQueue'>[] = [];
+    for (const row of rows) {
+      ids.push(
+        await ctx.db.insert('chatroom_messageQueue', {
+          chatroomId,
+          senderRole: 'user',
+          content: row.content,
+          type: 'message' as const,
+          queuePosition: row.queuePosition,
+          ...row.extra,
+        })
+      );
+    }
+    return ids;
+  });
+}
+
+async function seedQueuedMessagesByCount(
+  chatroomId: Id<'chatroom_rooms'>,
+  count: number
+): Promise<Id<'chatroom_messageQueue'>[]> {
+  return await t.run(async (ctx) => {
+    const ids: Id<'chatroom_messageQueue'>[] = [];
+    for (let i = 0; i < count; i++) {
+      const id = await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'builder',
+        content: `queued ${i}`,
+        type: 'message',
+        queuePosition: i,
+      });
+      ids.push(id as Id<'chatroom_messageQueue'>);
+    }
+    return ids;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+describe('listQueued — bounded fetch', () => {
+  test('respects limit cap when using .take()', async () => {
+    const { sessionId } = await createTestSession('bounded-queued-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Seed 1500 queued messages — more than the 1000 limit
+    await seedQueuedMessagesByCount(chatroomId, 1500);
+
+    const result = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+
+    // Should be capped at 1000
+    expect(result.length).toBeLessThanOrEqual(1000);
+  });
+
+  test('respects custom limit when provided', async () => {
+    const { sessionId } = await createTestSession('bounded-queued-2');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Seed 50 queued messages
+    await seedQueuedMessagesByCount(chatroomId, 50);
+
+    const result = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+      limit: 20,
+    });
+
+    // Should respect the custom limit of 20
+    expect(result.length).toBe(20);
+  });
+
+  test('returns all queued messages when count is below limit', async () => {
+    const { sessionId } = await createTestSession('bounded-queued-3');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Seed 50 queued messages — well below the 1000 limit
+    await seedQueuedMessagesByCount(chatroomId, 50);
+
+    const result = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+
+    // Should return all 50 messages
+    expect(result.length).toBe(50);
+  });
+});
+
+describe('sendMessage — duo entry-point routing', () => {
+  test('a user message is linked to a task and routes to the duo entry point', async () => {
+    const { sessionId } = await createTestSession('msg-user-entry-point');
+    const chatroomId = await createChatroom(sessionId);
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'hello planner',
+      type: 'message',
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('chatroom_messages', messageId));
+    expect(row).not.toBeNull();
+    // The user message is linked to a task, so no message-level taskStatus is projected.
+    expect(row!.taskId).toBeDefined();
+    expect(row).not.toHaveProperty('taskStatus');
+    // The user message routes to the duo entry point.
+    expect(row!.targetRole).toBe('planner');
+  });
+});
 
 async function registerPrimaryWorkspace(
   sessionId: SessionId,
@@ -661,6 +784,508 @@ describe('enqueueMessageAtFront', () => {
       ctx.db.get('chatroom_messages', messageId as Id<'chatroom_messages'>)
     );
     expect(message?.content).toBe('idle message');
+  });
+});
+
+describe('reorderQueuedMessage', () => {
+  test('rejects an unknown session with AUTH_FAILED', async () => {
+    const { sessionId } = await createTestSession('reorder-auth-unknown');
+    const chatroomId = await createChatroom(sessionId);
+    const [movedId] = await seedQueuedMessages(chatroomId, [{ content: 'A', queuePosition: 0 }]);
+
+    await expect(
+      t.mutation(api.messages.reorderQueuedMessage, {
+        sessionId: 'never-logged-in-session' as SessionId,
+        chatroomId,
+        movedId: movedId!,
+        afterId: null,
+      })
+    ).rejects.toThrow(/AUTH_FAILED/);
+  });
+
+  test('rejects a non-owner session with ACCESS_DENIED', async () => {
+    const { sessionId } = await createTestSession('reorder-auth-owner');
+    const { sessionId: otherSession } = await createTestSession('reorder-auth-other');
+    const chatroomId = await createChatroom(sessionId);
+    const [movedId] = await seedQueuedMessages(chatroomId, [{ content: 'A', queuePosition: 0 }]);
+
+    await expect(
+      t.mutation(api.messages.reorderQueuedMessage, {
+        sessionId: otherSession,
+        chatroomId,
+        movedId: movedId!,
+        afterId: null,
+      })
+    ).rejects.toThrow(/ACCESS_DENIED/);
+  });
+
+  test('moves a row and preserves the multiset of queue positions', async () => {
+    const { sessionId } = await createTestSession('reorder-move-down');
+    const chatroomId = await createChatroom(sessionId);
+    const [a, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+      { content: 'D', queuePosition: 3 },
+    ]);
+
+    const result = await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: a!,
+      afterId: c!,
+    });
+    expect(result).toBe('ok');
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m.content)).toEqual(['B', 'C', 'A', 'D']);
+    expect(queued.map((m) => m.queuePosition).sort((x, y) => x - y)).toEqual([0, 1, 2, 3]);
+  });
+
+  test('afterId null moves a row to the front', async () => {
+    const { sessionId } = await createTestSession('reorder-front');
+    const chatroomId = await createChatroom(sessionId);
+    const [, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+
+    const result = await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: c!,
+      afterId: null,
+    });
+    expect(result).toBe('ok');
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m.content)).toEqual(['C', 'A', 'B']);
+  });
+
+  test('repeating the same move is idempotent', async () => {
+    const { sessionId } = await createTestSession('reorder-idempotent');
+    const chatroomId = await createChatroom(sessionId);
+    const [a, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+    const args = { sessionId, chatroomId, movedId: a!, afterId: c! };
+
+    expect(await t.mutation(api.messages.reorderQueuedMessage, args)).toBe('ok');
+    const afterFirst = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(await t.mutation(api.messages.reorderQueuedMessage, args)).toBe('ok');
+    const afterSecond = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+
+    expect(afterSecond.map((m) => m.content)).toEqual(['B', 'C', 'A']);
+    expect(afterSecond.map((m) => m._id)).toEqual(afterFirst.map((m) => m._id));
+    expect(afterSecond.map((m) => m.queuePosition)).toEqual(afterFirst.map((m) => m.queuePosition));
+  });
+
+  test('preserves queue row fields on the moved row and a shifted row', async () => {
+    const { sessionId, userId } = await createTestSession('reorder-preserve');
+    const chatroomId = await createChatroom(sessionId);
+    const taskId = await seedActiveTask(chatroomId);
+    const envelope = createTaskEnvelope({
+      conversationMode: 'code',
+      sessionPolicy: 'new',
+    });
+    const scheduledPromptId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'scheduled prompt',
+        scheduleKind: 'once' as const,
+        isRunnable: false,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const [a, b, c] = await seedQueuedMessages(chatroomId, [
+      {
+        content: 'A',
+        queuePosition: 0,
+        extra: {
+          attachedTaskIds: [taskId],
+          taskEnvelope: envelope,
+          scheduledPromptId,
+          startInNewSession: true,
+          sourcePlatform: 'telegram',
+        },
+      },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+
+    await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: a!,
+      afterId: c!,
+    });
+
+    const moved = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', a!));
+    const shifted = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', b!));
+    expect(moved).toMatchObject({
+      content: 'A',
+      attachedTaskIds: [taskId],
+      taskEnvelope: envelope,
+      scheduledPromptId,
+      startInNewSession: true,
+      sourcePlatform: 'telegram',
+      queuePosition: 2,
+    });
+    expect(shifted).toMatchObject({ content: 'B', queuePosition: 0 });
+    expect(shifted?.scheduledPromptId).toBeUndefined();
+    expect(shifted?.attachedTaskIds).toBeUndefined();
+  });
+
+  test('returns stale when the moved row was deleted and leaves positions unchanged', async () => {
+    const { sessionId } = await createTestSession('reorder-stale-moved');
+    const chatroomId = await createChatroom(sessionId);
+    const [a, b, c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+    await t.run(async (ctx) => {
+      await ctx.db.delete('chatroom_messageQueue', a!);
+    });
+
+    const result = await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: a!,
+      afterId: null,
+    });
+    expect(result).toBe('stale');
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m._id)).toEqual([b, c]);
+    expect(queued.map((m) => m.queuePosition)).toEqual([1, 2]);
+  });
+
+  test('returns stale when the anchor row was deleted and leaves positions unchanged', async () => {
+    const { sessionId } = await createTestSession('reorder-stale-anchor');
+    const chatroomId = await createChatroom(sessionId);
+    const [a, b, c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+    await t.run(async (ctx) => {
+      await ctx.db.delete('chatroom_messageQueue', c!);
+    });
+
+    const result = await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: a!,
+      afterId: c!,
+    });
+    expect(result).toBe('stale');
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m._id)).toEqual([a, b]);
+    expect(queued.map((m) => m.queuePosition)).toEqual([0, 1]);
+  });
+
+  test('rejects moving a row after itself with INVALID_REORDER_TARGET', async () => {
+    const { sessionId } = await createTestSession('reorder-self-anchor');
+    const chatroomId = await createChatroom(sessionId);
+    const [a] = await seedQueuedMessages(chatroomId, [{ content: 'A', queuePosition: 0 }]);
+
+    await expect(
+      t.mutation(api.messages.reorderQueuedMessage, {
+        sessionId,
+        chatroomId,
+        movedId: a!,
+        afterId: a!,
+      })
+    ).rejects.toThrow(/INVALID_REORDER_TARGET/);
+  });
+
+  test('rejects a moved row from another chatroom with QUEUE_ITEM_NOT_IN_CHATROOM', async () => {
+    const { sessionId } = await createTestSession('reorder-foreign-moved');
+    const chatroomId = await createChatroom(sessionId);
+    const otherChatroomId = await createChatroom(sessionId);
+    await seedQueuedMessages(chatroomId, [{ content: 'A', queuePosition: 0 }]);
+    const [foreign] = await seedQueuedMessages(otherChatroomId, [
+      { content: 'foreign', queuePosition: 0 },
+    ]);
+
+    await expect(
+      t.mutation(api.messages.reorderQueuedMessage, {
+        sessionId,
+        chatroomId,
+        movedId: foreign!,
+        afterId: null,
+      })
+    ).rejects.toThrow(/QUEUE_ITEM_NOT_IN_CHATROOM/);
+  });
+
+  test('rejects an anchor row from another chatroom with QUEUE_ITEM_NOT_IN_CHATROOM', async () => {
+    const { sessionId } = await createTestSession('reorder-foreign-anchor');
+    const chatroomId = await createChatroom(sessionId);
+    const otherChatroomId = await createChatroom(sessionId);
+    const [a] = await seedQueuedMessages(chatroomId, [{ content: 'A', queuePosition: 0 }]);
+    const [foreign] = await seedQueuedMessages(otherChatroomId, [
+      { content: 'foreign', queuePosition: 0 },
+    ]);
+
+    await expect(
+      t.mutation(api.messages.reorderQueuedMessage, {
+        sessionId,
+        chatroomId,
+        movedId: a!,
+        afterId: foreign!,
+      })
+    ).rejects.toThrow(/QUEUE_ITEM_NOT_IN_CHATROOM/);
+  });
+
+  test('rejects a queue larger than the reorder window with QUEUE_TOO_LARGE_TO_REORDER', async () => {
+    const { sessionId } = await createTestSession('reorder-too-large');
+    const chatroomId = await createChatroom(sessionId);
+    const firstId = await t.run(async (ctx) => {
+      let first: Id<'chatroom_messageQueue'> | null = null;
+      for (let i = 0; i <= 1000; i++) {
+        const id = await ctx.db.insert('chatroom_messageQueue', {
+          chatroomId,
+          senderRole: 'user',
+          content: `queued ${i}`,
+          type: 'message' as const,
+          queuePosition: i,
+        });
+        if (first === null) first = id;
+      }
+      return first!;
+    });
+
+    await expect(
+      t.mutation(api.messages.reorderQueuedMessage, {
+        sessionId,
+        chatroomId,
+        movedId: firstId,
+        afterId: null,
+      })
+    ).rejects.toThrow(/QUEUE_TOO_LARGE_TO_REORDER/);
+  });
+
+  test('leaves nextQueuePosition unchanged for unique positions', async () => {
+    const { sessionId } = await createTestSession('reorder-counter-unique');
+    const chatroomId = await createChatroom(sessionId);
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_rooms', chatroomId, { nextQueuePosition: 10 });
+    });
+    const [a, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+
+    await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: a!,
+      afterId: c!,
+    });
+
+    const counter = await t.run(
+      async (ctx) => (await ctx.db.get('chatroom_rooms', chatroomId))?.nextQueuePosition
+    );
+    expect(counter).toBe(10);
+  });
+
+  test('bumps nextQueuePosition above duplicate positions', async () => {
+    const { sessionId } = await createTestSession('reorder-counter-duplicates');
+    const chatroomId = await createChatroom(sessionId);
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_rooms', chatroomId, { nextQueuePosition: 1 });
+    });
+    const [, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 0 },
+      { content: 'C', queuePosition: 0 },
+    ]);
+
+    await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: c!,
+      afterId: null,
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m.content)).toEqual(['C', 'A', 'B']);
+    expect(queued.map((m) => m.queuePosition)).toEqual([0, 1, 2]);
+    const counter = await t.run(
+      async (ctx) => (await ctx.db.get('chatroom_rooms', chatroomId))?.nextQueuePosition
+    );
+    expect(counter).toBeGreaterThan(Math.max(...queued.map((m) => m.queuePosition)));
+  });
+
+  test('does not touch lastActivityAt or materialized task counts', async () => {
+    const { sessionId } = await createTestSession('reorder-no-side-effects');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+    const [a, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+    const before = await t.run(async (ctx) => {
+      const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+      const counts = await ctx.db
+        .query('chatroom_taskCounts')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+      return { lastActivityAt: chatroom?.lastActivityAt, counts };
+    });
+
+    await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: a!,
+      afterId: c!,
+    });
+
+    const after = await t.run(async (ctx) => {
+      const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+      const counts = await ctx.db
+        .query('chatroom_taskCounts')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+      return { lastActivityAt: chatroom?.lastActivityAt, counts };
+    });
+    expect(after).toEqual(before);
+  });
+
+  test('a front enqueue after a reorder lands first and keeps the reordered relative order', async () => {
+    const { sessionId } = await createTestSession('reorder-then-front-enqueue');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_rooms', chatroomId, { nextQueuePosition: 10 });
+    });
+    const [, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+    await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: c!,
+      afterId: null,
+    });
+
+    await t.mutation(api.messages.enqueueMessageAtFront, {
+      sessionId,
+      chatroomId,
+      content: 'new front',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m.content)).toEqual(['new front', 'C', 'A', 'B']);
+  });
+
+  test('a normal enqueue after a reorder lands last', async () => {
+    const { sessionId } = await createTestSession('reorder-then-normal-enqueue');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_rooms', chatroomId, { nextQueuePosition: 10 });
+    });
+    const [a, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+    await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: a!,
+      afterId: c!,
+    });
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'sent later',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m.content)).toEqual(['B', 'C', 'A', 'sent later']);
+  });
+
+  test('listQueued first row matches the by_chatroom_queue index head after a reorder', async () => {
+    const { sessionId } = await createTestSession('reorder-index-cross-check');
+    const chatroomId = await createChatroom(sessionId);
+    const [a, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+    await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: a!,
+      afterId: c!,
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    const firstByIndex = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_messageQueue')
+        .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
+        .order('asc')
+        .first();
+    });
+    expect(queued[0]?._id).toBe(firstByIndex?._id);
+  });
+
+  test('promotion invariant: the reordered first row becomes the next task', async () => {
+    const { sessionId } = await createTestSession('reorder-promotion');
+    const chatroomId = await createChatroom(sessionId);
+    const activeTaskId = await seedActiveTask(chatroomId);
+    // Planner-origin tasks do not auto-promote on force completion, so the
+    // explicit promoteNextTask call below is what decides the next task.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', activeTaskId, { createdBy: 'planner' });
+    });
+    const [, , c] = await seedQueuedMessages(chatroomId, [
+      { content: 'A', queuePosition: 0 },
+      { content: 'B', queuePosition: 1 },
+      { content: 'C', queuePosition: 2 },
+    ]);
+    await t.mutation(api.messages.reorderQueuedMessage, {
+      sessionId,
+      chatroomId,
+      movedId: c!,
+      afterId: null,
+    });
+
+    const completion = await t.mutation(api.tasks.completeTaskById, {
+      sessionId,
+      taskId: activeTaskId,
+      force: true,
+    });
+    expect(completion).toMatchObject({ success: true, taskId: activeTaskId, wasForced: true });
+
+    const promoted = await t.mutation(api.tasks.promoteNextTask, { sessionId, chatroomId });
+    expect(promoted.reason).toBe('success');
+    const promotedTask = await t.run((ctx) =>
+      ctx.db.get('chatroom_tasks', promoted.taskId as Id<'chatroom_tasks'>)
+    );
+    expect(promotedTask?.content).toBe('C');
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m.content)).toEqual(['A', 'B']);
   });
 });
 
@@ -1724,114 +2349,6 @@ describe('deleteUserMessageOrTask and materialized counts', () => {
   });
 });
 
-describe('getLastUserMessage query', () => {
-  async function insertUserMessage(
-    sessionId: SessionId,
-    chatroomId: Id<'chatroom_rooms'>,
-    content: string
-  ): Promise<void> {
-    await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_messages', {
-        chatroomId,
-        senderRole: 'user',
-        targetRole: 'planner',
-        content,
-        type: 'message',
-      });
-    });
-    return;
-  }
-
-  test('returns the most recent user message with prior user messages', async () => {
-    const { sessionId } = await createTestSession('anchor-1');
-    const chatroomId = await createChatroom(sessionId);
-
-    await insertUserMessage(sessionId, chatroomId, 'first request');
-    await insertUserMessage(sessionId, chatroomId, 'second request');
-    await insertUserMessage(sessionId, chatroomId, 'last request');
-
-    const result = await t.query(api.messages.getLastUserMessage, {
-      sessionId,
-      chatroomId,
-    });
-
-    expect(result.last).not.toBeNull();
-    expect(result.last!.content).toBe('last request');
-    expect(result.prior.map((m) => m.content)).toEqual(['second request', 'first request']);
-  });
-
-  test('returns null last and empty prior when no user messages exist', async () => {
-    const { sessionId } = await createTestSession('anchor-empty');
-    const chatroomId = await createChatroom(sessionId);
-
-    const result = await t.query(api.messages.getLastUserMessage, {
-      sessionId,
-      chatroomId,
-    });
-
-    expect(result).toEqual({ last: null, prior: [] });
-  });
-
-  test('priorLimit controls how many prior user messages are returned (max 5)', async () => {
-    const { sessionId } = await createTestSession('anchor-prior-limit');
-    const chatroomId = await createChatroom(sessionId);
-
-    for (let i = 1; i <= 8; i++) {
-      await insertUserMessage(sessionId, chatroomId, `request ${i}`);
-    }
-
-    const withPrior = await t.query(api.messages.getLastUserMessage, {
-      sessionId,
-      chatroomId,
-      priorLimit: 2,
-    });
-    expect(withPrior.last!.content).toBe('request 8');
-    expect(withPrior.prior.map((m) => m.content)).toEqual(['request 7', 'request 6']);
-
-    const capped = await t.query(api.messages.getLastUserMessage, {
-      sessionId,
-      chatroomId,
-      priorLimit: 50,
-    });
-    expect(capped.prior.length).toBe(5);
-  });
-
-  test('ignores non-user messages and handoff-type messages', async () => {
-    const { sessionId } = await createTestSession('anchor-filter');
-    const chatroomId = await createChatroom(sessionId);
-
-    await t.run(async (ctx) => {
-      // Non-user agent handoff
-      await ctx.db.insert('chatroom_messages', {
-        chatroomId,
-        senderRole: 'planner',
-        targetRole: 'builder',
-        content: 'planner handoff',
-        type: 'handoff',
-      });
-      // User handoff-type message
-      await ctx.db.insert('chatroom_messages', {
-        chatroomId,
-        senderRole: 'user',
-        targetRole: 'planner',
-        content: 'user handoff content',
-        type: 'handoff',
-      });
-    });
-
-    await insertUserMessage(sessionId, chatroomId, 'the actual user request');
-
-    const result = await t.query(api.messages.getLastUserMessage, {
-      sessionId,
-      chatroomId,
-    });
-
-    expect(result.last).not.toBeNull();
-    expect(result.last!.content).toBe('the actual user request');
-    expect(result.prior).toEqual([]);
-  });
-});
-
 describe('updateQueuedMessageConversationMode', () => {
   test('sets conversationMode on the queue row', async () => {
     const { sessionId } = await createTestSession('update-conv-mode-1');
@@ -2192,35 +2709,6 @@ describe('legacy queue-setting mutations edit the complete envelope', () => {
     });
     expect(row?.conversationMode).toBe('chat');
   });
-
-  test('updateQueuedMessageStartInNewSession(true) sets sessionPolicy new and projection', async () => {
-    const { sessionId } = await createTestSession('queue-adapter-new-session');
-    const chatroomId = await createChatroom(sessionId);
-    await seedActiveTask(chatroomId);
-
-    await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      senderRole: 'user',
-      content: 'adapter new session',
-      type: 'message',
-    });
-    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
-    const queuedId = queued[0]!._id;
-
-    await t.mutation(api.messages.updateQueuedMessageStartInNewSession, {
-      sessionId,
-      queuedMessageId: queuedId,
-      startInNewSession: true,
-    });
-
-    const row = await t.run((ctx) => ctx.db.get('chatroom_messageQueue', queuedId));
-    expect(row?.taskEnvelope?.sessionPolicy).toBe('new');
-    expect(row?.startInNewSession).toBe(true);
-    // Mode/preset are preserved by the session adapter.
-    expect(row?.taskEnvelope?.conversationMode).toBe('code');
-    expect(row?.taskEnvelope?.handoffWorkflow?.preset).toBe('team');
-  });
 });
 
 describe('generic configured-role handoff authorization', () => {
@@ -2279,5 +2767,56 @@ describe('generic configured-role handoff authorization', () => {
       sessionPolicy: 'continue',
       handoffWorkflow: { preset: 'team', phase: 'implementation' },
     });
+  });
+});
+
+describe('canonical Message wire projection', () => {
+  test('getContextForRole omits internal handoff bookkeeping fields', async () => {
+    const { sessionId } = await createTestSession('message-projection-context');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner']);
+
+    const messageId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'planner',
+        targetRole: 'user',
+        content: 'terminal handoff',
+        type: 'handoff',
+        claimedByRole: 'planner',
+        terminalHandoffKey: 'terminal-key-1',
+      })
+    );
+
+    const context = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+    const message = context.messages.find((item) => item._id === messageId);
+
+    expect(message).toBeDefined();
+    expect(message).not.toHaveProperty('claimedByRole');
+    expect(message).not.toHaveProperty('terminalHandoffKey');
+  });
+
+  test('listQueued does not surface internal handoff bookkeeping fields', async () => {
+    const { sessionId } = await createTestSession('message-projection-queue');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued message',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).not.toHaveProperty('claimedByRole');
+    expect(queued[0]).not.toHaveProperty('terminalHandoffKey');
   });
 });
