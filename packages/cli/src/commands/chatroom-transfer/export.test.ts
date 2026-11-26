@@ -10,7 +10,12 @@
 
 import { join } from 'node:path';
 
-import type { ExportCategory } from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
+import {
+  ChatroomTransferError,
+  TRANSFER_ERROR_CODES,
+  type ExportCategory,
+} from '@workspace/backend/src/domain/entities/chatroom-transfer-file';
+import type { ExportableChatroom } from '@workspace/backend/src/domain/usecase/chatroom-transfer/export-list';
 import type {
   ExportPage,
   ExportRawRow,
@@ -80,15 +85,24 @@ interface FakeBackend {
 
 /**
  * A transport fake. The endpoint is `anyApi`, so its proxies are not identity
- * comparable; the call's argument shape identifies the query instead: only
- * `readPage` carries a `category`. `stamps` is consumed in order (the driver
+ * comparable; the call's argument shape identifies the query instead: only the
+ * list query carries a `machineId`, only `readPage` carries a `category`, and a
+ * stamp carries only a `chatroomId`. `stamps` is consumed in order (the driver
  * reads the stamp first and last); every read after the last entry repeats it.
+ * `attachmentChatroomIds` answers a stamp with one attachment row for those ids.
  */
 function createFakeBackend(
-  options: { stamps?: ExportStamp[]; room?: ExportRawRow } = {}
+  options: {
+    stamps?: ExportStamp[];
+    room?: ExportRawRow;
+    rooms?: ExportableChatroom[] | undefined;
+    attachmentChatroomIds?: readonly string[] | undefined;
+  } = {}
 ): FakeBackend {
   const stamps = options.stamps ?? [defaultStamp()];
   const room = options.room ?? defaultRoom();
+  const rooms = options.rooms ?? [];
+  const attachmentChatroomIds = options.attachmentChatroomIds ?? [];
   const queries: RecordedQuery[] = [];
   let stampReads = 0;
 
@@ -98,8 +112,16 @@ function createFakeBackend(
     },
     query: async (endpoint: unknown, args: unknown) => {
       queries.push({ endpoint, args });
-      const read = args as { category?: ExportCategory };
+      const read = args as {
+        chatroomId?: string;
+        category?: ExportCategory;
+        machineId?: string;
+      };
+      if (read.machineId !== undefined) return rooms;
       if (read.category !== undefined) return pageFor({ category: read.category }, room);
+      if (read.chatroomId !== undefined && attachmentChatroomIds.includes(read.chatroomId)) {
+        return defaultStamp({ attachmentRows: { count: 1, capped: false } });
+      }
       const stamp = stamps[Math.min(stampReads, stamps.length - 1)];
       stampReads += 1;
       return stamp;
@@ -175,16 +197,25 @@ function createHarness(
   options: {
     cwd?: string;
     sessionId?: string | null;
+    machineId?: string | null;
     backend?: FakeBackend;
     fs?: RecordingFs;
+    rooms?: ExportableChatroom[];
+    attachmentChatroomIds?: readonly string[];
   } = {}
 ): Harness {
   const out: string[] = [];
   const err: string[] = [];
   const exits: number[] = [];
   const fs = options.fs ?? new RecordingFs();
-  const fake = options.backend ?? createFakeBackend();
+  const fake =
+    options.backend ??
+    createFakeBackend({
+      rooms: options.rooms,
+      attachmentChatroomIds: options.attachmentChatroomIds,
+    });
   const sessionId = options.sessionId === undefined ? 'session-abc' : options.sessionId;
+  const machineId = options.machineId === undefined ? 'machine-1' : options.machineId;
 
   const session: SessionOps = {
     getSessionId: async () => (sessionId === null ? null : (sessionId as SessionId)),
@@ -195,7 +226,7 @@ function createHarness(
   const deps: ChatroomTransferDeps = {
     backend: fake.backend,
     session,
-    machine: { getMachineId: async () => 'machine-1' },
+    machine: { getMachineId: async () => machineId },
     fs,
     clock: () => new Date(NOW),
     version: '1.0.0-test',
@@ -366,5 +397,171 @@ describe('exportChatroom (refusals)', () => {
     }
     expect(h.queries).toEqual([]);
     expect(h.fs.calls).toEqual([]);
+  });
+});
+
+/** `chatroom-<id>-20261125T130405Z.json`, one per exported chatroom. */
+function exportName(chatroomId: string): string {
+  return `chatroom-${chatroomId}-20261125T130405Z.json`;
+}
+
+/** The rooms the `--all` cases export, in list order. */
+function rooms(...ids: string[]): ExportableChatroom[] {
+  return ids.map((chatroomId) => ({
+    chatroomId: chatroomId as ExportableChatroom['chatroomId'],
+    name: null,
+    status: 'active',
+  }));
+}
+
+describe('exportChatroom (--all)', () => {
+  it('refuses when neither --chatroom-id nor --all is given', async () => {
+    const h = createHarness();
+
+    const error: unknown = await exportChatroom({}, h.deps).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ChatroomTransferError);
+    expect((error as ChatroomTransferError).code).toBe(TRANSFER_ERROR_CODES.EXPORT_TARGET_REQUIRED);
+    expect(h.queries).toEqual([]);
+    expect(h.fs.calls).toEqual([]);
+  });
+
+  it('refuses --all together with --chatroom-id', async () => {
+    const h = createHarness();
+
+    const error: unknown = await exportChatroom({ all: true, chatroomId: 'c1' }, h.deps).catch(
+      (caught: unknown) => caught
+    );
+
+    expect(error).toBeInstanceOf(ChatroomTransferError);
+    expect((error as ChatroomTransferError).code).toBe(TRANSFER_ERROR_CODES.EXPORT_TARGET_CONFLICT);
+    expect(h.queries).toEqual([]);
+  });
+
+  it('refuses --all when the machine has no identity', async () => {
+    const h = createHarness({ machineId: null, rooms: rooms('c1') });
+
+    const error: unknown = await exportChatroom({ all: true }, h.deps).catch(
+      (caught: unknown) => caught
+    );
+
+    expect(error).toBeInstanceOf(ChatroomTransferError);
+    expect((error as ChatroomTransferError).code).toBe(
+      TRANSFER_ERROR_CODES.EXPORT_NO_MACHINE_IDENTITY
+    );
+    expect(
+      h.queries.some((query) => (query.args as { machineId?: string }).machineId !== undefined)
+    ).toBe(false);
+    expect(h.fs.calls).toEqual([]);
+  });
+
+  it('exports every listed chatroom to its own file', async () => {
+    const h = createHarness({ rooms: rooms('c1', 'c2', 'c3') });
+
+    await exportChatroom({ all: true }, h.deps);
+
+    for (const id of ['c1', 'c2', 'c3']) {
+      expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName(id)))).toBe(true);
+    }
+    const exportWrites = h.fs.writes.filter((write) => !write.path.endsWith('.gitignore'));
+    expect(exportWrites.length).toBeGreaterThan(0);
+    for (const write of exportWrites) expect(write.mode).toBe(0o600);
+    expect(h.fs.dirs.length).toBeGreaterThan(0);
+    for (const dir of h.fs.dirs) expect(dir.mode).toBe(0o700);
+    expect(h.out).toContain('Exported 3 of 3 chatrooms from machine machine-1');
+    expect(h.out.at(-1)).toBe(WARNING);
+    expect(h.out.filter((line) => line === WARNING)).toHaveLength(1);
+    expect(h.exits).toEqual([]);
+  });
+
+  it('continues past a failed chatroom and reports it', async () => {
+    const h = createHarness({
+      rooms: rooms('c1', 'c2', 'c3'),
+      attachmentChatroomIds: ['c2'],
+    });
+
+    const error: unknown = await exportChatroom({ all: true }, h.deps).catch(
+      (caught: unknown) => caught
+    );
+
+    expect(error).toBeInstanceOf(ChatroomTransferError);
+    expect((error as ChatroomTransferError).code).toBe(TRANSFER_ERROR_CODES.EXPORT_ALL_INCOMPLETE);
+    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName('c1')))).toBe(true);
+    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName('c3')))).toBe(true);
+    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName('c2')))).toBe(false);
+    expect(h.err).toHaveLength(1);
+    expect(h.err[0]).toMatch(/^❌ \[EXPORT_ATTACHMENTS_PRESENT\] c2: /);
+    expect(h.out).toContain('Exported 2 of 3 chatrooms from machine machine-1');
+    expect(h.out).toContain('Failed: 1');
+    expect(h.out.filter((line) => line === WARNING)).toHaveLength(1);
+  });
+
+  it('fails with EXPORT_ALL_INCOMPLETE when every chatroom fails', async () => {
+    const h = createHarness({
+      rooms: rooms('c1', 'c2', 'c3'),
+      attachmentChatroomIds: ['c1', 'c2', 'c3'],
+    });
+
+    const error: unknown = await exportChatroom({ all: true }, h.deps).catch(
+      (caught: unknown) => caught
+    );
+
+    expect(error).toBeInstanceOf(ChatroomTransferError);
+    expect((error as ChatroomTransferError).code).toBe(TRANSFER_ERROR_CODES.EXPORT_ALL_INCOMPLETE);
+    expect(h.fs.files.size).toBe(0);
+    expect(h.out).toContain('Exported 0 of 3 chatrooms from machine machine-1');
+    expect(h.out).toContain('Failed: 3');
+    expect(h.out).not.toContain(WARNING);
+  });
+
+  it('writes nothing and reports when the machine has no chatrooms', async () => {
+    const h = createHarness({ rooms: [] });
+
+    await exportChatroom({ all: true }, h.deps);
+
+    expect(h.out).toEqual(['No chatrooms found for machine machine-1 that you own.']);
+    expect(h.fs.calls).toEqual([]);
+    expect(h.exits).toEqual([]);
+  });
+
+  it('fails only the chatroom whose file already exists', async () => {
+    const h = createHarness({ rooms: rooms('c1', 'c2', 'c3') });
+    h.fs.files.set(join('/work', '.chatroom', 'exports', exportName('c2')), 'previous');
+
+    const error: unknown = await exportChatroom({ all: true }, h.deps).catch(
+      (caught: unknown) => caught
+    );
+
+    expect(error).toBeInstanceOf(ChatroomTransferError);
+    expect((error as ChatroomTransferError).code).toBe(TRANSFER_ERROR_CODES.EXPORT_ALL_INCOMPLETE);
+    expect(h.err).toHaveLength(1);
+    expect(h.err[0]).toMatch(/^❌ \[EXPORT_FILE_EXISTS\] c2: /);
+    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName('c1')))).toBe(true);
+    expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName('c3')))).toBe(true);
+    expect(h.out).toContain('Exported 2 of 3 chatrooms from machine machine-1');
+    expect(h.out).toContain('Failed: 1');
+  });
+
+  it('--path is used for every file and writes no ignore file', async () => {
+    const h = createHarness({ rooms: rooms('c1', 'c2', 'c3') });
+
+    await exportChatroom({ all: true, path: 'custom/out' }, h.deps);
+
+    for (const id of ['c1', 'c2', 'c3']) {
+      expect(h.fs.files.has(join('/work', 'custom', 'out', exportName(id)))).toBe(true);
+    }
+    expect(h.fs.writes.map((write) => write.path).some((path) => path.endsWith('.gitignore'))).toBe(
+      false
+    );
+  });
+
+  it('the default directory gets one ignore file for the whole run', async () => {
+    const h = createHarness({ rooms: rooms('c1', 'c2', 'c3') });
+
+    await exportChatroom({ all: true }, h.deps);
+
+    const ignoreWrites = h.fs.writes.filter((write) => write.path.endsWith('.gitignore'));
+    expect(ignoreWrites).toHaveLength(1);
+    expect(ignoreWrites[0]?.data).toBe('*\n');
   });
 });

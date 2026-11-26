@@ -44,6 +44,7 @@ import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { getLastSentLaunchRequestForRole } from '../src/domain/usecase/agent/get-last-sent-launch-request';
 import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueue-user-message-at-front';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { reorderQueuedMessage as reorderQueuedMessageUsecase } from '../src/domain/usecase/chatroom/reorder-queued-message';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import {
@@ -531,6 +532,24 @@ export const enqueueMessageAtFront = mutation({
         message: result.reason,
       });
     return result.messageId;
+  },
+});
+
+/** Moves one queued message after `afterId` (or to the front when null). Resolves `'stale'` when either row is gone. */
+export const reorderQueuedMessage = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    movedId: v.id('chatroom_messageQueue'),
+    afterId: v.union(v.id('chatroom_messageQueue'), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return reorderQueuedMessageUsecase(ctx, {
+      chatroom,
+      movedId: args.movedId,
+      afterId: args.afterId,
+    });
   },
 });
 

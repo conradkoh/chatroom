@@ -20,7 +20,7 @@ export interface EphemeralGroupCounts {
 }
 
 export interface EphemeralAgentGroups {
-  /** Team-order roles rendered above the group row: statusVariant working or error. */
+  /** Team-order roles rendered below the group row: statusVariant working or error. */
   outsideRoles: string[];
   /** Team-order roles rendered inside the group: everything else, including roles with no status row. */
   memberRoles: string[];
@@ -31,11 +31,11 @@ export interface EphemeralAgentGroups {
 export const EPHEMERAL_GROUP_LOADING_LABEL = 'Loading statuses…';
 export const EPHEMERAL_GROUP_EMPTY_LABEL = 'No agents in group';
 
-/** Status variants that render above the group row instead of inside it. */
+/** Status variants that render below the group row instead of inside it. */
 const OUTSIDE_VARIANTS: ReadonlySet<AgentStatus['statusVariant']> = new Set(['working', 'error']);
 
 /**
- * Splits ephemeral roles into the rows shown above the disclosure group and the
+ * Splits ephemeral roles into the rows shown below the disclosure group and the
  * rows shown inside it, and derives the row counts.
  *
  * Constraints:
