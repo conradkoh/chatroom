@@ -310,6 +310,7 @@ function printDownloadSummary(args: {
     console.log(`   complete=${!args.truncated} truncated=${args.truncated}`);
     console.log(`\n💡 Read recent history:`);
     console.log(`   ls "${args.absoluteOutputDir}/"`);
+    console.log(`   # ls lists the newest file first; manifest.json lists messages oldest first`);
     console.log(`   cat "${args.absoluteOutputDir}/manifest.json"`);
     console.log(`   rg "pattern" "${args.absoluteOutputDir}/"`);
     if (args.truncated) {

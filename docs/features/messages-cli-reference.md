@@ -109,6 +109,12 @@ Options:
 validation line naming the flag. `download --max-messages` must be a positive
 integer; values above `5000` clamp to `5000`.
 
+`--max-messages` keeps the **oldest** messages of the selected page(s): the
+download reads in ascending order and stops at the cap. A truncated download of
+the latest page therefore omits its newest rows. Raise the cap (up to `5000`) or
+select a narrower page with `--page-id`, `--before` or `--after`. The fetch order
+is unchanged.
+
 ## 3. `pages` output contract
 
 The output is stable; tests assert it.
@@ -140,7 +146,8 @@ prev page: <pageId|none>   next page: <pageId|none>
 One file per message is written with `messageFilename`, whose prefix is
 `SORT_KEY_MAX - _creationTime` padded to 13 digits (descending creation time),
 followed by `<senderRole>-to-<targetRole|all>_<messageId>.md`. The content is the
-`linear` serialization profile.
+`linear` serialization profile. `ls` lists files newest first, while
+`manifest.json` lists messages oldest first.
 
 `manifest.json` has these keys:
 

@@ -334,6 +334,9 @@ describe('downloadMessagesEffect', () => {
     expect(manifest.pages[0]).toMatchObject({ pageId: P1, messageCount: 2, complete: false });
     const output = log.mock.calls.map((call) => call.join(' ')).join('\n');
     expect(output).toContain('--max-messages=4');
+    expect(output).toContain(
+      'ls lists the newest file first; manifest.json lists messages oldest first'
+    );
   });
 
   test('at the absolute cap prints the limit line instead of a repeated command', async () => {
