@@ -83,7 +83,7 @@ The verdict returns to \`${entryPoint}\`.
 <${VERIFIER_DELIVERABLE_TYPES.join(' | ')}; comma-separated when the work produced more than one>
 
 ## User message id
-<id of the user's last message: the origin message id of the user task, or from the \`[latest]\` row of \`chatroom messages pages\`>
+<id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>
 
 ## Log message ids
 <one per line as \`<message id> — <sender role> — <what it shows>\`: every message that carries the claimed work, in order: builder and specialist handoff reports, the reviewer report, and the evidence messages for each deliverable type; or exactly \`None beyond the user message.\`>
