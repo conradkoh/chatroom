@@ -3,11 +3,9 @@ import type { MachineCommandReadiness } from '../infrastructure/convex/subscribe
 
 export type CommandInboundHandler = (event: CommandInboundEvent) => Promise<void>;
 
-/*
- * The daemon registers its command handler last in startup and clears it on shutdown.
- * Machine commands are claimed only while a handler is registered: an acknowledged claim is
- * deleted, so a claim taken before the handler exists would be consumed without running anything.
- */
+// The daemon registers its command handler last in startup and clears it on shutdown.
+// Machine commands are claimed only while a handler is registered: an acknowledged claim is
+// deleted, so a claim taken before the handler exists would be consumed without running anything.
 let handler: CommandInboundHandler | undefined;
 const readyListeners = new Set<() => void>();
 
