@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { usePaginatedQuery, type PaginatedQueryReference } from 'convex/react';
 import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { shallowEqualRecord, structurallyEqual } from './stableIdentity';
 import {
@@ -51,6 +51,26 @@ export function useConversation(chatroomId: string) {
   const currentPage = pageNav?.pages[0] ?? null;
   const pageId = pageNav?.selectedPageId ?? null;
   const endExclusive = currentPage?.endExclusive ?? null;
+
+  // Convex keys results by `(function, args)`, so a changed `pageId` returns
+  // `undefined` until that request's own result arrives. Once the server has
+  // answered, a `selectedPageId` it did not honour means the requested page is
+  // gone (deleted or no longer accessible); fall back to its latest page instead
+  // of re-requesting the stale id on every later render.
+  useEffect(() => {
+    if (
+      pageNav !== undefined &&
+      selectedPageId !== null &&
+      pageNav.selectedPageId !== selectedPageId
+    ) {
+      setSelectedPageId(null);
+    }
+  }, [pageNav, selectedPageId]);
+
+  // The page definition is the source of truth: a page ending in `null` is the
+  // open latest page even when a concrete id is selected (for example after
+  // `goToNextPage`).
+  const isOnLatestPage = currentPage ? currentPage.endExclusive === null : selectedPageId === null;
 
   const paginated = usePaginatedQuery(
     api.conversation.listPageMessages as PaginatedQueryReference,
@@ -192,7 +212,7 @@ export function useConversation(chatroomId: string) {
     goToLatestPage,
     hasPrevPage: !!pageNav?.prevPageId,
     hasNextPage: !!pageNav?.nextPageId,
-    isOnLatestPage: selectedPageId === null,
+    isOnLatestPage,
     pageId,
   };
 }

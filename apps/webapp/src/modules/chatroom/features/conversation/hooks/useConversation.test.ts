@@ -142,8 +142,8 @@ describe('useConversation', () => {
 
     expect(result.current.hasPrevPage).toBe(true);
     expect(result.current.hasNextPage).toBe(true);
-    // Initially selectedPageId is null, so user is on latest
-    expect(result.current.isOnLatestPage).toBe(true);
+    // The served page has an endExclusive, so it is not the open latest page.
+    expect(result.current.isOnLatestPage).toBe(false);
 
     act(() => {
       result.current.goToPrevPage();
@@ -424,6 +424,81 @@ describe('useConversation', () => {
     });
 
     expect(result.current.isOnLatestPage).toBe(false);
+  });
+
+  it('isOnLatestPage becomes true after goToNextPage lands on the latest page', () => {
+    const olderPageNav = {
+      pages: [{ pageId: 'page-old', startedAt: 100, endExclusive: 200, contentPreview: 'older' }],
+      selectedPageId: 'page-old',
+      prevPageId: 'page-older',
+      nextPageId: 'page-latest',
+    };
+    const latestPageNav = {
+      pages: [
+        { pageId: 'page-latest', startedAt: 200, endExclusive: null, contentPreview: 'latest' },
+      ],
+      selectedPageId: 'page-latest',
+      prevPageId: 'page-old',
+      nextPageId: null,
+    };
+    mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
+      if (queryRef === 'subscribePageTail') {
+        if (args === 'skip') return undefined;
+        return null;
+      }
+      if (args !== 'skip' && typeof args === 'object' && args !== null && 'pageId' in args) {
+        return latestPageNav;
+      }
+      return olderPageNav;
+    });
+
+    const { result } = renderHook(() => useConversation('room-1'));
+
+    expect(result.current.isOnLatestPage).toBe(false);
+
+    act(() => {
+      result.current.goToNextPage();
+    });
+
+    expect(result.current.isOnLatestPage).toBe(true);
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
+  it('a stale selectedPageId resets when the server falls back to the latest page', () => {
+    const latestPageNav = {
+      pages: [
+        { pageId: 'page-latest', startedAt: 200, endExclusive: null, contentPreview: 'latest' },
+      ],
+      selectedPageId: 'page-latest',
+      prevPageId: 'page-old',
+      nextPageId: null,
+    };
+    mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
+      if (queryRef === 'subscribePageTail') {
+        if (args === 'skip') return undefined;
+        return null;
+      }
+      // The requested page was deleted, so the server answers with the latest
+      // page and reports its own selection for every request.
+      return latestPageNav;
+    });
+
+    const { result } = renderHook(() => useConversation('room-1'));
+
+    expect(result.current.hasPrevPage).toBe(true);
+
+    act(() => {
+      result.current.goToPrevPage();
+    });
+
+    const latestNavCall = mockUseSessionQuery.mock.calls
+      .filter((call) => call[0] === 'listPages')
+      .map((call) => call[1])
+      .filter((args) => args !== 'skip')
+      .at(-1);
+    expect(latestNavCall).toEqual({ chatroomId: 'room-1' });
+    expect(latestNavCall).not.toHaveProperty('pageId');
+    expect(result.current.isOnLatestPage).toBe(true);
   });
 
   it('goToLatestPage clears the selected page so navigation uses latest', () => {
