@@ -1,38 +1,13 @@
 /**
- * chatroomMessageStore — shared timeline message constants and mapping helpers.
+ * chatroomMessageStore — shared timeline message constants.
  *
  * Pure module with zero React or Convex imports.
+ *
+ * Kept while `TimelineEventCountMenu.tsx` (its only consumer) is not yet wired
+ * into an app entry point; `MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE` is reserved for
+ * the store's load-older path.
  */
-
-import type { Message } from '../types/message';
+// fallow-ignore-file unused-file unused-export
 
 export const MESSAGE_STORE_LIMIT = 5;
 export const MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE = 5;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toMessage(m: any): Message {
-  return {
-    _id: m._id,
-    type: m.type,
-    senderRole: m.senderRole,
-    targetRole: m.targetRole,
-    content: m.content,
-    _creationTime: m._creationTime,
-    taskOriginMessageId: m.taskOriginMessageId,
-    acknowledgedAt: m.acknowledgedAt,
-    completedAt: m.completedAt,
-    senderAgent: m.senderAgent,
-    taskId: m.taskId,
-    sourcePlatform: m.sourcePlatform,
-    attachedTasks: m.attachedTasks,
-    attachedBacklogItems: m.attachedBacklogItems,
-    attachedArtifacts: m.attachedArtifacts,
-    attachedFiles: m.attachedFiles,
-    attachedMessages: m.attachedMessages,
-    attachedSnippets: m.attachedSnippets,
-    isQueued: m.isQueued,
-    contextCreatedBy: m.contextCreatedBy,
-    scheduledPromptId: m.scheduledPromptId,
-    supersedesPlanId: m.supersedesPlanId,
-  };
-}

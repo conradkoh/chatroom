@@ -9,7 +9,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { TimelineEventRow } from './TimelineEventRow';
 import { TIMELINE_MESSAGE_HEADER_STICKY, TIMELINE_ROW_ROOT } from './timelineRowStyles';
 import { AttachmentsProvider } from '../../attachments';
-import { toMessage } from '../../hooks/chatroomMessageStore';
 import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
 import type { Message } from '../../types/message';
 
@@ -116,14 +115,14 @@ describe('TimelineEventRow', () => {
 
   it('renders user → target route header from a backend payload', () => {
     // Backend-shaped payload as received over the wire (no task-status field).
-    const message = toMessage({
+    const message: Message = {
       _id: 'msg-route-1',
       type: 'message',
       senderRole: 'user',
       targetRole: 'planner',
       content: 'Route body',
       _creationTime: 2_000,
-    });
+    };
     const event = mapMessageToTimelineEvent(message);
     renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
 

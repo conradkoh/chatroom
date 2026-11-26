@@ -114,7 +114,7 @@ function renderList(ui: React.ReactElement) {
 
 describe('scroll pinning and jump chip', () => {
   it('shows jump chip when scrolled away from bottom', () => {
-    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} pageId="a1" />);
 
     const list = document.querySelector(
       '[data-testid="conversation-message-list"]'
@@ -129,7 +129,7 @@ describe('scroll pinning and jump chip', () => {
 
   it('positions jump chip above contained timeline rows with long feed', () => {
     const events = Array.from({ length: 40 }, (_, index) => makeEvent(`msg-${index}`));
-    renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    renderList(<ConversationMessageList events={events} pageId="a1" />);
 
     const list = document.querySelector(
       '[data-testid="conversation-message-list"]'
@@ -147,7 +147,7 @@ describe('scroll pinning and jump chip', () => {
   });
 
   it('hides jump chip when at bottom (pinned)', () => {
-    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} pageId="a1" />);
 
     const list = document.querySelector(
       '[data-testid="conversation-message-list"]'
@@ -158,7 +158,7 @@ describe('scroll pinning and jump chip', () => {
   });
 
   it('clicking jump chip scrolls to bottom and hides chip', () => {
-    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} pageId="a1" />);
 
     const list = document.querySelector(
       '[data-testid="conversation-message-list"]'
@@ -187,16 +187,16 @@ describe('scroll pinning and jump chip', () => {
     expect(document.querySelector('[data-testid="conversation-jump-to-new-messages"]')).toBeNull();
   });
 
-  it('dispatches scroll on anchorId change to unpin', () => {
+  it('dispatches scroll on pageId change to unpin', () => {
     const events = [makeEvent('msg-1')];
-    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} pageId="a1" />);
 
     const list = document.querySelector(
       '[data-testid="conversation-message-list"]'
     ) as HTMLDivElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 800 });
 
-    rerender(<ConversationMessageList events={events} anchorId="a2" />);
+    rerender(<ConversationMessageList events={events} pageId="a2" />);
 
     expect(list.scrollTop).toBe(0);
     expect(
@@ -206,24 +206,22 @@ describe('scroll pinning and jump chip', () => {
 });
 
 describe('ConversationMessageList', () => {
-  it('scrolls to top when anchorId changes', () => {
+  it('scrolls to top when pageId changes', () => {
     const events = [makeEvent('msg-1')];
-    const { rerender } = renderList(
-      <ConversationMessageList events={events} anchorId="anchor-1" />
-    );
+    const { rerender } = renderList(<ConversationMessageList events={events} pageId="page-1" />);
 
     const list = document.querySelector(
       '[data-testid="conversation-message-list"]'
     ) as HTMLDivElement;
     list.scrollTop = 500;
 
-    rerender(<ConversationMessageList events={events} anchorId="anchor-2" />);
+    rerender(<ConversationMessageList events={events} pageId="page-2" />);
 
     expect(list.scrollTop).toBe(0);
   });
 
   it('uses timeline scroll container with scrollbar width variable', () => {
-    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[makeEvent('msg-1')]} pageId="a1" />);
     const list = document.querySelector(
       '[data-testid="conversation-message-list"]'
     ) as HTMLDivElement;
@@ -236,7 +234,7 @@ describe('ConversationMessageList', () => {
     renderList(
       <ConversationMessageList
         events={[makeEvent('msg-1'), makeEvent('msg-2')]}
-        anchorId="a1"
+        pageId="a1"
         canLoadMore
         isLoadingMore={false}
         onLoadMore={onLoadMore}
@@ -257,7 +255,7 @@ describe('ConversationMessageList', () => {
     renderList(
       <ConversationMessageList
         events={[makeEvent('msg-1')]}
-        anchorId="a1"
+        pageId="a1"
         canLoadMore={false}
         isLoadingMore={false}
         onLoadMore={onLoadMore}
@@ -277,7 +275,7 @@ describe('ConversationMessageList', () => {
     renderList(
       <ConversationMessageList
         events={[makeEvent('msg-1')]}
-        anchorId="a1"
+        pageId="a1"
         canLoadMore
         isLoadingMore
         onLoadMore={onLoadMore}
@@ -294,7 +292,7 @@ describe('ConversationMessageList', () => {
 
   it('applies ascending z-index to row wrappers for sticky header stacking', () => {
     const events = [makeEvent('msg-1'), makeEvent('msg-2'), makeEvent('msg-3')];
-    renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    renderList(<ConversationMessageList events={events} pageId="a1" />);
 
     const list = document.querySelector(
       '[data-testid="conversation-message-list"]'
@@ -311,7 +309,7 @@ describe('ConversationMessageList', () => {
     renderList(
       <ConversationMessageList
         events={[makeEvent('msg-1')]}
-        anchorId="a1"
+        pageId="a1"
         isLoadingMore
         onLoadMore={vi.fn()}
       />
@@ -324,7 +322,7 @@ describe('ConversationMessageList', () => {
     renderList(
       <ConversationMessageList
         events={[makeEvent('msg-1')]}
-        anchorId="a1"
+        pageId="a1"
         isLoadingMore={false}
         onLoadMore={vi.fn()}
       />
@@ -373,7 +371,7 @@ describe('handoff collapse behavior', () => {
 
   function renderTimeline() {
     const events = MESSAGES.map((message) => mapMessageToTimelineEvent(message));
-    return renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    return renderList(<ConversationMessageList events={events} pageId="a1" />);
   }
 
   function row(messageId: string): HTMLElement {
@@ -452,23 +450,23 @@ describe('row re-render behavior', () => {
 
   it('does not invoke TimelineEventRow when the events array identity changes only', () => {
     const events = [makeEvent('msg-1'), makeEvent('msg-2')];
-    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} pageId="a1" />);
     rowRenderCounts.clear();
 
-    rerender(<ConversationMessageList events={[...events]} anchorId="a1" />);
+    rerender(<ConversationMessageList events={[...events]} pageId="a1" />);
 
     expect([...rowRenderCounts.keys()]).toEqual([]);
   });
 
   it('invokes TimelineEventRow only for the row whose event object changed', () => {
     const events = [makeEvent('msg-1'), makeEvent('msg-2')];
-    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} pageId="a1" />);
     rowRenderCounts.clear();
 
     rerender(
       <ConversationMessageList
         events={[events[0], { ...events[1], creationTime: 200 }]}
-        anchorId="a1"
+        pageId="a1"
       />
     );
 
@@ -477,11 +475,11 @@ describe('row re-render behavior', () => {
 
   it('re-renders only the appended row on append', () => {
     const events = [makeEvent('a'), makeEvent('b'), makeEvent('c')];
-    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} pageId="a1" />);
     rowRenderCounts.clear();
     markdownRenderMock.mockClear();
 
-    rerender(<ConversationMessageList events={[...events, makeEvent('d')]} anchorId="a1" />);
+    rerender(<ConversationMessageList events={[...events, makeEvent('d')]} pageId="a1" />);
 
     // Existing rows keep their event object and index, so only the appended row `d` renders.
     expect([...rowRenderCounts.keys()]).toEqual(['d']);
@@ -493,7 +491,7 @@ describe('jump to top button', () => {
   const baseMatchMedia = window.matchMedia;
 
   function renderLongFeed(events = Array.from({ length: 40 }, (_, i) => makeEvent(`msg-${i}`))) {
-    const result = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const result = renderList(<ConversationMessageList events={events} pageId="a1" />);
     const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 0 });
     return { ...result, list };
@@ -559,7 +557,7 @@ describe('jump to top button', () => {
   it('a feed that shrinks to non-scrollable never shows the button', () => {
     const { list, rerender } = renderLongFeed(); // 40 events, scrollHeight 3000
     scrollList(list, 1000); // lastTop 1000, no user input
-    rerender(<ConversationMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    rerender(<ConversationMessageList events={[makeEvent('msg-1')]} pageId="a1" />);
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 400, scrollTop: 0 });
     fireEvent.wheel(list);
     fireEvent.scroll(list); // clamp to 0 after the user's wheel
@@ -701,23 +699,23 @@ describe('jump to top button', () => {
     expect(jumpButton()).not.toBeNull();
   });
 
-  it('anchor change hides it', () => {
+  it('page change hides it', () => {
     const events = Array.from({ length: 40 }, (_, i) => makeEvent(`msg-${i}`));
-    const { rerender } = renderList(<ConversationMessageList events={events} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={events} pageId="a1" />);
     const list = document.querySelector('[data-testid="conversation-message-list"]') as HTMLElement;
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 3000, scrollTop: 0 });
     scrollList(list, 1000);
     userScrollList(list, 920);
     expect(jumpButton()).not.toBeNull();
 
-    // The list's anchor effect writes scrollTop = 0; pin it so that write cannot move the
+    // The list's page effect writes scrollTop = 0; pin it so that write cannot move the
     // position and the hide can only come from the hook's resetKey effect.
     Object.defineProperty(list, 'scrollTop', {
       get: () => 920,
       set: () => {},
       configurable: true,
     });
-    rerender(<ConversationMessageList events={events} anchorId="a2" />);
+    rerender(<ConversationMessageList events={events} pageId="a2" />);
     expect(jumpButton()).toBeNull();
   });
 
@@ -766,7 +764,7 @@ describe('jump to top button', () => {
   });
 
   it('renders neither control for an empty feed', () => {
-    renderList(<ConversationMessageList events={[]} anchorId="a1" />);
+    renderList(<ConversationMessageList events={[]} pageId="a1" />);
     expect(screen.getByText('No messages yet')).toBeInTheDocument();
     expect(document.querySelector('[data-testid="conversation-jump-to-top"]')).toBeNull();
     expect(document.querySelector('[data-testid="conversation-jump-to-new-messages"]')).toBeNull();
@@ -836,13 +834,13 @@ describe('pinned tail follow on append', () => {
   }
 
   it('snaps a pinned feed to the bottom when a non-plan row is appended', () => {
-    const { rerender } = renderList(<ConversationMessageList events={[userEvent]} anchorId="a1" />);
+    const { rerender } = renderList(<ConversationMessageList events={[userEvent]} pageId="a1" />);
     // Mount parked the feed at the top; scroll to the bottom so the feed is pinned.
     container.scrollTop = 400;
     fireEvent.scroll(listEl());
     container.scrollHeight = 1600;
 
-    rerender(<ConversationMessageList events={[userEvent, appendedEvent]} anchorId="a1" />);
+    rerender(<ConversationMessageList events={[userEvent, appendedEvent]} pageId="a1" />);
 
     expect(listEl().scrollTop).toBe(1200);
   });

@@ -1,99 +1,49 @@
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import type { AttachedFileView } from '@workspace/backend/src/domain/entities/file-attachment';
+import type {
+  Message as DomainMessage,
+  MessageSenderAgent,
+  MessageType,
+} from '@workspace/backend/src/domain/entities/message';
 import type { ConversationMode } from '@workspace/shared/domain/conversation-mode';
 import type { TaskEnvelopeV1 } from '@workspace/shared/domain/task-envelope';
 
 import type { ArtifactMeta } from '../components/ArtifactRenderer';
 
-// ─── Shared message types ──────────────────────────────────────────────────────
-// Used by timeline hooks and the conversation feed to ensure a
-// single source of truth for message shapes flowing through the cursor-based
-// loading pipeline.
+// Re-exported so feed consumers can name the wire vocabulary without importing the backend path.
+// fallow-ignore-next-line unused-type
+export type { MessageType };
 
-export interface AttachedTask {
-  _id: string;
-  content: string;
+/** Harness and model of the agent that sent a handoff. Informational only. */
+export type SenderAgentSnapshot = MessageSenderAgent;
+
+// fallow-ignore-next-line unused-type
+export type AttachedBacklogItem = NonNullable<DomainMessage['attachedBacklogItems']>[number];
+// fallow-ignore-next-line unused-type
+export type AttachedMessage = NonNullable<DomainMessage['attachedMessages']>[number];
+// fallow-ignore-next-line unused-type
+export type AttachedSnippet = NonNullable<DomainMessage['attachedSnippets']>[number];
+export type AttachedTask = Omit<
+  NonNullable<DomainMessage['attachedTasks']>[number],
+  'backlogStatus'
+> & {
   backlogStatus?: TaskStatus;
-}
+};
 
-export interface AttachedBacklogItem {
-  id: string;
-  content: string;
-  status: string;
-}
-
-export interface AttachedMessage {
-  _id: string;
-  content: string;
-  senderRole: string;
-  _creationTime: number;
-}
-
-export interface AttachedSnippet {
-  reference: string;
-  fileSource: string;
-  selectedContent: string;
-}
-
-/** Harness and model of the agent that sent a handoff, as stored at handoff time. Informational only. */
-export interface SenderAgentSnapshot {
-  harness: string;
-  model?: string;
-}
-
-/** Message shape used throughout the chatroom feed UI. */
-export interface Message {
-  startInNewSession?: boolean;
-  _id: string;
-  type: string;
-  senderRole: string;
-  targetRole?: string;
-  content: string;
-  _creationTime: number;
-  /** Original user message that started this handoff/task chain. */
-  taskOriginMessageId?: string;
-  /** When the origin task was acknowledged and work started. */
-  acknowledgedAt?: number;
-  /** When the origin task completed and the handoff was emitted. */
-  completedAt?: number;
-  /**
-   * Handoff messages only: harness + model of the sender at handoff time.
-   * Absent on legacy rows and on non-handoff types. Normalize before display via getSenderAgentLabel.
-   */
-  senderAgent?: SenderAgentSnapshot;
-  taskId?: string;
-  /** For plan messages: the message id of the plan this one supersedes (advisory; the row shows it, nothing else). */
-  supersedesPlanId?: string;
-  /** Source platform for messages from external integrations (e.g. 'telegram') */
-  sourcePlatform?: string;
-  /** Attached backlog tasks for context */
+/**
+ * Message shape used throughout the chatroom feed UI: the canonical wire
+ * message plus queue-only UI fields.
+ *
+ * The backend domain `Message` (`@workspace/backend/src/domain/entities/message`)
+ * is the source of truth; this type only narrows `backlogStatus` and adds the
+ * fields that exist solely on queued-message responses.
+ */
+export type Message = Omit<DomainMessage, 'attachedTasks' | 'attachedArtifacts'> & {
   attachedTasks?: AttachedTask[];
-  /** Attached chatroom_backlog items for context (from "Attach to Context" button) */
-  attachedBacklogItems?: AttachedBacklogItem[];
-  /** Attached artifacts */
   attachedArtifacts?: ArtifactMeta[];
-  /**
-   * Files attached to a user-addressed handoff (metadata only; URLs come from
-   * getFileUrls).
-   */
-  attachedFiles?: AttachedFileView[];
-  /** Attached chatroom messages for context */
-  attachedMessages?: AttachedMessage[];
-  /** Explorer file snippets attached via Cmd+I */
-  attachedSnippets?: AttachedSnippet[];
-  /** Queued message flag (from chatroom_messageQueue) */
+  /** Queued message flag (from chatroom_messageQueue). */
   isQueued?: boolean;
-  /** Role that set the context (new-context messages only) */
-  contextCreatedBy?: string;
-  /** Scheduled prompt ID that triggered this message */
-  scheduledPromptId?: string;
-  /** Per-message conversation mode snapshot (queued messages only) */
+  startInNewSession?: boolean;
   conversationMode?: ConversationMode;
-  /**
-   * Complete canonical policy snapshot for queued messages; legacy scalar
-   * fields (`conversationMode`, `startInNewSession`) remain compatibility-only
-   * and are normalized as a fallback when this field is absent on older
-   * responses/fixtures.
-   */
+  /** Complete canonical policy snapshot for queued messages. */
   taskEnvelope?: TaskEnvelopeV1;
-}
+};

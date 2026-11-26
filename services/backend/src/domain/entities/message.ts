@@ -13,17 +13,14 @@
  * @see docs/conventions/domain-models.md
  */
 
-// The literal list is the source of truth for the schema validator; the
-// co-located drift test consumes MESSAGE_TYPES. The dead-code scan does not
-// count the schema import or tests as consumers of every export.
-// fallow-ignore-file unused-export
-
 import { v } from 'convex/values';
 
 import { toLiteralValidators } from './_shared/v-literals-of';
 import type { AttachedFileView } from './file-attachment';
 
 /** Source of truth for every `type` literal. Both schema unions derive from it. */
+// The schema validator and the drift test consume this list; no other module imports it.
+// fallow-ignore-next-line unused-export
 export const MESSAGE_TYPES = [
   'message',
   'handoff',

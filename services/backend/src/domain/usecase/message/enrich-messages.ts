@@ -146,12 +146,7 @@ export async function enrichMessageAttachments(
  * Picks exactly the Message fields. Replaces the whole-document spread, so
  * internal/deprecated columns never reach the wire.
  */
-// Exported for the message projection seam; the only in-repo consumer today is enrichMessages below.
-// fallow-ignore-next-line unused-export
-export function toMessage(
-  doc: Doc<'chatroom_messages'>,
-  attachments: ResolvedAttachments
-): Message {
+function toMessage(doc: Doc<'chatroom_messages'>, attachments: ResolvedAttachments): Message {
   return {
     _id: doc._id,
     _creationTime: doc._creationTime,

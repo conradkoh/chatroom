@@ -21,7 +21,7 @@ export interface MessagesPanelProps {
   chatroomId: string;
   // SendForm props
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
-  onRegisterConversationNavigation?: (actions: { goToLatestAnchor: () => void }) => void;
+  onRegisterConversationNavigation?: (actions: { goToLatestPage: () => void }) => void;
   onRequestComposerFocus?: () => void;
   onMessageSent?: () => void;
   autocompleteFiles?: FileEntry[];

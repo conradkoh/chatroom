@@ -65,7 +65,7 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
             <MessageAttachmentChips
               message={{
                 _id: task._id,
-                type: 'task',
+                type: 'message',
                 senderRole: 'user',
                 content: task.content,
                 _creationTime: task.createdAt,

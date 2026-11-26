@@ -34,9 +34,9 @@ describe('handoff timing', () => {
   });
 
   it.each([
-    ['notice', { ...previous, type: 'notice' }],
-    ['message', { ...previous, type: 'message' }],
-  ])('counts a %s predecessor', (_label, predecessor) => {
+    ['notice', { ...previous, type: 'notice' } satisfies Message],
+    ['message', { ...previous, type: 'message' } satisfies Message],
+  ])('counts a %s predecessor', (_label: string, predecessor: Message) => {
     const earlier = { ...predecessor, _creationTime: 4_000 };
     expect(getHandoffDurationMs(handoff, earlier)).toBe(62_000);
   });
@@ -54,9 +54,9 @@ describe('handoff timing', () => {
   });
 
   it.each([
-    ['message', { ...handoff, type: 'message' }],
-    ['notice', { ...handoff, type: 'notice' }],
-  ])('omits the duration for a non-handoff %s', (_label, message) => {
+    ['message', { ...handoff, type: 'message' } satisfies Message],
+    ['notice', { ...handoff, type: 'notice' } satisfies Message],
+  ])('omits the duration for a non-handoff %s', (_label: string, message: Message) => {
     expect(getHandoffDurationMs(message, previous)).toBeUndefined();
   });
 

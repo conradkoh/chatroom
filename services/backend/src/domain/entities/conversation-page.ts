@@ -1,7 +1,3 @@
-// The page API and CLI land in later phases; until then this module is only
-// consumed by its co-located test.
-// fallow-ignore-file unused-file
-
 /**
  * Conversation Page — the only definition of what starts a page, plus the
  * page constants shared by the backend and CLI.
@@ -31,6 +27,8 @@ export const PAGE_START_SENDER_ROLE = 'user' as const;
 export const PAGE_START_TYPE = 'message' as const;
 export const PAGE_PREVIEW_MAX_CHARS = 120;
 /** Max before/after page span for listPages. */
+// The cap is consumed through clampPageSpan; no module imports the constant directly.
+// fallow-ignore-next-line unused-export
 export const MAX_PAGE_SPAN = 50;
 
 /**
@@ -39,6 +37,12 @@ export const MAX_PAGE_SPAN = 50;
  */
 export function startsPage(m: Pick<Message, 'senderRole' | 'type'>): boolean {
   return m.senderRole === PAGE_START_SENDER_ROLE && m.type === PAGE_START_TYPE;
+}
+
+/** Clamps a before/after count to [0, MAX_PAGE_SPAN]. Non-finite input is treated as 0. */
+export function clampPageSpan(n: number | undefined): number {
+  if (n === undefined || !Number.isFinite(n)) return 0;
+  return Math.min(Math.max(Math.floor(n), 0), MAX_PAGE_SPAN);
 }
 
 export interface PageRef {

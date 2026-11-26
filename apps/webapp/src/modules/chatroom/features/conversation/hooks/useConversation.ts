@@ -7,7 +7,6 @@ import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { shallowEqualRecord, structurallyEqual } from './stableIdentity';
-import { toMessage } from '../../../hooks/chatroomMessageStore';
 import {
   getHandoffDurationMs,
   getSlowHandoffThresholdMs,
@@ -17,7 +16,8 @@ import { mapMessageToTimelineEvent } from '../../../timeline/mapMessageToTimelin
 import type { TimelineEvent } from '../../../timeline/types';
 import type { Message } from '../../../types/message';
 
-const PAGE_SIZE = 50;
+/** Convex pagination batch size. Not a domain page. */
+const FETCH_BATCH_SIZE = 50;
 
 /** Merge live tail messages into paginated results, deduping by id and sorting by time. */
 function mergeMessagesById(base: Message[], extra: Message[]): Message[] {
@@ -38,41 +38,32 @@ function mergeMessagesById(base: Message[], extra: Message[]): Message[] {
 export function useConversation(chatroomId: string) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const [sessionId] = useSessionId();
-  const [selectedAnchorId, setSelectedAnchorId] = useState<Id<'chatroom_messages'> | null>(null);
+  const [selectedPageId, setSelectedPageId] = useState<Id<'chatroom_messages'> | null>(null);
 
-  const nav = useSessionQuery(
-    api.conversation.getConversationAnchorNavigation,
+  // before/after are omitted: the window is the single selected page.
+  const pageNav = useSessionQuery(
+    api.conversation.listPages,
     sessionId
-      ? {
-          chatroomId: typedChatroomId,
-          ...(selectedAnchorId ? { anchorMessageId: selectedAnchorId } : {}),
-        }
+      ? { chatroomId: typedChatroomId, ...(selectedPageId ? { pageId: selectedPageId } : {}) }
       : 'skip'
   );
 
-  const effectiveAnchorId = nav?.anchor?._id ?? null;
-
-  const sliceUpperBound = nav?.sliceUpperBoundExclusive ?? null;
+  const currentPage = pageNav?.pages[0] ?? null;
+  const pageId = pageNav?.selectedPageId ?? null;
+  const endExclusive = currentPage?.endExclusive ?? null;
 
   const paginated = usePaginatedQuery(
-    api.conversation.listConversationSlicePaginated as PaginatedQueryReference,
-    effectiveAnchorId && sessionId && nav !== undefined
-      ? {
-          chatroomId: typedChatroomId,
-          sessionId,
-          anchorMessageId: effectiveAnchorId,
-          sliceUpperBoundExclusive: sliceUpperBound,
-        }
+    api.conversation.listPageMessages as PaginatedQueryReference,
+    pageId && sessionId && pageNav !== undefined
+      ? { chatroomId: typedChatroomId, sessionId, pageId, endExclusive }
       : 'skip',
-    { initialNumItems: PAGE_SIZE }
+    { initialNumItems: FETCH_BATCH_SIZE }
   );
 
-  const paginatedMessages = useMemo(
-    () =>
-      (paginated.results ?? []).flatMap((r) => {
-        const m = toMessage(r);
-        return m ? [m] : [];
-      }),
+  // Results are already canonical Message rows (wire projection), so no per-row mapping.
+  // The only gap is the webapp's `backlogStatus` narrowing; the wire value is a task status.
+  const paginatedMessages = useMemo<Message[]>(
+    () => (paginated.results ?? []) as Message[],
     [paginated.results]
   );
 
@@ -85,17 +76,17 @@ export function useConversation(chatroomId: string) {
   }, [paginatedMessages]);
 
   const tail = useSessionQuery(
-    api.conversation.subscribeConversationSliceTail,
-    sessionId && effectiveAnchorId && isPaginationExhausted
+    api.conversation.subscribePageTail,
+    sessionId && pageId && isPaginationExhausted
       ? {
           chatroomId: typedChatroomId,
           afterCreationTime: lastPaginatedCreationTime,
-          upperBoundExclusive: sliceUpperBound ?? null,
+          endExclusive,
         }
       : 'skip'
   );
 
-  const tailMessages = useMemo(() => (tail ?? []).map(toMessage), [tail]);
+  const tailMessages = useMemo<Message[]>(() => (tail ?? []) as Message[], [tail]);
 
   const mergedMessages = useMemo(
     () => mergeMessagesById(paginatedMessages, tailMessages),
@@ -124,27 +115,27 @@ export function useConversation(chatroomId: string) {
     return stabilized;
   }, [mergedMessages]);
 
-  // Loading until the current anchor's first page arrives. Convex resets the
+  // Loading until the current page's first batch arrives. Convex resets the
   // paginated query to LoadingFirstPage synchronously when its args change, so
-  // a stale slice from the previous anchor is never shown during transitions.
-  const isEmptyChatroom = nav !== undefined && nav.anchor === null;
+  // a stale page from the previous page is never shown during transitions.
+  const isEmptyChatroom = pageNav !== undefined && pageNav.selectedPageId === null;
 
   const isSliceLoading =
     !isEmptyChatroom &&
-    (nav === undefined ||
+    (pageNav === undefined ||
       paginated.status === 'LoadingFirstPage' ||
       (paginated.status === 'LoadingMore' && paginatedMessages.length === 0));
 
-  const goToPrev = useCallback(() => {
-    if (nav?.prevAnchorId) setSelectedAnchorId(nav.prevAnchorId);
-  }, [nav?.prevAnchorId]);
+  const goToPrevPage = useCallback(() => {
+    if (pageNav?.prevPageId) setSelectedPageId(pageNav.prevPageId);
+  }, [pageNav?.prevPageId]);
 
-  const goToNext = useCallback(() => {
-    if (nav?.nextAnchorId) setSelectedAnchorId(nav.nextAnchorId);
-  }, [nav?.nextAnchorId]);
+  const goToNextPage = useCallback(() => {
+    if (pageNav?.nextPageId) setSelectedPageId(pageNav.nextPageId);
+  }, [pageNav?.nextPageId]);
 
-  const goToLatestAnchor = useCallback(() => {
-    setSelectedAnchorId(null);
+  const goToLatestPage = useCallback(() => {
+    setSelectedPageId(null);
   }, []);
 
   // `handoffDurationMs` is derived from the previous message, so an event is keyed
@@ -186,22 +177,22 @@ export function useConversation(chatroomId: string) {
   useLayoutEffect(() => {
     paginatedLoadMoreRef.current = paginated.loadMore;
   }, [paginated.loadMore]);
-  const loadMore = useCallback(() => paginatedLoadMoreRef.current(PAGE_SIZE), []);
+  const loadMore = useCallback(() => paginatedLoadMoreRef.current(FETCH_BATCH_SIZE), []);
 
   return {
     events,
     messages,
-    nav,
+    pageNav,
     isLoading: isSliceLoading,
     isLoadingMore: paginated.status === 'LoadingMore',
     canLoadMore: paginated.status === 'CanLoadMore',
     loadMore,
-    goToPrev,
-    goToNext,
-    goToLatestAnchor,
-    hasPrev: !!nav?.prevAnchorId,
-    hasNext: !!nav?.nextAnchorId,
-    isOnLatestAnchor: selectedAnchorId === null,
-    anchorId: effectiveAnchorId,
+    goToPrevPage,
+    goToNextPage,
+    goToLatestPage,
+    hasPrevPage: !!pageNav?.prevPageId,
+    hasNextPage: !!pageNav?.nextPageId,
+    isOnLatestPage: selectedPageId === null,
+    pageId,
   };
 }

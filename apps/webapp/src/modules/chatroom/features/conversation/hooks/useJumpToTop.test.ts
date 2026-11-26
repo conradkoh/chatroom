@@ -119,11 +119,11 @@ describe('useJumpToTop', () => {
     expect(result.current.isVisible).toBe(false);
   });
 
-  it('scroll anchoring above the viewport does not show the button', () => {
+  it('scroll adjustment above the viewport does not show the button', () => {
     const { el, result } = trackedSetup(1000);
     Object.defineProperty(el, 'scrollHeight', { value: 3000, configurable: true });
     Object.defineProperty(el, 'scrollHeight', { value: 2920, configurable: true }); // content above shrank
-    act(() => scrollTo(el, 920)); // anchoring adjusts scrollTop, no user input
+    act(() => scrollTo(el, 920)); // scroll adjustment moves scrollTop, no user input
     expect(result.current.isVisible).toBe(false);
   });
 
@@ -286,7 +286,7 @@ describe('useJumpToTop', () => {
     expect(result.current.isVisible).toBe(false);
   });
 
-  it('hides when the anchor changes', () => {
+  it('hides when the page changes', () => {
     const { el, result, rerender } = trackedSetup(1000);
     act(() => userScrollTo(el, 920));
     expect(result.current.isVisible).toBe(true);
