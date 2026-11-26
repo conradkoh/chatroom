@@ -6,6 +6,8 @@ export const WORKSPACE_COMMAND_ACTIONS = [
   'view-daemon-logs',
   'copy-workspace-path',
   'view-github-prs',
+  'view-all-prs',
+  'view-review-requested-prs',
   'view-current-pr',
   'review-prs',
   'view-repo',

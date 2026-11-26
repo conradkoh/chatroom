@@ -9,6 +9,13 @@ describe('workspaceCommandBlacklistKey', () => {
   it('returns ws-{action}', () => {
     expect(workspaceCommandBlacklistKey('git-pull')).toBe('ws-git-pull');
   });
+
+  it('returns ws-view-all-prs and ws-view-review-requested-prs keys', () => {
+    expect(workspaceCommandBlacklistKey('view-all-prs')).toBe('ws-view-all-prs');
+    expect(workspaceCommandBlacklistKey('view-review-requested-prs')).toBe(
+      'ws-view-review-requested-prs'
+    );
+  });
 });
 
 describe('parseWorkspaceCommandBlacklistKeyFromId', () => {
@@ -45,5 +52,24 @@ describe('parseWorkspaceCommandBlacklistKeyFromId', () => {
 
   it('returns null for saved commands', () => {
     expect(parseWorkspaceCommandBlacklistKeyFromId('saved-cmd-id1')).toBeNull();
+  });
+
+  it('parses the new PR action ids to their semantic keys', () => {
+    expect(parseWorkspaceCommandBlacklistKeyFromId('ws-abc::/Users/foo/my-repo-view-all-prs')).toBe(
+      'ws-view-all-prs'
+    );
+    expect(
+      parseWorkspaceCommandBlacklistKeyFromId(
+        'ws-abc::/Users/foo/my-repo-view-review-requested-prs'
+      )
+    ).toBe('ws-view-review-requested-prs');
+  });
+
+  it('does not map view-review-requested-prs to the review-prs key', () => {
+    expect(
+      parseWorkspaceCommandBlacklistKeyFromId(
+        'ws-abc::/Users/foo/my-repo-view-review-requested-prs'
+      )
+    ).not.toBe('ws-review-prs');
   });
 });

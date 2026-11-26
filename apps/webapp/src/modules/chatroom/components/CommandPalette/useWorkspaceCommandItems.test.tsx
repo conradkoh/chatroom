@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspaceCommandItems } from './useWorkspaceCommandItems';
 import type { Workspace } from '../../types/workspace';
 
+import { fuzzyFilter } from '@/lib/fuzzyMatch';
+
 const mocks = vi.hoisted(() => ({
   useWorkspaceGit: vi.fn(),
 }));
@@ -182,5 +184,93 @@ describe('useWorkspaceCommandItems', () => {
       ])
     );
     expect(mocks.useWorkspaceGit).toHaveBeenCalledWith('', '/repo');
+  });
+});
+
+describe('GitHub pull request view commands', () => {
+  const gitState = {
+    status: 'available' as const,
+    branch: 'main',
+    isDirty: false,
+    diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    openPullRequests: [],
+    remotes: [{ name: 'origin', url: 'git@github.com:owner/repo.git' }],
+    commitsAhead: 0,
+    commitsBehind: 0,
+    updatedAt: 1,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.useWorkspaceGit.mockReturnValue(gitState);
+  });
+
+  function renderWorkspaceItems(workspace: Workspace = mkWorkspace()) {
+    const callbacks = mkCallbacks();
+    const { result } = renderHook(() => useWorkspaceCommandItems(workspace, false, callbacks));
+    const find = (suffix: string) =>
+      result.current.find((item) => item.id === `ws-${workspace.id}-${suffix}`);
+    return { callbacks, workspace, find };
+  }
+
+  it('exposes both PR view commands with stable ids, keys, labels and URLs', () => {
+    const { callbacks, workspace, find } = renderWorkspaceItems();
+
+    const allPrs = find('view-all-prs');
+    expect(allPrs?.label).toBe('Github: View All Pull Requests');
+    expect(allPrs?.blacklistKey).toBe('ws-view-all-prs');
+    expect(allPrs?.id).toBe(`ws-${workspace.id}-view-all-prs`);
+
+    const reviewRequested = find('view-review-requested-prs');
+    expect(reviewRequested?.label).toBe('Github: View Pull Requests Pending My Review');
+    expect(reviewRequested?.blacklistKey).toBe('ws-view-review-requested-prs');
+    expect(reviewRequested?.id).toBe(`ws-${workspace.id}-view-review-requested-prs`);
+
+    act(() => allPrs?.action());
+    expect(callbacks.openExternalUrl).toHaveBeenNthCalledWith(
+      1,
+      'https://github.com/owner/repo/pulls'
+    );
+
+    callbacks.openExternalUrl.mockClear();
+
+    act(() => reviewRequested?.action());
+    expect(callbacks.openExternalUrl).toHaveBeenNthCalledWith(
+      1,
+      'https://github.com/owner/repo/pulls/review-requested/@me'
+    );
+  });
+
+  it('omits both PR view commands without a GitHub origin', () => {
+    mocks.useWorkspaceGit.mockReturnValue({ ...gitState, remotes: [] });
+    const workspace = mkWorkspace();
+
+    const { result } = renderHook(() => useWorkspaceCommandItems(workspace, false, mkCallbacks()));
+    const commandIds = result.current.map((item) => item.id);
+
+    expect(commandIds).not.toContain(`ws-${workspace.id}-view-all-prs`);
+    expect(commandIds).not.toContain(`ws-${workspace.id}-view-review-requested-prs`);
+    expect(commandIds).not.toContain(`ws-${workspace.id}-view-github-prs`);
+  });
+
+  it.each([
+    { query: 'pr', allPrs: true, reviewRequested: true },
+    { query: 'pull request', allPrs: true, reviewRequested: true },
+    { query: 'all', allPrs: true, reviewRequested: false },
+    { query: 'review', allPrs: false, reviewRequested: true },
+    { query: 'pending', allPrs: false, reviewRequested: true },
+    { query: 'review requested', allPrs: false, reviewRequested: true },
+  ])('routes "$query" to the intended PR command only', ({ query, allPrs, reviewRequested }) => {
+    const { find } = renderWorkspaceItems();
+    const allItem = find('view-all-prs');
+    const reviewItem = find('view-review-requested-prs');
+    expect(allItem).toBeDefined();
+    expect(reviewItem).toBeDefined();
+
+    const allScore = fuzzyFilter(allItem!.label, query, allItem!.keywords);
+    const reviewScore = fuzzyFilter(reviewItem!.label, query, reviewItem!.keywords);
+
+    expect(allScore > 0).toBe(allPrs);
+    expect(reviewScore > 0).toBe(reviewRequested);
   });
 });
