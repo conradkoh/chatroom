@@ -12,6 +12,7 @@ import {
   gitCloneStatusValidator,
 } from '../src/domain/entities/git-clone-request';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
+import { messageTypeValidator } from '../src/domain/entities/message';
 import {
   ledgerEntryValidator,
   ledgerRootValidator,
@@ -474,19 +475,9 @@ export default defineSchema({
     // Source platform for messages from external integrations (e.g. "telegram")
     // Used for loop prevention - messages with a sourcePlatform are not re-forwarded.
     sourcePlatform: v.optional(v.string()),
-    type: v.union(
-      v.literal('message'),
-      v.literal('handoff'),
-      v.literal('join'), // Deprecated: no longer created, kept for backwards compat with existing data
-      v.literal('progress'),
-      v.literal('new-context'), // Displayed when a new context is created
-      // Agent → user interim message; no task transition (chatroom notify-user)
-      v.literal('notice'),
-      // Agent-published phased plan (chatroom plan publish); immutable
-      v.literal('plan'),
-      // Agent-published neutral observation record (chatroom grounding publish); immutable
-      v.literal('grounding')
-    ),
+    // Canonical literals live in src/domain/entities/message.ts (MESSAGE_TYPES):
+    // message, handoff, join (deprecated), progress, new-context, notice, plan, grounding.
+    type: messageTypeValidator,
     // Revision link for type: 'plan' messages; points at the plan this one supersedes
     supersedesPlanId: v.optional(v.id('chatroom_messages')),
     // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
@@ -587,16 +578,7 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     messageCreatedAt: v.number(),
     senderRole: v.string(),
-    type: v.union(
-      v.literal('message'),
-      v.literal('handoff'),
-      v.literal('join'),
-      v.literal('progress'),
-      v.literal('new-context'),
-      v.literal('notice'),
-      v.literal('plan'),
-      v.literal('grounding')
-    ),
+    type: messageTypeValidator,
     isTimeline: v.boolean(),
     taskId: v.optional(v.id('chatroom_tasks')),
     /**
