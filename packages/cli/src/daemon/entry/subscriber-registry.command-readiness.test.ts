@@ -75,4 +75,17 @@ describe('machine command readiness through startAllSubscribers', () => {
     expect(countCalls(mutation, api.daemon.machineCommandInbox.acknowledge)).toBe(1);
     await registry.stopAll();
   });
+
+  it('leaves a claim unacknowledged when the handler is cleared between claim and dispatch', async () => {
+    // Simulates shutdown racing a claim: the handler is cleared while claimNext is resolving.
+    const { wsClient, mutation } = createWsClient([CLAIM], () => unregisterCommandInboundHandler());
+    const handler = vi.fn(async () => {});
+    registerCommandInboundHandler(handler);
+    const registry = startAllSubscribers(deps(wsClient));
+    await tick();
+    expect(handler).not.toHaveBeenCalled();
+    expect(countCalls(mutation, api.daemon.machineCommandInbox.claimNext)).toBe(1);
+    expect(countCalls(mutation, api.daemon.machineCommandInbox.acknowledge)).toBe(0);
+    await registry.stopAll();
+  });
 });

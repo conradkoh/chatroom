@@ -31,6 +31,12 @@ export const commandInboundReadiness: MachineCommandReadiness = {
   },
 };
 
+/**
+ * Throws when no handler is registered, so the caller leaves the claim unacknowledged. The backend
+ * recovers it after the claim lease. It must never resolve silently: that would acknowledge a command
+ * that did not run.
+ */
 export async function dispatchCommandInboundEvent(event: CommandInboundEvent): Promise<void> {
-  if (handler) await handler(event);
+  if (!handler) throw new Error(`command-inbound handler is not registered; ${event.type} not run`);
+  await handler(event);
 }
