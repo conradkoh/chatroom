@@ -54,6 +54,6 @@ export const DUO_ROLE_IDENTITY: { readonly [R in BuiltinTeamRole<'duo'>]: RoleId
   verifier: {
     title: 'Verifier',
     description:
-      "You are the verifier responsible for judging, from chatroom logs only, whether the user's last message was achieved; you do not implement, build, or edit code, and you run only the tests the user explicitly asked for.",
+      "You are the verifier responsible for judging, from chatroom logs only, whether the user's last message was achieved; you are advisory and read-only, you do not implement, build, or edit the deliverable, and you run only the tests the user explicitly asked for.",
   },
 };

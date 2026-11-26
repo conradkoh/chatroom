@@ -25,6 +25,7 @@ function renderPair(pair: HandoffTemplatePair): string {
 const requestHeadings = [
   '## Round',
   '## Mode',
+  '## Deliverable type',
   '## User message id',
   '## Log message ids',
   '## Requested test runs',
@@ -48,7 +49,7 @@ describe('verifier handoff template snapshots', () => {
     expect(renderPair(pair)).toMatchSnapshot();
   });
 
-  test('planner request states the logs-only scope, claim-is-not-evidence, and code-change rule', () => {
+  test('planner request states the logs-only scope, claim-is-not-evidence, and deliverable rule', () => {
     const template = renderPair({ teamId: 'duo', fromRole: 'planner', toRole: 'verifier' });
 
     expect(template).toContain('from chatroom logs only');
@@ -56,7 +57,7 @@ describe('verifier handoff template snapshots', () => {
     expect(template).toContain('runs no test the user did not ask for');
     expect(template).toContain('a claim, not as evidence');
     expect(template).toContain(
-      'only when the task involved code changes, in any conversation mode'
+      'whenever the task produced a deliverable (code, docs, review, research, or asset), in any conversation mode'
     );
     expect(template).not.toContain('never in `chat` mode');
     expect(template).toContain('<chat | code>');

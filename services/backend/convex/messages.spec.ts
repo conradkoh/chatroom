@@ -109,11 +109,7 @@ async function seedQueuedMessages(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-async function seedQueuedMessages(
+async function seedQueuedMessagesByCount(
   chatroomId: Id<'chatroom_rooms'>,
   count: number
 ): Promise<Id<'chatroom_messageQueue'>[]> {
@@ -134,13 +130,17 @@ async function seedQueuedMessages(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 describe('listQueued — bounded fetch', () => {
   test('respects limit cap when using .take()', async () => {
     const { sessionId } = await createTestSession('bounded-queued-1');
     const chatroomId = await createChatroom(sessionId);
 
     // Seed 1500 queued messages — more than the 1000 limit
-    await seedQueuedMessages(chatroomId, 1500);
+    await seedQueuedMessagesByCount(chatroomId, 1500);
 
     const result = await t.query(api.messages.listQueued, {
       sessionId,
@@ -156,7 +156,7 @@ describe('listQueued — bounded fetch', () => {
     const chatroomId = await createChatroom(sessionId);
 
     // Seed 50 queued messages
-    await seedQueuedMessages(chatroomId, 50);
+    await seedQueuedMessagesByCount(chatroomId, 50);
 
     const result = await t.query(api.messages.listQueued, {
       sessionId,
@@ -173,7 +173,7 @@ describe('listQueued — bounded fetch', () => {
     const chatroomId = await createChatroom(sessionId);
 
     // Seed 50 queued messages — well below the 1000 limit
-    await seedQueuedMessages(chatroomId, 50);
+    await seedQueuedMessagesByCount(chatroomId, 50);
 
     const result = await t.query(api.messages.listQueued, {
       sessionId,

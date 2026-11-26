@@ -87,16 +87,17 @@ describe('appendVerifierGateGuidance', () => {
     expect(output).toContain('<verifier-gate>');
     expect(output).toContain('</verifier-gate>');
     expect(output).toContain('## Verifier Gate');
-    expect(output).toContain('If this task involved code changes');
+    expect(output).toContain('If this task produced a deliverable');
     expect(output).toContain('Requested test runs');
     // The leading blank line keeps the block visually separated from neighbours.
     expect(output.startsWith('existing line\n\n<verifier-gate>')).toBe(true);
   });
 
-  test('states the generic code-change rule with no mode restriction', () => {
+  test('states the deliverable rule with no mode restriction', () => {
     const output = renderGate();
 
-    expect(output).toContain('If this task involved code changes');
+    expect(output).toContain('If this task produced a deliverable');
+    expect(output).toContain('not required (conversation only)');
     expect(output).not.toContain('This does not apply to Chat mode');
   });
 
@@ -119,7 +120,10 @@ describe('appendVerifierGateGuidance', () => {
     const output = renderGate();
 
     expect(output).toContain(
-      '`ACHIEVED`: deliver to `user`. In code modes, fill the "Proof of verification (verifier review)" block'
+      '`ACHIEVED`: first run any `pending after verdict:` step your request listed'
+    );
+    expect(output).toContain(
+      'Then deliver to `user`. In code modes, fill the "Proof of verification (verifier review)" block'
     );
     expect(output).toContain("the report's Proof of Completion");
     expect(output).toContain('the verdict message id, the verifier request command, and the round');
@@ -141,6 +145,38 @@ describe('appendVerifierGateGuidance', () => {
 
       expect(output).toContain('the log message ids (every message carrying the claimed work');
       expect(output).not.toMatch(/context id|chatroom context|context read/i);
+    }
+  );
+
+  test('step 1 sends the request first and leaves finish-first to the shared bookkeeping rule', () => {
+    const output = renderGate();
+
+    expect(output).toContain(
+      '1. Send the request with the `verifier` template in `<handoff-templates>` (round 1). Finish every other user-required step first'
+    );
+    expect(output).not.toContain('Finish the user-required steps');
+  });
+
+  test('does not request the verifier on any handoff except the final one to user', () => {
+    const output = renderGate();
+
+    expect(output).toContain(
+      'Do not request it on any handoff to a role other than the final handoff to `user`.'
+    );
+    expect(output).not.toContain('handing off to builder/architect');
+  });
+
+  test.each(['3. ', '4. ', '5. '])(
+    'step starting "%s" does not run a dependent pending step without ACHIEVED',
+    (prefix) => {
+      const step = renderGate()
+        .split('\n')
+        .find((line) => line.startsWith(prefix));
+
+      expect(step).toBeDefined();
+      expect(step).toContain(
+        'When you deliver without `ACHIEVED`, do not run a `pending after verdict:` step that depends on verified work (the backlog `mark-for-review` example); list each as unresolved / action required.'
+      );
     }
   );
 

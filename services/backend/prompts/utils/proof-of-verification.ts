@@ -64,7 +64,7 @@ const VERIFIER_REVIEW_CHECKBOX =
   "- [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is `ACHIEVED` — or every unmet item is listed under Unresolved / action required";
 
 /** The verifier verdict values accepted by the disclosure, derived from the single source. */
-const VERIFIER_REVIEW_VALUES = `${VERIFIER_VERDICTS.join(' | ')} | UNAVAILABLE (<reason>) | not required (no code changes)`;
+const VERIFIER_REVIEW_VALUES = `${VERIFIER_VERDICTS.join(' | ')} | UNAVAILABLE (<reason>) | not required (conversation only)`;
 
 /** Command prefix for the verifier request, matching the `handoff` command shape. */
 function verifierRequestCommand(params: ProofOfVerificationParams = {}): string {
