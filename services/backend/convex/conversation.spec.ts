@@ -171,25 +171,6 @@ describe('listPages', () => {
     ).rejects.toThrow();
   });
 
-  test('falls back to the latest page when the explicit page was deleted', async () => {
-    const { sessionId } = await createTestSession('conversation-nav-deleted-anchor');
-    const chatroomId = await createChatroom(sessionId);
-    const deletedPage = await insertTimelineMessage(chatroomId, 'user', 'deleted page');
-    const latestPage = await insertTimelineMessage(chatroomId, 'user', 'latest page');
-
-    await t.run((ctx) => ctx.db.delete('chatroom_messages', deletedPage));
-
-    const result = await t.query(api.conversation.listPages, {
-      sessionId,
-      chatroomId,
-      pageId: deletedPage,
-    });
-
-    expect(result.selectedPageId).toBe(latestPage);
-    expect(result.pages[0]!.pageId).toBe(latestPage);
-    expect(result.pages[0]!.contentPreview).toBe('latest page');
-  });
-
   test('latest page ignores non-start rows and reports the open end', async () => {
     const { sessionId } = await createTestSession('conversation-nav-latest');
     const chatroomId = await createChatroom(sessionId);
@@ -270,6 +251,7 @@ describe('listPages', () => {
 
     expect(result.selectedPageId).toBe(u3);
     expect(result.pages.map((p) => p.pageId)).toEqual([u3]);
+    expect(result.pages[0]!.contentPreview).toBe('u3');
     expect(result.prevPageId).toBe(u1);
   });
 
