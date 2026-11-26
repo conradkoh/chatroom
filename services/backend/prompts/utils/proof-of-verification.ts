@@ -31,8 +31,6 @@ export interface ProofOfVerificationDownloadParams extends ProofOfVerificationPa
   before?: number | undefined;
   /** Later pages to include (omit = 0). */
   after?: number | undefined;
-  /** Cap on messages downloaded (omit = CLI default of 500). */
-  maxMessages?: number | undefined;
 }
 
 /** Generate the `messages pages` command string. */
@@ -55,7 +53,6 @@ export function messagesDownloadCommand(params: ProofOfVerificationDownloadParam
     ...(params.pageId !== undefined ? [`--page-id="${params.pageId}"`] : []),
     ...(params.before !== undefined ? [`--before=${params.before}`] : []),
     ...(params.after !== undefined ? [`--after=${params.after}`] : []),
-    ...(params.maxMessages !== undefined ? [`--max-messages=${params.maxMessages}`] : []),
   ];
   return `${prefix}chatroom messages download ${flags.join(' ')}`;
 }
