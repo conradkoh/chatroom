@@ -43,7 +43,7 @@ afterEach(() => {
 
 describe('startAllSubscribers: router rejections', () => {
   it('logs a rejected router event once and does not raise an unhandled rejection', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const unhandled = vi.fn();
     process.on('unhandledRejection', unhandled);
 
@@ -73,8 +73,8 @@ describe('startAllSubscribers: router rejections', () => {
       expect(deliverInbound).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'file-tree.request', requestId: 'req-1' })
       );
-      expect(errorSpy).toHaveBeenCalledTimes(1);
-      expect(errorSpy).toHaveBeenCalledWith(
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
         expect.stringMatching(/^\[daemon\] inbound event file-tree\.request failed: .*router boom/)
       );
       expect(unhandled).not.toHaveBeenCalled();

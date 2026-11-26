@@ -29,7 +29,7 @@ export type SubscriberRegistryHandle = { stopAll(): Promise<void> };
 export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberRegistryHandle {
   const onEvent = (event: InboundEvent): void => {
     void routeInboundEvent(deps.router, event).catch((error: unknown) => {
-      console.error(`[daemon] inbound event ${event.type} failed: ${getErrorMessage(error)}`);
+      console.warn(`[daemon] inbound event ${event.type} failed: ${getErrorMessage(error)}`);
     });
   };
 
