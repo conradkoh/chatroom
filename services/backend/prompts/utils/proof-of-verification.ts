@@ -1,9 +1,10 @@
 /**
  * Proof of verification workflow for entry-point user handoffs.
  *
- * Entry-point agents (planner/solo) must re-anchor on the user's last message
- * and download grep-friendly history since that anchor before handing off to
- * the user — especially on long multi-phase tasks that survive compaction.
+ * Entry-point agents (planner/solo) must read the latest page (the user's last
+ * message and all work since) and the earlier pages a terse follow-up depends
+ * on before handing off to the user — especially on long multi-phase tasks that
+ * survive compaction.
  *
  * The verification workflow is rolled up INTO the Proof of Completion section
  * (not a separate `## Proof of Verification` heading), so the agent answers
@@ -24,33 +25,43 @@ export interface ProofOfVerificationParams {
 }
 
 export interface ProofOfVerificationDownloadParams extends ProofOfVerificationParams {
-  sinceMessageId?: string | undefined;
-  limit?: number | undefined;
+  /** Start message id of the page to begin from (omit = latest page). */
+  pageId?: string | undefined;
+  /** Earlier pages to include (omit = 0). */
+  before?: number | undefined;
+  /** Later pages to include (omit = 0). */
+  after?: number | undefined;
+  /** Cap on messages downloaded (omit = CLI default of 500). */
+  maxMessages?: number | undefined;
 }
 
-/** Generate the `messages anchor` command string. */
-export function messagesAnchorCommand(params: ProofOfVerificationParams = {}): string {
+/** Generate the `messages pages` command string. */
+export function messagesPagesCommand(params: ProofOfVerificationParams = {}): string {
   const prefix = params.cliEnvPrefix ?? '';
   const chatroomId = params.chatroomId ?? '<chatroom-id>';
   const role = params.role ?? '<role>';
-  return `${prefix}chatroom messages anchor --chatroom-id="${chatroomId}" --role="${role}"`;
+  return `${prefix}chatroom messages pages --chatroom-id="${chatroomId}" --role="${role}"`;
 }
 
-/** Generate the `messages download --since-message-id` command string. */
+/** Generate the `messages download` command string (latest page by default). */
 // fallow-ignore-next-line complexity
-export function messagesDownloadSinceCommand(
-  params: ProofOfVerificationDownloadParams = {}
-): string {
+export function messagesDownloadCommand(params: ProofOfVerificationDownloadParams = {}): string {
   const prefix = params.cliEnvPrefix ?? '';
   const chatroomId = params.chatroomId ?? '<chatroom-id>';
   const role = params.role ?? '<role>';
-  const sinceMessageId = params.sinceMessageId ?? '<id>';
-  const limit = params.limit ?? 100;
-  return `${prefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --since-message-id="${sinceMessageId}" --limit=${limit}`;
+  const flags = [
+    `--chatroom-id="${chatroomId}"`,
+    `--role="${role}"`,
+    ...(params.pageId !== undefined ? [`--page-id="${params.pageId}"`] : []),
+    ...(params.before !== undefined ? [`--before=${params.before}`] : []),
+    ...(params.after !== undefined ? [`--after=${params.after}`] : []),
+    ...(params.maxMessages !== undefined ? [`--max-messages=${params.maxMessages}`] : []),
+  ];
+  return `${prefix}chatroom messages download ${flags.join(' ')}`;
 }
 
 const PROOF_OF_VERIFICATION_CHECKBOX =
-  "- [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff";
+  "- [ ] I confirm I verified the user's full request: reviewed the latest page (the user's last message and all work since), reviewed earlier pages when the latest was a terse follow-up, and validated every requirement below before this handoff";
 
 const VERIFIER_REVIEW_CHECKBOX =
   "- [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is `ACHIEVED` — or every unmet item is listed under Unresolved / action required";
@@ -84,18 +95,14 @@ ${VERIFIER_REVIEW_CHECKBOX}
 
 /** HTML comment with the entry-point proof-of-completion workflow commands. */
 function getProofOfVerificationComment(params: ProofOfVerificationParams = {}): string {
-  const anchorCmd = messagesAnchorCommand(params);
-  const downloadCmd = messagesDownloadSinceCommand({
-    ...params,
-    sinceMessageId: '<from-anchor>',
-    limit: 100,
-  });
+  const pagesCmd = messagesPagesCommand(params);
+  const downloadCmd = messagesDownloadCommand(params);
+  const earlierCmd = messagesDownloadCommand({ ...params, before: 1 });
   return `<!-- Entry-point proof-of-completion workflow — run before filling this section:
-1. \`${anchorCmd}\` — locate the user's last message (and prior user messages for context)
-2. \`${downloadCmd}\` — download grep-friendly history since anchor; read handoffs and goals
-3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
-4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
-Then: \`${anchorCmd}\` → \`${downloadCmd}\` (use the message ID from anchor output as --since-message-id) -->`;
+1. \`${downloadCmd}\` — download the latest page: the user's last message and all work since; read handoffs and goals
+2. If the user's last message was terse (e.g. "do it", "raise a PR"), run \`${pagesCmd}\` and download the earlier page with \`${earlierCmd}\`
+3. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
+Then: \`${downloadCmd}\` (re-check the latest page before handing off) -->`;
 }
 
 /**

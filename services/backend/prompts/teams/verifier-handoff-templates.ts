@@ -36,7 +36,7 @@ export function getEntryPointToVerifierHandoffTemplate(query: HandoffTemplateQue
 <chat | code>
 
 ## User message id
-<id of the user's last message: the origin message id of the user task, or from \`chatroom messages anchor\`>
+<id of the user's last message: the origin message id of the user task, or from the \`[latest]\` row of \`chatroom messages pages\`>
 
 ## Log message ids
 <one per line as \`<message id> — <sender role> — <what it shows>\`: every message that carries the claimed work, in order: builder and specialist handoff reports, the reviewer report, and commit or PR evidence messages; or exactly \`None beyond the user message.\`>

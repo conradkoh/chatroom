@@ -152,15 +152,21 @@ describe('getHandoffReportTemplateBody', () => {
     expect(proofs).toContain('I confirm I verified the user');
     expect(proofs).toContain('validated every requirement below before this handoff');
 
-    // Workflow comment with anchor command.
-    expect(proofs).toContain('messages anchor');
+    // Workflow comment with the latest-page download.
     expect(proofs).toContain(
-      'messages download --chatroom-id="<chatroom-id>" --role="<role>" --since-message-id="<from-anchor>" --limit=100'
+      'chatroom messages download --chatroom-id="<chatroom-id>" --role="<role>"'
     );
+    expect(proofs).toContain(
+      'chatroom messages pages --chatroom-id="<chatroom-id>" --role="<role>"'
+    );
+    expect(proofs).toContain(
+      'chatroom messages download --chatroom-id="<chatroom-id>" --role="<role>" --before=1'
+    );
+    expect(proofs).not.toContain('messages anchor');
 
     // Terse follow-up guidance present.
     expect(proofs).toMatch(/terse/i);
-    expect(proofs).toMatch(/prior user messages/);
+    expect(proofs).toMatch(/earlier page/);
 
     // Requirement + file placeholders.
     expect(proofs).toContain('- Requirements');

@@ -15,31 +15,48 @@ const renderers: [string, (role: string) => string][] = [
 ];
 
 describe.each(renderers)('compaction recovery %s', (_name, render) => {
-  test('reloads the verifier prompt and downloads the log from the request user message id', () => {
+  test('reloads the prompt and downloads the latest page', () => {
     const output = render('verifier');
 
     expect(output).toContain('get-system-prompt');
-    expect(output).toContain('messages download');
-    expect(output).toContain('--since-message-id="<user-message-id>"');
+    expect(output).toContain('chatroom messages download --chatroom-id="chat-1" --role="verifier"');
+    expect(output.toLowerCase()).toContain('latest page');
     expect(output).not.toMatch(CONTEXT_REFERENCE);
   });
 
-  test('anchors on the user message id before downloading the log', () => {
+  test('names exactly one download command and no anchor command', () => {
     const output = render('verifier');
-    expect(output).toContain('messages anchor');
-    expect(output.indexOf('messages anchor')).toBeLessThan(output.indexOf('messages download'));
+    expect(output).not.toContain('messages anchor');
+    expect(output).not.toContain('--since-message-id');
+    expect(output.match(/chatroom messages download/g)).toHaveLength(1);
   });
 
-  test('recovers a non-verifier role through the message log, not context read', () => {
+  test('recovers a non-verifier role through the latest page, not context read', () => {
     const output = render('builder');
 
     expect(output).toContain('get-system-prompt');
-    expect(output).toContain('chatroom messages anchor');
-    expect(output).toContain('chatroom messages download');
+    expect(output).toContain('chatroom messages download --chatroom-id="chat-1" --role="builder"');
     expect(output).not.toContain('context read');
   });
 
   test('treats the verifier role case-insensitively', () => {
     expect(render('Verifier')).not.toMatch(CONTEXT_REFERENCE);
+  });
+});
+
+describe('compaction recovery note', () => {
+  test('names the verification request as the subject for the verifier', () => {
+    expect(getCompactionRecoveryNote({ ...PARAMS, role: 'verifier' })).toContain(
+      'your verification request'
+    );
+    expect(getCompactionRecoveryNote({ ...PARAMS, role: 'Verifier' })).toContain(
+      'your verification request'
+    );
+  });
+
+  test('names the current task as the subject for other roles', () => {
+    expect(getCompactionRecoveryNote({ ...PARAMS, role: 'builder' })).toContain(
+      'your current task'
+    );
   });
 });
