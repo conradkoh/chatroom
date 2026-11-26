@@ -3,6 +3,7 @@ import {
   dispatchCommandInboundEvent,
 } from './command-inbound-registry.js';
 import { routeInboundEvent, type EventRouterDeps } from './event-router.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
@@ -27,7 +28,9 @@ export type SubscriberRegistryHandle = { stopAll(): Promise<void> };
 
 export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberRegistryHandle {
   const onEvent = (event: InboundEvent): void => {
-    void routeInboundEvent(deps.router, event);
+    void routeInboundEvent(deps.router, event).catch((error: unknown) => {
+      console.error(`[daemon] inbound event ${event.type} failed: ${getErrorMessage(error)}`);
+    });
   };
 
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
