@@ -2446,11 +2446,6 @@
         "count": 1
       }
     },
-    "services/backend/convex/messageList.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "services/backend/convex/messages.ts": {
       "complexity_critical": {
         "count": 6
