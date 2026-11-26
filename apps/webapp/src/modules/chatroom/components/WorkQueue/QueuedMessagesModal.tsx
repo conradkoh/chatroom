@@ -3,7 +3,7 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React from 'react';
 
-import { QueuedMessageItem } from './QueuedMessageItem';
+import { ReorderableQueuedList } from './ReorderableQueuedList';
 import type { Message } from '../../types/message';
 
 import {
@@ -16,6 +16,8 @@ import {
 export interface QueuedMessagesModalProps {
   chatroomId: Id<'chatroom_rooms'>;
   messages: Message[];
+  /** false while listQueued is loading. Defaults to true so the indicator needs no change. */
+  enabled?: boolean;
   onClose: () => void;
   onDelete: (queuedMessageId: string) => Promise<void>;
 }
@@ -24,6 +26,7 @@ export interface QueuedMessagesModalProps {
 export function QueuedMessagesModal({
   chatroomId,
   messages,
+  enabled = true,
   onClose,
   onDelete,
 }: QueuedMessagesModalProps) {
@@ -42,14 +45,13 @@ export function QueuedMessagesModal({
               No queued messages
             </div>
           ) : (
-            messages.map((message) => (
-              <QueuedMessageItem
-                key={message._id}
-                chatroomId={chatroomId}
-                message={message}
-                onDelete={onDelete}
-              />
-            ))
+            <ReorderableQueuedList
+              chatroomId={chatroomId}
+              messages={messages}
+              enabled={enabled}
+              onDelete={onDelete}
+              feedbackStickyTop
+            />
           )}
         </FixedModalBody>
       </FixedModalContent>
