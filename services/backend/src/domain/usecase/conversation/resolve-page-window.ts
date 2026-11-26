@@ -8,16 +8,8 @@ import {
   PAGE_START_TYPE,
   startsPage,
   type PageRef,
+  type PageWindow,
 } from '../../entities/conversation-page';
-
-export interface PageWindow {
-  pages: PageRef[];
-  selectedPageId: Id<'chatroom_messages'> | null;
-  /** Page immediately before `pages[0]`. */
-  prevPageId: Id<'chatroom_messages'> | null;
-  /** Page immediately after `pages.at(-1)`. */
-  nextPageId: Id<'chatroom_messages'> | null;
-}
 
 const EMPTY_PAGE_WINDOW: PageWindow = {
   pages: [],
@@ -139,10 +131,10 @@ function buildPageWindow(
 /**
  * Resolves a contiguous window of pages around the selected page, ascending.
  *
- * Reads only page boundaries: one latest read only when no existing page is
- * requested; the optional page-id read, and two index takes (`before + 1`
- * older, `after + 1` newer) for the edges. A deleted `pageId` still reads
- * latest, because `requested` is null.
+ * Reads only page boundaries: the requested page's start (when `pageId` is
+ * given), the latest start only when no existing page is requested (a deleted
+ * `pageId` counts as none), and two index takes (`before + 1` older,
+ * `after + 1` newer) for the edges.
  */
 export async function resolvePageWindow(
   ctx: QueryCtx,

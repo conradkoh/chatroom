@@ -7,8 +7,10 @@
  * through a single `conversation.listPages` query.
  */
 
-import { MAX_PAGE_SPAN } from '@workspace/backend/src/domain/entities/conversation-page';
-import type { PageWindow } from '@workspace/backend/src/domain/usecase/conversation/resolve-page-window';
+import {
+  MAX_PAGE_SPAN,
+  type PageWindow,
+} from '@workspace/backend/src/domain/entities/conversation-page';
 import { Effect } from 'effect';
 
 import { api, type Id } from '../../api.js';

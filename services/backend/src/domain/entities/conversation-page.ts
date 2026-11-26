@@ -22,6 +22,7 @@
  */
 
 import type { Message } from './message';
+import type { Id } from '../../../convex/_generated/dataModel';
 
 export const PAGE_START_SENDER_ROLE = 'user' as const;
 export const PAGE_START_TYPE = 'message' as const;
@@ -52,4 +53,14 @@ export interface PageRef {
   endExclusive: number | null;
   /** First `PAGE_PREVIEW_MAX_CHARS` characters of the start content. */
   contentPreview: string;
+}
+
+/** Resolved page window around the selected page; ids are start message `_id`s. */
+export interface PageWindow {
+  pages: PageRef[];
+  selectedPageId: Id<'chatroom_messages'> | null;
+  /** Page immediately before `pages[0]`. */
+  prevPageId: Id<'chatroom_messages'> | null;
+  /** Page immediately after `pages.at(-1)`. */
+  nextPageId: Id<'chatroom_messages'> | null;
 }
