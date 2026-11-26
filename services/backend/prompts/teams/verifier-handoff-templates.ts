@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-export unused-type
+// fallow-ignore-file unused-type
 import { handoffCommand } from '../cli/handoff/command';
 import type { HandoffTemplateQuery } from '../cli/handoff-templates/contracts';
 
@@ -26,14 +26,14 @@ export const VERIFIER_TEST_RULE =
  * comma-separated. Pure conversation has no deliverable and is never requested.
  */
 export const VERIFIER_DELIVERABLE_TYPES = ['code', 'docs', 'review', 'research', 'asset'] as const;
-export type VerifierDeliverableType = (typeof VERIFIER_DELIVERABLE_TYPES)[number];
+type VerifierDeliverableType = (typeof VERIFIER_DELIVERABLE_TYPES)[number];
 
 /**
  * The evidence the verifier reads for each deliverable type. The entry point
  * records it in a chatroom message before it requests the review. Shared by the
  * gate and the request template so the coordinator sees one list.
  */
-export const VERIFIER_DELIVERABLE_EVIDENCE: Record<VerifierDeliverableType, string> = {
+const VERIFIER_DELIVERABLE_EVIDENCE: Record<VerifierDeliverableType, string> = {
   code: 'commit hashes; pushed and clean-tree evidence (a push result, or a clean `git status`, quoted in a message); the PR URL when a PR was raised; typecheck, lint, and test results quoted in a message',
   docs: 'the changed documentation file paths; commit and push evidence when the docs are tracked in the repository; the PR URL when a PR was raised',
   review:
