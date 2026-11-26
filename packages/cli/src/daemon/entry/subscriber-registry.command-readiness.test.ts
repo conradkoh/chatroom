@@ -55,7 +55,10 @@ function deps(wsClient: ConvexClient): SubscriberRegistryDeps {
   };
 }
 
-afterEach(() => unregisterCommandInboundHandler());
+afterEach(() => {
+  unregisterCommandInboundHandler();
+  vi.restoreAllMocks();
+});
 
 describe('machine command readiness through startAllSubscribers', () => {
   it('holds a queued start command until the handler is registered, then runs and acknowledges it', async () => {
@@ -86,6 +89,24 @@ describe('machine command readiness through startAllSubscribers', () => {
     expect(handler).not.toHaveBeenCalled();
     expect(countCalls(mutation, api.daemon.machineCommandInbox.claimNext)).toBe(1);
     expect(countCalls(mutation, api.daemon.machineCommandInbox.acknowledge)).toBe(0);
+    await registry.stopAll();
+  });
+
+  it('does not acknowledge agent.stop when no agent.stop handler is wired', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const STOP_CLAIM = { ...CLAIM, commandId: 'cmd-stop', type: 'agent.stop' as const };
+    const { wsClient, mutation } = createWsClient([STOP_CLAIM]);
+    const handler = vi.fn(async () => {});
+    registerCommandInboundHandler(handler);
+    const registry = startAllSubscribers(deps(wsClient)); // deps() has no onAgentStopCommand
+    await tick();
+    expect(handler).not.toHaveBeenCalled();
+    // The drain loop claims until it gets a null, so the claim count is not fixed at one.
+    expect(countCalls(mutation, api.daemon.machineCommandInbox.claimNext)).toBeGreaterThanOrEqual(
+      1
+    );
+    expect(countCalls(mutation, api.daemon.machineCommandInbox.acknowledge)).toBe(0);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('cmd-stop failed'));
     await registry.stopAll();
   });
 });

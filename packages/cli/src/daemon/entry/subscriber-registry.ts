@@ -40,7 +40,10 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     commandInboundReadiness,
     async (claimed) => {
       if (claimed.type === 'agent.stop') {
-        await deps.onAgentStopCommand?.(claimed);
+        if (!deps.onAgentStopCommand) {
+          throw new Error(`agent.stop handler is not wired; ${claimed.commandId} not run`);
+        }
+        await deps.onAgentStopCommand(claimed);
         return;
       }
       await dispatchCommandInboundEvent({
