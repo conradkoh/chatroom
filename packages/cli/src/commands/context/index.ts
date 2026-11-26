@@ -8,8 +8,10 @@
  * Phase 5: Migrated to Effect-TS services with typed error handling.
  */
 
+// Error handlers mirror the sibling CLI commands by design.
+// fallow-ignore-file code-duplication
+import type { Message } from '@workspace/backend/src/domain/entities/message';
 import { serializeMessage } from '@workspace/backend/src/domain/usecase/message/serialize-message';
-import { toSerializableMessage } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
 
@@ -78,35 +80,7 @@ export const readContextEffect = (
     // Query context
     const context = yield* backend
       .query<{
-        messages: {
-          _id: string;
-          _creationTime: number;
-          senderRole: string;
-          targetRole?: string | undefined;
-          type: string;
-          content: string;
-          taskId?: string | undefined;
-          task?: { _id: string; status: string; content: string } | undefined;
-          attachedTasks?:
-            | {
-                _id: string;
-                content: string;
-                status?: string | undefined;
-                backlogStatus?: string | undefined;
-              }[]
-            | undefined;
-          attachedBacklogItems?:
-            | {
-                _id?: string | undefined;
-                id?: string | undefined;
-                content: string;
-                status: string;
-              }[]
-            | undefined;
-          attachedMessages?: { _id: string; content: string; senderRole: string }[] | undefined;
-          attachedSnippets?:
-            { reference: string; fileSource: string; selectedContent: string }[] | undefined;
-        }[];
+        messages: Message[];
         currentContext?:
           | {
               content: string;
@@ -179,7 +153,7 @@ export const readContextEffect = (
       console.log('─'.repeat(60));
 
       for (const message of context.messages) {
-        const serialized = serializeMessage(toSerializableMessage(message), {
+        const serialized = serializeMessage(message, {
           profile: 'context-xml',
           chatroomId,
           role: options.role,

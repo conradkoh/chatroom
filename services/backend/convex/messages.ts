@@ -14,7 +14,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { generateRolePrompt, composeInitPrompt } from '../prompts';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { withActiveTeamStructure } from './lib/chatroomTeam';
@@ -31,8 +31,8 @@ import {
 import type { BackendErrorCode } from '../config/errorCodes';
 import { getEnforcedHandoffTargets } from '../prompts/cli/handoff-templates';
 import { getConfig } from '../prompts/config/index';
-import type { AttachedFileView } from '../src/domain/entities/file-attachment';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
+import type { Message } from '../src/domain/entities/message';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import {
   normalizeSenderAgent,
@@ -51,6 +51,10 @@ import {
   deleteFileAttachments,
   validateHandoffAttachments,
 } from '../src/domain/usecase/file-attachment/lifecycle';
+import {
+  enrichMessageAttachments,
+  enrichMessages,
+} from '../src/domain/usecase/message/enrich-messages';
 import {
   insertChatroomMessage,
   isMessageReadModelComplete,
@@ -75,144 +79,6 @@ const config = getConfig();
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
   fullCliOutput: string; // Complete CLI output for task delivery (backend-generated)
-}
-
-// =============================================================================
-// SHARED HELPERS
-// =============================================================================
-
-/**
- * Resolves attachment IDs on a message into full attachment details.
- * Shared by listQueued to avoid duplication.
- */
-async function enrichMessageAttachments(
-  ctx: QueryCtx,
-  msg: {
-    attachedTaskIds?: Id<'chatroom_tasks'>[] | undefined;
-    attachedBacklogItemIds?: Id<'chatroom_backlog'>[] | undefined;
-    attachedMessageIds?: Id<'chatroom_messages'>[] | undefined;
-    attachedArtifactIds?: Id<'chatroom_artifacts'>[] | undefined;
-    attachedFileIds?: Id<'chatroom_fileAttachments'>[] | undefined;
-    attachedSnippets?:
-      { reference: string; fileSource: string; selectedContent: string }[] | undefined;
-    startInNewSession?: boolean | undefined;
-  }
-) {
-  // Resolve attached tasks
-  let attachedTasks: { _id: string; content: string; backlogStatus: string }[] | undefined;
-  if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
-    const tasks = await Promise.all(
-      msg.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
-    );
-    attachedTasks = tasks
-      .filter((t): t is NonNullable<typeof t> => t !== null)
-      .map((t) => ({ _id: t._id, content: t.content, backlogStatus: t.status }));
-  }
-
-  // Resolve attached backlog items
-  let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
-  if (msg.attachedBacklogItemIds && msg.attachedBacklogItemIds.length > 0) {
-    const items = await Promise.all(
-      msg.attachedBacklogItemIds.map((itemId) => ctx.db.get('chatroom_backlog', itemId))
-    );
-    attachedBacklogItems = items
-      .filter((i): i is NonNullable<typeof i> => i !== null && i.status !== 'deleted')
-      .map((i) => ({ id: i._id, content: i.content, status: i.status }));
-  }
-
-  // Resolve attached messages
-  let attachedMessages:
-    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
-  if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
-    const msgs = await Promise.all(
-      msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
-    );
-    attachedMessages = msgs
-      .filter((m): m is NonNullable<typeof m> => m !== null)
-      .map((m) => ({
-        _id: m._id,
-        content: m.content,
-        senderRole: m.senderRole,
-        _creationTime: m._creationTime,
-      }));
-  }
-
-  // Resolve attached artifacts
-  let attachedArtifacts:
-    | {
-        _id: string;
-        filename: string;
-        description?: string | undefined;
-        mimeType?: string | undefined;
-      }[]
-    | undefined;
-  if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
-    const artifacts = await Promise.all(
-      msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
-    );
-    attachedArtifacts = artifacts
-      .filter((a): a is NonNullable<typeof a> => a !== null)
-      .map((a) => ({
-        _id: a._id,
-        filename: a.filename,
-        description: a.description,
-        mimeType: a.mimeType,
-      }));
-  }
-
-  // Resolve attached files (uploaded files bound to a user handoff). Reads are
-  // metadata-only: never expose storage ids or URLs on the message.
-  let attachedFiles: AttachedFileView[] | undefined;
-  const attachedFileIds = msg.attachedFileIds;
-  if (attachedFileIds && attachedFileIds.length > 0) {
-    attachedFiles = [];
-    for (const fileId of attachedFileIds) {
-      const file = await ctx.db.get('chatroom_fileAttachments', fileId);
-      attachedFiles.push(
-        file && file.status === 'attached'
-          ? {
-              _id: file._id,
-              status: 'available',
-              filename: file.filename,
-              mimeType: file.mimeType,
-              sizeBytes: file.sizeBytes,
-            }
-          : { _id: fileId, status: 'removed' }
-      );
-    }
-  }
-
-  return {
-    ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
-    ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
-    ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
-    ...(attachedFiles && attachedFiles.length > 0 && { attachedFiles }),
-    ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
-    ...(msg.attachedSnippets?.length && { attachedSnippets: msg.attachedSnippets }),
-  };
-}
-
-/**
- * Enriches an array of chatroom messages with attachments.
- * Used by the messageList module.
- */
-export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
-  const enrichedMessages = await Promise.all(
-    messages.map(async (message) => {
-      // Resolve attachments (shared helper)
-      const attachments = await enrichMessageAttachments(ctx, message);
-
-      const enhancerOriginalContent = message.enhancerOriginalContent;
-
-      return {
-        ...message,
-        ...attachments,
-        ...(enhancerOriginalContent && { enhancerOriginalContent }),
-      };
-    })
-  );
-
-  return enrichedMessages;
 }
 
 // =============================================================================
@@ -1885,26 +1751,18 @@ export const getContextForRole = query({
 
     // Enrich messages with task information
     const enrichedMessages = await Promise.all(
-      contextMessages.map(async (message) => {
+      contextMessages.map(async (message): Promise<Message | null> => {
         const task = message.taskId ? await ctx.db.get('chatroom_tasks', message.taskId) : null;
         // Agents discover pending/acknowledged tasks only through get-next-task.
         if (task && (task.status === 'pending' || task.status === 'acknowledged')) return null;
 
-        const attachments = await enrichMessageAttachments(ctx, message);
-
-        return {
-          _id: message._id.toString(),
-          _creationTime: message._creationTime,
-          senderRole: message.senderRole,
-          targetRole: message.targetRole,
-          content: message.content,
-          type: message.type,
-          taskId: message.taskId?.toString(),
-          task: task
-            ? { _id: task._id.toString(), status: task.status, content: task.content }
-            : undefined,
-          ...attachments,
-        };
+        const [wireMessage] = await enrichMessages(ctx, [message]);
+        return task
+          ? {
+              ...wireMessage,
+              task: { _id: task._id.toString(), status: task.status, content: task.content },
+            }
+          : wireMessage;
       })
     );
 

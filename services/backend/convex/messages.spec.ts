@@ -2281,3 +2281,54 @@ describe('generic configured-role handoff authorization', () => {
     });
   });
 });
+
+describe('canonical Message wire projection', () => {
+  test('getContextForRole omits internal handoff bookkeeping fields', async () => {
+    const { sessionId } = await createTestSession('message-projection-context');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner']);
+
+    const messageId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'planner',
+        targetRole: 'user',
+        content: 'terminal handoff',
+        type: 'handoff',
+        claimedByRole: 'planner',
+        terminalHandoffKey: 'terminal-key-1',
+      })
+    );
+
+    const context = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+    const message = context.messages.find((item) => item._id === messageId);
+
+    expect(message).toBeDefined();
+    expect(message).not.toHaveProperty('claimedByRole');
+    expect(message).not.toHaveProperty('terminalHandoffKey');
+  });
+
+  test('listQueued does not surface internal handoff bookkeeping fields', async () => {
+    const { sessionId } = await createTestSession('message-projection-queue');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued message',
+      type: 'message',
+    });
+
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).not.toHaveProperty('claimedByRole');
+    expect(queued[0]).not.toHaveProperty('terminalHandoffKey');
+  });
+});

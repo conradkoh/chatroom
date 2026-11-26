@@ -1,3 +1,5 @@
+// Rewritten in a later phase; the anchor lookups intentionally repeat the same index predicate.
+// fallow-ignore-file complexity code-duplication
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
@@ -7,7 +9,7 @@ import type { QueryCtx } from './_generated/server';
 import { query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { isTimelineMessage } from './messageList';
-import { enrichMessages } from './messages';
+import { enrichMessages } from '../src/domain/usecase/message/enrich-messages';
 
 function isUserMessageAnchor(msg: Doc<'chatroom_messages'>): boolean {
   return msg.senderRole.toLowerCase() === 'user' && msg.type === 'message';

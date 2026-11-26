@@ -14,7 +14,7 @@ import type { Doc } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
-import { enrichMessages } from './messages';
+import { enrichMessages } from '../src/domain/usecase/message/enrich-messages';
 import { isMessageReadModelComplete } from '../src/domain/usecase/message/message-read-model';
 
 /** Max rows for initial latest-window and load-older page requests. */

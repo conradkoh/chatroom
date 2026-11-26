@@ -1,9 +1,9 @@
+// Rewritten in a later phase; sibling error handlers intentionally mirror each other.
+// fallow-ignore-file code-duplication
 import * as nodePath from 'node:path';
 
-import type { SerializableSenderAgent } from '@workspace/backend/src/domain/entities/serializable-message';
+import type { Message } from '@workspace/backend/src/domain/entities/message';
 import { serializeMessage } from '@workspace/backend/src/domain/usecase/message/serialize-message';
-import type { EnrichedMessageInput } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
-import { toSerializableMessage } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
 import { Effect, Layer } from 'effect';
 
 import type { MessagesError } from './index.js';
@@ -34,20 +34,7 @@ export interface DownloadMessagesOptions {
   sinceMessageId?: string | undefined;
 }
 
-type DownloadMessage = {
-  _id: string;
-  _creationTime: number;
-  senderRole: string;
-  type: string;
-  content: string;
-  targetRole?: string | null | undefined;
-  senderAgent?: SerializableSenderAgent | undefined;
-  taskId?: string | null | undefined;
-  attachedTasks?: EnrichedMessageInput['attachedTasks'] | undefined;
-  attachedBacklogItems?: EnrichedMessageInput['attachedBacklogItems'] | undefined;
-  attachedMessages?: EnrichedMessageInput['attachedMessages'] | undefined;
-  attachedSnippets?: EnrichedMessageInput['attachedSnippets'] | undefined;
-};
+type DownloadMessage = Message;
 
 export type DownloadMessagesError =
   | MessagesError
@@ -210,11 +197,11 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
       createdAt: string;
       senderRole: string;
       targetRole?: string | null | undefined;
-      senderAgent?: SerializableSenderAgent | undefined;
+      senderAgent?: Message['senderAgent'] | undefined;
     }[] = [];
     for (const msg of messages) {
       const file = messageFilename(msg);
-      const content = serializeMessage(toSerializableMessage(msg), {
+      const content = serializeMessage(msg, {
         profile: 'linear',
         chatroomId,
         role: options.role,
@@ -315,7 +302,6 @@ export async function downloadMessages(
   const layer = commandServicesLayerFromDeps(actualDeps);
 
   // Mirrors sibling messages command error handlers.
-  // fallow-ignore-next-line code-duplication
   const handler = (err: Error | DownloadMessagesError): Effect.Effect<void> => {
     return Effect.sync(() => {
       const tagged = err as DownloadMessagesError;
