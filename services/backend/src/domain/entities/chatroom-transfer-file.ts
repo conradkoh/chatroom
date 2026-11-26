@@ -56,7 +56,8 @@ export interface ChatroomExportFileV1 extends ChatroomExportContent {
   kind: 'chatroom-export';
   exportedAt: string; // ISO-8601
   source: { chatroomId: string; cliVersion: string };
-  omitted: Record<string, { count: number | null; reason: string }>;
+  /** `bytes` is set only for the attachment omission, which is counted and measured. */
+  omitted: Record<string, { count: number | null; reason: string; bytes?: number }>;
   checksum: string; // lowercase hex SHA-256 of canonicalJson(contentOf(file))
 }
 
@@ -148,7 +149,6 @@ export const EXPORT_MAX_FILE_BYTES = 268_435_456;
 
 /** Every transfer error code. Server-thrown codes are also registered in `services/backend/config/errorCodes.ts`. */
 export const TRANSFER_ERROR_CODES = {
-  EXPORT_ATTACHMENTS_PRESENT: 'EXPORT_ATTACHMENTS_PRESENT',
   EXPORT_CHATROOM_CHANGED: 'EXPORT_CHATROOM_CHANGED',
   EXPORT_FILE_EXISTS: 'EXPORT_FILE_EXISTS',
   EXPORT_PUBLISH_UNSUPPORTED: 'EXPORT_PUBLISH_UNSUPPORTED',

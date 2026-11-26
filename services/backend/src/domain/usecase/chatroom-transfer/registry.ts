@@ -303,7 +303,7 @@ export const CHATROOM_SCOPED_TABLES: Readonly<Record<string, TransferEntry>> = {
       chatroomId: { rule: 'system', note: 'Assigned to the imported chatroom.' },
       attachedFileIds: {
         rule: 'drop',
-        reason: 'Attachments are refused before export; non-empty values never reach the file.',
+        reason: 'Attachment references are dropped because attachments are not carried.',
       },
       attachedWorkflowIds: dropDeprecated('Deprecated workflow attachments are not carried.'),
     },
@@ -579,7 +579,7 @@ export const CHATROOM_SCOPED_TABLES: Readonly<Record<string, TransferEntry>> = {
     classification: 'rebuilt',
     keyedBy: 'chatroomId',
     reason: 'Storage usage is per-user runtime accounting.',
-    rebuiltBy: 'no rows: attachments refused',
+    rebuiltBy: 'no rows: attachments are not carried',
   },
 
   // ── Excluded runtime state ─────────────────────────────────────────────
@@ -679,7 +679,7 @@ export const CHATROOM_SCOPED_TABLES: Readonly<Record<string, TransferEntry>> = {
   chatroom_fileAttachments: {
     classification: 'excluded',
     keyedBy: 'chatroomId',
-    reason: 'Binary attachments are refused before export.',
+    reason: 'Binary attachments are not carried; the file records how many were left out.',
   },
   chatroom_fileStorageSettings: {
     classification: 'excluded',

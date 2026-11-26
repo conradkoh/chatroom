@@ -43,7 +43,7 @@ afterEach(async () => {
 
 function stamp(): ExportStamp {
   return {
-    attachmentRows: { count: 0, capped: false },
+    attachmentRows: { count: 0, capped: false, totalBytes: 0 },
     lastActivityAt: 1,
     nextQueuePosition: 1,
     latestMessage: null,

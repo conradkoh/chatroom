@@ -3,7 +3,7 @@
  *
  * Orchestrates a consistent snapshot over `ChatroomExportPort`:
  *
- * 1. Read the stamp and refuse attachments before any page is read.
+ * 1. Read the stamp. Attachments are omitted by the build, not refused here.
  * 2. Page every category to completion, tracking an approximate serialized size
  *    so an oversized room fails early.
  * 3. Re-read the mutable categories (derived from the registry) and compare
@@ -73,7 +73,6 @@ export async function runExport(
   const maxFileBytes = args.limits?.maxFileBytes ?? EXPORT_MAX_FILE_BYTES;
 
   const stamp0 = await port.getStamp(args.chatroomId);
-  refuseAttachments(stamp0);
 
   const raw = await readCategories(port, args, maxFileBytes);
   await assertUnchanged(port, args.chatroomId, raw, stamp0);
@@ -200,16 +199,6 @@ function emptyRaw(): Record<ExportCategory, ExportRawRow[]> {
     savedCommands: [],
     skillCustomizations: [],
   };
-}
-
-function refuseAttachments(stamp: ExportStamp): void {
-  const { count, capped } = stamp.attachmentRows;
-  if (count === 0) return;
-  const shown = capped ? `${count}+` : `${count}`;
-  throw new ChatroomTransferError(
-    TRANSFER_ERROR_CODES.EXPORT_ATTACHMENTS_PRESENT,
-    `This chatroom has ${shown} file attachment(s); attachments cannot be exported.`
-  );
 }
 
 function changed(category: ExportCategory | null): ChatroomTransferError {

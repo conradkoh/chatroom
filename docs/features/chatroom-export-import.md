@@ -183,7 +183,7 @@ rebuilt decisions into `omitted`, using these exact reasons:
 - `chatroom_connectionCloseRequests` — Live connection control messages; not portable.
 - `chatroom_conversationModePreferences` — Per-user conversation mode preference.
 - `chatroom_favorites` — Per-user favorites; the importing user starts fresh.
-- `chatroom_fileAttachments` — Binary attachments are refused before export.
+- `chatroom_fileAttachments` — Binary attachments are not carried; the file records how many were left out.
 - `chatroom_fileStorageSettings` — Chatroom storage policy; not content.
 - `chatroom_fileStorageUsage` — Storage usage is per-user runtime accounting.
 - `chatroom_integrations` — Integration credentials (bot tokens) are never exported.
@@ -236,9 +236,9 @@ Three registry decisions are not tables:
 - File modes are POSIX-only. The export directory is created with mode `0700` and the export file
   with mode `0600`. On Windows the mode bits are ignored and the file is protected only by the
   containing directory's ACLs.
-- An export is refused when the chatroom has file attachments. It fails with
-  `EXPORT_ATTACHMENTS_PRESENT` before reading any content, because binary attachments are not part
-  of the format.
+- An export of a chatroom with file attachments succeeds. Attachment rows and message references
+  to them are left out. `omitted.chatroom_fileAttachments` records the count and total bytes, and
+  the CLI prints `N attachment(s) not included (<size>)`.
 - The export has a size ceiling. A chatroom whose content would exceed 256 MiB is refused with
   `EXPORT_TOO_LARGE`, both while paging (an early approximate check) and on the exact serialized
   length.

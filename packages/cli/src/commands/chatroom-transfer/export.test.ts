@@ -54,7 +54,7 @@ const ALL_CATEGORIES: readonly ExportCategory[] = [
 /** A stamp that matches an untouched, attachment-free chatroom. */
 function defaultStamp(overrides: Partial<ExportStamp> = {}): ExportStamp {
   return {
-    attachmentRows: { count: 0, capped: false },
+    attachmentRows: { count: 0, capped: false, totalBytes: 0 },
     lastActivityAt: 1,
     nextQueuePosition: 1,
     latestMessage: null,
@@ -89,7 +89,9 @@ interface FakeBackend {
  * list query carries a `machineId`, only `readPage` carries a `category`, and a
  * stamp carries only a `chatroomId`. `stamps` is consumed in order (the driver
  * reads the stamp first and last); every read after the last entry repeats it.
- * `attachmentChatroomIds` answers a stamp with one attachment row for those ids.
+ * `attachmentChatroomIds` answers every stamp with one 5-byte attachment row for
+ * those ids. `changedChatroomIds` answers the first stamp unchanged and every
+ * later one with a different activity value, so the export detects a change.
  */
 function createFakeBackend(
   options: {
@@ -97,13 +99,16 @@ function createFakeBackend(
     room?: ExportRawRow;
     rooms?: ExportableChatroom[] | undefined;
     attachmentChatroomIds?: readonly string[] | undefined;
+    changedChatroomIds?: readonly string[] | undefined;
   } = {}
 ): FakeBackend {
   const stamps = options.stamps ?? [defaultStamp()];
   const room = options.room ?? defaultRoom();
   const rooms = options.rooms ?? [];
   const attachmentChatroomIds = options.attachmentChatroomIds ?? [];
+  const changedChatroomIds = options.changedChatroomIds ?? [];
   const queries: RecordedQuery[] = [];
+  const chatroomStampReads = new Map<string, number>();
   let stampReads = 0;
 
   const backend: BackendOps = {
@@ -120,7 +125,12 @@ function createFakeBackend(
       if (read.machineId !== undefined) return rooms;
       if (read.category !== undefined) return pageFor({ category: read.category }, room);
       if (read.chatroomId !== undefined && attachmentChatroomIds.includes(read.chatroomId)) {
-        return defaultStamp({ attachmentRows: { count: 1, capped: false } });
+        return defaultStamp({ attachmentRows: { count: 1, capped: false, totalBytes: 5 } });
+      }
+      if (read.chatroomId !== undefined && changedChatroomIds.includes(read.chatroomId)) {
+        const reads = (chatroomStampReads.get(read.chatroomId) ?? 0) + 1;
+        chatroomStampReads.set(read.chatroomId, reads);
+        return reads === 1 ? defaultStamp() : defaultStamp({ lastActivityAt: 2 });
       }
       const stamp = stamps[Math.min(stampReads, stamps.length - 1)];
       stampReads += 1;
@@ -202,6 +212,7 @@ function createHarness(
     fs?: RecordingFs;
     rooms?: ExportableChatroom[];
     attachmentChatroomIds?: readonly string[];
+    changedChatroomIds?: readonly string[];
   } = {}
 ): Harness {
   const out: string[] = [];
@@ -213,6 +224,7 @@ function createHarness(
     createFakeBackend({
       rooms: options.rooms,
       attachmentChatroomIds: options.attachmentChatroomIds,
+      changedChatroomIds: options.changedChatroomIds,
     });
   const sessionId = options.sessionId === undefined ? 'session-abc' : options.sessionId;
   const machineId = options.machineId === undefined ? 'machine-1' : options.machineId;
@@ -290,6 +302,22 @@ describe('exportChatroom (success)', () => {
 
     expect(h.fs.files.has(join('/work', 'custom', 'dir', NAME))).toBe(true);
   });
+
+  it('exports a chatroom with an attachment and reports it as not included', async () => {
+    const backend = createFakeBackend({
+      stamps: [defaultStamp({ attachmentRows: { count: 1, capped: false, totalBytes: 5 } })],
+    });
+    const h = createHarness({ cwd: '/work', backend });
+
+    await runExport({ chatroomId: 'abc' }, h.deps);
+
+    const final = join('/work', '.chatroom', 'exports', NAME);
+    expect(h.fs.files.has(final)).toBe(true);
+    expect(h.out).toContain('1 attachment(s) not included (5 B)');
+    expect(h.out.at(-1)).toBe(WARNING);
+    expect(h.err).toEqual([]);
+    expect(h.exits).toEqual([]);
+  });
 });
 
 describe('exportChatroom (default exports directory)', () => {
@@ -326,22 +354,6 @@ describe('exportChatroom (default exports directory)', () => {
 });
 
 describe('exportChatroom (refusals)', () => {
-  it('refuses attachment rows before reading a page and writes nothing', async () => {
-    const backend = createFakeBackend({
-      stamps: [defaultStamp({ attachmentRows: { count: 2, capped: false } })],
-    });
-    const h = createHarness({ backend });
-
-    await runExport({ chatroomId: 'abc' }, h.deps);
-
-    expect(h.err).toEqual([
-      '❌ [EXPORT_ATTACHMENTS_PRESENT] This chatroom has 2 file attachment(s); attachments cannot be exported.',
-    ]);
-    expect(h.exits).toEqual([1]);
-    expect(h.fs.calls).toEqual([]);
-    expect(h.fs.files.size).toBe(0);
-  });
-
   it('refuses when the stamp changes between the first and second read', async () => {
     const backend = createFakeBackend({
       stamps: [defaultStamp(), defaultStamp({ lastActivityAt: 2 })],
@@ -356,15 +368,15 @@ describe('exportChatroom (refusals)', () => {
     expect(h.fs.files.size).toBe(0);
   });
 
-  it('a refused export creates no default directory and no ignore file', async () => {
+  it('a failed export creates no default directory and no ignore file', async () => {
     const backend = createFakeBackend({
-      stamps: [defaultStamp({ attachmentRows: { count: 1, capped: false } })],
+      stamps: [defaultStamp(), defaultStamp({ lastActivityAt: 2 })],
     });
     const h = createHarness({ cwd: '/work', backend });
 
     await runExport({ chatroomId: 'abc' }, h.deps);
 
-    expect(h.err[0]).toContain('❌ [EXPORT_ATTACHMENTS_PRESENT]');
+    expect(h.err[0]).toContain('❌ [EXPORT_CHATROOM_CHANGED]');
     expect(h.exits).toEqual([1]);
     expect(h.fs.dirs).toEqual([]);
     expect(h.fs.files.size).toBe(0);
@@ -477,7 +489,7 @@ describe('exportChatroom (--all)', () => {
   it('continues past a failed chatroom and reports it', async () => {
     const h = createHarness({
       rooms: rooms('c1', 'c2', 'c3'),
-      attachmentChatroomIds: ['c2'],
+      changedChatroomIds: ['c2'],
     });
 
     const error: unknown = await exportChatroom({ all: true }, h.deps).catch(
@@ -490,7 +502,7 @@ describe('exportChatroom (--all)', () => {
     expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName('c3')))).toBe(true);
     expect(h.fs.files.has(join('/work', '.chatroom', 'exports', exportName('c2')))).toBe(false);
     expect(h.err).toHaveLength(1);
-    expect(h.err[0]).toMatch(/^❌ \[EXPORT_ATTACHMENTS_PRESENT\] c2: /);
+    expect(h.err[0]).toMatch(/^❌ \[EXPORT_CHATROOM_CHANGED\] c2: /);
     expect(h.out).toContain('Exported 2 of 3 chatrooms from machine machine-1');
     expect(h.out).toContain('Failed: 1');
     expect(h.out.filter((line) => line === WARNING)).toHaveLength(1);
@@ -499,7 +511,7 @@ describe('exportChatroom (--all)', () => {
   it('fails with EXPORT_ALL_INCOMPLETE when every chatroom fails', async () => {
     const h = createHarness({
       rooms: rooms('c1', 'c2', 'c3'),
-      attachmentChatroomIds: ['c1', 'c2', 'c3'],
+      changedChatroomIds: ['c1', 'c2', 'c3'],
     });
 
     const error: unknown = await exportChatroom({ all: true }, h.deps).catch(

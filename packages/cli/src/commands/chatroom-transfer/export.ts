@@ -33,6 +33,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { ChatroomTransferDeps } from './deps.js';
 import { exportFileName, prepareDefaultExportsDir, writeExportFileAtomically } from './file-io.js';
+import { formatBytes } from './format-bytes.js';
 import { requireTransferSession } from './session-guard.js';
 import { api } from '../../api.js';
 import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js';
@@ -41,6 +42,8 @@ import { getConvexErrorData, getErrorMessage } from '../../utils/convex-error.js
 interface Omission {
   count: number | null;
   reason: string;
+  /** Set only for attachments, which are counted and measured. */
+  bytes?: number;
 }
 
 /** The export ships conversation content in plaintext; every run that writes a file says so. */
@@ -228,6 +231,7 @@ function printReport(out: (line: string) => void, report: ExportReport): void {
   for (const key of Object.keys(report.omitted).sort()) {
     printOmission(out, key, report.omitted[key]);
   }
+  printAttachmentLine(out, report.omitted);
   out(PLAINTEXT_WARNING);
 }
 
@@ -235,4 +239,18 @@ function printReport(out: (line: string) => void, report: ExportReport): void {
 function printOmission(out: (line: string) => void, key: string, omission: Omission): void {
   const count = omission.count === null ? '' : ` (${omission.count})`;
   out(`    ${key}${count}: ${omission.reason}`);
+}
+
+/** One plain sentence for the attachment size, only when attachments were left out. */
+function printAttachmentLine(out: (line: string) => void, omitted: Record<string, Omission>): void {
+  const attachments = omitted.chatroom_fileAttachments;
+  if (!attachments?.count) return;
+  out(
+    `${shownCount(attachments.count)} attachment(s) not included (${formatBytes(attachments.bytes ?? 0)})`
+  );
+}
+
+/** A capped stamp reports 1001 rows, which means "more than 1000" to the user. */
+function shownCount(count: number): string {
+  return count > 1000 ? 'more than 1000' : String(count);
 }

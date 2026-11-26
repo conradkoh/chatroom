@@ -102,7 +102,7 @@ function emptyStamp(): ExportStamp {
     latestMessage: null,
     taskCounts: null,
     latest: {},
-    attachmentRows: { count: 0, capped: false },
+    attachmentRows: { count: 0, capped: false, totalBytes: 0 },
   };
 }
 
