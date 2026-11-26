@@ -1,8 +1,13 @@
 import type { ConvexClient } from 'convex/browser';
+import { getFunctionName } from 'convex/server';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, it, vi } from 'vitest';
 
-import { startMachineCommandInboxSubscriber } from './machine-command-inbox.js';
+import {
+  type MachineCommandReadiness,
+  startMachineCommandInboxSubscriber,
+} from './machine-command-inbox.js';
+import { api } from '../../../../api.js';
 
 const SESSION_ID = 'session-test' as SessionId;
 const MACHINE_ID = 'machine-test';
@@ -13,6 +18,40 @@ const CLAIMED = {
   deadline: Date.now() + 60_000,
   timestamp: Date.now(),
 };
+const tick = () => new Promise((r) => setTimeout(r, 0));
+const alwaysReady: MachineCommandReadiness = { isReady: () => true, onReady: () => () => {} };
+
+/** Fake readiness port: the test controls when the daemon can run commands. */
+function createReadinessGate(initiallyReady: boolean) {
+  let ready = initiallyReady;
+  const listeners = new Set<() => void>();
+  return {
+    port: {
+      isReady: () => ready,
+      onReady(listener: () => void) {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+    } satisfies MachineCommandReadiness,
+    open() {
+      ready = true;
+      for (const listener of [...listeners]) listener();
+    },
+    close() {
+      ready = false;
+    },
+  };
+}
+
+/** Counts calls to a Convex function by name. */
+const callsTo = (mutation: unknown, ref: unknown) =>
+  (mutation as { mock: { calls: unknown[][] } }).mock.calls.filter(
+    ([called]) => getFunctionName(called as never) === getFunctionName(ref as never)
+  ).length;
+const CLAIM_NEXT = api.daemon.machineCommandInbox.claimNext;
+const ACKNOWLEDGE = api.daemon.machineCommandInbox.acknowledge;
 function createInboxMockWsClient() {
   const callbacks: ((result: unknown) => void)[] = [];
   const claims: unknown[] = [];
@@ -40,6 +79,7 @@ describe('machine command inbox subscriber', () => {
     mock.queueClaims(CLAIMED);
     const handle = startMachineCommandInboxSubscriber(
       { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      alwaysReady,
       async (c) => {
         events.push({ type: 'command.received', commandId: c.commandId, claimedCommand: c });
       }
@@ -90,6 +130,7 @@ describe('machine command inbox subscriber', () => {
     );
     const handle = startMachineCommandInboxSubscriber(
       { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      alwaysReady,
       async (c) => {
         seen.push(c.commandId);
         if (c.commandId === 'a') await gate;
@@ -103,6 +144,63 @@ describe('machine command inbox subscriber', () => {
     release();
     await new Promise((r) => setTimeout(r, 0));
     expect(seen).toEqual(['a', 'b', 'c']);
+    await handle.stop();
+  });
+
+  it('claims nothing and acknowledges nothing while the command handler is not registered', async () => {
+    const mock = createInboxMockWsClient();
+    const gate = createReadinessGate(false);
+    mock.queueClaims(CLAIMED);
+    const onClaimed = vi.fn(async () => {});
+    const handle = startMachineCommandInboxSubscriber(
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      gate.port,
+      onClaimed
+    );
+    await tick();
+    mock.emitWatch({ commandId: CLAIMED.commandId });
+    await tick();
+    expect(callsTo(mock.mutation, CLAIM_NEXT)).toBe(0);
+    expect(onClaimed).not.toHaveBeenCalled();
+    expect(callsTo(mock.mutation, ACKNOWLEDGE)).toBe(0);
+    await handle.stop();
+  });
+
+  it('claims, runs and acknowledges the queued command once readiness turns on, with no watch nudge', async () => {
+    const mock = createInboxMockWsClient();
+    const gate = createReadinessGate(false);
+    mock.queueClaims(CLAIMED);
+    const onClaimed = vi.fn(async () => {});
+    const handle = startMachineCommandInboxSubscriber(
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      gate.port,
+      onClaimed
+    );
+    await tick();
+    gate.open();
+    await tick();
+    expect(onClaimed).toHaveBeenCalledWith(CLAIMED);
+    expect(callsTo(mock.mutation, ACKNOWLEDGE)).toBe(1);
+    await handle.stop();
+  });
+
+  it('stops claiming once readiness is cleared', async () => {
+    const mock = createInboxMockWsClient();
+    const gate = createReadinessGate(true);
+    const onClaimed = vi.fn(async () => {});
+    const handle = startMachineCommandInboxSubscriber(
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      gate.port,
+      onClaimed
+    );
+    await tick();
+    const claimsBefore = callsTo(mock.mutation, CLAIM_NEXT);
+    gate.close();
+    mock.queueClaims(CLAIMED);
+    mock.emitWatch({ commandId: CLAIMED.commandId });
+    await tick();
+    expect(callsTo(mock.mutation, CLAIM_NEXT)).toBe(claimsBefore);
+    expect(onClaimed).not.toHaveBeenCalled();
     await handle.stop();
   });
 });

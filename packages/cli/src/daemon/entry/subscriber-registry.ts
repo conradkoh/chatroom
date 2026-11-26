@@ -1,4 +1,7 @@
-import { dispatchCommandInboundEvent } from './command-inbound-registry.js';
+import {
+  commandInboundReadiness,
+  dispatchCommandInboundEvent,
+} from './command-inbound-registry.js';
 import { routeInboundEvent, type EventRouterDeps } from './event-router.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
@@ -29,17 +32,21 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
 
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
 
-  const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
-    if (claimed.type === 'agent.stop') {
-      await deps.onAgentStopCommand?.(claimed);
-      return;
+  const machineCommands = startMachineCommandInboxSubscriber(
+    deps,
+    commandInboundReadiness,
+    async (claimed) => {
+      if (claimed.type === 'agent.stop') {
+        await deps.onAgentStopCommand?.(claimed);
+        return;
+      }
+      await dispatchCommandInboundEvent({
+        type: 'command.received',
+        commandId: claimed.commandId,
+        claimedCommand: claimed,
+      });
     }
-    await dispatchCommandInboundEvent({
-      type: 'command.received',
-      commandId: claimed.commandId,
-      claimedCommand: claimed,
-    });
-  });
+  );
   const commandRun = startCommandRunSubscriber(deps, onEvent);
   const fileTree = startFileTreeRequestSubscriber(deps, onEvent);
   const fileTreeRelease = startFileTreeReleaseRequestSubscriber(deps, onEvent);
