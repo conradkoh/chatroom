@@ -6,6 +6,8 @@
  * - Every other command runs on one machine-wide tail, and waits for all workspace tails.
  *
  * A command is acknowledged after `onClaimed` resolves. Its lease renewal runs until then.
+ * Claiming waits for `readiness`: an acknowledged claim is deleted, so a claim taken while the
+ * daemon cannot run commands would be consumed without effect.
  */
 
 import { MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
@@ -21,6 +23,13 @@ export type ClaimedMachineCommand = Omit<RawClaimedMachineCommand, 'commandId'> 
   commandId: string;
 };
 export type SubscriberHandle = { stop(): Promise<void> };
+
+/** Port: claiming waits until the daemon can run what it claims. */
+export type MachineCommandReadiness = {
+  isReady(): boolean;
+  /** Calls `listener` each time readiness turns on. Returns the unsubscribe function. */
+  onReady(listener: () => void): () => void;
+};
 
 const MACHINE_COMMAND_KEY = '__machine__';
 
@@ -43,6 +52,7 @@ function getMachineCommandConcurrencyKey(command: ClaimedMachineCommand): string
 /** Watches for lightweight nudges and dispatches claimed commands by agent. */
 export function startMachineCommandInboxSubscriber(
   deps: ConvexSubscriberDeps,
+  readiness: MachineCommandReadiness,
   onClaimed: (claimed: ClaimedMachineCommand) => Promise<void>
 ): SubscriberHandle {
   let draining = false;
@@ -101,12 +111,14 @@ export function startMachineCommandInboxSubscriber(
       queued = true;
       return;
     }
+    if (!readiness.isReady()) return;
     draining = true;
     try {
       do {
         queued = false;
         let claimed;
         while (
+          readiness.isReady() &&
           (claimed = await deps.wsClient.mutation(api.daemon.machineCommandInbox.claimNext, args))
         )
           enqueueClaimed(claimed);
@@ -123,11 +135,14 @@ export function startMachineCommandInboxSubscriber(
     },
     (err) => console.warn(`[daemon] machine-command-inbox watch error: ${String(err)}`)
   );
+  // watchNext nudges on change, not on readiness: rows queued before readiness are claimed here.
+  const unsubReady = readiness.onReady(() => void drain());
   void drain();
   return {
     async stop() {
       stopped = true;
       unsub();
+      unsubReady();
     },
   };
 }

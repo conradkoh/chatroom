@@ -141,6 +141,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   };
 
   const stopWorkers = async (): Promise<void> => {
+    // Also clears command readiness: no machine command is claimed until a handler is registered again.
     unregisterCommandInboundHandler();
     unregisterFileInboundHandler();
     unregisterWorkspaceGitInboundHandler();
@@ -370,8 +371,8 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       if (event.type === 'command.received') {
         const nativeDelivery = taskInboxHandle?.nativeDelivery;
         if (!nativeDelivery) {
-          console.warn('[Daemon] command received before task inbox started');
-          return;
+          // Throw, not return: a returned handler lets the subscriber acknowledge a command that never ran.
+          throw new Error('command received before task inbox started');
         }
         await handleInboundCommandEvent(
           event.commandId,

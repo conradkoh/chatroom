@@ -153,6 +153,7 @@ describe('createDaemonRuntime', () => {
     expect(registerFileInboundHandler).toHaveBeenCalled();
     expect(registerWorkspaceGitInboundHandler).toHaveBeenCalled();
     expect(onNativeDeliveryReady).toHaveBeenCalledWith(nativeDelivery);
+    expect(registerCommandInboundHandler).toHaveBeenCalledAfter(onNativeDeliveryReady);
     expect(registerFileInboundHandler).toHaveBeenCalledBefore(drainPendingFileTreeReleaseRequests);
     expect(drainPendingFileTreeReleaseRequests).toHaveBeenCalledTimes(1);
     expect(workspaceService.start).toHaveBeenCalledTimes(1);
@@ -164,6 +165,7 @@ describe('createDaemonRuntime', () => {
     const shutdownPromise = runtime.shutdown();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(taskInboxStop).toHaveBeenCalledOnce();
+    expect(unregisterCommandInboundHandler).toHaveBeenCalledBefore(taskInboxStop);
     expect(shutdownEffectStarted).not.toHaveBeenCalled();
     resolveTaskInboxStop();
     await shutdownPromise;

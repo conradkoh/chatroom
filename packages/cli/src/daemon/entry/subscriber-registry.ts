@@ -1,5 +1,9 @@
-import { dispatchCommandInboundEvent } from './command-inbound-registry.js';
+import {
+  commandInboundReadiness,
+  dispatchCommandInboundEvent,
+} from './command-inbound-registry.js';
 import { routeInboundEvent, type EventRouterDeps } from './event-router.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
@@ -24,22 +28,31 @@ export type SubscriberRegistryHandle = { stopAll(): Promise<void> };
 
 export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberRegistryHandle {
   const onEvent = (event: InboundEvent): void => {
-    void routeInboundEvent(deps.router, event);
+    void routeInboundEvent(deps.router, event).catch((error: unknown) => {
+      console.warn(`[daemon] inbound event ${event.type} failed: ${getErrorMessage(error)}`);
+    });
   };
 
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
 
-  const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
-    if (claimed.type === 'agent.stop') {
-      await deps.onAgentStopCommand?.(claimed);
-      return;
+  const machineCommands = startMachineCommandInboxSubscriber(
+    deps,
+    commandInboundReadiness,
+    async (claimed) => {
+      if (claimed.type === 'agent.stop') {
+        if (!deps.onAgentStopCommand) {
+          throw new Error(`agent.stop handler is not wired; ${claimed.commandId} not run`);
+        }
+        await deps.onAgentStopCommand(claimed);
+        return;
+      }
+      await dispatchCommandInboundEvent({
+        type: 'command.received',
+        commandId: claimed.commandId,
+        claimedCommand: claimed,
+      });
     }
-    await dispatchCommandInboundEvent({
-      type: 'command.received',
-      commandId: claimed.commandId,
-      claimedCommand: claimed,
-    });
-  });
+  );
   const commandRun = startCommandRunSubscriber(deps, onEvent);
   const fileTree = startFileTreeRequestSubscriber(deps, onEvent);
   const fileTreeRelease = startFileTreeReleaseRequestSubscriber(deps, onEvent);
