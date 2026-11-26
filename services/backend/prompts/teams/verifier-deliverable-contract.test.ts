@@ -117,7 +117,7 @@ describe('coordinator gate deliverable contract', () => {
   })();
 
   test('lists the evidence for every deliverable type before round 1 is sent', () => {
-    const stepOne = gate.indexOf('1. Finish the user-required steps');
+    const stepOne = gate.indexOf('1. Send the request with the `verifier` template');
     for (const type of VERIFIER_DELIVERABLE_TYPES) {
       const bullet = gate.indexOf(`- \`${type}\`: `);
       expect(bullet).toBeGreaterThan(stepOne);
