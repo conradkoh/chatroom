@@ -315,7 +315,6 @@ export const AgentPanel = memo(function AgentPanel({
             {renderAgentRows(permanentRoles.slice(0, SIDEBAR_PREVIEW_LIMIT))}
             {ephemeralRoles.length > 0 && (
               <>
-                {renderAgentRows(ephemeralGroups.outsideRoles)}
                 <EphemeralAgentGroup
                   total={ephemeralRoles.length}
                   counts={ephemeralGroups.counts}
@@ -325,6 +324,7 @@ export const AgentPanel = memo(function AgentPanel({
                 >
                   {renderAgentRows(ephemeralGroups.memberRoles)}
                 </EphemeralAgentGroup>
+                {renderAgentRows(ephemeralGroups.outsideRoles)}
               </>
             )}
           </>
