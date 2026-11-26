@@ -74,7 +74,7 @@ export function getConvexErrorData<T extends object>(error: unknown): T | undefi
 }
 
 /** Returns the structured application code carried by a ConvexError object. */
-// fallow-ignore-next-line unused-export complexity
+// fallow-ignore-next-line complexity
 export function getConvexErrorCode(error: unknown): string | undefined {
   const code = getConvexErrorData<{ code?: unknown }>(error)?.code;
   return typeof code === 'string' ? code : undefined;
