@@ -1,7 +1,4 @@
-import {
-  messagesAnchorCommand,
-  messagesDownloadSinceCommand,
-} from '../../utils/proof-of-verification';
+import { messagesDownloadCommand, messagesPagesCommand } from '../../utils/proof-of-verification';
 
 export interface HistoryRetrievalGuidanceParams {
   chatroomId?: string | undefined;
@@ -11,30 +8,36 @@ export interface HistoryRetrievalGuidanceParams {
 
 export function getHistoryRetrievalGuidance(params: HistoryRetrievalGuidanceParams): string {
   const { chatroomId, role, cliEnvPrefix } = params;
-  const anchorCmd = messagesAnchorCommand({ chatroomId, role, cliEnvPrefix });
-  const downloadCmd = messagesDownloadSinceCommand({
+  const pagesCmd = messagesPagesCommand({ chatroomId, role, cliEnvPrefix });
+  const latestCmd = messagesDownloadCommand({ chatroomId, role, cliEnvPrefix });
+  const earlierCmd = messagesDownloadCommand({ chatroomId, role, cliEnvPrefix, before: 1 });
+  const selectedCmd = messagesDownloadCommand({
     chatroomId,
     role,
     cliEnvPrefix,
-    sinceMessageId: '<id-from-anchor>',
-    limit: 100,
+    pageId: '<page-id>',
+    after: 1,
   });
   return `### History Retrieval
 
+**Pages:** a page is one user message and everything after it, up to the next user message. Its id is that user message's id. The **latest page** is the user's current request and all work since.
+
 **When to use which source:**
-- \`${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
-- \`${anchorCmd}\` — Locate the user's last message and print the \`--since-message-id\` to download history since that anchor (proof of verification before handing off to \`user\`).
+- \`${pagesCmd}\` — list recent pages with ids, start times and previews. Use it to find an earlier request.
+- \`${latestCmd}\` — download the latest page to disk. **Always use for history summaries** spanning more than the current context window.
 
 **If sources disagree:** \`messages download\` is authoritative for message content.
 
-**Pagination:** Start with \`--limit=10\`. If output shows \`truncated=true\`, re-run with a higher \`--limit\` (e.g. 50, 100). No cursor — increasing limit fetches further back from newest. \`--since-message-id\` downloads forward from an anchor message (inclusive).
+**Navigating pages:** \`--before=<n>\` adds n earlier pages, \`--after=<n>\` adds n later pages, and \`--page-id=<id>\` starts from a page you picked in the \`messages pages\` output (default: latest). Example: \`${selectedCmd}\` adds the page after it.
+
+**Truncation:** if output shows \`truncated=true\`, re-run with the \`--max-messages\` value the hint prints.
 
 **After download:** Use the **absolute path printed by the CLI** (paths are relative to your working directory, which may not be the repo root).
 
 \`\`\`bash
-${cliEnvPrefix}chatroom messages anchor --chatroom-id="${chatroomId}" --role="${role}"
-${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10
-${downloadCmd}
+${pagesCmd}
+${latestCmd}
+${earlierCmd}
 # Then use the path printed in output:
 ls "<printed-path>/"
 cat "<printed-path>/manifest.json"

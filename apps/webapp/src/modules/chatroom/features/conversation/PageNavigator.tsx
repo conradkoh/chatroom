@@ -17,28 +17,28 @@ const navLabelClass = 'text-[10px] font-bold uppercase tracking-wide leading-non
 const jumpButtonBaseClass =
   'flex-1 min-w-0 rounded-none h-7 md:h-9 px-2 text-[10px] md:text-xs font-bold uppercase tracking-wide leading-none';
 
-/** Enabled only when the view is not already on the latest anchor. */
-function getJumpButtonClass(isOnLatestAnchor: boolean): string {
+/** Enabled only when the view is not already on the latest page. */
+function getJumpButtonClass(isOnLatestPage: boolean): string {
   return cn(
     jumpButtonBaseClass,
-    isOnLatestAnchor
+    isOnLatestPage
       ? 'bg-chatroom-bg-tertiary text-chatroom-text-muted cursor-not-allowed opacity-50 dark:bg-chatroom-bg-secondary'
       : 'bg-chatroom-accent text-chatroom-text-on-accent hover:bg-chatroom-accent/90'
   );
 }
 
-export function ConversationAnchorNavigator({
-  hasPrev,
-  hasNext,
-  isOnLatestAnchor,
+export function PageNavigator({
+  hasPrevPage,
+  hasNextPage,
+  isOnLatestPage,
   isLoading = false,
   onPrev,
   onNext,
   onJumpToLatest,
 }: {
-  hasPrev: boolean;
-  hasNext: boolean;
-  isOnLatestAnchor: boolean;
+  hasPrevPage: boolean;
+  hasNextPage: boolean;
+  isOnLatestPage: boolean;
   isLoading?: boolean;
   onPrev: () => void;
   onNext: () => void;
@@ -47,13 +47,13 @@ export function ConversationAnchorNavigator({
   return (
     <div
       className="shrink-0 flex items-center gap-2 px-3 py-1 md:py-2 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface"
-      data-testid="conversation-anchor-navigator"
+      data-testid="conversation-page-navigator"
     >
       <button
         type="button"
         className={navButtonClass}
         onClick={onPrev}
-        disabled={isLoading || !hasPrev}
+        disabled={isLoading || !hasPrevPage}
         aria-label="Previous user message"
       >
         <ArrowLeft className="h-3.5 w-3.5 md:h-3.5 md:w-3.5" strokeWidth={2.5} />
@@ -61,9 +61,9 @@ export function ConversationAnchorNavigator({
       </button>
       <button
         type="button"
-        className={getJumpButtonClass(isOnLatestAnchor)}
+        className={getJumpButtonClass(isOnLatestPage)}
         onClick={onJumpToLatest}
-        disabled={isLoading || isOnLatestAnchor}
+        disabled={isLoading || isOnLatestPage}
         aria-label="Jump to latest"
       >
         Jump to latest
@@ -72,7 +72,7 @@ export function ConversationAnchorNavigator({
         type="button"
         className={navButtonClass}
         onClick={onNext}
-        disabled={isLoading || !hasNext}
+        disabled={isLoading || !hasNextPage}
         aria-label="Next user message"
       >
         <span className={navLabelClass}>Next</span>

@@ -16,10 +16,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (...args: unknown[]) => mockUseSessionQuery(...args),
 }));
 
-vi.mock('../../../hooks/chatroomMessageStore', () => ({
-  toMessage: (m: { _id: string }) => m,
-}));
-
 vi.mock('../../../timeline/mapMessageToTimelineEvent', async () => {
   const actual = (await vi.importActual('../../../timeline/mapMessageToTimelineEvent')) as {
     mapMessageToTimelineEvent: (
@@ -34,9 +30,9 @@ vi.mock('../../../timeline/mapMessageToTimelineEvent', async () => {
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     conversation: {
-      getConversationAnchorNavigation: 'getConversationAnchorNavigation',
-      listConversationSlicePaginated: 'listConversationSlicePaginated',
-      subscribeConversationSliceTail: 'subscribeConversationSliceTail',
+      listPages: 'listPages',
+      listPageMessages: 'listPageMessages',
+      subscribePageTail: 'subscribePageTail',
     },
   },
 }));
@@ -46,20 +42,20 @@ const baseResults = [
   { _id: 'msg-2', type: 'message', senderRole: 'builder', content: 'reply', _creationTime: 101 },
 ];
 
-const navResult = {
-  anchor: { _id: 'anchor-1', _creationTime: 100, contentPreview: 'hello' },
-  prevAnchorId: null,
-  nextAnchorId: null,
-  sliceUpperBoundExclusive: null,
+const pageNavResult = {
+  pages: [{ pageId: 'page-1', startedAt: 100, endExclusive: null, contentPreview: 'hello' }],
+  selectedPageId: 'page-1',
+  prevPageId: null,
+  nextPageId: null,
 };
 
-function mockSessionQueryForNav(nav: unknown) {
+function mockSessionQueryForPageNav(pageNav: unknown) {
   mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
-    if (queryRef === 'subscribeConversationSliceTail') {
+    if (queryRef === 'subscribePageTail') {
       if (args === 'skip') return undefined;
       return null;
     }
-    return nav;
+    return pageNav;
   });
 }
 
@@ -67,7 +63,7 @@ describe('useConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseSessionId.mockReturnValue(['session-1']);
-    mockSessionQueryForNav(navResult);
+    mockSessionQueryForPageNav(pageNavResult);
     mockUsePaginatedQuery.mockReturnValue({
       results: baseResults,
       status: 'Exhausted',
@@ -75,34 +71,34 @@ describe('useConversation', () => {
     });
   });
 
-  it('loads navigation and paginated slice on mount', () => {
+  it('loads page navigation and paginated messages on mount', () => {
     const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('getConversationAnchorNavigation', {
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('listPages', {
       chatroomId: 'room-1',
     });
     expect(mockUsePaginatedQuery).toHaveBeenCalledWith(
-      'listConversationSlicePaginated',
+      'listPageMessages',
       {
         chatroomId: 'room-1',
         sessionId: 'session-1',
-        anchorMessageId: 'anchor-1',
-        sliceUpperBoundExclusive: null,
+        pageId: 'page-1',
+        endExclusive: null,
       },
       { initialNumItems: 50 }
     );
     expect(result.current.events).toHaveLength(2);
-    expect(result.current.isOnLatestAnchor).toBe(true);
-    expect(result.current.hasPrev).toBe(false);
-    expect(result.current.hasNext).toBe(false);
+    expect(result.current.isOnLatestPage).toBe(true);
+    expect(result.current.hasPrevPage).toBe(false);
+    expect(result.current.hasNextPage).toBe(false);
   });
 
-  it('is not loading when chatroom has no user messages (empty anchor)', () => {
-    mockSessionQueryForNav({
-      anchor: null,
-      prevAnchorId: null,
-      nextAnchorId: null,
-      sliceUpperBoundExclusive: null,
+  it('is not loading when chatroom has no user messages (empty page nav)', () => {
+    mockSessionQueryForPageNav({
+      pages: [],
+      selectedPageId: null,
+      prevPageId: null,
+      nextPageId: null,
     });
     mockUsePaginatedQuery.mockReturnValue({
       results: [],
@@ -114,7 +110,7 @@ describe('useConversation', () => {
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.events).toHaveLength(0);
-    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listConversationSlicePaginated', 'skip', {
+    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listPageMessages', 'skip', {
       initialNumItems: 50,
     });
   });
@@ -129,43 +125,67 @@ describe('useConversation', () => {
     });
     const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('getConversationAnchorNavigation', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('listPages', 'skip');
     expect(result.current.events).toHaveLength(0);
-    expect(result.current.nav).toBeUndefined();
+    expect(result.current.pageNav).toBeUndefined();
   });
 
-  it('exposes nav state including prev/next and sliceUpperBoundExclusive', () => {
-    mockSessionQueryForNav({
-      anchor: { _id: 'anchor-mid', _creationTime: 150, contentPreview: 'middle' },
-      prevAnchorId: 'anchor-old',
-      nextAnchorId: 'anchor-new',
-      sliceUpperBoundExclusive: 200,
+  it('exposes page nav state including prev/next and endExclusive', () => {
+    mockSessionQueryForPageNav({
+      pages: [{ pageId: 'page-mid', startedAt: 150, endExclusive: 200, contentPreview: 'middle' }],
+      selectedPageId: 'page-mid',
+      prevPageId: 'page-old',
+      nextPageId: 'page-new',
     });
 
     const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(result.current.hasPrev).toBe(true);
-    expect(result.current.hasNext).toBe(true);
-    // Initially selectedAnchorId is null, so user is on latest
-    expect(result.current.isOnLatestAnchor).toBe(true);
+    expect(result.current.hasPrevPage).toBe(true);
+    expect(result.current.hasNextPage).toBe(true);
+    // The served page has an endExclusive, so it is not the open latest page.
+    expect(result.current.isOnLatestPage).toBe(false);
 
     act(() => {
-      result.current.goToPrev();
+      result.current.goToPrevPage();
     });
 
-    // After navigating, isOnLatestAnchor should be false
-    expect(result.current.isOnLatestAnchor).toBe(false);
-    expect(result.current.nav?.sliceUpperBoundExclusive).toBe(200);
+    // After navigating, isOnLatestPage should be false
+    expect(result.current.isOnLatestPage).toBe(false);
+    expect(result.current.pageNav?.pages[0].endExclusive).toBe(200);
     expect(mockUsePaginatedQuery).toHaveBeenLastCalledWith(
-      'listConversationSlicePaginated',
+      'listPageMessages',
       {
         chatroomId: 'room-1',
         sessionId: 'session-1',
-        anchorMessageId: 'anchor-mid',
-        sliceUpperBoundExclusive: 200,
+        pageId: 'page-mid',
+        endExclusive: 200,
       },
       { initialNumItems: 50 }
     );
+  });
+
+  it('flows the page endExclusive into listPageMessages and subscribePageTail', () => {
+    mockSessionQueryForPageNav({
+      pages: [{ pageId: 'page-mid', startedAt: 150, endExclusive: 200, contentPreview: 'middle' }],
+      selectedPageId: 'page-mid',
+      prevPageId: null,
+      nextPageId: null,
+    });
+
+    renderHook(() => useConversation('room-1'));
+
+    expect(mockUsePaginatedQuery).toHaveBeenCalledWith(
+      'listPageMessages',
+      expect.objectContaining({ pageId: 'page-mid', endExclusive: 200 }),
+      { initialNumItems: 50 }
+    );
+    const tailCall = mockUseSessionQuery.mock.calls.find((call) => call[0] === 'subscribePageTail');
+    expect(tailCall).toBeDefined();
+    expect(tailCall![1]).toEqual({
+      chatroomId: 'room-1',
+      afterCreationTime: 101,
+      endExclusive: 200,
+    });
   });
 
   it('derives messages directly from paginated results (no reducer dispatch)', () => {
@@ -323,7 +343,7 @@ describe('useConversation', () => {
 
     const { result } = renderHook(() => useConversation('room-1'));
 
-    expect(mockUseSessionQuery).toHaveBeenCalledWith('subscribeConversationSliceTail', 'skip');
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('subscribePageTail', 'skip');
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2']);
   });
@@ -331,14 +351,12 @@ describe('useConversation', () => {
   it('subscribes to the tail when pagination is exhausted', () => {
     const { result } = renderHook(() => useConversation('room-1'));
 
-    const tailCall = mockUseSessionQuery.mock.calls.find(
-      (call) => call[0] === 'subscribeConversationSliceTail'
-    );
+    const tailCall = mockUseSessionQuery.mock.calls.find((call) => call[0] === 'subscribePageTail');
     expect(tailCall).toBeDefined();
     expect(tailCall![1]).toEqual({
       chatroomId: 'room-1',
       afterCreationTime: 101,
-      upperBoundExclusive: null,
+      endExclusive: null,
     });
     expect(result.current.messages).toHaveLength(2);
   });
@@ -347,7 +365,7 @@ describe('useConversation', () => {
     const tailMessages = [
       // Duplicate of an already-loaded paginated message (id-based dedup)
       { _id: 'msg-1', type: 'message', senderRole: 'user', content: 'hello', _creationTime: 100 },
-      // New live message after the loaded slice
+      // New live message after the loaded page
       {
         _id: 'msg-live',
         type: 'message',
@@ -357,11 +375,11 @@ describe('useConversation', () => {
       },
     ];
     mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
-      if (queryRef === 'subscribeConversationSliceTail') {
+      if (queryRef === 'subscribePageTail') {
         if (args === 'skip') return 'skip';
         return tailMessages;
       }
-      return navResult;
+      return pageNavResult;
     });
 
     const { result } = renderHook(() => useConversation('room-1'));
@@ -391,57 +409,132 @@ describe('useConversation', () => {
     expect(loadMore).toHaveBeenCalledWith(50);
   });
 
-  it('isOnLatestAnchor is false when selectedAnchorId is set', () => {
-    mockSessionQueryForNav({
-      anchor: { _id: 'anchor-mid', _creationTime: 150, contentPreview: 'middle' },
-      prevAnchorId: 'anchor-old',
-      nextAnchorId: null,
-      sliceUpperBoundExclusive: 200,
+  it('isOnLatestPage is false when a page is selected', () => {
+    mockSessionQueryForPageNav({
+      pages: [{ pageId: 'page-mid', startedAt: 150, endExclusive: 200, contentPreview: 'middle' }],
+      selectedPageId: 'page-mid',
+      prevPageId: 'page-old',
+      nextPageId: null,
     });
 
     const { result } = renderHook(() => useConversation('room-1'));
 
     act(() => {
-      result.current.goToPrev();
+      result.current.goToPrevPage();
     });
 
-    expect(result.current.isOnLatestAnchor).toBe(false);
+    expect(result.current.isOnLatestPage).toBe(false);
   });
 
-  it('goToLatestAnchor clears selected anchor so navigation uses latest', () => {
-    mockSessionQueryForNav({
-      anchor: { _id: 'anchor-mid', _creationTime: 150, contentPreview: 'middle' },
-      prevAnchorId: 'anchor-old',
-      nextAnchorId: 'anchor-new',
-      sliceUpperBoundExclusive: 200,
+  it('isOnLatestPage becomes true after goToNextPage lands on the latest page', () => {
+    const olderPageNav = {
+      pages: [{ pageId: 'page-old', startedAt: 100, endExclusive: 200, contentPreview: 'older' }],
+      selectedPageId: 'page-old',
+      prevPageId: 'page-older',
+      nextPageId: 'page-latest',
+    };
+    const latestPageNav = {
+      pages: [
+        { pageId: 'page-latest', startedAt: 200, endExclusive: null, contentPreview: 'latest' },
+      ],
+      selectedPageId: 'page-latest',
+      prevPageId: 'page-old',
+      nextPageId: null,
+    };
+    mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
+      if (queryRef === 'subscribePageTail') {
+        if (args === 'skip') return undefined;
+        return null;
+      }
+      if (args !== 'skip' && typeof args === 'object' && args !== null && 'pageId' in args) {
+        return latestPageNav;
+      }
+      return olderPageNav;
     });
 
     const { result } = renderHook(() => useConversation('room-1'));
 
+    expect(result.current.isOnLatestPage).toBe(false);
+
     act(() => {
-      result.current.goToPrev();
+      result.current.goToNextPage();
     });
 
-    const callsWithAnchor = mockUseSessionQuery.mock.calls.filter(
-      (call) =>
-        call[0] === 'getConversationAnchorNavigation' &&
-        call[1] !== 'skip' &&
-        typeof call[1] === 'object' &&
-        'anchorMessageId' in call[1]
-    );
-    expect(callsWithAnchor.length).toBeGreaterThan(0);
+    expect(result.current.isOnLatestPage).toBe(true);
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
+  it('a stale selectedPageId resets when the server falls back to the latest page', () => {
+    const latestPageNav = {
+      pages: [
+        { pageId: 'page-latest', startedAt: 200, endExclusive: null, contentPreview: 'latest' },
+      ],
+      selectedPageId: 'page-latest',
+      prevPageId: 'page-old',
+      nextPageId: null,
+    };
+    mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
+      if (queryRef === 'subscribePageTail') {
+        if (args === 'skip') return undefined;
+        return null;
+      }
+      // The requested page was deleted, so the server answers with the latest
+      // page and reports its own selection for every request.
+      return latestPageNav;
+    });
+
+    const { result } = renderHook(() => useConversation('room-1'));
+
+    expect(result.current.hasPrevPage).toBe(true);
 
     act(() => {
-      result.current.goToLatestAnchor();
+      result.current.goToPrevPage();
     });
 
     const latestNavCall = mockUseSessionQuery.mock.calls
-      .filter((call) => call[0] === 'getConversationAnchorNavigation')
+      .filter((call) => call[0] === 'listPages')
       .map((call) => call[1])
       .filter((args) => args !== 'skip')
       .at(-1);
     expect(latestNavCall).toEqual({ chatroomId: 'room-1' });
-    expect(latestNavCall).not.toHaveProperty('anchorMessageId');
+    expect(latestNavCall).not.toHaveProperty('pageId');
+    expect(result.current.isOnLatestPage).toBe(true);
+  });
+
+  it('goToLatestPage clears the selected page so navigation uses latest', () => {
+    mockSessionQueryForPageNav({
+      pages: [{ pageId: 'page-mid', startedAt: 150, endExclusive: 200, contentPreview: 'middle' }],
+      selectedPageId: 'page-mid',
+      prevPageId: 'page-old',
+      nextPageId: 'page-new',
+    });
+
+    const { result } = renderHook(() => useConversation('room-1'));
+
+    act(() => {
+      result.current.goToPrevPage();
+    });
+
+    const callsWithPageId = mockUseSessionQuery.mock.calls.filter(
+      (call) =>
+        call[0] === 'listPages' &&
+        call[1] !== 'skip' &&
+        typeof call[1] === 'object' &&
+        'pageId' in call[1]
+    );
+    expect(callsWithPageId.length).toBeGreaterThan(0);
+
+    act(() => {
+      result.current.goToLatestPage();
+    });
+
+    const latestNavCall = mockUseSessionQuery.mock.calls
+      .filter((call) => call[0] === 'listPages')
+      .map((call) => call[1])
+      .filter((args) => args !== 'skip')
+      .at(-1);
+    expect(latestNavCall).toEqual({ chatroomId: 'room-1' });
+    expect(latestNavCall).not.toHaveProperty('pageId');
   });
 
   it('maps user, notice, and handoff to user_message, team_message, team_message with notice carrying no duration', () => {

@@ -494,7 +494,7 @@ export class GetNextTaskSession {
         `Task ID: ${task._id}\n` +
           `The task has been claimed for your role.\n` +
           `Use messages download to see your current task:\n\n` +
-          `   ${this.cliEnvPrefix} chatroom messages download --chatroom-id=${this.chatroomId} --role=${this.role} --format=linear --limit=10`
+          `   ${this.cliEnvPrefix} chatroom messages download --chatroom-id=${this.chatroomId} --role=${this.role}`
       );
     }
   }

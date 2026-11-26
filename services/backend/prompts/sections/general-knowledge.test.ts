@@ -36,7 +36,8 @@ describe('general knowledge sections', () => {
       .map((section) => section.content)
       .join('\n');
     expect(text).toContain('messages download');
-    expect(text).toContain('messages anchor');
+    expect(text).toContain('messages pages');
+    expect(text).not.toContain('messages anchor');
     expect(text).not.toMatch(/chatroom context|context read/i);
   });
   it('opens the verifier history-retrieval sentence with Run', () => {

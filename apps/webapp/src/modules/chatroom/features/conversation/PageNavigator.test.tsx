@@ -1,15 +1,15 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ConversationAnchorNavigator } from './ConversationAnchorNavigator';
+import { PageNavigator } from './PageNavigator';
 
-describe('ConversationAnchorNavigator', () => {
-  it('renders jump to latest disabled when on latest anchor', () => {
+describe('PageNavigator', () => {
+  it('renders jump to latest disabled when on latest page', () => {
     render(
-      <ConversationAnchorNavigator
-        hasPrev={false}
-        hasNext={false}
-        isOnLatestAnchor
+      <PageNavigator
+        hasPrevPage={false}
+        hasNextPage={false}
+        isOnLatestPage
         onPrev={vi.fn()}
         onNext={vi.fn()}
         onJumpToLatest={vi.fn()}
@@ -23,10 +23,10 @@ describe('ConversationAnchorNavigator', () => {
 
   it('renders jump to latest enabled with accent styling when not on latest', () => {
     render(
-      <ConversationAnchorNavigator
-        hasPrev
-        hasNext
-        isOnLatestAnchor={false}
+      <PageNavigator
+        hasPrevPage
+        hasNextPage
+        isOnLatestPage={false}
         onPrev={vi.fn()}
         onNext={vi.fn()}
         onJumpToLatest={vi.fn()}
@@ -41,10 +41,10 @@ describe('ConversationAnchorNavigator', () => {
   it('calls onJumpToLatest when jump button is clicked', () => {
     const onJumpToLatest = vi.fn();
     render(
-      <ConversationAnchorNavigator
-        hasPrev
-        hasNext={false}
-        isOnLatestAnchor={false}
+      <PageNavigator
+        hasPrevPage
+        hasNextPage={false}
+        isOnLatestPage={false}
         onPrev={vi.fn()}
         onNext={vi.fn()}
         onJumpToLatest={onJumpToLatest}
@@ -57,10 +57,10 @@ describe('ConversationAnchorNavigator', () => {
 
   it('disables all buttons when isLoading is true', () => {
     render(
-      <ConversationAnchorNavigator
-        hasPrev={true}
-        hasNext={true}
-        isOnLatestAnchor={false}
+      <PageNavigator
+        hasPrevPage={true}
+        hasNextPage={true}
+        isOnLatestPage={false}
         isLoading={true}
         onPrev={vi.fn()}
         onNext={vi.fn()}
@@ -75,10 +75,10 @@ describe('ConversationAnchorNavigator', () => {
 
   it('uses compact mobile height classes on nav buttons', () => {
     render(
-      <ConversationAnchorNavigator
-        hasPrev
-        hasNext
-        isOnLatestAnchor={false}
+      <PageNavigator
+        hasPrevPage
+        hasNextPage
+        isOnLatestPage={false}
         onPrev={vi.fn()}
         onNext={vi.fn()}
         onJumpToLatest={vi.fn()}

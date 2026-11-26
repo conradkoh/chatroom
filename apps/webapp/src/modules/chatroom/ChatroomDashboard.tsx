@@ -837,7 +837,7 @@ function ChatroomDashboardContent({
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
-  const conversationNavigationRef = useRef<{ goToLatestAnchor: () => void } | null>(null);
+  const conversationNavigationRef = useRef<{ goToLatestPage: () => void } | null>(null);
 
   const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
     focusSendFormRef.current = fn;
@@ -856,14 +856,14 @@ function ChatroomDashboardContent({
   }, [activeView, explorerSplitViewEnabled]);
 
   const handleRegisterConversationNavigation = useCallback(
-    (actions: { goToLatestAnchor: () => void }) => {
+    (actions: { goToLatestPage: () => void }) => {
       conversationNavigationRef.current = actions;
     },
     []
   );
 
   const handleConversationMessageSent = useCallback(() => {
-    conversationNavigationRef.current?.goToLatestAnchor();
+    conversationNavigationRef.current?.goToLatestPage();
   }, []);
 
   const {

@@ -15,14 +15,46 @@ describe('getHistoryRetrievalGuidance', () => {
     expect(text).toContain('absolute path printed by the CLI');
   });
 
-  test('includes messages anchor and since-message-id download', () => {
+  test('defines a page and the latest page', () => {
     const text = getHistoryRetrievalGuidance({
       chatroomId: 'room-1',
       role: 'planner',
       cliEnvPrefix: '',
     });
-    expect(text).toContain('messages anchor');
-    expect(text).toContain('--since-message-id="<id-from-anchor>" --limit=100');
+    expect(text).toContain('**Pages:**');
+    expect(text).toContain('a page is one user message and everything after it');
+    expect(text).toContain("Its id is that user message's id");
+    expect(text).toContain('**latest page**');
+  });
+
+  test('teaches page commands: pages, download, before, page-id', () => {
+    const text = getHistoryRetrievalGuidance({
+      chatroomId: 'room-1',
+      role: 'planner',
+      cliEnvPrefix: '',
+    });
+    expect(text).toContain('chatroom messages pages --chatroom-id="room-1" --role="planner"');
+    expect(text).toContain('chatroom messages download --chatroom-id="room-1" --role="planner"');
+    expect(text).toContain('--before=1');
+    expect(text).toContain('--page-id="<page-id>"');
+  });
+
+  test('names none of the removed history forms', () => {
+    const text = getHistoryRetrievalGuidance({
+      chatroomId: 'room-1',
+      role: 'planner',
+      cliEnvPrefix: '',
+    });
+    for (const forbidden of [
+      'messages anchor',
+      '--since-message-id',
+      '--format=linear',
+      '--limit=',
+      'No cursor',
+      'slice',
+    ]) {
+      expect(text).not.toContain(forbidden);
+    }
   });
 
   test('renders the same source bullets for the verifier and other roles', () => {
@@ -41,6 +73,6 @@ describe('getHistoryRetrievalGuidance', () => {
     });
     expect(text).not.toMatch(/chatroom context|context read/i);
     expect(text).toContain('messages download');
-    expect(text).toContain('messages anchor');
+    expect(text).toContain('messages pages');
   });
 });

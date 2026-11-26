@@ -135,7 +135,7 @@ describe('getTaskDeliveryPrompt — generic ephemeral workflow', () => {
     expect(fullCliOutput).not.toContain('<enhancer-input>');
     expect(fullCliOutput).toContain('--next-role="user"');
 
-    const { prompt } = await t.query(api.messages.getRolePrompt, {
+    const { prompt } = await t.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId,
       role: 'solo',

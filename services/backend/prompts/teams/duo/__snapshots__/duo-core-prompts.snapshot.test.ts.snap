@@ -590,12 +590,11 @@ When a section has no content, write exactly \`Not Applicable.\` — no explanat
 
 ## Proof of Completion
 <!-- Entry-point proof-of-completion workflow — run before filling this section:
-1. \`chatroom messages anchor --chatroom-id="test-chatroom-id" --role="planner"\` — locate the user's last message (and prior user messages for context)
-2. \`chatroom messages download --chatroom-id="test-chatroom-id" --role="planner" --since-message-id="<from-anchor>" --limit=100\` — download grep-friendly history since anchor; read handoffs and goals
-3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
-4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
-Then: \`chatroom messages anchor --chatroom-id="test-chatroom-id" --role="planner"\` → \`chatroom messages download --chatroom-id="test-chatroom-id" --role="planner" --since-message-id="<from-anchor>" --limit=100\` (use the message ID from anchor output as --since-message-id) -->
-- [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff
+1. \`chatroom messages download --chatroom-id="test-chatroom-id" --role="planner"\` — download the latest page: the user's last message and all work since; read handoffs and goals
+2. If the user's last message was terse (e.g. "do it", "raise a PR"), run \`chatroom messages pages --chatroom-id="test-chatroom-id" --role="planner"\` and download the earlier page with \`chatroom messages download --chatroom-id="test-chatroom-id" --role="planner" --before=1\`
+3. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
+Then: \`chatroom messages download --chatroom-id="test-chatroom-id" --role="planner"\` (re-check the latest page before handing off) -->
+- [ ] I confirm I verified the user's full request: reviewed the latest page (the user's last message and all work since), reviewed earlier pages when the latest was a terse follow-up, and validated every requirement below before this handoff
 **Proof of verification (verifier review):**
 - [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is \`ACHIEVED\` — or every unmet item is listed under Unresolved / action required
 - Verifier review: <ACHIEVED | NOT_ACHIEVED | INCONCLUSIVE | UNAVAILABLE (<reason>) | not required (no code changes)>
@@ -826,9 +825,9 @@ CHATROOM_GROUNDING_END
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
 **Before handoff to \`user\` (proof of verification):**
-1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="test-chatroom-id" --role="planner"\` — locate the user's last message
-2. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="planner" --since-message-id="<from-anchor>" --limit=100\` — download grep-friendly history; read handoffs and goals
-3. If the user message was terse, review prior user messages from anchor output and widen \`--limit\`
+1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="planner"\` — download the latest page: the user's last message and all work since; re-check it before handing off
+2. If the user's last message was terse, run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="test-chatroom-id" --role="planner"\` and download the earlier page with \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="planner" --before=1\`
+3. If the download is truncated, re-run with the \`--max-messages\` value the hint prints
 4. Validate commits and PRs against **all** requirements (not just the last slice)
 5. Incomplete → continue next phase or rework; **do not** hand off to user
 6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)"
@@ -973,9 +972,9 @@ CHATROOM_GROUNDING_END
 4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
 **Before handoff to \`user\` (proof of verification):**
-1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="test-chatroom-id" --role="planner"\` — locate the user's last message
-2. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="planner" --since-message-id="<from-anchor>" --limit=100\` — download grep-friendly history; read handoffs and goals
-3. If the user message was terse, review prior user messages from anchor output and widen \`--limit\`
+1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="planner"\` — download the latest page: the user's last message and all work since; re-check it before handing off
+2. If the user's last message was terse, run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="test-chatroom-id" --role="planner"\` and download the earlier page with \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="test-chatroom-id" --role="planner" --before=1\`
+3. If the download is truncated, re-run with the \`--max-messages\` value the hint prints
 4. Validate commits and PRs against **all** requirements (not just the last slice)
 5. Incomplete → continue next phase or rework; **do not** hand off to user
 6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)"

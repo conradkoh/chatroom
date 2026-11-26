@@ -47,13 +47,13 @@ const ConversationRow = memo(function ConversationRow({
 
 export function ConversationMessageList({
   events,
-  anchorId,
+  pageId,
   canLoadMore,
   isLoadingMore,
   onLoadMore,
 }: {
   events: TimelineEvent[];
-  anchorId: string | null;
+  pageId: string | null;
   canLoadMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -92,10 +92,10 @@ export function ConversationMessageList({
   } = useJumpToTop({
     containerRef,
     enabled: events.length > 0,
-    resetKey: anchorId,
+    resetKey: pageId,
   });
 
-  // Anchor change → scroll to top + sync pin (dispatch scroll so controller unpins)
+  // Page change → scroll to top + sync pin (dispatch scroll so controller unpins)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -104,7 +104,7 @@ export function ConversationMessageList({
     prevScrollHeightRef.current = el.scrollHeight;
     prevEventCountRef.current = events.length;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchorId]);
+  }, [pageId]);
 
   // Tail follow when pinned + content grows at bottom
   useLayoutEffect(() => {

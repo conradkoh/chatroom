@@ -169,20 +169,24 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       ### History Retrieval
 
+      **Pages:** a page is one user message and everything after it, up to the next user message. Its id is that user message's id. The **latest page** is the user's current request and all work since.
+
       **When to use which source:**
-      - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --format=linear --limit=10\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
-      - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` — Locate the user's last message and print the \`--since-message-id\` to download history since that anchor (proof of verification before handing off to \`user\`).
+      - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` — list recent pages with ids, start times and previews. Use it to find an earlier request.
+      - \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` — download the latest page to disk. **Always use for history summaries** spanning more than the current context window.
 
       **If sources disagree:** \`messages download\` is authoritative for message content.
 
-      **Pagination:** Start with \`--limit=10\`. If output shows \`truncated=true\`, re-run with a higher \`--limit\` (e.g. 50, 100). No cursor — increasing limit fetches further back from newest. \`--since-message-id\` downloads forward from an anchor message (inclusive).
+      **Navigating pages:** \`--before=<n>\` adds n earlier pages, \`--after=<n>\` adds n later pages, and \`--page-id=<id>\` starts from a page you picked in the \`messages pages\` output (default: latest). Example: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --page-id="<page-id>" --after=1\` adds the page after it.
+
+      **Truncation:** if output shows \`truncated=true\`, re-run with the \`--max-messages\` value the hint prints.
 
       **After download:** Use the **absolute path printed by the CLI** (paths are relative to your working directory, which may not be the repo root).
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --format=linear --limit=10
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --since-message-id="<id-from-anchor>" --limit=100
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --before=1
       # Then use the path printed in output:
       ls "<printed-path>/"
       cat "<printed-path>/manifest.json"
@@ -190,15 +194,15 @@ describe('Solo Team > Solo > System Prompt', () => {
       \`\`\`
 
       ### Reference commands
-      - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --format=linear --limit=10\`
-      - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
+      - Download the latest page of message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
+      - List pages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
       - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
 
-      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
       ## Two-Level Model: Session vs Chatroom Task
 
@@ -254,10 +258,8 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
-      to reload your full system and role prompt. Then run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
-      to print the user message id of your current task, then download the log from that id, replacing \`<user-message-id>\` with the printed id:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --since-message-id="<user-message-id>" --limit=100
+      to reload your full system and role prompt. Then download the latest page, which holds your current task and all work since:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"
 
       Agents on the \`get-next-task\` loop do not support in-session compaction. After context is lost, run \`get-next-task\` again to rejoin the chatroom.
 
@@ -369,9 +371,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
       **Before handoff to \`user\` (proof of verification):**
-      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` — locate the user's last message
-      2. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --since-message-id="<from-anchor>" --limit=100\` — download grep-friendly history; read handoffs and goals
-      3. If the user message was terse, review prior user messages from anchor output and widen \`--limit\`
+      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` — download the latest page: the user's last message and all work since; re-check it before handing off
+      2. If the user's last message was terse, run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` and download the earlier page with \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --before=1\`
+      3. If the download is truncated, re-run with the \`--max-messages\` value the hint prints
       4. Validate commits and PRs against **all** requirements (not just the last slice)
       5. Incomplete → continue next phase or rework; **do not** hand off to user
       6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested) (in \`chat\` mode, verify the same way and reply concisely)
@@ -411,15 +413,15 @@ describe('Solo Team > Solo > System Prompt', () => {
 
 
       ### Reference commands
-      - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --format=linear --limit=10\`
-      - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
+      - Download the latest page of message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
+      - List pages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
       - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
       - Reload role guidance: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
 
-      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --since-message-id="<from-anchor>" --limit=100\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+      **History retrieval:** Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
       ### Next
 

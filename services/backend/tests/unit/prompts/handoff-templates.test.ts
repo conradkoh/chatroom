@@ -270,12 +270,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Proof of Completion
       <!-- Entry-point proof-of-completion workflow — run before filling this section:
-      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` — locate the user's last message (and prior user messages for context)
-      2. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --since-message-id="<from-anchor>" --limit=100\` — download grep-friendly history since anchor; read handoffs and goals
-      3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
-      4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
-      Then: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --since-message-id="<from-anchor>" --limit=100\` (use the message ID from anchor output as --since-message-id) -->
-      - [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff
+      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` — download the latest page: the user's last message and all work since; read handoffs and goals
+      2. If the user's last message was terse (e.g. "do it", "raise a PR"), run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` and download the earlier page with \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --before=1\`
+      3. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
+      Then: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` (re-check the latest page before handing off) -->
+      - [ ] I confirm I verified the user's full request: reviewed the latest page (the user's last message and all work since), reviewed earlier pages when the latest was a terse follow-up, and validated every requirement below before this handoff
       **Proof of verification (verifier review):**
       - [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is \`ACHIEVED\` — or every unmet item is listed under Unresolved / action required
       - Verifier review: <ACHIEVED | NOT_ACHIEVED | INCONCLUSIVE | UNAVAILABLE (<reason>) | not required (no code changes)>
@@ -763,12 +762,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Proof of Completion
       <!-- Entry-point proof-of-completion workflow — run before filling this section:
-      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` — locate the user's last message (and prior user messages for context)
-      2. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --since-message-id="<from-anchor>" --limit=100\` — download grep-friendly history since anchor; read handoffs and goals
-      3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
-      4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
-      Then: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --since-message-id="<from-anchor>" --limit=100\` (use the message ID from anchor output as --since-message-id) -->
-      - [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff
+      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` — download the latest page: the user's last message and all work since; read handoffs and goals
+      2. If the user's last message was terse (e.g. "do it", "raise a PR"), run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages pages --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` and download the earlier page with \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --before=1\`
+      3. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
+      Then: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` (re-check the latest page before handing off) -->
+      - [ ] I confirm I verified the user's full request: reviewed the latest page (the user's last message and all work since), reviewed earlier pages when the latest was a terse follow-up, and validated every requirement below before this handoff
       **Proof of verification (verifier review):**
       - [ ] I checked the verifier verdict for this task: its user message id is the user's current last message, it is round 1 or 2 (maximum 2), and the verdict is \`ACHIEVED\` — or every unmet item is listed under Unresolved / action required
       - Verifier review: <ACHIEVED | NOT_ACHIEVED | INCONCLUSIVE | UNAVAILABLE (<reason>) | not required (no code changes)>

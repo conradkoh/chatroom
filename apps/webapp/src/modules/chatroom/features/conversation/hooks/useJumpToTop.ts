@@ -47,7 +47,7 @@ type JumpToTopController = {
 /**
  * Owns the jump-to-top state machine outside the hook body so the visibility rules stay
  * readable: show after enough user-driven upward travel, re-arm on every upward nudge, hide
- * on the timer, a downward move, near-top, an anchor change or a click.
+ * on the timer, a downward move, near-top, a page change or a click.
  */
 function createJumpToTopController(setIsVisible: (visible: boolean) => void): JumpToTopController {
   const state: JumpState = {
@@ -172,7 +172,7 @@ function trackScroll(controller: JumpToTopController, top: number, delta: number
   }
   if (controller.state.suppressed || delta === 0) return;
   if (delta > 0) {
-    // Downward movement from any source (user, "Jump to new messages", anchoring) may hide.
+    // Downward movement from any source (user, "Jump to new messages", scroll adjustment) may hide.
     handleDownward(controller, delta);
     return;
   }
@@ -236,7 +236,7 @@ function scrollListToTop(el: HTMLElement): void {
  *   `scrollTop` is above {@link JUMP_TO_TOP_NEAR_TOP_PX};
  * - every further user upward movement re-arms a {@link JUMP_TO_TOP_VISIBLE_MS} timer;
  * - hide on timer expiry, {@link JUMP_TO_TOP_HIDE_DOWN_DISTANCE_PX} downward movement,
- *   returning near the top, an anchor change, a click, or the feed becoming empty.
+ *   returning near the top, a page change, a click, or the feed becoming empty.
  *
  * Hover and focus each hold the timer (counted separately) without hiding the button. After
  * a click the hook is suppressed until the programmatic scroll finishes (near the top) or the
@@ -251,7 +251,7 @@ export function useJumpToTop({
   containerRef: RefObject<HTMLElement | null>;
   /** false while the feed is empty; no listener is attached. */
   enabled: boolean;
-  /** Any change (the anchorId) hides the button. */
+  /** Any change (the pageId) hides the button. */
   resetKey: string | null;
 }): { isVisible: boolean; jumpToTop: () => void; pause: () => void; resume: () => void } {
   const [isVisible, setIsVisible] = useState(false);

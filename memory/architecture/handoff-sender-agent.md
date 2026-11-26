@@ -38,7 +38,9 @@ captured when the handoff is emitted and never refreshed.
    derives its screen-reader sentence from the same helper so the visible chip
    and the accessible description cannot disagree.
 7. **CLI parity.** `chatroom messages download` includes the same snapshot in
-   its handoff output, so scripts and the webapp read one backend field.
+   its handoff output, so scripts and the webapp read one backend field. The
+   command downloads the latest page by default; `--page-id`, `--before` and
+   `--after` select other pages.
 
 ## Known limits and fallbacks
 

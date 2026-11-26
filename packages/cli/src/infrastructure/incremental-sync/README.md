@@ -53,7 +53,7 @@ Task delivery uses the workspace task inbox (slim, indexed event rows). The daem
 
 | Use incremental sync when…                             | Use something else when…                                                                                                                 |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| The feed is long-lived and daemon-side                 | The webapp needs sub-second UI reactivity (use cursor queries in `services/backend/.../messageList.ts`)                                  |
+| The feed is long-lived and daemon-side                 | The webapp needs sub-second UI reactivity (use cursor queries in `services/backend/convex/conversation.ts`)                              |
 | Payloads would be large or grow with active work       | The result set is usually empty (e.g. pending dir-listing requests — subscribe directly; see `daemon-start/dir-listing-subscription.ts`) |
 | Dependencies include high-churn fields you do not need | A one-shot fetch is enough                                                                                                               |
 
@@ -96,8 +96,8 @@ flowchart TD
 
 ### Cursor semantics
 
-- `afterKey` is **exclusive** — items strictly **after** the key (same as `messageList.fetchMessagesStrictlyAfter`).
-- Pin the cursor so the subscription stays near-empty until something new happens (`subscribeNewMessages` in the webapp uses the same idea).
+- `afterKey` is **exclusive** — items strictly **after** the key (same as the page tail `conversation.subscribePageTail`, where `afterCreationTime` is exclusive).
+- Pin the cursor so the subscription stays near-empty until something new happens (`conversation.subscribePageTail` in the webapp uses the same idea).
 
 ---
 
@@ -306,15 +306,15 @@ Periodic rehydrate ──► reconcile current machine snapshots
 getAssignedTaskForAction (full task.content)
 ```
 
-| Piece           | Location                                                                                      |
-| --------------- | --------------------------------------------------------------------------------------------- |
-| Action fetch    | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                            |
-| Backend core    | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                          |
-| Feed def        | Removed in Stage 1 cleanup; task inbox uses machine-scoped signals via `messageList.ts`       |
-| Orchestration   | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`) |
-| Consumer        | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                              |
-| Domain snapshot | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |
-| Handler logic   | `packages/cli/src/daemon/entry/task-delivery/task-delivery-logic.ts`                          |
+| Piece           | Location                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| Action fetch    | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                                     |
+| Backend core    | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                                   |
+| Feed def        | Removed in Stage 1 cleanup; task inbox uses machine-scoped signals via `conversation.listPageMessages` |
+| Orchestration   | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`)          |
+| Consumer        | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                                       |
+| Domain snapshot | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                              |
+| Handler logic   | `packages/cli/src/daemon/entry/task-delivery/task-delivery-logic.ts`                                   |
 
 Signal buffer: max 200, dedupe on. Subscribe page limit: 50. Reconcile interval: 15s (independent reconciliation cadence).
 
@@ -337,7 +337,7 @@ Prove: cursor exclusivity, no blob in incremental path, signal omitted fields do
 
 | Pattern                             | Location                                                                                                                                        |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cursor-pinned message tail (webapp) | `services/backend/.../messageList.ts` — `subscribeNewMessages`                                                                                  |
+| Cursor-pinned message tail (webapp) | `services/backend/convex/conversation.ts` — `subscribePageTail`                                                                                 |
 | Reactive pending work (small set)   | `packages/cli/src/commands/machine/daemon-start/dir-listing-subscription.ts`                                                                    |
 | Subscribe + reconcile poll (legacy) | `packages/cli/src/commands/machine/daemon-start/observed-sync.ts`                                                                               |
 | Daemon de-duplication ledger        | Removed. `commit-detail-sync.ts` (`seenShas`) was deleted with the workspace service (S5b); commit-detail dedup is no longer a separate ledger. |
