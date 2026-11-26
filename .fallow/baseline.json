@@ -570,6 +570,7 @@
     "services/backend/src/domain/types/skills.ts:isSkillId",
     "services/backend/src/domain/usecase/agent/build-agent-restart-event.ts:buildAgentRestartEvent",
     "services/backend/src/domain/usecase/chatroom/compute-next-run-at.ts:ceilToNextMinute",
+    "services/backend/src/domain/usecase/chatroom-transfer/export-list.ts:EXPORT_ALL_WORKSPACE_SCAN_CAP",
     "services/backend/src/domain/usecase/machine/assigned-tasks-core.ts:toParticipantView",
     "services/backend/src/domain/usecase/message/message-read-model.ts:isTimelineMessageType",
     "services/backend/src/domain/usecase/task/complete-active-tasks.ts:completeActiveTasksForRole",
