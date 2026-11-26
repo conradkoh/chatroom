@@ -66,7 +66,7 @@ export interface MessageTaskSnapshot {
  * | type          | invariant |
  * | ------------- | --------- |
  * | `message`     | `senderRole` is `user` or an agent role. A row starts a page only when `senderRole` is exactly `user`. |
- * | `handoff`     | Carries `senderAgent` (harness/model snapshot), `targetRole`, and `terminalHandoffKey` on terminal handoff-to-user rows. |
+ * | `handoff`     | Carries `senderAgent` (harness/model snapshot) and `targetRole`. The stored `terminalHandoffKey` is not on the wire. |
  * | `notice`      | Agent → user interim note; no task transition. |
  * | `plan`        | Immutable; `supersedesPlanId` points at the plan it replaces. |
  * | `grounding`   | Immutable neutral observation record. |
