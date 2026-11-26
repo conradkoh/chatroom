@@ -18,7 +18,7 @@ describe('verifier guidance snapshots', () => {
     expect(guidance).toContain("main job is to check whether the user's goal was accomplished");
     expect(guidance).toContain('judged from chatroom logs');
     expect(guidance).toContain('advisory and read-only');
-    expect(guidance).toContain('do not edit files, implement code');
+    expect(guidance).toContain('do not edit files, produce or change the deliverable yourself');
     expect(guidance).toContain('Run no test the user did not ask for');
     expect(guidance).not.toMatch(/context id|chatroom context|context read|context goal/i);
     expect(guidance).toContain('Log message ids');
@@ -36,5 +36,13 @@ describe('verifier guidance snapshots', () => {
     expect(guidance).toContain('Instructions (not part of the message): chat response');
     expect(guidance).toContain('4a. User expectations');
     expect(guidance).not.toContain('I confirm that I read the current chatroom task context');
+  });
+
+  test('step 4a puts the chat-mode exclusion first and keys expectations on deliverable type', () => {
+    const guidance = getVerifierGuidance({ nativeIntegration: false, recipientRole: 'planner' });
+
+    expect(guidance).toContain('Chat mode comes first');
+    expect(guidance).toContain('Apply the expectations for each deliverable type');
+    expect(guidance).toContain('`code`: each requirement');
   });
 });

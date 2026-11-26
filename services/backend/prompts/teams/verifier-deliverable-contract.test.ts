@@ -6,6 +6,7 @@ import {
   renderHandoffTemplate,
   type HandoffTemplatePair,
 } from '../cli/handoff-templates';
+import { getVerifierGuidance } from '../cli/roles/verifier';
 import { appendVerifierGateGuidance } from '../task-delivery/verifier-gate-guidance';
 
 /** Every entry-point → verifier request across duo, solo and trio. */
@@ -141,5 +142,32 @@ describe('coordinator gate deliverable contract', () => {
 
   test('ACHIEVED runs each pending-after-verdict step before delivering', () => {
     expect(gate).toContain('first run any `pending after verdict:` step your request listed');
+  });
+});
+
+describe('verifier guidance deliverable contract', () => {
+  const guidance = getVerifierGuidance({ nativeIntegration: false, recipientRole: 'planner' });
+
+  test('step 4a states the chat-mode exclusion before the deliverable-type rules', () => {
+    const chatRule = guidance.indexOf("when the request's `## Mode` is `chat`");
+    const typeRule = guidance.indexOf('Apply the expectations for each deliverable type');
+
+    expect(chatRule).toBeGreaterThan(-1);
+    expect(typeRule).toBeGreaterThan(-1);
+    expect(chatRule).toBeLessThan(typeRule);
+    expect(guidance).toContain('add no user expectations');
+  });
+
+  test.each(VERIFIER_DELIVERABLE_TYPES)('step 4a names the %s deliverable expectations', (type) => {
+    expect(guidance).toContain(`   - \`${type}\`: `);
+  });
+
+  test('non-code deliverables do not demand files changed or Code Change Verification', () => {
+    expect(guidance).toContain(
+      '`research`: the findings message with its sources; no files-changed or Code Change Verification expectation.'
+    );
+    expect(guidance).toContain(
+      '`review`: the review report message, naming its reviewed target; no files-changed or Code Change Verification expectation.'
+    );
   });
 });
