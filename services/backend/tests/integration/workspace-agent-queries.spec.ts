@@ -146,6 +146,11 @@ describe('workspace-scoped agent queries', () => {
     await registerMachineWithDaemon(sessionId as any, machineB);
     const workspaceA = await registerWorkspace(sessionId, chatroomId, machineA, '/workspace/a');
     const workspaceB = await seedAdditionalWorkspace(chatroomId, machineB, '/workspace/b');
+    await t.mutation(api.workspaces.setPrimaryWorkspaceForChatroom, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workspaceId: workspaceA,
+    });
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineA, 'builder', {
       workingDir: '/workspace/a',
     });

@@ -9,7 +9,7 @@ import {
   isChatroomStopAvailable,
 } from '@workspace/shared/domain/chatroom-activity-status';
 import { hasActiveChatroomAgent } from '@workspace/shared/domain/chatroom-agent-activity-status';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc } from './_generated/dataModel';
@@ -20,10 +20,12 @@ import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { agentHarnessValidator } from './schema';
 import { validateWorkingDir } from './workspacePathSecurity';
+import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
 import { AgentStartReasonCode } from '../src/domain/entities/agent';
 import { ACTIVE_TASK_HEADER_READ_LIMIT } from '../src/domain/entities/task';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { applyAgentConfig } from '../src/domain/usecase/agent/apply-agent-config';
+import { assertAgentTargetIsActiveWorkspace } from '../src/domain/usecase/agent/assert-agent-target-in-active-workspace';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { getAgentModelOptions as getAgentModelOptionsUseCase } from '../src/domain/usecase/agent/get-agent-model-options';
@@ -104,6 +106,11 @@ export const requestStart = mutation({
       throw new Error('Cannot start agent: model and workingDir are required');
     }
     validateWorkingDir(workingDir);
+    await assertAgentTargetIsActiveWorkspace(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      workingDir,
+    });
     await assertMachineBelongsToChatroom(ctx, {
       chatroomId: args.chatroomId,
       machineId: args.machineId,
@@ -264,6 +271,11 @@ export const requestRestart = mutation({
         throw new Error('Workspace does not belong to this agent restart request');
       }
     }
+    await assertAgentTargetIsActiveWorkspace(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+    });
     await assertMachineBelongsToChatroom(ctx, {
       chatroomId: args.chatroomId,
       machineId: args.machineId,
@@ -359,7 +371,12 @@ export const applyConfig = mutation({
       .query('chatroom_machines')
       .withIndex('by_machineId', (q) => q.eq('machineId', target.machineId))
       .first();
-    if (!machine) throw new Error('Machine not found');
+    if (!machine) {
+      throw new ConvexError<BackendError>({
+        code: BACKEND_ERROR_CODES.MACHINE_NOT_FOUND,
+        message: 'Machine not found',
+      });
+    }
     return applyAgentConfig(ctx, {
       target,
       chatroomId: args.chatroomId,

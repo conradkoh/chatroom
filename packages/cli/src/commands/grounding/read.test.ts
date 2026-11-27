@@ -68,7 +68,7 @@ function stderr(): string {
 }
 
 describe('readGrounding', () => {
-  test('prints the header, the stored content and the verify line', async () => {
+  test('prints the header, the stored content and the neutral note', async () => {
     const deps = createMockDeps();
 
     await readGrounding(TEST_CHATROOM_ID, { role: 'builder', groundingId: 'msg_1' }, deps);
@@ -86,9 +86,8 @@ describe('readGrounding', () => {
     expect(output).toContain('Author: builder');
     expect(output).toContain('Created: 2023-11-14T22:13:20.000Z');
     expect(output).toContain(GROUNDING_CONTENT);
-    expect(output).toContain(
-      'Preliminary observations: verify against the repository before relying on them.'
-    );
+    expect(output).toContain('It records factual observations from an earlier pass.');
+    expect(output).not.toMatch(/preliminary|verify against/i);
   });
 
   test('reads a grounding without --role', async () => {
