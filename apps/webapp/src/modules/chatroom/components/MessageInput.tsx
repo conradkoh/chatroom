@@ -528,12 +528,15 @@ export function MessageInput({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (fileAutocomplete.handleAutocompleteKeyDown(e)) return;
-      if (isTouchDevice) return;
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        if (hasActiveUploads) return;
-        handleSubmit();
-      }
+      if (e.key !== 'Enter' || e.shiftKey) return;
+      // Cmd/Ctrl+Enter sends on every device. iPadOS cannot tell a hardware keyboard from the
+      // on-screen one, so the chord is the send key on touch devices too.
+      const isSendChord = e.metaKey || e.ctrlKey;
+      // Plain Enter on touch devices inserts a newline (unchanged behaviour).
+      if (isTouchDevice && !isSendChord) return;
+      e.preventDefault();
+      if (hasActiveUploads) return;
+      handleSubmit();
     },
     [fileAutocomplete, handleSubmit, hasActiveUploads, isTouchDevice]
   );
