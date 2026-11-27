@@ -1,6 +1,6 @@
 /**
  * Key: `trio:specifier->coordinator@code` (bucket `code`).
- * Specifier → coordinator round report. Body only: the pair resolver prepends the
+ * Specifier → coordinator package report. Body only: the pair resolver prepends the
  * recipient callout and the title line.
  */
 
@@ -17,22 +17,25 @@ import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-dis
 import { getUnresolvedDecisionsSectionBlock } from '../../../utils/unresolved-decisions';
 
 /**
- * Returns the report the specifier hands to the coordinator after one round: the
- * builder delivered one or more phases and the specifier reviewed them.
+ * Returns the report the specifier hands to the coordinator after one package:
+ * the builder delivered its single pass and the specifier reviewed it.
  *
- * This is a round report, not an entry-point report: it carries the standards
- * the coordinator needs to write the user report, without the entry-point
- * verification workflow (`user`-facing reports own that).
+ * This is a package report, not an entry-point report: it carries the standards
+ * the coordinator needs to review the delivery and re-package what is missing,
+ * without the entry-point verification workflow (`user`-facing reports own that).
  */
 export function getSpecifierCoordinatorCodeTemplate(query: HandoffTemplateQuery): string {
   return `${getHandoffReportTemplateIntro()}
 
 \`\`\`markdown
 ## Summary
-<what this round delivered, and why the round ended where it did, in plain terms>
+<what this package delivered, and why it ended where it did, in plain terms>
+
+## Delivery status
+<delivered | partial | blocked — one line reason>
 
 ## Template Disclosure Confirmation
-- [ ] I confirm that I have seen this template at the start of this work package, before driving the builder
+- [ ] I confirm that I have seen this template at the start of this work package, before briefing the builder
 ${getRoleGuidanceDisclosureBlock({
   chatroomId: query.chatroomId,
   role: query.role,
@@ -40,28 +43,26 @@ ${getRoleGuidanceDisclosureBlock({
 })}
 
 ## What exists today
-${getHandoffNotApplicableSectionComment('Describe current state after this round')}
-<current state after this round: what the user can now do, what is in place, how the system behaves>
+${getHandoffNotApplicableSectionComment('Describe current state after this package')}
+<current state after this package: what the user can now do, what is in place, how the system behaves>
 
-## What this round delivered
-<one line per phase: phase id and title, builder handoff message id, commits, files changed, rework rounds>
+## What this package delivered
+<builder handoff message id, commits, and files changed; for a partial or blocked report, state what did land>
+
+## Not delivered
+<requirements not met or not run, each with the file, the line where known, and the failing requirement, and what you recommend the coordinator re-package; or \`None.\`>
 
 ## Verification run
-<what ran at which stage: focused tests per phase, full suite / typecheck / lint / e2e at the round's end, with the command and result; and anything that did not run, and why (blocked or early stop)>
+<the builder's reported results per verification kind, with command and result, plus your review; anything that did not run and why (blocked or early stop)>
 
-## What the plan still has
-<a reminder for the next round, not an assignment: the phases not yet delivered, in plan order, each with its title; or \`None — the plan is complete.\`>
-
-## Plan reference
-Plan ID: <planId> (newly published | unchanged | superseded by <planId>)
-Phases delivered so far: <P1, …, Pn>
-What remains: <the phases not yet delivered, or \`None — plan complete\`>
+## Plan phases
+Plan ID: <planId, or \`None\`>; Phases met: <Pn…>; Phases not met: <Pn…>
 
 ${getHandoffQualityPrinciplesSectionBlock('work')}
 
 ## Proof of Completion
 ${getFileReferenceProofOfCompletionExample()}
-<for each acceptance criterion in the work package: met / not met / left to a later round, with evidence (test names and output, commands run, commits)>
+<for each acceptance criterion in the work package: met / not met / left to a later package, with evidence (test names and output, commands run, commits)>
 
 ## Code Change Verification
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}

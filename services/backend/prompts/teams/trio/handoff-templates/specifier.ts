@@ -2,7 +2,7 @@
  * Trio specifier role-owned handoff contract.
  *
  * The specifier receives work packages from the coordinator and handbacks from
- * the builder. It returns one round report to the coordinator (its upstream,
+ * the builder. It returns one package report to the coordinator (its upstream,
  * listed first) and work to the builder.
  */
 

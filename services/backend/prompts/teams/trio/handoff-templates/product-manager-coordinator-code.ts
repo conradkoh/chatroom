@@ -6,5 +6,5 @@ import type { HandoffTemplateQuery } from '../../../cli/handoff-templates/contra
 import { getProductManagerToEntryPointHandoffTemplate } from '../../product-manager-handoff-templates';
 
 export function getProductManagerCoordinatorCodeTemplate(query: HandoffTemplateQuery): string {
-  return getProductManagerToEntryPointHandoffTemplate(query);
+  return getProductManagerToEntryPointHandoffTemplate(query, { planPublishing: true });
 }

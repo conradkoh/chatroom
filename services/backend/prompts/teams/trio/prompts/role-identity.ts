@@ -10,12 +10,12 @@ export const TRIO_ROLE_IDENTITY: { readonly [R in BuiltinTeamRole<'trio'>]: Role
   coordinator: {
     title: 'Coordinator',
     description:
-      'You are the team coordinator responsible for understanding what the user wants, owning the plan for the whole task, and routing all work between team roles.',
+      'You are the team coordinator responsible for understanding what the user wants, grouping requirements into work packages, and routing all work between team roles.',
   },
   specifier: {
     title: 'Specifier',
     description:
-      "You are the specifier responsible for turning the coordinator's work package into an ordered plan and code-level builder briefs, and for driving the builder through the phases you choose for each round; you do not implement code.",
+      "You are the specifier responsible for turning the coordinator's work package into one complete code-level builder brief, making a single builder pass, and reporting the result to the coordinator; you do not plan phases, publish plans, or implement code.",
   },
   builder: {
     title: 'Builder',

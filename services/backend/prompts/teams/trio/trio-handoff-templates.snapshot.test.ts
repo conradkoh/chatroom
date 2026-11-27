@@ -21,6 +21,23 @@ function render(pair: (typeof trioPairs)[number], conversationMode: 'code' | 'ch
   return template;
 }
 
+function renderAny(teamId: 'duo' | 'solo' | 'trio', fromRole: string, toRole: string): string {
+  const pair = listHandoffTemplatePairs(teamId).find(
+    (candidate) => candidate.fromRole === fromRole && candidate.toRole === toRole
+  );
+  if (!pair) {
+    throw new Error(`no handoff template pair for ${teamId}:${fromRole}->${toRole}`);
+  }
+  const template = renderHandoffTemplate(pair, {
+    conversationMode: 'code',
+    chatroomId: 'test-chatroom-id',
+  });
+  if (!template) {
+    throw new Error(`no handoff template for ${teamId}:${fromRole}->${toRole}`);
+  }
+  return template;
+}
+
 /** Renders the specifier→coordinator body through the contract getter itself. */
 function renderSpecifierToCoordinator(conversationMode: 'code' | 'chat'): string {
   const getter = trioSpecifierHandoffContract.outboundTemplates.coordinator;
@@ -45,16 +62,18 @@ describe('trio handoff template snapshots', () => {
     }
   });
 
-  test('specifier → coordinator code report covers the round and what the plan still has', () => {
+  test('specifier → coordinator code report covers the package and its plan phases', () => {
     const body = renderSpecifierToCoordinator('code');
 
     const headings = [
       '## Summary',
+      '## Delivery status',
       '## Template Disclosure Confirmation',
       '## What exists today',
-      '## What this round delivered',
+      '## What this package delivered',
+      '## Not delivered',
       '## Verification run',
-      '## What the plan still has',
+      '## Plan phases',
       '## Proof of Principles',
       '## Proof of Completion',
       '## Code Change Verification',
@@ -82,42 +101,34 @@ describe('trio handoff template snapshots', () => {
       '## Slice delivered',
       '## Slices still to do',
       'Phase: <Pn>',
+      '## What the plan still has',
+      '## Plan reference',
+      'rework rounds',
     ]) {
       expect(body).not.toContain(absent);
     }
   });
 
-  test('plan reference: specifier → coordinator report names the plan and its phases', () => {
+  test('plan phases: specifier → coordinator report states the plan and its phases', () => {
     const body = renderSpecifierToCoordinator('code');
 
-    expect(body).toContain('## Plan reference');
-    expect(body).toContain(
-      'Plan ID: <planId> (newly published | unchanged | superseded by <planId>)'
-    );
-    expect(body).toContain('Phases delivered so far: <P1, …, Pn>');
-    expect(body).toContain(
-      'What remains: <the phases not yet delivered, or `None — plan complete`>'
-    );
-    expect(body.indexOf('## What the plan still has')).toBeLessThan(
-      body.indexOf('## Plan reference')
-    );
+    expect(body).toContain('## Plan phases');
+    expect(body).toContain('Phases met: <Pn…>');
+    expect(body).toContain('Phases not met: <Pn…>');
+    expect(body).not.toContain('## Plan reference');
   });
 
-  test('plan reference: coordinator → specifier brief cites the plan and the read command', () => {
-    const coordinatorToSpecifier = trioPairs.find(
-      (pair) => pair.fromRole === 'coordinator' && pair.toRole === 'specifier'
-    )!;
-    const body = render(coordinatorToSpecifier, 'code');
+  test('plan phases: coordinator → specifier brief cites the plan phases and the phase read command', () => {
+    const body = renderAny('trio', 'coordinator', 'specifier');
 
-    expect(body).toContain('## Plan reference');
-    expect(body).toContain('Plan ID: <planId>, or `None — first pass: publish the plan`');
+    expect(body).toContain('## Plan phases');
+    expect(body).toContain('Plan ID: <planId>, or `None — no plan for this task`');
+    expect(body).toContain('Phases in this package: <planId>#Pn, … ; or `None.`');
+    expect(body).toContain('## Prior deliveries');
     expect(body).toContain(
-      'Delivered so far: <phases the plan already landed and anything left open; or `Nothing yet.`>'
+      'chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>" --phase="<Pn>"'
     );
-    expect(body).toContain(
-      'chatroom plan read --chatroom-id="test-chatroom-id" --role="specifier" --plan-id="<planId>"'
-    );
-    expect(body).not.toContain('Phase: <Pn>');
+    expect(body).not.toContain('first pass');
   });
 
   test('specifier → coordinator chat reply is a short body, not the report', () => {
@@ -164,14 +175,38 @@ describe('trio handoff template snapshots', () => {
     const body = render(coordinatorToSpecifier, 'code');
     expect(body).toContain('## Inputs from specialists');
     expect(body).toContain('chatroom messages download');
-    expect(body).toContain('## Rework findings (prior round)');
+    expect(body).toContain('## Rework findings (prior delivery)');
     expect(body).toContain(
       'message id of the specifier, reviewer, or verifier report and the blocking findings to fix (paste each with file and line where known); or `None.`'
     );
-    expect(body.indexOf('## Scope')).toBeLessThan(body.indexOf('## Rework findings (prior round)'));
-    expect(body.indexOf('## Rework findings (prior round)')).toBeLessThan(
+    expect(body.indexOf('## Scope')).toBeLessThan(
+      body.indexOf('## Rework findings (prior delivery)')
+    );
+    expect(body.indexOf('## Rework findings (prior delivery)')).toBeLessThan(
       body.indexOf('## Acceptance criteria')
     );
+  });
+
+  test('trio coordinator → specialist requests carry the optional plan paragraph', () => {
+    for (const role of ['architect', 'product-manager']) {
+      expect(renderAny('trio', 'coordinator', role)).toContain('Plan: required');
+    }
+  });
+
+  test('trio specialist → coordinator reports carry the plan-publishing instruction', () => {
+    for (const role of ['architect', 'product-manager']) {
+      const body = renderAny('trio', role, 'coordinator');
+      expect(body).toContain('chatroom plan view-template');
+      expect(body).toContain(
+        `chatroom plan publish --chatroom-id="test-chatroom-id" --role="${role}"`
+      );
+      expect(body).toContain('Plan ID: <planId>');
+    }
+  });
+
+  test('duo and solo specialist templates do not carry plan publishing', () => {
+    expect(renderAny('duo', 'planner', 'architect')).not.toContain('chatroom plan publish');
+    expect(renderAny('solo', 'solo', 'architect')).not.toContain('chatroom plan publish');
   });
 
   test('builder → specifier handback addresses the specifier', () => {

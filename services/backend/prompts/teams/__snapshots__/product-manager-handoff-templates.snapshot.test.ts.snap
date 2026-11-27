@@ -162,6 +162,8 @@ Use this for a new, ambiguous feature request whose scope is not yet decided. Sk
 
 After completing the specification, the product manager must return it to \`coordinator\` with the normal handoff command.
 
+**Plan (optional — default none).** Add \`Plan: required\` plus the reason ONLY when the task needs two or more dependent builder work packages across surfaces or workspaces, or the user asked for a plan. Otherwise ask for the specification only.
+
 \`\`\`bash
 chatroom handoff --chatroom-id="<chatroom-id>" --role="coordinator" --next-role="product-manager" << 'CHATROOM_HANDOFF_END'
 ---MESSAGE---
@@ -187,6 +189,15 @@ exports[`product manager handoff template snapshots > 'trio' 'product-manager' �
 Handoff template \`product-manager\` → \`coordinator\` (copy only the body sections below; do not copy this line, the notice, or the instructions after the body):
 
 Instructions (not part of the message): Return a complete product specification for the authoritative feature request. The product manager is advisory and read-only: do not edit files, build, or implement. Base every consistency claim on the existing app behavior you inspected, citing concrete repository paths and symbols, docs, or decision records under \`memory/\`. Decide every development-scope product decision yourself with a recommended default and rationale; return non-development product questions (copy, pricing, opinions, general product talk) to \`coordinator\` in \`## Summary\`; list a question for the user only if it meets the escalation criteria. Begin with the \`## Summary\` section, then use the remaining sections below in order. Use \`###\` for sub-items within a section.
+
+When the request says \`Plan: required\`: after the specification is complete and BEFORE you run \`handoff\` (publishing needs an active task), run \`chatroom plan view-template\`, fill it with ordered phases (each phase is a deliverable the coordinator can place in a package; a package carries one or more phases, and a phase is never split across packages; Sources cite the request and your specification), publish it with the command below, and write \`Plan ID: <planId>\` as the first line of \`## Summary\`. Do not publish otherwise. Use this only for a plan that needs no technical design. Publish a revision only when asked, with \`--supersedes\`.
+
+\`\`\`bash
+chatroom plan publish --chatroom-id="<chatroom-id>" --role="product-manager" << 'CHATROOM_PLAN_END'
+---MESSAGE---
+[Your plan markdown here — paste the filled template from \`chatroom plan view-template\`]
+CHATROOM_PLAN_END
+\`\`\`
 
 ## Summary
 <state the feature, the recommended scope in two to four sentences, and whether any escalation item blocks planning>

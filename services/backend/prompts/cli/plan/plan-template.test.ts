@@ -57,4 +57,14 @@ describe('getPlanTemplate', () => {
       getPlanTemplate({ nativeIntegration: false })
     );
   });
+
+  test('the Sources placeholder and phase instruction match the coordinator workflow', () => {
+    const template = getPlanTemplate({});
+    expect(template).toContain(
+      '- <user request message id and the specialist brief ids this plan builds on>'
+    );
+    expect(template).toContain(
+      'Each phase is one deliverable the coordinator can place in a work package; a phase is not a builder pass.'
+    );
+  });
 });

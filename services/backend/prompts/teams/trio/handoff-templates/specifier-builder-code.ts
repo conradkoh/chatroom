@@ -12,6 +12,6 @@ export function getSpecifierBuilderCodeTemplate(_query: HandoffTemplateQuery): s
   return getBuilderDelegationBriefTemplate({
     delegatorRole: 'specifier',
     gatesOwner: 'coordinator',
-    batching: true,
+    singlePass: true,
   });
 }
