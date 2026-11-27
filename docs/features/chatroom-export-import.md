@@ -116,7 +116,8 @@ Options:
 
 #### Listing the file
 
-- A single-chatroom file from an older version is refused with `IMPORT_NOT_AN_EXPORT`; only machine export bundles can be imported.
+- A single-chatroom file from an older version is refused with `IMPORT_NOT_AN_EXPORT`; only machine
+  export bundles can be imported.
 - Listing needs no session, no network call and no machine id (D5). `--list` prints the file's
   chatrooms and exits `0` without writing anything.
 - An import always prints the listing first, so the numbers and ids the prompt accepts are on screen.
