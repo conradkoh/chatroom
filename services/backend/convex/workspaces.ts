@@ -6,18 +6,26 @@
  *   2. Workspace Git — git state, diffs, commits (chatroom_workspaceGit* tables)
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession, requireSession } from './auth/session';
 import { omitUndefined } from './lib/omitUndefined';
 import { str } from './utils/types';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
+import { normalizeWorkingDir } from './workspacePathSecurity';
+import {
+  canRegisterWorkspace,
+  isActiveWorkspace,
+  MAX_ACTIVE_WORKSPACES_PER_CHATROOM,
+} from '../src/domain/entities/workspace';
 import { workspaceGitStateUnitValidator } from '../src/domain/entities/workspace-git-state-unit';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
 import { disableFileTreeSyncLifecycle } from '../src/domain/usecase/workspace/disable-file-tree-sync-lifecycle';
@@ -31,6 +39,7 @@ import { toWorkspaceGitStateView } from '../src/domain/usecase/workspace/project
 import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
 import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
 import { setPrimaryWorkspaceSelection } from '../src/domain/usecase/workspace/set-primary-workspace-selection';
+import { switchChatroomWorkspace } from '../src/domain/usecase/workspace/switch-chatroom-workspace';
 import { readWorkspaceGitUnitRows } from '../src/domain/usecase/workspace/workspace-git-unit-rows';
 
 async function getPrimaryWorkspaceView(ctx: QueryCtx, chatroomId: Id<'chatroom_rooms'>) {
@@ -48,8 +57,13 @@ async function getPrimaryWorkspaceView(ctx: QueryCtx, chatroomId: Id<'chatroom_r
  * Registers (or reactivates) a workspace for a chatroom.
  *
  * Called by the daemon or CLI when an agent starts working in a directory.
- * Upsert semantics: if the workspace already exists and is active, no-op.
- * If it was soft-deleted, it gets reactivated.
+ * Upsert semantics: if the workspace already exists and is active, no-op —
+ * so the daemon's call after an agent starts in an already-active folder stays
+ * a no-op. If it was soft-deleted, it gets reactivated.
+ *
+ * Policy: a chatroom holds ONE active workspace. A second distinct active
+ * workspace is refused with `WORKSPACE_ALREADY_BOUND`; use `switchWorkspace`
+ * to move the chatroom instead.
  */
 export const registerWorkspace = mutation({
   args: {
@@ -77,12 +91,71 @@ export const registerWorkspace = mutation({
       permission: 'write-access',
     });
 
+    // One-workspace policy. The registerWorkspace use case stays uncapped (import and creation share it).
+    const activeWorkspaces = (
+      await ctx.db
+        .query('chatroom_workspaces')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect()
+    ).filter((ws) => isActiveWorkspace(ws.removedAt));
+    const target = {
+      machineId: args.machineId,
+      workingDir: normalizeWorkingDir(args.workingDir),
+    };
+    const [firstActive] = activeWorkspaces;
+    if (
+      firstActive &&
+      !canRegisterWorkspace({ activeWorkspaces, target, cap: MAX_ACTIVE_WORKSPACES_PER_CHATROOM })
+    ) {
+      throw new ConvexError<BackendError>({
+        code: BACKEND_ERROR_CODES.WORKSPACE_ALREADY_BOUND,
+        message: `This chatroom is already bound to ${firstActive.hostname}:${firstActive.workingDir}. Use Switch workspace to move it.`,
+      });
+    }
+
     return registerWorkspaceUseCase(ctx, {
       chatroomId: args.chatroomId,
       machineId: args.machineId,
       workingDir: args.workingDir,
       hostname: args.hostname,
       registeredBy: args.registeredBy,
+    });
+  },
+});
+
+/**
+ * Rebinds a chatroom to another owned machine and folder in one transaction.
+ * Stops agents on the old workspace, carries their configs to the new one, soft-deletes
+ * the old workspace rows, and leaves exactly one active workspace.
+ * `expectedWorkspaceId`: omitted = no guard; null = expect no active workspace; id = expect that one.
+ */
+export const switchWorkspace = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    workingDir: v.string(),
+    expectedWorkspaceId: v.optional(v.union(v.id('chatroom_workspaces'), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine) {
+      throw new ConvexError<BackendError>({
+        code: BACKEND_ERROR_CODES.MACHINE_NOT_FOUND,
+        message: 'Machine not found',
+      });
+    }
+    return switchChatroomWorkspace(ctx, {
+      chatroomId: args.chatroomId,
+      machine,
+      workingDir: args.workingDir,
+      expectedWorkspaceId: args.expectedWorkspaceId,
+      requestedBy: session.userId,
     });
   },
 });

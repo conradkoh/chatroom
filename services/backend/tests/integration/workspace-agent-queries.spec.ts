@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { registerWorkspace as registerWorkspaceUseCase } from '../../src/domain/usecase/workspace/register-workspace';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -28,6 +29,23 @@ async function registerWorkspace(
   });
 }
 
+/** Seed an additional workspace when the chatroom already has its one active workspace. */
+async function seedAdditionalWorkspace(
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  return t.run((ctx) =>
+    registerWorkspaceUseCase(ctx, {
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'test',
+    })
+  );
+}
+
 describe('workspace-scoped agent queries', () => {
   test('uses the persisted primary workspace without liveness filtering', async () => {
     const { sessionId } = await createTestSession('test-wsq-active-workspace');
@@ -41,8 +59,7 @@ describe('workspace-scoped agent queries', () => {
       machineId,
       '/workspace/old'
     );
-    const newestWorkspaceId = await registerWorkspace(
-      sessionId,
+    const newestWorkspaceId = await seedAdditionalWorkspace(
       chatroomId,
       machineId,
       '/workspace/new'
@@ -128,7 +145,7 @@ describe('workspace-scoped agent queries', () => {
     await registerMachineWithDaemon(sessionId as any, machineA);
     await registerMachineWithDaemon(sessionId as any, machineB);
     const workspaceA = await registerWorkspace(sessionId, chatroomId, machineA, '/workspace/a');
-    const workspaceB = await registerWorkspace(sessionId, chatroomId, machineB, '/workspace/b');
+    const workspaceB = await seedAdditionalWorkspace(chatroomId, machineB, '/workspace/b');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineA, 'builder', {
       workingDir: '/workspace/a',
     });
@@ -160,7 +177,7 @@ describe('workspace-scoped agent queries', () => {
     const machineId = 'machine-wsq-config-isolation';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const workspaceA = await registerWorkspace(sessionId, chatroomId, machineId, '/workspace/a');
-    const workspaceB = await registerWorkspace(sessionId, chatroomId, machineId, '/workspace/b');
+    const workspaceB = await seedAdditionalWorkspace(chatroomId, machineId, '/workspace/b');
 
     await t.mutation(api.agents.saveConfig, {
       sessionId: sessionId as any,

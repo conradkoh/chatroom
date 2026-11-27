@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { WORKSPACE_GIT_UNIT_TABLE } from '../../src/domain/entities/workspace-git-state-unit';
+import { registerWorkspace as registerWorkspaceUseCase } from '../../src/domain/usecase/workspace/register-workspace';
 import { t } from '../../test.setup';
 import {
   createTestSession,
@@ -53,6 +54,23 @@ async function registerWorkspace(
     hostname: 'test-host',
     registeredBy: 'builder',
   });
+}
+
+/** Seed an additional workspace when the chatroom already has its one active workspace. */
+async function seedAdditionalWorkspace(
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  workingDir: string
+): Promise<Id<'chatroom_workspaces'>> {
+  return t.run((ctx) =>
+    registerWorkspaceUseCase(ctx, {
+      chatroomId,
+      machineId,
+      workingDir,
+      hostname: 'test-host',
+      registeredBy: 'builder',
+    })
+  );
 }
 
 /**
@@ -201,7 +219,7 @@ describe('workspace removal cleanup', () => {
 
     // Register TWO workspaces for the same machine in the same chatroom
     const workspaceId1 = await registerWorkspace(sid, chatroomId, machineId, '/test/workspace-a');
-    await registerWorkspace(sid, chatroomId, machineId, '/test/workspace-b');
+    await seedAdditionalWorkspace(chatroomId, machineId, '/test/workspace-b');
 
     // Create a teamAgentConfig for this machine+chatroom
     await setupRemoteAgentConfig(sid, chatroomId, machineId, 'builder');
@@ -233,7 +251,7 @@ describe('workspace removal cleanup', () => {
 
     // Register a workspace for each machine
     const workspaceIdA = await registerWorkspace(sid, chatroomId, machineIdA, '/workspace-a');
-    await registerWorkspace(sid, chatroomId, machineIdB, '/workspace-b');
+    await seedAdditionalWorkspace(chatroomId, machineIdB, '/workspace-b');
 
     // Create configs for both machines
     await setupRemoteAgentConfig(sid, chatroomId, machineIdA, 'builder', {
@@ -309,8 +327,7 @@ describe('workspace git unit row purge', () => {
       machineId,
       '/test/git-unit-cleanup-a'
     );
-    const survivorWorkspaceId = await registerWorkspace(
-      sid,
+    const survivorWorkspaceId = await seedAdditionalWorkspace(
       chatroomId,
       otherMachineId,
       '/test/git-unit-cleanup-a'
@@ -370,7 +387,7 @@ describe('legacy git-state blob rows', () => {
     await registerMachineWithDaemon(sid, machineId);
 
     const noStatusWorkspaceId = await registerWorkspace(sid, chatroomId, machineId, noStatusDir);
-    const legacyPrWorkspaceId = await registerWorkspace(sid, chatroomId, machineId, legacyPrDir);
+    const legacyPrWorkspaceId = await seedAdditionalWorkspace(chatroomId, machineId, legacyPrDir);
 
     // Oldest shape: no `status` at all.
     await t.run((ctx) =>
