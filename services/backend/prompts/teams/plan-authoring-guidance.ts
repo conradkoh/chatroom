@@ -35,7 +35,7 @@ export function getPlanAuthoringInstruction(
   const eligibility =
     role === 'product-manager' ? ' Use this only for a plan that needs no technical design.' : '';
 
-  return `When the request says \`Plan: required\`: after the ${deliverable} is complete and BEFORE you run \`handoff\` (publishing needs an active task), run \`chatroom plan view-template\`, fill it with ordered phases (each phase one deliverable the coordinator can group into one or more builder work packages; Sources cite the request and your ${deliverable}), publish it with the command below, and write \`Plan ID: <planId>\` as the first line of \`## Summary\`. Do not publish otherwise.${eligibility} Publish a revision only when asked, with \`--supersedes\`.
+  return `When the request says \`Plan: required\`: after the ${deliverable} is complete and BEFORE you run \`handoff\` (publishing needs an active task), run \`chatroom plan view-template\`, fill it with ordered phases (each phase is a deliverable the coordinator can place in a package; a package carries one or more phases, and a phase is never split across packages; Sources cite the request and your ${deliverable}), publish it with the command below, and write \`Plan ID: <planId>\` as the first line of \`## Summary\`. Do not publish otherwise.${eligibility} Publish a revision only when asked, with \`--supersedes\`.
 
 \`\`\`bash
 ${publishCommand}

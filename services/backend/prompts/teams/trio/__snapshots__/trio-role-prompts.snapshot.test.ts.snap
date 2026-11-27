@@ -7247,7 +7247,7 @@ chatroom handoff view-template --from="specifier" --to="builder" --mode="<chat|c
 \`\`\`
 All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
-**Slicing Guidelines:**
+**Brief Guidelines:**
 
 **How to write the brief — one pass, so it must be complete:**
 
@@ -7414,7 +7414,7 @@ flowchart TD
 
 
 
-**Slicing Guidelines:**
+**Brief Guidelines:**
 
 **How to write the brief — one pass, so it must be complete:**
 
@@ -7603,7 +7603,7 @@ chatroom handoff view-template --from="specifier" --to="builder" --mode="<chat|c
 \`\`\`
 All of --from, --to, and --mode are required; use the mode of your current task. This lists who you receive work from, who you return to, and every outbound handoff template you can use.
 
-**Slicing Guidelines:**
+**Brief Guidelines:**
 
 **How to write the brief — one pass, so it must be complete:**
 

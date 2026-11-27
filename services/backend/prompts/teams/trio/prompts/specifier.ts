@@ -114,7 +114,7 @@ ${getSpecifierHandoffRules(nativeIntegration)}
 
 ${getHandoffTemplateDiscoveryGuidance({ teamId: 'trio', role, nativeIntegration })}
 
-**Slicing Guidelines:**
+**Brief Guidelines:**
 
 ${getSpecifierBriefGuidelines()}
 
