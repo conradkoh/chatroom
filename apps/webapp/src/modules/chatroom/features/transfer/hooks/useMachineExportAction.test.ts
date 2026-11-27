@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useMachineExportAction } from './useMachineExportAction';
+import { MACHINE_EMPTY_COPY } from '../lib/transferCopy';
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), downloadBlobFile: vi.fn() }));
 
@@ -62,5 +63,36 @@ describe('useMachineExportAction', () => {
     });
 
     expect(listForMachineCalls()).toHaveLength(1);
+  });
+
+  it('shows the failure copy and resets on dismiss and on a later start()', async () => {
+    // The first listing fails with an unclassified error; the retry finds no chatrooms.
+    mocks.query.mockRejectedValueOnce(new Error('listing unavailable')).mockResolvedValueOnce([]);
+
+    const { result } = renderHook(() => useMachineExportAction('machine-1'));
+
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => expect(result.current.feedback).not.toBeNull());
+
+    expect(result.current.feedback).toMatchObject({
+      tone: 'error',
+      title: 'Export failed',
+      message: 'Could not export. Try again.',
+    });
+    expect(result.current.retryable).toBe(true);
+
+    act(() => {
+      result.current.dismiss();
+    });
+    expect(result.current.feedback).toBeNull();
+    expect(result.current.retryable).toBe(false);
+
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => expect(result.current.feedback?.message).toBe(MACHINE_EMPTY_COPY));
+    expect(listForMachineCalls()).toHaveLength(2);
   });
 });
