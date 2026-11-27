@@ -449,8 +449,7 @@ mark. No product mutation edits message content, so this cannot be triggered thr
 ### Export
 
 - Entry points: the chatroom sidebar row's context menu, the chatroom selector card menu, the
-  selector table menu, and the Machines tab's per-machine card menu (Export chatrooms, Import
-  chatrooms…).
+  selector table menu, and the Machines tab's per-machine card menu.
 - The browser builds the same payload bytes and file names as the CLI by calling the shared
   `runExport` / `runExportBundle` code, then saves the file with an anchor download. Nothing is
   uploaded to Convex.
