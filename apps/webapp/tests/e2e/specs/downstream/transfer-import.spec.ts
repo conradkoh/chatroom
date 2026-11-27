@@ -78,8 +78,12 @@ test.describe('Chatroom import', { tag: [TAG_DOWNSTREAM] }, () => {
     // The row is already visible above, so the sidebar has mounted and this is not a false pass.
     await expect(page.getByTestId('import-open-sidebar')).toHaveCount(0);
 
-    // The landing page has no import entry point either.
+    // The landing page has no import entry point either. Wait for its heading first, so the
+    // count check runs against a rendered header rather than a page that has not loaded yet.
     await page.goto('/app');
+    await expect(page.getByRole('heading', { name: 'Chatrooms', exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByTestId('import-open-header')).toHaveCount(0);
 
     // Import from the machine that owns the new chatrooms.

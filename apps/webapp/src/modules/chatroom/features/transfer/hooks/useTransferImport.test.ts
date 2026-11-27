@@ -327,6 +327,57 @@ describe('useTransferImport', () => {
     expect(mocks.mutation.mock.calls.filter(([ref]) => ref.name === 'finalize')).toHaveLength(0);
   });
 
+  it('unmounting mid-run aborts the run, rolls the room back, and warns nothing', async () => {
+    let releaseChunk: () => void = () => {};
+    const chunkGate = new Promise<void>((resolve) => {
+      releaseChunk = resolve;
+    });
+    mocks.mutation.mockImplementation(
+      async (ref: { name?: string }, args: { chunk?: ImportChunk }) => {
+        if (ref.name === 'begin') return { chatroomId: 'new-room-1' };
+        if (ref.name === 'applyChunk' && args.chunk) {
+          await chunkGate;
+          return chunkResult(args.chunk);
+        }
+        if (ref.name === 'finalize') return null;
+        if (ref.name === 'rollback') return { drained: true, deleted: 1 };
+        throw new Error(`Unexpected mutation: ${ref.name}`);
+      }
+    );
+
+    const { result, unmount } = renderHook(() => useTransferImport('machine-1'));
+    await act(async () => {
+      await result.current.loadFile(fileFrom(await bundleJson()));
+    });
+    act(() => result.current.selectAll());
+    act(() => result.current.start());
+    await waitFor(() => expect(result.current.state.kind).toBe('importing'));
+
+    // Spy from here on: earlier mounted updates are not under test.
+    const consoleError = vi.spyOn(console, 'error');
+    const consoleWarn = vi.spyOn(console, 'warn');
+    try {
+      unmount();
+      await act(async () => {
+        releaseChunk();
+      });
+
+      // Rollback is reached only through the unmount abort: the gated chunk resumes, the
+      // engine sees the aborted signal, and it rolls the room back instead of finalizing it.
+      await waitFor(() =>
+        expect(
+          mocks.mutation.mock.calls.filter(([ref]) => ref.name === 'rollback')
+        ).not.toHaveLength(0)
+      );
+      expect(mocks.mutation.mock.calls.filter(([ref]) => ref.name === 'finalize')).toHaveLength(0);
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(consoleWarn).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+      consoleWarn.mockRestore();
+    }
+  });
+
   it('retry re-selects only the entries that failed or never started', async () => {
     installConvex({
       preflight: () => {
