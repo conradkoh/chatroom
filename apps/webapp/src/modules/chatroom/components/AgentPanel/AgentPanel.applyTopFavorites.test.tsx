@@ -7,6 +7,7 @@ import { AgentPanel } from '../AgentPanel';
 
 const mocks = vi.hoisted(() => ({
   favoritesByKey: {} as Record<string, { agentHarness: string; model: string }[] | undefined>,
+  applyConfig: vi.fn(),
   saveConfig: vi.fn(),
   teamStructure: undefined as unknown,
   workspaceContext: null as unknown,
@@ -24,7 +25,8 @@ vi.mock('convex/react', () => ({
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
-  useSessionMutation: () => mocks.saveConfig,
+  useSessionMutation: (ref: unknown) =>
+    ref === 'agents:applyConfig' ? mocks.applyConfig : mocks.saveConfig,
   useSessionQuery: (ref: unknown) =>
     ref === 'chatrooms:getTeamStructureForChatroom' ? mocks.teamStructure : undefined,
 }));
@@ -34,7 +36,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
     },
-    agents: { saveConfig: 'agents:saveConfig' },
+    agents: { applyConfig: 'agents:applyConfig', saveConfig: 'agents:saveConfig' },
     chatrooms: { getTeamStructureForChatroom: 'chatrooms:getTeamStructureForChatroom' },
     machines: { listMachines: 'machines:listMachines' },
   },
@@ -127,8 +129,9 @@ function renderPanel() {
 describe('AgentPanel apply top favourites', () => {
   beforeEach(() => {
     mocks.favoritesByKey = {};
+    mocks.applyConfig.mockReset();
     mocks.saveConfig.mockReset();
-    mocks.saveConfig.mockResolvedValue(null);
+    mocks.applyConfig.mockResolvedValue({ outcome: 'restarted' });
     mocks.workspaceContext = workspaceContext;
     mocks.teamStructure = getTeamStructure({ teamId: 'duo' });
   });
@@ -150,28 +153,24 @@ describe('AgentPanel apply top favourites', () => {
 
     fireEvent.click(apply);
 
-    await waitFor(() => expect(mocks.saveConfig).toHaveBeenCalledTimes(2));
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.applyConfig).toHaveBeenCalledTimes(2));
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'planner',
-      machineId: 'm1',
       agentHarness: 'claude-sdk',
       model: 'opus',
-      workingDir: '/repo',
     });
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'builder',
-      machineId: 'm1',
       agentHarness: 'opencode-sdk',
       model: 'gpt-5',
-      workingDir: '/repo',
     });
     // The agent rows' status dots also use role="status", so find this line by its text.
     const feedback = await screen.findByText(
-      'Applied top favourite model to 2 agent(s). Restart agents to use it.'
+      'Applied top favourite model to 2 agent(s): 2 restarted.'
     );
     expect(feedback).toHaveAttribute('role', 'status');
   });
@@ -181,8 +180,10 @@ describe('AgentPanel apply top favourites', () => {
       planner: [{ agentHarness: 'claude-sdk', model: 'opus' }],
       builder: [{ agentHarness: 'opencode-sdk', model: 'gpt-5' }],
     });
-    mocks.saveConfig.mockImplementation((args: { role: string }) =>
-      args.role === 'planner' ? Promise.reject(new Error('harness missing')) : Promise.resolve(null)
+    mocks.applyConfig.mockImplementation((args: { role: string }) =>
+      args.role === 'planner'
+        ? Promise.reject(new Error('harness missing'))
+        : Promise.resolve({ outcome: 'restarted' })
     );
 
     renderPanel();
@@ -192,7 +193,7 @@ describe('AgentPanel apply top favourites', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(
-      'Failed to apply top favourite model for planner (harness missing). Applied to 1 other agent(s).'
+      'Failed to apply top favourite model for planner (harness missing). Applied to 1 other agent(s): 1 restarted.'
     );
     // The alert sits below the toolbar row. It must not grow the row.
     expect(group.contains(alert)).toBe(false);
@@ -212,6 +213,6 @@ describe('AgentPanel apply top favourites', () => {
 
     fireEvent.click(within(group).getByRole('button', { name: 'Apply top favourite models' }));
 
-    expect(mocks.saveConfig).not.toHaveBeenCalled();
+    expect(mocks.applyConfig).not.toHaveBeenCalled();
   });
 });

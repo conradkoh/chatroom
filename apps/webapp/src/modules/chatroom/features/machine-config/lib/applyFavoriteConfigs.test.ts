@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   applyFavoriteConfigs,
+  applyFavoriteConfigsAndRestart,
+  type ApplyConfigArgs,
   type ApplyFavoriteConfigItem,
   type SaveConfigArgs,
 } from './applyFavoriteConfigs';
@@ -115,5 +117,90 @@ describe('applyFavoriteConfigs', () => {
     expect(result.applied).toEqual([
       { role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } },
     ]);
+  });
+});
+
+describe('applyFavoriteConfigsAndRestart', () => {
+  it('calls applyConfig once per item with the server-derived arguments only', async () => {
+    const applyConfig = vi
+      .fn<(args: ApplyConfigArgs) => Promise<{ outcome: 'restarted' }>>()
+      .mockResolvedValue({ outcome: 'restarted' });
+
+    await applyFavoriteConfigsAndRestart(applyConfig, [plannerItem, builderItem]);
+
+    expect(applyConfig).toHaveBeenCalledTimes(2);
+    expect(applyConfig).toHaveBeenNthCalledWith(1, {
+      chatroomId: 'room-1',
+      workspaceId: 'ws-1',
+      role: 'planner',
+      agentHarness: 'claude-sdk',
+      model: 'opus',
+    });
+    expect(applyConfig).toHaveBeenNthCalledWith(2, {
+      chatroomId: 'room-1',
+      workspaceId: 'ws-1',
+      role: 'builder',
+      agentHarness: 'opencode-sdk',
+      model: 'gpt',
+    });
+    const firstArgs = applyConfig.mock.calls[0]?.[0] as unknown as Record<string, unknown>;
+    expect(firstArgs).not.toHaveProperty('machineId');
+    expect(firstArgs).not.toHaveProperty('workingDir');
+  });
+
+  it('maps each outcome into the applied entries', async () => {
+    const applyConfig = vi
+      .fn<(args: ApplyConfigArgs) => Promise<{ outcome: 'restarted' | 'saved' }>>()
+      .mockImplementation((args) =>
+        Promise.resolve({ outcome: args.role === 'planner' ? 'restarted' : 'saved' })
+      );
+
+    const result = await applyFavoriteConfigsAndRestart(applyConfig, [plannerItem, builderItem]);
+
+    expect(result).toEqual({
+      applied: [
+        {
+          role: 'planner',
+          entry: { agentHarness: 'claude-sdk', model: 'opus' },
+          outcome: 'restarted',
+        },
+        {
+          role: 'builder',
+          entry: { agentHarness: 'opencode-sdk', model: 'gpt' },
+          outcome: 'saved',
+        },
+      ],
+      failed: [],
+    });
+  });
+
+  it('reports one rejected apply and still applies the other roles', async () => {
+    const applyConfig = vi
+      .fn<(args: ApplyConfigArgs) => Promise<{ outcome: 'restarted' }>>()
+      .mockImplementation((args) =>
+        args.role === 'planner'
+          ? Promise.reject(new Error('boom'))
+          : Promise.resolve({ outcome: 'restarted' })
+      );
+
+    const result = await applyFavoriteConfigsAndRestart(applyConfig, [plannerItem, builderItem]);
+
+    expect(result.failed).toEqual([{ role: 'planner', message: 'boom' }]);
+    expect(result.applied).toEqual([
+      {
+        role: 'builder',
+        entry: { agentHarness: 'opencode-sdk', model: 'gpt' },
+        outcome: 'restarted',
+      },
+    ]);
+  });
+
+  it('does nothing for an empty list', async () => {
+    const applyConfig = vi.fn().mockResolvedValue({ outcome: 'unchanged' });
+
+    const result = await applyFavoriteConfigsAndRestart(applyConfig, []);
+
+    expect(applyConfig).not.toHaveBeenCalled();
+    expect(result).toEqual({ applied: [], failed: [] });
   });
 });

@@ -9,6 +9,7 @@ import {
 const mocks = vi.hoisted(() => ({
   /** Key: `${machineId}|${teamRoleKey}`. `undefined` means the query is still loading. */
   favoritesByKey: {} as Record<string, { agentHarness: string; model: string }[] | undefined>,
+  applyConfig: vi.fn(),
   saveConfig: vi.fn(),
 }));
 
@@ -24,7 +25,8 @@ vi.mock('convex/react', () => ({
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
-  useSessionMutation: () => mocks.saveConfig,
+  useSessionMutation: (ref: unknown) =>
+    ref === 'agents:applyConfig' ? mocks.applyConfig : mocks.saveConfig,
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
@@ -32,7 +34,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
     },
-    agents: { saveConfig: 'agents:saveConfig' },
+    agents: { applyConfig: 'agents:applyConfig', saveConfig: 'agents:saveConfig' },
   },
 }));
 
@@ -48,6 +50,7 @@ const duoTarget: ApplyTopFavoritesTarget = {
 describe('useApplyTopFavoriteModels', () => {
   beforeEach(() => {
     mocks.favoritesByKey = {};
+    mocks.applyConfig.mockReset();
     mocks.saveConfig.mockReset();
   });
 
@@ -63,16 +66,17 @@ describe('useApplyTopFavoriteModels', () => {
     });
 
     expect(applied).toBeNull();
+    expect(mocks.applyConfig).not.toHaveBeenCalled();
     expect(mocks.saveConfig).not.toHaveBeenCalled();
   });
 
-  it('applies each role top favourite with the workspace save arguments', async () => {
+  it('applies each role top favourite with applyConfig and the workspace arguments', async () => {
     mocks.favoritesByKey['m1|team_duo#role_planner'] = [
       { agentHarness: 'claude-sdk', model: 'opus' },
       { agentHarness: 'opencode-sdk', model: 'gpt' },
     ];
     mocks.favoritesByKey['m1|team_duo#role_builder'] = [];
-    mocks.saveConfig.mockResolvedValue(null);
+    mocks.applyConfig.mockResolvedValue({ outcome: 'restarted' });
 
     const { result } = renderHook(() => useApplyTopFavoriteModels(duoTarget));
 
@@ -86,31 +90,38 @@ describe('useApplyTopFavoriteModels', () => {
       applied = await result.current.apply();
     });
 
-    expect(mocks.saveConfig).toHaveBeenCalledTimes(1);
-    expect(mocks.saveConfig).toHaveBeenCalledWith({
+    expect(mocks.applyConfig).toHaveBeenCalledTimes(1);
+    expect(mocks.applyConfig).toHaveBeenCalledWith({
       chatroomId: 'room-1',
       workspaceId: 'ws-1',
       role: 'planner',
-      machineId: 'm1',
       agentHarness: 'claude-sdk',
       model: 'opus',
-      workingDir: '/repo',
     });
+    expect(mocks.saveConfig).not.toHaveBeenCalled();
     expect(applied).toEqual({
-      applied: [{ role: 'planner', entry: { agentHarness: 'claude-sdk', model: 'opus' } }],
+      applied: [
+        {
+          role: 'planner',
+          entry: { agentHarness: 'claude-sdk', model: 'opus' },
+          outcome: 'restarted',
+        },
+      ],
       failed: [],
     });
   });
 
-  it('keeps applying other roles when one save rejects', async () => {
+  it('keeps applying other roles when one apply rejects', async () => {
     mocks.favoritesByKey['m1|team_duo#role_planner'] = [
       { agentHarness: 'claude-sdk', model: 'opus' },
     ];
     mocks.favoritesByKey['m1|team_duo#role_builder'] = [
       { agentHarness: 'opencode-sdk', model: 'gpt' },
     ];
-    mocks.saveConfig.mockImplementation((args: { role: string }) =>
-      args.role === 'planner' ? Promise.reject(new Error('harness missing')) : Promise.resolve(null)
+    mocks.applyConfig.mockImplementation((args: { role: string }) =>
+      args.role === 'planner'
+        ? Promise.reject(new Error('harness missing'))
+        : Promise.resolve({ outcome: 'saved' })
     );
 
     const { result } = renderHook(() => useApplyTopFavoriteModels(duoTarget));
@@ -121,7 +132,13 @@ describe('useApplyTopFavoriteModels', () => {
     });
 
     expect(applied).toEqual({
-      applied: [{ role: 'builder', entry: { agentHarness: 'opencode-sdk', model: 'gpt' } }],
+      applied: [
+        {
+          role: 'builder',
+          entry: { agentHarness: 'opencode-sdk', model: 'gpt' },
+          outcome: 'saved',
+        },
+      ],
       failed: [{ role: 'planner', message: 'harness missing' }],
     });
   });
@@ -133,10 +150,10 @@ describe('useApplyTopFavoriteModels', () => {
     mocks.favoritesByKey['m1|team_duo#role_builder'] = [
       { agentHarness: 'opencode-sdk', model: 'gpt' },
     ];
-    const resolvers: ((value: null) => void)[] = [];
-    mocks.saveConfig.mockImplementation(
+    const resolvers: ((value: { outcome: 'restarted' }) => void)[] = [];
+    mocks.applyConfig.mockImplementation(
       () =>
-        new Promise<null>((resolve) => {
+        new Promise<{ outcome: 'restarted' }>((resolve) => {
           resolvers.push(resolve);
         })
     );
@@ -155,12 +172,12 @@ describe('useApplyTopFavoriteModels', () => {
     });
 
     expect(second).toBeNull();
-    expect(mocks.saveConfig).toHaveBeenCalledTimes(2);
-    expect(mocks.saveConfig.mock.calls.map(([args]) => args.role)).toEqual(['planner', 'builder']);
+    expect(mocks.applyConfig).toHaveBeenCalledTimes(2);
+    expect(mocks.applyConfig.mock.calls.map(([args]) => args.role)).toEqual(['planner', 'builder']);
 
     expect(resolvers).toHaveLength(2);
     act(() => {
-      for (const resolve of resolvers) resolve(null);
+      for (const resolve of resolvers) resolve({ outcome: 'restarted' });
     });
     await waitFor(() => expect(result.current.isApplying).toBe(false));
     expect(first).not.toBeNull();
