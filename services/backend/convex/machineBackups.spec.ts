@@ -5,6 +5,7 @@
  * exercised. Blobs are real `_storage` documents; the expected digest is the literal SHA-256 of
  * "abc".
  */
+import { BACKUP_UPLOAD_CONTENT_TYPE } from '@workspace/shared/domain/machine-backup';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
@@ -52,7 +53,20 @@ async function createDownload(owner: Owner, filename = BACKUP_FILENAME) {
   });
 }
 
+/** Stores "abc" and records our content type, as a real upload does. */
 async function storeAbc(): Promise<Id<'_storage'>> {
+  const storageId = await t.run((ctx) => ctx.storage.store(new Blob(['abc'])));
+  // convex-test's `_storage` documents carry no `contentType`; the backend records the upload header.
+  await t.run((ctx) =>
+    ctx.db.patch('_storage' as never, storageId, {
+      contentType: BACKUP_UPLOAD_CONTENT_TYPE,
+    } as never)
+  );
+  return storageId;
+}
+
+/** Stores "abc" exactly as convex-test does, with no content type recorded. */
+async function storeUntypedAbc(): Promise<Id<'_storage'>> {
   return t.run((ctx) => ctx.storage.store(new Blob(['abc'])));
 }
 
@@ -475,6 +489,36 @@ describe('machineBackups file changed', () => {
   });
 });
 
+describe('machineBackups content type', () => {
+  test('rejects a blob with no recorded content type', async () => {
+    const owner = await registerOwner();
+    const { requestId } = await createDownload(owner);
+    await t.mutation(api.machineBackups.createUploadUrl, {
+      sessionId: owner.sessionId,
+      machineId: owner.machineId,
+      requestId,
+      sizeBytes: 3,
+    });
+    const storageId = await storeUntypedAbc();
+
+    const report = await t.mutation(api.machineBackups.reportUploaded, {
+      sessionId: owner.sessionId,
+      machineId: owner.machineId,
+      requestId,
+      storageId,
+      sizeBytes: 3,
+      sha256: SHA256_OF_ABC,
+      stable: true,
+    });
+
+    expect(report).toEqual({ ok: false, reason: 'upload_failed' });
+    expect(await getStorageDoc(storageId)).toBeNull();
+    const row = await getRow(requestId);
+    expect(row?.status).toBe('failed');
+    expect(row?.errorCode).toBe('upload_failed');
+  });
+});
+
 describe('machineBackups cancel', () => {
   test('cancels a ready row, deletes the blob and ignores a second cancel', async () => {
     const owner = await registerOwner();
@@ -548,7 +592,7 @@ describe('machineBackups restart extends expiry', () => {
 });
 
 describe('machineBackups late report', () => {
-  test('a report for a cancelled row is a duplicate and the blob is kept', async () => {
+  test('a report for a cancelled row is a duplicate and the typed orphan is deleted', async () => {
     const owner = await registerOwner();
     const { requestId } = await createDownload(owner);
     await t.mutation(api.machineBackups.createUploadUrl, {
@@ -575,9 +619,8 @@ describe('machineBackups late report', () => {
       })
     ).toEqual({ ok: true, duplicate: true });
 
-    // convex-test records no contentType, so the orphan guard cannot verify the blob is ours and
-    // deliberately keeps it. The orphan predicate itself is covered in lifecycle.spec.ts.
-    expect(await getStorageDoc(storageId)).not.toBeNull();
+    // The cancelled row never recorded the blob, so it is a typed, recent orphan and is deleted.
+    expect(await getStorageDoc(storageId)).toBeNull();
   });
 });
 

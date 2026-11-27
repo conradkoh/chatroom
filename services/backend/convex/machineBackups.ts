@@ -753,11 +753,9 @@ function checkUploadedSize(input: UploadInput, meta: { size: number }): UploadFa
   return meta.size !== input.sizeBytes || meta.size !== input.row.sizeBytes ? sizeFailure() : null;
 }
 
-/** Production records our content type; convex-test never does, so absent is accepted here. */
+/** Every machine backup upload records our content type; a blob without it is not ours. */
 function checkUploadedContentType(meta: { contentType?: string }): UploadFailure | null {
-  if (meta.contentType === undefined || meta.contentType === BACKUP_UPLOAD_CONTENT_TYPE) {
-    return null;
-  }
+  if (meta.contentType === BACKUP_UPLOAD_CONTENT_TYPE) return null;
   return {
     reason: 'upload_failed',
     errorCode: 'upload_failed',
