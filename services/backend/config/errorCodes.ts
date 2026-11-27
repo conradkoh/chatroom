@@ -253,7 +253,15 @@ export type BackendErrorCode =
   | 'IMPORT_MACHINE_NOT_FOUND'
   | 'IMPORT_MACHINE_NOT_OWNED'
   | 'IMPORT_TARGET_NOT_IMPORTING'
-  | 'IMPORT_CHUNK_FAILED';
+  | 'IMPORT_CHUNK_FAILED'
+
+  // ── Machine backups ───────────────────────────────────────────────────
+  | 'BACKUP_NOT_FOUND'
+  | 'BACKUP_INVALID_FILENAME'
+  | 'BACKUP_REQUEST_ACTIVE'
+  | 'BACKUP_TOO_LARGE'
+  | 'BACKUP_NOT_READY'
+  | 'BACKUP_SIZE_MISMATCH';
 
 /**
  * Mapping of error names to their string code values.
@@ -653,6 +661,20 @@ export const BACKEND_ERROR_CODES = {
   IMPORT_TARGET_NOT_IMPORTING: 'IMPORT_TARGET_NOT_IMPORTING',
   /** An import chunk failed after it started writing */
   IMPORT_CHUNK_FAILED: 'IMPORT_CHUNK_FAILED',
+
+  // ── Machine backups ───────────────────────────────────────────────────
+  /** The machine or the backup request does not exist for this caller */
+  BACKUP_NOT_FOUND: 'BACKUP_NOT_FOUND',
+  /** The requested filename is not a backup archive produced by the local stack */
+  BACKUP_INVALID_FILENAME: 'BACKUP_INVALID_FILENAME',
+  /** The machine already has an active download request for another file */
+  BACKUP_REQUEST_ACTIVE: 'BACKUP_REQUEST_ACTIVE',
+  /** The backup is larger than the 256 MiB upload limit */
+  BACKUP_TOO_LARGE: 'BACKUP_TOO_LARGE',
+  /** The stored copy is not ready to download */
+  BACKUP_NOT_READY: 'BACKUP_NOT_READY',
+  /** The confirmed byte count does not match the stored copy */
+  BACKUP_SIZE_MISMATCH: 'BACKUP_SIZE_MISMATCH',
 } as const satisfies Record<BackendErrorCode, BackendErrorCode>;
 
 /**
@@ -900,6 +922,14 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.IMPORT_MACHINE_NOT_OWNED,
   BACKEND_ERROR_CODES.IMPORT_TARGET_NOT_IMPORTING,
   BACKEND_ERROR_CODES.IMPORT_CHUNK_FAILED,
+
+  // Machine backups
+  BACKEND_ERROR_CODES.BACKUP_NOT_FOUND,
+  BACKEND_ERROR_CODES.BACKUP_INVALID_FILENAME,
+  BACKEND_ERROR_CODES.BACKUP_REQUEST_ACTIVE,
+  BACKEND_ERROR_CODES.BACKUP_TOO_LARGE,
+  BACKEND_ERROR_CODES.BACKUP_NOT_READY,
+  BACKEND_ERROR_CODES.BACKUP_SIZE_MISMATCH,
 ] as const;
 
 /**

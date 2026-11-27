@@ -174,6 +174,23 @@ const commandRunsTable: MachineScopedTable = {
   },
 };
 
+/** A machine backup row may own one `_storage` blob (a ready or downloading copy). Delete the blob, then the row. */
+const machineBackupRequestsTable: MachineScopedTable = {
+  table: 'chatroom_machineBackupRequests',
+  cost: 1,
+  take: byMachine('chatroom_machineBackupRequests', 'by_machineId_createdAt').take,
+  deleteRow: async (ctx, row) => {
+    const id = row._id as Id<'chatroom_machineBackupRequests'>;
+    const request = await ctx.db.get('chatroom_machineBackupRequests', id);
+    if (request === null) return { writes: 0, removed: true };
+    if (request.storageId && (await ctx.db.system.get('_storage', request.storageId))) {
+      await ctx.storage.delete(request.storageId);
+    }
+    await ctx.db.delete('chatroom_machineBackupRequests', id);
+    return { writes: 2, removed: true };
+  },
+};
+
 /**
  * Machine-keyed tables in purge order: identity/status, inbox and agent state,
  * request tables, git state, file trees, file content, then commands.
@@ -211,6 +228,7 @@ export const MACHINE_SCOPED_TABLES: readonly MachineScopedTable[] = [
   byMachine('chatroom_capabilities_refresh_machine_results', 'by_machineId'),
   byMachine('chatroom_repositoryLedgerRequests', 'by_machineId_createdAt'),
   byMachine('chatroom_repositoryLedgerChunks', 'by_machineId', 30),
+  machineBackupRequestsTable,
 
   // Git state.
   byMachine('chatroom_workspaceGitState', 'by_machine_workingDir'),

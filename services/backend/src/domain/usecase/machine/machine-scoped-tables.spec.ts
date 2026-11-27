@@ -65,4 +65,35 @@ describe('MACHINE_SCOPED_TABLES', () => {
       }
     });
   });
+
+  test('deleting a machine backup request deletes its stored blob first', async () => {
+    await t.run(async (ctx) => {
+      const userId = await ctx.db.insert('users', { type: 'anonymous', name: 'backup-purge' });
+      const storageId = await ctx.storage.store(new Blob(['abc']));
+      const now = Date.now();
+      const requestId = await ctx.db.insert('chatroom_machineBackupRequests', {
+        userId,
+        machineId: 'machine-with-backup',
+        kind: 'download',
+        status: 'ready',
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: now + 3_600_000,
+        filename: 'backup-20260101-123456.zip',
+        sizeBytes: 3,
+        storageId,
+      });
+
+      const entry = MACHINE_SCOPED_TABLES.find(
+        (candidate) => candidate.table === 'chatroom_machineBackupRequests'
+      );
+      expect(entry?.deleteRow).toBeDefined();
+
+      const result = await entry!.deleteRow!(ctx, { _id: requestId });
+
+      expect(result).toEqual({ writes: 2, removed: true });
+      expect(await ctx.db.get('chatroom_machineBackupRequests', requestId)).toBeNull();
+      expect(await ctx.db.system.get('_storage', storageId)).toBeNull();
+    });
+  });
 });

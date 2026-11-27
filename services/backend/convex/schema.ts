@@ -11,6 +11,11 @@ import {
   gitCloneErrorCodeValidator,
   gitCloneStatusValidator,
 } from '../src/domain/entities/git-clone-request';
+import {
+  backupErrorCodeValidator,
+  inventoryEntryValidator,
+  machineBackupStatusValidator,
+} from '../src/domain/entities/machine-backup';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 import { messageTypeValidator } from '../src/domain/entities/message';
 import {
@@ -1600,6 +1605,42 @@ export default defineSchema({
   })
     .index('by_request_chunk', ['requestId', 'chunkIndex'])
     .index('by_machineId', ['machineId']),
+
+  /**
+   * Machine backup requests: an inventory snapshot (transient, like the ledger snapshot) or an
+   * ephemeral download copy that owns one `_storage` blob. Every row has one `expiresAt` that the lifecycle
+   * maintains. `by_machineId_createdAt` serves request reuse, the active-download lookup, and the machine purge;
+   * never subscribe through it. No chatroomId/workspaceId/workingDir, so it is not chatroom-keyed.
+   */
+  chatroom_machineBackupRequests: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    kind: v.union(v.literal('inventory'), v.literal('download')),
+    status: machineBackupStatusValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+    filename: v.optional(v.string()),
+    sizeBytes: v.optional(v.number()),
+    sha256: v.optional(v.string()),
+    storageId: v.optional(v.id('_storage')),
+    uploadAttempts: v.optional(v.number()),
+    preparingAt: v.optional(v.number()),
+    readyAt: v.optional(v.number()),
+    lastDownloadStartedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    inventoryDir: v.optional(v.string()),
+    stackFound: v.optional(v.boolean()),
+    backups: v.optional(v.array(inventoryEntryValidator)),
+    totalCount: v.optional(v.number()),
+    totalBytes: v.optional(v.number()),
+    newestAt: v.optional(v.number()),
+    truncated: v.optional(v.boolean()),
+    errorCode: v.optional(backupErrorCodeValidator),
+    errorMessage: v.optional(v.string()),
+  })
+    .index('by_machineId_createdAt', ['machineId', 'createdAt'])
+    .index('by_expiresAt', ['expiresAt']),
 
   // ============================================================================
   // EVENT STREAM TABLE
