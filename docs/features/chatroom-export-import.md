@@ -506,15 +506,18 @@ mark. No product mutation edits message content, so this cannot be triggered thr
 
 ### Downloading one backup
 
-- Download always opens a warning first. The warning names the machine and says the archive
-  contains the whole local Convex deployment, including bot tokens and session data; focus starts
-  on Cancel.
+- Download always opens a warning first, including **Try again** and **Request again**. The
+  warning names the machine and says the archive contains the whole local Convex deployment,
+  including bot tokens and session data; focus starts on Cancel.
 - Confirming enqueues `daemon.uploadMachineBackup`. The daemon reports the file's size, mints an
   upload URL, posts the bytes to Convex storage, reports the SHA-256 and size, then re-stats the
   file. Only a regular, non-symlink `backup-YYYYMMDD-HHMMSS.zip` is served; the daemon never
   creates the directory and refuses a file that changed during the upload.
 - The states are: **Requested** → **Preparing** (elapsed counter) → **Ready** (expiry counter) →
   **Downloading** (byte progress) → **Done**, with Cancel at every active state.
+- If the stream fails or is interrupted after a URL was minted, the row stays **Downloading** but
+  the prepared copy is still valid: the panel offers **Save file** again (with **Discard copy**)
+  until the copy is saved, discarded, or expires. Save re-mints a fresh URL for that attempt.
 - The stored copy is ephemeral:
   - It is deleted when the browser has received the expected number of bytes and
     `writeDownloadConfirmation` succeeds (the app retries the confirmation, and says so if the
@@ -523,6 +526,11 @@ mark. No product mutation edits message content, so this cannot be triggered thr
   - It expires 1 hour after it became ready, or 1 hour after the last download started.
   - Deleting the machine deletes it with the machine purge.
   - Terminal rows are kept for 10 minutes so the result can be read, then the cron deletes them.
+  - Residual limit: a blob the daemon uploaded but never reported (`reportUploaded` exhausted its
+    retries or the daemon died mid-upload) is not swept. The row never records its `storageId`, so
+    the cron cannot know about it, and no `_storage` sweep is run because it could delete blobs
+    that belong to other features. A later report for the same request deletes such a blob through
+    the orphan guard; otherwise it stays in storage until the deployment is cleaned manually.
 - One download at a time per machine. A second request while one is active is refused
   (`BACKUP_REQUEST_ACTIVE`); the other rows are disabled with an explanation.
 - A backup larger than 256 MiB is listed but cannot be downloaded (`BACKUP_TOO_LARGE`); the row

@@ -40,6 +40,9 @@ status: stable
   (`writeDownloadConfirmation`), on cancel, when it expires (1 hour after ready or after the last
   download start), and when the machine is deleted. Terminal rows are retained for 10 minutes so
   the UI can read the final state, then the cron deletes them and any leftover blob.
+  - Residual limit: an upload the daemon never reported leaves an unreferenced blob (the row has
+    no `storageId`); no `_storage` sweep runs, so only a later report for that request can delete
+    it through the orphan guard.
 - Access is owner-only through `requireMachineOwner`/session checks. No query returns `storageId`,
   `sha256` or a URL. `createDownloadAccess` (a mutation) mints a fresh URL for one attempt; the URL
   is never stored. The webapp warns that the archive contains the whole local Convex deployment,
