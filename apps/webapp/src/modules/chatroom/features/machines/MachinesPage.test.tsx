@@ -58,6 +58,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
         return undefined;
       case 'repositoryLedger:get':
         return undefined;
+      case 'machineBackups:getRequest':
+        return undefined;
+      case 'machineBackups:getActiveDownload':
+        return null;
       default:
         throw new Error(`Unexpected query: ${name}`);
     }

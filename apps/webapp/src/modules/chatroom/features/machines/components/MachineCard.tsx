@@ -7,6 +7,7 @@ import { DeleteMachineDialog } from './DeleteMachineDialog';
 import { buildMachineActions, type MachineAction } from './machineActions';
 import { MachineActionsMenu } from './MachineActionsMenu';
 import { MachineAliasField } from './MachineAliasField';
+import { MachineBackups } from './MachineBackups';
 import { MachineExportNotice } from './MachineExportNotice';
 import { MachineHarnessChips } from './MachineHarnessChips';
 import { MachineProjectRoots } from './MachineProjectRoots';
@@ -255,6 +256,17 @@ function MachineCardBody({ row, bodyId }: { row: MachineRowModel; bodyId: string
           connected={row.connected}
           hasRoots={roots === undefined ? undefined : roots.length > 0}
           currentRootPaths={roots?.map((root) => root.path)}
+        />
+      </section>
+      <section
+        aria-label="Backups"
+        data-testid="machine-backups-section"
+        className="border-t border-chatroom-border px-4 py-4 sm:px-6"
+      >
+        <MachineBackups
+          machineId={machine.machineId}
+          displayName={row.displayName}
+          connected={row.connected}
         />
       </section>
     </div>

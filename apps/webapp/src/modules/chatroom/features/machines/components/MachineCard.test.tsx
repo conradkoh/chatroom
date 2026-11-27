@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   requestPicker: vi.fn(),
   ledgerRequest: vi.fn(),
   ledgerDiscard: vi.fn(),
+  backupInventoryRequest: vi.fn(),
   createMany: vi.fn(),
   query: vi.fn(),
 }));
@@ -42,6 +43,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (name === 'repositoryLedger:get' || name === 'repositoryLedger:listEntries') {
       return undefined;
     }
+    if (name === 'machineBackups:getRequest') return undefined;
+    if (name === 'machineBackups:getActiveDownload') return null;
     throw new Error(`Unexpected query: ${name}`);
   },
   useSessionMutation: (mutation: unknown) => {
@@ -53,6 +56,11 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (name === 'folderPickerRequests:request') return mocks.requestPicker;
     if (name === 'repositoryLedger:request') return mocks.ledgerRequest;
     if (name === 'repositoryLedger:discard') return mocks.ledgerDiscard;
+    if (name.startsWith('machineBackups:')) {
+      return name === 'machineBackups:createInventoryRequest'
+        ? mocks.backupInventoryRequest
+        : vi.fn();
+    }
     if (name === 'chatrooms:createManyWithWorkspace') return mocks.createMany;
     throw new Error(`Unexpected mutation: ${name}`);
   },
@@ -114,6 +122,8 @@ describe('MachineList / MachineCard', () => {
     mocks.requestPicker.mockReset();
     mocks.ledgerRequest.mockReset();
     mocks.ledgerDiscard.mockReset();
+    mocks.backupInventoryRequest.mockReset();
+    mocks.backupInventoryRequest.mockResolvedValue({ requestId: 'backup-req-1', reused: false });
     mocks.createMany.mockReset();
     mocks.query.mockReset();
     mocks.query.mockImplementation(async (ref: { name?: string }) => {
@@ -280,6 +290,28 @@ describe('MachineList / MachineCard', () => {
     renderRow(makeRow({ connected: true }));
 
     expect(screen.queryByTestId('machine-export-notice')).toBeNull();
+  });
+
+  it('mounts the Backups section only while expanded and sends nothing until Check backups', async () => {
+    const row = makeRow({ connected: true });
+    const { rerender } = renderRow(row);
+
+    expect(screen.queryByTestId('machine-backups-section')).toBeNull();
+
+    rerender(<MachineList rows={[row]} expandedMachineId="machine-1" onToggle={() => {}} />);
+
+    const section = screen.getByTestId('machine-backups-section');
+    expect(within(section).getByTestId('machine-backups')).toBeInTheDocument();
+    expect(mocks.backupInventoryRequest).not.toHaveBeenCalled();
+    expect(section.contains(screen.getByTestId('backups-check'))).toBe(true);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('backups-check'));
+
+    await waitFor(() =>
+      expect(mocks.backupInventoryRequest).toHaveBeenCalledWith({ machineId: 'machine-1' })
+    );
+    expect(mocks.backupInventoryRequest).toHaveBeenCalledTimes(1);
   });
 
   it('starts the listing phase from the Export chatrooms action, even while offline', async () => {

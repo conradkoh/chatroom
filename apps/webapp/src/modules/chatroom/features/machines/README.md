@@ -195,6 +195,15 @@ rename. An empty value clears the alias.
 Keep machine mutation copy in `lib/machineErrorCopy.ts`. Extend its `MACHINE_ERROR_COPY` table for
 new backend codes instead of scattering strings across components.
 
+## Backups
+
+`MachineBackups` sits below the repository ledger in the expanded card. Inventory is on demand:
+nothing is subscribed or requested until the user presses **Check backups**, and the section only
+mounts while the card is expanded. A download is an ephemeral warned copy — Requested → Preparing
+→ Ready → Downloading → Done — whose short-lived URL exists only inside the save call, and whose
+cloud copy is deleted when `writeDownloadConfirmation` records receipt. Copy and failure mappings
+live in `lib/backupCopy.ts`.
+
 ## Not here yet
 
 Daemon updates are later packages.
