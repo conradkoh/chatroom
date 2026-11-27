@@ -8,9 +8,9 @@ import type { AgentStatus } from '../../hooks/useAgentStatuses';
 export type EphemeralCountKind = 'online' | 'offline' | 'errored';
 
 /**
- * Counts cover every ephemeral role, whether it renders outside the group
- * (working/errored) or inside it. `online` and `errored` are disjoint because
- * an errored agent is never online, so `online + offline + errored === total`.
+ * Counts cover every ephemeral role, whether it renders below the group (an
+ * active task is assigned) or inside it. `online` and `errored` are disjoint
+ * because an errored agent is never online, so `online + offline + errored === total`.
  */
 export interface EphemeralGroupCounts {
   online: number;
@@ -20,9 +20,9 @@ export interface EphemeralGroupCounts {
 }
 
 export interface EphemeralAgentGroups {
-  /** Team-order roles rendered below the group row: statusVariant working or error. */
+  /** Team-order roles rendered below the group row: an active task is assigned to the role. */
   outsideRoles: string[];
-  /** Team-order roles rendered inside the group: everything else, including roles with no status row. */
+  /** Team-order roles rendered inside the group: every other role, including roles with no status row. */
   memberRoles: string[];
   /** null while status data is loading; the group row then shows the loading line. */
   counts: EphemeralGroupCounts | null;
@@ -31,16 +31,14 @@ export interface EphemeralAgentGroups {
 export const EPHEMERAL_GROUP_LOADING_LABEL = 'Loading statuses…';
 export const EPHEMERAL_GROUP_EMPTY_LABEL = 'No agents in group';
 
-/** Status variants that render below the group row instead of inside it. */
-const OUTSIDE_VARIANTS: ReadonlySet<AgentStatus['statusVariant']> = new Set(['working', 'error']);
-
 /**
  * Splits ephemeral roles into the rows shown below the disclosure group and the
  * rows shown inside it, and derives the row counts.
  *
  * Constraints:
- * - Membership follows `statusVariant` only: `working` and `error` are outside,
- *   every other variant (and every role without a status row) is a member.
+ * - Membership follows `hasAssignedTask` only. A role with an active task assigned
+ *   renders outside, whatever its status. Every other role renders inside, including
+ *   working or errored roles with no assignment and roles with no status row.
  * - Team order is preserved in both lists; status array order is irrelevant.
  * - While statuses load no role is outside and counts are `null`, so the row
  *   never flashes a misleading split or zeroed counts.
@@ -57,10 +55,7 @@ export function deriveEphemeralAgentGroups(
   }
   const statusByRole = new Map(agentStatuses.map((status) => [status.role, status]));
   const statusOf = (role: string): AgentStatus | undefined => statusByRole.get(role);
-  const isOutside = (role: string): boolean => {
-    const variant = statusOf(role)?.statusVariant;
-    return variant !== undefined && OUTSIDE_VARIANTS.has(variant);
-  };
+  const isOutside = (role: string): boolean => statusOf(role)?.hasAssignedTask === true;
   const statuses = ephemeralRoles.map(statusOf);
   const online = statuses.filter((status) => status?.online === true).length;
   const errored = statuses.filter((status) => status?.statusVariant === 'error').length;

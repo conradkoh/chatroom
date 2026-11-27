@@ -47,7 +47,12 @@ const LABEL_BY_STATUS: Record<StatusValue, string> = {
 };
 
 /** Builds an `AgentStatus` literal without depending on the status hook. */
-function status(role: string, statusValue: StatusValue, online: boolean): AgentStatus {
+function status(
+  role: string,
+  statusValue: StatusValue,
+  online: boolean,
+  hasAssignedTask = false
+): AgentStatus {
   const statusVariant = VARIANT_BY_STATUS[statusValue];
   return {
     role,
@@ -56,32 +61,62 @@ function status(role: string, statusValue: StatusValue, online: boolean): AgentS
     statusLabel: LABEL_BY_STATUS[statusValue],
     statusVariant,
     isWorking: statusVariant === 'working',
+    hasAssignedTask,
   };
 }
 
+const NON_ASSIGNED_MEMBERS = [
+  'product-manager',
+  'researcher',
+  'reviewer',
+  'uiux-engineer',
+  'game-asset-designer',
+  'verifier',
+] as const;
+
 describe('deriveEphemeralAgentGroups', () => {
-  it('splits working and errored agents out while keeping team order', () => {
-    const statuses = [status('architect', 'working', true), status('triage', 'error', false)];
+  it('moves assigned agents outside while keeping team order', () => {
+    const statuses = [
+      status('architect', 'working', true, true),
+      status('triage', 'error', false, true),
+    ];
 
     const groups = deriveEphemeralAgentGroups(DUO_ROLES, statuses, false);
 
     expect(groups.outsideRoles).toEqual(['architect', 'triage']);
-    expect(groups.memberRoles).toEqual([
-      'product-manager',
-      'researcher',
-      'reviewer',
-      'uiux-engineer',
-      'game-asset-designer',
-      'verifier',
-    ]);
+    expect(groups.memberRoles).toEqual([...NON_ASSIGNED_MEMBERS]);
+    expect(groups.counts).toEqual({ online: 1, offline: 6, errored: 1, total: 8 });
+  });
+
+  it.each(['starting', 'waiting', 'offline', 'error', 'working'] as const)(
+    'moves an assigned %s agent outside',
+    (statusValue) => {
+      const online = statusValue !== 'offline' && statusValue !== 'error';
+      const groups = deriveEphemeralAgentGroups(
+        DUO_ROLES,
+        [status('architect', statusValue, online, true)],
+        false
+      );
+
+      expect(groups.outsideRoles).toEqual(['architect']);
+    }
+  );
+
+  it('keeps working and errored agents without an assignment inside the group', () => {
+    const statuses = [status('architect', 'working', true), status('triage', 'error', false)];
+
+    const groups = deriveEphemeralAgentGroups(DUO_ROLES, statuses, false);
+
+    expect(groups.outsideRoles).toEqual([]);
+    expect(groups.memberRoles).toEqual([...DUO_ROLES]);
     expect(groups.counts).toEqual({ online: 1, offline: 6, errored: 1, total: 8 });
   });
 
   it('follows ephemeral role order, not status array order', () => {
     const statuses = [
-      status('verifier', 'working', true),
-      status('architect', 'working', true),
-      status('product-manager', 'working', true),
+      status('verifier', 'working', true, true),
+      status('architect', 'working', true, true),
+      status('product-manager', 'working', true, true),
     ];
 
     const groups = deriveEphemeralAgentGroups(DUO_ROLES, statuses, false);
@@ -89,28 +124,21 @@ describe('deriveEphemeralAgentGroups', () => {
     expect(groups.outsideRoles).toEqual(['product-manager', 'architect', 'verifier']);
   });
 
-  it('treats lifecycle statuses as members and counts them once each', () => {
+  it('counts lifecycle statuses once each, whether assigned or not', () => {
     const statuses = [
       status('product-manager', 'starting', true),
       status('researcher', 'waiting', true),
       status('reviewer', 'stopping', true),
       status('verifier', 'offline', false),
-      status('architect', 'working', true),
-      status('triage', 'error', false),
+      status('architect', 'working', true, true),
+      status('triage', 'error', false, true),
     ];
 
     const groups = deriveEphemeralAgentGroups(DUO_ROLES, statuses, false);
 
     expect(groups.counts).toEqual({ online: 4, offline: 3, errored: 1, total: 8 });
     expect(groups.outsideRoles).toEqual(['architect', 'triage']);
-    expect(groups.memberRoles).toEqual([
-      'product-manager',
-      'researcher',
-      'reviewer',
-      'uiux-engineer',
-      'game-asset-designer',
-      'verifier',
-    ]);
+    expect(groups.memberRoles).toEqual([...NON_ASSIGNED_MEMBERS]);
   });
 
   it('keeps counts summing to the total', () => {
@@ -129,10 +157,10 @@ describe('deriveEphemeralAgentGroups', () => {
     expect(counts!.online + counts!.offline + counts!.errored).toBe(counts!.total);
   });
 
-  it('treats every ephemeral role as a member while statuses load', () => {
+  it('treats every ephemeral role as a member while statuses load, even when assigned', () => {
     const groups = deriveEphemeralAgentGroups(
       DUO_ROLES,
-      [status('architect', 'working', true)],
+      [status('architect', 'working', true, true)],
       true
     );
 
@@ -155,8 +183,8 @@ describe('deriveEphemeralAgentGroups', () => {
     expect(counts).toEqual({ online: 0, offline: 8, errored: 0, total: 8 });
   });
 
-  it('moves every role outside when all are working', () => {
-    const statuses = DUO_ROLES.map((role) => status(role, 'working', true));
+  it('moves every role outside when all have an assigned task', () => {
+    const statuses = DUO_ROLES.map((role) => status(role, 'working', true, true));
 
     const groups = deriveEphemeralAgentGroups(DUO_ROLES, statuses, false);
 
