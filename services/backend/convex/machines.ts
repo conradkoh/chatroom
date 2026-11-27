@@ -752,7 +752,7 @@ export const getMachineCapabilities = query({
   handler: async (ctx, args) => {
     const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) {
-      return { availableHarnesses: [], harnessVersions: {} };
+      return { availableHarnesses: [], harnessVersions: {}, reported: false };
     }
 
     const capabilities = await ctx.db
@@ -763,6 +763,8 @@ export const getMachineCapabilities = query({
     return {
       availableHarnesses: capabilities?.availableHarnesses ?? [],
       harnessVersions: capabilities?.harnessVersions ?? {},
+      // Reported = the daemon wrote a harness list. A row without one is not a report.
+      reported: capabilities?.availableHarnesses !== undefined,
     };
   },
 });
