@@ -255,6 +255,14 @@ export type BackendErrorCode =
   | 'IMPORT_TARGET_NOT_IMPORTING'
   | 'IMPORT_CHUNK_FAILED'
 
+  // ── Agent configuration (agents.applyConfig / agents.getAgentModelOptions) ──
+  | 'AGENT_CONFIG_ROLE_NOT_IN_TEAM'
+  | 'AGENT_CONFIG_TEAM_MISMATCH'
+  | 'AGENT_CONFIG_NO_WORKSPACE'
+  | 'AGENT_CONFIG_HARNESS_UNAVAILABLE'
+  | 'AGENT_CONFIG_MODEL_UNAVAILABLE'
+  | 'AGENT_CONFIG_NOT_REMOTE'
+
   // ── Machine backups ───────────────────────────────────────────────────
   | 'BACKUP_NOT_FOUND'
   | 'BACKUP_INVALID_FILENAME'
@@ -662,6 +670,20 @@ export const BACKEND_ERROR_CODES = {
   /** An import chunk failed after it started writing */
   IMPORT_CHUNK_FAILED: 'IMPORT_CHUNK_FAILED',
 
+  // ── Agent configuration (agents.applyConfig / agents.getAgentModelOptions) ──
+  /** The role is not a member of the chatroom's team (or is the user role) */
+  AGENT_CONFIG_ROLE_NOT_IN_TEAM: 'AGENT_CONFIG_ROLE_NOT_IN_TEAM',
+  /** The requested team is not the chatroom's active team */
+  AGENT_CONFIG_TEAM_MISMATCH: 'AGENT_CONFIG_TEAM_MISMATCH',
+  /** No active workspace resolves for the role, or an explicit workspace is not active in this chatroom */
+  AGENT_CONFIG_NO_WORKSPACE: 'AGENT_CONFIG_NO_WORKSPACE',
+  /** The harness is not available on the role's machine */
+  AGENT_CONFIG_HARNESS_UNAVAILABLE: 'AGENT_CONFIG_HARNESS_UNAVAILABLE',
+  /** The model is not in the machine's catalog for that harness */
+  AGENT_CONFIG_MODEL_UNAVAILABLE: 'AGENT_CONFIG_MODEL_UNAVAILABLE',
+  /** The role's stored launch request is not a remote config (custom agent) */
+  AGENT_CONFIG_NOT_REMOTE: 'AGENT_CONFIG_NOT_REMOTE',
+
   // ── Machine backups ───────────────────────────────────────────────────
   /** The machine or the backup request does not exist for this caller */
   BACKUP_NOT_FOUND: 'BACKUP_NOT_FOUND',
@@ -922,6 +944,14 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.IMPORT_MACHINE_NOT_OWNED,
   BACKEND_ERROR_CODES.IMPORT_TARGET_NOT_IMPORTING,
   BACKEND_ERROR_CODES.IMPORT_CHUNK_FAILED,
+
+  // Agent configuration (recoverable with different input)
+  BACKEND_ERROR_CODES.AGENT_CONFIG_ROLE_NOT_IN_TEAM,
+  BACKEND_ERROR_CODES.AGENT_CONFIG_TEAM_MISMATCH,
+  BACKEND_ERROR_CODES.AGENT_CONFIG_NO_WORKSPACE,
+  BACKEND_ERROR_CODES.AGENT_CONFIG_HARNESS_UNAVAILABLE,
+  BACKEND_ERROR_CODES.AGENT_CONFIG_MODEL_UNAVAILABLE,
+  BACKEND_ERROR_CODES.AGENT_CONFIG_NOT_REMOTE,
 
   // Machine backups
   BACKEND_ERROR_CODES.BACKUP_NOT_FOUND,
