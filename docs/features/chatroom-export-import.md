@@ -132,7 +132,8 @@ Options:
 - Listing needs no session, no network call and no machine id (D5). `--list` prints the file's
   chatrooms and exits `0` without writing anything.
 - A bundle import always prints the listing first, so the numbers and ids the prompt accepts are on
-  screen. A single-chatroom import also prints its one-entry listing.
+  screen. A single-chatroom import prints its one-entry listing only with `--list`; without it the
+  chatroom imports directly.
 - Each entry prints its 1-based position, name (or `Untitled chatroom`), source chatroom id, team
   structure, status, export time, message/task/backlog counts, working-directory count, and any
   omitted attachments.
