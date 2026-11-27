@@ -286,7 +286,7 @@ export function useMachineBackups(
   const [failure, setFailure] = useState<FailureView | null>(null);
   const [receivedBytes, setReceivedBytes] = useState(0);
   const [saving, setSaving] = useState(false);
-  const hasPreviousRef = useRef(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
   const savingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const now = useNow(TICK_MS);
@@ -316,12 +316,8 @@ export function useMachineBackups(
     connected: gate.connected,
     offlineRejected,
     callFailure,
-    hasPrevious: hasPreviousRef.current,
+    hasPrevious,
   });
-
-  useEffect(() => {
-    if (inventory.kind === 'ready') hasPreviousRef.current = true;
-  }, [inventory.kind]);
 
   const download: BackupDownloadView =
     failure ?? downloadRowView(trackedRow ?? activeRow, now, receivedBytes);
@@ -332,6 +328,7 @@ export function useMachineBackups(
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const refresh = useCallback(async () => {
+    if (inventory.kind === 'ready') setHasPrevious(true);
     setCallFailure(null);
     try {
       const { requestId } = await createInventoryRequest({ machineId });
@@ -341,7 +338,7 @@ export function useMachineBackups(
       if (getConvexErrorCode(error) === MACHINE_OFFLINE_CODE) setOfflineRejected(true);
       else setCallFailure(getMachineErrorCopy(error, REQUEST_FALLBACK_COPY));
     }
-  }, [createInventoryRequest, machineId]);
+  }, [createInventoryRequest, inventory.kind, machineId]);
 
   const requestDownload = useCallback(
     async (filename: string) => {

@@ -37,19 +37,13 @@ export type BackupKind = 'inventory' | 'download';
 export type BackupStatus = Infer<typeof machineBackupStatusValidator>;
 
 /** Statuses in which a download still owns (or is about to own) a stored copy. */
-export const ACTIVE_DOWNLOAD_STATUSES = ['requested', 'preparing', 'ready', 'downloading'] as const;
+const ACTIVE_DOWNLOAD_STATUSES = ['requested', 'preparing', 'ready', 'downloading'] as const;
 
 /** Statuses that no longer change; the cron eventually deletes the row. */
-export const TERMINAL_STATUSES = [
-  'downloaded',
-  'completed',
-  'failed',
-  'expired',
-  'cancelled',
-] as const;
+const TERMINAL_STATUSES = ['downloaded', 'completed', 'failed', 'expired', 'cancelled'] as const;
 
 /** A reported blob may be treated as an orphan for this long after creation. */
-export const ORPHAN_BLOB_WINDOW_MS = 2 * 60 * 60_000;
+const ORPHAN_BLOB_WINDOW_MS = 2 * 60 * 60_000;
 
 /** True when the status is terminal and therefore immutable. */
 export function isTerminal(status: BackupStatus): boolean {

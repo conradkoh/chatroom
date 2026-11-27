@@ -304,6 +304,10 @@ describe('MachineBackups', () => {
     expect(
       screen.getAllByTestId('backup-download').every((button) => button.hasAttribute('disabled'))
     ).toBe(true);
+    expect(screen.getAllByTestId('backup-download')[0]).toHaveAttribute(
+      'title',
+      BACKUP_OFFLINE_COPY
+    );
     expect(
       screen.getByText('Larger than the 256 MB download limit. Copy it from the machine directly.')
     ).toBeInTheDocument();

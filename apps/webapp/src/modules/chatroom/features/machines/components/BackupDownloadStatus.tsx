@@ -133,9 +133,10 @@ function ActiveStatus({
   onCancel(): void;
   statusRef: RefObject<HTMLDivElement | null>;
 }) {
-  // The elapsed counter ticks every second only while preparing; the expiry counter every 30 s.
-  const fastNow = useNow(1000);
-  const slowNow = useNow(30_000);
+  // The elapsed counter ticks every second only while preparing; the expiry counter every 30 s
+  // only while ready. `useNow(0)` installs no timer, so the other states do not re-render.
+  const fastNow = useNow(view.kind === 'preparing' ? 1000 : 0);
+  const slowNow = useNow(view.kind === 'ready' ? 30_000 : 0);
   const copy = activeCopy(view, displayName, fastNow, slowNow);
   const detail =
     view.kind === 'preparing'

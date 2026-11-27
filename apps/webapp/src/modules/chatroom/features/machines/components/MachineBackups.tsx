@@ -209,6 +209,12 @@ function EmptyBody({
   );
 }
 
+/** Offline wins over busy so a stale snapshot explains why nothing can be downloaded. */
+function rowDisabledTitle(connected: boolean | undefined, busy: boolean): string | undefined {
+  if (connected !== true) return BACKUP_OFFLINE_COPY;
+  return busy ? 'Another backup is being prepared on this machine.' : undefined;
+}
+
 function SnapshotList({
   view,
   connected,
@@ -252,7 +258,7 @@ function SnapshotList({
               backup={backup}
               tooLarge={tooLarge}
               disabled={connected !== true || busy || tooLarge}
-              disabledTitle={busy ? 'Another backup is being prepared on this machine.' : undefined}
+              disabledTitle={rowDisabledTitle(connected, busy)}
               activeHere={activeFilename === backup.filename}
               onDownload={() => onDownload(backup)}
             />

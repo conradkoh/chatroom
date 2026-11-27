@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
 import {
-  ACTIVE_DOWNLOAD_STATUSES,
-  TERMINAL_STATUSES,
   canTransition,
   isActiveDownloadStatus,
   isTerminal,
@@ -21,32 +19,22 @@ const ALL_STATUSES: BackupStatus[] = [
   'cancelled',
 ];
 
+/** Literal expectation, not the implementation's own grouping constant. */
+const TERMINAL_STATUSES: BackupStatus[] = [
+  'downloaded',
+  'completed',
+  'failed',
+  'expired',
+  'cancelled',
+];
+
 describe('machine backup status groups', () => {
   test('terminal statuses are the five finished states', () => {
-    expect(ALL_STATUSES.filter(isTerminal)).toEqual([
-      'downloaded',
-      'completed',
-      'failed',
-      'expired',
-      'cancelled',
-    ]);
-    expect([...TERMINAL_STATUSES]).toEqual([
-      'downloaded',
-      'completed',
-      'failed',
-      'expired',
-      'cancelled',
-    ]);
+    expect(ALL_STATUSES.filter(isTerminal)).toEqual(TERMINAL_STATUSES);
   });
 
   test('active download statuses are the four non-terminal download states', () => {
     expect(ALL_STATUSES.filter(isActiveDownloadStatus)).toEqual([
-      'requested',
-      'preparing',
-      'ready',
-      'downloading',
-    ]);
-    expect([...ACTIVE_DOWNLOAD_STATUSES]).toEqual([
       'requested',
       'preparing',
       'ready',
