@@ -43,7 +43,7 @@ flow.
 3. **Fresh specifier sessions are deferred.** The specifier's `new` policy is
    applied to the task that a later `coordinator` → `specifier` handoff creates.
    A `builder` handback continues the specifier's session, so the specifier can
-   review the slice in the context that wrote the brief. The fresh session takes
+   review the package in the context that wrote the brief. The fresh session takes
    effect when the next coordinator delegation is delivered.
 4. **Advisory teams are unchanged.** Duo and Solo keep
    `handoffGraph: 'advisory'` and an empty rule list. They continue to inherit
