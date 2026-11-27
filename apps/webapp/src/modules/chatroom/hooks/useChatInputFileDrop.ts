@@ -13,7 +13,7 @@ import {
   type ClipboardEvent,
 } from 'react';
 
-import { getImageFilesFromClipboard } from './clipboardImageFiles';
+import { getFilesFromClipboard } from './clipboardImageFiles';
 import { formatFileReferenceFinal } from '../triggers/fileReferenceQuery';
 import { insertMultipleAtCaret } from '../utils/insertTextAtCaret';
 import { useWorkspaceUploadJobs } from '../workspace/hooks/useWorkspaceUploadJobs';
@@ -143,10 +143,10 @@ export function useChatInputFileDrop({
 
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>) => {
-      const images = getImageFilesFromClipboard(event.clipboardData);
-      if (images.length === 0) return;
+      const files = getFilesFromClipboard(event.clipboardData);
+      if (files.length === 0) return;
       event.preventDefault();
-      attachFiles(images);
+      attachFiles(files);
     },
     [attachFiles]
   );

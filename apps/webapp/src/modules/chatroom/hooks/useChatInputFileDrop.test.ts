@@ -49,6 +49,21 @@ function makePasteEvent(files: File[]): React.ClipboardEvent<HTMLTextAreaElement
   } as unknown as React.ClipboardEvent<HTMLTextAreaElement>;
 }
 
+function makeFilesOnlyPasteEvent(files: File[]): React.ClipboardEvent<HTMLTextAreaElement> {
+  return {
+    preventDefault: vi.fn(),
+    clipboardData: { items: [], files },
+  } as unknown as React.ClipboardEvent<HTMLTextAreaElement>;
+}
+
+function makeTextPasteEvent(_text: string): React.ClipboardEvent<HTMLTextAreaElement> {
+  const items = [{ kind: 'string', type: 'text/plain', getAsFile: () => null }];
+  return {
+    preventDefault: vi.fn(),
+    clipboardData: { items, files: [] },
+  } as unknown as React.ClipboardEvent<HTMLTextAreaElement>;
+}
+
 describe('useChatInputFileDrop', () => {
   beforeEach(() => {
     mockStartUpload.mockReset();
@@ -189,13 +204,81 @@ describe('useChatInputFileDrop', () => {
     expect(mockStartUpload).toHaveBeenCalledTimes(1);
   });
 
-  it('does not preventDefault when clipboard has no images', () => {
-    const event = makePasteEvent([new File(['x'], 'note.txt', { type: 'text/plain' })]);
+  it('attaches a files-only paste at the caret and prevents default', () => {
+    const setMessage = vi.fn();
+    const textareaRef = { current: { selectionStart: 7 } as HTMLTextAreaElement };
     const { result } = renderHook(() =>
-      useChatInputFileDrop({ message: 'hey', setMessage: vi.fn(), textareaRef: { current: null } })
+      useChatInputFileDrop({
+        machineId: 'm',
+        workingDir: '/w',
+        message: 'before after',
+        setMessage,
+        textareaRef,
+      })
     );
+    const event = makeFilesOnlyPasteEvent([new File(['x'], 'blob', { type: 'image/png' })]);
+    act(() => result.current.handlePaste(event));
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(setMessage.mock.calls[0]?.[0]).toMatch(/^before .+pasted-image\.png after$/);
+    expect(mockStartUpload).toHaveBeenCalledWith(
+      expect.stringContaining('pasted-image.png'),
+      expect.any(File),
+      { uploadKind: 'chatAttachment' }
+    );
+  });
+
+  it('attaches a pasted non-image file by its real name', () => {
+    const setMessage = vi.fn();
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({
+        machineId: 'm',
+        workingDir: '/w',
+        message: '',
+        setMessage,
+        textareaRef: { current: null },
+      })
+    );
+    const event = makeFilesOnlyPasteEvent([
+      new File(['%PDF'], 'report.pdf', { type: 'application/pdf' }),
+    ]);
+    act(() => result.current.handlePaste(event));
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(setMessage.mock.calls[0]?.[0]).toContain('report.pdf');
+    expect(mockStartUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it('uploads a file present in both items and files once', () => {
+    const image = new File(['x'], 'blob', { type: 'image/png' });
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({
+        machineId: 'm',
+        workingDir: '/w',
+        message: '',
+        setMessage: vi.fn(),
+        textareaRef: { current: null },
+      })
+    );
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => image }],
+        files: [image],
+      },
+    } as unknown as React.ClipboardEvent<HTMLTextAreaElement>;
+    act(() => result.current.handlePaste(event));
+    expect(mockStartUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a text-only paste untouched', () => {
+    const setMessage = vi.fn();
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({ message: 'hey', setMessage, textareaRef: { current: null } })
+    );
+    const event = makeTextPasteEvent('hello');
     act(() => result.current.handlePaste(event));
     expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(setMessage).not.toHaveBeenCalled();
+    expect(mockStartUpload).not.toHaveBeenCalled();
   });
 
   it('sets the no-workspace message when pasting image without workspace', () => {
